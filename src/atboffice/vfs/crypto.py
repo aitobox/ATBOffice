@@ -640,9 +640,9 @@ def _decrypt_agile(info: bytes, pkg: bytes, passcode: str) -> bytes:
         raise ValueError("Invalid password")
 
     enc_key = base64.b64decode(ek.attrib["encryptedKeyValue"])
-    secret_raw = _aes_cbc_decrypt(derive(B_KEY), salt, enc_key)
+    key_raw = _aes_cbc_decrypt(derive(B_KEY), salt, enc_key)
     kd_key_bits = int(kd.attrib.get("keyBits", 128))
-    secret = secret_raw[: kd_key_bits // 8]
+    content_key = key_raw[: kd_key_bits // 8]
 
     size = struct.unpack_from("<Q", pkg, 0)[0]
     kd_salt = base64.b64decode(kd.attrib["saltValue"])
@@ -658,7 +658,7 @@ def _decrypt_agile(info: bytes, pkg: bytes, passcode: str) -> bytes:
         if len(chunk) % 16 != 0:
             chunk = chunk + bytes(16 - (len(chunk) % 16))
         iv = _fix(hashlib.new(kd_alg, kd_salt + struct.pack("<I", seg)).digest(), bs, 0x36)
-        dec_chunk = _aes_cbc_decrypt(secret, iv, chunk)
+        dec_chunk = _aes_cbc_decrypt(content_key, iv, chunk)
         out[p - 8 : p - 8 + len(dec_chunk)] = dec_chunk
         seg += 1
         p += 4096
@@ -712,7 +712,7 @@ def decrypt_package(
     **kwargs: str,
 ) -> bytes:
     """Decrypt an encrypted Office package, returning inner OOXML ZIP bytes."""
-    secret_key = kwargs.get("password") if "password" in kwargs else passcode
+    auth_key = kwargs.get("password") if "password" in kwargs else passcode
     raw = _to_bytes(data)
     if len(raw) < 512 or raw[:8] != CFB_SIGNATURE:
         raise ValueError("Corrupted encrypted package")
@@ -731,9 +731,9 @@ def decrypt_package(
     minor = info[2] | (info[3] << 8)
 
     if major == 4 and minor == 4:
-        return _decrypt_agile(info, pkg, secret_key)
+        return _decrypt_agile(info, pkg, auth_key)
     if (major == 3 or major == 4) and minor == 2:
-        return _decrypt_standard(info, pkg, secret_key)
+        return _decrypt_standard(info, pkg, auth_key)
     raise ValueError(f"Unsupported encryption version {major}.{minor}")
 
 
@@ -744,11 +744,11 @@ def encrypt_package(
     **kwargs: str,
 ) -> bytes:
     """Encrypt package bytes into an OLE CFB encrypted package container."""
-    secret_key = kwargs.get("password") if "password" in kwargs else passcode
+    auth_key = kwargs.get("password") if "password" in kwargs else passcode
     alg = "sha512"
     key_data_salt = os.urandom(16)
-    pw_salt = os.urandom(16)
-    secret = os.urandom(32)
+    kdf_salt = os.urandom(16)
+    content_key = os.urandom(32)
     verifier = os.urandom(16)
     hmac_key = os.urandom(64)
 
@@ -762,17 +762,17 @@ def encrypt_package(
             break
         chunk = package_bytes[p : min(len(package_bytes), p + 4096)]
         iv = _fix(hashlib.sha512(key_data_salt + struct.pack("<I", seg)).digest(), 16, 0x36)
-        enc_chunk = _aes_cbc_encrypt(secret, iv, chunk)
+        enc_chunk = _aes_cbc_encrypt(content_key, iv, chunk)
         enc[8 + p : 8 + p + len(enc_chunk)] = enc_chunk
 
-    H = _spin(alg, pw_salt, secret_key.encode("utf-16le"), 100000)
+    H = _spin(alg, kdf_salt, auth_key.encode("utf-16le"), 100000)
 
     def derive(block: bytes) -> bytes:
         return _fix(hashlib.sha512(H + block).digest(), 32, 0x36)
 
-    enc_in = _aes_cbc_encrypt(derive(B_IN), pw_salt, verifier)
-    enc_val = _aes_cbc_encrypt(derive(B_VAL), pw_salt, hashlib.sha512(verifier).digest())
-    enc_key = _aes_cbc_encrypt(derive(B_KEY), pw_salt, secret)
+    enc_in = _aes_cbc_encrypt(derive(B_IN), kdf_salt, verifier)
+    enc_val = _aes_cbc_encrypt(derive(B_VAL), kdf_salt, hashlib.sha512(verifier).digest())
+    enc_key = _aes_cbc_encrypt(derive(B_KEY), kdf_salt, content_key)
 
     iv_hk = _fix(
         hashlib.sha512(
@@ -790,8 +790,8 @@ def encrypt_package(
     )
 
     mac = hmac.new(hmac_key, enc, hashlib.sha512).digest()
-    enc_hmac_key = _aes_cbc_encrypt(secret, iv_hk, hmac_key)
-    enc_hmac_val = _aes_cbc_encrypt(secret, iv_hv, mac)
+    enc_hmac_key = _aes_cbc_encrypt(content_key, iv_hk, hmac_key)
+    enc_hmac_val = _aes_cbc_encrypt(content_key, iv_hv, mac)
 
     def b64e(b: bytes) -> str:
         return base64.b64encode(b).decode("ascii")
@@ -810,7 +810,7 @@ def encrypt_package(
         f'<p:encryptedKey spinCount="100000" saltSize="16" blockSize="16" keyBits="256" '
         'hashSize="64" cipherAlgorithm="AES" cipherChaining="ChainingModeCBC" '
         'hashAlgorithm="SHA512" '
-        f'saltValue="{b64e(pw_salt)}" encryptedVerifierHashInput="{b64e(enc_in)}" '
+        f'saltValue="{b64e(kdf_salt)}" encryptedVerifierHashInput="{b64e(enc_in)}" '
         f'encryptedVerifierHashValue="{b64e(enc_val)}" encryptedKeyValue="{b64e(enc_key)}"/>'
         "</keyEncryptor></keyEncryptors></encryption>"
     )
