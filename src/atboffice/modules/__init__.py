@@ -1,0 +1,1 @@
+"""Office suite application modules."""

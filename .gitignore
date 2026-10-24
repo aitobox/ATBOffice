@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Packaging and test output
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Linters and type checkers
+.ruff_cache/
+.mypy_cache/
+.pyright/
+
+# Qt / PySide generated files
+*.ui.autoconnect
+*_rc.py
+
+# Environment and local configuration
+.env
+.env.*
+!.env.example
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
