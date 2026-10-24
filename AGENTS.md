@@ -69,27 +69,6 @@ ATBOffice/
 - Source code is strictly managed under `src/atboffice/`.
 - Recent commits: Migrated to dedicated `ATBOffice` repo, established standard `src/` layout.
 
-## Port Status (Gap Analysis Summary)
-
-**40 functional domains evaluated, in 3 categories:**
-
-### ✅ Fully Ported (27)
-File panel, tabs, fs model, file ops (copy/move/delete/rename), directory watcher, config, hotkeys, archive VFS (read), archive pack/unpack, search dialog, sync directories, file split/combine, checksum, multi-rename, file viewer, file editor, properties dialog, logging, drag & drop, clipboard, sorting, filtering, panel/tab/keyboard/sorting/layout/history commands.
-
-### 🔴 High Priority — Not Implemented (4)
-| Task | File | Description |
-|------|------|-------------|
-| 01 | `tasks/01_network_vfs.md` | FTP/SFTP/Samba/WebDAV VFS |
-| 02 | `tasks/02_elevation.md` | sudo/pkexec/UAC privileged ops |
-| 03 | `tasks/03_file_diff.md` | Built-in side-by-side file diff |
-| 04 | `tasks/04_complete_command_system.md` | All ~230 cm_* commands |
-
-### 🟡 Medium Priority — Not Implemented (9)
-05-Lua scripting, 06-DSX search plugins, 07-hotkey editor, 08-toolbar editor, 09-i18n, 10-thumbnails, 11-file associations, 12-disk benchmark, 13-compare by content.
-
-### 🟢 Low Priority — Not Implemented (8)
-14-terminal emulator, 15-custom columns, 16-tree view, 17-focus history, 18-path autocomplete, 19-embedded command line, 20-help system, 21-CLI arguments.
-
 ## Task Implementation Pattern
 
 Each task file in `docs/tasks/` follows this structure:
@@ -132,3 +111,4 @@ This is a port, not a redesign. When implementing a  feature:
 4. Add tests alongside implementation.
 5. **i18n is Mandatory**: For all new features, wrap 100% of UI control text (buttons, menus, tooltips, dialogs) in `tr()`/`safe_tr()` and provide vivid, accurate, and idiomatic translations (所有控件文字均须实现形象准确的地道翻译，严禁生硬机翻或中英混杂). Always implement `retranslate_ui`.
 6. **Be Comprehensive, Not Lazy**: Anticipate problems before the user finds them. Handle name conflicts, missing permissions, and empty states proactively. Don't wait for explicit instructions to write robust code.
+7. When encountering unfamiliar functions, do not immediately start from scratch. Instead, search for active and clearly licensed similar open-source projects on GitHub, compare the implementation ideas, dependencies, and known issues. Prioritize adopting verified designs and avoid directly copying incompatible or unverified code.
