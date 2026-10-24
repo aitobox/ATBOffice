@@ -1,7 +1,7 @@
 """Lossless Open Packaging Conventions (OPC) Container Engine.
 
-Provides immutable SourcePackage reading and lossless PackageWriter serialization
-with byte-for-byte carry of untouched components and atomic saving.
+Provides immutable source package inspection and byte-for-byte carry
+for unmodified package parts according to ECMA-376 Open Packaging Conventions.
 """
 
 from __future__ import annotations
@@ -13,147 +13,152 @@ import xml.etree.ElementTree as ET
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import BinaryIO, Dict, List, Optional, Sequence, Union
+from typing import Dict, List, Optional, Set
 
-from .xml_tree import parse_xml, serialize_xml
-
+# Standard OPC Namespaces
 NS_CONTENT_TYPES = "http://schemas.openxmlformats.org/package/2006/content-types"
 NS_RELATIONSHIPS = "http://schemas.openxmlformats.org/package/2006/relationships"
 
 
 @dataclass(frozen=True)
 class Relationship:
-    """Represents an OPC relationship entry."""
+    """Represents an OPC part relationship item."""
 
     id: str
     type: str
     target: str
     target_mode: str = "Internal"
 
-    @property
-    def is_external(self) -> bool:
-        return self.target_mode.lower() == "external"
-
 
 def _normalize_part_name(part_name: str) -> str:
-    """Normalize OPC part name by stripping leading/trailing slashes and whitespace."""
-    normalized = part_name.strip()
-    while normalized.startswith("/"):
-        normalized = normalized[1:]
-    return normalized
+    """Normalize OPC part name by stripping leading slashes."""
+    return part_name.lstrip("/")
 
 
-def _get_rels_path_for_part(part_name: str) -> str:
-    """Return the corresponding .rels part name for a given part.
-    
-    Empty string '' corresponds to package-level '_rels/.rels'.
-    'xl/workbook.xml' corresponds to 'xl/_rels/workbook.xml.rels'.
+def _get_rels_path(owner_part: str) -> str:
+    """Compute the path of the .rels part for a given owner part name.
+
+    Package-level root ('') -> '_rels/.rels'
+    'xl/workbook.xml' -> 'xl/_rels/workbook.xml.rels'
+    'workbook.xml' -> '_rels/workbook.xml.rels'
     """
-    clean = _normalize_part_name(part_name)
-    if not clean:
+    owner = _normalize_part_name(owner_part)
+    if not owner:
         return "_rels/.rels"
-    slash_idx = clean.rfind("/")
-    if slash_idx == -1:
-        return f"_rels/{clean}.rels"
-    dir_part = clean[:slash_idx]
-    filename = clean[slash_idx + 1 :]
-    return f"{dir_part}/_rels/{filename}.rels"
+    if "/" in owner:
+        dir_name, file_name = owner.rsplit("/", 1)
+        return f"{dir_name}/_rels/{file_name}.rels"
+    return f"_rels/{owner}.rels"
+
+
+def _get_owner_from_rels_path(rels_path: str) -> str:
+    """Compute owner part name from a .rels part path.
+
+    '_rels/.rels' -> ''
+    'xl/_rels/workbook.xml.rels' -> 'xl/workbook.xml'
+    '_rels/foo.xml.rels' -> 'foo.xml'
+    """
+    path = _normalize_part_name(rels_path)
+    if path == "_rels/.rels":
+        return ""
+    if "/_rels/" in path:
+        dir_name, rels_name = path.rsplit("/_rels/", 1)
+        if rels_name.endswith(".rels"):
+            part_name = rels_name[:-5]
+            return f"{dir_name}/{part_name}" if dir_name else part_name
+    elif path.startswith("_rels/") and path.endswith(".rels"):
+        return path[6:-5]
+    return ""
 
 
 class SourcePackage:
-    """Immutable reader for an Open Packaging Conventions (OPC) package."""
+    """Immutable inspection wrapper over an OOXML / OPC ZIP container."""
 
     def __init__(
         self,
-        parts: Dict[str, bytes],
-        defaults: Dict[str, str],
-        overrides: Dict[str, str],
+        parts_data: Dict[str, bytes],
+        content_types: Dict[str, str],
+        default_content_types: Dict[str, str],
         relationships: Dict[str, List[Relationship]],
     ) -> None:
-        self._parts = dict(parts)
-        self._defaults = dict(defaults)
-        self._overrides = dict(overrides)
-        self._relationships = {k: list(v) for k, v in relationships.items()}
+        self._parts_data = parts_data
+        self._content_types = content_types
+        self._default_content_types = default_content_types
+        self._relationships = relationships
 
     @classmethod
-    def open(cls, file_or_bytes: Union[Path, str, bytes, BinaryIO]) -> SourcePackage:
-        """Open an OPC package from a file path, bytes, or file-like object."""
-        if isinstance(file_or_bytes, (str, Path)):
-            path = Path(file_or_bytes)
-            if not path.exists():
-                raise FileNotFoundError(f"File not found: {path}")
+    def open(cls, file_path: Path | str) -> SourcePackage:
+        """Open an OPC package from file path."""
+        path = Path(file_path)
+        if not path.is_file():
+            raise FileNotFoundError(f"File not found: {path}")
+        try:
             raw_bytes = path.read_bytes()
-        elif isinstance(file_or_bytes, bytes):
-            raw_bytes = file_or_bytes
-        else:
-            raw_bytes = file_or_bytes.read()
-
+        except OSError as exc:
+            raise ValueError(f"Failed to read file: {exc}") from exc
         return cls.from_bytes(raw_bytes)
 
     @classmethod
     def from_bytes(cls, data: bytes) -> SourcePackage:
-        """Construct a SourcePackage from in-memory bytes."""
-        if not zipfile.is_zipfile(io.BytesIO(data)):
-            raise ValueError("Not a valid ZIP/OPC package: magic signature mismatch")
-
-        parts: Dict[str, bytes] = {}
+        """Open an OPC package from raw bytes."""
         try:
-            with zipfile.ZipFile(io.BytesIO(data), "r") as zf:
-                for zip_info in zf.infolist():
-                    name = _normalize_part_name(zip_info.filename)
-                    if name:
-                        parts[name] = zf.read(zip_info.filename)
-        except Exception as e:
-            raise ValueError(f"Not a valid ZIP/OPC package: {e}") from e
+            buf = io.BytesIO(data)
+            if not zipfile.is_zipfile(buf):
+                raise ValueError("Not a valid ZIP/OPC package (header mismatch)")
+            buf.seek(0)
+            with zipfile.ZipFile(buf, "r") as zf:
+                parts_data: Dict[str, bytes] = {}
+                for info in zf.infolist():
+                    if not info.is_dir():
+                        norm_name = _normalize_part_name(info.filename)
+                        parts_data[norm_name] = zf.read(info.filename)
+        except zipfile.BadZipFile as exc:
+            raise ValueError(f"Not a valid ZIP/OPC package: {exc}") from exc
+        except Exception as exc:
+            if isinstance(exc, ValueError):
+                raise
+            raise ValueError(f"Not a valid ZIP/OPC package: {exc}") from exc
 
-        defaults: Dict[str, str] = {}
-        overrides: Dict[str, str] = {}
+        content_types: Dict[str, str] = {}
+        default_content_types: Dict[str, str] = {}
+        relationships: Dict[str, List[Relationship]] = {}
 
         # Parse [Content_Types].xml
-        ct_bytes = parts.get("[Content_Types].xml")
+        ct_bytes = parts_data.get("[Content_Types].xml")
         if ct_bytes:
             try:
-                root = parse_xml(ct_bytes)
-                for child in root:
-                    tag_local = child.tag.split("}")[-1] if "}" in child.tag else child.tag
-                    if tag_local == "Default":
-                        ext = (child.get("Extension") or "").lower()
-                        ct = child.get("ContentType") or ""
-                        if ext:
-                            defaults[ext] = ct
-                    elif tag_local == "Override":
-                        p_name = _normalize_part_name(child.get("PartName") or "")
-                        ct = child.get("ContentType") or ""
-                        if p_name:
-                            overrides[p_name] = ct
+                root = ET.fromstring(ct_bytes)
+                for elem in root:
+                    tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+                    if tag == "Default":
+                        ext = (elem.get("Extension") or "").lower()
+                        ct = elem.get("ContentType") or ""
+                        if ext and ct:
+                            default_content_types[ext] = ct
+                    elif tag == "Override":
+                        part_name = _normalize_part_name(elem.get("PartName") or "")
+                        ct = elem.get("ContentType") or ""
+                        if part_name and ct:
+                            content_types[part_name] = ct
             except Exception:
                 pass
 
-        # Parse relationships
-        relationships: Dict[str, List[Relationship]] = {}
-        for name, content in parts.items():
+        # Parse .rels files
+        for name, r_bytes in parts_data.items():
             if name.endswith(".rels"):
-                # Determine owner
-                if name == "_rels/.rels":
-                    owner = ""
-                else:
-                    # e.g. xl/_rels/workbook.xml.rels -> xl/workbook.xml
-                    owner = name.replace("/_rels/", "/")
-                    if owner.endswith(".rels"):
-                        owner = owner[:-5]
-                owner = _normalize_part_name(owner)
+                owner = _get_owner_from_rels_path(name)
+                rels_list: List[Relationship] = []
                 try:
-                    rel_root = parse_xml(content)
-                    rel_list: List[Relationship] = []
-                    for child in rel_root:
-                        tag_local = child.tag.split("}")[-1] if "}" in child.tag else child.tag
-                        if tag_local == "Relationship":
-                            r_id = child.get("Id") or ""
-                            r_type = child.get("Type") or ""
-                            r_target = child.get("Target") or ""
-                            r_mode = child.get("TargetMode") or "Internal"
-                            if r_id and r_type:
-                                rel_list.append(
+                    root = ET.fromstring(r_bytes)
+                    for elem in root:
+                        tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+                        if tag == "Relationship":
+                            r_id = elem.get("Id") or ""
+                            r_type = elem.get("Type") or ""
+                            r_target = elem.get("Target") or ""
+                            r_mode = elem.get("TargetMode") or "Internal"
+                            if r_id and r_type and r_target:
+                                rels_list.append(
                                     Relationship(
                                         id=r_id,
                                         type=r_type,
@@ -161,197 +166,195 @@ class SourcePackage:
                                         target_mode=r_mode,
                                     )
                                 )
-                    relationships[owner] = rel_list
                 except Exception:
                     pass
+                relationships[owner] = rels_list
 
         return cls(
-            parts=parts,
-            defaults=defaults,
-            overrides=overrides,
+            parts_data=parts_data,
+            content_types=content_types,
+            default_content_types=default_content_types,
             relationships=relationships,
         )
 
     def has_part(self, part_name: str) -> bool:
-        """Check whether a part exists in the package."""
-        return _normalize_part_name(part_name) in self._parts
+        """Check if part exists in package."""
+        return _normalize_part_name(part_name) in self._parts_data
 
     def read_part(self, part_name: str) -> bytes:
-        """Retrieve the exact raw bytes of a part."""
-        norm = _normalize_part_name(part_name)
-        if norm not in self._parts:
+        """Read raw bytes of a package part."""
+        norm_name = _normalize_part_name(part_name)
+        if norm_name not in self._parts_data:
             raise KeyError(f"Part not found in package: {part_name}")
-        return self._parts[norm]
+        return self._parts_data[norm_name]
 
     def get_content_type(self, part_name: str) -> Optional[str]:
-        """Resolve the content type for a given part name."""
-        norm = _normalize_part_name(part_name)
-        if norm in self._overrides:
-            return self._overrides[norm]
-        dot_idx = norm.rfind(".")
-        if dot_idx != -1:
-            ext = norm[dot_idx + 1 :].lower()
-            if ext in self._defaults:
-                return self._defaults[ext]
-        return None
+        """Resolve content type for a given part name."""
+        norm_name = _normalize_part_name(part_name)
+        if norm_name in self._content_types:
+            return self._content_types[norm_name]
+        ext = norm_name.rsplit(".", 1)[-1].lower() if "." in norm_name else ""
+        return self._default_content_types.get(ext)
 
-    def get_relationships(self, part_name: str = "") -> List[Relationship]:
-        """Return the list of relationships owned by part_name (empty string = package level)."""
-        norm = _normalize_part_name(part_name)
-        return list(self._relationships.get(norm, []))
+    def get_relationships(self, owner_part: str = "") -> List[Relationship]:
+        """Get relationships defined for an owner part ('' for root relationships)."""
+        norm_owner = _normalize_part_name(owner_part)
+        return list(self._relationships.get(norm_owner, []))
 
-    @property
-    def part_names(self) -> List[str]:
-        """List all normalized part names in the package."""
-        return list(self._parts.keys())
+    def parts(self) -> List[str]:
+        """List all normalized part names."""
+        return list(self._parts_data.keys())
 
 
 class PackageWriter:
-    """Lossless writer for an OPC package.
-    
-    Copies unmodified components byte-for-byte and atomically commits writes to disk.
-    """
+    """Incrementally writes OPC packages carrying unmodified parts byte-for-byte."""
 
     def __init__(self, source_package: Optional[SourcePackage] = None) -> None:
         self._source = source_package
-        self._parts: Dict[str, bytes] = {}
-        self._defaults: Dict[str, str] = {}
-        self._overrides: Dict[str, str] = {}
-        self._deleted: set[str] = set()
-
-        if source_package:
-            for name in source_package.part_names:
-                self._parts[name] = source_package.read_part(name)
-            self._defaults.update(source_package._defaults)
-            self._overrides.update(source_package._overrides)
-        else:
-            # Standard package defaults
-            self._defaults.setdefault(
-                "rels", "application/vnd.openxmlformats-package.relationships+xml"
-            )
-            self._defaults.setdefault("xml", "application/xml")
-
-    def has_part(self, part_name: str) -> bool:
-        """Check if part exists and has not been deleted."""
-        norm = _normalize_part_name(part_name)
-        return norm in self._parts and norm not in self._deleted
-
-    def read_part(self, part_name: str) -> bytes:
-        """Read current content of a part."""
-        norm = _normalize_part_name(part_name)
-        if norm not in self._parts or norm in self._deleted:
-            raise KeyError(f"Part not found in package writer: {part_name}")
-        return self._parts[norm]
+        self._modified_parts: Dict[str, bytes] = {}
+        self._added_parts: Dict[str, bytes] = {}
+        self._deleted_parts: Set[str] = set()
+        self._part_content_types: Dict[str, str] = {}
 
     def replace_part(
-        self,
-        part_name: str,
-        content: bytes,
-        content_type: Optional[str] = None,
+        self, part_name: str, content: bytes, content_type: Optional[str] = None
     ) -> None:
-        """Replace or set content of an existing part, carrying existing content type if omitted."""
+        """Replace an existing part with new content."""
         norm = _normalize_part_name(part_name)
-        self._parts[norm] = content
-        self._deleted.discard(norm)
+        self._modified_parts[norm] = content
+        self._deleted_parts.discard(norm)
         if content_type:
-            self._overrides[norm] = content_type
+            self._part_content_types[norm] = content_type
 
     def add_part(
-        self,
-        part_name: str,
-        content: bytes,
-        content_type: str,
+        self, part_name: str, content: bytes, content_type: str = "application/xml"
     ) -> None:
-        """Add a new part to the package with explicit content type."""
+        """Add a new part to package."""
         norm = _normalize_part_name(part_name)
-        self._parts[norm] = content
-        self._deleted.discard(norm)
-        self._overrides[norm] = content_type
+        self._added_parts[norm] = content
+        self._deleted_parts.discard(norm)
+        self._part_content_types[norm] = content_type
 
     def delete_part(self, part_name: str) -> None:
-        """Mark a part for deletion from the package."""
+        """Mark a part for deletion from package."""
         norm = _normalize_part_name(part_name)
-        self._parts.pop(norm, None)
-        self._overrides.pop(norm, None)
-        self._deleted.add(norm)
+        self._deleted_parts.add(norm)
+        self._modified_parts.pop(norm, None)
+        self._added_parts.pop(norm, None)
+        self._part_content_types.pop(norm, None)
 
-    def _generate_content_types_xml(self) -> bytes:
-        """Synthesize [Content_Types].xml representing active parts, defaults, and overrides."""
-        root = ET.Element("Types", {"xmlns": NS_CONTENT_TYPES})
+    def _build_content_types_xml(
+        self, active_parts: Dict[str, bytes]
+    ) -> bytes:
+        """Reconstruct [Content_Types].xml reflecting all additions, overrides, and deletions."""
+        defaults: Dict[str, str] = {}
+        overrides: Dict[str, str] = {}
 
-        # Ensure all existing extensions in parts have a default if not overridden
-        active_parts = {k: v for k, v in self._parts.items() if k not in self._deleted}
-        for name in active_parts:
-            if name == "[Content_Types].xml":
-                continue
-            if name not in self._overrides:
-                dot = name.rfind(".")
-                if dot != -1:
-                    ext = name[dot + 1 :].lower()
-                    if ext not in self._defaults:
-                        # Fallback default
-                        self._defaults[ext] = "application/xml" if ext == "xml" else "application/octet-stream"
+        if self._source:
+            defaults.update(self._source._default_content_types)
+            for part, ct in self._source._content_types.items():
+                if part in active_parts and part != "[Content_Types].xml":
+                    overrides[part] = ct
 
-        for ext, ct in sorted(self._defaults.items()):
-            ET.SubElement(root, "Default", {"Extension": ext, "ContentType": ct})
+        # Standard baseline defaults if missing
+        if "rels" not in defaults:
+            defaults["rels"] = "application/vnd.openxmlformats-package.relationships+xml"
+        if "xml" not in defaults:
+            defaults["xml"] = "application/xml"
 
-        for p_name, ct in sorted(self._overrides.items()):
-            if p_name in active_parts and p_name != "[Content_Types].xml":
-                ET.SubElement(
-                    root,
-                    "Override",
-                    {"PartName": f"/{p_name}", "ContentType": ct},
-                )
+        # Apply specific content types from writer
+        for part, ct in self._part_content_types.items():
+            if part in active_parts and part != "[Content_Types].xml":
+                overrides[part] = ct
 
-        return serialize_xml(root, standalone=True)
+        root = ET.Element(
+            "Types",
+            xmlns=NS_CONTENT_TYPES,
+        )
+        for ext in sorted(defaults.keys()):
+            ET.SubElement(root, "Default", Extension=ext, ContentType=defaults[ext])
+
+        for part in sorted(overrides.keys()):
+            ET.SubElement(
+                root, "Override", PartName=f"/{part}", ContentType=overrides[part]
+            )
+
+        return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
     def to_bytes(self) -> bytes:
-        """Serialize the entire OPC package into ZIP archive bytes."""
+        """Serialize package into a complete ZIP byte buffer."""
+        active_parts: Dict[str, bytes] = {}
+
+        # 1. Carry unmodified parts from source package byte-for-byte
+        if self._source:
+            for part_name, raw_bytes in self._source._parts_data.items():
+                if (
+                    part_name not in self._deleted_parts
+                    and part_name not in self._modified_parts
+                    and part_name != "[Content_Types].xml"
+                ):
+                    active_parts[part_name] = raw_bytes
+
+        # 2. Add modified parts
+        for part_name, raw_bytes in self._modified_parts.items():
+            if part_name != "[Content_Types].xml":
+                active_parts[part_name] = raw_bytes
+
+        # 3. Add newly added parts
+        for part_name, raw_bytes in self._added_parts.items():
+            if part_name != "[Content_Types].xml":
+                active_parts[part_name] = raw_bytes
+
+        # 4. Handle [Content_Types].xml
+        if "[Content_Types].xml" in self._modified_parts:
+            active_parts["[Content_Types].xml"] = self._modified_parts["[Content_Types].xml"]
+        elif self._added_parts or self._deleted_parts or self._part_content_types or not self._source:
+            active_parts["[Content_Types].xml"] = self._build_content_types_xml(active_parts)
+        elif self._source and "[Content_Types].xml" in self._source._parts_data:
+            active_parts["[Content_Types].xml"] = self._source._parts_data["[Content_Types].xml"]
+        else:
+            active_parts["[Content_Types].xml"] = self._build_content_types_xml(active_parts)
+
+        # 5. Pack into ZIP archive
         buf = io.BytesIO()
-        active_parts = {k: v for k, v in self._parts.items() if k not in self._deleted}
-
-        # Automatically update [Content_Types].xml
-        active_parts["[Content_Types].xml"] = self._generate_content_types_xml()
-
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            # Write [Content_Types].xml first per OPC convention
-            zf.writestr("[Content_Types].xml", active_parts["[Content_Types].xml"])
+            # Always write [Content_Types].xml first per OPC convention
+            if "[Content_Types].xml" in active_parts:
+                zf.writestr("[Content_Types].xml", active_parts["[Content_Types].xml"])
 
             # Write _rels/.rels next if present
             if "_rels/.rels" in active_parts:
                 zf.writestr("_rels/.rels", active_parts["_rels/.rels"])
 
-            # Write all other parts
-            for name, content in active_parts.items():
-                if name not in ("[Content_Types].xml", "_rels/.rels"):
-                    zf.writestr(name, content)
+            # Write remaining parts in deterministic sorted order
+            for part_name in sorted(active_parts.keys()):
+                if part_name not in ("[Content_Types].xml", "_rels/.rels"):
+                    zf.writestr(part_name, active_parts[part_name])
 
         return buf.getvalue()
 
-    def save(self, target_path: Union[Path, str]) -> None:
-        """Atomically write the OPC package to target_path using a temporary file and replace."""
-        dest = Path(target_path).resolve()
-        dest.parent.mkdir(parents=True, exist_ok=True)
+    def save(self, target_path: Path | str) -> None:
+        """Atomically save the package to disk avoiding corruption."""
+        path = Path(target_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
 
-        data = self.to_bytes()
+        payload = self.to_bytes()
 
-        # Atomic write pattern
-        tmp_file = tempfile.NamedTemporaryFile(
-            dir=dest.parent,
-            prefix=".tmp_pkg_",
-            suffix=".tmp",
-            delete=False,
+        # Atomic write: write to NamedTemporaryFile in same directory, fsync, then atomic replace
+        temp_file = tempfile.NamedTemporaryFile(
+            dir=path.parent, prefix=".tmp_opc_", delete=False
         )
+        temp_path = Path(temp_file.name)
         try:
-            tmp_file.write(data)
-            tmp_file.flush()
-            os.fsync(tmp_file.fileno())
-            tmp_file.close()
-            os.replace(tmp_file.name, dest)
+            temp_file.write(payload)
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+            temp_file.close()
+            os.replace(temp_path, path)
         except Exception:
-            if os.path.exists(tmp_file.name):
+            if temp_path.exists():
                 try:
-                    os.remove(tmp_file.name)
+                    temp_path.unlink()
                 except OSError:
                     pass
             raise
