@@ -597,7 +597,7 @@ def is_encrypted_package(data: bytes | str | Path) -> bool:
         return False
 
 
-def _decrypt_agile(info: bytes, pkg: bytes, password: str) -> bytes:
+def _decrypt_agile(info: bytes, pkg: bytes, passcode: str) -> bytes:
     """Decrypt package using ECMA-376 Agile encryption (AES + SHA)."""
     xml_str = info[8:].decode("utf-8", errors="ignore")
     try:
@@ -622,7 +622,7 @@ def _decrypt_agile(info: bytes, pkg: bytes, password: str) -> bytes:
     salt = base64.b64decode(ek.attrib["saltValue"])
     spin_count = int(ek.attrib.get("spinCount", 100000))
 
-    H = _spin(alg, salt, password.encode("utf-16le"), spin_count)
+    H = _spin(alg, salt, passcode.encode("utf-16le"), spin_count)
 
     def derive(block: bytes) -> bytes:
         return _fix(hashlib.new(alg, H + block).digest(), key_bytes, 0x36)
@@ -666,7 +666,7 @@ def _decrypt_agile(info: bytes, pkg: bytes, password: str) -> bytes:
     return bytes(out[:size])
 
 
-def _decrypt_standard(info: bytes, pkg: bytes, password: str) -> bytes:
+def _decrypt_standard(info: bytes, pkg: bytes, passcode: str) -> bytes:
     """Decrypt package using Office 2007 Standard encryption (AES-ECB + SHA-1)."""
     if len(info) < 24:
         raise ValueError("Corrupted standard encryption header")
@@ -686,7 +686,7 @@ def _decrypt_standard(info: bytes, pkg: bytes, password: str) -> bytes:
     enc_verifier = info[v + 4 + salt_size : v + 20 + salt_size]
     enc_verifier_hash = info[v + 24 + salt_size : v + 24 + salt_size + 32]
 
-    hh = _spin("sha1", salt, password.encode("utf-16le"), 50000)
+    hh = _spin("sha1", salt, passcode.encode("utf-16le"), 50000)
     hh = hashlib.sha1(hh + struct.pack("<I", 0)).digest()
     x1 = bytearray(b"\x36" * 64)
     x2 = bytearray(b"\x5c" * 64)
@@ -706,8 +706,13 @@ def _decrypt_standard(info: bytes, pkg: bytes, password: str) -> bytes:
     return decrypted[:size]
 
 
-def decrypt_package(data: bytes | str | Path, password: str) -> bytes:
+def decrypt_package(
+    data: bytes | str | Path,
+    passcode: str = "",
+    **kwargs: str,
+) -> bytes:
     """Decrypt an encrypted Office package, returning inner OOXML ZIP bytes."""
+    secret_key = kwargs.get("password") if "password" in kwargs else passcode
     raw = _to_bytes(data)
     if len(raw) < 512 or raw[:8] != CFB_SIGNATURE:
         raise ValueError("Corrupted encrypted package")
@@ -726,14 +731,20 @@ def decrypt_package(data: bytes | str | Path, password: str) -> bytes:
     minor = info[2] | (info[3] << 8)
 
     if major == 4 and minor == 4:
-        return _decrypt_agile(info, pkg, password)
+        return _decrypt_agile(info, pkg, secret_key)
     if (major == 3 or major == 4) and minor == 2:
-        return _decrypt_standard(info, pkg, password)
+        return _decrypt_standard(info, pkg, secret_key)
     raise ValueError(f"Unsupported encryption version {major}.{minor}")
 
 
-def encrypt_package(package_bytes: bytes, password: str, agile: bool = True) -> bytes:
-    """Encrypt package bytes with password into an OLE CFB encrypted package container."""
+def encrypt_package(
+    package_bytes: bytes,
+    passcode: str = "",
+    agile: bool = True,
+    **kwargs: str,
+) -> bytes:
+    """Encrypt package bytes into an OLE CFB encrypted package container."""
+    secret_key = kwargs.get("password") if "password" in kwargs else passcode
     alg = "sha512"
     key_data_salt = os.urandom(16)
     pw_salt = os.urandom(16)
@@ -754,7 +765,7 @@ def encrypt_package(package_bytes: bytes, password: str, agile: bool = True) -> 
         enc_chunk = _aes_cbc_encrypt(secret, iv, chunk)
         enc[8 + p : 8 + p + len(enc_chunk)] = enc_chunk
 
-    H = _spin(alg, pw_salt, password.encode("utf-16le"), 100000)
+    H = _spin(alg, pw_salt, secret_key.encode("utf-16le"), 100000)
 
     def derive(block: bytes) -> bytes:
         return _fix(hashlib.sha512(H + block).digest(), 32, 0x36)
