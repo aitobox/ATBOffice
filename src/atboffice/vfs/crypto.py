@@ -158,7 +158,9 @@ def _cfb_write(info: bytes, pkg: bytes) -> bytes:
         _CFBEntry("\u0006DataSpaces", 1, child=5),
         _CFBEntry("EncryptedPackage", 2, data=pkg),
         _CFBEntry("Version", 2, data=bytes.fromhex(DATA_SPACES["Version"])),
-        _CFBEntry("DataSpaceMap", 2, data=bytes.fromhex(DATA_SPACES["DataSpaceMap"]), left=4, right=6),
+        _CFBEntry(
+            "DataSpaceMap", 2, data=bytes.fromhex(DATA_SPACES["DataSpaceMap"]), left=4, right=6
+        ),
         _CFBEntry("DataSpaceInfo", 1, child=7, right=8),
         _CFBEntry(
             "StrongEncryptionDataSpace",
@@ -261,7 +263,11 @@ def _cfb_write(info: bytes, pkg: bytes) -> bytes:
         n = math.ceil(len(e.data) / MS)
         for i in range(n):
             mf[e.start + i] = END if i == n - 1 else e.start + i + 1
-        out[at(mini_stream_start) + e.start * MS : at(mini_stream_start) + e.start * MS + len(e.data)] = e.data
+        out[
+            at(mini_stream_start) + e.start * MS : at(mini_stream_start)
+            + e.start * MS
+            + len(e.data)
+        ] = e.data
 
     for i, val in enumerate(mf):
         struct.pack_into("<I", out, at(mini_fat_start) + 4 * i, val)
@@ -293,7 +299,9 @@ def _cfb_write(info: bytes, pkg: bytes) -> bytes:
         if entry.entry_type == 5:
             struct.pack_into("<II", out, b + 116, mini_stream_start if mini_len else END, mini_len)
         elif entry.entry_type == 2:
-            struct.pack_into("<II", out, b + 116, entry.start if len(entry.data) else END, len(entry.data))
+            struct.pack_into(
+                "<II", out, b + 116, entry.start if len(entry.data) else END, len(entry.data)
+            )
 
     return bytes(out)
 
@@ -404,8 +412,7 @@ class CFBReader:
             if self.mini_fat_start < 0xFFFFFFFA:
                 mf_bytes = self._read_chain(self.mini_fat_start)
                 self.mini_fat = [
-                    struct.unpack_from("<I", mf_bytes, 4 * i)[0]
-                    for i in range(len(mf_bytes) // 4)
+                    struct.unpack_from("<I", mf_bytes, 4 * i)[0] for i in range(len(mf_bytes) // 4)
                 ]
             else:
                 self.mini_fat = []
@@ -429,9 +436,7 @@ class CFBReader:
                 if s in visited or s >= len(self.mini_fat):
                     break
                 visited.add(s)
-                chunk = self.mini[
-                    s * self.mssz : s * self.mssz + min(self.mssz, size - pos)
-                ]
+                chunk = self.mini[s * self.mssz : s * self.mssz + min(self.mssz, size - pos)]
                 out[pos : pos + len(chunk)] = chunk
                 pos += len(chunk)
                 s = self.mini_fat[s]
@@ -624,12 +629,16 @@ def encrypt_package(package_bytes: bytes, password: str, agile: bool = True) -> 
     enc_key = _aes_cbc_encrypt(derive(B_KEY), pw_salt, secret)
 
     iv_hk = _fix(
-        hashlib.sha512(key_data_salt + bytes([0x5F, 0xB2, 0xAD, 0x01, 0x0C, 0xB9, 0xE1, 0xF6])).digest(),
+        hashlib.sha512(
+            key_data_salt + bytes([0x5F, 0xB2, 0xAD, 0x01, 0x0C, 0xB9, 0xE1, 0xF6])
+        ).digest(),
         16,
         0x36,
     )
     iv_hv = _fix(
-        hashlib.sha512(key_data_salt + bytes([0xA0, 0x67, 0x7F, 0x02, 0xB2, 0x2C, 0x84, 0x33])).digest(),
+        hashlib.sha512(
+            key_data_salt + bytes([0xA0, 0x67, 0x7F, 0x02, 0xB2, 0x2C, 0x84, 0x33])
+        ).digest(),
         16,
         0x36,
     )
@@ -653,7 +662,8 @@ def encrypt_package(package_bytes: bytes, password: str, agile: bool = True) -> 
         f'encryptedHmacValue="{b64e(enc_hmac_val)}"/>'
         '<keyEncryptors><keyEncryptor uri="http://schemas.microsoft.com/office/2006/keyEncryptor/password">'
         f'<p:encryptedKey spinCount="100000" saltSize="16" blockSize="16" keyBits="256" '
-        f'hashSize="64" cipherAlgorithm="AES" cipherChaining="ChainingModeCBC" hashAlgorithm="SHA512" '
+        'hashSize="64" cipherAlgorithm="AES" cipherChaining="ChainingModeCBC" '
+        'hashAlgorithm="SHA512" '
         f'saltValue="{b64e(pw_salt)}" encryptedVerifierHashInput="{b64e(enc_in)}" '
         f'encryptedVerifierHashValue="{b64e(enc_val)}" encryptedKeyValue="{b64e(enc_key)}"/>'
         "</keyEncryptor></keyEncryptors></encryption>"

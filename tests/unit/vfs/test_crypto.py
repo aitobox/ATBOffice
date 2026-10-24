@@ -1,5 +1,6 @@
 import pytest
-from atboffice.vfs.crypto import is_encrypted_package, decrypt_package, encrypt_package
+
+from atboffice.vfs.crypto import decrypt_package, encrypt_package, is_encrypted_package
 
 
 def test_is_encrypted_package_false_on_non_cfb():
@@ -99,4 +100,3 @@ def test_non_cfb_file_input(tmp_path):
     assert not is_encrypted_package(plain_file)
     with pytest.raises(ValueError, match="Corrupted encrypted package"):
         decrypt_package(plain_file, "password")
-
