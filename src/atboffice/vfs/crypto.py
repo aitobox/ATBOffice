@@ -205,10 +205,9 @@ def _fix(h: bytes, n: int, pad: int = 0x36) -> bytes:
     return h + bytes([pad] * (n - len(h)))
 
 
-def _spin(alg: str, salt: bytes, password: str, count: int) -> bytes:
-    """Iterate password hash spinCount times."""
-    pw_bytes = password.encode("utf-16le")
-    h = hashlib.new(alg, salt + pw_bytes).digest()
+def _spin(alg: str, salt: bytes, key_bytes: bytes, count: int) -> bytes:
+    """Iterate key derivation hash spinCount times per ECMA-376 Part 2."""
+    h = hashlib.new(alg, salt + key_bytes).digest()
     for i in range(count):
         h = hashlib.new(alg, struct.pack("<I", i) + h).digest()
     return h
@@ -255,14 +254,9 @@ def _aes_cbc_decrypt(key: bytes, iv: bytes, data: bytes) -> bytes:
 
 
 def _aes_ecb_decrypt(key: bytes, data: bytes) -> bytes:
-    """Decrypt data using AES-ECB without unpadding."""
+    """Decrypt data using AES-ECB without unpadding (Office 2007 legacy standard format)."""
     if len(data) % 16 != 0:
         data = data + bytes(16 - (len(data) % 16))
-    if _HAS_CRYPTOGRAPHY:
-        cipher = Cipher(algorithms.AES(key), modes.ECB())
-        decryptor = cipher.decryptor()
-        return decryptor.update(data) + decryptor.finalize()
-
     w, nr = _expand_key(key)
     out = bytearray(len(data))
     for p in range(0, len(data), 16):
@@ -628,7 +622,7 @@ def _decrypt_agile(info: bytes, pkg: bytes, password: str) -> bytes:
     salt = base64.b64decode(ek.attrib["saltValue"])
     spin_count = int(ek.attrib.get("spinCount", 100000))
 
-    H = _spin(alg, salt, password, spin_count)
+    H = _spin(alg, salt, password.encode("utf-16le"), spin_count)
 
     def derive(block: bytes) -> bytes:
         return _fix(hashlib.new(alg, H + block).digest(), key_bytes, 0x36)
@@ -692,7 +686,7 @@ def _decrypt_standard(info: bytes, pkg: bytes, password: str) -> bytes:
     enc_verifier = info[v + 4 + salt_size : v + 20 + salt_size]
     enc_verifier_hash = info[v + 24 + salt_size : v + 24 + salt_size + 32]
 
-    hh = _spin("sha1", salt, password, 50000)
+    hh = _spin("sha1", salt, password.encode("utf-16le"), 50000)
     hh = hashlib.sha1(hh + struct.pack("<I", 0)).digest()
     x1 = bytearray(b"\x36" * 64)
     x2 = bytearray(b"\x5c" * 64)
@@ -760,7 +754,7 @@ def encrypt_package(package_bytes: bytes, password: str, agile: bool = True) -> 
         enc_chunk = _aes_cbc_encrypt(secret, iv, chunk)
         enc[8 + p : 8 + p + len(enc_chunk)] = enc_chunk
 
-    H = _spin(alg, pw_salt, password, 100000)
+    H = _spin(alg, pw_salt, password.encode("utf-16le"), 100000)
 
     def derive(block: bytes) -> bytes:
         return _fix(hashlib.sha512(H + block).digest(), 32, 0x36)
