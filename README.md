@@ -4,7 +4,7 @@ ATBOffice 是一个基于 PySide6 的跨平台桌面办公套件项目，目标�
 
 ## 环境要求
 
-- Python 3.10 或更高版本
+- Python 3.12 或更高版本
 - Windows、macOS 或 Linux
 
 ## 安装与运行
