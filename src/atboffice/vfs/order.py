@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
-from typing import Dict, List, Sequence
+from collections.abc import Sequence
 
 # Canonical ECMA-376 child tag ordering tables
-SCHEMA_ORDERS: Dict[str, List[str]] = {
+SCHEMA_ORDERS: dict[str, list[str]] = {
     # SpreadsheetML Worksheet: s:CT_Worksheet
     "spreadsheetml_worksheet": [
         "sheetPr",
@@ -199,7 +199,7 @@ def enforce_schema_order(root_element: ET.Element, schema_family: str) -> None:
         raise KeyError(f"Unknown schema family: {schema_family}")
 
     order_list: Sequence[str] = SCHEMA_ORDERS[schema_family]
-    order_index: Dict[str, int] = {name: idx for idx, name in enumerate(order_list)}
+    order_index: dict[str, int] = {name: idx for idx, name in enumerate(order_list)}
 
     # Index children with original sequence to guarantee stable sort for unknown tags
     children_with_idx = list(enumerate(root_element))

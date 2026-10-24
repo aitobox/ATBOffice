@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import io
 import xml.etree.ElementTree as ET
-from typing import Union
 
 
-def parse_xml(content: Union[str, bytes]) -> ET.Element:
+def parse_xml(content: str | bytes) -> ET.Element:
     """Parse XML string or bytes into an ElementTree Element."""
     if isinstance(content, str):
         content = content.encode("utf-8")

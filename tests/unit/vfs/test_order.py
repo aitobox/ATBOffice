@@ -1,6 +1,8 @@
 import xml.etree.ElementTree as ET
+
 import pytest
-from atboffice.vfs.order import enforce_schema_order, SCHEMA_ORDERS
+
+from atboffice.vfs.order import enforce_schema_order
 
 
 def test_worksheet_schema_ordering():

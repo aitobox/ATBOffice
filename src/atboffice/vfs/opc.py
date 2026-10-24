@@ -13,7 +13,6 @@ import xml.etree.ElementTree as ET
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Set
 
 # Standard OPC Namespaces
 NS_CONTENT_TYPES = "http://schemas.openxmlformats.org/package/2006/content-types"
@@ -76,10 +75,10 @@ class SourcePackage:
 
     def __init__(
         self,
-        parts_data: Dict[str, bytes],
-        content_types: Dict[str, str],
-        default_content_types: Dict[str, str],
-        relationships: Dict[str, List[Relationship]],
+        parts_data: dict[str, bytes],
+        content_types: dict[str, str],
+        default_content_types: dict[str, str],
+        relationships: dict[str, list[Relationship]],
     ) -> None:
         self._parts_data = parts_data
         self._content_types = content_types
@@ -107,7 +106,7 @@ class SourcePackage:
                 raise ValueError("Not a valid ZIP/OPC package (header mismatch)")
             buf.seek(0)
             with zipfile.ZipFile(buf, "r") as zf:
-                parts_data: Dict[str, bytes] = {}
+                parts_data: dict[str, bytes] = {}
                 for info in zf.infolist():
                     if not info.is_dir():
                         norm_name = _normalize_part_name(info.filename)
@@ -119,9 +118,9 @@ class SourcePackage:
                 raise
             raise ValueError(f"Not a valid ZIP/OPC package: {exc}") from exc
 
-        content_types: Dict[str, str] = {}
-        default_content_types: Dict[str, str] = {}
-        relationships: Dict[str, List[Relationship]] = {}
+        content_types: dict[str, str] = {}
+        default_content_types: dict[str, str] = {}
+        relationships: dict[str, list[Relationship]] = {}
 
         # Parse [Content_Types].xml
         ct_bytes = parts_data.get("[Content_Types].xml")
@@ -147,7 +146,7 @@ class SourcePackage:
         for name, r_bytes in parts_data.items():
             if name.endswith(".rels"):
                 owner = _get_owner_from_rels_path(name)
-                rels_list: List[Relationship] = []
+                rels_list: list[Relationship] = []
                 try:
                     root = ET.fromstring(r_bytes)
                     for elem in root:
@@ -188,7 +187,7 @@ class SourcePackage:
             raise KeyError(f"Part not found in package: {part_name}")
         return self._parts_data[norm_name]
 
-    def get_content_type(self, part_name: str) -> Optional[str]:
+    def get_content_type(self, part_name: str) -> str | None:
         """Resolve content type for a given part name."""
         norm_name = _normalize_part_name(part_name)
         if norm_name in self._content_types:
@@ -196,12 +195,12 @@ class SourcePackage:
         ext = norm_name.rsplit(".", 1)[-1].lower() if "." in norm_name else ""
         return self._default_content_types.get(ext)
 
-    def get_relationships(self, owner_part: str = "") -> List[Relationship]:
+    def get_relationships(self, owner_part: str = "") -> list[Relationship]:
         """Get relationships defined for an owner part ('' for root relationships)."""
         norm_owner = _normalize_part_name(owner_part)
         return list(self._relationships.get(norm_owner, []))
 
-    def parts(self) -> List[str]:
+    def parts(self) -> list[str]:
         """List all normalized part names."""
         return list(self._parts_data.keys())
 
@@ -209,15 +208,15 @@ class SourcePackage:
 class PackageWriter:
     """Incrementally writes OPC packages carrying unmodified parts byte-for-byte."""
 
-    def __init__(self, source_package: Optional[SourcePackage] = None) -> None:
+    def __init__(self, source_package: SourcePackage | None = None) -> None:
         self._source = source_package
-        self._modified_parts: Dict[str, bytes] = {}
-        self._added_parts: Dict[str, bytes] = {}
-        self._deleted_parts: Set[str] = set()
-        self._part_content_types: Dict[str, str] = {}
+        self._modified_parts: dict[str, bytes] = {}
+        self._added_parts: dict[str, bytes] = {}
+        self._deleted_parts: set[str] = set()
+        self._part_content_types: dict[str, str] = {}
 
     def replace_part(
-        self, part_name: str, content: bytes, content_type: Optional[str] = None
+        self, part_name: str, content: bytes, content_type: str | None = None
     ) -> None:
         """Replace an existing part with new content."""
         norm = _normalize_part_name(part_name)
@@ -244,11 +243,11 @@ class PackageWriter:
         self._part_content_types.pop(norm, None)
 
     def _build_content_types_xml(
-        self, active_parts: Dict[str, bytes]
+        self, active_parts: dict[str, bytes]
     ) -> bytes:
         """Reconstruct [Content_Types].xml reflecting all additions, overrides, and deletions."""
-        defaults: Dict[str, str] = {}
-        overrides: Dict[str, str] = {}
+        defaults: dict[str, str] = {}
+        overrides: dict[str, str] = {}
 
         if self._source:
             defaults.update(self._source._default_content_types)
@@ -283,7 +282,7 @@ class PackageWriter:
 
     def to_bytes(self) -> bytes:
         """Serialize package into a complete ZIP byte buffer."""
-        active_parts: Dict[str, bytes] = {}
+        active_parts: dict[str, bytes] = {}
 
         # 1. Carry unmodified parts from source package byte-for-byte
         if self._source:
@@ -306,9 +305,15 @@ class PackageWriter:
                 active_parts[part_name] = raw_bytes
 
         # 4. Handle [Content_Types].xml
+        has_mutations = bool(
+            self._added_parts
+            or self._deleted_parts
+            or self._part_content_types
+            or not self._source
+        )
         if "[Content_Types].xml" in self._modified_parts:
             active_parts["[Content_Types].xml"] = self._modified_parts["[Content_Types].xml"]
-        elif self._added_parts or self._deleted_parts or self._part_content_types or not self._source:
+        elif has_mutations:
             active_parts["[Content_Types].xml"] = self._build_content_types_xml(active_parts)
         elif self._source and "[Content_Types].xml" in self._source._parts_data:
             active_parts["[Content_Types].xml"] = self._source._parts_data["[Content_Types].xml"]
