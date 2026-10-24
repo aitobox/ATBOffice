@@ -21,7 +21,119 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Final
 
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+try:
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+    _HAS_CRYPTOGRAPHY = True
+except ImportError:
+    _HAS_CRYPTOGRAPHY = False
+
+
+def _xtime(b: int) -> int:
+    return ((b << 1) ^ (0x1B if (b & 0x80) else 0)) & 0xFF
+
+
+def _gmul(a: int, b: int) -> int:
+    r = 0
+    while b:
+        if b & 1:
+            r ^= a
+        a = _xtime(a)
+        b >>= 1
+    return r
+
+
+def _rotl8(x: int, n: int) -> int:
+    return ((x << n) | (x >> (8 - n))) & 0xFF
+
+
+_SBOX = bytearray(256)
+_INV_SBOX = bytearray(256)
+for _b in range(256):
+    _inv = 1
+    _sq = _b
+    for _ in range(7):
+        _sq = _gmul(_sq, _sq)
+        _inv = _gmul(_inv, _sq)
+    _s = _inv ^ _rotl8(_inv, 1) ^ _rotl8(_inv, 2) ^ _rotl8(_inv, 3) ^ _rotl8(_inv, 4) ^ 0x63
+    _SBOX[_b] = _s
+    _INV_SBOX[_s] = _b
+
+_M2 = bytearray(_gmul(_i, 2) for _i in range(256))
+_M3 = bytearray(_gmul(_i, 3) for _i in range(256))
+_M9 = bytearray(_gmul(_i, 9) for _i in range(256))
+_M11 = bytearray(_gmul(_i, 11) for _i in range(256))
+_M13 = bytearray(_gmul(_i, 13) for _i in range(256))
+_M14 = bytearray(_gmul(_i, 14) for _i in range(256))
+
+
+def _expand_key(key: bytes) -> tuple[bytes, int]:
+    nk = len(key) // 4
+    nr = nk + 6
+    w = bytearray(16 * (nr + 1))
+    w[: len(key)] = key
+    rcon = 1
+    for i in range(nk, 4 * (nr + 1)):
+        t0, t1, t2, t3 = w[4 * i - 4 : 4 * i]
+        if i % nk == 0:
+            t0, t1, t2, t3 = _SBOX[t1] ^ rcon, _SBOX[t2], _SBOX[t3], _SBOX[t0]
+            rcon = _xtime(rcon)
+        elif nk > 6 and i % nk == 4:
+            t0, t1, t2, t3 = _SBOX[t0], _SBOX[t1], _SBOX[t2], _SBOX[t3]
+        w[4 * i] = w[4 * (i - nk)] ^ t0
+        w[4 * i + 1] = w[4 * (i - nk) + 1] ^ t1
+        w[4 * i + 2] = w[4 * (i - nk) + 2] ^ t2
+        w[4 * i + 3] = w[4 * (i - nk) + 3] ^ t3
+    return bytes(w), nr
+
+
+def _encrypt_block(w: bytes, nr: int, block: bytes) -> bytes:
+    state = bytearray(block[i] ^ w[i] for i in range(16))
+    t = bytearray(16)
+    for rnd in range(1, nr):
+        k = rnd * 16
+        for c in range(4):
+            t[4 * c] = _SBOX[state[4 * c]]
+            t[4 * c + 1] = _SBOX[state[(4 * c + 5) % 16]]
+            t[4 * c + 2] = _SBOX[state[(4 * c + 10) % 16]]
+            t[4 * c + 3] = _SBOX[state[(4 * c + 15) % 16]]
+        for c in range(4):
+            a0, a1, a2, a3 = t[4 * c : 4 * c + 4]
+            state[4 * c] = _M2[a0] ^ _M3[a1] ^ a2 ^ a3 ^ w[k + 4 * c]
+            state[4 * c + 1] = a0 ^ _M2[a1] ^ _M3[a2] ^ a3 ^ w[k + 4 * c + 1]
+            state[4 * c + 2] = a0 ^ a1 ^ _M2[a2] ^ _M3[a3] ^ w[k + 4 * c + 2]
+            state[4 * c + 3] = _M3[a0] ^ a1 ^ a2 ^ _M2[a3] ^ w[k + 4 * c + 3]
+    k = nr * 16
+    out = bytearray(16)
+    for c in range(4):
+        out[4 * c] = _SBOX[state[4 * c]] ^ w[k + 4 * c]
+        out[4 * c + 1] = _SBOX[state[(4 * c + 5) % 16]] ^ w[k + 4 * c + 1]
+        out[4 * c + 2] = _SBOX[state[(4 * c + 10) % 16]] ^ w[k + 4 * c + 2]
+        out[4 * c + 3] = _SBOX[state[(4 * c + 15) % 16]] ^ w[k + 4 * c + 3]
+    return bytes(out)
+
+
+def _decrypt_block(w: bytes, nr: int, block: bytes) -> bytes:
+    state = bytearray(block[i] ^ w[nr * 16 + i] for i in range(16))
+    t = bytearray(16)
+    for rnd in range(nr - 1, -1, -1):
+        for c in range(4):
+            for r in range(4):
+                t[r + 4 * c] = _INV_SBOX[state[r + 4 * ((c - r + 4) & 3)]]
+        k = rnd * 16
+        if rnd == 0:
+            return bytes(t[i] ^ w[k + i] for i in range(16))
+        for c in range(4):
+            a0 = t[4 * c] ^ w[k + 4 * c]
+            a1 = t[4 * c + 1] ^ w[k + 4 * c + 1]
+            a2 = t[4 * c + 2] ^ w[k + 4 * c + 2]
+            a3 = t[4 * c + 3] ^ w[k + 4 * c + 3]
+            state[4 * c] = _M14[a0] ^ _M11[a1] ^ _M13[a2] ^ _M9[a3]
+            state[4 * c + 1] = _M9[a0] ^ _M14[a1] ^ _M11[a2] ^ _M13[a3]
+            state[4 * c + 2] = _M13[a0] ^ _M9[a1] ^ _M14[a2] ^ _M11[a3]
+            state[4 * c + 3] = _M11[a0] ^ _M13[a1] ^ _M9[a2] ^ _M14[a3]
+    return bytes(16)
+
 
 # CFB constants
 CFB_SIGNATURE: Final[bytes] = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
@@ -107,27 +219,56 @@ def _aes_cbc_encrypt(key: bytes, iv: bytes, data: bytes) -> bytes:
     padded = data
     if len(data) % 16 != 0:
         padded = data + bytes(16 - (len(data) % 16))
-    cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
-    encryptor = cipher.encryptor()
-    return encryptor.update(padded) + encryptor.finalize()
+    if _HAS_CRYPTOGRAPHY:
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
+        encryptor = cipher.encryptor()
+        return encryptor.update(padded) + encryptor.finalize()
+
+    w, nr = _expand_key(key)
+    out = bytearray(len(padded))
+    prev = iv
+    for p in range(0, len(padded), 16):
+        block = bytes(padded[p + i] ^ prev[i] for i in range(16))
+        enc_b = _encrypt_block(w, nr, block)
+        out[p : p + 16] = enc_b
+        prev = enc_b
+    return bytes(out)
 
 
 def _aes_cbc_decrypt(key: bytes, iv: bytes, data: bytes) -> bytes:
     """Decrypt data using AES-CBC without unpadding."""
     if len(data) % 16 != 0:
         data = data + bytes(16 - (len(data) % 16))
-    cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
-    decryptor = cipher.decryptor()
-    return decryptor.update(data) + decryptor.finalize()
+    if _HAS_CRYPTOGRAPHY:
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
+        decryptor = cipher.decryptor()
+        return decryptor.update(data) + decryptor.finalize()
+
+    w, nr = _expand_key(key)
+    out = bytearray(len(data))
+    for p in range(0, len(data), 16):
+        block = data[p : p + 16]
+        dec_b = _decrypt_block(w, nr, block)
+        prev = iv if p == 0 else data[p - 16 : p]
+        out[p : p + 16] = bytes(dec_b[i] ^ prev[i] for i in range(16))
+    return bytes(out)
 
 
 def _aes_ecb_decrypt(key: bytes, data: bytes) -> bytes:
     """Decrypt data using AES-ECB without unpadding."""
     if len(data) % 16 != 0:
         data = data + bytes(16 - (len(data) % 16))
-    cipher = Cipher(algorithms.AES(key), modes.ECB())
-    decryptor = cipher.decryptor()
-    return decryptor.update(data) + decryptor.finalize()
+    if _HAS_CRYPTOGRAPHY:
+        cipher = Cipher(algorithms.AES(key), modes.ECB())
+        decryptor = cipher.decryptor()
+        return decryptor.update(data) + decryptor.finalize()
+
+    w, nr = _expand_key(key)
+    out = bytearray(len(data))
+    for p in range(0, len(data), 16):
+        block = data[p : p + 16]
+        out[p : p + 16] = _decrypt_block(w, nr, block)
+    return bytes(out)
 
 
 class _CFBEntry:
