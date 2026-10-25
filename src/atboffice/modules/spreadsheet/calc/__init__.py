@@ -1,5 +1,22 @@
 """Ledger spreadsheet formula calculation and parsing subpackage."""
 
+from atboffice.modules.spreadsheet.calc.coercion import (
+    build_criteria_matcher,
+    date_to_serial,
+    js_date_to_serial,
+    num_eq,
+    round_15,
+    serial_to_parts,
+    to_bool,
+    to_num,
+    to_str,
+    wildcard_to_regex,
+)
+from atboffice.modules.spreadsheet.calc.context import (
+    Arr,
+    EvalContext,
+    Ref,
+)
 from atboffice.modules.spreadsheet.calc.dag import (
     VOLATILE_FUNCTIONS,
     CellAddress,
@@ -12,6 +29,32 @@ from atboffice.modules.spreadsheet.calc.dag import (
     RangeEntry,
     RecalcPlan,
     extract_precedents,
+)
+from atboffice.modules.spreadsheet.calc.errors import (
+    ALL_ERRORS,
+    CALC,
+    DIV0,
+    ERROR_MAP,
+    GETTING_DATA,
+    NA,
+    NAME,
+    NULL,
+    NUM,
+    REF,
+    SPILL,
+    VALUE,
+    ExcelError,
+    is_error,
+    to_error,
+)
+from atboffice.modules.spreadsheet.calc.evaluator import (
+    evaluate,
+    evaluate_ast,
+)
+from atboffice.modules.spreadsheet.calc.functions import (
+    FUNCTION_REGISTRY,
+    call_function,
+    register_function,
 )
 from atboffice.modules.spreadsheet.calc.parser import (
     display,
@@ -114,4 +157,41 @@ __all__ = [
     "translate",
     "try_parse",
     "walk",
+    # Errors
+    "ExcelError",
+    "NULL",
+    "DIV0",
+    "VALUE",
+    "REF",
+    "NAME",
+    "NUM",
+    "NA",
+    "GETTING_DATA",
+    "SPILL",
+    "CALC",
+    "ALL_ERRORS",
+    "ERROR_MAP",
+    "is_error",
+    "to_error",
+    # Context
+    "Arr",
+    "Ref",
+    "EvalContext",
+    # Coercion & Math
+    "to_num",
+    "to_str",
+    "to_bool",
+    "num_eq",
+    "round_15",
+    "wildcard_to_regex",
+    "build_criteria_matcher",
+    "date_to_serial",
+    "serial_to_parts",
+    "js_date_to_serial",
+    # Functions & Evaluator
+    "FUNCTION_REGISTRY",
+    "call_function",
+    "register_function",
+    "evaluate",
+    "evaluate_ast",
 ]
