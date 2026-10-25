@@ -27,6 +27,7 @@ from atboffice.modules.spreadsheet.models.selection_model import (
 from atboffice.modules.spreadsheet.models.sheet_model import (
     SheetDataModel,
 )
+from atboffice.modules.spreadsheet.views.autofill import AutoFillEngine
 
 
 def safe_tr(text: str) -> str:
@@ -42,6 +43,7 @@ class HitZone(Enum):
     CELL = auto()
     COL_RESIZE = auto()
     ROW_RESIZE = auto()
+    FILL_HANDLE = auto()
 
 
 class HitResult:
@@ -99,6 +101,9 @@ class GridViewport(QAbstractScrollArea):
         self._resize_index: int = -1
         self._resize_start_pos: int = 0
         self._resize_orig_size: int = 0
+        self._fill_preview_range: SelectionRange | None = None
+        self._fill_start_src: SelectionRange | None = None
+        self._fill_ctrl_pressed: bool = False
 
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
@@ -170,7 +175,23 @@ class GridViewport(QAbstractScrollArea):
                 return HitResult(HitZone.ROW_RESIZE, row=row - 1, pos=y)
             return HitResult(HitZone.ROW_HEADER, row=row)
 
-        # 4. Cell area
+        # 4. AutoFill Handle area (active when single selection range)
+        if len(self.selection.ranges) == 1:
+            pr = self.selection.primary_range
+            fx = (
+                self.row_header_width
+                + self.geometry_mapper.col_pos(pr.max_c + 1)
+                - scroll_x
+            )
+            fy = (
+                self.col_header_height
+                + self.geometry_mapper.row_pos(pr.max_r + 1)
+                - scroll_y
+            )
+            if abs(x - fx) <= 5 and abs(y - fy) <= 5:
+                return HitResult(HitZone.FILL_HANDLE, row=pr.max_r, col=pr.max_c)
+
+        # 5. Cell area
         sheet_x = scroll_x + (x - self.row_header_width)
         sheet_y = scroll_y + (y - self.col_header_height)
         row = self.geometry_mapper.find_row_at(sheet_y)
@@ -307,6 +328,37 @@ class GridViewport(QAbstractScrollArea):
             painter.drawRect(QRect(x1, y1, x2 - x1, y2 - y1))
         painter.restore()
 
+        # 2b. Draw AutoFill Drag Preview Rectangle
+        if self._fill_preview_range is not None:
+            painter.save()
+            painter.setClipRect(cell_clip)
+            pr = self._fill_preview_range
+            px1 = (
+                self.row_header_width
+                + self.geometry_mapper.col_pos(pr.min_c)
+                - scroll_x
+            )
+            py1 = (
+                self.col_header_height
+                + self.geometry_mapper.row_pos(pr.min_r)
+                - scroll_y
+            )
+            px2 = (
+                self.row_header_width
+                + self.geometry_mapper.col_pos(pr.max_c + 1)
+                - scroll_x
+            )
+            py2 = (
+                self.col_header_height
+                + self.geometry_mapper.row_pos(pr.max_r + 1)
+                - scroll_y
+            )
+            dash_pen = QPen(QColor(128, 128, 128), 2, Qt.PenStyle.DashLine)
+            painter.setPen(dash_pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(QRect(px1, py1, px2 - px1, py2 - py1))
+            painter.restore()
+
         # 3. Draw Gridlines
         painter.save()
         painter.setClipRect(cell_clip)
@@ -442,6 +494,7 @@ class GridViewport(QAbstractScrollArea):
                 - scroll_y
                 - 3
             )
+            painter.fillRect(fx - 1, fy - 1, 7, 7, Qt.GlobalColor.white)
             painter.fillRect(fx, fy, 5, 5, self.COLOR_FILL_HANDLE)
         painter.restore()
 
@@ -612,6 +665,13 @@ class GridViewport(QAbstractScrollArea):
             self.selection.select_rows(hit.row, hit.row)
             self.viewport().update()
 
+        elif hit.zone == HitZone.FILL_HANDLE:
+            self._drag_mode = HitZone.FILL_HANDLE
+            self._fill_start_src = self.selection.primary_range
+            self._fill_preview_range = self._fill_start_src
+            self._fill_ctrl_pressed = bool(modifiers & Qt.KeyboardModifier.ControlModifier)
+            self.viewport().update()
+
         elif hit.zone == HitZone.CELL and hit.row is not None and hit.col is not None:
             self._drag_mode = HitZone.CELL
             if modifiers & Qt.KeyboardModifier.ControlModifier:
@@ -633,7 +693,9 @@ class GridViewport(QAbstractScrollArea):
         # Update cursor when hovering
         if self._drag_mode == HitZone.NONE:
             hit = self.hit_test(x, y)
-            if hit.zone == HitZone.COL_RESIZE:
+            if hit.zone == HitZone.FILL_HANDLE:
+                self.viewport().setCursor(Qt.CursorShape.CrossCursor)
+            elif hit.zone == HitZone.COL_RESIZE:
                 self.viewport().setCursor(Qt.CursorShape.SplitHCursor)
             elif hit.zone == HitZone.ROW_RESIZE:
                 self.viewport().setCursor(Qt.CursorShape.SplitVCursor)
@@ -644,7 +706,24 @@ class GridViewport(QAbstractScrollArea):
             return
 
         # Handle active drag
-        if self._drag_mode == HitZone.COL_RESIZE:
+        if self._drag_mode == HitZone.FILL_HANDLE:
+            self._fill_ctrl_pressed = bool(
+                event.modifiers() & Qt.KeyboardModifier.ControlModifier
+            )
+            hit = self.hit_test(x, y)
+            if (
+                hit.row is not None
+                and hit.col is not None
+                and self._fill_start_src is not None
+            ):
+                dest, is_shrink = AutoFillEngine.determine_destination(
+                    self._fill_start_src, hit.row, hit.col
+                )
+                self._fill_preview_range = dest
+                self.reveal(hit.row, hit.col)
+                self.viewport().update()
+
+        elif self._drag_mode == HitZone.COL_RESIZE:
             delta = x - self._resize_start_pos
             new_w = max(5, self._resize_orig_size + delta)
             self.geometry_mapper.set_col_width(self._resize_index, new_w)
@@ -666,6 +745,25 @@ class GridViewport(QAbstractScrollArea):
                 self.viewport().update()
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if self._drag_mode == HitZone.FILL_HANDLE:
+            if self._fill_start_src is not None and self._fill_preview_range is not None:
+                src = self._fill_start_src
+                dest = self._fill_preview_range
+                ctrl = self._fill_ctrl_pressed or bool(
+                    event.modifiers() & Qt.KeyboardModifier.ControlModifier
+                )
+                AutoFillEngine.auto_fill(
+                    self.model,
+                    src,
+                    dest,
+                    mode="auto",
+                    ctrl_pressed=ctrl,
+                )
+                self.selection.select_cell(dest.min_r, dest.min_c)
+                self.selection.extend_to(dest.max_r, dest.max_c)
+                self._fill_start_src = None
+                self._fill_preview_range = None
+
         self._drag_mode = HitZone.NONE
         self._resize_index = -1
         self.viewport().setCursor(Qt.CursorShape.ArrowCursor)
