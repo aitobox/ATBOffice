@@ -10,8 +10,6 @@ from typing import Any
 
 from atboffice.modules.spreadsheet.calc.context import EvalContext, Ref
 from atboffice.modules.spreadsheet.calc.errors import (
-    DIV0,
-    NA,
     NUM,
     VALUE,
     ExcelError,
@@ -163,8 +161,7 @@ def build_criteria_matcher(crit: Any, ctx: EvalContext | None = None) -> Callabl
             num_eq(v, crit)
             if isinstance(v, (int, float)) and not isinstance(v, bool)
             else (
-                parse_number_str(str(v)) is not None
-                and num_eq(parse_number_str(str(v)), crit)  # type: ignore
+                parse_number_str(str(v)) is not None and num_eq(parse_number_str(str(v)), crit)  # type: ignore
                 if isinstance(v, str)
                 else False
             )
@@ -276,6 +273,7 @@ def build_criteria_matcher(crit: Any, ctx: EvalContext | None = None) -> Callabl
 
 # --- Excel Date & Time serial utilities ---
 
+
 def date_to_serial(y: int, m: int, d: int, date1904: bool = False) -> int | ExcelError:
     """Convert year, month, day to an Excel serial day number.
 
@@ -324,7 +322,7 @@ def serial_to_parts(v: float, date1904: bool = False) -> dict[str, Any]:
         days += 1
 
     if date1904:
-        base = datetime.datetime(1904, 1, 1, tzinfo=datetime.timezone.utc)
+        base = datetime.datetime(1904, 1, 1, tzinfo=datetime.UTC)
         dt = base + datetime.timedelta(days=days)
         y, m, d = dt.year, dt.month, dt.day
         wd = (dt.weekday() + 1) % 7
@@ -333,12 +331,12 @@ def serial_to_parts(v: float, date1904: bool = False) -> dict[str, Any]:
     elif days == 60:
         y, m, d, wd = 1900, 2, 29, 3
     elif days < 60:
-        base = datetime.datetime(1899, 12, 31, tzinfo=datetime.timezone.utc)
+        base = datetime.datetime(1899, 12, 31, tzinfo=datetime.UTC)
         dt = base + datetime.timedelta(days=days)
         y, m, d = dt.year, dt.month, dt.day
         wd = (days % 7 + 6) % 7
     else:
-        base = datetime.datetime(1899, 12, 30, tzinfo=datetime.timezone.utc)
+        base = datetime.datetime(1899, 12, 30, tzinfo=datetime.UTC)
         dt = base + datetime.timedelta(days=days)
         y, m, d = dt.year, dt.month, dt.day
         wd = (dt.weekday() + 1) % 7

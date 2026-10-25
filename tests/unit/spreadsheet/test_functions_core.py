@@ -9,21 +9,17 @@ from atboffice.modules.spreadsheet.calc.coercion import (
     to_bool,
     to_num,
     to_str,
-    wildcard_to_regex,
 )
-from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext, Ref
+from atboffice.modules.spreadsheet.calc.context import EvalContext
 from atboffice.modules.spreadsheet.calc.errors import (
     DIV0,
     NA,
     NUM,
     REF,
     VALUE,
-    ExcelError,
-    is_error,
 )
 from atboffice.modules.spreadsheet.calc.evaluator import evaluate
 from atboffice.modules.spreadsheet.calc.functions import (
-    call_function,
     fn_abs,
     fn_and,
     fn_average,
@@ -148,6 +144,7 @@ def sample_context() -> EvalContext:
 # 1. Coercion, Criteria, Wildcards & Date Conversion Tests
 # ==============================================================================
 
+
 def test_coercion_primitives():
     assert to_num(42) == 42
     assert to_num(" 1,234.5 ") == 1234.5
@@ -211,6 +208,7 @@ def test_date_serial_conversions():
 # 2. Math & Trigonometry Function Tests
 # ==============================================================================
 
+
 def test_math_sum_and_subtotal(sample_context):
     assert fn_sum(1, 2, 3) == 6
     assert fn_sum("10", 5) == 15
@@ -265,6 +263,7 @@ def test_math_rounding_and_arithmetic():
 # 3. Statistical Function Tests
 # ==============================================================================
 
+
 def test_statistical_aggregations(sample_context):
     ref_a = sample_context.create_ref("Sheet1", 0, 0, 9, 0)
     assert fn_average(ref_a, ctx=sample_context) == 5.5
@@ -300,6 +299,7 @@ def test_statistical_conditional(sample_context):
 # 4. Lookup & Reference Function Tests
 # ==============================================================================
 
+
 def test_lookup_functions(sample_context):
     table = sample_context.create_ref("Data", 0, 0, 5, 3)
     # VLOOKUP("Cy", Data!A1:D6, 3, FALSE) -> 175
@@ -330,6 +330,7 @@ def test_lookup_functions(sample_context):
 # 5. Logical & Error Handling Function Tests
 # ==============================================================================
 
+
 def test_logical_and_error_functions():
     assert fn_if(True, "yes", "no") == "yes"
     assert fn_if(False, "yes", "no") == "no"
@@ -359,6 +360,7 @@ def test_logical_and_error_functions():
 # 6. Text Function Tests
 # ==============================================================================
 
+
 def test_text_functions():
     assert fn_concat("a", "b", "c") == "abc"
     assert fn_concatenate("a", 1, True) == "a1TRUE"
@@ -376,6 +378,7 @@ def test_text_functions():
 # ==============================================================================
 # 7. Date & Time Function Tests
 # ==============================================================================
+
 
 def test_date_and_time_functions():
     assert fn_date(2024, 2, 29) == 45351
@@ -399,6 +402,7 @@ def test_date_and_time_functions():
 # ==============================================================================
 # 8. End-to-End Expression Evaluator Tests
 # ==============================================================================
+
 
 def test_evaluator_expressions(sample_context):
     assert evaluate("=1 + 2 * 3") == 7

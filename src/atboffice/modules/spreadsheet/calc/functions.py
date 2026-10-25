@@ -31,7 +31,9 @@ from atboffice.modules.spreadsheet.calc.errors import (
 FUNCTION_REGISTRY: dict[str, Callable[..., Any]] = {}
 
 
-def register_function(name: str, aliases: list[str] | None = None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+def register_function(
+    name: str, aliases: list[str] | None = None
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorator to register a calculation function by uppercase name and optional aliases."""
 
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
@@ -63,7 +65,10 @@ def call_function(name: str, args: list[Any], ctx: EvalContext | None = None) ->
 
 # --- Iteration and Argument Normalization Helpers ---
 
-def iterate_values(args: tuple[Any, ...] | list[Any], ctx: EvalContext | None = None) -> Iterator[tuple[Any, bool]]:
+
+def iterate_values(
+    args: tuple[Any, ...] | list[Any], ctx: EvalContext | None = None
+) -> Iterator[tuple[Any, bool]]:
     """Yield tuples of (value, is_direct) for all elements in args.
 
     `is_direct` is True for top-level scalar arguments and False for items coming from
@@ -93,7 +98,8 @@ def collect_numbers(
     """Collect and coerce numbers according to Excel aggregation rules.
 
     In ranges, strings/booleans/empty are ignored.
-    In direct top-level arguments, strings and booleans are coerced; invalid strings produce #VALUE!.
+    In direct top-level arguments, strings and booleans are coerced;
+    invalid strings produce #VALUE!.
     Any encountered ExcelError is propagated immediately.
     """
     nums: list[float | int] = []
@@ -164,6 +170,7 @@ def get_table_cell(table: Any, r_idx: int, c_idx: int) -> Any:
 # ==============================================================================
 # 1. Math & Trigonometry Functions
 # ==============================================================================
+
 
 @register_function("SUM")
 def fn_sum(*args: Any, ctx: EvalContext | None = None) -> float | int | ExcelError:
@@ -285,7 +292,9 @@ def fn_roundup(x: Any, num_digits: Any, ctx: EvalContext | None = None) -> float
 
 
 @register_function("ROUNDDOWN")
-def fn_rounddown(x: Any, num_digits: Any, ctx: EvalContext | None = None) -> float | int | ExcelError:
+def fn_rounddown(
+    x: Any, num_digits: Any, ctx: EvalContext | None = None
+) -> float | int | ExcelError:
     nx = to_num(x, ctx)
     nd = to_num(num_digits, ctx)
     if is_error(nx):
@@ -398,6 +407,7 @@ def fn_subtotal(function_num: Any, *refs: Any, ctx: EvalContext | None = None) -
 # ==============================================================================
 # 2. Statistical Functions
 # ==============================================================================
+
 
 @register_function("AVERAGE")
 def fn_average(*args: Any, ctx: EvalContext | None = None) -> float | ExcelError:
@@ -589,6 +599,7 @@ def fn_min(*args: Any, ctx: EvalContext | None = None) -> float | int | ExcelErr
 # ==============================================================================
 # 3. Lookup & Reference Functions
 # ==============================================================================
+
 
 def lookup_compare(a: Any, b: Any) -> int:
     """Compare two values for ascending lookup order (returns -1, 0, or 1)."""
@@ -870,6 +881,7 @@ def fn_choose(index_num: Any, *values: Any, ctx: EvalContext | None = None) -> A
 # 4. Logical & Error Handling Functions
 # ==============================================================================
 
+
 @register_function("IF")
 def fn_if(
     logical_test: Any,
@@ -976,7 +988,11 @@ def fn_switch(expr: Any, *args: Any, ctx: EvalContext | None = None) -> Any:
         res = args[i + 1]
         if is_error(val):
             return val
-        if num_eq(expr, val) if isinstance(expr, (int, float)) and isinstance(val, (int, float)) else expr == val:
+        if (
+            num_eq(expr, val)
+            if isinstance(expr, (int, float)) and isinstance(val, (int, float))
+            else expr == val
+        ):
             return res
         i += 2
     if i < n:
@@ -997,6 +1013,7 @@ def fn_ifna(val: Any, val_if_na: Any, ctx: EvalContext | None = None) -> Any:
 # ==============================================================================
 # 5. Text Functions
 # ==============================================================================
+
 
 @register_function("CONCAT")
 def fn_concat(*args: Any, ctx: EvalContext | None = None) -> str | ExcelError:
@@ -1053,7 +1070,9 @@ def fn_right(text: Any, num_chars: Any = 1, ctx: EvalContext | None = None) -> s
 
 
 @register_function("MID")
-def fn_mid(text: Any, start_num: Any, num_chars: Any, ctx: EvalContext | None = None) -> str | ExcelError:
+def fn_mid(
+    text: Any, start_num: Any, num_chars: Any, ctx: EvalContext | None = None
+) -> str | ExcelError:
     if is_error(text):
         return text
     st_val = to_num(start_num, ctx)
@@ -1141,6 +1160,7 @@ def fn_substitute(
 # 6. Date & Time Functions
 # ==============================================================================
 
+
 @register_function("DATE")
 def fn_date(y: Any, m: Any, d: Any, ctx: EvalContext | None = None) -> int | ExcelError:
     ny = to_num(y, ctx)
@@ -1202,7 +1222,9 @@ def fn_now(ctx: EvalContext | None = None) -> float | ExcelError:
 
 
 @register_function("DATEDIF")
-def fn_datedif(start_date: Any, end_date: Any, unit: Any, ctx: EvalContext | None = None) -> int | ExcelError:
+def fn_datedif(
+    start_date: Any, end_date: Any, unit: Any, ctx: EvalContext | None = None
+) -> int | ExcelError:
     s_val = to_num(start_date, ctx)
     e_val = to_num(end_date, ctx)
     if is_error(s_val):
@@ -1253,7 +1275,9 @@ def fn_datedif(start_date: Any, end_date: Any, unit: Any, ctx: EvalContext | Non
 
 
 @register_function("WEEKDAY")
-def fn_weekday(serial: Any, return_type: Any = 1, ctx: EvalContext | None = None) -> int | ExcelError:
+def fn_weekday(
+    serial: Any, return_type: Any = 1, ctx: EvalContext | None = None
+) -> int | ExcelError:
     ns = to_num(serial, ctx)
     if is_error(ns):
         return ns

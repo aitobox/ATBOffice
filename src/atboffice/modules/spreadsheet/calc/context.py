@@ -105,5 +105,7 @@ class EvalContext:
             return self.workbook_data[sheet].get((r, c), None)
         return None
 
-    def create_ref(self, sheet: str, r1: int, c1: int, r2: int | None = None, c2: int | None = None) -> Ref:
+    def create_ref(
+        self, sheet: str, r1: int, c1: int, r2: int | None = None, c2: int | None = None
+    ) -> Ref:
         return Ref(sheet, r1, c1, r2, c2, getter=self.get_cell_value)
