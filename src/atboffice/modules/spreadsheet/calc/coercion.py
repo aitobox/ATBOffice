@@ -353,4 +353,142 @@ def js_date_to_serial(dt: datetime.datetime, date1904: bool = False) -> float:
     if isinstance(serial_day, ExcelError):
         return 0.0
     day_frac = (dt.hour * 3600 + dt.minute * 60 + dt.second + dt.microsecond / 1e6) / 86400.0
-    return serial_day + day_frac
+    return float(serial_day) + day_frac
+
+
+def is_leap_year(y: int) -> bool:
+    """Return True if year y is a leap year in Gregorian calendar."""
+    return (y % 4 == 0 and y % 100 != 0) or (y % 400 == 0)
+
+
+def days_in_month(y: int, m: int) -> int:
+    """Return number of days in month m of year y."""
+    if m in (1, 3, 5, 7, 8, 10, 12):
+        return 31
+    if m in (4, 6, 9, 11):
+        return 30
+    return 29 if is_leap_year(y) else 28
+
+
+def days360(s: float, e: float, european: bool = False, date1904: bool = False) -> int:
+    """Calculate the number of days between two dates based on a 360-day year (12 30-day months)."""
+    a = serial_to_parts(math.floor(s), date1904)
+    b = serial_to_parts(math.floor(e), date1904)
+    d1 = a["d"]
+    d2 = b["d"]
+    if european:
+        if d1 == 31:
+            d1 = 30
+        if d2 == 31:
+            d2 = 30
+    else:
+        last_feb_a = (a["m"] == 2 and a["d"] == days_in_month(a["y"], 2))
+        if d1 == 31 or last_feb_a:
+            d1 = 30
+        if d2 == 31 and d1 >= 30:
+            d2 = 30
+    return (b["y"] - a["y"]) * 360 + (b["m"] - a["m"]) * 30 + (d2 - d1)
+
+
+def yearfrac(s: float, e: float, basis: int = 0, date1904: bool = False) -> float | ExcelError:
+    """Calculate the fraction of the year represented by the number of whole days between two dates."""
+    s_val = math.floor(s)
+    e_val = math.floor(e)
+    if s_val > e_val:
+        s_val, e_val = e_val, s_val
+    a = serial_to_parts(s_val, date1904)
+    b = serial_to_parts(e_val, date1904)
+
+    if basis == 0:
+        d1 = a["d"]
+        d2 = b["d"]
+        last_feb_a = (a["m"] == 2 and a["d"] == days_in_month(a["y"], 2))
+        last_feb_b = (b["m"] == 2 and b["d"] == days_in_month(b["y"], 2))
+        if d1 == 31 and d2 == 31:
+            d1 = 30
+            d2 = 30
+        elif d1 == 31:
+            d1 = 30
+        elif d1 == 30 and d2 == 31:
+            d2 = 30
+        elif last_feb_a and last_feb_b:
+            d1 = 30
+            d2 = 30
+        elif last_feb_a:
+            d1 = 30
+        return ((b["y"] - a["y"]) * 360 + (b["m"] - a["m"]) * 30 + (d2 - d1)) / 360.0
+    elif basis == 1:
+        diff = e_val - s_val
+        if a["y"] == b["y"] or (b["y"] == a["y"] + 1 and (a["m"] > b["m"] or (a["m"] == b["m"] and a["d"] >= b["d"]))):
+            if a["y"] == b["y"]:
+                den = 366.0 if is_leap_year(a["y"]) else 365.0
+            else:
+                has_feb29 = False
+                for y in (a["y"], b["y"]):
+                    if is_leap_year(y):
+                        feb29_serial = date_to_serial(y, 2, 29, date1904)
+                        if not isinstance(feb29_serial, ExcelError) and s_val <= feb29_serial <= e_val:
+                            has_feb29 = True
+                            break
+                den = 366.0 if has_feb29 else 365.0
+            return diff / den
+        total = sum(366.0 if is_leap_year(y) else 365.0 for y in range(a["y"], b["y"] + 1))
+        avg_year = total / (b["y"] - a["y"] + 1)
+        return diff / avg_year
+    elif basis == 2:
+        return (e_val - s_val) / 360.0
+    elif basis == 3:
+        return (e_val - s_val) / 365.0
+    elif basis == 4:
+        d1 = min(a["d"], 30)
+        d2 = min(b["d"], 30)
+        return ((b["y"] - a["y"]) * 360 + (b["m"] - a["m"]) * 30 + (d2 - d1)) / 360.0
+    return NUM
+
+
+def compare_excel_values(left: Any, right: Any) -> int:
+    """Compare two values according to Excel comparison semantics.
+
+    Order: Numbers < Text < Booleans.
+    Within types: numbers compared with tolerance, text case-insensitively.
+    Returns -1 if left < right, 0 if left == right, 1 if left > right.
+    """
+    if left == right:
+        return 0
+
+    def type_order(v: Any) -> int:
+        if v is None:
+            return 0
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            return 1
+        if isinstance(v, str):
+            return 2
+        if isinstance(v, bool):
+            return 3
+        return 4
+
+    to_left = type_order(left)
+    to_right = type_order(right)
+    if to_left != to_right:
+        return -1 if to_left < to_right else 1
+
+    if to_left == 1:
+        if num_eq(left, right):
+            return 0
+        return -1 if left < right else 1
+
+    if to_left == 2:
+        sl = left.lower()
+        sr = right.lower()
+        if sl == sr:
+            return 0
+        return -1 if sl < sr else 1
+
+    if to_left == 3:
+        if left == right:
+            return 0
+        return -1 if not left and right else 1
+
+    return 0
+
+
