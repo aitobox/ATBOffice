@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum, auto
-from typing import Any, Final
+from typing import TYPE_CHECKING, Any, Final
 
 from PySide6.QtCore import QCoreApplication, QPoint, QRect, Qt, Signal
 from PySide6.QtGui import (
@@ -28,6 +28,11 @@ from atboffice.modules.spreadsheet.models.sheet_model import (
     SheetDataModel,
 )
 from atboffice.modules.spreadsheet.views.autofill import AutoFillEngine
+
+if TYPE_CHECKING:
+    from atboffice.modules.spreadsheet.views.editor_controller import (
+        EditorController,
+    )
 
 
 def safe_tr(text: str) -> str:
@@ -92,6 +97,8 @@ class GridViewport(QAbstractScrollArea):
         self.model = model if model is not None else SheetDataModel()
         self.selection = selection if selection is not None else SelectionModel()
         self.geometry_mapper = self.model.geometry
+        self.editor_controller: EditorController | None = None
+        self._point_anchor: tuple[int, int] | None = None
 
         self.row_header_width: int = 46
         self.col_header_height: int = 22
@@ -120,11 +127,15 @@ class GridViewport(QAbstractScrollArea):
         self.viewport().update()
 
     def _on_scroll(self, _: int) -> None:
+        if self.editor_controller is not None:
+            self.editor_controller.reposition_editor()
         self.viewport().update()
 
     def resizeEvent(self, event: Any) -> None:
         super().resizeEvent(event)
         self._update_scrollbars()
+        if self.editor_controller is not None:
+            self.editor_controller.reposition_editor()
 
     def _update_scrollbars(self) -> None:
         """Synchronize Qt scrollbars with virtualized sheet dimensions."""
@@ -498,6 +509,47 @@ class GridViewport(QAbstractScrollArea):
             painter.fillRect(fx, fy, 5, 5, self.COLOR_FILL_HANDLE)
         painter.restore()
 
+        # 5.5 Draw Reference Highlights (if in formula editing / point mode)
+        if (
+            self.editor_controller is not None
+            and self.editor_controller.highlights
+        ):
+            painter.save()
+            painter.setClipRect(cell_clip)
+            for hl in self.editor_controller.highlights:
+                hx = (
+                    self.row_header_width
+                    + self.geometry_mapper.col_pos(hl.c1)
+                    - scroll_x
+                )
+                hy = (
+                    self.col_header_height
+                    + self.geometry_mapper.row_pos(hl.r1)
+                    - scroll_y
+                )
+                hw = sum(
+                    self.geometry_mapper.col_size(c)
+                    for c in range(hl.c1, hl.c2 + 1)
+                )
+                hh = sum(
+                    self.geometry_mapper.row_size(r)
+                    for r in range(hl.r1, hl.r2 + 1)
+                )
+
+                painter.setPen(QPen(hl.color, 2, Qt.PenStyle.SolidLine))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRect(QRect(hx, hy, hw, hh))
+
+                # Corner handles
+                for cx, cy in [
+                    (hx, hy),
+                    (hx + hw - 4, hy),
+                    (hx, hy + hh - 4),
+                    (hx + hw - 4, hy + hh - 4),
+                ]:
+                    painter.fillRect(cx, cy, 4, 4, hl.color)
+            painter.restore()
+
         # 6. Draw Fixed Headers (Column Headers, Row Headers, Corner)
         self._paint_headers(
             painter, start_row, end_row, start_col, end_col, scroll_x, scroll_y, vw, vh
@@ -673,6 +725,20 @@ class GridViewport(QAbstractScrollArea):
             self.viewport().update()
 
         elif hit.zone == HitZone.CELL and hit.row is not None and hit.col is not None:
+            if (
+                self.editor_controller is not None
+                and self.editor_controller.is_active
+                and self.editor_controller.mode.name.lower() == "point"
+            ):
+                self._point_anchor = (hit.row, hit.col)
+                self._drag_mode = HitZone.CELL
+                self.editor_controller.point_at(
+                    hit.row, hit.col, hit.row, hit.col
+                )
+                self.reveal(hit.row, hit.col)
+                self.viewport().update()
+                return
+
             self._drag_mode = HitZone.CELL
             if modifiers & Qt.KeyboardModifier.ControlModifier:
                 self.selection.add_range(
@@ -740,6 +806,20 @@ class GridViewport(QAbstractScrollArea):
         elif self._drag_mode == HitZone.CELL:
             hit = self.hit_test(x, y)
             if hit.row is not None and hit.col is not None:
+                if (
+                    self.editor_controller is not None
+                    and self.editor_controller.is_active
+                    and self.editor_controller.mode.name.lower() == "point"
+                    and self._point_anchor is not None
+                ):
+                    ar, ac = self._point_anchor
+                    r1, r2 = min(ar, hit.row), max(ar, hit.row)
+                    c1, c2 = min(ac, hit.col), max(ac, hit.col)
+                    self.editor_controller.point_at(r1, c1, r2, c2)
+                    self.reveal(hit.row, hit.col)
+                    self.viewport().update()
+                    return
+
                 self.selection.extend_to(hit.row, hit.col)
                 self.reveal(hit.row, hit.col)
                 self.viewport().update()
@@ -766,6 +846,7 @@ class GridViewport(QAbstractScrollArea):
 
         self._drag_mode = HitZone.NONE
         self._resize_index = -1
+        self._point_anchor = None
         self.viewport().setCursor(Qt.CursorShape.ArrowCursor)
         self.viewport().update()
 
@@ -788,6 +869,51 @@ class GridViewport(QAbstractScrollArea):
         key = event.key()
         modifiers = event.modifiers()
         r, c = self.selection.active_cell
+
+        # F2 to start editing
+        if key == Qt.Key.Key_F2:
+            if (
+                self.editor_controller is not None
+                and not self.editor_controller.is_active
+            ):
+                self.editor_controller.begin_edit(r, c)
+                return
+
+        # Delete / Backspace to clear selection
+        if key in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
+            if (
+                self.editor_controller is not None
+                and not self.editor_controller.is_active
+            ):
+                for rg in self.selection.ranges:
+                    for rr in range(rg.min_r, rg.max_r + 1):
+                        for cc in range(rg.min_c, rg.max_c + 1):
+                            cell = self.model.get_cell(rr, cc)
+                            if cell is not None:
+                                cell.value = None
+                                cell.formula = None
+                self.viewport().update()
+                return
+
+        # Printable character starts typing in-cell
+        text = event.text()
+        if (
+            text
+            and text.isprintable()
+            and not (
+                modifiers
+                & (
+                    Qt.KeyboardModifier.ControlModifier
+                    | Qt.KeyboardModifier.AltModifier
+                )
+            )
+        ):
+            if (
+                self.editor_controller is not None
+                and not self.editor_controller.is_active
+            ):
+                self.editor_controller.begin_edit(r, c, initial_text=text)
+                return
 
         # Ctrl+A Select All
         if key == Qt.Key.Key_A and (
