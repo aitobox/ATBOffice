@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import bisect
-from dataclasses import dataclass, field
-from typing import Any, Final
+from dataclasses import dataclass
+from typing import Any
 
 from atboffice.drawing.numfmt import format_value
 from atboffice.modules.spreadsheet.calc.references import MAXC, MAXR

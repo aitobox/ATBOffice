@@ -1,9 +1,7 @@
 """Unit tests for Excel number formatting engine (numfmt.py)."""
 
-import pytest
 
 from atboffice.drawing.numfmt import (
-    FormattedResult,
     date_to_serial,
     format_value,
     serial_to_parts,
@@ -83,7 +81,8 @@ class TestNumericFormatting:
         fmt = "[Green]#,##0;[Red]-#,##0"
         pos = format_value(100, fmt)
         assert pos.text == "100"
-        assert pos.color == "#008000" or pos.color == "#00FF00" or "green" in (pos.color or "").lower()
+        is_green = pos.color in ("#008000", "#00FF00") or "green" in (pos.color or "").lower()
+        assert is_green
 
         neg = format_value(-50, fmt)
         assert neg.text == "-50"

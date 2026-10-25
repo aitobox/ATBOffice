@@ -214,13 +214,19 @@ def _format_date(parts: DateParts, code: str, lcid: int | str) -> str:
         else:
             low = tok.lower()
             if low == "aaaa":
-                out.append(
-                    ZH_WEEKDAYS_LONG[parts.weekday] if is_chinese else EN_WEEKDAYS_LONG[parts.weekday]
+                name = (
+                    ZH_WEEKDAYS_LONG[parts.weekday]
+                    if is_chinese
+                    else EN_WEEKDAYS_LONG[parts.weekday]
                 )
+                out.append(name)
             elif low == "aaa":
-                out.append(
-                    ZH_WEEKDAYS_SHORT[parts.weekday] if is_chinese else EN_WEEKDAYS_SHORT[parts.weekday]
+                name = (
+                    ZH_WEEKDAYS_SHORT[parts.weekday]
+                    if is_chinese
+                    else EN_WEEKDAYS_SHORT[parts.weekday]
                 )
+                out.append(name)
             elif low == "dddd":
                 out.append(EN_WEEKDAYS_LONG[parts.weekday])
             elif low == "ddd":

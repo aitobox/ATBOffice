@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from enum import Enum, auto
-from typing import Final
+from typing import Any, Final
 
-from PySide6.QtCore import QCoreApplication, QPoint, QRect, QSize, Qt, Signal
+from PySide6.QtCore import QCoreApplication, QPoint, QRect, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -16,19 +16,16 @@ from PySide6.QtGui import (
     QPainter,
     QPaintEvent,
     QPen,
-    QWheelEvent,
 )
 from PySide6.QtWidgets import QAbstractScrollArea, QWidget
 
-from atboffice.modules.spreadsheet.calc.references import MAXC, MAXR, col_name
+from atboffice.modules.spreadsheet.calc.references import col_name
 from atboffice.modules.spreadsheet.models.selection_model import (
     SelectionModel,
     SelectionRange,
 )
 from atboffice.modules.spreadsheet.models.sheet_model import (
-    CellData,
     SheetDataModel,
-    SheetGeometry,
 )
 
 
