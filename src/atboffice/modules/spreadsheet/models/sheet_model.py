@@ -10,6 +10,14 @@ from atboffice.modules.spreadsheet.calc.references import MAXC, MAXR
 
 
 @dataclass
+class BorderStyle:
+    """Border line style and color."""
+
+    style: str = "thin"
+    color: str | None = None
+
+
+@dataclass
 class CellData:
     """Cell storage representation."""
 
@@ -19,13 +27,77 @@ class CellData:
     bold: bool = False
     italic: bool = False
     underline: bool = False
+    underline_style: str = "none"
+    strike: bool = False
+    vert_align: str | None = None
     font_size: int = 10
     font_family: str = "Arial"
     fg_color: str | None = None
     bg_color: str | None = None
-    align_h: str = "general"  # "general", "left", "center", "right"
-    align_v: str = "bottom"  # "top", "center", "bottom"
+    align_h: str = "general"
+    align_v: str = "bottom"
+    indent: int = 0
     wrap_text: bool = False
+    shrink_to_fit: bool = False
+    text_rotation: int = 0
+    text_direction: str = "context"
+    just_last: bool = False
+
+    # Borders
+    border_top: BorderStyle | None = None
+    border_bottom: BorderStyle | None = None
+    border_left: BorderStyle | None = None
+    border_right: BorderStyle | None = None
+    border_diag_up: BorderStyle | None = None
+    border_diag_down: BorderStyle | None = None
+
+    # Patterns
+    pattern: str | None = None
+    pattern_color: str | None = None
+
+    # Protection
+    locked: bool = True
+    hidden: bool = False
+
+
+@dataclass
+class FormatDelta:
+    """Style modification payload to apply to cells."""
+
+    format_code: str | None = None
+    bold: bool | None = None
+    italic: bool | None = None
+    underline: bool | None = None
+    underline_style: str | None = None
+    strike: bool | None = None
+    vert_align: str | None = None
+    font_size: int | None = None
+    font_family: str | None = None
+    fg_color: str | None = None
+    bg_color: str | None = None
+    align_h: str | None = None
+    align_v: str | None = None
+    indent: int | None = None
+    wrap_text: bool | None = None
+    shrink_to_fit: bool | None = None
+    text_rotation: int | None = None
+    text_direction: str | None = None
+    just_last: bool | None = None
+
+    border_top: BorderStyle | None = None
+    border_bottom: BorderStyle | None = None
+    border_left: BorderStyle | None = None
+    border_right: BorderStyle | None = None
+    border_diag_up: BorderStyle | None = None
+    border_diag_down: BorderStyle | None = None
+    clear_borders: bool = False
+
+    pattern: str | None = None
+    pattern_color: str | None = None
+    clear_fill: bool = False
+
+    locked: bool | None = None
+    hidden: bool | None = None
 
 
 class SheetGeometry:
@@ -159,6 +231,133 @@ class SheetDataModel:
     def __init__(self) -> None:
         self.cells: dict[tuple[int, int], CellData] = {}
         self.geometry = SheetGeometry()
+        self.merges: list[tuple[int, int, int, int]] = []
+
+    def add_merge(self, r1: int, c1: int, r2: int, c2: int) -> None:
+        """Add a merged cell region (r1, c1, r2, c2)."""
+        min_r, max_r = min(r1, r2), max(r1, r2)
+        min_c, max_c = min(c1, c2), max(c1, c2)
+        self.merges = [
+            m
+            for m in self.merges
+            if not (
+                min_r <= m[2]
+                and max_r >= m[0]
+                and min_c <= m[3]
+                and max_c >= m[1]
+            )
+        ]
+        self.merges.append((min_r, min_c, max_r, max_c))
+
+    def remove_merge(self, r: int, c: int) -> None:
+        """Remove any merge containing cell (r, c)."""
+        self.merges = [
+            m
+            for m in self.merges
+            if not (m[0] <= r <= m[2] and m[1] <= c <= m[3])
+        ]
+
+    def is_merged(self, r: int, c: int) -> bool:
+        """Return True if (r, c) is part of a merged region."""
+        return any(
+            m[0] <= r <= m[2] and m[1] <= c <= m[3] for m in self.merges
+        )
+
+    def get_merge_range(
+        self, r: int, c: int
+    ) -> tuple[int, int, int, int] | None:
+        """Return the (min_r, min_c, max_r, max_c) region for cell (r, c) or None."""
+        for m in self.merges:
+            if m[0] <= r <= m[2] and m[1] <= c <= m[3]:
+                return m
+        return None
+
+    def apply_format_delta(
+        self, r: int, c: int, delta: FormatDelta
+    ) -> CellData:
+        """Apply style modifications in delta to cell (r, c)."""
+        cell = self.get_cell(r, c)
+        if cell is None:
+            cell = CellData()
+            self.set_cell(r, c, cell)
+
+        if delta.format_code is not None:
+            cell.format_code = delta.format_code
+        if delta.bold is not None:
+            cell.bold = delta.bold
+        if delta.italic is not None:
+            cell.italic = delta.italic
+        if delta.underline is not None:
+            cell.underline = delta.underline
+        if delta.underline_style is not None:
+            cell.underline_style = delta.underline_style
+            cell.underline = delta.underline_style != "none"
+        if delta.strike is not None:
+            cell.strike = delta.strike
+        if delta.vert_align is not None:
+            cell.vert_align = delta.vert_align
+        if delta.font_size is not None:
+            cell.font_size = delta.font_size
+        if delta.font_family is not None:
+            cell.font_family = delta.font_family
+        if delta.fg_color is not None:
+            cell.fg_color = delta.fg_color
+        if delta.bg_color is not None:
+            cell.bg_color = delta.bg_color
+        if delta.align_h is not None:
+            cell.align_h = delta.align_h
+        if delta.align_v is not None:
+            cell.align_v = delta.align_v
+        if delta.indent is not None:
+            cell.indent = delta.indent
+        if delta.wrap_text is not None:
+            cell.wrap_text = delta.wrap_text
+        if delta.shrink_to_fit is not None:
+            cell.shrink_to_fit = delta.shrink_to_fit
+        if delta.text_rotation is not None:
+            cell.text_rotation = delta.text_rotation
+        if delta.text_direction is not None:
+            cell.text_direction = delta.text_direction
+        if delta.just_last is not None:
+            cell.just_last = delta.just_last
+
+        if delta.clear_borders:
+            cell.border_top = None
+            cell.border_bottom = None
+            cell.border_left = None
+            cell.border_right = None
+            cell.border_diag_up = None
+            cell.border_diag_down = None
+        else:
+            if delta.border_top is not None:
+                cell.border_top = delta.border_top
+            if delta.border_bottom is not None:
+                cell.border_bottom = delta.border_bottom
+            if delta.border_left is not None:
+                cell.border_left = delta.border_left
+            if delta.border_right is not None:
+                cell.border_right = delta.border_right
+            if delta.border_diag_up is not None:
+                cell.border_diag_up = delta.border_diag_up
+            if delta.border_diag_down is not None:
+                cell.border_diag_down = delta.border_diag_down
+
+        if delta.clear_fill:
+            cell.bg_color = None
+            cell.pattern = None
+            cell.pattern_color = None
+        else:
+            if delta.pattern is not None:
+                cell.pattern = delta.pattern
+            if delta.pattern_color is not None:
+                cell.pattern_color = delta.pattern_color
+
+        if delta.locked is not None:
+            cell.locked = delta.locked
+        if delta.hidden is not None:
+            cell.hidden = delta.hidden
+
+        return cell
 
     def get_cell(self, r: int, c: int) -> CellData | None:
         return self.cells.get((r, c))
