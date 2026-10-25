@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from atboffice.core.app import ATBApplication, create_application
+from atboffice.core.app import create_application
 from atboffice.ui.shell.main_window import MainWindow
 
 

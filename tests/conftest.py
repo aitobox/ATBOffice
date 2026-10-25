@@ -1,6 +1,7 @@
 """Global pytest configuration and shared fixtures for ATBOffice."""
 
 import pytest
+
 from atboffice.core.app import ATBApplication, create_application
 
 

@@ -74,13 +74,17 @@ class MainWindow(QMainWindow):
 
     def open_file_dialog(self) -> bool:
         """Present standard file dialog to select and open a document."""
+        filters = safe_tr(
+            "所有支持的格式 (*.xlsx *.xls *.csv);;"
+            "Excel 工作簿 (*.xlsx *.xls);;"
+            "CSV 逗号分隔文本 (*.csv);;"
+            "所有文件 (*.*)"
+        )
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             safe_tr("打开工作簿"),
             "",
-            safe_tr(
-                "所有支持的格式 (*.xlsx *.xls *.csv);;Excel 工作簿 (*.xlsx *.xls);;CSV 逗号分隔文本 (*.csv);;所有文件 (*.*)"
-            ),
+            filters,
         )
         if file_path:
             return self.open_file(file_path)

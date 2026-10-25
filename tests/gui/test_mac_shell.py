@@ -3,13 +3,11 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-from PySide6.QtCore import QCoreApplication, QEvent, Qt
 from PySide6.QtGui import QCloseEvent, QFileOpenEvent, QKeySequence
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from atboffice.core.app import ATBApplication, create_application
-from atboffice.ui.shell.mac_menu import MacMenuBar, setup_mac_menu
+from atboffice.core.app import ATBApplication
+from atboffice.ui.shell.mac_menu import MacMenuBar
 from atboffice.ui.shell.main_window import MainWindow
 
 
@@ -79,9 +77,12 @@ class TestMacMenuBar:
         assert "edit_format_cells" in action_map
 
         # Check key bindings
-        assert action_map["file_save"].shortcut().toString() == QKeySequence(QKeySequence.StandardKey.Save).toString()
-        assert action_map["file_save_as"].shortcut().toString() == QKeySequence(QKeySequence.StandardKey.SaveAs).toString()
-        assert action_map["edit_format_cells"].shortcut().toString() == QKeySequence("Ctrl+1").toString()
+        save_seq = QKeySequence(QKeySequence.StandardKey.Save).toString()
+        save_as_seq = QKeySequence(QKeySequence.StandardKey.SaveAs).toString()
+        ctrl_1_seq = QKeySequence("Ctrl+1").toString()
+        assert action_map["file_save"].shortcut().toString() == save_seq
+        assert action_map["file_save_as"].shortcut().toString() == save_as_seq
+        assert action_map["edit_format_cells"].shortcut().toString() == ctrl_1_seq
 
     def test_menu_retranslate(self, qapp: ATBApplication, qtbot) -> None:
         window = MainWindow()
@@ -144,7 +145,9 @@ class TestMainWindowLifecycle:
         window.set_modified(True)
 
         # Simulate user clicking Cancel
-        monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: QMessageBox.StandardButton.Cancel)
+        monkeypatch.setattr(
+            QMessageBox, "warning", lambda *args, **kwargs: QMessageBox.StandardButton.Cancel
+        )
 
         close_event = QCloseEvent()
         window.closeEvent(close_event)
@@ -156,13 +159,17 @@ class TestMainWindowLifecycle:
         window.set_modified(True)
 
         # Simulate user clicking Discard (Don't Save)
-        monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: QMessageBox.StandardButton.Discard)
+        monkeypatch.setattr(
+            QMessageBox, "warning", lambda *args, **kwargs: QMessageBox.StandardButton.Discard
+        )
 
         close_event = QCloseEvent()
         window.closeEvent(close_event)
         assert close_event.isAccepted()
 
-    def test_cli_file_open_dispatch(self, qapp: ATBApplication, tmp_path: Path, monkeypatch) -> None:
+    def test_cli_file_open_dispatch(
+        self, qapp: ATBApplication, tmp_path: Path, monkeypatch
+    ) -> None:
         from atboffice import __main__ as main_entry
 
         test_file = tmp_path / "cli_opened.xlsx"

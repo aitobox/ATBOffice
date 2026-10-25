@@ -10,7 +10,7 @@ from PySide6.QtGui import QFileOpenEvent, QGuiApplication
 from PySide6.QtWidgets import QApplication
 
 if TYPE_CHECKING:
-    from atboffice.ui.shell.main_window import MainWindow
+    pass
 
 
 class _AppDispatcher(QObject):
