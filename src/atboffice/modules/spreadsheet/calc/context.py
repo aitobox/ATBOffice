@@ -97,6 +97,22 @@ class EvalContext:
     current_row: int = 0
     current_col: int = 0
     workbook_data: dict[str, dict[tuple[int, int], Any]] = field(default_factory=dict)
+    vars: dict[str, Any] = field(default_factory=dict)
+
+    def with_vars(self, extra_vars: dict[str, Any]) -> EvalContext:
+        """Create a child evaluation context with additional local variables."""
+        merged_vars = dict(self.vars)
+        merged_vars.update(extra_vars)
+        return EvalContext(
+            cell_getter=self.cell_getter,
+            date1904=self.date1904,
+            array_mode=self.array_mode,
+            current_sheet=self.current_sheet,
+            current_row=self.current_row,
+            current_col=self.current_col,
+            workbook_data=self.workbook_data,
+            vars=merged_vars,
+        )
 
     def get_cell_value(self, sheet: str, r: int, c: int) -> Any:
         if self.cell_getter is not None:

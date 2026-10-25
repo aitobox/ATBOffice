@@ -5,11 +5,19 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from atboffice.modules.spreadsheet.calc.coercion import num_eq, round_15, to_bool, to_num, to_str
+from atboffice.modules.spreadsheet.calc.coercion import (
+    compare_excel_values,
+    round_15,
+    to_bool,
+    to_num,
+    to_str,
+)
 from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext, Ref
 from atboffice.modules.spreadsheet.calc.errors import (
+    CALC,
     DIV0,
     NA,
+    NAME,
     NUM,
     VALUE,
     ExcelError,
@@ -25,56 +33,12 @@ from atboffice.modules.spreadsheet.calc.tokens import (
     BinaryOpNode,
     CellRefNode,
     FunctionCallNode,
+    InvokeNode,
     LiteralNode,
+    NameNode,
     ParenNode,
     UnaryOpNode,
 )
-
-
-def compare_excel_values(left: Any, right: Any) -> int:
-    """Compare two values according to Excel comparison semantics.
-
-    Order: Numbers < Text < Booleans.
-    Within types: numbers compared with tolerance, text case-insensitively.
-    Returns -1 if left < right, 0 if left == right, 1 if left > right.
-    """
-    if left == right:
-        return 0
-
-    def type_order(v: Any) -> int:
-        if v is None:
-            return 0
-        if isinstance(v, (int, float)) and not isinstance(v, bool):
-            return 1
-        if isinstance(v, str):
-            return 2
-        if isinstance(v, bool):
-            return 3
-        return 4
-
-    to_left = type_order(left)
-    to_right = type_order(right)
-    if to_left != to_right:
-        return -1 if to_left < to_right else 1
-
-    if to_left == 1:
-        if num_eq(left, right):
-            return 0
-        return -1 if left < right else 1
-
-    if to_left == 2:
-        sl = left.lower()
-        sr = right.lower()
-        if sl == sr:
-            return 0
-        return -1 if sl < sr else 1
-
-    if to_left == 3:
-        if left == right:
-            return 0
-        return -1 if not left and right else 1
-
-    return 0
 
 
 def evaluate_ast(node: ASTNode, ctx: EvalContext | None = None) -> Any:
@@ -90,6 +54,21 @@ def evaluate_ast(node: ASTNode, ctx: EvalContext | None = None) -> Any:
 
     if isinstance(node, ParenNode):
         return evaluate_ast(node.node, ctx)
+
+    if isinstance(node, NameNode):
+        name_key = node.name.upper()
+        if ctx.vars and name_key in ctx.vars:
+            return ctx.vars[name_key]
+        return NAME
+
+    if isinstance(node, InvokeNode):
+        fn_val = evaluate_ast(node.fn, ctx)
+        if callable(fn_val):
+            eval_args = [evaluate_ast(a, ctx) for a in node.args]
+            return fn_val(*eval_args, ctx=ctx)
+        if is_error(fn_val):
+            return fn_val
+        return CALC
 
     if isinstance(node, CellRefNode):
         sheet = node.sheet or ctx.current_sheet
@@ -232,6 +211,57 @@ def evaluate_ast(node: ASTNode, ctx: EvalContext | None = None) -> Any:
             if k < 1 or k >= len(node.args):
                 return VALUE
             return evaluate_ast(node.args[k], ctx)
+
+        if fn_name == "LET":
+            if len(node.args) < 3 or len(node.args) % 2 == 0:
+                return VALUE
+            cur_ctx = ctx
+            for i in range(0, len(node.args) - 1, 2):
+                arg_name = node.args[i]
+                if isinstance(arg_name, NameNode):
+                    var_name = arg_name.name.upper()
+                elif isinstance(arg_name, LiteralNode) and isinstance(arg_name.v, str):
+                    var_name = arg_name.v.upper()
+                else:
+                    return VALUE
+                val = evaluate_ast(node.args[i + 1], cur_ctx)
+                if is_error(val):
+                    return val
+                cur_ctx = cur_ctx.with_vars({var_name: val})
+            return evaluate_ast(node.args[-1], cur_ctx)
+
+        if fn_name == "LAMBDA":
+            if not node.args:
+                return VALUE
+            param_names: list[str] = []
+            for arg_n in node.args[:-1]:
+                if isinstance(arg_n, NameNode):
+                    param_names.append(arg_n.name.upper())
+                elif isinstance(arg_n, LiteralNode) and isinstance(arg_n.v, str):
+                    param_names.append(arg_n.v.upper())
+                else:
+                    return VALUE
+            body_ast = node.args[-1]
+            closure_vars = dict(ctx.vars)
+
+            class LambdaCallable:
+                def __init__(self, p_names: list[str], b_ast: ASTNode, c_vars: dict[str, Any]):
+                    self.param_names = p_names
+                    self.body_ast = b_ast
+                    self.closure_vars = c_vars
+                    self.lambda_fn = True
+
+                def __call__(self, *call_args: Any, ctx: EvalContext | None = None) -> Any:
+                    if len(call_args) != len(self.param_names):
+                        return VALUE
+                    active_ctx = ctx if ctx is not None else EvalContext()
+                    merged = dict(self.closure_vars)
+                    for p, a in zip(self.param_names, call_args):
+                        merged[p] = a
+                    call_ctx = active_ctx.with_vars(merged)
+                    return evaluate_ast(self.body_ast, call_ctx)
+
+            return LambdaCallable(param_names, body_ast, closure_vars)
 
         # Standard eager evaluation for all other functions
         evaluated_args: list[Any] = []
