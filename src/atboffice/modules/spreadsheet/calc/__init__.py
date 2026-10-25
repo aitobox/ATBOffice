@@ -1,5 +1,18 @@
 """Ledger spreadsheet formula calculation and parsing subpackage."""
 
+from atboffice.modules.spreadsheet.calc.dag import (
+    VOLATILE_FUNCTIONS,
+    CellAddress,
+    CellRange,
+    Change,
+    Color,
+    CycleReport,
+    DependencyGraph,
+    PrecedentsResult,
+    RangeEntry,
+    RecalcPlan,
+    extract_precedents,
+)
 from atboffice.modules.spreadsheet.calc.parser import (
     display,
     parse,
@@ -51,6 +64,17 @@ from atboffice.modules.spreadsheet.calc.tokens import (
 __all__ = [
     "MAXC",
     "MAXR",
+    "VOLATILE_FUNCTIONS",
+    "CellAddress",
+    "CellRange",
+    "Change",
+    "Color",
+    "CycleReport",
+    "DependencyGraph",
+    "PrecedentsResult",
+    "RangeEntry",
+    "RecalcPlan",
+    "extract_precedents",
     "ASTNode",
     "AreaRefNode",
     "ArrayNode",
