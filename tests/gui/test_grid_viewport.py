@@ -9,14 +9,6 @@ from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetData
 from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport, HitZone
 
 
-@pytest.fixture(scope="session")
-def qapp() -> QApplication:
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication([])
-    return app
-
-
 @pytest.fixture
 def viewport(qapp: QApplication) -> GridViewport:
     model = SheetDataModel()

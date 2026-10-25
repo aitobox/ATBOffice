@@ -1,22 +1,9 @@
-"""Main application window and office module navigation."""
+"""Main application window and office module navigation.
 
-from PySide6.QtWidgets import QMainWindow, QTabWidget
+This module re-exports :class:`MainWindow` from :mod:`atboffice.ui.shell.main_window`
+for backward compatibility.
+"""
 
-from atboffice.modules.presentation.view import PresentationView
-from atboffice.modules.spreadsheet.view import SpreadsheetView
-from atboffice.modules.writer.view import WriterView
+from atboffice.ui.shell.main_window import MainWindow
 
-
-class MainWindow(QMainWindow):
-    """Top-level window for the ATBOffice suite."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.setWindowTitle("ATBOffice")
-        self.resize(1100, 720)
-
-        tabs = QTabWidget()
-        tabs.addTab(WriterView(), "文字处理")
-        tabs.addTab(SpreadsheetView(), "电子表格")
-        tabs.addTab(PresentationView(), "演示文稿")
-        self.setCentralWidget(tabs)
+__all__ = ["MainWindow"]
