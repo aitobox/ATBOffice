@@ -1,7 +1,6 @@
 """GUI automation tests for the 6-tab FormatCellsDialog."""
 
 import pytest
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.spreadsheet.dialogs.format_cells import (

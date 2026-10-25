@@ -1,6 +1,5 @@
-"""Unit tests for cell format attributes, BorderStyle, FormatDelta, and SheetDataModel formatting."""
+"""Unit tests for cell format attributes, BorderStyle, and FormatDelta."""
 
-import pytest
 from atboffice.modules.spreadsheet.models.sheet_model import (
     BorderStyle,
     CellData,

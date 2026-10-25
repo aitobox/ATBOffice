@@ -1,12 +1,11 @@
 """Unit tests for the 54 ECMA-376 / Office 2003 pattern definitions and pixmap generation."""
 
-import pytest
-from PySide6.QtGui import QBrush, QColor, QPixmap
+from PySide6.QtGui import QBrush, QPixmap
 from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.spreadsheet.dialogs.pattern_defs import (
-    PATTERNS,
     PATTERN_NAMES,
+    PATTERNS,
     create_pattern_brush,
     create_pattern_pixmap,
 )

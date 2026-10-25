@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QPoint, QRect, Qt
+from PySide6.QtCore import QCoreApplication, QRect, Qt
 from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import (
     QColorDialog,

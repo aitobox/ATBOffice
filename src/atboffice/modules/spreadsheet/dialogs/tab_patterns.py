@@ -18,8 +18,8 @@ from PySide6.QtWidgets import (
 )
 
 from atboffice.modules.spreadsheet.dialogs.pattern_defs import (
-    PATTERNS,
     PATTERN_NAMES,
+    PATTERNS,
     create_pattern_brush,
     create_pattern_pixmap,
 )

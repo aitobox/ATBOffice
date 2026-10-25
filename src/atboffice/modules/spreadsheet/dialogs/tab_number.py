@@ -512,7 +512,9 @@ class NumberFormatTab(QWidget):
             sym_part = f'"{sym}"' if sym and sym != safe_tr("无") else ""
             dec_str = ("." + "0" * dec) if dec > 0 else ""
             return (
-                f'_({sym_part}* #,##0{dec_str}_);_({sym_part}* (#,##0{dec_str});_({sym_part}* "-"??_);_(@_)'
+                f"_({sym_part}* #,##0{dec_str}_);"
+                f"_({sym_part}* (#,##0{dec_str});"
+                f'_({sym_part}* "-"??_);_(@_)'
             )
 
         elif cat == "Date":
