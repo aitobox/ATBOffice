@@ -9,6 +9,7 @@ from PySide6.QtCore import QCoreApplication, QPoint, QRect, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
+    QContextMenuEvent,
     QFont,
     QFontMetrics,
     QKeyEvent,
@@ -17,7 +18,7 @@ from PySide6.QtGui import (
     QPaintEvent,
     QPen,
 )
-from PySide6.QtWidgets import QAbstractScrollArea, QWidget
+from PySide6.QtWidgets import QAbstractScrollArea, QMenu, QWidget
 
 from atboffice.modules.spreadsheet.calc.references import col_name
 from atboffice.modules.spreadsheet.models.selection_model import (
@@ -411,7 +412,7 @@ class GridViewport(QAbstractScrollArea):
 
             for c in range(start_col, end_col + 1):
                 cell = self.model.get_cell(r, c)
-                if cell is None or cell.value is None or cell.value == "":
+                if cell is None:
                     continue
 
                 col_x = (
@@ -421,6 +422,111 @@ class GridViewport(QAbstractScrollArea):
                 )
                 col_w = self.geometry_mapper.col_size(c)
                 if col_w <= 0:
+                    continue
+
+                cell_rect = QRect(col_x, row_y, col_w, row_h)
+                # Background fill & patterns
+                if cell.bg_color or cell.pattern:
+                    painter.save()
+                    painter.setClipRect(cell_rect)
+                    if cell.bg_color:
+                        painter.fillRect(cell_rect, QColor(cell.bg_color))
+                    if cell.pattern:
+                        from atboffice.modules.spreadsheet.dialogs.pattern_defs import (
+                            create_pattern_brush,
+                        )
+
+                        brush = create_pattern_brush(
+                            cell.pattern,
+                            cell.pattern_color or "#000000",
+                            cell.bg_color or "#FFFFFF",
+                        )
+                        painter.fillRect(cell_rect, brush)
+                    painter.restore()
+
+                # Cell borders
+                if any(
+                    [
+                        cell.border_top,
+                        cell.border_bottom,
+                        cell.border_left,
+                        cell.border_right,
+                    ]
+                ):
+                    painter.save()
+                    if cell.border_top and cell.border_top.style != "none":
+                        col = (
+                            QColor(cell.border_top.color)
+                            if cell.border_top.color
+                            else Qt.GlobalColor.black
+                        )
+                        painter.setPen(
+                            QPen(
+                                col,
+                                2
+                                if cell.border_top.style in ("medium", "thick")
+                                else 1,
+                            )
+                        )
+                        painter.drawLine(col_x, row_y, col_x + col_w, row_y)
+                    if (
+                        cell.border_bottom
+                        and cell.border_bottom.style != "none"
+                    ):
+                        col = (
+                            QColor(cell.border_bottom.color)
+                            if cell.border_bottom.color
+                            else Qt.GlobalColor.black
+                        )
+                        painter.setPen(
+                            QPen(
+                                col,
+                                2
+                                if cell.border_bottom.style
+                                in ("medium", "thick")
+                                else 1,
+                            )
+                        )
+                        painter.drawLine(
+                            col_x, row_y + row_h, col_x + col_w, row_y + row_h
+                        )
+                    if cell.border_left and cell.border_left.style != "none":
+                        col = (
+                            QColor(cell.border_left.color)
+                            if cell.border_left.color
+                            else Qt.GlobalColor.black
+                        )
+                        painter.setPen(
+                            QPen(
+                                col,
+                                2
+                                if cell.border_left.style
+                                in ("medium", "thick")
+                                else 1,
+                            )
+                        )
+                        painter.drawLine(col_x, row_y, col_x, row_y + row_h)
+                    if cell.border_right and cell.border_right.style != "none":
+                        col = (
+                            QColor(cell.border_right.color)
+                            if cell.border_right.color
+                            else Qt.GlobalColor.black
+                        )
+                        painter.setPen(
+                            QPen(
+                                col,
+                                2
+                                if cell.border_right.style
+                                in ("medium", "thick")
+                                else 1,
+                            )
+                        )
+                        painter.drawLine(
+                            col_x + col_w, row_y, col_x + col_w, row_y + row_h
+                        )
+                    painter.restore()
+
+                if cell.value is None or cell.value == "":
                     continue
 
                 text = self.model.get_formatted_text(r, c)
@@ -870,6 +976,17 @@ class GridViewport(QAbstractScrollArea):
         modifiers = event.modifiers()
         r, c = self.selection.active_cell
 
+        # Ctrl+1 / Cmd+1 to open Format Cells dialog
+        if (
+            modifiers
+            & (
+                Qt.KeyboardModifier.ControlModifier
+                | Qt.KeyboardModifier.MetaModifier
+            )
+        ) and key == Qt.Key.Key_1:
+            self.open_format_cells_dialog()
+            return
+
         # F2 to start editing
         if key == Qt.Key.Key_F2:
             if (
@@ -949,3 +1066,33 @@ class GridViewport(QAbstractScrollArea):
             return
 
         super().keyPressEvent(event)
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+        """Right-click context menu offering cell formatting and clipboard operations."""
+        menu = QMenu(self)
+        action_fmt = menu.addAction(safe_tr("设置单元格格式(&F)…"))
+        action_fmt.setShortcut("Ctrl+1")
+        action_fmt.triggered.connect(lambda: self.open_format_cells_dialog())
+        menu.exec(event.globalPos())
+
+    def open_format_cells_dialog(self, initial_tab: int = 0) -> None:
+        """Open the classic 6-tab Format Cells dialog for the active selection."""
+        from atboffice.modules.spreadsheet.dialogs.format_cells import (
+            FormatCellsDialog,
+        )
+
+        r, c = self.selection.active_cell
+        target = self.model.get_cell(r, c)
+        dlg = FormatCellsDialog(
+            target_cell=target,
+            model=self.model,
+            selection=self.selection,
+            initial_tab=initial_tab,
+            parent=self,
+        )
+        if dlg.exec():
+            self.viewport().update()
+            # If top-level window has set_modified, flag it
+            top = self.window()
+            if hasattr(top, "set_modified"):
+                top.set_modified(True)

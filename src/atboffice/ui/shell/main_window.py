@@ -259,8 +259,16 @@ class MainWindow(QMainWindow):
         pass
 
     def format_cells(self) -> None:
-        """Placeholder for format cells dialog."""
-        pass
+        """Open the classic Format Cells dialog for the active spreadsheet view."""
+        current = self.tabs.currentWidget()
+        if hasattr(current, "grid") and hasattr(
+            current.grid, "open_format_cells_dialog"
+        ):
+            current.grid.open_format_cells_dialog()
+        elif hasattr(self, "spreadsheet_view") and hasattr(
+            self.spreadsheet_view, "grid"
+        ):
+            self.spreadsheet_view.grid.open_format_cells_dialog()
 
     def zoom_in(self) -> None:
         """Placeholder for zoom in."""
