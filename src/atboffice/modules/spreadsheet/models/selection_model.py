@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final
 
+from PySide6.QtCore import QObject, Signal
+
 MAXR: Final[int] = 1048576
 MAXC: Final[int] = 16384
 
@@ -48,10 +50,19 @@ class SelectionRange:
         )
 
 
-class SelectionModel:
+class SelectionModel(QObject):
     """Multi-mode selection state machine supporting single, marquee, and multi-range selections."""
 
-    def __init__(self, max_rows: int = MAXR, max_cols: int = MAXC) -> None:
+    active_cell_changed = Signal(int, int)
+    selection_changed = Signal()
+
+    def __init__(
+        self,
+        max_rows: int = MAXR,
+        max_cols: int = MAXC,
+        parent: QObject | None = None,
+    ) -> None:
+        super().__init__(parent)
         self.max_rows = max_rows
         self.max_cols = max_cols
         self._active_cell: tuple[int, int] = (0, 0)
@@ -74,6 +85,19 @@ class SelectionModel:
     def primary_range(self) -> SelectionRange:
         return self._ranges[-1] if self._ranges else SelectionRange(0, 0, 0, 0)
 
+    def set_active_cell(self, r: int, c: int) -> None:
+        """Explicitly set active cell coordinates."""
+        r = max(0, min(self.max_rows - 1, r))
+        c = max(0, min(self.max_cols - 1, c))
+        self._active_cell = (r, c)
+        self.active_cell_changed.emit(r, c)
+        self.selection_changed.emit()
+
+    def clear(self) -> None:
+        """Clear all active selection ranges."""
+        self._ranges = []
+        self.selection_changed.emit()
+
     def select_cell(self, r: int, c: int) -> None:
         """Select a single cell, resetting active, anchor, and ranges."""
         r = max(0, min(self.max_rows - 1, r))
@@ -81,6 +105,8 @@ class SelectionModel:
         self._active_cell = (r, c)
         self._anchor_cell = (r, c)
         self._ranges = [SelectionRange(r, c, r, c)]
+        self.active_cell_changed.emit(r, c)
+        self.selection_changed.emit()
 
     def extend_to(self, r: int, c: int) -> None:
         """Extend the current selection range from the anchor to (r, c)."""
@@ -92,12 +118,16 @@ class SelectionModel:
             self._ranges[-1] = new_range
         else:
             self._ranges = [new_range]
+        self.active_cell_changed.emit(r, c)
+        self.selection_changed.emit()
 
     def add_range(self, rg: SelectionRange) -> None:
         """Add an additional range (for Ctrl/Cmd click)."""
         self._ranges.append(rg)
         self._active_cell = (rg.r2, rg.c2)
         self._anchor_cell = (rg.r1, rg.c1)
+        self.active_cell_changed.emit(self._active_cell[0], self._active_cell[1])
+        self.selection_changed.emit()
 
     def select_rows(self, r1: int, r2: int) -> None:
         """Select entire rows across all columns."""
@@ -106,6 +136,8 @@ class SelectionModel:
         self._active_cell = (min_r, 0)
         self._anchor_cell = (min_r, 0)
         self._ranges = [SelectionRange(min_r, 0, max_r, self.max_cols - 1)]
+        self.active_cell_changed.emit(min_r, 0)
+        self.selection_changed.emit()
 
     def select_cols(self, c1: int, c2: int) -> None:
         """Select entire columns across all rows."""
@@ -114,12 +146,16 @@ class SelectionModel:
         self._active_cell = (0, min_c)
         self._anchor_cell = (0, min_c)
         self._ranges = [SelectionRange(0, min_c, self.max_rows - 1, max_c)]
+        self.active_cell_changed.emit(0, min_c)
+        self.selection_changed.emit()
 
     def select_all(self) -> None:
         """Select the entire worksheet."""
         self._active_cell = (0, 0)
         self._anchor_cell = (0, 0)
         self._ranges = [SelectionRange(0, 0, self.max_rows - 1, self.max_cols - 1)]
+        self.active_cell_changed.emit(0, 0)
+        self.selection_changed.emit()
 
     def is_selected(self, r: int, c: int) -> bool:
         """Check if cell (r, c) falls within any active selection range."""

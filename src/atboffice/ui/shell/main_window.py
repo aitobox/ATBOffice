@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from PySide6.QtCore import QCoreApplication
 from PySide6.QtGui import QCloseEvent
@@ -11,6 +12,7 @@ from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QTabWidget
 from atboffice.modules.presentation.view import PresentationView
 from atboffice.modules.spreadsheet.view import SpreadsheetView
 from atboffice.modules.writer.view import WriterView
+from atboffice.ui.components.status_bar import StatusBar
 from atboffice.ui.shell.mac_menu import MacMenuBar, setup_mac_menu
 
 
@@ -43,6 +45,36 @@ class MainWindow(QMainWindow):
 
         # Setup native macOS menu bar
         self.menu_bar: MacMenuBar = setup_mac_menu(self)
+
+        # Setup AutoCalculate status bar
+        self.status_bar = StatusBar(self)
+        self.setStatusBar(self.status_bar)
+
+        # Connect spreadsheet selection and mode to status bar
+        self.spreadsheet_view.selection.selection_changed.connect(
+            self._update_spreadsheet_status
+        )
+        self.spreadsheet_view.selection.active_cell_changed.connect(
+            self._update_spreadsheet_status
+        )
+        self.spreadsheet_view.editor_controller.mode_changed.connect(
+            self.status_bar.set_mode
+        )
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+
+    def _update_spreadsheet_status(self, *_: Any) -> None:
+        """Forward spreadsheet selection updates to status bar."""
+        if self.tabs.currentWidget() == self.spreadsheet_view:
+            self.status_bar.update_calculation(
+                self.spreadsheet_view.model, self.spreadsheet_view.selection
+            )
+
+    def _on_tab_changed(self, index: int) -> None:
+        """Handle active module tab switch."""
+        if self.tabs.widget(index) == self.spreadsheet_view:
+            self._update_spreadsheet_status()
+        else:
+            self.status_bar.lbl_calc.setText("")
 
     @property
     def is_modified(self) -> bool:
