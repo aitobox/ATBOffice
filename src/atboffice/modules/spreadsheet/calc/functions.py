@@ -18,6 +18,8 @@ from atboffice.modules.spreadsheet.calc.coercion import (
     to_str,
 )
 from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext, Ref
+from atboffice.modules.spreadsheet.calc.core_fns import CORE_FUNCTIONS
+from atboffice.modules.spreadsheet.calc.engineering import ENGINEERING_FUNCTIONS
 from atboffice.modules.spreadsheet.calc.errors import (
     DIV0,
     NA,
@@ -27,6 +29,9 @@ from atboffice.modules.spreadsheet.calc.errors import (
     ExcelError,
     is_error,
 )
+from atboffice.modules.spreadsheet.calc.financial import FINANCIAL_FUNCTIONS
+from atboffice.modules.spreadsheet.calc.fn_dynamic import DYNAMIC_FUNCTIONS
+from atboffice.modules.spreadsheet.calc.fn_stat import STATISTICAL_FUNCTIONS
 
 FUNCTION_REGISTRY: dict[str, Callable[..., Any]] = {}
 
@@ -1311,12 +1316,6 @@ def fn_weekday(
 
 # --- Aggregate All Function Modules into FUNCTION_REGISTRY ---
 
-from atboffice.modules.spreadsheet.calc.core_fns import CORE_FUNCTIONS
-from atboffice.modules.spreadsheet.calc.engineering import ENGINEERING_FUNCTIONS
-from atboffice.modules.spreadsheet.calc.financial import FINANCIAL_FUNCTIONS
-from atboffice.modules.spreadsheet.calc.fn_dynamic import DYNAMIC_FUNCTIONS
-from atboffice.modules.spreadsheet.calc.fn_stat import STATISTICAL_FUNCTIONS
-
 for _module_fns in (
     CORE_FUNCTIONS,
     ENGINEERING_FUNCTIONS,
@@ -1327,4 +1326,3 @@ for _module_fns in (
     for _name, _fn in _module_fns.items():
         if _name not in FUNCTION_REGISTRY:
             FUNCTION_REGISTRY[_name] = _fn
-

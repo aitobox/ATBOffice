@@ -9,12 +9,12 @@ from typing import Any
 
 from atboffice.modules.spreadsheet.calc.coercion import round_15
 from atboffice.modules.spreadsheet.calc.context import EvalContext
-from atboffice.modules.spreadsheet.calc.errors import DIV0, NUM, VALUE, ExcelError, is_error
 from atboffice.modules.spreadsheet.calc.engineering.common import (
     opt,
     register_eng,
     to_float,
 )
+from atboffice.modules.spreadsheet.calc.errors import DIV0, NUM, VALUE, ExcelError, is_error
 
 CX_REGEX = re.compile(
     r"^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)?(?:([+-]?(?:\d+\.?\d*|\.\d+)?(?:[eE][+-]?\d+)?)([ij]))?$",

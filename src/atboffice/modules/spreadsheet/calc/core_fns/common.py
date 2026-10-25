@@ -2,27 +2,13 @@
 
 from __future__ import annotations
 
-import math
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from atboffice.modules.spreadsheet.calc.coercion import (
-    date_to_serial,
-    days360,
-    days_in_month,
-    is_leap_year,
-    round_15,
-    serial_to_parts,
-    to_bool,
     to_num,
-    to_str,
-    yearfrac,
 )
-from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext, Ref
 from atboffice.modules.spreadsheet.calc.errors import (
-    DIV0,
-    NA,
-    NUM,
-    REF,
     VALUE,
     ExcelError,
     is_error,

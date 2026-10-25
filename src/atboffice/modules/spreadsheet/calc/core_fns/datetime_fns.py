@@ -11,10 +11,9 @@ from atboffice.modules.spreadsheet.calc.coercion import (
     days360,
     days_in_month,
     serial_to_parts,
-    to_num,
     yearfrac,
 )
-from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext, Ref
+from atboffice.modules.spreadsheet.calc.context import EvalContext
 from atboffice.modules.spreadsheet.calc.core_fns.common import (
     opt,
     register_core,
@@ -59,7 +58,9 @@ def fn_second(serial_number: Any, ctx: EvalContext | None = None) -> int | Excel
 
 
 @register_core("TIME")
-def fn_time(hour: Any, minute: Any, second: Any, ctx: EvalContext | None = None) -> float | ExcelError:
+def fn_time(
+    hour: Any, minute: Any, second: Any, ctx: EvalContext | None = None
+) -> float | ExcelError:
     h_val = to_float(hour)
     m_val = to_float(minute)
     s_val = to_float(second)

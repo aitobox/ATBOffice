@@ -158,7 +158,6 @@ def fn_t(value: Any, ctx: EvalContext | None = None) -> str:
 
 @register_core("TEXT")
 def fn_text(value: Any, format_text: Any, ctx: EvalContext | None = None) -> str:
-    from atboffice.modules.spreadsheet.calc.coercion import to_str
 
     # Simple formatting fallback
     return to_str(value)

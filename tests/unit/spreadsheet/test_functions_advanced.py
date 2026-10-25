@@ -1,22 +1,21 @@
-"""Comprehensive unit tests for Issue #11: Advanced Worksheet Functions and Dynamic Arrays (519 Coverage)."""
+"""Comprehensive unit tests for Issue #11:
+Advanced Worksheet Functions and Dynamic Arrays (519 Coverage).
+"""
 
-import math
-import pytest
-
-from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext, Ref
-from atboffice.modules.spreadsheet.calc.errors import DIV0, NA, NUM, SPILL, VALUE, is_error
-from atboffice.modules.spreadsheet.calc.evaluator import evaluate, evaluate_ast
+from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext
+from atboffice.modules.spreadsheet.calc.errors import SPILL
+from atboffice.modules.spreadsheet.calc.evaluator import evaluate
 from atboffice.modules.spreadsheet.calc.fn_info import ALL_FUNCTIONS_CATALOG
 from atboffice.modules.spreadsheet.calc.functions import FUNCTION_REGISTRY, call_function
-from atboffice.modules.spreadsheet.calc.parser import parse
-from atboffice.modules.spreadsheet.calc.spill import SpillManager, SpillRange
-
+from atboffice.modules.spreadsheet.calc.spill import SpillManager
 
 # --- 1. Full 519 Function Registry Coverage ---
 
 
 def test_registry_size_519():
-    """Verify that FUNCTION_REGISTRY has exactly 519 functions and 100% matches ALL_FUNCTIONS_CATALOG."""
+    """Verify that FUNCTION_REGISTRY has exactly 519 functions
+    and 100% matches ALL_FUNCTIONS_CATALOG.
+    """
     assert len(ALL_FUNCTIONS_CATALOG) == 519
     assert len(FUNCTION_REGISTRY) == 519
     missing = set(ALL_FUNCTIONS_CATALOG.keys()) - set(FUNCTION_REGISTRY.keys())
@@ -107,7 +106,9 @@ def test_let_and_lambda():
     assert res_byrow.data == [[3], [7]]
 
     # BYCOL with LAMBDA
-    res_bycol = call_function("BYCOL", [matrix, lambda c, ctx=None: sum(row[0] for row in c.data)], ctx)
+    res_bycol = call_function(
+        "BYCOL", [matrix, lambda c, ctx=None: sum(row[0] for row in c.data)], ctx
+    )
     assert isinstance(res_bycol, Arr)
     assert res_bycol.data == [[4, 6]]
 

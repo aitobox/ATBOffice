@@ -5,12 +5,11 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext, Ref
-from atboffice.modules.spreadsheet.calc.errors import DIV0, NA, NUM, VALUE, ExcelError, is_error
+from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext
+from atboffice.modules.spreadsheet.calc.errors import DIV0, NA, NUM, ExcelError, is_error
 from atboffice.modules.spreadsheet.calc.financial.common import flatten_values
 from atboffice.modules.spreadsheet.calc.statistical.common import (
     mean,
-    opt,
     register_stat,
     to_float,
 )
@@ -82,9 +81,7 @@ def fn_rsq(array1: Any, array2: Any, ctx: EvalContext | None = None) -> float | 
 
 @register_stat("COVAR")
 @register_stat("COVARIANCE.P")
-def fn_covariance_p(
-    array1: Any, array2: Any, ctx: EvalContext | None = None
-) -> float | ExcelError:
+def fn_covariance_p(array1: Any, array2: Any, ctx: EvalContext | None = None) -> float | ExcelError:
     pairs = extract_pairs(array1, array2, ctx)
     if is_error(pairs):
         return pairs
@@ -96,9 +93,7 @@ def fn_covariance_p(
 
 
 @register_stat("COVARIANCE.S")
-def fn_covariance_s(
-    array1: Any, array2: Any, ctx: EvalContext | None = None
-) -> float | ExcelError:
+def fn_covariance_s(array1: Any, array2: Any, ctx: EvalContext | None = None) -> float | ExcelError:
     pairs = extract_pairs(array1, array2, ctx)
     if is_error(pairs):
         return pairs
@@ -126,9 +121,7 @@ def fn_slope(known_y: Any, known_x: Any, ctx: EvalContext | None = None) -> floa
 
 
 @register_stat("INTERCEPT")
-def fn_intercept(
-    known_y: Any, known_x: Any, ctx: EvalContext | None = None
-) -> float | ExcelError:
+def fn_intercept(known_y: Any, known_x: Any, ctx: EvalContext | None = None) -> float | ExcelError:
     pairs = extract_pairs(known_x, known_y, ctx)
     if is_error(pairs):
         return pairs

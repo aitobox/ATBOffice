@@ -6,15 +6,12 @@ import math
 from typing import Any
 
 from atboffice.modules.spreadsheet.calc.coercion import build_criteria_matcher
-from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext, Ref
+from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext
 from atboffice.modules.spreadsheet.calc.core_fns.common import (
-    opt,
     register_core,
     to_float,
 )
 from atboffice.modules.spreadsheet.calc.errors import (
-    DIV0,
-    NA,
     NUM,
     VALUE,
     ExcelError,
@@ -144,11 +141,17 @@ def fn_forecast_ets_stubs(*args: Any, ctx: EvalContext | None = None) -> float:
 def fn_hyperlink(
     link_location: Any, friendly_name: Any = None, ctx: EvalContext | None = None
 ) -> str:
-    return str(friendly_name) if friendly_name is not None and friendly_name != "" else str(link_location)
+    return (
+        str(friendly_name)
+        if friendly_name is not None and friendly_name != ""
+        else str(link_location)
+    )
 
 
 @register_core("MAKEARRAY")
-def fn_makearray(rows: Any, cols: Any, lambda_fn: Any, ctx: EvalContext | None = None) -> Arr | ExcelError:
+def fn_makearray(
+    rows: Any, cols: Any, lambda_fn: Any, ctx: EvalContext | None = None
+) -> Arr | ExcelError:
     r_val = to_float(rows)
     c_val = to_float(cols)
     for v in (r_val, c_val):

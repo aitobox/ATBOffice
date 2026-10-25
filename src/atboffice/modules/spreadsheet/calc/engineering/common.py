@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-import math
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
-from atboffice.modules.spreadsheet.calc.coercion import to_bool, to_num, to_str
-from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext, Ref
+from atboffice.modules.spreadsheet.calc.coercion import to_num
 from atboffice.modules.spreadsheet.calc.errors import (
-    DIV0,
-    NA,
-    NUM,
-    REF,
     VALUE,
     ExcelError,
     is_error,

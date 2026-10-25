@@ -6,11 +6,10 @@ import math
 from typing import Any
 
 from atboffice.modules.spreadsheet.calc.context import EvalContext
-from atboffice.modules.spreadsheet.calc.errors import DIV0, NUM, VALUE, ExcelError, is_error
+from atboffice.modules.spreadsheet.calc.errors import NUM, ExcelError, is_error
 from atboffice.modules.spreadsheet.calc.statistical.common import (
     beta_i,
     gamma_p,
-    gamma_q,
     invert_cdf,
     norm_cdf,
     norm_inv,
@@ -525,7 +524,7 @@ def fn_lognorm_dist(
     z = (math.log(x_f) - m) / s
     if bool(cumulative):
         return norm_cdf(z)
-    return (math.exp(-0.5 * z * z) / (x_f * s * math.sqrt(2.0 * math.pi)))
+    return math.exp(-0.5 * z * z) / (x_f * s * math.sqrt(2.0 * math.pi))
 
 
 @register_stat("LOGINV")

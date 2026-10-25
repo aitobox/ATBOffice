@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from atboffice.modules.spreadsheet.calc.coercion import build_criteria_matcher, to_str
 from atboffice.modules.spreadsheet.calc.context import EvalContext, Ref
 from atboffice.modules.spreadsheet.calc.errors import DIV0, NA, NUM, VALUE, ExcelError, is_error
 from atboffice.modules.spreadsheet.calc.statistical.common import (
     devsq,
-    opt,
     register_stat,
-    to_float,
 )
 
 
@@ -205,9 +204,7 @@ def fn_dproduct(
 
 
 @register_stat("DGET")
-def fn_dget(
-    database: Any, field: Any, criteria: Any, ctx: EvalContext | None = None
-) -> Any:
+def fn_dget(database: Any, field: Any, criteria: Any, ctx: EvalContext | None = None) -> Any:
     sel = db_select(ctx, database, field, criteria)
     if is_error(sel):
         return sel

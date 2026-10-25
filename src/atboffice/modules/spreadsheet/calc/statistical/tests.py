@@ -6,7 +6,7 @@ import math
 from typing import Any
 
 from atboffice.modules.spreadsheet.calc.context import EvalContext
-from atboffice.modules.spreadsheet.calc.errors import DIV0, NA, NUM, VALUE, ExcelError, is_error
+from atboffice.modules.spreadsheet.calc.errors import DIV0, NA, NUM, ExcelError, is_error
 from atboffice.modules.spreadsheet.calc.statistical.common import (
     beta_i,
     collect_stat_numbers,
@@ -165,9 +165,7 @@ def fn_t_dist_rt(
 
 
 @register_stat("T.DIST.2T")
-def fn_t_dist_2t(
-    x: Any, deg_freedom: Any, ctx: EvalContext | None = None
-) -> float | ExcelError:
+def fn_t_dist_2t(x: Any, deg_freedom: Any, ctx: EvalContext | None = None) -> float | ExcelError:
     x_val = to_float(x)
     df_val = to_float(deg_freedom)
     for v in (x_val, df_val):
@@ -269,9 +267,7 @@ def fn_t_test(
         if v1 + v2 == 0:
             return DIV0
         t_stat = (m1 - m2) / math.sqrt(v1 + v2)
-        df = ((v1 + v2) ** 2) / (
-            (v1**2) / (len(n1) - 1.0) + (v2**2) / (len(n2) - 1.0)
-        )
+        df = ((v1 + v2) ** 2) / ((v1**2) / (len(n1) - 1.0) + (v2**2) / (len(n2) - 1.0))
 
     prob = 1.0 - t_cdf(abs(t_stat), df)
     return prob * t_int
@@ -362,9 +358,7 @@ def fn_f_inv_rt(
 
 @register_stat("FTEST")
 @register_stat("F.TEST")
-def fn_f_test(
-    array1: Any, array2: Any, ctx: EvalContext | None = None
-) -> float | ExcelError:
+def fn_f_test(array1: Any, array2: Any, ctx: EvalContext | None = None) -> float | ExcelError:
     n1 = collect_stat_numbers([array1], ctx, False)
     n2 = collect_stat_numbers([array2], ctx, False)
     if is_error(n1):

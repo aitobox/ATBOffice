@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-import math
-import re
 from typing import Any
 
 from atboffice.modules.spreadsheet.calc.context import EvalContext
-from atboffice.modules.spreadsheet.calc.errors import NA, VALUE, ExcelError, is_error
 from atboffice.modules.spreadsheet.calc.engineering.common import (
     register_eng,
     to_float,
 )
+from atboffice.modules.spreadsheet.calc.errors import NA, ExcelError, is_error
 
 U: dict[str, dict[str, Any]] = {}
 
@@ -377,7 +375,13 @@ def parse_unit(s: str) -> tuple[dict[str, Any], str, float] | None:
             base = s[len(p) :]
             if base in U and base not in NOPFX:
                 u = U[base]
-                pw = 2.0 if ("2" in base and u["cat"] == "area") else 3.0 if ("3" in base and u["cat"] == "vol") else 1.0
+                pw = (
+                    2.0
+                    if ("2" in base and u["cat"] == "area")
+                    else 3.0
+                    if ("3" in base and u["cat"] == "vol")
+                    else 1.0
+                )
                 return (u, base, f**pw)
     return None
 

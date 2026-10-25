@@ -7,12 +7,14 @@ from typing import Any
 
 from atboffice.modules.spreadsheet.calc.coercion import yearfrac
 from atboffice.modules.spreadsheet.calc.context import EvalContext
-from atboffice.modules.spreadsheet.calc.errors import DIV0, NUM, VALUE, ExcelError, is_error
+from atboffice.modules.spreadsheet.calc.errors import DIV0, NUM, ExcelError, is_error
 from atboffice.modules.spreadsheet.calc.financial.common import opt, register_fin, to_float
 
 
 @register_fin("SLN")
-def fn_sln(cost: Any, salvage: Any, life: Any, ctx: EvalContext | None = None) -> float | ExcelError:
+def fn_sln(
+    cost: Any, salvage: Any, life: Any, ctx: EvalContext | None = None
+) -> float | ExcelError:
     c_val = to_float(cost)
     s_val = to_float(salvage)
     l_val = to_float(life)
@@ -85,8 +87,8 @@ def fn_db(
     return dep
 
 
-def calc_ddb(c: float, s: float, l: float, p: float, f: float) -> float:
-    r = f / l
+def calc_ddb(c: float, s: float, life_val: float, p: float, f: float) -> float:
+    r = f / life_val
     if r >= 1.0:
         r = 1.0
         old = c if p == 1 else 0.0
@@ -127,16 +129,16 @@ def fn_ddb(
 
 
 def vdb_amounts(
-    c: float, s: float, l: float, n: int, f: float, no_switch: bool
+    c: float, s: float, life_val: float, n: int, f: float, no_switch: bool
 ) -> list[float]:
-    rate = min(f / l, 1.0)
+    rate = min(f / life_val, 1.0)
     out: list[float] = []
     book = c
     line = 0.0
     for k in range(1, n + 1):
         d = max(0.0, min(book * rate, book - s))
         if not no_switch and line == 0.0:
-            sl = (book - s) / (l - (k - 1))
+            sl = (book - s) / (life_val - (k - 1))
             if sl > d:
                 line = sl
         if line != 0.0:

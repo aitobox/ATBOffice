@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+from atboffice.modules.spreadsheet.calc.statistical import (
+    database,
+    descriptive,
+    distributions,
+    ranking,
+    regression,
+    tests,
+)
 from atboffice.modules.spreadsheet.calc.statistical.common import STATISTICAL_FUNCTIONS
-import atboffice.modules.spreadsheet.calc.statistical.descriptive
-import atboffice.modules.spreadsheet.calc.statistical.ranking
-import atboffice.modules.spreadsheet.calc.statistical.distributions
-import atboffice.modules.spreadsheet.calc.statistical.tests
-import atboffice.modules.spreadsheet.calc.statistical.regression
-import atboffice.modules.spreadsheet.calc.statistical.database
 
-__all__ = ["STATISTICAL_FUNCTIONS"]
+__all__ = [
+    "STATISTICAL_FUNCTIONS",
+    "database",
+    "descriptive",
+    "distributions",
+    "ranking",
+    "regression",
+    "tests",
+]

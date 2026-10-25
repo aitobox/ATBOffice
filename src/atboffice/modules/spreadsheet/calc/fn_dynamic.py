@@ -20,7 +20,6 @@ from atboffice.modules.spreadsheet.calc.errors import (
     NUM,
     REF,
     VALUE,
-    ExcelError,
     is_error,
 )
 
@@ -126,12 +125,12 @@ def fn_filter(
     array: Any, include: Any, if_empty: Any = None, ctx: EvalContext | None = None
 ) -> Any:
     A = to_arr(array, ctx)
-    I = to_arr(include, ctx)
-    if I.cols == 1 and I.rows == A.rows:
-        keep = [to_bool(I.data[r][0]) for r in range(I.rows)]
+    inc_arr = to_arr(include, ctx)
+    if inc_arr.cols == 1 and inc_arr.rows == A.rows:
+        keep = [to_bool(inc_arr.data[r][0]) for r in range(inc_arr.rows)]
         out = [A.data[r] for r in range(A.rows) if keep[r] is True]
-    elif I.rows == 1 and I.cols == A.cols:
-        keep = [to_bool(I.data[0][c]) for c in range(I.cols)]
+    elif inc_arr.rows == 1 and inc_arr.cols == A.cols:
+        keep = [to_bool(inc_arr.data[0][c]) for c in range(inc_arr.cols)]
         out = [[row[c] for c in range(A.cols) if keep[c] is True] for row in A.data]
     else:
         return VALUE
@@ -151,16 +150,10 @@ def fn_unique(
     by_col_b = bool(to_bool(by_col))
     once_b = bool(to_bool(exactly_once))
 
-    items = (
-        [[A.data[r][c] for r in range(A.rows)] for c in range(A.cols)]
-        if by_col_b
-        else A.data
-    )
+    items = [[A.data[r][c] for r in range(A.rows)] for c in range(A.cols)] if by_col_b else A.data
 
     def row_key(row: list[Any]) -> tuple[Any, ...]:
-        return tuple(
-            str(x).lower() if isinstance(x, str) else (type(x).__name__, x) for x in row
-        )
+        return tuple(str(x).lower() if isinstance(x, str) else (type(x).__name__, x) for x in row)
 
     counts: dict[tuple[Any, ...], int] = {}
     for it in items:
@@ -210,9 +203,7 @@ def fn_sort(
         if idx < 1 or idx > A.rows:
             return VALUE
         cols_indices = list(range(A.cols))
-        cols_indices.sort(
-            key=lambda c: excel_sort_key(A.data[idx - 1][c]), reverse=(ord_val == -1)
-        )
+        cols_indices.sort(key=lambda c: excel_sort_key(A.data[idx - 1][c]), reverse=(ord_val == -1))
         return Arr([[row[c] for c in cols_indices] for row in A.data])
 
 
@@ -301,11 +292,7 @@ def fn_xlookup(
                 found_idx = i
                 break
         elif mm == 2 and isinstance(lookup_value, str) and isinstance(item, str):
-            pat = (
-                "^"
-                + re.escape(lookup_value).replace(r"\*", ".*").replace(r"\?", ".")
-                + "$"
-            )
+            pat = "^" + re.escape(lookup_value).replace(r"\*", ".*").replace(r"\?", ".") + "$"
             if re.match(pat, item, re.IGNORECASE):
                 found_idx = i
                 break
@@ -482,16 +469,12 @@ def fn_take(
     if r == 0 or c == 0:
         return CALC
     selected_rows = A.data[:r] if r > 0 else A.data[max(0, A.rows + r) :]
-    out = [
-        row[:c] if c > 0 else row[max(0, A.cols + c) :] for row in selected_rows
-    ]
+    out = [row[:c] if c > 0 else row[max(0, A.cols + c) :] for row in selected_rows]
     return Arr(out)
 
 
 @register_dynamic("DROP")
-def fn_drop(
-    array: Any, rows: Any = 0, columns: Any = 0, ctx: EvalContext | None = None
-) -> Any:
+def fn_drop(array: Any, rows: Any = 0, columns: Any = 0, ctx: EvalContext | None = None) -> Any:
     A = to_arr(array, ctx)
     r = 0 if rows is None else int(to_num(rows, ctx) or 0)
     c = 0 if columns is None else int(to_num(columns, ctx) or 0)
@@ -578,8 +561,20 @@ def fn_textsplit(
     ctx: EvalContext | None = None,
 ) -> Any:
     s = to_str(text)
-    cdelims = [to_str(d) for d in (col_delimiter if isinstance(col_delimiter, (list, tuple)) else [col_delimiter])]
-    rdelims = [to_str(d) for d in (row_delimiter if isinstance(row_delimiter, (list, tuple)) else [row_delimiter])] if row_delimiter is not None else []
+    cdelims = [
+        to_str(d)
+        for d in (col_delimiter if isinstance(col_delimiter, (list, tuple)) else [col_delimiter])
+    ]
+    rdelims = (
+        [
+            to_str(d)
+            for d in (
+                row_delimiter if isinstance(row_delimiter, (list, tuple)) else [row_delimiter]
+            )
+        ]
+        if row_delimiter is not None
+        else []
+    )
     ig = bool(to_bool(ignore_empty))
 
     # Split rows

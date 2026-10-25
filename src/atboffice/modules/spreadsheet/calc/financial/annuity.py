@@ -6,7 +6,7 @@ import math
 from typing import Any
 
 from atboffice.modules.spreadsheet.calc.context import EvalContext
-from atboffice.modules.spreadsheet.calc.errors import DIV0, NUM, VALUE, ExcelError, is_error
+from atboffice.modules.spreadsheet.calc.errors import DIV0, NUM, ExcelError, is_error
 from atboffice.modules.spreadsheet.calc.financial.common import opt, register_fin, to_float
 
 

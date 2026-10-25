@@ -16,7 +16,6 @@ from atboffice.modules.spreadsheet.calc.errors import (
     DIV0,
     NA,
     NUM,
-    REF,
     VALUE,
     ExcelError,
     is_error,
@@ -324,7 +323,9 @@ def fn_sign(number: Any, ctx: EvalContext | None = None) -> int | ExcelError:
 
 
 @register_core("QUOTIENT")
-def fn_quotient(numerator: Any, denominator: Any, ctx: EvalContext | None = None) -> int | ExcelError:
+def fn_quotient(
+    numerator: Any, denominator: Any, ctx: EvalContext | None = None
+) -> int | ExcelError:
     n = to_float(numerator)
     d = to_float(denominator)
     for v in (n, d):
@@ -337,7 +338,9 @@ def fn_quotient(numerator: Any, denominator: Any, ctx: EvalContext | None = None
 
 # Rounding
 @register_core("TRUNC")
-def fn_trunc(number: Any, num_digits: Any = None, ctx: EvalContext | None = None) -> float | ExcelError:
+def fn_trunc(
+    number: Any, num_digits: Any = None, ctx: EvalContext | None = None
+) -> float | ExcelError:
     n = to_float(number)
     d = to_float(opt(num_digits, 0))
     for v in (n, d):
@@ -534,7 +537,7 @@ def fn_lcm(*numbers: Any, ctx: EvalContext | None = None) -> int | ExcelError:
     flat = flatten_values(list(numbers), ctx)
     if not flat:
         return NUM
-    l = 1
+    lcm_val = 1
     for item in flat:
         v = to_float(item)
         if is_error(v):
@@ -542,8 +545,8 @@ def fn_lcm(*numbers: Any, ctx: EvalContext | None = None) -> int | ExcelError:
         k = int(float(v))
         if k < 0:
             return NUM
-        l = math.lcm(l, k)
-    return l
+        lcm_val = math.lcm(lcm_val, k)
+    return lcm_val
 
 
 @register_core("SERIESSUM")
@@ -850,9 +853,7 @@ def fn_mmult(array1: Any, array2: Any, ctx: EvalContext | None = None) -> Arr | 
     res = [[0.0 for _ in range(c2)] for _ in range(r1)]
     for i in range(r1):
         for j in range(c2):
-            res[i][j] = sum(
-                float(array1.data[i][k]) * float(array2.data[k][j]) for k in range(c1)
-            )
+            res[i][j] = sum(float(array1.data[i][k]) * float(array2.data[k][j]) for k in range(c1))
     return Arr(res)
 
 

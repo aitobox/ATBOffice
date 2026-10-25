@@ -6,11 +6,11 @@ import math
 from typing import Any
 
 from atboffice.modules.spreadsheet.calc.context import EvalContext
-from atboffice.modules.spreadsheet.calc.errors import NUM, VALUE, ExcelError, is_error
 from atboffice.modules.spreadsheet.calc.engineering.common import (
     register_eng,
     to_float,
 )
+from atboffice.modules.spreadsheet.calc.errors import NUM, ExcelError, is_error
 
 
 def bessel_j(x: float, n: int) -> float:
@@ -70,11 +70,7 @@ def k_int(x: float, nu: int) -> float:
         t = k * h
         try:
             cosh_t = math.cosh(t)
-            v = (
-                math.exp(-x * cosh_t + nu * t)
-                * 0.5
-                * (1.0 + math.exp(-2.0 * nu * t))
-            )
+            v = math.exp(-x * cosh_t + nu * t) * 0.5 * (1.0 + math.exp(-2.0 * nu * t))
             s += v
             if v < 1e-18 * s and x * cosh_t > nu * t:
                 break
@@ -115,8 +111,7 @@ def y_n01(x: float, nu: int) -> float:
     t_end = math.asinh(45.0 / x) + 2.0
     sgn = -1.0 if nu % 2 else 1.0
     b = simpson_integrate(
-        lambda t: (math.exp(nu * t) + sgn * math.exp(-nu * t))
-        * math.exp(-x * math.sinh(t)),
+        lambda t: (math.exp(nu * t) + sgn * math.exp(-nu * t)) * math.exp(-x * math.sinh(t)),
         0.0,
         t_end,
         48,

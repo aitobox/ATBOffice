@@ -6,12 +6,12 @@ import math
 from typing import Any
 
 from atboffice.modules.spreadsheet.calc.context import EvalContext
-from atboffice.modules.spreadsheet.calc.errors import NUM, VALUE, ExcelError, is_error
 from atboffice.modules.spreadsheet.calc.engineering.common import (
     opt,
     register_eng,
     to_float,
 )
+from atboffice.modules.spreadsheet.calc.errors import NUM, VALUE, ExcelError, is_error
 
 BITS = {2: 10, 8: 30, 16: 40}
 

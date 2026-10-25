@@ -5,13 +5,12 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext, Ref
-from atboffice.modules.spreadsheet.calc.errors import DIV0, NA, NUM, VALUE, ExcelError, is_error
+from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext
+from atboffice.modules.spreadsheet.calc.errors import DIV0, NA, NUM, ExcelError, is_error
 from atboffice.modules.spreadsheet.calc.statistical.common import (
     collect_stat_numbers,
     devsq,
     mean,
-    opt,
     register_stat,
     to_float,
 )

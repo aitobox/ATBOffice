@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 from typing import Any
 
 from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext, Ref
@@ -11,10 +10,7 @@ from atboffice.modules.spreadsheet.calc.core_fns.common import (
     to_float,
 )
 from atboffice.modules.spreadsheet.calc.errors import (
-    DIV0,
     NA,
-    NUM,
-    REF,
     VALUE,
     ExcelError,
     is_error,

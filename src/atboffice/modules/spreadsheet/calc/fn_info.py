@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+
 @dataclass(frozen=True)
 class FunctionInfo:
     name: str
@@ -11,6 +12,7 @@ class FunctionInfo:
     args: tuple[str, ...]
     desc: str
     classic: bool = False
+
 
 ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
     "ABS": FunctionInfo(
@@ -23,7 +25,16 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
     "ACCRINT": FunctionInfo(
         name="ACCRINT",
         category="Financial",
-        args=("issue", "first_interest", "settlement", "rate", "par", "frequency", "[basis]", "[calc_method]"),
+        args=(
+            "issue",
+            "first_interest",
+            "settlement",
+            "rate",
+            "par",
+            "frequency",
+            "[basis]",
+            "[calc_method]",
+        ),
         desc="Returns the accrued interest for a security that pays periodic interest.",
         classic=True,
     ),
@@ -73,14 +84,20 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="AGGREGATE",
         category="Math & Trig",
         args=("function_num", "options", "ref1", "..."),
-        desc="Returns an aggregate in a list or database, optionally ignoring hidden rows and error values.",
+        desc=(
+            "Returns an aggregate in a list or database, optionally ignoring hidden rows "
+            "and error values."
+        ),
         classic=False,
     ),
     "AMORDEGRC": FunctionInfo(
         name="AMORDEGRC",
         category="Financial",
         args=("cost", "date_purchased", "first_period", "salvage", "period", "rate", "[basis]"),
-        desc="Returns the prorated linear depreciation of an asset for each accounting period, using a depreciation coefficient.",
+        desc=(
+            "Returns the prorated linear depreciation of an asset for each accounting "
+            "period, using a depreciation coefficient."
+        ),
         classic=True,
     ),
     "AMORLINC": FunctionInfo(
@@ -115,7 +132,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="AREAS",
         category="Lookup & Reference",
         args=("reference",),
-        desc="Returns the number of areas in a reference. An area is a range of contiguous cells or a single cell.",
+        desc=(
+            "Returns the number of areas in a reference. An area is a range of "
+            "contiguous cells or a single cell."
+        ),
         classic=True,
     ),
     "ARRAYTOTEXT": FunctionInfo(
@@ -157,7 +177,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="ATAN2",
         category="Math & Trig",
         args=("x_num", "y_num"),
-        desc="Returns the arctangent of the specified x- and y- coordinates, in radians between -Pi and Pi, excluding -Pi.",
+        desc=(
+            "Returns the arctangent of the specified x- and y- coordinates, in radians "
+            "between -Pi and Pi, excluding -Pi."
+        ),
         classic=True,
     ),
     "ATANH": FunctionInfo(
@@ -178,28 +201,40 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="AVERAGE",
         category="Statistical",
         args=("number1", "[number2]", "..."),
-        desc="Returns the average (arithmetic mean) of its arguments, which can be numbers or names, arrays or references that contain numbers.",
+        desc=(
+            "Returns the average (arithmetic mean) of its arguments, which can be "
+            "numbers or names, arrays or references that contain numbers."
+        ),
         classic=True,
     ),
     "AVERAGEA": FunctionInfo(
         name="AVERAGEA",
         category="Statistical",
         args=("value1", "[value2]", "..."),
-        desc="Returns the average (arithmetic mean) of its arguments, evaluating text and FALSE in arguments as 0; TRUE evaluates as 1.",
+        desc=(
+            "Returns the average (arithmetic mean) of its arguments, evaluating text and "
+            "FALSE in arguments as 0; TRUE evaluates as 1."
+        ),
         classic=True,
     ),
     "AVERAGEIF": FunctionInfo(
         name="AVERAGEIF",
         category="Statistical",
         args=("range", "criteria", "[average_range]"),
-        desc="Finds average (arithmetic mean) for the cells specified by a given condition or criteria.",
+        desc=(
+            "Finds average (arithmetic mean) for the cells specified by a given "
+            "condition or criteria."
+        ),
         classic=False,
     ),
     "AVERAGEIFS": FunctionInfo(
         name="AVERAGEIFS",
         category="Statistical",
         args=("average_range", "criteria_range1", "criteria1", "..."),
-        desc="Finds average (arithmetic mean) for the cells specified by a given set of conditions or criteria.",
+        desc=(
+            "Finds average (arithmetic mean) for the cells specified by a given set of "
+            "conditions or criteria."
+        ),
         classic=False,
     ),
     "BAHTTEXT": FunctionInfo(
@@ -311,7 +346,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="BINOM.INV",
         category="Statistical",
         args=("trials", "probability_s", "alpha"),
-        desc="Returns the smallest value for which the cumulative binomial distribution is greater than or equal to a criterion value.",
+        desc=(
+            "Returns the smallest value for which the cumulative binomial distribution "
+            "is greater than or equal to a criterion value."
+        ),
         classic=False,
     ),
     "BINOMDIST": FunctionInfo(
@@ -388,28 +426,38 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="CEILING.MATH",
         category="Math & Trig",
         args=("number", "[significance]", "[mode]"),
-        desc="Rounds a number up, to the nearest integer or to the nearest multiple of significance.",
+        desc=(
+            "Rounds a number up, to the nearest integer or to the nearest multiple of significance."
+        ),
         classic=False,
     ),
     "CEILING.PRECISE": FunctionInfo(
         name="CEILING.PRECISE",
         category="Math & Trig",
         args=("number", "[significance]"),
-        desc="Rounds a number up to the nearest integer or to the nearest multiple of significance.",
+        desc=(
+            "Rounds a number up to the nearest integer or to the nearest multiple of significance."
+        ),
         classic=False,
     ),
     "CELL": FunctionInfo(
         name="CELL",
         category="Information",
         args=("info_type", "[reference]"),
-        desc="Returns information about the formatting, location, or contents of the first cell, according to the sheet's reading order, in a reference.",
+        desc=(
+            "Returns information about the formatting, location, or contents of the "
+            "first cell, according to the sheet's reading order, in a reference."
+        ),
         classic=True,
     ),
     "CHAR": FunctionInfo(
         name="CHAR",
         category="Text",
         args=("number",),
-        desc="Returns the character specified by the code number from the character set for your computer.",
+        desc=(
+            "Returns the character specified by the code number from the character set "
+            "for your computer."
+        ),
         classic=True,
     ),
     "CHIDIST": FunctionInfo(
@@ -465,14 +513,19 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="CHITEST",
         category="Statistical",
         args=("actual_range", "expected_range"),
-        desc="Returns the test for independence: the value from the chi-squared distribution for the statistic and the appropriate degrees of freedom.",
+        desc=(
+            "Returns the test for independence: the value from the chi-squared "
+            "distribution for the statistic and the appropriate degrees of freedom."
+        ),
         classic=True,
     ),
     "CHOOSE": FunctionInfo(
         name="CHOOSE",
         category="Lookup & Reference",
         args=("index_num", "value1", "[value2]", "..."),
-        desc="Chooses a value or action to perform from a list of values, based on an index number.",
+        desc=(
+            "Chooses a value or action to perform from a list of values, based on an index number."
+        ),
         classic=True,
     ),
     "CHOOSECOLS": FunctionInfo(
@@ -500,7 +553,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="CODE",
         category="Text",
         args=("text",),
-        desc="Returns a numeric code for the first character in a text string, in the character set used by your computer.",
+        desc=(
+            "Returns a numeric code for the first character in a text string, in the "
+            "character set used by your computer."
+        ),
         classic=True,
     ),
     "COLUMN": FunctionInfo(
@@ -570,7 +626,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="CONFIDENCE.T",
         category="Statistical",
         args=("alpha", "standard_dev", "size"),
-        desc="Returns the confidence interval for a population mean, using a Student's T distribution.",
+        desc=(
+            "Returns the confidence interval for a population mean, using a Student's T "
+            "distribution."
+        ),
         classic=False,
     ),
     "CONVERT": FunctionInfo(
@@ -661,7 +720,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="COUPDAYBS",
         category="Financial",
         args=("settlement", "maturity", "frequency", "[basis]"),
-        desc="Returns the number of days from the beginning of the coupon period to the settlement date.",
+        desc=(
+            "Returns the number of days from the beginning of the coupon period to the "
+            "settlement date."
+        ),
         classic=True,
     ),
     "COUPDAYS": FunctionInfo(
@@ -703,28 +765,40 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="COVAR",
         category="Statistical",
         args=("array1", "array2"),
-        desc="Returns covariance, the average of the products of deviations for each data point pair in two data sets.",
+        desc=(
+            "Returns covariance, the average of the products of deviations for each data "
+            "point pair in two data sets."
+        ),
         classic=True,
     ),
     "COVARIANCE.P": FunctionInfo(
         name="COVARIANCE.P",
         category="Statistical",
         args=("array1", "array2"),
-        desc="Returns population covariance, the average of the products of deviations for each data point pair in two data sets.",
+        desc=(
+            "Returns population covariance, the average of the products of deviations "
+            "for each data point pair in two data sets."
+        ),
         classic=False,
     ),
     "COVARIANCE.S": FunctionInfo(
         name="COVARIANCE.S",
         category="Statistical",
         args=("array1", "array2"),
-        desc="Returns the sample covariance, the average of the products of deviations for each data point pair in two data sets.",
+        desc=(
+            "Returns the sample covariance, the average of the products of deviations "
+            "for each data point pair in two data sets."
+        ),
         classic=False,
     ),
     "CRITBINOM": FunctionInfo(
         name="CRITBINOM",
         category="Statistical",
         args=("trials", "probability_s", "alpha"),
-        desc="Returns the smallest value for which the cumulative binomial distribution is greater than or equal to a criterion value.",
+        desc=(
+            "Returns the smallest value for which the cumulative binomial distribution "
+            "is greater than or equal to a criterion value."
+        ),
         classic=True,
     ),
     "CSC": FunctionInfo(
@@ -745,7 +819,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="CUBEKPIMEMBER",
         category="Cube",
         args=("connection", "kpi_name", "kpi_property", "[caption]"),
-        desc="Returns a key performance indicator (KPI) property and displays the KPI name in the cell.",
+        desc=(
+            "Returns a key performance indicator (KPI) property and displays the KPI "
+            "name in the cell."
+        ),
         classic=False,
     ),
     "CUBEMEMBER": FunctionInfo(
@@ -773,7 +850,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="CUBESET",
         category="Cube",
         args=("connection", "set_expression", "[caption]", "[sort_order]", "[sort_by]"),
-        desc="Defines a calculated set of members or tuples by sending a set expression to the cube on the server.",
+        desc=(
+            "Defines a calculated set of members or tuples by sending a set expression "
+            "to the cube on the server."
+        ),
         classic=False,
     ),
     "CUBESETCOUNT": FunctionInfo(
@@ -822,14 +902,20 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="DATEVALUE",
         category="Date & Time",
         args=("date_text",),
-        desc="Converts a date in the form of text to a number that represents the date in Ledger date-time code.",
+        desc=(
+            "Converts a date in the form of text to a number that represents the date in "
+            "Ledger date-time code."
+        ),
         classic=True,
     ),
     "DAVERAGE": FunctionInfo(
         name="DAVERAGE",
         category="Database",
         args=("database", "field", "criteria"),
-        desc="Averages the values in a column in a list or database that match conditions you specify.",
+        desc=(
+            "Averages the values in a column in a list or database that match conditions "
+            "you specify."
+        ),
         classic=True,
     ),
     "DAY": FunctionInfo(
@@ -850,14 +936,20 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="DAYS360",
         category="Date & Time",
         args=("start_date", "end_date", "[method]"),
-        desc="Returns the number of days between two dates based on a 360-day year (twelve 30-day months).",
+        desc=(
+            "Returns the number of days between two dates based on a 360-day year "
+            "(twelve 30-day months)."
+        ),
         classic=True,
     ),
     "DB": FunctionInfo(
         name="DB",
         category="Financial",
         args=("cost", "salvage", "life", "period", "[month]"),
-        desc="Returns the depreciation of an asset for a specified period using the fixed-declining balance method.",
+        desc=(
+            "Returns the depreciation of an asset for a specified period using the "
+            "fixed-declining balance method."
+        ),
         classic=True,
     ),
     "DBCS": FunctionInfo(
@@ -871,21 +963,30 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="DCOUNT",
         category="Database",
         args=("database", "field", "criteria"),
-        desc="Counts the cells containing numbers in the field (column) of records in the database that match the conditions you specify.",
+        desc=(
+            "Counts the cells containing numbers in the field (column) of records in the "
+            "database that match the conditions you specify."
+        ),
         classic=True,
     ),
     "DCOUNTA": FunctionInfo(
         name="DCOUNTA",
         category="Database",
         args=("database", "field", "criteria"),
-        desc="Counts nonblank cells in the field (column) of records in the database that match the conditions you specify.",
+        desc=(
+            "Counts nonblank cells in the field (column) of records in the database that "
+            "match the conditions you specify."
+        ),
         classic=True,
     ),
     "DDB": FunctionInfo(
         name="DDB",
         category="Financial",
         args=("cost", "salvage", "life", "period", "[factor]"),
-        desc="Returns the depreciation of an asset for a specified period using the double-declining balance method or some other method you specify.",
+        desc=(
+            "Returns the depreciation of an asset for a specified period using the "
+            "double-declining balance method or some other method you specify."
+        ),
         classic=True,
     ),
     "DEC2BIN": FunctionInfo(
@@ -962,14 +1063,20 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="DMAX",
         category="Database",
         args=("database", "field", "criteria"),
-        desc="Returns the largest number in the field (column) of records in the database that match the conditions you specify.",
+        desc=(
+            "Returns the largest number in the field (column) of records in the database "
+            "that match the conditions you specify."
+        ),
         classic=True,
     ),
     "DMIN": FunctionInfo(
         name="DMIN",
         category="Database",
         args=("database", "field", "criteria"),
-        desc="Returns the smallest number in the field (column) of records in the database that match the conditions you specify.",
+        desc=(
+            "Returns the smallest number in the field (column) of records in the "
+            "database that match the conditions you specify."
+        ),
         classic=True,
     ),
     "DOLLAR": FunctionInfo(
@@ -983,21 +1090,30 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="DOLLARDE",
         category="Financial",
         args=("fractional_dollar", "fraction"),
-        desc="Converts a dollar price, expressed as a fraction, into a dollar price, expressed as a decimal number.",
+        desc=(
+            "Converts a dollar price, expressed as a fraction, into a dollar price, "
+            "expressed as a decimal number."
+        ),
         classic=True,
     ),
     "DOLLARFR": FunctionInfo(
         name="DOLLARFR",
         category="Financial",
         args=("decimal_dollar", "fraction"),
-        desc="Converts a dollar price, expressed as a decimal number, into a dollar price, expressed as a fraction.",
+        desc=(
+            "Converts a dollar price, expressed as a decimal number, into a dollar "
+            "price, expressed as a fraction."
+        ),
         classic=True,
     ),
     "DPRODUCT": FunctionInfo(
         name="DPRODUCT",
         category="Database",
         args=("database", "field", "criteria"),
-        desc="Multiplies the values in the field (column) of records in the database that match the conditions you specify.",
+        desc=(
+            "Multiplies the values in the field (column) of records in the database that "
+            "match the conditions you specify."
+        ),
         classic=True,
     ),
     "DROP": FunctionInfo(
@@ -1018,14 +1134,20 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="DSTDEVP",
         category="Database",
         args=("database", "field", "criteria"),
-        desc="Calculates the standard deviation based on the entire population of selected database entries.",
+        desc=(
+            "Calculates the standard deviation based on the entire population of "
+            "selected database entries."
+        ),
         classic=True,
     ),
     "DSUM": FunctionInfo(
         name="DSUM",
         category="Database",
         args=("database", "field", "criteria"),
-        desc="Adds the numbers in the field (column) of records in the database that match the conditions you specify.",
+        desc=(
+            "Adds the numbers in the field (column) of records in the database that "
+            "match the conditions you specify."
+        ),
         classic=True,
     ),
     "DURATION": FunctionInfo(
@@ -1060,7 +1182,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="EDATE",
         category="Date & Time",
         args=("start_date", "months"),
-        desc="Returns the serial number of the date that is the indicated number of months before or after the start date.",
+        desc=(
+            "Returns the serial number of the date that is the indicated number of "
+            "months before or after the start date."
+        ),
         classic=True,
     ),
     "EFFECT": FunctionInfo(
@@ -1074,7 +1199,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="EOMONTH",
         category="Date & Time",
         args=("start_date", "months"),
-        desc="Returns the serial number of the last day of the month before or after a specified number of months.",
+        desc=(
+            "Returns the serial number of the last day of the month before or after a "
+            "specified number of months."
+        ),
         classic=True,
     ),
     "ERF": FunctionInfo(
@@ -1130,7 +1258,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="EXACT",
         category="Text",
         args=("text1", "text2"),
-        desc="Checks whether two text strings are exactly the same, and returns TRUE or FALSE. EXACT is case-sensitive.",
+        desc=(
+            "Checks whether two text strings are exactly the same, and returns TRUE or "
+            "FALSE. EXACT is case-sensitive."
+        ),
         classic=True,
     ),
     "EXP": FunctionInfo(
@@ -1165,14 +1296,20 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="F.DIST",
         category="Statistical",
         args=("x", "deg_freedom1", "deg_freedom2", "cumulative"),
-        desc="Returns the (left-tailed) F probability distribution (degree of diversity) for two data sets.",
+        desc=(
+            "Returns the (left-tailed) F probability distribution (degree of diversity) "
+            "for two data sets."
+        ),
         classic=False,
     ),
     "F.DIST.RT": FunctionInfo(
         name="F.DIST.RT",
         category="Statistical",
         args=("x", "deg_freedom1", "deg_freedom2"),
-        desc="Returns the (right-tailed) F probability distribution (degree of diversity) for two data sets.",
+        desc=(
+            "Returns the (right-tailed) F probability distribution (degree of diversity) "
+            "for two data sets."
+        ),
         classic=False,
     ),
     "F.INV": FunctionInfo(
@@ -1193,7 +1330,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="F.TEST",
         category="Statistical",
         args=("array1", "array2"),
-        desc="Returns the result of an F-test, the two-tailed probability that the variances in Array1 and Array2 are not significantly different.",
+        desc=(
+            "Returns the result of an F-test, the two-tailed probability that the "
+            "variances in Array1 and Array2 are not significantly different."
+        ),
         classic=False,
     ),
     "FACT": FunctionInfo(
@@ -1242,14 +1382,20 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="FIND",
         category="Text",
         args=("find_text", "within_text", "[start_num]"),
-        desc="Returns the starting position of one text string within another text string. FIND is case-sensitive.",
+        desc=(
+            "Returns the starting position of one text string within another text "
+            "string. FIND is case-sensitive."
+        ),
         classic=True,
     ),
     "FINDB": FunctionInfo(
         name="FINDB",
         category="Text",
         args=("find_text", "within_text", "[start_num]"),
-        desc="Finds the starting position of one text string within another text string, counting bytes.",
+        desc=(
+            "Finds the starting position of one text string within another text string, "
+            "counting bytes."
+        ),
         classic=True,
     ),
     "FINV": FunctionInfo(
@@ -1277,7 +1423,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="FIXED",
         category="Text",
         args=("number", "[decimals]", "[no_commas]"),
-        desc="Rounds a number to the specified number of decimals and returns the result as text with or without commas.",
+        desc=(
+            "Rounds a number to the specified number of decimals and returns the result "
+            "as text with or without commas."
+        ),
         classic=True,
     ),
     "FLOOR": FunctionInfo(
@@ -1291,34 +1440,57 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="FLOOR.MATH",
         category="Math & Trig",
         args=("number", "[significance]", "[mode]"),
-        desc="Rounds a number down, to the nearest integer or to the nearest multiple of significance.",
+        desc=(
+            "Rounds a number down, to the nearest integer or to the nearest multiple of "
+            "significance."
+        ),
         classic=False,
     ),
     "FLOOR.PRECISE": FunctionInfo(
         name="FLOOR.PRECISE",
         category="Math & Trig",
         args=("number", "[significance]"),
-        desc="Rounds a number down to the nearest integer or to the nearest multiple of significance.",
+        desc=(
+            "Rounds a number down to the nearest integer or to the nearest multiple of "
+            "significance."
+        ),
         classic=False,
     ),
     "FORECAST": FunctionInfo(
         name="FORECAST",
         category="Statistical",
         args=("x", "known_y's", "known_x's"),
-        desc="Calculates, or predicts, a future value along a linear trend by using existing values.",
+        desc=(
+            "Calculates, or predicts, a future value along a linear trend by using existing values."
+        ),
         classic=True,
     ),
     "FORECAST.ETS": FunctionInfo(
         name="FORECAST.ETS",
         category="Statistical",
-        args=("target_date", "values", "timeline", "[seasonality]", "[data_completion]", "[aggregation]"),
+        args=(
+            "target_date",
+            "values",
+            "timeline",
+            "[seasonality]",
+            "[data_completion]",
+            "[aggregation]",
+        ),
         desc="Calculates or predicts a future value based on existing values using ETS.",
         classic=False,
     ),
     "FORECAST.ETS.CONFINT": FunctionInfo(
         name="FORECAST.ETS.CONFINT",
         category="Statistical",
-        args=("target_date", "values", "timeline", "[confidence_level]", "[seasonality]", "[data_completion]", "[aggregation]"),
+        args=(
+            "target_date",
+            "values",
+            "timeline",
+            "[confidence_level]",
+            "[seasonality]",
+            "[data_completion]",
+            "[aggregation]",
+        ),
         desc="Returns confidence interval for forecast value at target date.",
         classic=False,
     ),
@@ -1326,13 +1498,23 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="FORECAST.ETS.SEASONALITY",
         category="Statistical",
         args=("values", "timeline", "[data_completion]", "[aggregation]"),
-        desc="Returns the length of the repetitive pattern Excel detects for the specified time series.",
+        desc=(
+            "Returns the length of the repetitive pattern Excel detects for the "
+            "specified time series."
+        ),
         classic=False,
     ),
     "FORECAST.ETS.STAT": FunctionInfo(
         name="FORECAST.ETS.STAT",
         category="Statistical",
-        args=("values", "timeline", "statistic_type", "[seasonality]", "[data_completion]", "[aggregation]"),
+        args=(
+            "values",
+            "timeline",
+            "statistic_type",
+            "[seasonality]",
+            "[data_completion]",
+            "[aggregation]",
+        ),
         desc="Returns a statistical value as a result of time series forecasting.",
         classic=False,
     ),
@@ -1340,7 +1522,9 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="FORECAST.LINEAR",
         category="Statistical",
         args=("x", "known_y's", "known_x's"),
-        desc="Calculates, or predicts, a future value along a linear trend by using existing values.",
+        desc=(
+            "Calculates, or predicts, a future value along a linear trend by using existing values."
+        ),
         classic=False,
     ),
     "FORMULATEXT": FunctionInfo(
@@ -1354,28 +1538,40 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="FREQUENCY",
         category="Statistical",
         args=("data_array", "bins_array"),
-        desc="Calculates how often values occur within a range of values and then returns a vertical array of numbers having one more element than Bins_array.",
+        desc=(
+            "Calculates how often values occur within a range of values and then returns "
+            "a vertical array of numbers having one more element than Bins_array."
+        ),
         classic=True,
     ),
     "FTEST": FunctionInfo(
         name="FTEST",
         category="Statistical",
         args=("array1", "array2"),
-        desc="Returns the result of an F-test, the two-tailed probability that the variances in Array1 and Array2 are not significantly different.",
+        desc=(
+            "Returns the result of an F-test, the two-tailed probability that the "
+            "variances in Array1 and Array2 are not significantly different."
+        ),
         classic=True,
     ),
     "FV": FunctionInfo(
         name="FV",
         category="Financial",
         args=("rate", "nper", "pmt", "[pv]", "[type]"),
-        desc="Returns the future value of an investment based on periodic, constant payments and a constant interest rate.",
+        desc=(
+            "Returns the future value of an investment based on periodic, constant "
+            "payments and a constant interest rate."
+        ),
         classic=True,
     ),
     "FVSCHEDULE": FunctionInfo(
         name="FVSCHEDULE",
         category="Financial",
         args=("principal", "schedule"),
-        desc="Returns the future value of an initial principal after applying a series of compound interest rates.",
+        desc=(
+            "Returns the future value of an initial principal after applying a series of "
+            "compound interest rates."
+        ),
         classic=True,
     ),
     "GAMMA": FunctionInfo(
@@ -1473,7 +1669,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="HARMEAN",
         category="Statistical",
         args=("number1", "[number2]", "..."),
-        desc="Returns the harmonic mean of a data set of positive numbers: the reciprocal of the arithmetic mean of reciprocals.",
+        desc=(
+            "Returns the harmonic mean of a data set of positive numbers: the reciprocal "
+            "of the arithmetic mean of reciprocals."
+        ),
         classic=True,
     ),
     "HEX2BIN": FunctionInfo(
@@ -1501,7 +1700,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="HLOOKUP",
         category="Lookup & Reference",
         args=("lookup_value", "table_array", "row_index_num", "[range_lookup]"),
-        desc="Looks for a value in the top row of a table or array of values and returns the value in the same column from a row you specify.",
+        desc=(
+            "Looks for a value in the top row of a table or array of values and returns "
+            "the value in the same column from a row you specify."
+        ),
         classic=True,
     ),
     "HOUR": FunctionInfo(
@@ -1522,7 +1724,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="HYPERLINK",
         category="Lookup & Reference",
         args=("link_location", "[friendly_name]"),
-        desc="Creates a shortcut or jump that opens a document stored on your hard drive, a network server, or on the Internet.",
+        desc=(
+            "Creates a shortcut or jump that opens a document stored on your hard drive, "
+            "a network server, or on the Internet."
+        ),
         classic=True,
     ),
     "HYPGEOM.DIST": FunctionInfo(
@@ -1543,28 +1748,40 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="IF",
         category="Logical",
         args=("logical_test", "[value_if_true]", "[value_if_false]"),
-        desc="Checks whether a condition is met, and returns one value if TRUE, and another value if FALSE.",
+        desc=(
+            "Checks whether a condition is met, and returns one value if TRUE, and "
+            "another value if FALSE."
+        ),
         classic=True,
     ),
     "IFERROR": FunctionInfo(
         name="IFERROR",
         category="Logical",
         args=("value", "value_if_error"),
-        desc="Returns value_if_error if expression is an error and the value of the expression itself otherwise.",
+        desc=(
+            "Returns value_if_error if expression is an error and the value of the "
+            "expression itself otherwise."
+        ),
         classic=False,
     ),
     "IFNA": FunctionInfo(
         name="IFNA",
         category="Logical",
         args=("value", "value_if_na"),
-        desc="Returns the value you specify if the expression resolves to #N/A, otherwise returns the result of the expression.",
+        desc=(
+            "Returns the value you specify if the expression resolves to #N/A, otherwise "
+            "returns the result of the expression."
+        ),
         classic=False,
     ),
     "IFS": FunctionInfo(
         name="IFS",
         category="Logical",
         args=("logical_test1", "value_if_true1", "..."),
-        desc="Checks whether one or more conditions are met and returns a value corresponding to the first TRUE condition.",
+        desc=(
+            "Checks whether one or more conditions are met and returns a value "
+            "corresponding to the first TRUE condition."
+        ),
         classic=False,
     ),
     "IMABS": FunctionInfo(
@@ -1753,7 +1970,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="INDEX",
         category="Lookup & Reference",
         args=("array", "row_num", "[column_num]", "[area_num]"),
-        desc="Returns a value or reference of the cell at the intersection of a particular row and column, in a given range.",
+        desc=(
+            "Returns a value or reference of the cell at the intersection of a "
+            "particular row and column, in a given range."
+        ),
         classic=True,
     ),
     "INDIRECT": FunctionInfo(
@@ -1781,7 +2001,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="INTERCEPT",
         category="Statistical",
         args=("known_y's", "known_x's"),
-        desc="Calculates the point at which a line will intersect the y-axis by using a best-fit regression line plotted through the known x-values and y-values.",
+        desc=(
+            "Calculates the point at which a line will intersect the y-axis by using a "
+            "best-fit regression line plotted through the known x-values and y-values."
+        ),
         classic=True,
     ),
     "INTRATE": FunctionInfo(
@@ -1795,7 +2018,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="IPMT",
         category="Financial",
         args=("rate", "per", "nper", "pv", "[fv]", "[type]"),
-        desc="Returns the interest payment for a given period for an investment, based on periodic, constant payments and a constant interest rate.",
+        desc=(
+            "Returns the interest payment for a given period for an investment, based on "
+            "periodic, constant payments and a constant interest rate."
+        ),
         classic=True,
     ),
     "IRR": FunctionInfo(
@@ -1837,14 +2063,19 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="ISFORMULA",
         category="Information",
         args=("reference",),
-        desc="Checks whether a reference is to a cell containing a formula, and returns TRUE or FALSE.",
+        desc=(
+            "Checks whether a reference is to a cell containing a formula, and returns "
+            "TRUE or FALSE."
+        ),
         classic=False,
     ),
     "ISLOGICAL": FunctionInfo(
         name="ISLOGICAL",
         category="Information",
         args=("value",),
-        desc="Checks whether a value is a logical value (TRUE or FALSE), and returns TRUE or FALSE.",
+        desc=(
+            "Checks whether a value is a logical value (TRUE or FALSE), and returns TRUE or FALSE."
+        ),
         classic=True,
     ),
     "ISNA": FunctionInfo(
@@ -1858,7 +2089,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="ISNONTEXT",
         category="Information",
         args=("value",),
-        desc="Checks whether a value is not text (blank cells are not text), and returns TRUE or FALSE.",
+        desc=(
+            "Checks whether a value is not text (blank cells are not text), and returns "
+            "TRUE or FALSE."
+        ),
         classic=True,
     ),
     "ISNUMBER": FunctionInfo(
@@ -1872,7 +2106,9 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="ISO.CEILING",
         category="Math & Trig",
         args=("number", "[significance]"),
-        desc="Rounds a number up to the nearest integer or to the nearest multiple of significance.",
+        desc=(
+            "Rounds a number up to the nearest integer or to the nearest multiple of significance."
+        ),
         classic=False,
     ),
     "ISODD": FunctionInfo(
@@ -1984,14 +2220,20 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="LET",
         category="Logical",
         args=("name1", "name_value1", "...", "calculation"),
-        desc="Assigns calculated values to names which allow storing intermediate calculation results.",
+        desc=(
+            "Assigns calculated values to names which allow storing intermediate "
+            "calculation results."
+        ),
         classic=False,
     ),
     "LINEST": FunctionInfo(
         name="LINEST",
         category="Statistical",
         args=("known_y's", "[known_x's]", "[const]", "[stats]"),
-        desc="Returns statistics that describe a linear trend matching known data points, by fitting a straight line using the least squares method.",
+        desc=(
+            "Returns statistics that describe a linear trend matching known data points, "
+            "by fitting a straight line using the least squares method."
+        ),
         classic=True,
     ),
     "LN": FunctionInfo(
@@ -2026,14 +2268,20 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="LOGINV",
         category="Statistical",
         args=("probability", "mean", "standard_dev"),
-        desc="Returns the inverse of the lognormal cumulative distribution function of x, where ln(x) is normally distributed with parameters Mean and Standard_dev.",
+        desc=(
+            "Returns the inverse of the lognormal cumulative distribution function of x, "
+            "where ln(x) is normally distributed with parameters Mean and Standard_dev."
+        ),
         classic=True,
     ),
     "LOGNORM.DIST": FunctionInfo(
         name="LOGNORM.DIST",
         category="Statistical",
         args=("x", "mean", "standard_dev", "cumulative"),
-        desc="Returns the lognormal distribution of x, where ln(x) is normally distributed with parameters Mean and Standard_dev.",
+        desc=(
+            "Returns the lognormal distribution of x, where ln(x) is normally "
+            "distributed with parameters Mean and Standard_dev."
+        ),
         classic=False,
     ),
     "LOGNORM.INV": FunctionInfo(
@@ -2047,7 +2295,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="LOGNORMDIST",
         category="Statistical",
         args=("x", "mean", "standard_dev"),
-        desc="Returns the cumulative lognormal distribution of x, where ln(x) is normally distributed with parameters Mean and Standard_dev.",
+        desc=(
+            "Returns the cumulative lognormal distribution of x, where ln(x) is normally "
+            "distributed with parameters Mean and Standard_dev."
+        ),
         classic=True,
     ),
     "LOOKUP": FunctionInfo(
@@ -2075,14 +2326,20 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="MAP",
         category="Logical",
         args=("array1", "...", "lambda"),
-        desc="Returns an array formed by mapping each value in the array(s) to a new value by applying a LAMBDA.",
+        desc=(
+            "Returns an array formed by mapping each value in the array(s) to a new "
+            "value by applying a LAMBDA."
+        ),
         classic=False,
     ),
     "MATCH": FunctionInfo(
         name="MATCH",
         category="Lookup & Reference",
         args=("lookup_value", "lookup_array", "[match_type]"),
-        desc="Returns the relative position of an item in an array that matches a specified value in a specified order.",
+        desc=(
+            "Returns the relative position of an item in an array that matches a "
+            "specified value in a specified order."
+        ),
         classic=True,
     ),
     "MAX": FunctionInfo(
@@ -2096,14 +2353,19 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="MAXA",
         category="Statistical",
         args=("value1", "[value2]", "..."),
-        desc="Returns the largest value in a set of values. Does not ignore logical values and text.",
+        desc=(
+            "Returns the largest value in a set of values. Does not ignore logical values and text."
+        ),
         classic=True,
     ),
     "MAXIFS": FunctionInfo(
         name="MAXIFS",
         category="Statistical",
         args=("max_range", "criteria_range1", "criteria1", "..."),
-        desc="Returns the maximum value among cells specified by a given set of conditions or criteria.",
+        desc=(
+            "Returns the maximum value among cells specified by a given set of "
+            "conditions or criteria."
+        ),
         classic=False,
     ),
     "MDETERM": FunctionInfo(
@@ -2117,7 +2379,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="MDURATION",
         category="Financial",
         args=("settlement", "maturity", "coupon", "yld", "frequency", "[basis]"),
-        desc="Returns the Macauley modified duration for a security with an assumed par value of $100.",
+        desc=(
+            "Returns the Macauley modified duration for a security with an assumed par "
+            "value of $100."
+        ),
         classic=True,
     ),
     "MEDIAN": FunctionInfo(
@@ -2131,14 +2396,19 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="MID",
         category="Text",
         args=("text", "start_num", "num_chars"),
-        desc="Returns the characters from the middle of a text string, given a starting position and length.",
+        desc=(
+            "Returns the characters from the middle of a text string, given a starting "
+            "position and length."
+        ),
         classic=True,
     ),
     "MIDB": FunctionInfo(
         name="MIDB",
         category="Text",
         args=("text", "start_num", "num_bytes"),
-        desc="Returns bytes from the middle of a text string, given a starting position and length.",
+        desc=(
+            "Returns bytes from the middle of a text string, given a starting position and length."
+        ),
         classic=True,
     ),
     "MIN": FunctionInfo(
@@ -2152,14 +2422,20 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="MINA",
         category="Statistical",
         args=("value1", "[value2]", "..."),
-        desc="Returns the smallest value in a set of values. Does not ignore logical values and text.",
+        desc=(
+            "Returns the smallest value in a set of values. Does not ignore logical "
+            "values and text."
+        ),
         classic=True,
     ),
     "MINIFS": FunctionInfo(
         name="MINIFS",
         category="Statistical",
         args=("min_range", "criteria_range1", "criteria1", "..."),
-        desc="Returns the minimum value among cells specified by a given set of conditions or criteria.",
+        desc=(
+            "Returns the minimum value among cells specified by a given set of "
+            "conditions or criteria."
+        ),
         classic=False,
     ),
     "MINUTE": FunctionInfo(
@@ -2180,14 +2456,20 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="MIRR",
         category="Financial",
         args=("values", "finance_rate", "reinvest_rate"),
-        desc="Returns the internal rate of return for a series of periodic cash flows, considering both cost of investment and interest on reinvestment of cash.",
+        desc=(
+            "Returns the internal rate of return for a series of periodic cash flows, "
+            "considering both cost of investment and interest on reinvestment of cash."
+        ),
         classic=True,
     ),
     "MMULT": FunctionInfo(
         name="MMULT",
         category="Math & Trig",
         args=("array1", "array2"),
-        desc="Returns the matrix product of two arrays, an array with the same number of rows as array1 and columns as array2.",
+        desc=(
+            "Returns the matrix product of two arrays, an array with the same number of "
+            "rows as array1 and columns as array2."
+        ),
         classic=True,
     ),
     "MOD": FunctionInfo(
@@ -2201,21 +2483,30 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="MODE",
         category="Statistical",
         args=("number1", "[number2]", "..."),
-        desc="Returns the most frequently occurring, or repetitive, value in an array or range of data.",
+        desc=(
+            "Returns the most frequently occurring, or repetitive, value in an array or "
+            "range of data."
+        ),
         classic=True,
     ),
     "MODE.MULT": FunctionInfo(
         name="MODE.MULT",
         category="Statistical",
         args=("number1", "[number2]", "..."),
-        desc="Returns a vertical array of the most frequently occurring, or repetitive, values in an array or range of data.",
+        desc=(
+            "Returns a vertical array of the most frequently occurring, or repetitive, "
+            "values in an array or range of data."
+        ),
         classic=False,
     ),
     "MODE.SNGL": FunctionInfo(
         name="MODE.SNGL",
         category="Statistical",
         args=("number1", "[number2]", "..."),
-        desc="Returns the most frequently occurring, or repetitive, value in an array or range of data.",
+        desc=(
+            "Returns the most frequently occurring, or repetitive, value in an array or "
+            "range of data."
+        ),
         classic=False,
     ),
     "MONTH": FunctionInfo(
@@ -2250,7 +2541,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="N",
         category="Information",
         args=("value",),
-        desc="Converts non-number value to a number, dates to serial numbers, TRUE to 1, anything else to 0 (zero).",
+        desc=(
+            "Converts non-number value to a number, dates to serial numbers, TRUE to 1, "
+            "anything else to 0 (zero)."
+        ),
         classic=True,
     ),
     "NA": FunctionInfo(
@@ -2271,7 +2565,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="NEGBINOMDIST",
         category="Statistical",
         args=("number_f", "number_s", "probability_s"),
-        desc="Returns the negative binomial distribution, the probability that there will be Number_f failures before the Number_s-th success.",
+        desc=(
+            "Returns the negative binomial distribution, the probability that there will "
+            "be Number_f failures before the Number_s-th success."
+        ),
         classic=True,
     ),
     "NETWORKDAYS": FunctionInfo(
@@ -2285,7 +2582,9 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="NETWORKDAYS.INTL",
         category="Date & Time",
         args=("start_date", "end_date", "[weekend]", "[holidays]"),
-        desc="Returns the number of whole workdays between two dates with custom weekend parameters.",
+        desc=(
+            "Returns the number of whole workdays between two dates with custom weekend parameters."
+        ),
         classic=False,
     ),
     "NOMINAL": FunctionInfo(
@@ -2306,14 +2605,20 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="NORM.INV",
         category="Statistical",
         args=("probability", "mean", "standard_dev"),
-        desc="Returns the inverse of the normal cumulative distribution for the specified mean and standard deviation.",
+        desc=(
+            "Returns the inverse of the normal cumulative distribution for the specified "
+            "mean and standard deviation."
+        ),
         classic=False,
     ),
     "NORM.S.DIST": FunctionInfo(
         name="NORM.S.DIST",
         category="Statistical",
         args=("z", "cumulative"),
-        desc="Returns the standard normal distribution (has a mean of zero and a standard deviation of one).",
+        desc=(
+            "Returns the standard normal distribution (has a mean of zero and a standard "
+            "deviation of one)."
+        ),
         classic=False,
     ),
     "NORM.S.INV": FunctionInfo(
@@ -2327,28 +2632,40 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="NORMDIST",
         category="Statistical",
         args=("x", "mean", "standard_dev", "cumulative"),
-        desc="Returns the normal cumulative distribution for the specified mean and standard deviation.",
+        desc=(
+            "Returns the normal cumulative distribution for the specified mean and "
+            "standard deviation."
+        ),
         classic=True,
     ),
     "NORMINV": FunctionInfo(
         name="NORMINV",
         category="Statistical",
         args=("probability", "mean", "standard_dev"),
-        desc="Returns the inverse of the normal cumulative distribution for the specified mean and standard deviation.",
+        desc=(
+            "Returns the inverse of the normal cumulative distribution for the specified "
+            "mean and standard deviation."
+        ),
         classic=True,
     ),
     "NORMSDIST": FunctionInfo(
         name="NORMSDIST",
         category="Statistical",
         args=("z",),
-        desc="Returns the standard normal cumulative distribution (has a mean of zero and a standard deviation of one).",
+        desc=(
+            "Returns the standard normal cumulative distribution (has a mean of zero and "
+            "a standard deviation of one)."
+        ),
         classic=True,
     ),
     "NORMSINV": FunctionInfo(
         name="NORMSINV",
         category="Statistical",
         args=("probability",),
-        desc="Returns the inverse of the standard normal cumulative distribution (has a mean of zero and a standard deviation of one).",
+        desc=(
+            "Returns the inverse of the standard normal cumulative distribution (has a "
+            "mean of zero and a standard deviation of one)."
+        ),
         classic=True,
     ),
     "NOT": FunctionInfo(
@@ -2369,14 +2686,20 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="NPER",
         category="Financial",
         args=("rate", "pmt", "pv", "[fv]", "[type]"),
-        desc="Returns the number of periods for an investment based on periodic, constant payments and a constant interest rate.",
+        desc=(
+            "Returns the number of periods for an investment based on periodic, constant "
+            "payments and a constant interest rate."
+        ),
         classic=True,
     ),
     "NPV": FunctionInfo(
         name="NPV",
         category="Financial",
         args=("rate", "value1", "[value2]", "..."),
-        desc="Returns the net present value of an investment based on a discount rate and a series of future payments (negative values) and income (positive values).",
+        desc=(
+            "Returns the net present value of an investment based on a discount rate and "
+            "a series of future payments (negative values) and income (positive values)."
+        ),
         classic=True,
     ),
     "NUMBERVALUE": FunctionInfo(
@@ -2417,28 +2740,66 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
     "ODDFPRICE": FunctionInfo(
         name="ODDFPRICE",
         category="Financial",
-        args=("settlement", "maturity", "issue", "first_coupon", "rate", "yld", "redemption", "frequency", "[basis]"),
+        args=(
+            "settlement",
+            "maturity",
+            "issue",
+            "first_coupon",
+            "rate",
+            "yld",
+            "redemption",
+            "frequency",
+            "[basis]",
+        ),
         desc="Returns the price per $100 face value of a security with an odd first period.",
         classic=True,
     ),
     "ODDFYIELD": FunctionInfo(
         name="ODDFYIELD",
         category="Financial",
-        args=("settlement", "maturity", "issue", "first_coupon", "rate", "pr", "redemption", "frequency", "[basis]"),
+        args=(
+            "settlement",
+            "maturity",
+            "issue",
+            "first_coupon",
+            "rate",
+            "pr",
+            "redemption",
+            "frequency",
+            "[basis]",
+        ),
         desc="Returns the yield of a security with an odd first period.",
         classic=True,
     ),
     "ODDLPRICE": FunctionInfo(
         name="ODDLPRICE",
         category="Financial",
-        args=("settlement", "maturity", "last_interest", "rate", "yld", "redemption", "frequency", "[basis]"),
+        args=(
+            "settlement",
+            "maturity",
+            "last_interest",
+            "rate",
+            "yld",
+            "redemption",
+            "frequency",
+            "[basis]",
+        ),
         desc="Returns the price per $100 face value of a security with an odd last period.",
         classic=True,
     ),
     "ODDLYIELD": FunctionInfo(
         name="ODDLYIELD",
         category="Financial",
-        args=("settlement", "maturity", "last_interest", "rate", "pr", "redemption", "frequency", "[basis]"),
+        args=(
+            "settlement",
+            "maturity",
+            "last_interest",
+            "rate",
+            "pr",
+            "redemption",
+            "frequency",
+            "[basis]",
+        ),
         desc="Returns the yield of a security with an odd last period.",
         classic=True,
     ),
@@ -2446,14 +2807,20 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="OFFSET",
         category="Lookup & Reference",
         args=("reference", "rows", "cols", "[height]", "[width]"),
-        desc="Returns a reference to a range that is a given number of rows and columns from a given reference.",
+        desc=(
+            "Returns a reference to a range that is a given number of rows and columns "
+            "from a given reference."
+        ),
         classic=True,
     ),
     "OR": FunctionInfo(
         name="OR",
         category="Logical",
         args=("logical1", "[logical2]", "..."),
-        desc="Checks whether any of the arguments are TRUE, and returns TRUE or FALSE. Returns FALSE only if all arguments are FALSE.",
+        desc=(
+            "Checks whether any of the arguments are TRUE, and returns TRUE or FALSE. "
+            "Returns FALSE only if all arguments are FALSE."
+        ),
         classic=True,
     ),
     "PDURATION": FunctionInfo(
@@ -2481,14 +2848,20 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="PERCENTILE.EXC",
         category="Statistical",
         args=("array", "k"),
-        desc="Returns the k-th percentile of values in a range, where k is in the range 0..1, exclusive.",
+        desc=(
+            "Returns the k-th percentile of values in a range, where k is in the range "
+            "0..1, exclusive."
+        ),
         classic=False,
     ),
     "PERCENTILE.INC": FunctionInfo(
         name="PERCENTILE.INC",
         category="Statistical",
         args=("array", "k"),
-        desc="Returns the k-th percentile of values in a range, where k is in the range 0..1, inclusive.",
+        desc=(
+            "Returns the k-th percentile of values in a range, where k is in the range "
+            "0..1, inclusive."
+        ),
         classic=False,
     ),
     "PERCENTRANK": FunctionInfo(
@@ -2502,28 +2875,40 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="PERCENTRANK.EXC",
         category="Statistical",
         args=("array", "x", "[significance]"),
-        desc="Returns the rank of a value in a data set as a percentage of the data set (0..1, exclusive).",
+        desc=(
+            "Returns the rank of a value in a data set as a percentage of the data set "
+            "(0..1, exclusive)."
+        ),
         classic=False,
     ),
     "PERCENTRANK.INC": FunctionInfo(
         name="PERCENTRANK.INC",
         category="Statistical",
         args=("array", "x", "[significance]"),
-        desc="Returns the rank of a value in a data set as a percentage of the data set (0..1, inclusive).",
+        desc=(
+            "Returns the rank of a value in a data set as a percentage of the data set "
+            "(0..1, inclusive)."
+        ),
         classic=False,
     ),
     "PERMUT": FunctionInfo(
         name="PERMUT",
         category="Statistical",
         args=("number", "number_chosen"),
-        desc="Returns the number of permutations for a given number of objects that can be selected from the total objects.",
+        desc=(
+            "Returns the number of permutations for a given number of objects that can "
+            "be selected from the total objects."
+        ),
         classic=True,
     ),
     "PERMUTATIONA": FunctionInfo(
         name="PERMUTATIONA",
         category="Statistical",
         args=("number", "number_chosen"),
-        desc="Returns the number of permutations for a given number of objects (with repetitions) that can be selected from the total objects.",
+        desc=(
+            "Returns the number of permutations for a given number of objects (with "
+            "repetitions) that can be selected from the total objects."
+        ),
         classic=False,
     ),
     "PHI": FunctionInfo(
@@ -2551,7 +2936,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="PMT",
         category="Financial",
         args=("rate", "nper", "pv", "[fv]", "[type]"),
-        desc="Calculates the payment for a loan based on constant payments and a constant interest rate.",
+        desc=(
+            "Calculates the payment for a loan based on constant payments and a constant "
+            "interest rate."
+        ),
         classic=True,
     ),
     "POISSON": FunctionInfo(
@@ -2579,7 +2967,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="PPMT",
         category="Financial",
         args=("rate", "per", "nper", "pv", "[fv]", "[type]"),
-        desc="Returns the payment on the principal for a given investment based on periodic, constant payments and a constant interest rate.",
+        desc=(
+            "Returns the payment on the principal for a given investment based on "
+            "periodic, constant payments and a constant interest rate."
+        ),
         classic=True,
     ),
     "PRICE": FunctionInfo(
@@ -2607,7 +2998,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="PROB",
         category="Statistical",
         args=("x_range", "prob_range", "lower_limit", "[upper_limit]"),
-        desc="Returns the probability that values in a range are between two limits or equal to a lower limit.",
+        desc=(
+            "Returns the probability that values in a range are between two limits or "
+            "equal to a lower limit."
+        ),
         classic=True,
     ),
     "PRODUCT": FunctionInfo(
@@ -2621,14 +3015,20 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="PROPER",
         category="Text",
         args=("text",),
-        desc="Converts a text string to proper case; the first letter in each word in uppercase, and all other letters to lowercase.",
+        desc=(
+            "Converts a text string to proper case; the first letter in each word in "
+            "uppercase, and all other letters to lowercase."
+        ),
         classic=True,
     ),
     "PV": FunctionInfo(
         name="PV",
         category="Financial",
         args=("rate", "nper", "pmt", "[fv]", "[type]"),
-        desc="Returns the present value of an investment: the total amount that a series of future payments is worth now.",
+        desc=(
+            "Returns the present value of an investment: the total amount that a series "
+            "of future payments is worth now."
+        ),
         classic=True,
     ),
     "PY": FunctionInfo(
@@ -2677,7 +3077,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="RAND",
         category="Math & Trig",
         args=(),
-        desc="Returns a random number greater than or equal to 0 and less than 1, evenly distributed (changes on recalculation).",
+        desc=(
+            "Returns a random number greater than or equal to 0 and less than 1, evenly "
+            "distributed (changes on recalculation)."
+        ),
         classic=True,
     ),
     "RANDARRAY": FunctionInfo(
@@ -2698,21 +3101,30 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="RANK",
         category="Statistical",
         args=("number", "ref", "[order]"),
-        desc="Returns the rank of a number in a list of numbers: its size relative to other values in the list.",
+        desc=(
+            "Returns the rank of a number in a list of numbers: its size relative to "
+            "other values in the list."
+        ),
         classic=True,
     ),
     "RANK.AVG": FunctionInfo(
         name="RANK.AVG",
         category="Statistical",
         args=("number", "ref", "[order]"),
-        desc="Returns the rank of a number in a list of numbers; if more than one value has the same rank, the average rank is returned.",
+        desc=(
+            "Returns the rank of a number in a list of numbers; if more than one value "
+            "has the same rank, the average rank is returned."
+        ),
         classic=False,
     ),
     "RANK.EQ": FunctionInfo(
         name="RANK.EQ",
         category="Statistical",
         args=("number", "ref", "[order]"),
-        desc="Returns the rank of a number in a list of numbers; if more than one value has the same rank, the top rank of that set of values is returned.",
+        desc=(
+            "Returns the rank of a number in a list of numbers; if more than one value "
+            "has the same rank, the top rank of that set of values is returned."
+        ),
         classic=False,
     ),
     "RATE": FunctionInfo(
@@ -2761,7 +3173,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="REPT",
         category="Text",
         args=("text", "number_times"),
-        desc="Repeats text a given number of times. Use REPT to fill a cell with a number of instances of a text string.",
+        desc=(
+            "Repeats text a given number of times. Use REPT to fill a cell with a number "
+            "of instances of a text string."
+        ),
         classic=True,
     ),
     "RIGHT": FunctionInfo(
@@ -2831,7 +3246,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="RSQ",
         category="Statistical",
         args=("known_y's", "known_x's"),
-        desc="Returns the square of the Pearson product moment correlation coefficient through the given data points.",
+        desc=(
+            "Returns the square of the Pearson product moment correlation coefficient "
+            "through the given data points."
+        ),
         classic=True,
     ),
     "RTD": FunctionInfo(
@@ -2845,14 +3263,20 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="SCAN",
         category="Logical",
         args=("[initial_value]", "array", "lambda"),
-        desc="Scans an array by applying a LAMBDA to each value and returns an array that has each intermediate value.",
+        desc=(
+            "Scans an array by applying a LAMBDA to each value and returns an array that "
+            "has each intermediate value."
+        ),
         classic=False,
     ),
     "SEARCH": FunctionInfo(
         name="SEARCH",
         category="Text",
         args=("find_text", "within_text", "[start_num]"),
-        desc="Returns the number of the character at which a specific character or text string is first found, reading left to right (not case-sensitive).",
+        desc=(
+            "Returns the number of the character at which a specific character or text "
+            "string is first found, reading left to right (not case-sensitive)."
+        ),
         classic=True,
     ),
     "SEARCHB": FunctionInfo(
@@ -2915,7 +3339,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="SIGN",
         category="Math & Trig",
         args=("number",),
-        desc="Returns the sign of a number: 1 if the number is positive, zero if the number is zero, or -1 if the number is negative.",
+        desc=(
+            "Returns the sign of a number: 1 if the number is positive, zero if the "
+            "number is zero, or -1 if the number is negative."
+        ),
         classic=True,
     ),
     "SIN": FunctionInfo(
@@ -2943,7 +3370,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="SKEW",
         category="Statistical",
         args=("number1", "[number2]", "..."),
-        desc="Returns the skewness of a distribution: a characterization of the degree of asymmetry of a distribution around its mean.",
+        desc=(
+            "Returns the skewness of a distribution: a characterization of the degree of "
+            "asymmetry of a distribution around its mean."
+        ),
         classic=True,
     ),
     "SKEW.P": FunctionInfo(
@@ -2971,7 +3401,9 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="SMALL",
         category="Statistical",
         args=("array", "k"),
-        desc="Returns the k-th smallest value in a data set. For example, the fifth smallest number.",
+        desc=(
+            "Returns the k-th smallest value in a data set. For example, the fifth smallest number."
+        ),
         classic=True,
     ),
     "SORT": FunctionInfo(
@@ -2991,7 +3423,13 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
     "SQL.REQUEST": FunctionInfo(
         name="SQL.REQUEST",
         category="Database",
-        args=("connection_string", "[output_ref]", "[driver_prompt]", "[query_text]", "[col_names_logical]"),
+        args=(
+            "connection_string",
+            "[output_ref]",
+            "[driver_prompt]",
+            "[query_text]",
+            "[col_names_logical]",
+        ),
         desc="Connects to an external data source and runs a query.",
         classic=False,
     ),
@@ -3013,49 +3451,70 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="STANDARDIZE",
         category="Statistical",
         args=("x", "mean", "standard_dev"),
-        desc="Returns a normalized value from a distribution characterized by a mean and standard deviation.",
+        desc=(
+            "Returns a normalized value from a distribution characterized by a mean and "
+            "standard deviation."
+        ),
         classic=True,
     ),
     "STDEV": FunctionInfo(
         name="STDEV",
         category="Statistical",
         args=("number1", "[number2]", "..."),
-        desc="Estimates standard deviation based on a sample (ignores logical values and text in the sample).",
+        desc=(
+            "Estimates standard deviation based on a sample (ignores logical values and "
+            "text in the sample)."
+        ),
         classic=True,
     ),
     "STDEV.P": FunctionInfo(
         name="STDEV.P",
         category="Statistical",
         args=("number1", "[number2]", "..."),
-        desc="Calculates standard deviation based on the entire population given as arguments (ignores logical values and text).",
+        desc=(
+            "Calculates standard deviation based on the entire population given as "
+            "arguments (ignores logical values and text)."
+        ),
         classic=False,
     ),
     "STDEV.S": FunctionInfo(
         name="STDEV.S",
         category="Statistical",
         args=("number1", "[number2]", "..."),
-        desc="Estimates standard deviation based on a sample (ignores logical values and text in the sample).",
+        desc=(
+            "Estimates standard deviation based on a sample (ignores logical values and "
+            "text in the sample)."
+        ),
         classic=False,
     ),
     "STDEVA": FunctionInfo(
         name="STDEVA",
         category="Statistical",
         args=("value1", "[value2]", "..."),
-        desc="Estimates standard deviation based on a sample, including logical values and text. Text and FALSE have the value 0; TRUE has the value 1.",
+        desc=(
+            "Estimates standard deviation based on a sample, including logical values "
+            "and text. Text and FALSE have the value 0; TRUE has the value 1."
+        ),
         classic=True,
     ),
     "STDEVP": FunctionInfo(
         name="STDEVP",
         category="Statistical",
         args=("number1", "[number2]", "..."),
-        desc="Calculates standard deviation based on the entire population given as arguments (ignores logical values and text).",
+        desc=(
+            "Calculates standard deviation based on the entire population given as "
+            "arguments (ignores logical values and text)."
+        ),
         classic=True,
     ),
     "STDEVPA": FunctionInfo(
         name="STDEVPA",
         category="Statistical",
         args=("value1", "[value2]", "..."),
-        desc="Calculates standard deviation based on an entire population, including logical values and text.",
+        desc=(
+            "Calculates standard deviation based on an entire population, including "
+            "logical values and text."
+        ),
         classic=True,
     ),
     "STEYX": FunctionInfo(
@@ -3118,7 +3577,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="SUMSQ",
         category="Math & Trig",
         args=("number1", "[number2]", "..."),
-        desc="Returns the sum of the squares of the arguments. The arguments can be numbers, arrays, names or references to cells that contain numbers.",
+        desc=(
+            "Returns the sum of the squares of the arguments. The arguments can be "
+            "numbers, arrays, names or references to cells that contain numbers."
+        ),
         classic=True,
     ),
     "SUMX2MY2": FunctionInfo(
@@ -3132,7 +3594,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="SUMX2PY2",
         category="Math & Trig",
         args=("array_x", "array_y"),
-        desc="Returns the sum total of the sums of squares of numbers in two corresponding ranges or arrays.",
+        desc=(
+            "Returns the sum total of the sums of squares of numbers in two "
+            "corresponding ranges or arrays."
+        ),
         classic=True,
     ),
     "SUMXMY2": FunctionInfo(
@@ -3146,7 +3611,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="SWITCH",
         category="Logical",
         args=("expression", "value1", "result1", "..."),
-        desc="Evaluates an expression against a list of values and returns the result corresponding to the first matching value.",
+        desc=(
+            "Evaluates an expression against a list of values and returns the result "
+            "corresponding to the first matching value."
+        ),
         classic=False,
     ),
     "SYD": FunctionInfo(
@@ -3160,7 +3628,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="T",
         category="Text",
         args=("value",),
-        desc="Checks whether a value is text, and returns the text if it is, or returns double quotes (empty text) if it is not.",
+        desc=(
+            "Checks whether a value is text, and returns the text if it is, or returns "
+            "double quotes (empty text) if it is not."
+        ),
         classic=True,
     ),
     "T.DIST": FunctionInfo(
@@ -3264,14 +3735,28 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
     "TEXTAFTER": FunctionInfo(
         name="TEXTAFTER",
         category="Text",
-        args=("text", "delimiter", "[instance_num]", "[match_mode]", "[match_end]", "[if_not_found]"),
+        args=(
+            "text",
+            "delimiter",
+            "[instance_num]",
+            "[match_mode]",
+            "[match_end]",
+            "[if_not_found]",
+        ),
         desc="Returns text that occurs after a given character or string.",
         classic=False,
     ),
     "TEXTBEFORE": FunctionInfo(
         name="TEXTBEFORE",
         category="Text",
-        args=("text", "delimiter", "[instance_num]", "[match_mode]", "[match_end]", "[if_not_found]"),
+        args=(
+            "text",
+            "delimiter",
+            "[instance_num]",
+            "[match_mode]",
+            "[match_end]",
+            "[if_not_found]",
+        ),
         desc="Returns text that occurs before a given character or string.",
         classic=False,
     ),
@@ -3285,7 +3770,14 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
     "TEXTSPLIT": FunctionInfo(
         name="TEXTSPLIT",
         category="Text",
-        args=("text", "col_delimiter", "[row_delimiter]", "[ignore_empty]", "[match_mode]", "[pad_with]"),
+        args=(
+            "text",
+            "col_delimiter",
+            "[row_delimiter]",
+            "[ignore_empty]",
+            "[match_mode]",
+            "[pad_with]",
+        ),
         desc="Splits text into rows or columns using delimiters.",
         classic=False,
     ),
@@ -3293,14 +3785,20 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="TIME",
         category="Date & Time",
         args=("hour", "minute", "second"),
-        desc="Converts hours, minutes and seconds given as numbers to a Ledger serial number, formatted with a time format.",
+        desc=(
+            "Converts hours, minutes and seconds given as numbers to a Ledger serial "
+            "number, formatted with a time format."
+        ),
         classic=True,
     ),
     "TIMEVALUE": FunctionInfo(
         name="TIMEVALUE",
         category="Date & Time",
         args=("time_text",),
-        desc="Converts a text time to a Ledger serial number for a time, a number from 0 (12:00:00 AM) to 0.999988426 (11:59:59 PM).",
+        desc=(
+            "Converts a text time to a Ledger serial number for a time, a number from 0 "
+            "(12:00:00 AM) to 0.999988426 (11:59:59 PM)."
+        ),
         classic=True,
     ),
     "TINV": FunctionInfo(
@@ -3349,7 +3847,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="TREND",
         category="Statistical",
         args=("known_y's", "[known_x's]", "[new_x's]", "[const]"),
-        desc="Returns numbers in a linear trend matching known data points, using the least squares method.",
+        desc=(
+            "Returns numbers in a linear trend matching known data points, using the "
+            "least squares method."
+        ),
         classic=True,
     ),
     "TRIM": FunctionInfo(
@@ -3377,7 +3878,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="TRUNC",
         category="Math & Trig",
         args=("number", "[num_digits]"),
-        desc="Truncates a number to an integer by removing the decimal, or fractional, part of the number.",
+        desc=(
+            "Truncates a number to an integer by removing the decimal, or fractional, "
+            "part of the number."
+        ),
         classic=True,
     ),
     "TTEST": FunctionInfo(
@@ -3391,7 +3895,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="TYPE",
         category="Information",
         args=("value",),
-        desc="Returns an integer representing the data type of a value: number = 1; text = 2; logical value = 4; error value = 16; array = 64.",
+        desc=(
+            "Returns an integer representing the data type of a value: number = 1; text "
+            "= 2; logical value = 4; error value = 16; array = 64."
+        ),
         classic=True,
     ),
     "UNICHAR": FunctionInfo(
@@ -3440,56 +3947,78 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="VAR",
         category="Statistical",
         args=("number1", "[number2]", "..."),
-        desc="Estimates variance based on a sample (ignores logical values and text in the sample).",
+        desc=(
+            "Estimates variance based on a sample (ignores logical values and text in the sample)."
+        ),
         classic=True,
     ),
     "VAR.P": FunctionInfo(
         name="VAR.P",
         category="Statistical",
         args=("number1", "[number2]", "..."),
-        desc="Calculates variance based on the entire population (ignores logical values and text in the population).",
+        desc=(
+            "Calculates variance based on the entire population (ignores logical values "
+            "and text in the population)."
+        ),
         classic=False,
     ),
     "VAR.S": FunctionInfo(
         name="VAR.S",
         category="Statistical",
         args=("number1", "[number2]", "..."),
-        desc="Estimates variance based on a sample (ignores logical values and text in the sample).",
+        desc=(
+            "Estimates variance based on a sample (ignores logical values and text in the sample)."
+        ),
         classic=False,
     ),
     "VARA": FunctionInfo(
         name="VARA",
         category="Statistical",
         args=("value1", "[value2]", "..."),
-        desc="Estimates variance based on a sample, including logical values and text. Text and FALSE have the value 0; TRUE has the value 1.",
+        desc=(
+            "Estimates variance based on a sample, including logical values and text. "
+            "Text and FALSE have the value 0; TRUE has the value 1."
+        ),
         classic=True,
     ),
     "VARP": FunctionInfo(
         name="VARP",
         category="Statistical",
         args=("number1", "[number2]", "..."),
-        desc="Calculates variance based on the entire population (ignores logical values and text in the population).",
+        desc=(
+            "Calculates variance based on the entire population (ignores logical values "
+            "and text in the population)."
+        ),
         classic=True,
     ),
     "VARPA": FunctionInfo(
         name="VARPA",
         category="Statistical",
         args=("value1", "[value2]", "..."),
-        desc="Calculates variance based on the entire population, including logical values and text.",
+        desc=(
+            "Calculates variance based on the entire population, including logical values and text."
+        ),
         classic=True,
     ),
     "VDB": FunctionInfo(
         name="VDB",
         category="Financial",
         args=("cost", "salvage", "life", "start_period", "end_period", "[factor]", "[no_switch]"),
-        desc="Returns the depreciation of an asset for any period you specify, including partial periods, using the double-declining balance method or some other method you specify.",
+        desc=(
+            "Returns the depreciation of an asset for any period you specify, including "
+            "partial periods, using the double-declining balance method or some other "
+            "method you specify."
+        ),
         classic=True,
     ),
     "VLOOKUP": FunctionInfo(
         name="VLOOKUP",
         category="Lookup & Reference",
         args=("lookup_value", "table_array", "col_index_num", "[range_lookup]"),
-        desc="Looks for a value in the leftmost column of a table, and then returns a value in the same row from a column you specify.",
+        desc=(
+            "Looks for a value in the leftmost column of a table, and then returns a "
+            "value in the same row from a column you specify."
+        ),
         classic=True,
     ),
     "VSTACK": FunctionInfo(
@@ -3538,14 +4067,19 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="WORKDAY",
         category="Date & Time",
         args=("start_date", "days", "[holidays]"),
-        desc="Returns the serial number of the date before or after a specified number of workdays.",
+        desc=(
+            "Returns the serial number of the date before or after a specified number of workdays."
+        ),
         classic=True,
     ),
     "WORKDAY.INTL": FunctionInfo(
         name="WORKDAY.INTL",
         category="Date & Time",
         args=("start_date", "days", "[weekend]", "[holidays]"),
-        desc="Returns the serial number of the date before or after a specified number of workdays with custom weekend parameters.",
+        desc=(
+            "Returns the serial number of the date before or after a specified number of "
+            "workdays with custom weekend parameters."
+        ),
         classic=False,
     ),
     "WRAPCOLS": FunctionInfo(
@@ -3566,14 +4100,27 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="XIRR",
         category="Financial",
         args=("values", "dates", "[guess]"),
-        desc="Returns the internal rate of return for a schedule of cash flows that is not necessarily periodic.",
+        desc=(
+            "Returns the internal rate of return for a schedule of cash flows that is "
+            "not necessarily periodic."
+        ),
         classic=True,
     ),
     "XLOOKUP": FunctionInfo(
         name="XLOOKUP",
         category="Lookup & Reference",
-        args=("lookup_value", "lookup_array", "return_array", "[if_not_found]", "[match_mode]", "[search_mode]"),
-        desc="Searches a range or an array for a match and returns the corresponding item from a second range or array.",
+        args=(
+            "lookup_value",
+            "lookup_array",
+            "return_array",
+            "[if_not_found]",
+            "[match_mode]",
+            "[search_mode]",
+        ),
+        desc=(
+            "Searches a range or an array for a match and returns the corresponding item "
+            "from a second range or array."
+        ),
         classic=False,
     ),
     "XMATCH": FunctionInfo(
@@ -3587,7 +4134,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="XNPV",
         category="Financial",
         args=("rate", "values", "dates"),
-        desc="Returns the net present value for a schedule of cash flows that is not necessarily periodic.",
+        desc=(
+            "Returns the net present value for a schedule of cash flows that is not "
+            "necessarily periodic."
+        ),
         classic=True,
     ),
     "XOR": FunctionInfo(
@@ -3608,7 +4158,10 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         name="YEARFRAC",
         category="Date & Time",
         args=("start_date", "end_date", "[basis]"),
-        desc="Returns the year fraction representing the number of whole days between start_date and end_date.",
+        desc=(
+            "Returns the year fraction representing the number of whole days between "
+            "start_date and end_date."
+        ),
         classic=True,
     ),
     "YIELD": FunctionInfo(
@@ -3647,6 +4200,7 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         classic=True,
     ),
 }
+
 
 def get_function_info(name: str) -> FunctionInfo | None:
     """Retrieve metadata for a worksheet function by name."""

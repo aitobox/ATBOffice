@@ -382,7 +382,7 @@ def days360(s: float, e: float, european: bool = False, date1904: bool = False) 
         if d2 == 31:
             d2 = 30
     else:
-        last_feb_a = (a["m"] == 2 and a["d"] == days_in_month(a["y"], 2))
+        last_feb_a = a["m"] == 2 and a["d"] == days_in_month(a["y"], 2)
         if d1 == 31 or last_feb_a:
             d1 = 30
         if d2 == 31 and d1 >= 30:
@@ -391,7 +391,9 @@ def days360(s: float, e: float, european: bool = False, date1904: bool = False) 
 
 
 def yearfrac(s: float, e: float, basis: int = 0, date1904: bool = False) -> float | ExcelError:
-    """Calculate the fraction of the year represented by the number of whole days between two dates."""
+    """Calculate the fraction of the year represented by the number of whole days
+    between two dates.
+    """
     s_val = math.floor(s)
     e_val = math.floor(e)
     if s_val > e_val:
@@ -402,8 +404,8 @@ def yearfrac(s: float, e: float, basis: int = 0, date1904: bool = False) -> floa
     if basis == 0:
         d1 = a["d"]
         d2 = b["d"]
-        last_feb_a = (a["m"] == 2 and a["d"] == days_in_month(a["y"], 2))
-        last_feb_b = (b["m"] == 2 and b["d"] == days_in_month(b["y"], 2))
+        last_feb_a = a["m"] == 2 and a["d"] == days_in_month(a["y"], 2)
+        last_feb_b = b["m"] == 2 and b["d"] == days_in_month(b["y"], 2)
         if d1 == 31 and d2 == 31:
             d1 = 30
             d2 = 30
@@ -419,7 +421,9 @@ def yearfrac(s: float, e: float, basis: int = 0, date1904: bool = False) -> floa
         return ((b["y"] - a["y"]) * 360 + (b["m"] - a["m"]) * 30 + (d2 - d1)) / 360.0
     elif basis == 1:
         diff = e_val - s_val
-        if a["y"] == b["y"] or (b["y"] == a["y"] + 1 and (a["m"] > b["m"] or (a["m"] == b["m"] and a["d"] >= b["d"]))):
+        if a["y"] == b["y"] or (
+            b["y"] == a["y"] + 1 and (a["m"] > b["m"] or (a["m"] == b["m"] and a["d"] >= b["d"]))
+        ):
             if a["y"] == b["y"]:
                 den = 366.0 if is_leap_year(a["y"]) else 365.0
             else:
@@ -427,7 +431,10 @@ def yearfrac(s: float, e: float, basis: int = 0, date1904: bool = False) -> floa
                 for y in (a["y"], b["y"]):
                     if is_leap_year(y):
                         feb29_serial = date_to_serial(y, 2, 29, date1904)
-                        if not isinstance(feb29_serial, ExcelError) and s_val <= feb29_serial <= e_val:
+                        if (
+                            not isinstance(feb29_serial, ExcelError)
+                            and s_val <= feb29_serial <= e_val
+                        ):
                             has_feb29 = True
                             break
                 den = 366.0 if has_feb29 else 365.0
@@ -490,5 +497,3 @@ def compare_excel_values(left: Any, right: Any) -> int:
         return -1 if not left and right else 1
 
     return 0
-
-

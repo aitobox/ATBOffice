@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
-from atboffice.modules.spreadsheet.calc.coercion import to_bool, to_num, to_str
+from atboffice.modules.spreadsheet.calc.coercion import to_num
 from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext, Ref
 from atboffice.modules.spreadsheet.calc.errors import (
-    DIV0,
-    NA,
     NUM,
-    REF,
     VALUE,
     ExcelError,
     is_error,
@@ -109,13 +107,16 @@ def beta_i(x: float, a: float, b: float) -> float:
     if x > (a + 1.0) / (a + b + 2.0):
         return 1.0 - beta_i(1.0 - x, b, a)
 
-    front = math.exp(
-        a * math.log(x)
-        + b * math.log(1.0 - x)
-        + math.lgamma(a + b)
-        - math.lgamma(a)
-        - math.lgamma(b)
-    ) / a
+    front = (
+        math.exp(
+            a * math.log(x)
+            + b * math.log(1.0 - x)
+            + math.lgamma(a + b)
+            - math.lgamma(a)
+            - math.lgamma(b)
+        )
+        / a
+    )
 
     def terms(j: int) -> tuple[float, float]:
         if j == 1:
@@ -131,9 +132,7 @@ def beta_i(x: float, a: float, b: float) -> float:
     return front * cont_frac(0.0, terms)
 
 
-def invert_cdf(
-    cdf: Callable[[float], float], p: float, lo: float, hi: float
-) -> float | ExcelError:
+def invert_cdf(cdf: Callable[[float], float], p: float, lo: float, hi: float) -> float | ExcelError:
     flo = cdf(lo) - p
     fhi = cdf(hi) - p
     guard = 0
@@ -147,11 +146,7 @@ def invert_cdf(
     for _ in range(300):
         mid = (lo + hi) / 2.0
         f = cdf(mid) - p
-        if (
-            f == 0.0
-            or abs(f) < 1e-15 * min(p, 1.0)
-            or (hi - lo) <= 1e-15 * max(1.0, abs(mid))
-        ):
+        if f == 0.0 or abs(f) < 1e-15 * min(p, 1.0) or (hi - lo) <= 1e-15 * max(1.0, abs(mid)):
             return mid
         if (f < 0.0) == (flo < 0.0):
             lo, flo = mid, f

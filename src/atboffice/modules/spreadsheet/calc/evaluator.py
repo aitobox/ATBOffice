@@ -7,7 +7,6 @@ from typing import Any
 
 from atboffice.modules.spreadsheet.calc.coercion import (
     compare_excel_values,
-    num_eq,
     round_15,
     to_bool,
     to_num,

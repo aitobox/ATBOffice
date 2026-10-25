@@ -14,7 +14,7 @@ from atboffice.modules.spreadsheet.calc.coercion import (
     yearfrac,
 )
 from atboffice.modules.spreadsheet.calc.context import EvalContext
-from atboffice.modules.spreadsheet.calc.errors import NUM, VALUE, ExcelError, is_error
+from atboffice.modules.spreadsheet.calc.errors import NUM, ExcelError, is_error
 from atboffice.modules.spreadsheet.calc.financial.common import opt, register_fin, to_float
 
 
@@ -33,9 +33,7 @@ def coupon_date(mat: int, months: int, date1904: bool = False) -> int:
     return int(res)
 
 
-def pcd_data(
-    settlement: int, maturity: int, freq: int, date1904: bool = False
-) -> dict[str, Any]:
+def pcd_data(settlement: int, maturity: int, freq: int, date1904: bool = False) -> dict[str, Any]:
     step = 12 // freq
     years = math.floor((maturity - settlement) / 366.0)
     k = -years * freq
@@ -318,9 +316,7 @@ def fn_yield(
     return NUM
 
 
-def calc_duration(
-    b: dict[str, int], coupon: float, yld: float, date1904: bool = False
-) -> float:
+def calc_duration(b: dict[str, int], coupon: float, yld: float, date1904: bool = False) -> float:
     ed = calc_coupdays(b, date1904)
     dsc = calc_coupdaysnc(b, date1904)
     n = calc_coupnum(b, date1904)
@@ -420,14 +416,7 @@ def fn_accrint(
         float(p_val),
     )
     fr_int, b_int = int(float(fr_val)), int(float(b_val))
-    if (
-        r_f <= 0
-        or p_f <= 0
-        or fr_int not in (1, 2, 4)
-        or b_int < 0
-        or b_int > 4
-        or iss_f >= set_f
-    ):
+    if r_f <= 0 or p_f <= 0 or fr_int not in (1, 2, 4) or b_int < 0 or b_int > 4 or iss_f >= set_f:
         return NUM
     date1904 = ctx.date1904 if ctx else False
     yf = yearfrac(iss_f, set_f, b_int, date1904)
@@ -683,10 +672,9 @@ def fn_pricemat(
     dim = day_count(iss_int, m_int, b_int, date1904)
     dsm = day_count(s_int, m_int, b_int, date1904)
     a = day_count(iss_int, s_int, b_int, date1904)
-    return (
-        (100.0 + (dim / b_days) * r_f * 100.0) / (1.0 + (dsm / b_days) * y_f)
-        - (a / b_days) * r_f * 100.0
-    )
+    return (100.0 + (dim / b_days) * r_f * 100.0) / (1.0 + (dsm / b_days) * y_f) - (
+        a / b_days
+    ) * r_f * 100.0
 
 
 @register_fin("YIELDMAT")

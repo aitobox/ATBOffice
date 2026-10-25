@@ -94,9 +94,7 @@ def calc_irr(v: list[float], guess: float = 0.1) -> float | ExcelError:
 
 
 @register_fin("IRR")
-def fn_irr(
-    values: Any, guess: Any = None, ctx: EvalContext | None = None
-) -> float | ExcelError:
+def fn_irr(values: Any, guess: Any = None, ctx: EvalContext | None = None) -> float | ExcelError:
     g_val = to_float(opt(guess, 0.1))
     if is_error(g_val):
         return g_val

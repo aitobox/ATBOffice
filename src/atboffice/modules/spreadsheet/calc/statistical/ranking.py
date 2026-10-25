@@ -5,8 +5,8 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext, Ref
-from atboffice.modules.spreadsheet.calc.errors import NA, NUM, VALUE, ExcelError, is_error
+from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext
+from atboffice.modules.spreadsheet.calc.errors import NA, NUM, ExcelError, is_error
 from atboffice.modules.spreadsheet.calc.statistical.common import (
     collect_stat_numbers,
     opt,
@@ -109,9 +109,7 @@ def calc_percentile(nums: list[float], k: float) -> float | ExcelError:
 
 @register_stat("PERCENTILE")
 @register_stat("PERCENTILE.INC")
-def fn_percentile_inc(
-    array: Any, k: Any, ctx: EvalContext | None = None
-) -> float | ExcelError:
+def fn_percentile_inc(array: Any, k: Any, ctx: EvalContext | None = None) -> float | ExcelError:
     k_val = to_float(k)
     if is_error(k_val):
         return k_val
@@ -123,9 +121,7 @@ def fn_percentile_inc(
 
 
 @register_stat("PERCENTILE.EXC")
-def fn_percentile_exc(
-    array: Any, k: Any, ctx: EvalContext | None = None
-) -> float | ExcelError:
+def fn_percentile_exc(array: Any, k: Any, ctx: EvalContext | None = None) -> float | ExcelError:
     k_val = to_float(k)
     if is_error(k_val):
         return k_val
@@ -146,9 +142,7 @@ def fn_percentile_exc(
 
 @register_stat("QUARTILE")
 @register_stat("QUARTILE.INC")
-def fn_quartile_inc(
-    array: Any, quart: Any, ctx: EvalContext | None = None
-) -> float | ExcelError:
+def fn_quartile_inc(array: Any, quart: Any, ctx: EvalContext | None = None) -> float | ExcelError:
     q_val = to_float(quart)
     if is_error(q_val):
         return q_val
@@ -159,9 +153,7 @@ def fn_quartile_inc(
 
 
 @register_stat("QUARTILE.EXC")
-def fn_quartile_exc(
-    array: Any, quart: Any, ctx: EvalContext | None = None
-) -> float | ExcelError:
+def fn_quartile_exc(array: Any, quart: Any, ctx: EvalContext | None = None) -> float | ExcelError:
     q_val = to_float(quart)
     if is_error(q_val):
         return q_val
