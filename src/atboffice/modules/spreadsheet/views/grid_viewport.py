@@ -50,6 +50,7 @@ class HitZone(Enum):
     COL_RESIZE = auto()
     ROW_RESIZE = auto()
     FILL_HANDLE = auto()
+    FILTER_BUTTON = auto()
 
 
 class HitResult:
@@ -202,6 +203,30 @@ class GridViewport(QAbstractScrollArea):
             )
             if abs(x - fx) <= 5 and abs(y - fy) <= 5:
                 return HitResult(HitZone.FILL_HANDLE, row=pr.max_r, col=pr.max_c)
+
+        # 4.5 AutoFilter Button area
+        if getattr(self.model, "auto_filter", None) is not None:
+            af = self.model.auto_filter
+            r1 = af.r1
+            row_y = (
+                self.col_header_height
+                + self.geometry_mapper.row_pos(r1)
+                - scroll_y
+            )
+            row_h = self.geometry_mapper.row_size(r1)
+            btn_size = min(16, max(12, row_h - 2))
+            if row_y <= y <= row_y + row_h:
+                for c in range(af.c1, af.c2 + 1):
+                    col_x = (
+                        self.row_header_width
+                        + self.geometry_mapper.col_pos(c)
+                        - scroll_x
+                    )
+                    col_w = self.geometry_mapper.col_size(c)
+                    bx = col_x + col_w - btn_size - 1
+                    by = row_y + row_h - btn_size - 1
+                    if bx <= x <= bx + btn_size and by <= y <= by + btn_size:
+                        return HitResult(HitZone.FILTER_BUTTON, row=r1, col=c)
 
         # 5. Cell area
         sheet_x = scroll_x + (x - self.row_header_width)
@@ -656,6 +681,65 @@ class GridViewport(QAbstractScrollArea):
                     painter.fillRect(cx, cy, 4, 4, hl.color)
             painter.restore()
 
+        # 5.6 Draw AutoFilter Buttons
+        if getattr(self.model, "auto_filter", None) is not None:
+            af = self.model.auto_filter
+            r1 = af.r1
+            if start_row <= r1 <= end_row:
+                painter.save()
+                painter.setClipRect(cell_clip)
+                row_y = (
+                    self.col_header_height
+                    + self.geometry_mapper.row_pos(r1)
+                    - scroll_y
+                )
+                row_h = self.geometry_mapper.row_size(r1)
+                btn_size = min(16, max(12, row_h - 2))
+
+                for c in range(max(start_col, af.c1), min(end_col, af.c2) + 1):
+                    col_x = (
+                        self.row_header_width
+                        + self.geometry_mapper.col_pos(c)
+                        - scroll_x
+                    )
+                    col_w = self.geometry_mapper.col_size(c)
+                    if col_w <= btn_size:
+                        continue
+
+                    bx = col_x + col_w - btn_size - 1
+                    by = row_y + row_h - btn_size - 1
+
+                    # Draw Office 2003 bevel button
+                    painter.fillRect(bx, by, btn_size, btn_size, QColor(236, 233, 216))
+                    painter.setPen(QPen(QColor(128, 128, 128), 1))
+                    painter.drawRect(bx, by, btn_size - 1, btn_size - 1)
+                    # 1px top/left highlight
+                    painter.setPen(QPen(Qt.GlobalColor.white, 1))
+                    painter.drawLine(bx + 1, by + 1, bx + btn_size - 2, by + 1)
+                    painter.drawLine(bx + 1, by + 1, bx + 1, by + btn_size - 2)
+
+                    # Downward arrow triangle
+                    col_offset = c - af.c1
+                    has_active_crit = (
+                        col_offset in af.cols and af.cols[col_offset].has_criteria()
+                    )
+                    arrow_color = (
+                        QColor(0, 0, 255) if has_active_crit else QColor(0, 0, 0)
+                    )
+                    painter.setBrush(QBrush(arrow_color))
+                    painter.setPen(QPen(arrow_color, 1))
+
+                    cx = bx + btn_size // 2
+                    cy = by + btn_size // 2
+                    arrow_poly = [
+                        QPoint(cx - 3, cy - 1),
+                        QPoint(cx + 3, cy - 1),
+                        QPoint(cx, cy + 2),
+                    ]
+                    painter.drawPolygon(arrow_poly)
+
+                painter.restore()
+
         # 6. Draw Fixed Headers (Column Headers, Row Headers, Corner)
         self._paint_headers(
             painter, start_row, end_row, start_col, end_col, scroll_x, scroll_y, vw, vh
@@ -829,6 +913,10 @@ class GridViewport(QAbstractScrollArea):
             self._fill_preview_range = self._fill_start_src
             self._fill_ctrl_pressed = bool(modifiers & Qt.KeyboardModifier.ControlModifier)
             self.viewport().update()
+
+        elif hit.zone == HitZone.FILTER_BUTTON and hit.col is not None:
+            self._open_filter_dropdown(hit.col)
+            return
 
         elif hit.zone == HitZone.CELL and hit.row is not None and hit.col is not None:
             if (
@@ -1096,3 +1184,133 @@ class GridViewport(QAbstractScrollArea):
             top = self.window()
             if hasattr(top, "set_modified"):
                 top.set_modified(True)
+
+    def _open_filter_dropdown(self, col: int) -> None:
+        """Open the AutoFilter dropdown popup for the specified column."""
+        if getattr(self.model, "auto_filter", None) is None:
+            return
+        af = self.model.auto_filter
+        from atboffice.modules.spreadsheet.models.filter_model import (
+            apply_auto_filter,
+            clear_auto_filter,
+            sort_sheet_range,
+        )
+        from atboffice.modules.spreadsheet.views.filter_dropdown import (
+            FilterDropdown,
+        )
+
+        dropdown = FilterDropdown(self.model, af, col, self.viewport())
+
+        def on_applied(crit: Any) -> None:
+            col_offset = col - af.c1
+            af.cols[col_offset] = crit
+            apply_auto_filter(self.model, af)
+            self._update_scrollbars()
+            self.viewport().update()
+
+        def on_cleared() -> None:
+            col_offset = col - af.c1
+            clear_auto_filter(self.model, af, col_offset)
+            self._update_scrollbars()
+            self.viewport().update()
+
+        def on_sort(desc: bool) -> None:
+            sort_sheet_range(
+                self.model,
+                af.r1,
+                af.c1,
+                af.r2,
+                af.c2,
+                [(col, desc)],
+                has_header=True,
+            )
+            self.viewport().update()
+
+        dropdown.filter_applied.connect(on_applied)
+        dropdown.filter_cleared.connect(on_cleared)
+        dropdown.sort_requested.connect(on_sort)
+
+        # Position popup directly under the cell
+        scroll_x = self.horizontalScrollBar().value()
+        scroll_y = self.verticalScrollBar().value()
+        col_x = (
+            self.row_header_width
+            + self.geometry_mapper.col_pos(col)
+            - scroll_x
+        )
+        row_y = (
+            self.col_header_height
+            + self.geometry_mapper.row_pos(af.r1)
+            - scroll_y
+        )
+        row_h = self.geometry_mapper.row_size(af.r1)
+        global_pos = self.viewport().mapToGlobal(QPoint(col_x, row_y + row_h))
+        dropdown.move(global_pos)
+        dropdown.show()
+
+    def toggle_auto_filter(self) -> None:
+        """Toggle AutoFilter on current selection or surrounding data range."""
+        from atboffice.modules.spreadsheet.models.filter_model import (
+            AutoFilter,
+            clear_auto_filter,
+        )
+
+        if getattr(self.model, "auto_filter", None) is not None:
+            clear_auto_filter(self.model, self.model.auto_filter)
+            self.model.auto_filter = None
+            self._update_scrollbars()
+            self.viewport().update()
+            return
+
+        # Determine range from current selection
+        pr = self.selection.primary_range
+        r1, c1, r2, c2 = pr.min_r, pr.min_c, pr.max_r, pr.max_c
+        if r1 == r2 and c1 == c2:
+            # Single cell selected: expand to bounding box of active cells
+            min_r, min_c, max_r, max_c = r1, c1, r2, c2
+            for (cr, cc), cell in self.model.cells.items():
+                if cell.value is not None and cell.value != "":
+                    min_r = min(min_r, cr)
+                    max_r = max(max_r, cr)
+                    min_c = min(min_c, cc)
+                    max_c = max(max_c, cc)
+            r1, c1, r2, c2 = min_r, min_c, max_r, max_c
+
+        af = AutoFilter(r1=r1, c1=c1, r2=r2, c2=c2)
+        self.model.auto_filter = af
+        self.viewport().update()
+
+    def open_sort_dialog(self) -> None:
+        """Open SortDialog for current selection or surrounding data range."""
+        pr = self.selection.primary_range
+        r1, c1, r2, c2 = pr.min_r, pr.min_c, pr.max_r, pr.max_c
+        if r1 == r2 and c1 == c2:
+            min_r, min_c, max_r, max_c = r1, c1, r2, c2
+            for (cr, cc), cell in self.model.cells.items():
+                if cell.value is not None and cell.value != "":
+                    min_r = min(min_r, cr)
+                    max_r = max(max_r, cr)
+                    min_c = min(min_c, cc)
+                    max_c = max(max_c, cc)
+            r1, c1, r2, c2 = min_r, min_c, max_r, max_c
+
+        from atboffice.modules.spreadsheet.dialogs.sort_dialog import SortDialog
+        from atboffice.modules.spreadsheet.models.filter_model import (
+            sort_sheet_range,
+        )
+
+        dlg = SortDialog(self.model, r1, c1, r2, c2, self)
+        if dlg.exec() == SortDialog.DialogCode.Accepted:
+            keys = dlg.get_sort_keys()
+            if keys:
+                sort_sheet_range(
+                    self.model,
+                    r1,
+                    c1,
+                    r2,
+                    c2,
+                    keys,
+                    has_header=dlg.has_header(),
+                    case_sensitive=dlg.is_case_sensitive(),
+                )
+                self.viewport().update()
