@@ -498,6 +498,33 @@ class WriterCanvasView(QAbstractScrollArea):
                                     QPointF(x_px, baseline_px),
                                     po.text,
                                 )
+                            elif po.type == PortionType.TAB and po_w > 0:
+                                tab_data = getattr(po, "data", None)
+                                leader = getattr(tab_data, "leader", "none") if tab_data else "none"
+                                if leader and leader != "none":
+                                    x_px = page_rect.left() + self.pt_to_px(cur_x)
+                                    y_px = page_rect.top() + self.pt_to_px(line_y)
+                                    baseline_px = y_px + self.pt_to_px(line.baseline)
+                                    w_px = self.pt_to_px(po_w)
+
+                                    p1 = QPointF(x_px, baseline_px)
+                                    p2 = QPointF(x_px + w_px, baseline_px)
+                                    if leader == "dot":
+                                        pen = QPen(QColor(100, 100, 100), 1.0, Qt.PenStyle.DotLine)
+                                        painter.setPen(pen)
+                                        painter.drawLine(p1, p2)
+                                    elif leader == "hyphen":
+                                        pen = QPen(QColor(100, 100, 100), 1.0, Qt.PenStyle.DashLine)
+                                        painter.setPen(pen)
+                                        painter.drawLine(p1, p2)
+                                    elif leader == "underscore":
+                                        pen = QPen(
+                                            QColor(100, 100, 100), 1.0, Qt.PenStyle.SolidLine
+                                        )
+                                        painter.setPen(pen)
+                                        p1_u = QPointF(x_px, baseline_px + 2)
+                                        p2_u = QPointF(x_px + w_px, baseline_px + 2)
+                                        painter.drawLine(p1_u, p2_u)
 
                             cur_x += po_w
 
@@ -671,6 +698,21 @@ class WriterCanvasView(QAbstractScrollArea):
             return event.position().toPoint()
         return event.pos()
 
+    def jump_to_bookmark(self, name: str) -> bool:
+        """Jump to bookmark target by scrolling canvas and setting caret position."""
+        from atboffice.modules.writer.models.field import find_bookmarks
+        from atboffice.modules.writer.views.caret_controller import DocPos
+
+        bms = find_bookmarks(self.doc)
+        b = bms.get(name)
+        if not b:
+            return False
+        target_pos = DocPos(b.p.id, b.offset)
+        self.controller.set_pos(target_pos, extend_selection=False)
+        self.scroll_to_caret()
+        self.viewport().update()
+        return True
+
     def mousePressEvent(self, event: QMouseEvent) -> None:
         """Handle single-click, double-click, triple-click, and table divider resize."""
         pos_pt = self._event_pos(event)
@@ -685,6 +727,19 @@ class WriterCanvasView(QAbstractScrollArea):
 
             page_idx, pt_doc = self.viewport_to_doc_coords(pos_pt)
             pos = self.controller.canvas_to_pos(page_idx, pt_doc)
+
+            # Hyperlink navigation check
+            p = self.controller._paragraph_by_id(pos.para_id)
+            if p:
+                from atboffice.modules.writer.models.document import locate
+
+                item_idx, _, _ = locate(p, pos.offset, side="after")
+                if 0 <= item_idx < len(p.runs):
+                    it = p.runs[item_idx]
+                    link = getattr(it.r_pr, "link", None) if hasattr(it, "r_pr") else None
+                    if link and isinstance(link, dict) and "anchor" in link:
+                        if self.jump_to_bookmark(link["anchor"]):
+                            return
 
             modifiers = event.modifiers()
             shift = bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
@@ -717,7 +772,23 @@ class WriterCanvasView(QAbstractScrollArea):
             else:
                 self.viewport().setCursor(Qt.CursorShape.SplitVCursor)
         else:
-            self.viewport().setCursor(Qt.CursorShape.IBeamCursor)
+            page_idx, pt_doc = self.viewport_to_doc_coords(pos_pt)
+            pos = self.controller.canvas_to_pos(page_idx, pt_doc)
+            p = self.controller._paragraph_by_id(pos.para_id)
+            is_link = False
+            if p:
+                from atboffice.modules.writer.models.document import locate
+
+                item_idx, _, _ = locate(p, pos.offset, side="after")
+                if 0 <= item_idx < len(p.runs):
+                    it = p.runs[item_idx]
+                    link = getattr(it.r_pr, "link", None) if hasattr(it, "r_pr") else None
+                    if link and isinstance(link, dict) and "anchor" in link:
+                        is_link = True
+            if is_link:
+                self.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
+            else:
+                self.viewport().setCursor(Qt.CursorShape.IBeamCursor)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         """End mouse selection drag or commit table resize."""

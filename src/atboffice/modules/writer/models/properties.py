@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from typing import Any
 
 # Standard Paper Sizes in Points (width, height)
 PAPER_SIZES: dict[str, tuple[float, float]] = {
@@ -206,6 +207,7 @@ class RunProperties:
     spacing: float = 0.0
     lang: str = "en-US"
     lang_ea: str = "zh-CN"
+    link: dict[str, Any] | None = None
 
 
 @dataclass
