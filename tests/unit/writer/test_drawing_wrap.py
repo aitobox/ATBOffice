@@ -137,3 +137,57 @@ def test_text_wrap_calculations():
         fb_pass = resolve_float_box(pic_pass, page_dims, margin_dims, col_dims, 100.0)
         pass_segs = calculate_line_segments(72.0, 540.0, 120.0, 14.0, [fb_pass])
         assert pass_segs == [(72.0, 540.0)]
+
+
+def test_linked_text_boxes_overflow():
+    from atboffice.modules.writer.layout.wrap import flow_linked_text_boxes
+    from atboffice.modules.writer.models.document import Paragraph, Story, TextItem
+    from atboffice.modules.writer.models.drawing import (
+        LinkedTextBoxChain,
+        TextBoxItem,
+    )
+
+    box0 = TextBoxItem(
+        id=1,
+        width=100.0,
+        height=40.0,
+        chain=LinkedTextBoxChain(chain_id="chain1", seq=0, next_chain_id="chain1_seq1"),
+        internal_margins=(5.0, 5.0, 5.0, 5.0),
+    )
+    box1 = TextBoxItem(
+        id=2,
+        width=100.0,
+        height=100.0,
+        chain=LinkedTextBoxChain(chain_id="chain1", seq=1),
+        internal_margins=(5.0, 5.0, 5.0, 5.0),
+    )
+
+    # Story with several paragraphs that will exceed Box 0 (usable height = 30.0)
+    story = Story(
+        paras=[
+            Paragraph(runs=[TextItem(text="Line 1 in story.")]),
+            Paragraph(runs=[TextItem(text="Line 2 in story.")]),
+            Paragraph(runs=[TextItem(text="Line 3 in story.")]),
+            Paragraph(runs=[TextItem(text="Line 4 in story.")]),
+        ]
+    )
+
+    res = flow_linked_text_boxes([box0, box1], story)
+    assert res.is_complete is True
+    assert 1 in res.placed_blocks
+    assert 2 in res.placed_blocks
+    assert len(res.placed_blocks[1]) > 0
+    assert len(res.placed_blocks[2]) > 0
+
+    # Test overflowing completely when chain capacity is exceeded
+    small_box = TextBoxItem(
+        id=3,
+        width=100.0,
+        height=25.0,
+        chain=LinkedTextBoxChain(chain_id="chain2", seq=0),
+        internal_margins=(2.0, 2.0, 2.0, 2.0),
+    )
+    res_overflow = flow_linked_text_boxes([small_box], story)
+    assert res_overflow.is_complete is False
+    assert res_overflow.overflow_story is not None
+    assert len(res_overflow.overflow_story.paras) > 0

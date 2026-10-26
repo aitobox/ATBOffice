@@ -6,6 +6,7 @@ line obstacle avoidance, and story chaining across linked text boxes.
 
 from __future__ import annotations
 
+import copy
 import math
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -229,3 +230,139 @@ def calculate_line_segments(
             break
 
     return segments
+
+
+@dataclass
+class TextBoxFlowResult:
+    """Result of flowing a story across linked text boxes."""
+
+    placed_blocks: dict[int, list[Paragraph]] = field(default_factory=dict)
+    overflow_story: Story | None = None
+    is_complete: bool = True
+
+
+def flow_linked_text_boxes(
+    boxes: list[TextBoxItem],
+    story: Story,
+    line_layout_fn: Callable[[Paragraph, float], Any] | None = None,
+) -> TextBoxFlowResult:
+    """Flow a story through a sequence of linked text boxes.
+
+    Args:
+        boxes: List of TextBoxItem instances belonging to the chain.
+        story: The source Story containing paragraphs to place.
+        line_layout_fn: Optional layout function (default: layout_paragraph).
+
+    Returns:
+        TextBoxFlowResult with placed paragraphs per box ID and any overflow story.
+    """
+    if line_layout_fn is None:
+        from atboffice.modules.writer.layout.portions import layout_paragraph
+
+        line_layout_fn = layout_paragraph
+
+    # Sort boxes by chain sequence: seq 0, 1, 2, ...
+    sorted_boxes = sorted(boxes, key=lambda b: (b.chain.seq if b.chain else 0))
+
+    placed_blocks: dict[int, list[Paragraph]] = {b.id: [] for b in sorted_boxes}
+    remaining_paras: list[Paragraph] = [copy.deepcopy(p) for p in story.paras]
+
+    for box in sorted_boxes:
+        if not remaining_paras:
+            break
+
+        ins_l, ins_t, ins_r, ins_b = box.internal_margins
+        usable_w = max(10.0, box.width - ins_l - ins_r)
+        usable_h = max(0.0, box.height - ins_t - ins_b)
+        used_h = 0.0
+
+        box_paras: list[Paragraph] = []
+
+        while remaining_paras:
+            cur_p = remaining_paras[0]
+            layout = line_layout_fn(cur_p, usable_w)
+            lines = layout.lines
+
+            if not lines:
+                # Empty paragraph, minimal height
+                p_h = 14.0
+                if used_h + p_h <= usable_h or not box_paras:
+                    box_paras.append(remaining_paras.pop(0))
+                    used_h += p_h
+                else:
+                    break
+                continue
+
+            # Check how many lines fit in remaining height
+            accum_h = 0.0
+            fitted_line_count = 0
+            for line in lines:
+                l_h = max(10.0, line.height)
+                if used_h + accum_h + l_h <= usable_h:
+                    accum_h += l_h
+                    fitted_line_count += 1
+                else:
+                    break
+
+            if fitted_line_count == len(lines):
+                # Entire paragraph fits
+                box_paras.append(remaining_paras.pop(0))
+                used_h += accum_h
+            elif fitted_line_count > 0:
+                # Partial paragraph fits: split at the end of fitted lines
+                last_line = lines[fitted_line_count - 1]
+                split_char_offset = 0
+                for portion in last_line.portions:
+                    split_char_offset = max(
+                        split_char_offset, portion.char_offset + portion.length
+                    )
+
+                from atboffice.modules.writer.models.document import _next_nid, split_at
+
+                cur_p = remaining_paras.pop(0)
+                split_idx = split_at(cur_p, split_char_offset)
+
+                p1_runs = cur_p.runs[:split_idx]
+                p2_runs = cur_p.runs[split_idx:]
+
+                p1 = Paragraph(id=cur_p.id, p_pr=copy.deepcopy(cur_p.p_pr), runs=p1_runs)
+                p2 = Paragraph(id=_next_nid(), p_pr=copy.deepcopy(cur_p.p_pr), runs=p2_runs)
+
+                box_paras.append(p1)
+                used_h += accum_h
+                if p2.runs:
+                    remaining_paras.insert(0, p2)
+                break  # Current box is full
+            else:
+                # 0 lines fit in this box
+                if not box_paras:
+                    # If box was completely empty, at least place 1 line to avoid infinite loop
+                    last_line = lines[0]
+                    split_char_offset = 0
+                    for portion in last_line.portions:
+                        split_char_offset = max(
+                            split_char_offset, portion.char_offset + portion.length
+                        )
+
+                    from atboffice.modules.writer.models.document import _next_nid, split_at
+
+                    cur_p = remaining_paras.pop(0)
+                    split_idx = split_at(cur_p, split_char_offset)
+                    p1 = Paragraph(id=cur_p.id, p_pr=copy.deepcopy(cur_p.p_pr), runs=cur_p.runs[:split_idx])
+                    p2 = Paragraph(id=_next_nid(), p_pr=copy.deepcopy(cur_p.p_pr), runs=cur_p.runs[split_idx:])
+                    box_paras.append(p1)
+                    if p2.runs:
+                        remaining_paras.insert(0, p2)
+                break
+
+        placed_blocks[box.id] = box_paras
+        box.story.paras = box_paras
+
+    is_complete = len(remaining_paras) == 0
+    overflow_story = Story(paras=remaining_paras) if remaining_paras else None
+
+    return TextBoxFlowResult(
+        placed_blocks=placed_blocks,
+        overflow_story=overflow_story,
+        is_complete=is_complete,
+    )
