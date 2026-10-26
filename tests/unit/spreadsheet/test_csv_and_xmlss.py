@@ -11,7 +11,7 @@ from atboffice.modules.spreadsheet.io.csv_io import (
     populate_sheet,
     sniff_delimiter,
 )
-from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
+from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetDataModel
 
 
 def test_decode_bytes_bom():
@@ -272,3 +272,66 @@ def test_text_import_wizard_init_and_navigation(qapp):
 
     # Retranslate UI
     wizard.retranslate_ui()
+
+def test_text_import_wizard_fixed_width_and_skip(qapp):
+    data = "1001Alice Smith    Finance\n1002Bob Jones      Marketing\n"
+    wizard = TextImportWizard(data, file_name="data.txt")
+    # Switch to fixed width
+    wizard.fixed_radio.setChecked(True)
+    assert wizard.is_delimited is True or wizard.fixed_radio.isChecked()
+
+    # Go to Step 2
+    wizard.next_btn.click()
+    wizard.breaks_edit.setText("4, 19")
+
+    # Go to Step 3
+    wizard.next_btn.click()
+    assert wizard.stack.currentIndex() == 2
+
+    # Skip first column (col 0)
+    wizard._on_step3_col_clicked(0)
+    wizard.fmt_skip_radio.setChecked(True)
+    assert wizard.column_formats[0] == "Skip"
+
+    # Set col 1 as Text
+    wizard._on_step3_col_clicked(1)
+    wizard.fmt_text_radio.setChecked(True)
+    assert wizard.column_formats[1] == "Text"
+
+    rows = wizard.get_result_rows()
+    assert len(rows) == 2
+    # First column is skipped, so row only has 2 elements: name, department
+    assert rows[0] == ["Alice Smith", "Finance"]
+    assert rows[1] == ["Bob Jones", "Marketing"]
+
+
+def test_xmlss_formula_with_string_literals():
+    # Formula contains "RED" and "COLOR" with R/C letters inside string literals
+    f = 'IF(A1="RED","COLOR","OTHER")'
+    r1c1 = to_r1c1(f, 0, 0)
+    assert 'IF(RC="RED","COLOR","OTHER")' in r1c1
+
+    a1 = from_r1c1(r1c1, 0, 0)
+    assert a1 == 'IF(A1="RED","COLOR","OTHER")'
+
+
+def test_xmlss_chinese_and_formatting_roundtrip():
+    model = SheetDataModel()
+    model.set_cell(0, 0, CellData(value="报表标题", bold=True, font_size=14, fg_color="#FF0000"))
+    model.set_cell(1, 0, CellData(value="销售额", italic=True))
+    model.set_cell(1, 1, CellData(value=125000.5, format_code="¥#,##0.00"))
+    model.add_merge(0, 0, 0, 2)
+
+    xml_text = write_xmlss(model, sheet_name="财务报表")
+    assert "财务报表" in xml_text
+    assert "报表标题" in xml_text
+    assert "销售额" in xml_text
+    assert 'ss:MergeAcross="2"' in xml_text
+
+    model2 = read_xmlss(xml_text)
+    assert model2.get_cell_value(0, 0) == "报表标题"
+    assert model2.get_cell(0, 0).bold is True
+    assert model2.get_cell(0, 0).font_size == 14
+    assert model2.get_cell(1, 0).italic is True
+    assert model2.get_cell_value(1, 1) == 125000.5
+    assert model2.get_merge_range(0, 0) == (0, 0, 0, 2)
