@@ -247,5 +247,84 @@ def test_presentation_container_operations():
     assert restored_pres.title == "Demo Presentation"
 
 
+def test_all_21_layouts_comprehensive():
+    from atboffice.modules.presentation.models.designs import build_design
+    from atboffice.modules.presentation.models.layouts import LAYOUTS, layout_frames
+
+    d16_9 = build_design("default", 960.0, 540.0)
+    d4_3 = build_design("default", 720.0, 540.0)
+
+    for layout in LAYOUTS:
+        for d, max_w, max_h in [(d16_9, 960.0, 540.0), (d4_3, 720.0, 540.0)]:
+            frames = layout_frames(layout.key, d)
+            if layout.key == "blank":
+                assert len(frames) == 0
+            else:
+                assert len(frames) >= 1
+                for fr in frames:
+                    assert fr["x"] >= 0.0, f"Negative x in {layout.key}"
+                    assert fr["y"] >= 0.0, f"Negative y in {layout.key}"
+                    assert fr["x"] + fr["w"] <= max_w + 1.0, f"Overflow w in {layout.key}: {fr['x']} + {fr['w']} > {max_w}"
+                    assert fr["y"] + fr["h"] <= max_h + 1.0, f"Overflow h in {layout.key}: {fr['y']} + {fr['h']} > {max_h}"
+
+
+def test_all_15_designs_comprehensive():
+    from atboffice.modules.presentation.models.designs import DESIGNS, build_design
+
+    for d_def in DESIGNS:
+        # Build 16:9
+        d16 = build_design(d_def.key, 960.0, 540.0)
+        assert d16.key == d_def.key
+        assert d16.name == d_def.name
+        assert len(d16.colors.to_dict()) == 12
+        assert "major" in d16.fonts and "minor" in d16.fonts
+        assert d16.bg.type in ("solid", "grad", "patt", "none")
+
+        # Build 4:3
+        d4 = build_design(d_def.key, 720.0, 540.0)
+        assert d4.key == d_def.key
+
+
+def test_slide_crud_operations():
+    from atboffice.modules.presentation.models.presentation import Presentation
+
+    pres = Presentation.create_new(title="CRUD Test")
+    s1 = pres.slides[0]
+    s2 = pres.add_slide(layout="content")
+    s3 = pres.add_slide(layout="table")
+
+    assert len(pres.slides) == 3
+    assert pres.slides[1].id == s2.id
+
+    # Move slide
+    pres.move_slide(0, 2)
+    assert pres.slides[2].id == s1.id
+    assert pres.slides[0].id == s2.id
+
+    # Remove slide
+    assert pres.remove_slide(s2.id) is True
+    assert len(pres.slides) == 2
+    assert pres.slides[0].id == s3.id
+
+
+def test_shape_transforms():
+    from atboffice.modules.presentation.models.shape import Shape
+    from atboffice.modules.presentation.models.text import TextBody
+
+    tb = TextBody.from_plain_text("Scaling Text")
+    sh = Shape(id="s_test", x=10.0, y=20.0, w=100.0, h=50.0, text=tb)
+
+    sh.translate(5.0, 10.0)
+    assert sh.x == 15.0
+    assert sh.y == 30.0
+
+    sh.scale(2.0, 2.0)
+    assert sh.x == 30.0
+    assert sh.y == 60.0
+    assert sh.w == 200.0
+    assert sh.h == 100.0
+
+
+
 
 
