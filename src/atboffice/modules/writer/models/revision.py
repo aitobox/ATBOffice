@@ -5,7 +5,6 @@ from __future__ import annotations
 import copy
 import datetime
 from dataclasses import dataclass, field
-from typing import Any
 
 from atboffice.modules.writer.models.document import (
     CommentRangeEnd,
@@ -14,7 +13,6 @@ from atboffice.modules.writer.models.document import (
     Paragraph,
     RunItem,
     Story,
-    Table,
     TextItem,
     all_stories,
     ilen,
@@ -26,9 +24,7 @@ from atboffice.modules.writer.models.document import (
     split_at,
 )
 from atboffice.modules.writer.models.properties import (
-    ParagraphProperties,
     RevisionStamp,
-    RunProperties,
 )
 
 # ---------------------------------------------------------------------------
@@ -90,19 +86,11 @@ class Comment:
         self.id = str(id)
         self.author = author
         self.initials = initials or (author[:2].upper() if author else "AU")
-        self.date = (
-            date
-            or datetime.datetime.now(datetime.timezone.utc).strftime(
-                "%Y-%m-%dT%H:%M:%SZ"
-            )
-        )
+        self.date = date or datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         if blocks is not None:
             self.blocks = blocks
         elif text:
-            self.blocks = [
-                Paragraph(runs=[TextItem(text=line)])
-                for line in text.split("\n")
-            ]
+            self.blocks = [Paragraph(runs=[TextItem(text=line)]) for line in text.split("\n")]
         else:
             self.blocks = [Paragraph()]
         self.paras = paras or []
@@ -121,8 +109,7 @@ class Comment:
     @text.setter
     def text(self, val: str) -> None:
         self.blocks = [
-            Paragraph(runs=[TextItem(text=line)])
-            for line in (val.split("\n") if val else [""])
+            Paragraph(runs=[TextItem(text=line)]) for line in (val.split("\n") if val else [""])
         ]
 
 
@@ -500,16 +487,12 @@ def delete_all_comments(doc: Document) -> int:
         for b in getattr(st, "blocks", []):
             if isinstance(b, Paragraph):
                 b.runs = [
-                    it
-                    for it in b.runs
-                    if not isinstance(it, (CommentRangeStart, CommentRangeEnd))
+                    it for it in b.runs if not isinstance(it, (CommentRangeStart, CommentRangeEnd))
                 ]
                 normalize(b)
         for p in getattr(st, "paras", []):
             p.runs = [
-                it
-                for it in p.runs
-                if not isinstance(it, (CommentRangeStart, CommentRangeEnd))
+                it for it in p.runs if not isinstance(it, (CommentRangeStart, CommentRangeEnd))
             ]
             normalize(p)
     doc._idx_dirty = True
@@ -663,15 +646,11 @@ def navigate_revision(
 
     if direction > 0:
         for it in items:
-            if it.para._o > cur_para._o or (
-                it.para._o == cur_para._o and it.start > cur_offset
-            ):
+            if it.para._o > cur_para._o or (it.para._o == cur_para._o and it.start > cur_offset):
                 return it
     else:
         for it in reversed(items):
-            if it.para._o < cur_para._o or (
-                it.para._o == cur_para._o and it.end < cur_offset
-            ):
+            if it.para._o < cur_para._o or (it.para._o == cur_para._o and it.end < cur_offset):
                 return it
 
     return None
@@ -706,7 +685,9 @@ def layout_balloons(
 
         connector.append((it.anchor_x, anchor_y, page_width - 10.0, anchor_y))
         if abs(anchor_y - balloon_y) > 2.0:
-            connector.append((page_width - 10.0, min(anchor_y, balloon_y), page_width - 10.0, max(anchor_y, balloon_y)))
+            top_y = min(anchor_y, balloon_y)
+            bot_y = max(anchor_y, balloon_y)
+            connector.append((page_width - 10.0, top_y, page_width - 10.0, bot_y))
             connector.append((page_width - 10.0, balloon_y, page_width + 4.0, balloon_y))
 
         placements.append(

@@ -5,7 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import QGridLayout, QWidget
 
-from atboffice.modules.writer.models.document import Document
+from atboffice.modules.writer.models.document import Document, Paragraph
 from atboffice.modules.writer.views.canvas_view import WriterCanvasView
 from atboffice.modules.writer.views.review_pane import ReviewPane, ReviewToolbar
 from atboffice.modules.writer.views.ruler import (

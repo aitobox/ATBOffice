@@ -25,7 +25,7 @@ This feature implements the complete Word 2003 / Quire document reviewing and co
 @dataclass
 class RevisionStamp:
     author: str = "Author"
-    date: str = ""          # ISO 8601 string, e.g. "2026-10-26T12:00:00Z"
+    date: str = ""  # ISO 8601 string, e.g. "2026-10-26T12:00:00Z"
     id: int = 0
     old: dict[str, Any] = field(default_factory=dict)
 ```

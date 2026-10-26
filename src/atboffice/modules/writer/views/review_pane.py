@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QLocale, QPoint, QSize, Qt, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QIcon, QPainter, QPaintEvent, QPen
+from PySide6.QtCore import QCoreApplication, QLocale, QPoint, Qt, Signal
+from PySide6.QtGui import QAction, QFont
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -18,10 +18,6 @@ from PySide6.QtWidgets import (
     QMenu,
     QPlainTextEdit,
     QPushButton,
-    QScrollArea,
-    QSizePolicy,
-    QSpacerItem,
-    QSplitter,
     QToolBar,
     QToolButton,
     QVBoxLayout,
@@ -30,28 +26,16 @@ from PySide6.QtWidgets import (
 
 from atboffice.modules.writer.models.document import Document, Paragraph
 from atboffice.modules.writer.models.revision import (
-    BalloonItem,
     BalloonPlacement,
     Comment,
     RevisionItem,
-    accept_all_revisions,
     accept_revision,
     author_color,
     comment_number,
-    delete_all_comments,
     delete_comment,
-    edit_comment,
-    insert_comment,
-    is_tracking,
-    layout_balloons,
     list_authors,
     list_revisions,
-    navigate_revision,
-    reject_all_revisions,
     reject_revision,
-    reply_comment,
-    set_tracking,
-    toggle_tracking,
 )
 
 # ---------------------------------------------------------------------------
@@ -496,9 +480,7 @@ class ReviewPane(QWidget):
         self.combo_authors.blockSignals(False)
 
         selected_author = (
-            None
-            if self.combo_authors.currentIndex() <= 0
-            else self.combo_authors.currentText()
+            None if self.combo_authors.currentIndex() <= 0 else self.combo_authors.currentText()
         )
 
         # Collect revisions
@@ -529,7 +511,9 @@ class ReviewPane(QWidget):
         # Empty state
         if not revs and not cmts:
             empty_item = QListWidgetItem()
-            empty_lbl = QLabel(safe_tr("There are no tracked changes or comments in this document."))
+            empty_lbl = QLabel(
+                safe_tr("There are no tracked changes or comments in this document.")
+            )
             empty_lbl.setWordWrap(True)
             empty_lbl.setStyleSheet("color: #777; padding: 12px; font-style: italic;")
             empty_item.setSizeHint(empty_lbl.sizeHint())
@@ -561,9 +545,7 @@ class ReviewPane(QWidget):
             color = author_color(author)
             is_reply = bool(getattr(c, "parent", None))
             template = (
-                safe_tr("Comment [{0}{1}] (reply)")
-                if is_reply
-                else safe_tr("Comment [{0}{1}]")
+                safe_tr("Comment [{0}{1}] (reply)") if is_reply else safe_tr("Comment [{0}{1}]")
             )
             head_title = template.format(initials, num)
             header = f"{head_title} {author}"
@@ -598,6 +580,7 @@ class ReviewPane(QWidget):
                             self.item_activated.emit(p, o, o)
                             return
                         from atboffice.modules.writer.models.document import ilen
+
                         o += ilen(it)
 
     def _on_item_double_clicked(self, item: QListWidgetItem) -> None:
@@ -622,13 +605,9 @@ class ReviewPane(QWidget):
         if kind == "rev":
             rev: RevisionItem = obj
             act_accept = menu.addAction(safe_tr("Accept Change"))
-            act_accept.triggered.connect(
-                lambda: self._handle_rev_action(rev, accept=True)
-            )
+            act_accept.triggered.connect(lambda: self._handle_rev_action(rev, accept=True))
             act_reject = menu.addAction(safe_tr("Reject Change"))
-            act_reject.triggered.connect(
-                lambda: self._handle_rev_action(rev, accept=False)
-            )
+            act_reject.triggered.connect(lambda: self._handle_rev_action(rev, accept=False))
         elif kind == "cmt":
             cid = str(getattr(obj, "id", "0"))
             act_edit = menu.addAction(safe_tr("Edit Comment"))
@@ -702,13 +681,9 @@ class CommentBalloonWidget(QFrame):
 
         # Header: Comment [AU1]: Author, Date
         head_text = (
-            safe_tr("Comment [{0}{1}] (reply):").format(
-                placement.initials, placement.id
-            )
+            safe_tr("Comment [{0}{1}] (reply):").format(placement.initials, placement.id)
             if placement.reply
-            else safe_tr("Comment [{0}{1}]:").format(
-                placement.initials, placement.id
-            )
+            else safe_tr("Comment [{0}{1}]:").format(placement.initials, placement.id)
         )
         lbl_head = QLabel(f"{head_text} {placement.author}", self)
         font_h = QFont()

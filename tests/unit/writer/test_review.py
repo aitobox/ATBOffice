@@ -1,7 +1,6 @@
 """Unit tests for Quire Track Changes (revisions), comments, balloon layout, and reviewing UI."""
 
 import pytest
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.writer.models.document import (
@@ -9,24 +8,18 @@ from atboffice.modules.writer.models.document import (
     CommentRangeStart,
     Document,
     Paragraph,
-    Story,
     TextItem,
-    normalize,
     plain_text,
-    plen,
     reindex,
 )
 from atboffice.modules.writer.models.properties import (
-    ParagraphProperties,
     RevisionStamp,
     RunProperties,
 )
 from atboffice.modules.writer.models.revision import (
-    AUTHOR_COLORS,
     BalloonItem,
     BalloonPlacement,
     Comment,
-    RevisionItem,
     accept_all_revisions,
     accept_revision,
     author_color,
@@ -44,14 +37,12 @@ from atboffice.modules.writer.models.revision import (
     reject_all_revisions,
     reject_revision,
     reply_comment,
-    resolve_revision,
     revision_at,
     set_tracking,
     toggle_tracking,
 )
 from atboffice.modules.writer.views.review_pane import (
     CommentBalloonWidget,
-    CommentEditDialog,
     ReviewPane,
     ReviewToolbar,
     safe_tr,
@@ -238,9 +229,7 @@ def test_accept_reject_formatting_changes():
     p = doc.main.blocks[0]
     assert isinstance(p, Paragraph)
     stamp = RevisionStamp(author="Charlie", old={"b": False, "sz": 12.0})
-    p.runs = [
-        TextItem(text="Styled text", r_pr=RunProperties(b=True, sz=16.0, chg=stamp))
-    ]
+    p.runs = [TextItem(text="Styled text", r_pr=RunProperties(b=True, sz=16.0, chg=stamp))]
 
     revs = list_revisions(doc)
     assert len(revs) == 1
@@ -417,7 +406,7 @@ def test_comment_editing_and_numbering():
     assert edit_comment(doc, c1.id, "Revised comment note") is True
     assert doc.comments[c1.id].text == "Revised comment note"
 
-    c2 = insert_comment(doc, (p, 7), (p, 16), text="Second note", author="User")
+    insert_comment(doc, (p, 7), (p, 16), text="Second note", author="User")
     assert len(doc.comments) == 2
 
     count = delete_all_comments(doc)
