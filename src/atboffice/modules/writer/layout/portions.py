@@ -28,6 +28,7 @@ from atboffice.modules.writer.models.document import (
     TabItem,
     TextItem,
 )
+from atboffice.modules.writer.models.omml import OfficeMathItem
 from atboffice.modules.writer.models.properties import (
     SectionProperties,
 )
@@ -111,14 +112,10 @@ LATIN_SPACE_EM: dict[str, float] = {
 
 # East Asian CJK Kinsoku Shori (避头尾规则)
 FORBIDDEN_LINE_STARTS: frozenset[str] = frozenset(
-    "，。！？、；：）》」』’”·…—～〉】｝］"
-    ",.!?):;]}>\"'”’»›"
+    "，。！？、；：）》」』’”·…—～〉】｝］,.!?):;]}>\"'”’»›"
 )
 
-FORBIDDEN_LINE_ENDS: frozenset[str] = frozenset(
-    "（《「『‘“【〈｛［"
-    "([{\"“‘«‹"
-)
+FORBIDDEN_LINE_ENDS: frozenset[str] = frozenset('（《「『‘“【〈｛［([{"“‘«‹')
 
 # CJK character detection regex
 CJK_REGEX = re.compile(
@@ -473,6 +470,27 @@ def decompose_paragraph_to_portions(
             )
             char_offset += 1
 
+        elif isinstance(item, OfficeMathItem):
+            from atboffice.modules.writer.layout.math_layout import layout_math_item
+
+            layout_math_item(item, font_sz, font_family)
+            portions.append(
+                Portion(
+                    type=PortionType.GRAPHIC,
+                    text="",
+                    width=item.width,
+                    ascent=item.ascent,
+                    descent=item.descent,
+                    font_size=font_sz,
+                    font_family=font_family,
+                    counts_for_height=True,
+                    char_offset=char_offset,
+                    length=1,
+                    data=item,
+                )
+            )
+            char_offset += 1
+
         else:
             # Inline graphic, shape, or custom object
             float_pr = getattr(item, "float_pr", None)
@@ -520,9 +538,7 @@ def decompose_paragraph_to_portions(
         mark_r_pr = getattr(p, "mark", None) or getattr(p, "r_pr", None)
         mark_sz = getattr(mark_r_pr, "sz", 12.0) if mark_r_pr else 12.0
         mark_font = (
-            getattr(mark_r_pr, "font", "Times New Roman")
-            if mark_r_pr
-            else "Times New Roman"
+            getattr(mark_r_pr, "font", "Times New Roman") if mark_r_pr else "Times New Roman"
         )
         ascent, descent = compute_font_metrics(mark_sz, mark_font)
         portions.append(
@@ -809,7 +825,7 @@ def layout_paragraph(
                 sub_w = measure_char_width(pt.text[0], pt.font_size, pt.font_family)
 
             head_text = "".join(sub_chars)
-            tail_text = pt.text[len(sub_chars):]
+            tail_text = pt.text[len(sub_chars) :]
 
             head_pt = Portion(
                 type=pt.type,

@@ -24,6 +24,7 @@ from atboffice.modules.writer.models.document import (
     Table,
     TextItem,
 )
+from atboffice.modules.writer.models.omml import OfficeMathItem, serialize_omml
 from atboffice.modules.writer.models.properties import (
     ParagraphProperties,
     RunProperties,
@@ -240,7 +241,10 @@ class DocxWriter:
             "{http://schemas.openxmlformats.org/package/2006/relationships}Relationships"
         )
         for r in self.rels:
-            r_elem = ET.SubElement(rels_elem, "{http://schemas.openxmlformats.org/package/2006/relationships}Relationship")
+            r_elem = ET.SubElement(
+                rels_elem,
+                "{http://schemas.openxmlformats.org/package/2006/relationships}Relationship",
+            )
             r_elem.set("Id", r.id)
             r_elem.set("Type", r.type)
             r_elem.set("Target", r.target)
@@ -352,6 +356,11 @@ class DocxWriter:
 
     def _serialize_run_item(self, p_elem: ET.Element, item: RunItem) -> None:
         """Serialize a RunItem into corresponding XML elements under <w:p>."""
+        if isinstance(item, OfficeMathItem):
+            math_elem = serialize_omml(item)
+            p_elem.append(math_elem)
+            return
+
         if isinstance(item, BookmarkStartItem):
             bm_s = ET.SubElement(p_elem, _w("bookmarkStart"))
             bm_s.set(_w("id"), str(item.bookmark_id))
@@ -514,9 +523,7 @@ class DocxWriter:
             if r_pr.lang_ea:
                 lang_elem.set(_w("eastAsia"), r_pr.lang_ea)
 
-    def _serialize_table(
-        self, tbl: Table, hf_id_map: dict[str, str] | None = None
-    ) -> ET.Element:
+    def _serialize_table(self, tbl: Table, hf_id_map: dict[str, str] | None = None) -> ET.Element:
         """Serialize Table into <w:tbl>."""
         tbl_elem = ET.Element(_w("tbl"))
 
