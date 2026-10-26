@@ -2,7 +2,7 @@
 
 import sys
 
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QMainWindow, QWidget
 
 from atboffice.ui.components.color_picker import (
     OFFICE_2003_STANDARD_COLORS,
@@ -55,9 +55,11 @@ def test_luna_stylesheets(qtbot):
 
 def test_office_toolbar(qtbot):
     """Verify OfficeToolBar properties, grip handle, and actions."""
-    tb = OfficeToolBar("Standard")
-    qtbot.addWidget(tb)
-    tb.show()
+    win = QMainWindow()
+    qtbot.addWidget(win)
+    tb = OfficeToolBar("Standard", win)
+    win.addToolBar(tb)
+    win.show()
 
     assert tb.isMovable() is True
     assert tb.isFloatable() is True
