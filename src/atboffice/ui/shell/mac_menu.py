@@ -100,6 +100,19 @@ class MacMenuBar(QMenuBar):
         self.action_map["view_zoom_reset"] = menu_view.addAction("")
         self.action_map["view_zoom_reset"].setShortcut(QKeySequence("Ctrl+0"))
 
+        menu_view.addSeparator()
+
+        # Themes Sub-menu
+        menu_theme = menu_view.addMenu("")
+        self.menu_map["theme"] = menu_theme
+
+        self.action_map["theme_luna_blue"] = menu_theme.addAction("")
+        self.action_map["theme_luna_blue"].setCheckable(True)
+        self.action_map["theme_luna_blue"].setChecked(True)
+
+        self.action_map["theme_luna_silver"] = menu_theme.addAction("")
+        self.action_map["theme_luna_silver"].setCheckable(True)
+
         # 4. Window Menu
         menu_window = self.addMenu("")
         self.menu_map["window"] = menu_window
@@ -153,6 +166,15 @@ class MacMenuBar(QMenuBar):
         connect_if("view_zoom_out", "zoom_out")
         connect_if("view_zoom_reset", "zoom_reset")
 
+        if "theme_luna_blue" in self.action_map and hasattr(window, "set_theme"):
+            self.action_map["theme_luna_blue"].triggered.connect(
+                lambda: window.set_theme("blue")
+            )
+        if "theme_luna_silver" in self.action_map and hasattr(window, "set_theme"):
+            self.action_map["theme_luna_silver"].triggered.connect(
+                lambda: window.set_theme("silver")
+            )
+
         connect_if("window_minimize", "showMinimized")
         connect_if("window_zoom", "toggle_maximized")
         connect_if("window_bring_all", "raise_")
@@ -168,6 +190,8 @@ class MacMenuBar(QMenuBar):
             self.menu_map["edit"].setTitle(safe_tr("编辑"))
         if "view" in self.menu_map:
             self.menu_map["view"].setTitle(safe_tr("视图"))
+        if "theme" in self.menu_map:
+            self.menu_map["theme"].setTitle(safe_tr("主题"))
         if "window" in self.menu_map:
             self.menu_map["window"].setTitle(safe_tr("窗口"))
         if "help" in self.menu_map:
@@ -192,6 +216,14 @@ class MacMenuBar(QMenuBar):
             "view_zoom_in": (safe_tr("放大"), safe_tr("放大工作表视图")),
             "view_zoom_out": (safe_tr("缩小"), safe_tr("缩小工作表视图")),
             "view_zoom_reset": (safe_tr("实际大小"), safe_tr("重置工作表视图比例")),
+            "theme_luna_blue": (
+                safe_tr("Office 2003 经典蓝"),
+                safe_tr("切换为经典 Luna 蓝色视觉风格"),
+            ),
+            "theme_luna_silver": (
+                safe_tr("Office 2003 典雅银"),
+                safe_tr("切换为经典 Luna 银色视觉风格"),
+            ),
             "window_minimize": (safe_tr("最小化"), safe_tr("将窗口最小化到程序坞")),
             "window_zoom": (safe_tr("缩放窗口"), safe_tr("最大化或恢复窗口尺寸")),
             "window_bring_all": (
