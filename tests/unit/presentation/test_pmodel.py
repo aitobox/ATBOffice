@@ -197,4 +197,55 @@ def test_slide_lifecycle_and_duplication():
     assert restored.shapes[1].text.plain_text == "Item 1\nItem 2"
 
 
+def test_presentation_container_operations():
+    from atboffice.modules.presentation.models.presentation import Presentation
+
+    # 1. Create new presentation (default 16:9, 960x540)
+    pres = Presentation.create_new(title="Demo Presentation", design_key="default")
+    assert pres.w == 960.0
+    assert pres.h == 540.0
+    assert len(pres.slides) == 1
+    assert pres.slides[0].layout == "title"
+
+    # 2. Add slide with 'twoText' layout
+    s2 = pres.add_slide(layout="twoText")
+    assert len(pres.slides) == 2
+    assert s2.layout == "twoText"
+    assert len(s2.shapes) == 3  # title + 2 column body
+
+    # Populate text in s2
+    s2.shapes[0].text.set_plain_text("Comparison")
+    s2.shapes[1].text.set_plain_text("Left Column")
+    s2.shapes[2].text.set_plain_text("Right Column")
+
+    # 3. Apply layout: change s2 from 'twoText' to 'text'
+    pres.apply_layout(s2, "text")
+    assert s2.layout == "text"
+    # Should keep title and first column text, while retaining user content
+    assert s2.get_title() == "Comparison"
+    assert "Left Column" in s2.all_text()
+
+    # 4. Apply design: change presentation design to 'evergreen'
+    new_dsn_id = pres.apply_design("evergreen")
+    assert pres.slides[0].design_id == new_dsn_id
+    assert pres.designs[new_dsn_id].key == "evergreen"
+
+    # 5. Aspect ratio conversion: switch from 16:9 (960x540) to 4:3 (720x540)
+    pres.change_size(720.0, 540.0, scale_content=True)
+    assert pres.w == 720.0
+    assert pres.h == 540.0
+    # Placeholders should be within 720 width
+    for sh in pres.slides[0].shapes:
+        assert sh.x + sh.w <= 720.0 + 1.0
+
+    # 6. Serialization roundtrip
+    data = pres.to_dict()
+    restored_pres = Presentation.from_dict(data)
+    assert restored_pres.w == 720.0
+    assert restored_pres.h == 540.0
+    assert len(restored_pres.slides) == 2
+    assert restored_pres.title == "Demo Presentation"
+
+
+
 

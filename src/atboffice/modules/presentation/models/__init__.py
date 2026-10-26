@@ -16,6 +16,13 @@ from atboffice.modules.presentation.models.layouts import (
     layout_frames,
     make_placeholder,
 )
+from atboffice.modules.presentation.models.presentation import (
+    STANDARD_SLIDE_SIZES,
+    HeaderFooterSettings,
+    Presentation,
+    SlideShowSettings,
+    SlideSize,
+)
 from atboffice.modules.presentation.models.shape import (
     Fill,
     Line,
@@ -57,14 +64,19 @@ __all__ = [
     "DesignDefinition",
     "DesignTemplate",
     "Fill",
+    "HeaderFooterSettings",
     "LAYOUTS",
     "LayoutInfo",
     "Line",
     "Paragraph",
     "PlaceholderInfo",
+    "Presentation",
+    "STANDARD_SLIDE_SIZES",
     "Shadow",
     "Shape",
     "Slide",
+    "SlideShowSettings",
+    "SlideSize",
     "TextBody",
     "TextRun",
     "TextStyleLevel",
