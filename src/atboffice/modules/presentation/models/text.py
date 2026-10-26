@@ -243,6 +243,7 @@ class TextBody:
     insets: tuple[float, float, float, float] = (7.2, 3.6, 7.2, 3.6)  # left, top, right, bottom pt
     paragraphs: list[Paragraph] = field(default_factory=list)
     vert: str | None = None  # None or "vert"
+    font_scale: float = 1.0  # Dynamic font scale factor (AutoFit)
 
     @property
     def plain_text(self) -> str:
@@ -276,6 +277,8 @@ class TextBody:
             "ins": list(self.insets),
             "ps": [p.to_dict() for p in self.paragraphs],
         }
+        if abs(self.font_scale - 1.0) > 0.001:
+            d["fontScale"] = self.font_scale
         if self.vert:
             d["vert"] = self.vert
         return d
@@ -285,6 +288,7 @@ class TextBody:
         if not data:
             return cls.create_empty()
         ins = tuple(data.get("ins", [7.2, 3.6, 7.2, 3.6]))
+        font_scale = float(data.get("fontScale", 1.0))
         return cls(
             anchor=data.get("anchor", "t"),
             wrap=bool(data.get("wrap", True)),
@@ -292,4 +296,5 @@ class TextBody:
             insets=(float(ins[0]), float(ins[1]), float(ins[2]), float(ins[3])),
             paragraphs=[Paragraph.from_dict(p) for p in data.get("ps", [])],
             vert=data.get("vert"),
+            font_scale=font_scale,
         )

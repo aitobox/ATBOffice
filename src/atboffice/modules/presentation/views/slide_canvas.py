@@ -115,6 +115,11 @@ class SlideScene(QGraphicsScene):
     # ------------------------------------------------------------------
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> None:
         item = self.itemAt(event.scenePos(), self.views()[0].transform() if self.views() else None)
+        # Commit any active text editor if clicked outside
+        for it in list(self._items_by_id.values()):
+            if it.is_editing_text and it != item and getattr(it, "_text_editor", None) != item:
+                it.finish_text_editing()
+
         if isinstance(item, ShapeGraphicsItem):
             self._dragged_item = item
             self._is_dragging_item = True
