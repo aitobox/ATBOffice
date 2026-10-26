@@ -2,10 +2,16 @@
 
 import pytest
 from atboffice.modules.spreadsheet.io.csv_io import (
+    convert_cell_value,
     decode_bytes,
+    export_csv,
     guess_fixed_breaks,
+    parse_delimited,
+    parse_fixed_width,
+    populate_sheet,
     sniff_delimiter,
 )
+from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
 
 
 def test_decode_bytes_bom():
@@ -84,3 +90,64 @@ def test_guess_fixed_breaks():
     breaks = guess_fixed_breaks(text)
     assert len(breaks) >= 2
     assert 4 in breaks or 7 in breaks
+
+
+def test_parse_delimited_standard():
+    text = 'Name,Age,City\n"Smith, John",30,New York\n"Jane ""Doe""",25,"Los\nAngeles"'
+    rows = parse_delimited(text)
+    assert len(rows) == 3
+    assert rows[0] == ["Name", "Age", "City"]
+    assert rows[1] == ["Smith, John", "30", "New York"]
+    assert rows[2] == ['Jane "Doe"', "25", "Los\nAngeles"]
+
+
+def test_parse_delimited_merge_consecutive():
+    text = "Col1   Col2   Col3\nA    B    C\n"
+    rows = parse_delimited(text, delims=" ", merge=True)
+    assert len(rows) == 2
+    assert rows[0] == ["Col1", "Col2", "Col3"]
+    assert rows[1] == ["A", "B", "C"]
+
+
+def test_parse_fixed_width():
+    lines = [
+        "1001Alice Smith    Finance",
+        "1002Bob Jones      Marketing",
+    ]
+    text = "\n".join(lines)
+    rows = parse_fixed_width(text, breaks=[4, 19])
+    assert len(rows) == 2
+    assert rows[0] == ["1001", "Alice Smith", "Finance"]
+    assert rows[1] == ["1002", "Bob Jones", "Marketing"]
+
+
+def test_convert_cell_value():
+    assert convert_cell_value("") is None
+    assert convert_cell_value("   ") is None
+    assert convert_cell_value("TRUE") is True
+    assert convert_cell_value("false") is False
+    assert convert_cell_value("123") == 123
+    assert convert_cell_value("-45.67") == -45.67
+    assert convert_cell_value("1.5e3") == 1500.0
+    assert convert_cell_value("25%") == 0.25
+    assert convert_cell_value("1,234.50") == 1234.50
+    assert convert_cell_value("Hello World") == "Hello World"
+    assert convert_cell_value("01234", col_type="Text") == "01234"
+
+
+def test_populate_sheet_and_export_csv():
+    model = SheetDataModel()
+    rows = [
+        ["Item", "Qty", "Price"],
+        ["Widget, Large", "10", "12.5"],
+        ["Gadget", "5", "100"],
+    ]
+    populate_sheet(model, rows)
+    assert model.get_cell_value(0, 0) == "Item"
+    assert model.get_cell_value(1, 0) == "Widget, Large"
+    assert model.get_cell_value(1, 1) == 10
+    assert model.get_cell_value(1, 2) == 12.5
+
+    exported = export_csv(model)
+    assert '"Widget, Large",10,12.5' in exported
+    assert "Gadget,5,100" in exported
