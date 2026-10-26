@@ -1,20 +1,16 @@
 """Unit tests for Lectern Presentation Models (Issue #39)."""
 
-import pytest
 
-from atboffice.modules.presentation.models.text import (
-    BulletInfo,
-    Paragraph,
-    TextBody,
-    TextRun,
-    TextStyleLevel,
-)
 from atboffice.modules.presentation.models.shape import (
     Fill,
     Line,
     PlaceholderInfo,
-    Shadow,
     Shape,
+)
+from atboffice.modules.presentation.models.text import (
+    Paragraph,
+    TextBody,
+    TextRun,
 )
 
 
@@ -73,7 +69,6 @@ def test_shape_basics_and_serialization():
 def test_15_design_templates_and_color_resolver():
     from atboffice.modules.presentation.models.designs import (
         DESIGNS,
-        DesignTemplate,
         build_design,
         resolve_color,
     )
@@ -124,7 +119,7 @@ def test_21_layouts_and_frame_calculator():
     )
 
     assert len(LAYOUTS) == 21
-    layout_keys = [l.key for l in LAYOUTS]
+    layout_keys = [item.key for item in LAYOUTS]
     assert "title" in layout_keys
     assert "twoText" in layout_keys
     assert "fourContent" in layout_keys
@@ -163,7 +158,6 @@ def test_slide_lifecycle_and_duplication():
     from atboffice.modules.presentation.models.designs import build_design
     from atboffice.modules.presentation.models.slide import (
         Slide,
-        Transition,
         create_slide,
         dup_slide,
     )
@@ -264,8 +258,10 @@ def test_all_21_layouts_comprehensive():
                 for fr in frames:
                     assert fr["x"] >= 0.0, f"Negative x in {layout.key}"
                     assert fr["y"] >= 0.0, f"Negative y in {layout.key}"
-                    assert fr["x"] + fr["w"] <= max_w + 1.0, f"Overflow w in {layout.key}: {fr['x']} + {fr['w']} > {max_w}"
-                    assert fr["y"] + fr["h"] <= max_h + 1.0, f"Overflow h in {layout.key}: {fr['y']} + {fr['h']} > {max_h}"
+                    msg_w = f"Overflow w in {layout.key}: {fr['x']} + {fr['w']} > {max_w}"
+                    assert fr["x"] + fr["w"] <= max_w + 1.0, msg_w
+                    msg_h = f"Overflow h in {layout.key}: {fr['y']} + {fr['h']} > {max_h}"
+                    assert fr["y"] + fr["h"] <= max_h + 1.0, msg_h
 
 
 def test_all_15_designs_comprehensive():

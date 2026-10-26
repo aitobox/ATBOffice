@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import copy
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from atboffice.modules.presentation.models.shape import Fill, Line, Shape
 from atboffice.modules.presentation.models.text import (
@@ -145,7 +146,11 @@ PRESET_COLORS = {
 }
 
 
-def resolve_color(c: str | None, design: DesignTemplate | None = None, fallback: str = "#000000") -> str:
+def resolve_color(
+    c: str | None,
+    design: DesignTemplate | None = None,
+    fallback: str = "#000000",
+) -> str:
     """Resolve a color token or scheme slot to an actual hex color #RRGGBB."""
     if not c:
         return fallback
@@ -230,7 +235,14 @@ class DesignTemplate:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DesignTemplate:
-        ph_frames = {k: (float(v[0]), float(v[1]), float(v[2]), float(v[3])) for k, v in data.get("ph", {}).items()}
+        ph_frames = {
+            k: (float(v[0]), float(v[1]), float(v[2]), float(v[3]))
+            for k, v in data.get("ph", {}).items()
+        }
+        title_decos = (
+            [Shape.from_dict(s) for s in data["titleDeco"]] if "titleDeco" in data else None
+        )
+        title_bg = Fill.from_dict(data.get("titleBg")) if "titleBg" in data else None
         return cls(
             id=str(data.get("id", f"dsn_{uuid.uuid4().hex[:8]}")),
             key=str(data.get("key", "default")),
@@ -239,8 +251,8 @@ class DesignTemplate:
             fonts=dict(data.get("fonts", {"major": "Arial", "minor": "Arial"})),
             bg=Fill.from_dict(data.get("bg")),
             decorations=[Shape.from_dict(s) for s in data.get("deco", [])],
-            title_decorations=[Shape.from_dict(s) for s in data["titleDeco"]] if "titleDeco" in data else None,
-            title_bg=Fill.from_dict(data.get("titleBg")) if "titleBg" in data else None,
+            title_decorations=title_decos,
+            title_bg=title_bg,
             placeholder_frames=ph_frames,
             ctr_title_algn=str(data.get("ctrTitleAlgn", "ctr")),
             sub_title_algn=str(data.get("subTitleAlgn", "ctr")),
@@ -274,6 +286,172 @@ def _make_deco(
     )
 
 
+# Helper deco lambdas
+def _azure_deco(w: float, h: float) -> list[Shape]:
+    grad1 = Fill.gradient([{"p": 0.0, "c": "#2A4E8F"}, {"p": 1.0, "c": "#1F3A6E"}], angle=90.0)
+    return [
+        _make_deco("rect", 0.0, 0.0, w, h * 0.2, grad1),
+        _make_deco("rect", 0.0, h * 0.2, w, h * 0.008, Fill.solid("accent2")),
+    ]
+
+
+def _azure_title_deco(w: float, h: float) -> list[Shape]:
+    grad1 = Fill.gradient([{"p": 0.0, "c": "#2A4E8F"}, {"p": 1.0, "c": "#1F3A6E"}], angle=90.0)
+    return [
+        _make_deco("rect", 0.0, h * 0.3, w, h * 0.26, grad1),
+        _make_deco("rect", 0.0, h * 0.56, w, h * 0.008, Fill.solid("accent2")),
+    ]
+
+
+def _night_deco(w: float, h: float) -> list[Shape]:
+    return [
+        _make_deco("star4", w * 0.82, h * 0.06, w * 0.035, w * 0.035, Fill.solid("#FFF2CC", 0.9)),
+        _make_deco("star4", w * 0.90, h * 0.14, w * 0.022, w * 0.022, Fill.solid("#FFF2CC", 0.9)),
+        _make_deco("ellipse", w * 0.62, h * 0.88, w * 0.7, h * 0.5, Fill.solid("#FFFFFF", 0.04)),
+    ]
+
+
+def _meadow_deco(w: float, h: float) -> list[Shape]:
+    return [
+        _make_deco("rect", 0.0, h * 0.88, w, h * 0.12, Fill.solid("#9CCB5E", 0.55)),
+        _make_deco("rect", 0.0, h * 0.92, w, h * 0.08, Fill.solid("#5E9E3A", 0.65)),
+    ]
+
+
+def _ember_deco(w: float, h: float) -> list[Shape]:
+    g = Fill.gradient([{"p": 0.0, "c": "#C1272D"}, {"p": 1.0, "c": "#F39C12"}], angle=0.0)
+    return [
+        _make_deco("rect", 0.0, h * 0.94, w, h * 0.06, g),
+        _make_deco("rect", 0.0, h * 0.925, w, h * 0.008, Fill.solid("accent1", 0.7)),
+        _make_deco("rect", w * 0.05, h * 0.205, w * 0.9, h * 0.004, Fill.solid("accent1")),
+    ]
+
+
+def _ember_title_deco(w: float, h: float) -> list[Shape]:
+    g0 = Fill.gradient([{"p": 0.0, "c": "#C1272D"}, {"p": 1.0, "c": "#F39C12"}], angle=0.0)
+    g90 = Fill.gradient([{"p": 0.0, "c": "#F39C12"}, {"p": 1.0, "c": "#C1272D"}], angle=90.0)
+    return [
+        _make_deco("rect", 0.0, h * 0.94, w, h * 0.06, g0),
+        _make_deco("rect", 0.0, 0.0, w * 0.035, h * 0.94, g90),
+    ]
+
+
+def _graphite_deco(w: float, h: float) -> list[Shape]:
+    return [
+        _make_deco(
+            "parallelogram",
+            -w * 0.04,
+            h * 0.03,
+            w * 0.24,
+            h * 0.022,
+            Fill.solid("accent1"),
+            adj={"adj": 60000},
+        ),
+        _make_deco("rect", w * 0.05, h * 0.215, w * 0.9, h * 0.0025, Fill.solid("#FFFFFF", 0.25)),
+    ]
+
+
+def _blueprint_deco(w: float, h: float) -> list[Shape]:
+    line = Line(color="#B3D4F5", width=1.0, dash="solid")
+    return [
+        _make_deco("rect", 0.0, 0.0, w, h, Fill.pattern_fill("smGrid", fg="#3D6FA8", bg="#1D4E89")),
+        _make_deco("rect", w * 0.03, h * 0.04, w * 0.94, h * 0.92, Fill.none(), line),
+    ]
+
+
+def _capsule_deco(w: float, h: float) -> list[Shape]:
+    return [
+        _make_deco(
+            "roundRect",
+            w * 0.68,
+            h * 0.035,
+            w * 0.2,
+            h * 0.05,
+            Fill.solid("accent1"),
+            adj={"adj": 50000},
+        ),
+        _make_deco(
+            "roundRect",
+            w * 0.84,
+            h * 0.035,
+            w * 0.12,
+            h * 0.05,
+            Fill.solid("accent2"),
+            adj={"adj": 50000},
+        ),
+        _make_deco("rect", 0.0, h * 0.965, w, h * 0.035, Fill.solid("accent1")),
+    ]
+
+
+def _ocean_deco(w: float, h: float) -> list[Shape]:
+    return [
+        _make_deco("rect", 0.0, h * 0.88, w, h * 0.12, Fill.solid("#2A9D8F", 0.45)),
+        _make_deco("rect", 0.0, h * 0.93, w, h * 0.07, Fill.solid("#1D7C99", 0.60)),
+    ]
+
+
+def _parchment_deco(w: float, h: float) -> list[Shape]:
+    line = Line(color="#8C5A2B", width=0.75, dash="solid")
+    return [
+        _make_deco("rect", w * 0.05, h * 0.205, w * 0.9, h * 0.0035, Fill.solid("accent2")),
+        _make_deco("rect", w * 0.02, h * 0.027, w * 0.96, h * 0.946, Fill.none(), line),
+    ]
+
+
+def _pixel_deco(w: float, h: float) -> list[Shape]:
+    return [
+        _make_deco("rect", w * 0.88, h * 0.03, w * 0.025, w * 0.025, Fill.solid("accent1", 0.9)),
+        _make_deco("rect", w * 0.92, h * 0.03, w * 0.025, w * 0.025, Fill.solid("accent2", 0.9)),
+        _make_deco("rect", w * 0.88, h * 0.07, w * 0.025, w * 0.025, Fill.solid("accent3", 0.9)),
+        _make_deco("rect", w * 0.05, h * 0.21, w * 0.62, h * 0.004, Fill.solid("accent1")),
+    ]
+
+
+def _crimson_deco(w: float, h: float) -> list[Shape]:
+    return [
+        _make_deco("rect", 0.0, 0.0, w * 0.03, h, Fill.solid("accent1")),
+        _make_deco("rect", w * 0.08, h * 0.205, w * 0.87, h * 0.0025, Fill.solid("accent1")),
+    ]
+
+
+def _crimson_title_deco(w: float, h: float) -> list[Shape]:
+    return [
+        _make_deco("rect", 0.0, 0.0, w * 0.03, h, Fill.solid("accent1")),
+        _make_deco("rect", w * 0.03, h * 0.6, w * 0.97, h * 0.006, Fill.solid("accent1")),
+    ]
+
+
+def _glass_deco(w: float, h: float) -> list[Shape]:
+    return [
+        _make_deco(
+            "rect", w * 0.55, -h * 0.1, w * 0.6, h * 0.7, Fill.solid("#FFFFFF", 0.08), rot=18.0
+        ),
+        _make_deco(
+            "rect", w * 0.70, h * 0.40, w * 0.5, h * 0.8, Fill.solid("#FFFFFF", 0.06), rot=-12.0
+        ),
+    ]
+
+
+def _radial_deco(w: float, h: float) -> list[Shape]:
+    return [
+        _make_deco("ellipse", w * 0.3, h * 0.95, w * 0.4, h * 0.012, Fill.solid("#7FB3FF", 0.35)),
+    ]
+
+
+def _evergreen_deco(w: float, h: float) -> list[Shape]:
+    return [
+        _make_deco("rect", w * 0.05, h * 0.07, w * 0.05, h * 0.008, Fill.solid("accent2")),
+        _make_deco("rect", w * 0.05, h * 0.905, w * 0.9, h * 0.002, Fill.solid("lt2")),
+    ]
+
+
+def _evergreen_title_deco(w: float, h: float) -> list[Shape]:
+    return [
+        _make_deco("rect", w * 0.6, 0.0, w * 0.4, h, Fill.solid("tx2")),
+        _make_deco("rect", w * 0.6, 0.0, w * 0.006, h, Fill.solid("accent2")),
+    ]
+
+
 # Definition table for all 15 built-in designs
 DESIGNS: list[DesignDefinition] = [
     # 1. Default Design
@@ -281,7 +459,14 @@ DESIGNS: list[DesignDefinition] = [
         key="default",
         name="Default Design",
         colors=make_scheme(
-            "#FFFFFF", "#000000", "#808080", "#000000", "#BBE0E3", "#339999", "#009999", "#99CC00"
+            "#FFFFFF",
+            "#000000",
+            "#808080",
+            "#000000",
+            "#BBE0E3",
+            "#339999",
+            "#009999",
+            "#99CC00",
         ),
         fonts={"major": "Arial", "minor": "Arial"},
         bg=Fill.solid("bg1"),
@@ -291,18 +476,19 @@ DESIGNS: list[DesignDefinition] = [
         key="azure",
         name="Azure Horizon",
         colors=make_scheme(
-            "#FFFFFF", "#1B2A41", "#7F93B2", "#FFFFFF", "#4A7BC8", "#E0A526", "#2D6BB5", "#8E7CC3"
+            "#FFFFFF",
+            "#1B2A41",
+            "#7F93B2",
+            "#FFFFFF",
+            "#4A7BC8",
+            "#E0A526",
+            "#2D6BB5",
+            "#8E7CC3",
         ),
         fonts={"major": "Trebuchet MS", "minor": "Verdana"},
         bg=Fill.gradient([{"p": 0.0, "c": "#FFFFFF"}, {"p": 1.0, "c": "#DCE8F7"}], angle=90.0),
-        deco_fn=lambda W, H: [
-            _make_deco("rect", 0.0, 0.0, W, H * 0.2, Fill.gradient([{"p": 0.0, "c": "#2A4E8F"}, {"p": 1.0, "c": "#1F3A6E"}], angle=90.0)),
-            _make_deco("rect", 0.0, H * 0.2, W, H * 0.008, Fill.solid("accent2")),
-        ],
-        title_deco_fn=lambda W, H: [
-            _make_deco("rect", 0.0, H * 0.3, W, H * 0.26, Fill.gradient([{"p": 0.0, "c": "#2A4E8F"}, {"p": 1.0, "c": "#1F3A6E"}], angle=90.0)),
-            _make_deco("rect", 0.0, H * 0.56, W, H * 0.008, Fill.solid("accent2")),
-        ],
+        deco_fn=_azure_deco,
+        title_deco_fn=_azure_title_deco,
         ph_fractions={
             "title": (0.05, 0.025, 0.9, 0.15),
             "body": (0.07, 0.26, 0.86, 0.63),
@@ -316,15 +502,18 @@ DESIGNS: list[DesignDefinition] = [
         key="night",
         name="Night Sky",
         colors=make_scheme(
-            "#0B1633", "#FFFFFF", "#06102A", "#FFE599", "#3D6CB3", "#FFD966", "#9FC5F8", "#C9DAF8"
+            "#0B1633",
+            "#FFFFFF",
+            "#06102A",
+            "#FFE599",
+            "#3D6CB3",
+            "#FFD966",
+            "#9FC5F8",
+            "#C9DAF8",
         ),
         fonts={"major": "Georgia", "minor": "Verdana"},
         bg=Fill.gradient([{"p": 0.0, "c": "#0B1633"}, {"p": 1.0, "c": "#22427A"}], angle=90.0),
-        deco_fn=lambda W, H: [
-            _make_deco("star4", W * 0.82, H * 0.06, W * 0.035, W * 0.035, Fill.solid("#FFF2CC", 0.9)),
-            _make_deco("star4", W * 0.90, H * 0.14, W * 0.022, W * 0.022, Fill.solid("#FFF2CC", 0.9)),
-            _make_deco("ellipse", W * 0.62, H * 0.88, W * 0.7, H * 0.5, Fill.solid("#FFFFFF", 0.04)),
-        ],
+        deco_fn=_night_deco,
         tx_overrides={"title_algn": "l", "body_bu_char": "✦", "body_bu_color": "accent2"},
     ),
     # 4. Meadow
@@ -332,14 +521,18 @@ DESIGNS: list[DesignDefinition] = [
         key="meadow",
         name="Meadow",
         colors=make_scheme(
-            "#F7FBEF", "#22331A", "#A7C08F", "#2F5E1E", "#7DB04B", "#E7A93B", "#3B7D2A", "#8A9A5B"
+            "#F7FBEF",
+            "#22331A",
+            "#A7C08F",
+            "#2F5E1E",
+            "#7DB04B",
+            "#E7A93B",
+            "#3B7D2A",
+            "#8A9A5B",
         ),
         fonts={"major": "Century Gothic", "minor": "Century Gothic"},
         bg=Fill.solid("bg1"),
-        deco_fn=lambda W, H: [
-            _make_deco("rect", 0.0, H * 0.88, W, H * 0.12, Fill.solid("#9CCB5E", 0.55)),
-            _make_deco("rect", 0.0, H * 0.92, W, H * 0.08, Fill.solid("#5E9E3A", 0.65)),
-        ],
+        deco_fn=_meadow_deco,
         ph_fractions={"body": (0.05, 0.2333, 0.9, 0.56)},
         tx_overrides={"title_algn": "l", "body_bu_char": "●", "body_bu_color": "accent1"},
     ),
@@ -348,19 +541,19 @@ DESIGNS: list[DesignDefinition] = [
         key="ember",
         name="Ember",
         colors=make_scheme(
-            "#FFF8F0", "#3A2414", "#C9A88C", "#8C2D04", "#E8641C", "#C1272D", "#B5651D", "#8E6C4F"
+            "#FFF8F0",
+            "#3A2414",
+            "#C9A88C",
+            "#8C2D04",
+            "#E8641C",
+            "#C1272D",
+            "#B5651D",
+            "#8E6C4F",
         ),
         fonts={"major": "Franklin Gothic Medium", "minor": "Arial"},
         bg=Fill.solid("bg1"),
-        deco_fn=lambda W, H: [
-            _make_deco("rect", 0.0, H * 0.94, W, H * 0.06, Fill.gradient([{"p": 0.0, "c": "#C1272D"}, {"p": 1.0, "c": "#F39C12"}], angle=0.0)),
-            _make_deco("rect", 0.0, H * 0.925, W, H * 0.008, Fill.solid("accent1", 0.7)),
-            _make_deco("rect", W * 0.05, H * 0.205, W * 0.9, H * 0.004, Fill.solid("accent1")),
-        ],
-        title_deco_fn=lambda W, H: [
-            _make_deco("rect", 0.0, H * 0.94, W, H * 0.06, Fill.gradient([{"p": 0.0, "c": "#C1272D"}, {"p": 1.0, "c": "#F39C12"}], angle=0.0)),
-            _make_deco("rect", 0.0, 0.0, W * 0.035, H * 0.94, Fill.gradient([{"p": 0.0, "c": "#F39C12"}, {"p": 1.0, "c": "#C1272D"}], angle=90.0)),
-        ],
+        deco_fn=_ember_deco,
+        title_deco_fn=_ember_title_deco,
         ph_fractions={"body": (0.05, 0.24, 0.9, 0.64)},
         tx_overrides={"title_algn": "l", "body_bu_char": "■", "body_bu_color": "accent1"},
     ),
@@ -369,45 +562,66 @@ DESIGNS: list[DesignDefinition] = [
         key="graphite",
         name="Graphite",
         colors=make_scheme(
-            "#2B2D31", "#E8EAED", "#17181B", "#FFFFFF", "#F28C28", "#58A6FF", "#79C0FF", "#B1BAC4"
+            "#2B2D31",
+            "#E8EAED",
+            "#17181B",
+            "#FFFFFF",
+            "#F28C28",
+            "#58A6FF",
+            "#79C0FF",
+            "#B1BAC4",
         ),
         fonts={"major": "Arial", "minor": "Arial"},
         bg=Fill.gradient([{"p": 0.0, "c": "#34373D"}, {"p": 1.0, "c": "#232428"}], angle=90.0),
-        deco_fn=lambda W, H: [
-            _make_deco("parallelogram", -W * 0.04, H * 0.03, W * 0.24, H * 0.022, Fill.solid("accent1"), adj={"adj": 60000}),
-            _make_deco("rect", W * 0.05, H * 0.215, W * 0.9, H * 0.0025, Fill.solid("#FFFFFF", 0.25)),
-        ],
-        tx_overrides={"title_algn": "l", "title_b": True, "body_bu_char": "▸", "body_bu_color": "accent1"},
+        deco_fn=_graphite_deco,
+        tx_overrides={
+            "title_algn": "l",
+            "title_b": True,
+            "body_bu_char": "▸",
+            "body_bu_color": "accent1",
+        },
     ),
     # 7. Blueprint
     DesignDefinition(
         key="blueprint",
         name="Blueprint",
         colors=make_scheme(
-            "#1D4E89", "#E8F1FB", "#123359", "#FFFFFF", "#7FB3E6", "#FFD24D", "#B3D4F5", "#9DBCE0"
+            "#1D4E89",
+            "#E8F1FB",
+            "#123359",
+            "#FFFFFF",
+            "#7FB3E6",
+            "#FFD24D",
+            "#B3D4F5",
+            "#9DBCE0",
         ),
         fonts={"major": "Courier New", "minor": "Arial"},
         bg=Fill.solid("bg1"),
-        deco_fn=lambda W, H: [
-            _make_deco("rect", 0.0, 0.0, W, H, Fill.pattern_fill("smGrid", fg="#3D6FA8", bg="#1D4E89")),
-            _make_deco("rect", W * 0.03, H * 0.04, W * 0.94, H * 0.92, Fill.none(), Line(color="#B3D4F5", width=1.0, dash="solid")),
-        ],
-        tx_overrides={"title_algn": "l", "title_b": True, "body_bu_char": "–", "body_bu_color": "accent2"},
+        deco_fn=_blueprint_deco,
+        tx_overrides={
+            "title_algn": "l",
+            "title_b": True,
+            "body_bu_char": "–",
+            "body_bu_color": "accent2",
+        },
     ),
     # 8. Capsule
     DesignDefinition(
         key="capsule",
         name="Capsule",
         colors=make_scheme(
-            "#FFFFFF", "#1E2D33", "#9FB4BA", "#21545F", "#2BA6A0", "#9BC53D", "#1F7A8C", "#7E9C9F"
+            "#FFFFFF",
+            "#1E2D33",
+            "#9FB4BA",
+            "#21545F",
+            "#2BA6A0",
+            "#9BC53D",
+            "#1F7A8C",
+            "#7E9C9F",
         ),
         fonts={"major": "Trebuchet MS", "minor": "Trebuchet MS"},
         bg=Fill.solid("bg1"),
-        deco_fn=lambda W, H: [
-            _make_deco("roundRect", W * 0.68, H * 0.035, W * 0.2, H * 0.05, Fill.solid("accent1"), adj={"adj": 50000}),
-            _make_deco("roundRect", W * 0.84, H * 0.035, W * 0.12, H * 0.05, Fill.solid("accent2"), adj={"adj": 50000}),
-            _make_deco("rect", 0.0, H * 0.965, W, H * 0.035, Fill.solid("accent1")),
-        ],
+        deco_fn=_capsule_deco,
         ph_fractions={"title": (0.05, 0.06, 0.62, 0.15)},
         tx_overrides={"title_algn": "l", "body_bu_char": "●", "body_bu_color": "accent1"},
     ),
@@ -416,14 +630,18 @@ DESIGNS: list[DesignDefinition] = [
         key="ocean",
         name="Ocean Wave",
         colors=make_scheme(
-            "#EEF8FB", "#0E2F3A", "#8FB9C4", "#0E4C5C", "#2A9D8F", "#F4A261", "#1D7C99", "#7A9EA8"
+            "#EEF8FB",
+            "#0E2F3A",
+            "#8FB9C4",
+            "#0E4C5C",
+            "#2A9D8F",
+            "#F4A261",
+            "#1D7C99",
+            "#7A9EA8",
         ),
         fonts={"major": "Tahoma", "minor": "Tahoma"},
         bg=Fill.gradient([{"p": 0.0, "c": "#F4FBFD"}, {"p": 1.0, "c": "#C7E6EE"}], angle=90.0),
-        deco_fn=lambda W, H: [
-            _make_deco("rect", 0.0, H * 0.88, W, H * 0.12, Fill.solid("#2A9D8F", 0.45)),
-            _make_deco("rect", 0.0, H * 0.93, W, H * 0.07, Fill.solid("#1D7C99", 0.60)),
-        ],
+        deco_fn=_ocean_deco,
         ph_fractions={"body": (0.05, 0.2333, 0.9, 0.58)},
         tx_overrides={"body_bu_char": "•", "body_bu_color": "accent1"},
     ),
@@ -432,14 +650,20 @@ DESIGNS: list[DesignDefinition] = [
         key="parchment",
         name="Parchment",
         colors=make_scheme(
-            "#F4ECD8", "#3B2A1A", "#B8A27F", "#5A3A1A", "#C8A96B", "#8C5A2B", "#7B3F00", "#8A7A60"
+            "#F4ECD8",
+            "#3B2A1A",
+            "#B8A27F",
+            "#5A3A1A",
+            "#C8A96B",
+            "#8C5A2B",
+            "#7B3F00",
+            "#8A7A60",
         ),
         fonts={"major": "Book Antiqua", "minor": "Georgia"},
-        bg=Fill.gradient([{"p": 0.0, "c": "#F7F0DE"}, {"p": 1.0, "c": "#E6D7B5"}], angle=0.0, path="circle"),
-        deco_fn=lambda W, H: [
-            _make_deco("rect", W * 0.05, H * 0.205, W * 0.9, H * 0.0035, Fill.solid("accent2")),
-            _make_deco("rect", W * 0.02, H * 0.027, W * 0.96, H * 0.946, Fill.none(), Line(color="#8C5A2B", width=0.75, dash="solid")),
-        ],
+        bg=Fill.gradient(
+            [{"p": 0.0, "c": "#F7F0DE"}, {"p": 1.0, "c": "#E6D7B5"}], angle=0.0, path="circle"
+        ),
+        deco_fn=_parchment_deco,
         tx_overrides={"body_bu_char": "❧", "body_bu_color": "accent2"},
     ),
     # 11. Pixel Mosaic
@@ -447,16 +671,18 @@ DESIGNS: list[DesignDefinition] = [
         key="pixel",
         name="Pixel Mosaic",
         colors=make_scheme(
-            "#FFFFFF", "#1A2733", "#A0AEBB", "#1F4E79", "#2E86C1", "#28B463", "#1B4F72", "#7F8C8D"
+            "#FFFFFF",
+            "#1A2733",
+            "#A0AEBB",
+            "#1F4E79",
+            "#2E86C1",
+            "#28B463",
+            "#1B4F72",
+            "#7F8C8D",
         ),
         fonts={"major": "Verdana", "minor": "Verdana"},
         bg=Fill.solid("bg1"),
-        deco_fn=lambda W, H: [
-            _make_deco("rect", W * 0.88, H * 0.03, W * 0.025, W * 0.025, Fill.solid("accent1", 0.9)),
-            _make_deco("rect", W * 0.92, H * 0.03, W * 0.025, W * 0.025, Fill.solid("accent2", 0.9)),
-            _make_deco("rect", W * 0.88, H * 0.07, W * 0.025, W * 0.025, Fill.solid("accent3", 0.9)),
-            _make_deco("rect", W * 0.05, H * 0.21, W * 0.62, H * 0.004, Fill.solid("accent1")),
-        ],
+        deco_fn=_pixel_deco,
         ph_fractions={"title": (0.05, 0.04, 0.78, 0.1667)},
         tx_overrides={"title_algn": "l", "body_bu_char": "■", "body_bu_color": "accent2"},
     ),
@@ -465,18 +691,19 @@ DESIGNS: list[DesignDefinition] = [
         key="crimson",
         name="Crimson Edge",
         colors=make_scheme(
-            "#FFFFFF", "#262626", "#A6A6A6", "#A4161A", "#A4161A", "#495057", "#0B6E99", "#6C757D"
+            "#FFFFFF",
+            "#262626",
+            "#A6A6A6",
+            "#A4161A",
+            "#A4161A",
+            "#495057",
+            "#0B6E99",
+            "#6C757D",
         ),
         fonts={"major": "Georgia", "minor": "Arial"},
         bg=Fill.solid("bg1"),
-        deco_fn=lambda W, H: [
-            _make_deco("rect", 0.0, 0.0, W * 0.03, H, Fill.solid("accent1")),
-            _make_deco("rect", W * 0.08, H * 0.205, W * 0.87, H * 0.0025, Fill.solid("accent1")),
-        ],
-        title_deco_fn=lambda W, H: [
-            _make_deco("rect", 0.0, 0.0, W * 0.03, H, Fill.solid("accent1")),
-            _make_deco("rect", W * 0.03, H * 0.6, W * 0.97, H * 0.006, Fill.solid("accent1")),
-        ],
+        deco_fn=_crimson_deco,
+        title_deco_fn=_crimson_title_deco,
         ph_fractions={
             "title": (0.08, 0.04, 0.87, 0.1667),
             "body": (0.08, 0.2333, 0.87, 0.66),
@@ -493,14 +720,18 @@ DESIGNS: list[DesignDefinition] = [
         key="glass",
         name="Layered Glass",
         colors=make_scheme(
-            "#3A6EA5", "#FFFFFF", "#244A73", "#FFFFFF", "#9CC3EB", "#FFD166", "#CFE4FA", "#B8D0EA"
+            "#3A6EA5",
+            "#FFFFFF",
+            "#244A73",
+            "#FFFFFF",
+            "#9CC3EB",
+            "#FFD166",
+            "#CFE4FA",
+            "#B8D0EA",
         ),
         fonts={"major": "Tahoma", "minor": "Tahoma"},
         bg=Fill.gradient([{"p": 0.0, "c": "#2F5F94"}, {"p": 1.0, "c": "#6A9FD4"}], angle=45.0),
-        deco_fn=lambda W, H: [
-            _make_deco("rect", W * 0.55, -H * 0.1, W * 0.6, H * 0.7, Fill.solid("#FFFFFF", 0.08), rot=18.0),
-            _make_deco("rect", W * 0.70, H * 0.40, W * 0.5, H * 0.8, Fill.solid("#FFFFFF", 0.06), rot=-12.0),
-        ],
+        deco_fn=_glass_deco,
         tx_overrides={"body_bu_color": "accent2"},
     ),
     # 14. Radial Glow
@@ -508,13 +739,20 @@ DESIGNS: list[DesignDefinition] = [
         key="radial",
         name="Radial Glow",
         colors=make_scheme(
-            "#0D1F3C", "#DCE6F2", "#081428", "#FFFFFF", "#7FB3FF", "#FFC857", "#A9CBFF", "#8FA3BF"
+            "#0D1F3C",
+            "#DCE6F2",
+            "#081428",
+            "#FFFFFF",
+            "#7FB3FF",
+            "#FFC857",
+            "#A9CBFF",
+            "#8FA3BF",
         ),
         fonts={"major": "Arial", "minor": "Arial"},
-        bg=Fill.gradient([{"p": 0.0, "c": "#2E5C9A"}, {"p": 1.0, "c": "#0D1F3C"}], angle=0.0, path="circle"),
-        deco_fn=lambda W, H: [
-            _make_deco("ellipse", W * 0.3, H * 0.95, W * 0.4, H * 0.012, Fill.solid("#7FB3FF", 0.35)),
-        ],
+        bg=Fill.gradient(
+            [{"p": 0.0, "c": "#2E5C9A"}, {"p": 1.0, "c": "#0D1F3C"}], angle=0.0, path="circle"
+        ),
+        deco_fn=_radial_deco,
         tx_overrides={"body_bu_color": "accent1"},
     ),
     # 15. Evergreen
@@ -522,18 +760,19 @@ DESIGNS: list[DesignDefinition] = [
         key="evergreen",
         name="Evergreen",
         colors=make_scheme(
-            "#FBF8F3", "#2B2622", "#E9E2D7", "#1F4038", "#2F6B5B", "#C9803A", "#3F6E8C", "#8C7A66"
+            "#FBF8F3",
+            "#2B2622",
+            "#E9E2D7",
+            "#1F4038",
+            "#2F6B5B",
+            "#C9803A",
+            "#3F6E8C",
+            "#8C7A66",
         ),
         fonts={"major": "Georgia", "minor": "Calibri"},
         bg=Fill.solid("bg1"),
-        deco_fn=lambda W, H: [
-            _make_deco("rect", W * 0.05, H * 0.07, W * 0.05, H * 0.008, Fill.solid("accent2")),
-            _make_deco("rect", W * 0.05, H * 0.905, W * 0.9, H * 0.002, Fill.solid("lt2")),
-        ],
-        title_deco_fn=lambda W, H: [
-            _make_deco("rect", W * 0.6, 0.0, W * 0.4, H, Fill.solid("tx2")),
-            _make_deco("rect", W * 0.6, 0.0, W * 0.006, H, Fill.solid("accent2")),
-        ],
+        deco_fn=_evergreen_deco,
+        title_deco_fn=_evergreen_title_deco,
         ph_fractions={
             "title": (0.05, 0.09, 0.9, 0.13),
             "body": (0.05, 0.26, 0.9, 0.61),
@@ -555,7 +794,12 @@ def build_design(key: str, w: float, h: float) -> DesignTemplate:
 
     concrete_ph: dict[str, tuple[float, float, float, float]] = {}
     for ph_key, (fx, fy, fw, fh) in ph_dict.items():
-        concrete_ph[ph_key] = (round(w * fx, 2), round(h * fy, 2), round(w * fw, 2), round(h * fh, 2))
+        concrete_ph[ph_key] = (
+            round(w * fx, 2),
+            round(h * fy, 2),
+            round(w * fw, 2),
+            round(h * fh, 2),
+        )
 
     decos = defn.deco_fn(w, h) if defn.deco_fn else []
     title_decos = defn.title_deco_fn(w, h) if defn.title_deco_fn else None

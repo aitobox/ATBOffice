@@ -8,7 +8,7 @@ from typing import Any
 
 from atboffice.modules.presentation.models.designs import DesignTemplate
 from atboffice.modules.presentation.models.shape import Fill, Line, PlaceholderInfo, Shape
-from atboffice.modules.presentation.models.text import Paragraph, TextBody, TextRun
+from atboffice.modules.presentation.models.text import Paragraph, TextBody
 
 
 def safe_tr(text: str) -> str:
@@ -36,27 +36,76 @@ LAYOUTS: list[LayoutInfo] = [
     LayoutInfo(key="title", name="Title Slide", group="Text Layouts", ox="title"),
     LayoutInfo(key="titleOnly", name="Title Only", group="Text Layouts", ox="titleOnly"),
     LayoutInfo(key="text", name="Title and Text", group="Text Layouts", ox="tx"),
-    LayoutInfo(key="twoText", name="Title and 2-Column Text", group="Text Layouts", ox="twoColTx"),
+    LayoutInfo(
+        key="twoText", name="Title and 2-Column Text", group="Text Layouts", ox="twoColTx"
+    ),
     LayoutInfo(key="blank", name="Blank", group="Content Layouts", ox="blank"),
     LayoutInfo(key="contentOnly", name="Content", group="Content Layouts", ox="objOnly"),
     LayoutInfo(key="content", name="Title and Content", group="Content Layouts", ox="obj"),
     LayoutInfo(key="twoContent", name="Title and 2 Content", group="Content Layouts", ox="twoObj"),
-    LayoutInfo(key="contentTwoContent", name="Title, Content and 2 Content", group="Content Layouts", ox="objAndTwoObj"),
-    LayoutInfo(key="twoContentContent", name="Title, 2 Content and Content", group="Content Layouts", ox="twoObjAndObj"),
-    LayoutInfo(key="fourContent", name="Title and 4 Content", group="Content Layouts", ox="fourObj"),
-    LayoutInfo(key="textContent", name="Title, Text, and Content", group="Text and Content Layouts", ox="txAndObj"),
-    LayoutInfo(key="contentText", name="Title, Content and Text", group="Text and Content Layouts", ox="objAndTx"),
-    LayoutInfo(key="textTwoContent", name="Title, Text, and 2 Content", group="Text and Content Layouts", ox="txAndTwoObj"),
-    LayoutInfo(key="twoContentText", name="Title, 2 Content and Text", group="Text and Content Layouts", ox="twoObjAndTx"),
+    LayoutInfo(
+        key="contentTwoContent",
+        name="Title, Content and 2 Content",
+        group="Content Layouts",
+        ox="objAndTwoObj",
+    ),
+    LayoutInfo(
+        key="twoContentContent",
+        name="Title, 2 Content and Content",
+        group="Content Layouts",
+        ox="twoObjAndObj",
+    ),
+    LayoutInfo(
+        key="fourContent", name="Title and 4 Content", group="Content Layouts", ox="fourObj"
+    ),
+    LayoutInfo(
+        key="textContent",
+        name="Title, Text, and Content",
+        group="Text and Content Layouts",
+        ox="txAndObj",
+    ),
+    LayoutInfo(
+        key="contentText",
+        name="Title, Content and Text",
+        group="Text and Content Layouts",
+        ox="objAndTx",
+    ),
+    LayoutInfo(
+        key="textTwoContent",
+        name="Title, Text, and 2 Content",
+        group="Text and Content Layouts",
+        ox="txAndTwoObj",
+    ),
+    LayoutInfo(
+        key="twoContentText",
+        name="Title, 2 Content and Text",
+        group="Text and Content Layouts",
+        ox="twoObjAndTx",
+    ),
     LayoutInfo(key="table", name="Title and Table", group="Other Layouts", ox="tbl"),
     LayoutInfo(key="chart", name="Title and Chart", group="Other Layouts", ox="chart"),
-    LayoutInfo(key="textOverContent", name="Title and Text over Content", group="Other Layouts", ox="txOverObj"),
-    LayoutInfo(key="contentOverText", name="Title and Content over Text", group="Other Layouts", ox="objOverTx"),
+    LayoutInfo(
+        key="textOverContent",
+        name="Title and Text over Content",
+        group="Other Layouts",
+        ox="txOverObj",
+    ),
+    LayoutInfo(
+        key="contentOverText",
+        name="Title and Content over Text",
+        group="Other Layouts",
+        ox="objOverTx",
+    ),
     LayoutInfo(key="vertText", name="Title and Vertical Text", group="Other Layouts", ox="vertTx"),
-    LayoutInfo(key="vertTitleText", name="Vertical Title and Text", group="Other Layouts", ox="vertTitleAndTx"),
+    LayoutInfo(
+        key="vertTitleText",
+        name="Vertical Title and Text",
+        group="Other Layouts",
+        ox="vertTitleAndTx",
+    ),
 ]
 
-LAYOUT_MAP: dict[str, LayoutInfo] = {l.key: l for l in LAYOUTS}
+LAYOUT_MAP: dict[str, LayoutInfo] = {item.key: item for item in LAYOUTS}
 
 
 def get_layout_info(key: str) -> LayoutInfo:
@@ -122,7 +171,9 @@ def layout_frames(key: str, design: DesignTemplate) -> list[dict[str, Any]]:
 
     ttl = {"type": "title", "idx": 0, "x": tx, "y": ty, "w": tw, "h": th}
 
-    def frame(ph_type: str, idx: int, r: dict[str, float], extra: dict[str, Any] | None = None) -> dict[str, Any]:
+    def frame(
+        ph_type: str, idx: int, r: dict[str, float], extra: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         d = {"type": ph_type, "idx": idx, "x": r["x"], "y": r["y"], "w": r["w"], "h": r["h"]}
         if extra:
             d.update(extra)
@@ -154,7 +205,13 @@ def layout_frames(key: str, design: DesignTemplate) -> list[dict[str, Any]]:
     if key == "twoContentContent":
         return [ttl, frame("obj", 1, lt), frame("obj", 2, lb), frame("obj", 3, r1)]
     if key == "fourContent":
-        return [ttl, frame("obj", 1, lt), frame("obj", 2, rt), frame("obj", 3, lb), frame("obj", 4, rb)]
+        return [
+            ttl,
+            frame("obj", 1, lt),
+            frame("obj", 2, rt),
+            frame("obj", 3, lb),
+            frame("obj", 4, rb),
+        ]
     if key == "textContent":
         return [ttl, frame("body", 1, l1), frame("obj", 2, r1)]
     if key == "contentText":
@@ -185,7 +242,12 @@ def layout_frames(key: str, design: DesignTemplate) -> list[dict[str, Any]]:
                 "w": tw_col,
                 "h": by + bh - ty,
             },
-            frame("body", 1, {"x": bx, "y": ty, "w": bw - tw_col - gap, "h": by + bh - ty}, extra={"vert": "vert"}),
+            frame(
+                "body",
+                1,
+                {"x": bx, "y": ty, "w": bw - tw_col - gap, "h": by + bh - ty},
+                extra={"vert": "vert"},
+            ),
         ]
 
     # Default fallback

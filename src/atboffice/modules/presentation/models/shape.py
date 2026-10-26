@@ -158,7 +158,8 @@ class Shadow:
 class PlaceholderInfo:
     """Master placeholder descriptor."""
 
-    type: str  # "title", "ctrTitle", "subTitle", "body", "obj", "tbl", "chart", "dt", "ftr", "sldNum"
+    # "title", "ctrTitle", "subTitle", "body", "obj", "tbl", "chart", "dt", "ftr", "sldNum"
+    type: str
     idx: int = 0
 
     def to_dict(self) -> dict[str, Any]:

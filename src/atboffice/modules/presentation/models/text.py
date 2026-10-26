@@ -61,9 +61,12 @@ class TextStyleLevel:
     def from_dict(cls, data: dict[str, Any] | None) -> TextStyleLevel:
         if not data:
             return cls()
-        ln_pct = data.get("lnSpc", {}).get("pct", 100) if isinstance(data.get("lnSpc"), dict) else 100
-        bef_pct = data.get("spcBef", {}).get("pct", 0) if isinstance(data.get("spcBef"), dict) else 0
-        aft_pct = data.get("spcAft", {}).get("pct", 0) if isinstance(data.get("spcAft"), dict) else 0
+        ln_obj = data.get("lnSpc")
+        ln_pct = ln_obj.get("pct", 100) if isinstance(ln_obj, dict) else 100
+        bef_obj = data.get("spcBef")
+        bef_pct = bef_obj.get("pct", 0) if isinstance(bef_obj, dict) else 0
+        aft_obj = data.get("spcAft")
+        aft_pct = aft_obj.get("pct", 0) if isinstance(aft_obj, dict) else 0
         return cls(
             algn=data.get("algn", "l"),
             mar_l=float(data.get("marL", 0.0)),

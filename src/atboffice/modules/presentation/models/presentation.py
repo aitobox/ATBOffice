@@ -1,4 +1,4 @@
-"""Presentation container, slide sizing, layout application and aspect ratio adaptation for Lectern."""
+"""Presentation container, slide sizing, layout and aspect ratio adaptation for Lectern."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import Any
 
 from atboffice.modules.presentation.models.designs import DesignTemplate, build_design
 from atboffice.modules.presentation.models.layouts import layout_frames, make_placeholder
-from atboffice.modules.presentation.models.shape import Shape
+from atboffice.modules.presentation.models.shape import PlaceholderInfo, Shape
 from atboffice.modules.presentation.models.slide import Slide, create_slide
 
 
@@ -145,7 +145,7 @@ class Presentation:
             designs={d.id: d},
             props={
                 "author": "",
-                "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "created": datetime.datetime.now(datetime.UTC).isoformat(),
             },
         )
         if not empty:
@@ -166,7 +166,9 @@ class Presentation:
 
     def add_slide(self, layout: str = "text", design_id: str | None = None) -> Slide:
         """Append a new slide to the presentation."""
-        target_design = self.designs.get(design_id) if design_id else self.get_design_for_slide(None)
+        target_design = (
+            self.designs.get(design_id) if design_id else self.get_design_for_slide(None)
+        )
         slide = create_slide(layout=layout, design=target_design)
         self.slides.append(slide)
         return slide
@@ -208,10 +210,15 @@ class Presentation:
         for fr in frames:
             is_title = fr["type"] in ("title", "ctrTitle")
             matched = (
-                take_matching(lambda s: s.placeholder and s.placeholder.type in ("title", "ctrTitle"))
+                take_matching(
+                    lambda s: s.placeholder and s.placeholder.type in ("title", "ctrTitle")
+                )
                 if is_title
                 else take_matching(
-                    lambda s: s.placeholder and s.placeholder.type not in ("title", "ctrTitle", "dt", "ftr", "sldNum")
+                    lambda s: (
+                        s.placeholder
+                        and s.placeholder.type not in ("title", "ctrTitle", "dt", "ftr", "sldNum")
+                    )
                 )
             )
 
@@ -222,7 +229,9 @@ class Presentation:
                     fresh.text.paragraphs = copy.deepcopy(matched.text.paragraphs)
                 new_shapes.append(fresh)
             elif matched:
-                matched.placeholder = copy.deepcopy(PlaceholderInfo(type=fr["type"], idx=fr.get("idx", 0)))
+                matched.placeholder = copy.deepcopy(
+                    PlaceholderInfo(type=fr["type"], idx=fr.get("idx", 0))
+                )
                 matched.x = float(fr["x"])
                 matched.y = float(fr["y"])
                 matched.w = float(fr["w"])
@@ -237,7 +246,12 @@ class Presentation:
             if s.id in used_shapes:
                 continue
             # Drop empty placeholders
-            if s.placeholder and s.text and s.text.is_empty() and s.placeholder.type not in ("dt", "ftr", "sldNum"):
+            if (
+                s.placeholder
+                and s.text
+                and s.text.is_empty()
+                and s.placeholder.type not in ("dt", "ftr", "sldNum")
+            ):
                 continue
             # Strip placeholder designation for orphaned text so it becomes a free text box
             if s.placeholder and s.placeholder.type not in ("dt", "ftr", "sldNum"):
@@ -272,14 +286,31 @@ class Presentation:
                 if not sh.placeholder:
                     continue
                 of = next(
-                    (f for f in old_frames if f["type"] == sh.placeholder.type and f.get("idx", 0) == sh.placeholder.idx),
+                    (
+                        f
+                        for f in old_frames
+                        if f["type"] == sh.placeholder.type
+                        and f.get("idx", 0) == sh.placeholder.idx
+                    ),
                     None,
                 )
                 nf = next(
-                    (f for f in new_frames if f["type"] == sh.placeholder.type and f.get("idx", 0) == sh.placeholder.idx),
+                    (
+                        f
+                        for f in new_frames
+                        if f["type"] == sh.placeholder.type
+                        and f.get("idx", 0) == sh.placeholder.idx
+                    ),
                     None,
                 )
-                if nf and (not of or (abs(of["x"] - sh.x) < 2 and abs(of["y"] - sh.y) < 2 and abs(of["w"] - sh.w) < 2)):
+                if nf and (
+                    not of
+                    or (
+                        abs(of["x"] - sh.x) < 2
+                        and abs(of["y"] - sh.y) < 2
+                        and abs(of["w"] - sh.w) < 2
+                    )
+                ):
                     sh.x = float(nf["x"])
                     sh.y = float(nf["y"])
                     sh.w = float(nf["w"])
@@ -323,7 +354,8 @@ class Presentation:
                             (
                                 f
                                 for f in frames
-                                if f["type"] == sh.placeholder.type and f.get("idx", 0) == sh.placeholder.idx
+                                if f["type"] == sh.placeholder.type
+                                and f.get("idx", 0) == sh.placeholder.idx
                             ),
                             None,
                         )
