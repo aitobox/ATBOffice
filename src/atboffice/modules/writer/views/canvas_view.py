@@ -507,18 +507,24 @@ class WriterCanvasView(QAbstractScrollArea):
                                     baseline_px = y_px + self.pt_to_px(line.baseline)
                                     w_px = self.pt_to_px(po_w)
 
+                                    p1 = QPointF(x_px, baseline_px)
+                                    p2 = QPointF(x_px + w_px, baseline_px)
                                     if leader == "dot":
                                         pen = QPen(QColor(100, 100, 100), 1.0, Qt.PenStyle.DotLine)
                                         painter.setPen(pen)
-                                        painter.drawLine(QPointF(x_px, baseline_px), QPointF(x_px + w_px, baseline_px))
+                                        painter.drawLine(p1, p2)
                                     elif leader == "hyphen":
                                         pen = QPen(QColor(100, 100, 100), 1.0, Qt.PenStyle.DashLine)
                                         painter.setPen(pen)
-                                        painter.drawLine(QPointF(x_px, baseline_px), QPointF(x_px + w_px, baseline_px))
+                                        painter.drawLine(p1, p2)
                                     elif leader == "underscore":
-                                        pen = QPen(QColor(100, 100, 100), 1.0, Qt.PenStyle.SolidLine)
+                                        pen = QPen(
+                                            QColor(100, 100, 100), 1.0, Qt.PenStyle.SolidLine
+                                        )
                                         painter.setPen(pen)
-                                        painter.drawLine(QPointF(x_px, baseline_px + 2), QPointF(x_px + w_px, baseline_px + 2))
+                                        p1_u = QPointF(x_px, baseline_px + 2)
+                                        p2_u = QPointF(x_px + w_px, baseline_px + 2)
+                                        painter.drawLine(p1_u, p2_u)
 
                             cur_x += po_w
 

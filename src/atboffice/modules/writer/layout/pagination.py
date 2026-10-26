@@ -29,13 +29,9 @@ from atboffice.modules.writer.layout.table_layout import (
 from atboffice.modules.writer.models.document import (
     BreakItem,
     Document,
-    FieldBeginItem,
-    FieldEndItem,
-    FieldSeparateItem,
     Paragraph,
     Story,
     Table,
-    TextItem,
     sections,
 )
 from atboffice.modules.writer.models.properties import (

@@ -142,10 +142,19 @@ def test_toc_generation_and_updating() -> None:
     from atboffice.modules.writer.models.properties import ParagraphProperties
 
     doc = Document()
-    p_intro = Paragraph(runs=[TextItem("Introduction")], p_pr=ParagraphProperties(style="Heading1"))
+    p_intro = Paragraph(
+        runs=[TextItem("Introduction")],
+        p_pr=ParagraphProperties(style="Heading1"),
+    )
     p_body1 = Paragraph(runs=[TextItem("Body text...")])
-    p_arch = Paragraph(runs=[TextItem("System Architecture")], p_pr=ParagraphProperties(style="Heading2"))
-    p_sub = Paragraph(runs=[TextItem("Detailed Design")], p_pr=ParagraphProperties(style="Heading3"))
+    p_arch = Paragraph(
+        runs=[TextItem("System Architecture")],
+        p_pr=ParagraphProperties(style="Heading2"),
+    )
+    p_sub = Paragraph(
+        runs=[TextItem("Detailed Design")],
+        p_pr=ParagraphProperties(style="Heading3"),
+    )
     doc.main.paras = [p_intro, p_body1, p_arch, p_sub]
 
     # Test collect TOC entries
@@ -207,9 +216,15 @@ def test_pagination_with_dynamic_fields_and_toc() -> None:
     # Headings on different pages
     p_toc_placeholder = Paragraph(runs=[TextItem("TOC here")])
     p_break1 = Paragraph(runs=[BreakItem("page")])
-    p_ch1 = Paragraph(runs=[TextItem("Chapter 1: The Beginning")], p_pr=ParagraphProperties(style="Heading1"))
+    p_ch1 = Paragraph(
+        runs=[TextItem("Chapter 1: The Beginning")],
+        p_pr=ParagraphProperties(style="Heading1"),
+    )
     p_break2 = Paragraph(runs=[BreakItem("page")])
-    p_ch2 = Paragraph(runs=[TextItem("Chapter 2: The Middle")], p_pr=ParagraphProperties(style="Heading1"))
+    p_ch2 = Paragraph(
+        runs=[TextItem("Chapter 2: The Middle")],
+        p_pr=ParagraphProperties(style="Heading1"),
+    )
 
     doc.main.paras = [p_toc_placeholder, p_break1, p_ch1, p_break2, p_ch2]
     doc.main.blocks = list(doc.main.paras)

@@ -34,7 +34,7 @@ from atboffice.modules.writer.models.document import (
 from atboffice.modules.writer.models.properties import RunProperties
 
 if TYPE_CHECKING:
-    from atboffice.modules.writer.layout.pagination import Page, PaginationResult
+    from atboffice.modules.writer.layout.pagination import PaginationResult
 
 # ---------------------------------------------------------------------------
 # Number Formatting Utilities
