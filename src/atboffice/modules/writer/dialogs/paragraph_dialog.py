@@ -5,14 +5,13 @@ from __future__ import annotations
 import copy
 
 from PySide6.QtCore import QCoreApplication, Qt
-from PySide6.QtGui import QColor, QPaintEvent, QPainter, QPen
+from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
-    QFormLayout,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,

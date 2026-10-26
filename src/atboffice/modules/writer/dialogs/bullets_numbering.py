@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtCore import QCoreApplication, QRect, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QPaintEvent, QPainter, QPen
+from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import (
     QButtonGroup,
     QDialog,
@@ -124,12 +124,13 @@ class GalleryItemWidget(QFrame):
             return
 
         # Render 3 sample lines
+        align_left_vcenter = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         if self.kind == "bullet":
             sym = self.data[0]
             for i in range(3):
                 y = 20 + i * 20
                 painter.setPen(QPen(Qt.GlobalColor.black))
-                painter.drawText(QRect(12, y - 10, 16, 20), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, sym)
+                painter.drawText(QRect(12, y - 10, 16, 20), align_left_vcenter, sym)
                 painter.setPen(QPen(QColor("#808080"), 2))
                 painter.drawLine(32, y, 95, y)
 
@@ -141,7 +142,7 @@ class GalleryItemWidget(QFrame):
                 f = painter.font()
                 f.setPointSize(8)
                 painter.setFont(f)
-                painter.drawText(QRect(10, y - 10, 30, 20), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, labels[i])
+                painter.drawText(QRect(10, y - 10, 30, 20), align_left_vcenter, labels[i])
                 painter.setPen(QPen(QColor("#808080"), 2))
                 painter.drawLine(44, y, 95, y)
 
@@ -155,7 +156,7 @@ class GalleryItemWidget(QFrame):
                 f = painter.font()
                 f.setPointSize(7)
                 painter.setFont(f)
-                painter.drawText(QRect(indent_x, y - 10, 40, 20), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, label)
+                painter.drawText(QRect(indent_x, y - 10, 40, 20), align_left_vcenter, label)
                 painter.setPen(QPen(QColor("#808080"), 1))
                 painter.drawLine(indent_x + 36, y, 98, y)
 

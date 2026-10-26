@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 
 from PySide6.QtCore import QCoreApplication, QRectF, Qt
-from PySide6.QtGui import QColor, QPaintEvent, QPainter, QPen
+from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -79,7 +79,9 @@ class PagePreviewWidget(QWidget):
         mt = float(self.props.mt) * scale
         mb = float(self.props.mb) * scale
 
-        content_rect = QRectF(ox + ml, oy + mt, max(4.0, draw_w - ml - mr), max(4.0, draw_h - mt - mb))
+        cw = max(4.0, draw_w - ml - mr)
+        ch = max(4.0, draw_h - mt - mb)
+        content_rect = QRectF(ox + ml, oy + mt, cw, ch)
         dash_pen = QPen(QColor("#0066CC"), 1, Qt.PenStyle.DashLine)
         painter.setPen(dash_pen)
         painter.drawRect(content_rect)
@@ -322,7 +324,9 @@ class PageSetupDialog(QDialog):
         # Check if matches any preset
         matched = False
         for name, (pw, ph) in PAPER_SIZES.items():
-            if (abs(w - pw) < 0.5 and abs(h - ph) < 0.5) or (abs(w - ph) < 0.5 and abs(h - pw) < 0.5):
+            matches_normal = abs(w - pw) < 0.5 and abs(h - ph) < 0.5
+            matches_swapped = abs(w - ph) < 0.5 and abs(h - pw) < 0.5
+            if matches_normal or matches_swapped:
                 idx = self.combo_paper_size.findData(name)
                 if idx >= 0:
                     self._updating_controls = True
@@ -385,7 +389,9 @@ class PageSetupDialog(QDialog):
             d = self.combo_paper_size.itemData(i)
             if d in PAPER_SIZES:
                 pw, ph = PAPER_SIZES[d]
-                if (abs(w - pw) < 0.5 and abs(h - ph) < 0.5) or (abs(w - ph) < 0.5 and abs(h - pw) < 0.5):
+                matches_normal = abs(w - pw) < 0.5 and abs(h - ph) < 0.5
+            matches_swapped = abs(w - ph) < 0.5 and abs(h - pw) < 0.5
+            if matches_normal or matches_swapped:
                     matched_idx = i
                     break
         if matched_idx >= 0:

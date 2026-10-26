@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import copy
-from typing import Any
 
-from PySide6.QtCore import QCoreApplication, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QPaintEvent, QPainter, QPen
+from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtGui import QColor, QFont, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
@@ -20,7 +19,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QSpinBox,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -54,7 +52,8 @@ CHINESE_FONT_SIZES: list[tuple[str, float]] = [
 ]
 
 POINT_FONT_SIZES: list[float] = [
-    5.0, 5.5, 6.5, 7.5, 8.0, 9.0, 10.0, 10.5, 11.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 24.0, 26.0, 28.0, 36.0, 48.0, 72.0
+    5.0, 5.5, 6.5, 7.5, 8.0, 9.0, 10.0, 10.5, 11.0, 12.0, 14.0, 16.0,
+    18.0, 20.0, 22.0, 24.0, 26.0, 28.0, 36.0, 48.0, 72.0,
 ]
 
 
@@ -100,7 +99,9 @@ class FontPreviewWidget(QWidget):
             hex_str = color_val if color_val.startswith("#") else f"#{color_val}"
             painter.setPen(QPen(QColor(hex_str)))
 
-        text = safe_tr("ATBOffice 经典排版预览 The quick brown fox jumps over the lazy dog 1234567890")
+        text = safe_tr(
+            "ATBOffice 经典排版预览 The quick brown fox jumps over the lazy dog 1234567890"
+        )
         if self.props.caps:
             text = text.upper()
         painter.drawText(self.rect().adjusted(10, 10, -10, -10), Qt.AlignmentFlag.AlignCenter, text)
@@ -135,14 +136,16 @@ class FontDialog(QDialog):
         self.combo_latin_font = QComboBox(self.tab_font)
         self.combo_latin_font.setEditable(True)
         self.combo_latin_font.addItems([
-            "Times New Roman", "Arial", "Courier New", "Calibri", "Georgia", "Tahoma", "Verdana", "Segoe UI"
+            "Times New Roman", "Arial", "Courier New", "Calibri",
+            "Georgia", "Tahoma", "Verdana", "Segoe UI",
         ])
 
         self.lbl_ea_font = QLabel(self.tab_font)
         self.combo_ea_font = QComboBox(self.tab_font)
         self.combo_ea_font.setEditable(True)
         self.combo_ea_font.addItems([
-            "宋体", "黑体", "楷体", "仿宋", "微软雅黑", "SimSun", "SimHei", "KaiTi", "FangSong", "Microsoft YaHei"
+            "宋体", "黑体", "楷体", "仿宋", "微软雅黑",
+            "SimSun", "SimHei", "KaiTi", "FangSong", "Microsoft YaHei",
         ])
 
         self.lbl_style = QLabel(self.tab_font)
@@ -214,12 +217,24 @@ class FontDialog(QDialog):
         font_layout.addWidget(self.group_effects)
 
         # Effect exclusions
-        self.check_strike.toggled.connect(lambda on: on and self.check_dstrike.setChecked(False))
-        self.check_dstrike.toggled.connect(lambda on: on and self.check_strike.setChecked(False))
-        self.check_superscript.toggled.connect(lambda on: on and self.check_subscript.setChecked(False))
-        self.check_subscript.toggled.connect(lambda on: on and self.check_superscript.setChecked(False))
-        self.check_small_caps.toggled.connect(lambda on: on and self.check_all_caps.setChecked(False))
-        self.check_all_caps.toggled.connect(lambda on: on and self.check_small_caps.setChecked(False))
+        self.check_strike.toggled.connect(
+            lambda on: on and self.check_dstrike.setChecked(False)
+        )
+        self.check_dstrike.toggled.connect(
+            lambda on: on and self.check_strike.setChecked(False)
+        )
+        self.check_superscript.toggled.connect(
+            lambda on: on and self.check_subscript.setChecked(False)
+        )
+        self.check_subscript.toggled.connect(
+            lambda on: on and self.check_superscript.setChecked(False)
+        )
+        self.check_small_caps.toggled.connect(
+            lambda on: on and self.check_all_caps.setChecked(False)
+        )
+        self.check_all_caps.toggled.connect(
+            lambda on: on and self.check_small_caps.setChecked(False)
+        )
 
         self.tab_widget.addTab(self.tab_font, safe_tr("字体"))
 
@@ -307,7 +322,11 @@ class FontDialog(QDialog):
         self.retranslate_ui()
 
     def _choose_color(self) -> None:
-        init_col = QColor(f"#{self._current_color}") if self._current_color != "auto" else Qt.GlobalColor.black
+        init_col = (
+            QColor(f"#{self._current_color}")
+            if self._current_color != "auto"
+            else Qt.GlobalColor.black
+        )
         color = QColorDialog.getColor(init_col, self, safe_tr("选择字体颜色"))
         if color.isValid():
             self._current_color = color.name().lstrip("#").upper()
@@ -372,7 +391,12 @@ class FontDialog(QDialog):
 
         # Color
         self._current_color = self.props.color or "auto"
-        self.btn_color.setText(safe_tr("自动") if self._current_color == "auto" else f"#{self._current_color}")
+        btn_text = (
+            safe_tr("自动")
+            if self._current_color == "auto"
+            else f"#{self._current_color}"
+        )
+        self.btn_color.setText(btn_text)
 
         # Underline
         idx = self.combo_underline.findData(self.props.u or "none")

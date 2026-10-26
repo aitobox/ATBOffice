@@ -1,20 +1,18 @@
 """GUI tests for Quire classic formatting dialogs."""
 
-import pytest
 from PySide6.QtWidgets import QApplication
 
+from atboffice.modules.writer.dialogs.bullets_numbering import BulletsNumberingDialog
+from atboffice.modules.writer.dialogs.font_dialog import FontDialog
+from atboffice.modules.writer.dialogs.page_setup import PageSetupDialog
+from atboffice.modules.writer.dialogs.paragraph_dialog import ParagraphDialog
 from atboffice.modules.writer.models.properties import (
     IndentProperties,
-    NumberingRef,
     ParagraphProperties,
     RunProperties,
     SectionProperties,
     SpacingProperties,
 )
-from atboffice.modules.writer.dialogs.bullets_numbering import BulletsNumberingDialog
-from atboffice.modules.writer.dialogs.font_dialog import FontDialog
-from atboffice.modules.writer.dialogs.page_setup import PageSetupDialog
-from atboffice.modules.writer.dialogs.paragraph_dialog import ParagraphDialog
 
 
 class TestFontDialog:
