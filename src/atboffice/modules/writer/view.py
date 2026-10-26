@@ -6,6 +6,7 @@ from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import QGridLayout, QWidget
 
 from atboffice.modules.writer.models.document import Document, Paragraph
+from atboffice.modules.writer.models.mailmerge import MailMergeEngine
 from atboffice.modules.writer.views.canvas_view import WriterCanvasView
 from atboffice.modules.writer.views.review_pane import ReviewPane, ReviewToolbar
 from atboffice.modules.writer.views.ruler import (
@@ -54,6 +55,10 @@ class WriterView(QWidget):
         # 6. Reviewing Toolbar (floating / dockable toolbar)
         self.review_toolbar = ReviewToolbar(parent=self)
         self.review_toolbar.setVisible(False)
+
+        # 7. Mail Merge engine instance
+        self.mailmerge_engine = MailMergeEngine()
+        self.canvas_view.doc.mailmerge_engine = self.mailmerge_engine
 
         # Wire ruler interactions and canvas attachments
         self.tab_selector.tab_kind_changed.connect(self.h_ruler.set_tab_selector_kind)
@@ -119,3 +124,45 @@ class WriterView(QWidget):
         self.canvas_view.retranslate_ui()
         self.review_pane.retranslate_ui()
         self.review_toolbar.retranslate_ui()
+
+    def open_mail_merge_wizard(self) -> None:
+        """Open the Word 2003 classic Mail Merge Wizard."""
+        from atboffice.modules.writer.dialogs.mailmerge_wizard import MailMergeWizardDialog
+
+        self.canvas_view.doc.mailmerge_engine = self.mailmerge_engine
+        dlg = MailMergeWizardDialog(
+            doc=self.canvas_view.doc,
+            engine=self.mailmerge_engine,
+            writer_view=self,
+            parent=self,
+        )
+        dlg.exec()
+
+    def insert_merge_field(self) -> None:
+        """Open Insert Merge Field dialog."""
+        from atboffice.modules.writer.dialogs.mailmerge_wizard import InsertMergeFieldDialog
+
+        dlg = InsertMergeFieldDialog(engine=self.mailmerge_engine, parent=self)
+
+        def _on_field(name: str) -> None:
+            controller = self.canvas_view.controller
+            para = controller.caret_para
+            offset = controller.caret_offset
+            if para is not None:
+                self.mailmerge_engine.insert_field(para, offset, name)
+                self.canvas_view.update()
+
+        dlg.field_selected.connect(_on_field)
+        dlg.exec()
+
+    def toggle_mail_merge_preview(self) -> bool:
+        """Toggle mail merge preview mode on current document."""
+        res = self.mailmerge_engine.toggle_preview(self.canvas_view.doc)
+        self.canvas_view.update()
+        return res
+
+    def step_mail_merge_record(self, delta: int) -> int:
+        """Navigate mail merge record in preview mode."""
+        rec = self.mailmerge_engine.step(self.canvas_view.doc, delta)
+        self.canvas_view.update()
+        return rec

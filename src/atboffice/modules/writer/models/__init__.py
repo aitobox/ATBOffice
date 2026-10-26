@@ -55,6 +55,14 @@ from atboffice.modules.writer.models.drawing import (
     resize_object,
     rotate_object,
 )
+from atboffice.modules.writer.models.mailmerge import (
+    ADDRESS_FIELDS,
+    MailMergeDataSource,
+    MailMergeEngine,
+    load_data_source_from_csv,
+    norm_field_name,
+    parse_delimited,
+)
 from atboffice.modules.writer.models.omml import (
     MathDelimiter,
     MathFraction,
@@ -134,6 +142,7 @@ from atboffice.modules.writer.models.styles import (
 )
 
 __all__ = [
+    "ADDRESS_FIELDS",
     "AnchorHandle",
     "AUTHOR_COLORS",
     "BalloonItem",
@@ -158,6 +167,8 @@ __all__ = [
     "FloatProperties",
     "IndentProperties",
     "LinkedTextBoxChain",
+    "MailMergeDataSource",
+    "MailMergeEngine",
     "MathDelimiter",
     "MathFraction",
     "MathFunction",
@@ -170,6 +181,7 @@ __all__ = [
     "MathSubSup",
     "MathSup",
     "NavItem",
+    "norm_field_name",
     "NumberingRef",
     "OfficeMathItem",
     "PAPER_SIZES",
@@ -223,12 +235,14 @@ __all__ = [
     "layout_balloons",
     "list_authors",
     "list_revisions",
+    "load_data_source_from_csv",
     "locate",
     "merge_p_props",
     "merge_r_props",
     "navigate_revision",
     "normalize",
     "paras_between",
+    "parse_delimited",
     "parse_length",
     "parse_omml",
     "plain_text",

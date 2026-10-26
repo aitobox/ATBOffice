@@ -722,6 +722,18 @@ def evaluate_field(
 
                 return fmt(plain_text(p).strip())
         return "Error! No text of specified style in document."
+    if t == "MERGEFIELD":
+        engine = getattr(doc, "mailmerge_engine", None)
+        if engine is not None:
+            return engine.evaluate_merge_instruction(instr)
+        field_name = f.args[0] if f.args else "Field"
+        clean_name = field_name.replace("_", " ")
+        return fmt(f"«{clean_name}»")
+    if t in ("MERGEREC", "MERGESEQ"):
+        engine = getattr(doc, "mailmerge_engine", None)
+        if engine is not None:
+            return fmt(str(engine.current_record + 1))
+        return fmt("1")
 
     return ""
 
