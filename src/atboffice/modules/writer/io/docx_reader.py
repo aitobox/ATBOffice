@@ -43,6 +43,7 @@ from atboffice.modules.writer.models.properties import (
     TabStop,
 )
 from atboffice.modules.writer.models.styles import Style, builtin_styles
+from atboffice.modules.writer.models.omml import parse_omml
 from atboffice.vfs.opc import Relationship, SourcePackage
 
 # Common XML Namespaces
@@ -419,6 +420,9 @@ class DocxReader:
             for child in elem:
                 self._parse_inline_element(child, runs)
             runs.append(FieldEndItem())
+
+        elif tag in ("oMath", "oMathPara"):
+            runs.append(parse_omml(elem))
 
     def _parse_p_pr(self, p_pr_elem: ET.Element) -> ParagraphProperties:
         """Parse <w:pPr> element into ParagraphProperties."""

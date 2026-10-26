@@ -31,6 +31,7 @@ from atboffice.modules.writer.models.properties import (
     pt_to_dxa,
 )
 from atboffice.modules.writer.models.styles import Style, builtin_styles
+from atboffice.modules.writer.models.omml import OfficeMathItem, serialize_omml
 from atboffice.vfs.opc import PackageWriter, Relationship, SourcePackage
 from atboffice.vfs.order import enforce_schema_order
 from atboffice.vfs.xml_tree import serialize_xml
@@ -352,6 +353,11 @@ class DocxWriter:
 
     def _serialize_run_item(self, p_elem: ET.Element, item: RunItem) -> None:
         """Serialize a RunItem into corresponding XML elements under <w:p>."""
+        if isinstance(item, OfficeMathItem):
+            math_elem = serialize_omml(item)
+            p_elem.append(math_elem)
+            return
+
         if isinstance(item, BookmarkStartItem):
             bm_s = ET.SubElement(p_elem, _w("bookmarkStart"))
             bm_s.set(_w("id"), str(item.bookmark_id))

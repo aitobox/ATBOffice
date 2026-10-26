@@ -28,6 +28,7 @@ from atboffice.modules.writer.models.document import (
     TabItem,
     TextItem,
 )
+from atboffice.modules.writer.models.omml import OfficeMathItem
 from atboffice.modules.writer.models.properties import (
     SectionProperties,
 )
@@ -469,6 +470,27 @@ def decompose_paragraph_to_portions(
                     char_offset=char_offset,
                     length=1,
                     data=item.break_type,
+                )
+            )
+            char_offset += 1
+
+        elif isinstance(item, OfficeMathItem):
+            from atboffice.modules.writer.layout.math_layout import layout_math_item
+
+            layout_math_item(item, font_sz, font_family)
+            portions.append(
+                Portion(
+                    type=PortionType.GRAPHIC,
+                    text="",
+                    width=item.width,
+                    ascent=item.ascent,
+                    descent=item.descent,
+                    font_size=font_sz,
+                    font_family=font_family,
+                    counts_for_height=True,
+                    char_offset=char_offset,
+                    length=1,
+                    data=item,
                 )
             )
             char_offset += 1

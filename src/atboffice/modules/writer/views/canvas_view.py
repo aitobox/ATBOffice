@@ -34,6 +34,7 @@ from atboffice.modules.writer.layout.pagination import (
     PaginationResult,
     paginate_document,
 )
+from atboffice.modules.writer.layout.math_layout import paint_math
 from atboffice.modules.writer.layout.portions import (
     PortionType,
     measure_text_width,
@@ -45,6 +46,7 @@ from atboffice.modules.writer.models.document import (
     plen,
     reindex,
 )
+from atboffice.modules.writer.models.omml import OfficeMathItem
 from atboffice.modules.writer.views.caret_controller import (
     CaretController,
 )
@@ -468,6 +470,11 @@ class WriterCanvasView(QAbstractScrollArea):
                                                 painter.drawText(
                                                     QPointF(x_px, baseline_px), po.text
                                                 )
+                                            elif po.type == PortionType.GRAPHIC and isinstance(po.data, OfficeMathItem):
+                                                x_px = page_rect.left() + self.pt_to_px(cur_x)
+                                                y_px = page_rect.top() + self.pt_to_px(line_y)
+                                                baseline_px = y_px + self.pt_to_px(line.baseline)
+                                                paint_math(painter, po.data, x_px, baseline_px, self._zoom)
                                             cur_x += po_w
                         continue
 
@@ -525,6 +532,12 @@ class WriterCanvasView(QAbstractScrollArea):
                                         p1_u = QPointF(x_px, baseline_px + 2)
                                         p2_u = QPointF(x_px + w_px, baseline_px + 2)
                                         painter.drawLine(p1_u, p2_u)
+
+                            elif po.type == PortionType.GRAPHIC and isinstance(po.data, OfficeMathItem):
+                                x_px = page_rect.left() + self.pt_to_px(cur_x)
+                                y_px = page_rect.top() + self.pt_to_px(line_y)
+                                baseline_px = y_px + self.pt_to_px(line.baseline)
+                                paint_math(painter, po.data, x_px, baseline_px, self._zoom)
 
                             cur_x += po_w
 

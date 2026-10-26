@@ -202,3 +202,60 @@ def test_paint_math_offscreen(qapp):
     finally:
         painter.end()
 
+
+def test_portions_math_decomposition():
+    from atboffice.modules.writer.layout.portions import decompose_paragraph_to_portions, PortionType
+    from atboffice.modules.writer.models.document import Paragraph, TextItem
+
+    p = Paragraph()
+    p.runs.append(TextItem("Formula: "))
+    xml = f"""<m:oMath xmlns:m="{NS_M}">
+        <m:f>
+            <m:num><m:r><m:t>1</m:t></m:r></m:num>
+            <m:den><m:r><m:t>2</m:t></m:r></m:den>
+        </m:f>
+    </m:oMath>"""
+    math_item = parse_omml(xml)
+    p.runs.append(math_item)
+
+    portions = decompose_paragraph_to_portions(p)
+    assert len(portions) >= 2
+    math_portion = [po for po in portions if po.type == PortionType.GRAPHIC and isinstance(po.data, OfficeMathItem)][0]
+    assert math_portion.width > 0
+    assert math_portion.ascent > 0
+    assert math_portion.counts_for_height is True
+
+
+def test_docx_math_io_roundtrip():
+    import io
+    from atboffice.modules.writer.models.document import Document, Paragraph, TextItem
+    from atboffice.modules.writer.io.docx_writer import write_docx
+    from atboffice.modules.writer.io.docx_reader import read_docx
+
+    doc = Document()
+    p = Paragraph(runs=[TextItem("Inline equation: ")])
+    xml = f"""<m:oMath xmlns:m="{NS_M}">
+        <m:f>
+            <m:num><m:r><m:t>E</m:t></m:r></m:num>
+            <m:den><m:r><m:t>mc2</m:t></m:r></m:den>
+        </m:f>
+    </m:oMath>"""
+    math_item = parse_omml(xml)
+    p.runs.append(math_item)
+    doc.main.blocks = [p]
+
+    buf = io.BytesIO()
+    write_docx(doc, buf)
+    buf.seek(0)
+
+    reloaded = read_docx(buf)
+    reloaded_p = reloaded.main.blocks[0]
+    math_runs = [r for r in reloaded_p.runs if isinstance(r, OfficeMathItem)]
+    assert len(math_runs) == 1
+    reloaded_math = math_runs[0]
+    assert len(reloaded_math.nodes) == 1
+    frac = reloaded_math.nodes[0]
+    assert isinstance(frac, MathFraction)
+    assert len(frac.num) == 1 and frac.num[0].text == "E"
+
+
