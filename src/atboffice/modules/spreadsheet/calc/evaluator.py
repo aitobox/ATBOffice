@@ -41,6 +41,57 @@ from atboffice.modules.spreadsheet.calc.tokens import (
 )
 
 
+def _eval_binary_scalar(op: str, left_val: Any, right_val: Any, ctx: EvalContext | None) -> Any:
+    # String concatenation
+    if op == "&":
+        return to_str(left_val) + to_str(right_val)
+
+    # Comparison operators
+    if op in ("=", "<>", "<", ">", "<=", ">="):
+        cmp = compare_excel_values(left_val, right_val)
+        if op == "=":
+            return cmp == 0
+        if op == "<>":
+            return cmp != 0
+        if op == "<":
+            return cmp < 0
+        if op == ">":
+            return cmp > 0
+        if op == "<=":
+            return cmp <= 0
+        if op == ">=":
+            return cmp >= 0
+
+    # Arithmetic operators
+    nl = to_num(left_val, ctx)
+    if is_error(nl):
+        return nl
+    nr = to_num(right_val, ctx)
+    if is_error(nr):
+        return nr
+
+    if op == "+":
+        return round_15(nl + nr)  # type: ignore
+    if op == "-":
+        return round_15(nl - nr)  # type: ignore
+    if op == "*":
+        return round_15(nl * nr)  # type: ignore
+    if op == "/":
+        if nr == 0:
+            return DIV0
+        return round_15(nl / nr)  # type: ignore
+    if op == "^":
+        try:
+            res = math.pow(nl, nr)  # type: ignore
+            if math.isnan(res) or math.isinf(res):
+                return NUM
+            return round_15(res)
+        except (ValueError, OverflowError):
+            return NUM
+
+    return VALUE
+
+
 def evaluate_ast(node: ASTNode, ctx: EvalContext | None = None) -> Any:
     """Recursively evaluate a formula AST against an evaluation context."""
     if ctx is None:
@@ -53,7 +104,8 @@ def evaluate_ast(node: ASTNode, ctx: EvalContext | None = None) -> Any:
         return node.v
 
     if isinstance(node, ParenNode):
-        return evaluate_ast(node.node, ctx)
+        target = node.operand if node.operand is not None else getattr(node, "a", None)
+        return evaluate_ast(target, ctx) if target is not None else None
 
     if isinstance(node, NameNode):
         name_key = node.name.upper()
@@ -90,7 +142,9 @@ def evaluate_ast(node: ASTNode, ctx: EvalContext | None = None) -> Any:
         return Arr(matrix)
 
     if isinstance(node, UnaryOpNode):
-        val = evaluate_ast(node.node, ctx)
+        if node.operand is None:
+            return 0
+        val = evaluate_ast(node.operand, ctx)
         if is_error(val):
             return val
         n = to_num(val, ctx)
@@ -109,60 +163,44 @@ def evaluate_ast(node: ASTNode, ctx: EvalContext | None = None) -> Any:
         if is_error(right_val):
             return right_val
 
-        # Unbox single cell Ref if needed
-        if isinstance(left_val, Ref) and left_val.single:
-            left_val = left_val.cell_value(left_val.r1, left_val.c1)
-        if isinstance(right_val, Ref) and right_val.single:
-            right_val = right_val.cell_value(right_val.r1, right_val.c1)
+        # Unbox single cell Ref if needed, or convert to Arr
+        if isinstance(left_val, Ref):
+            left_val = (
+                left_val.cell_value(left_val.r1, left_val.c1)
+                if left_val.single
+                else left_val.to_array()
+            )
+        if isinstance(right_val, Ref):
+            right_val = (
+                right_val.cell_value(right_val.r1, right_val.c1)
+                if right_val.single
+                else right_val.to_array()
+            )
 
-        # String concatenation
-        if op == "&":
-            return to_str(left_val) + to_str(right_val)
+        if isinstance(left_val, Arr) or isinstance(right_val, Arr):
+            l_rows = left_val.rows if isinstance(left_val, Arr) else 1
+            r_rows = right_val.rows if isinstance(right_val, Arr) else 1
+            l_cols = left_val.cols if isinstance(left_val, Arr) else 1
+            r_cols = right_val.cols if isinstance(right_val, Arr) else 1
+            r_max = max(l_rows, r_rows)
+            c_max = max(l_cols, r_cols)
+            out_matrix: list[list[Any]] = []
+            for r in range(r_max):
+                row_items: list[Any] = []
+                for c in range(c_max):
+                    if isinstance(left_val, Arr):
+                        lv = left_val.get(r if l_rows > 1 else 0, c if l_cols > 1 else 0)
+                    else:
+                        lv = left_val
+                    if isinstance(right_val, Arr):
+                        rv = right_val.get(r if r_rows > 1 else 0, c if r_cols > 1 else 0)
+                    else:
+                        rv = right_val
+                    row_items.append(_eval_binary_scalar(op, lv, rv, ctx))
+                out_matrix.append(row_items)
+            return Arr(out_matrix)
 
-        # Comparison operators
-        if op in ("=", "<>", "<", ">", "<=", ">="):
-            cmp = compare_excel_values(left_val, right_val)
-            if op == "=":
-                return cmp == 0
-            if op == "<>":
-                return cmp != 0
-            if op == "<":
-                return cmp < 0
-            if op == ">":
-                return cmp > 0
-            if op == "<=":
-                return cmp <= 0
-            if op == ">=":
-                return cmp >= 0
-
-        # Arithmetic operators
-        nl = to_num(left_val, ctx)
-        if is_error(nl):
-            return nl
-        nr = to_num(right_val, ctx)
-        if is_error(nr):
-            return nr
-
-        if op == "+":
-            return round_15(nl + nr)  # type: ignore
-        if op == "-":
-            return round_15(nl - nr)  # type: ignore
-        if op == "*":
-            return round_15(nl * nr)  # type: ignore
-        if op == "/":
-            if nr == 0:
-                return DIV0
-            return round_15(nl / nr)  # type: ignore
-        if op == "^":
-            try:
-                res = math.pow(nl, nr)  # type: ignore
-                if math.isnan(res) or math.isinf(res):
-                    return NUM
-                return round_15(res)
-            except (ValueError, OverflowError):
-                return NUM
-
-        return VALUE
+        return _eval_binary_scalar(op, left_val, right_val, ctx)
 
     if isinstance(node, FunctionCallNode):
         fn_name = node.name.upper()

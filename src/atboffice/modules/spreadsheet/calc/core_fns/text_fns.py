@@ -158,9 +158,14 @@ def fn_t(value: Any, ctx: EvalContext | None = None) -> str:
 
 @register_core("TEXT")
 def fn_text(value: Any, format_text: Any, ctx: EvalContext | None = None) -> str:
+    from atboffice.drawing.numfmt import format_value
 
-    # Simple formatting fallback
-    return to_str(value)
+    fmt = to_str(format_text)
+    if not fmt:
+        return to_str(value)
+    d1904 = ctx.date1904 if ctx else False
+    res = format_value(value, fmt, date1904=d1904)
+    return res.text
 
 
 @register_core("VALUE")
