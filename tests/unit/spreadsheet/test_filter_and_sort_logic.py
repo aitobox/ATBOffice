@@ -10,7 +10,7 @@ from atboffice.modules.spreadsheet.models.filter_model import (
     excel_sort_key,
     sort_sheet_range,
 )
-from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetDataModel
+from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
 
 
 class TestExcelSortLogic:

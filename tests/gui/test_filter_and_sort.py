@@ -80,8 +80,8 @@ class TestSortDialog:
         dlg.combo_primary.setCurrentIndex(1)
         dlg.p_radio_asc.setChecked(True)
 
-        # Secondary: col 2 (Price), descending
-        dlg.combo_sec.setCurrentIndex(3)  # index 3 is Price (index 0 is none, 1 Product, 2 Cat, 3 Price)
+        # Secondary: col 2 (Price), descending (index 3 is Price)
+        dlg.combo_sec.setCurrentIndex(3)
         dlg.sec_radio_desc.setChecked(True)
 
         # Third: none
@@ -101,9 +101,7 @@ class TestFilterDropdown:
     ) -> None:
         from atboffice.modules.spreadsheet.models.filter_model import AutoFilter
         from atboffice.modules.spreadsheet.views.filter_dropdown import (
-            CustomFilterDialog,
             FilterDropdown,
-            Top10FilterDialog,
         )
 
         af = AutoFilter(r1=0, c1=0, r2=3, c2=2)

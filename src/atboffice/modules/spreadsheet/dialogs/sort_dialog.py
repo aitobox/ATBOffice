@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -13,8 +13,6 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QGroupBox,
     QHBoxLayout,
-    QLabel,
-    QPushButton,
     QRadioButton,
     QVBoxLayout,
     QWidget,

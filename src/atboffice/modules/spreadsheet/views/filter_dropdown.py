@@ -2,26 +2,21 @@
 
 from __future__ import annotations
 
-import math
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication, QPoint, QRect, Qt, Signal
+from PySide6.QtCore import QCoreApplication, Qt, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
-    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QFrame,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QPushButton,
     QRadioButton,
-    QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
