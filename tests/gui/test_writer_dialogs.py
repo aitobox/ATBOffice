@@ -12,6 +12,7 @@ from atboffice.modules.writer.models.properties import (
     SpacingProperties,
 )
 from atboffice.modules.writer.dialogs.font_dialog import FontDialog
+from atboffice.modules.writer.dialogs.page_setup import PageSetupDialog
 from atboffice.modules.writer.dialogs.paragraph_dialog import ParagraphDialog
 
 
@@ -122,4 +123,69 @@ class TestParagraphDialog:
         assert dlg.windowTitle() == "段落"
         assert dlg.tab_widget.tabText(0) == "缩进和间距"
         assert dlg.tab_widget.tabText(1) == "换行和分页"
+
+
+class TestPageSetupDialog:
+    def test_page_setup_initialization(self, qapp: QApplication) -> None:
+        sect = SectionProperties(
+            pg_w=595.3,
+            pg_h=841.9,
+            orient="portrait",
+            mt=72.0,
+            mb=72.0,
+            ml=90.0,
+            mr=90.0,
+            gutter=10.0,
+            hdr=36.0,
+            ftr=36.0,
+            title_pg=True,
+            v_align="center",
+            sect_type="nextPage",
+        )
+        dlg = PageSetupDialog(sect)
+        assert dlg.windowTitle() == "页面设置"
+
+        res = dlg.get_properties()
+        assert abs(res.pg_w - 595.3) < 0.5
+        assert abs(res.pg_h - 841.9) < 0.5
+        assert res.orient == "portrait"
+        assert res.mt == 72.0
+        assert res.mb == 72.0
+        assert res.ml == 90.0
+        assert res.mr == 90.0
+        assert res.gutter == 10.0
+        assert res.title_pg is True
+        assert res.v_align == "center"
+
+    def test_orientation_switch(self, qapp: QApplication) -> None:
+        sect = SectionProperties(pg_w=612.0, pg_h=792.0, orient="portrait")
+        dlg = PageSetupDialog(sect)
+
+        dlg.radio_landscape.setChecked(True)
+        res = dlg.get_properties()
+        assert res.orient == "landscape"
+        assert res.pg_w >= res.pg_h  # width should be larger in landscape
+
+        dlg.radio_portrait.setChecked(True)
+        res = dlg.get_properties()
+        assert res.orient == "portrait"
+        assert res.pg_h >= res.pg_w  # height should be larger in portrait
+
+    def test_paper_size_preset_selection(self, qapp: QApplication) -> None:
+        dlg = PageSetupDialog()
+        # Find A4 in paper size
+        idx = dlg.combo_paper_size.findData("A4")
+        if idx >= 0:
+            dlg.combo_paper_size.setCurrentIndex(idx)
+            res = dlg.get_properties()
+            assert abs(res.pg_w - 595.3) < 1.0 or abs(res.pg_h - 841.9) < 1.0
+
+    def test_retranslate_ui(self, qapp: QApplication) -> None:
+        dlg = PageSetupDialog()
+        dlg.retranslate_ui()
+        assert dlg.windowTitle() == "页面设置"
+        assert dlg.tab_widget.tabText(0) == "页边距"
+        assert dlg.tab_widget.tabText(1) == "纸张"
+        assert dlg.tab_widget.tabText(2) == "版式"
+
 
