@@ -11,6 +11,7 @@ from atboffice.modules.writer.models.properties import (
     SectionProperties,
     SpacingProperties,
 )
+from atboffice.modules.writer.dialogs.bullets_numbering import BulletsNumberingDialog
 from atboffice.modules.writer.dialogs.font_dialog import FontDialog
 from atboffice.modules.writer.dialogs.page_setup import PageSetupDialog
 from atboffice.modules.writer.dialogs.paragraph_dialog import ParagraphDialog
@@ -187,5 +188,51 @@ class TestPageSetupDialog:
         assert dlg.tab_widget.tabText(0) == "页边距"
         assert dlg.tab_widget.tabText(1) == "纸张"
         assert dlg.tab_widget.tabText(2) == "版式"
+
+
+class TestBulletsNumberingDialog:
+    def test_bullets_numbering_initialization(self, qapp: QApplication) -> None:
+        dlg = BulletsNumberingDialog()
+        assert dlg.windowTitle() == "项目符号和编号"
+        assert dlg.tab_widget.tabText(0) == "项目符号"
+        assert dlg.tab_widget.tabText(1) == "编号"
+        assert dlg.tab_widget.tabText(2) == "多级符号"
+
+    def test_select_bullet_gallery_item(self, qapp: QApplication) -> None:
+        dlg = BulletsNumberingDialog()
+        dlg.tab_widget.setCurrentIndex(0)
+        # Select bullet item 1 (e.g. solid circle)
+        dlg.select_item("bullet", 1)
+        res = dlg.get_result()
+        assert res["kind"] == "bullet"
+        assert res["char"] in ("●", "•")
+
+    def test_select_numbered_gallery_item(self, qapp: QApplication) -> None:
+        dlg = BulletsNumberingDialog()
+        dlg.tab_widget.setCurrentIndex(1)
+        # Select numbered item 1 (1. 2. 3.)
+        dlg.select_item("number", 1)
+        dlg.radio_restart.setChecked(True)
+        res = dlg.get_result()
+        assert res["kind"] == "number"
+        assert res["restart"] is True
+        assert res["format"] == "1. 2. 3."
+
+    def test_select_none_item(self, qapp: QApplication) -> None:
+        dlg = BulletsNumberingDialog()
+        dlg.select_item("bullet", 0)  # None
+        res = dlg.get_result()
+        assert res["kind"] == "none"
+
+    def test_retranslate_ui(self, qapp: QApplication) -> None:
+        dlg = BulletsNumberingDialog()
+        dlg.retranslate_ui()
+        assert dlg.windowTitle() == "项目符号和编号"
+        assert dlg.tab_widget.tabText(0) == "项目符号"
+        assert dlg.tab_widget.tabText(1) == "编号"
+        assert dlg.tab_widget.tabText(2) == "多级符号"
+        assert dlg.btn_reset.text() == "重新设置(&R)"
+        assert dlg.btn_customize.text() == "自定义(&Z)..."
+
 
 
