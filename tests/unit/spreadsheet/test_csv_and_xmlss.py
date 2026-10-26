@@ -230,3 +230,45 @@ def test_xmlss_read_write_roundtrip():
     assert model2.get_merge_range(0, 1) == (0, 1, 0, 2)
     assert model2.get_cell_value(1, 0) == 10
     assert model2.get_cell(1, 2).formula == "SUM(A2:B2)"
+
+
+from atboffice.modules.spreadsheet.dialogs.text_import_wizard import TextImportWizard
+
+
+def test_text_import_wizard_init_and_navigation(qapp):
+    data = b"Name,Age,Score\nAlice,25,95.5\nBob,30,88.0\nCharlie,22,92.0"
+    wizard = TextImportWizard(data, file_name="test.csv")
+    assert wizard.stack.currentIndex() == 0
+    assert wizard.back_btn.isEnabled() is False
+    assert wizard.next_btn.isEnabled() is True
+
+    # Navigate to page 1 (Step 2)
+    wizard.next_btn.click()
+    assert wizard.stack.currentIndex() == 1
+    assert wizard.back_btn.isEnabled() is True
+    assert wizard.next_btn.isEnabled() is True
+
+    # Navigate to page 2 (Step 3)
+    wizard.next_btn.click()
+    assert wizard.stack.currentIndex() == 2
+    assert wizard.back_btn.isEnabled() is True
+    assert wizard.next_btn.isEnabled() is False
+
+    # Navigate back to page 1
+    wizard.back_btn.click()
+    assert wizard.stack.currentIndex() == 1
+
+    # Check result rows
+    rows = wizard.get_result_rows()
+    assert len(rows) == 4
+    assert rows[0] == ["Name", "Age", "Score"]
+
+    # Populate model
+    m = SheetDataModel()
+    wizard.populate_model(m)
+    assert m.get_cell_value(0, 0) == "Name"
+    assert m.get_cell_value(1, 1) == 25
+    assert m.get_cell_value(1, 2) == 95.5
+
+    # Retranslate UI
+    wizard.retranslate_ui()
