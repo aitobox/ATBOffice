@@ -8,9 +8,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
-import math
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen
 
 from atboffice.modules.writer.layout.portions import (
@@ -18,17 +17,11 @@ from atboffice.modules.writer.layout.portions import (
     measure_text_width,
 )
 from atboffice.modules.writer.models.omml import (
-    MathAccent,
-    MathBar,
     MathBorderBoxNode,
     MathBoxNode,
     MathDelimiter,
-    MathEqArray,
     MathFraction,
     MathFunction,
-    MathGroupChar,
-    MathLimitLower,
-    MathLimitUpper,
     MathMatrix,
     MathNary,
     MathNode,
@@ -176,9 +169,7 @@ def layout_run(run: MathRun, font_sz: float, font_fam: str) -> MathLayoutBox:
     return box
 
 
-def layout_sequence(
-    nodes: list[MathNode], font_sz: float, font_fam: str
-) -> MathLayoutBox:
+def layout_sequence(nodes: list[MathNode], font_sz: float, font_fam: str) -> MathLayoutBox:
     """Layout a sequence of math nodes horizontally along a shared baseline."""
     if not nodes:
         ascent, descent = compute_font_metrics(font_sz, font_fam)
@@ -455,9 +446,7 @@ def layout_delimiter(delm: MathDelimiter, font_sz: float, font_fam: str) -> Math
     # Draw left delimiter
     if delm.beg_chr:
         res.render_ops.append(
-            _make_bracket_op(
-                delm.beg_chr, 0.0, total_h, baseline, font_sz, font_fam, is_left=True
-            )
+            _make_bracket_op(delm.beg_chr, 0.0, total_h, baseline, font_sz, font_fam, is_left=True)
         )
     # Draw right delimiter
     if delm.end_chr:
@@ -539,14 +528,10 @@ def layout_nary(nary: MathNary, font_sz: float, font_fam: str) -> MathLayoutBox:
 
     sub_font_sz = max(6.0, font_sz * 0.7)
     sub_box = (
-        layout_sequence(nary.sub, sub_font_sz, font_fam)
-        if not nary.sub_hide and nary.sub
-        else None
+        layout_sequence(nary.sub, sub_font_sz, font_fam) if not nary.sub_hide and nary.sub else None
     )
     sup_box = (
-        layout_sequence(nary.sup, sub_font_sz, font_fam)
-        if not nary.sup_hide and nary.sup
-        else None
+        layout_sequence(nary.sup, sub_font_sz, font_fam) if not nary.sup_hide and nary.sup else None
     )
     base_box = layout_sequence(nary.base, font_sz, font_fam)
 
@@ -707,27 +692,16 @@ def layout_node(node: MathNode, font_sz: float, font_fam: str) -> MathLayoutBox:
     elif isinstance(node, MathMatrix):
         return layout_matrix(node, font_sz, font_fam)
     elif isinstance(node, MathFunction):
-        name_box = layout_sequence(node.name, font_sz, font_fam)
-        base_box = layout_sequence(node.base, font_sz, font_fam)
-        return layout_sequence([node.name, node.base], font_sz, font_fam)  # type: ignore[list-item]
+        return layout_sequence(node.name + node.base, font_sz, font_fam)
     elif isinstance(node, (MathBoxNode, MathBorderBoxNode, MathPhantomNode)):
         inner = layout_sequence(node.base, font_sz, font_fam)
         if isinstance(node, MathPhantomNode) and not node.show:
             inner.render_ops.clear()
         elif isinstance(node, MathBorderBoxNode):
-            pen = QPen(QColor(0, 0, 0), 1.0)
-            inner.render_ops.append(
-                RenderLine(0, 0, inner.width, 0, 1.0)
-            )
-            inner.render_ops.append(
-                RenderLine(inner.width, 0, inner.width, inner.height, 1.0)
-            )
-            inner.render_ops.append(
-                RenderLine(inner.width, inner.height, 0, inner.height, 1.0)
-            )
-            inner.render_ops.append(
-                RenderLine(0, inner.height, 0, 0, 1.0)
-            )
+            inner.render_ops.append(RenderLine(0, 0, inner.width, 0, 1.0))
+            inner.render_ops.append(RenderLine(inner.width, 0, inner.width, inner.height, 1.0))
+            inner.render_ops.append(RenderLine(inner.width, inner.height, 0, inner.height, 1.0))
+            inner.render_ops.append(RenderLine(0, inner.height, 0, 0, 1.0))
         return inner
     return MathLayoutBox()
 

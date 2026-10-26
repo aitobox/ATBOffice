@@ -28,6 +28,7 @@ from atboffice.modules.writer.models.document import (
     TextItem,
     normalize,
 )
+from atboffice.modules.writer.models.omml import parse_omml
 from atboffice.modules.writer.models.properties import (
     CellProperties,
     ColumnsProperties,
@@ -43,7 +44,6 @@ from atboffice.modules.writer.models.properties import (
     TabStop,
 )
 from atboffice.modules.writer.models.styles import Style, builtin_styles
-from atboffice.modules.writer.models.omml import parse_omml
 from atboffice.vfs.opc import Relationship, SourcePackage
 
 # Common XML Namespaces
@@ -221,9 +221,7 @@ class DocxReader:
             next_s = _get_attr(next_elem, "val") if next_elem is not None else None
 
             def_elem = style_elem.find(f"{{{NS_W}}}default")
-            is_default = (
-                _bool_val(def_elem, False) or _get_attr(style_elem, "default") == "1"
-            )
+            is_default = _bool_val(def_elem, False) or _get_attr(style_elem, "default") == "1"
 
             p_pr = None
             p_pr_elem = style_elem.find(f"{{{NS_W}}}pPr")
@@ -459,14 +457,8 @@ class DocxReader:
                     line = 1.0
                 b_elem = child.find(f"{{{NS_W}}}beforeAutospacing")
                 a_elem = child.find(f"{{{NS_W}}}afterAutospacing")
-                b_auto = (
-                    _bool_val(b_elem, False)
-                    or _get_attr(child, "beforeAutospacing") == "1"
-                )
-                a_auto = (
-                    _bool_val(a_elem, False)
-                    or _get_attr(child, "afterAutospacing") == "1"
-                )
+                b_auto = _bool_val(b_elem, False) or _get_attr(child, "beforeAutospacing") == "1"
+                a_auto = _bool_val(a_elem, False) or _get_attr(child, "afterAutospacing") == "1"
                 p_pr.sp = SpacingProperties(
                     before=b,
                     after=a,

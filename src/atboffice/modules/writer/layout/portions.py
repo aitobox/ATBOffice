@@ -112,14 +112,10 @@ LATIN_SPACE_EM: dict[str, float] = {
 
 # East Asian CJK Kinsoku Shori (避头尾规则)
 FORBIDDEN_LINE_STARTS: frozenset[str] = frozenset(
-    "，。！？、；：）》」』’”·…—～〉】｝］"
-    ",.!?):;]}>\"'”’»›"
+    "，。！？、；：）》」』’”·…—～〉】｝］,.!?):;]}>\"'”’»›"
 )
 
-FORBIDDEN_LINE_ENDS: frozenset[str] = frozenset(
-    "（《「『‘“【〈｛［"
-    "([{\"“‘«‹"
-)
+FORBIDDEN_LINE_ENDS: frozenset[str] = frozenset('（《「『‘“【〈｛［([{"“‘«‹')
 
 # CJK character detection regex
 CJK_REGEX = re.compile(
@@ -542,9 +538,7 @@ def decompose_paragraph_to_portions(
         mark_r_pr = getattr(p, "mark", None) or getattr(p, "r_pr", None)
         mark_sz = getattr(mark_r_pr, "sz", 12.0) if mark_r_pr else 12.0
         mark_font = (
-            getattr(mark_r_pr, "font", "Times New Roman")
-            if mark_r_pr
-            else "Times New Roman"
+            getattr(mark_r_pr, "font", "Times New Roman") if mark_r_pr else "Times New Roman"
         )
         ascent, descent = compute_font_metrics(mark_sz, mark_font)
         portions.append(
@@ -831,7 +825,7 @@ def layout_paragraph(
                 sub_w = measure_char_width(pt.text[0], pt.font_size, pt.font_family)
 
             head_text = "".join(sub_chars)
-            tail_text = pt.text[len(sub_chars):]
+            tail_text = pt.text[len(sub_chars) :]
 
             head_pt = Portion(
                 type=pt.type,

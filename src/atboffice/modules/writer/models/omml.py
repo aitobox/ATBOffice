@@ -7,10 +7,9 @@ matrices, equation arrays, phantoms, and styled alphabets.
 
 from __future__ import annotations
 
-import copy
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from typing import Any
-import xml.etree.ElementTree as ET
 
 from atboffice.modules.writer.models.document import RunItem
 from atboffice.modules.writer.models.properties import RunProperties
@@ -453,9 +452,7 @@ def _parse_element(elem: ET.Element) -> list[MathNode]:
 
         items = [_parse_arg(e) for e in _find_children(elem, "e")]
         return [
-            MathDelimiter(
-                items=items, beg_chr=beg_chr, end_chr=end_chr, sep_chr=sep_chr, grow=grow
-            )
+            MathDelimiter(items=items, beg_chr=beg_chr, end_chr=end_chr, sep_chr=sep_chr, grow=grow)
         ]
 
     elif tag == "nary":

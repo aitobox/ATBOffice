@@ -1,22 +1,21 @@
 """Unit tests for Office Math ML (OMML) models, parsing, serialization, and layout."""
 
 import xml.etree.ElementTree as ET
-import pytest
 
 from atboffice.modules.writer.models.omml import (
-    OfficeMathItem,
-    MathRun,
+    NS_M,
+    MathDelimiter,
     MathFraction,
-    MathSup,
+    MathMatrix,
+    MathNary,
+    MathRadical,
+    MathRun,
     MathSub,
     MathSubSup,
-    MathRadical,
-    MathDelimiter,
-    MathNary,
-    MathMatrix,
+    MathSup,
+    OfficeMathItem,
     parse_omml,
     serialize_omml,
-    NS_M,
 )
 
 
@@ -133,7 +132,11 @@ def test_parse_matrix():
 
 
 def test_serialize_roundtrip():
-    xml = f"""<m:oMath xmlns:m="{NS_M}"><m:f><m:num><m:r><m:t>a</m:t></m:r></m:num><m:den><m:r><m:t>b</m:t></m:r></m:den></m:f></m:oMath>"""
+    xml = (
+        f'<m:oMath xmlns:m="{NS_M}">'
+        f"<m:f><m:num><m:r><m:t>a</m:t></m:r></m:num>"
+        f"<m:den><m:r><m:t>b</m:t></m:r></m:den></m:f></m:oMath>"
+    )
     item = parse_omml(xml)
     out_elem = serialize_omml(item)
     assert out_elem.tag == f"{{{NS_M}}}oMath"
@@ -183,6 +186,7 @@ def test_math_layout_scripts_and_radical():
 
 def test_paint_math_offscreen(qapp):
     from PySide6.QtGui import QImage, QPainter
+
     from atboffice.modules.writer.layout.math_layout import layout_math_item, paint_math
 
     xml = f"""<m:oMath xmlns:m="{NS_M}">
@@ -193,6 +197,7 @@ def test_paint_math_offscreen(qapp):
     </m:oMath>"""
     item = parse_omml(xml)
     box = layout_math_item(item, font_size=16.0)
+    assert box.width > 0
 
     img = QImage(200, 100, QImage.Format.Format_ARGB32_Premultiplied)
     img.fill(0)
@@ -204,7 +209,10 @@ def test_paint_math_offscreen(qapp):
 
 
 def test_portions_math_decomposition():
-    from atboffice.modules.writer.layout.portions import decompose_paragraph_to_portions, PortionType
+    from atboffice.modules.writer.layout.portions import (
+        PortionType,
+        decompose_paragraph_to_portions,
+    )
     from atboffice.modules.writer.models.document import Paragraph, TextItem
 
     p = Paragraph()
@@ -220,7 +228,11 @@ def test_portions_math_decomposition():
 
     portions = decompose_paragraph_to_portions(p)
     assert len(portions) >= 2
-    math_portion = [po for po in portions if po.type == PortionType.GRAPHIC and isinstance(po.data, OfficeMathItem)][0]
+    math_portion = [
+        po
+        for po in portions
+        if po.type == PortionType.GRAPHIC and isinstance(po.data, OfficeMathItem)
+    ][0]
     assert math_portion.width > 0
     assert math_portion.ascent > 0
     assert math_portion.counts_for_height is True
@@ -228,9 +240,10 @@ def test_portions_math_decomposition():
 
 def test_docx_math_io_roundtrip():
     import io
-    from atboffice.modules.writer.models.document import Document, Paragraph, TextItem
-    from atboffice.modules.writer.io.docx_writer import write_docx
+
     from atboffice.modules.writer.io.docx_reader import read_docx
+    from atboffice.modules.writer.io.docx_writer import write_docx
+    from atboffice.modules.writer.models.document import Document, Paragraph, TextItem
 
     doc = Document()
     p = Paragraph(runs=[TextItem("Inline equation: ")])
@@ -257,5 +270,3 @@ def test_docx_math_io_roundtrip():
     frac = reloaded_math.nodes[0]
     assert isinstance(frac, MathFraction)
     assert len(frac.num) == 1 and frac.num[0].text == "E"
-
-

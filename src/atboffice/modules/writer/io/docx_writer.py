@@ -24,6 +24,7 @@ from atboffice.modules.writer.models.document import (
     Table,
     TextItem,
 )
+from atboffice.modules.writer.models.omml import OfficeMathItem, serialize_omml
 from atboffice.modules.writer.models.properties import (
     ParagraphProperties,
     RunProperties,
@@ -31,7 +32,6 @@ from atboffice.modules.writer.models.properties import (
     pt_to_dxa,
 )
 from atboffice.modules.writer.models.styles import Style, builtin_styles
-from atboffice.modules.writer.models.omml import OfficeMathItem, serialize_omml
 from atboffice.vfs.opc import PackageWriter, Relationship, SourcePackage
 from atboffice.vfs.order import enforce_schema_order
 from atboffice.vfs.xml_tree import serialize_xml
@@ -241,7 +241,10 @@ class DocxWriter:
             "{http://schemas.openxmlformats.org/package/2006/relationships}Relationships"
         )
         for r in self.rels:
-            r_elem = ET.SubElement(rels_elem, "{http://schemas.openxmlformats.org/package/2006/relationships}Relationship")
+            r_elem = ET.SubElement(
+                rels_elem,
+                "{http://schemas.openxmlformats.org/package/2006/relationships}Relationship",
+            )
             r_elem.set("Id", r.id)
             r_elem.set("Type", r.type)
             r_elem.set("Target", r.target)
@@ -520,9 +523,7 @@ class DocxWriter:
             if r_pr.lang_ea:
                 lang_elem.set(_w("eastAsia"), r_pr.lang_ea)
 
-    def _serialize_table(
-        self, tbl: Table, hf_id_map: dict[str, str] | None = None
-    ) -> ET.Element:
+    def _serialize_table(self, tbl: Table, hf_id_map: dict[str, str] | None = None) -> ET.Element:
         """Serialize Table into <w:tbl>."""
         tbl_elem = ET.Element(_w("tbl"))
 
