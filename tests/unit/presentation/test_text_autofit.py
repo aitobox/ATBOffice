@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-import pytest
-
 from atboffice.modules.presentation.models.text import (
     BODY_BULLETS,
     BODY_SIZES,
-    Paragraph,
     TextBody,
-    TextRun,
 )
 from atboffice.modules.presentation.views.text_editor import (
     calculate_autofit_scale,

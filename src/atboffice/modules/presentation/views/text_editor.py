@@ -5,30 +5,24 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QRectF, Qt, Signal
 from PySide6.QtGui import (
-    QAction,
     QColor,
     QFocusEvent,
     QFont,
     QKeyEvent,
     QPainter,
-    QPen,
-    QTextBlock,
     QTextBlockFormat,
     QTextCharFormat,
     QTextCursor,
     QTextDocument,
     QTextFormat,
-    QTextList,
-    QTextListFormat,
 )
 from PySide6.QtWidgets import (
     QApplication,
     QGraphicsItem,
     QGraphicsTextItem,
     QMenu,
-    QWidget,
 )
 
 from atboffice.modules.presentation.models.text import (
@@ -36,7 +30,6 @@ from atboffice.modules.presentation.models.text import (
     BODY_INDENT,
     BODY_MARL,
     BODY_SIZES,
-    BulletInfo,
     Paragraph,
     TextBody,
     TextRun,
@@ -204,7 +197,6 @@ class ShapeTextEditorItem(QGraphicsTextItem):
     def _sync_geometry_from_shape(self) -> None:
         """Update editor position and bounds matching shape insets."""
         w = max(10.0, self.shape.w)
-        h = max(10.0, self.shape.h)
         insets = self.shape.text.insets if self.shape.text else (7.2, 3.6, 7.2, 3.6)
         ins_l, ins_t, ins_r, ins_b = insets
 
@@ -566,7 +558,10 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         if direction > 0:
             next_sz = next((s for s in STANDARD_FONT_SIZES if s > base_sz + 0.1), base_sz + 4.0)
         else:
-            next_sz = next((s for s in reversed(STANDARD_FONT_SIZES) if s < base_sz - 0.1), max(6.0, base_sz - 2.0))
+            next_sz = next(
+                (s for s in reversed(STANDARD_FONT_SIZES) if s < base_sz - 0.1),
+                max(6.0, base_sz - 2.0),
+            )
         self.set_font_size(next_sz)
 
     def selectAll(self) -> None:
@@ -706,7 +701,10 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                         cf.setFontPointSize(BODY_SIZES[new_level] * font_scale)
                         frag_cursor = QTextCursor(doc)
                         frag_cursor.setPosition(frag.position())
-                        frag_cursor.setPosition(frag.position() + frag.length(), QTextCursor.MoveMode.KeepAnchor)
+                        frag_cursor.setPosition(
+                            frag.position() + frag.length(),
+                            QTextCursor.MoveMode.KeepAnchor,
+                        )
                         frag_cursor.setCharFormat(cf)
                 it += 1
 
@@ -804,7 +802,10 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                         cf.setFontPointSize(round(sz * ratio, 1))
                         frag_cursor = QTextCursor(doc)
                         frag_cursor.setPosition(frag.position())
-                        frag_cursor.setPosition(frag.position() + frag.length(), QTextCursor.MoveMode.KeepAnchor)
+                        frag_cursor.setPosition(
+                            frag.position() + frag.length(),
+                            QTextCursor.MoveMode.KeepAnchor,
+                        )
                         frag_cursor.setCharFormat(cf)
                 it += 1
             block = block.next()

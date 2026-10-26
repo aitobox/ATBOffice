@@ -3,27 +3,22 @@
 from __future__ import annotations
 
 import pytest
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QKeyEvent
-from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.presentation.models.shape import Shape
 from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.models.text import (
-    BODY_BULLETS,
-    BODY_SIZES,
     Paragraph,
     TextBody,
     TextRun,
 )
-from atboffice.modules.presentation.views.shape_item import ShapeGraphicsItem
 from atboffice.modules.presentation.views.slide_canvas import (
     SlideCanvasView,
     SlideScene,
 )
 from atboffice.modules.presentation.views.text_editor import (
     ShapeTextEditorItem,
-    clamp_outline_level,
     safe_tr,
 )
 
@@ -90,7 +85,11 @@ class TestTextEditorInteraction:
         assert item._text_editor is not None
 
         # Escape commits and finishes
-        ev_esc = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier)
+        ev_esc = QKeyEvent(
+            QKeyEvent.Type.KeyPress,
+            Qt.Key.Key_Escape,
+            Qt.KeyboardModifier.NoModifier,
+        )
         editor.keyPressEvent(ev_esc)
         assert not item.is_editing_text
         assert item._text_editor is None
@@ -119,7 +118,12 @@ class TestOutlineIndents:
         assert cursor.block().userState() == 0
 
         # Press Tab -> Demote to level 1
-        ev_tab = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Tab, Qt.KeyboardModifier.NoModifier, "\t")
+        ev_tab = QKeyEvent(
+            QKeyEvent.Type.KeyPress,
+            Qt.Key.Key_Tab,
+            Qt.KeyboardModifier.NoModifier,
+            "\t",
+        )
         editor.keyPressEvent(ev_tab)
         assert editor.textCursor().block().userState() == 1
 
@@ -128,7 +132,12 @@ class TestOutlineIndents:
         assert editor.textCursor().block().userState() == 2
 
         # Press Shift+Tab -> Promote back to level 1
-        ev_shift_tab = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Tab, Qt.KeyboardModifier.ShiftModifier, "\t")
+        ev_shift_tab = QKeyEvent(
+            QKeyEvent.Type.KeyPress,
+            Qt.Key.Key_Tab,
+            Qt.KeyboardModifier.ShiftModifier,
+            "\t",
+        )
         editor.keyPressEvent(ev_shift_tab)
         assert editor.textCursor().block().userState() == 1
 
@@ -155,7 +164,11 @@ class TestOutlineIndents:
         editor.setTextCursor(c)
 
         # Send Backspace at start of block
-        ev_bksp = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Backspace, Qt.KeyboardModifier.NoModifier)
+        ev_bksp = QKeyEvent(
+            QKeyEvent.Type.KeyPress,
+            Qt.Key.Key_Backspace,
+            Qt.KeyboardModifier.NoModifier,
+        )
         editor.keyPressEvent(ev_bksp)
         assert editor.textCursor().block().userState() == 0
 
@@ -216,7 +229,8 @@ class TestFormattingCommands:
 
         editor.set_font_family("Arial")
         cf = editor.textCursor().charFormat()
-        fam = cf.fontFamilies()[0] if hasattr(cf, "fontFamilies") and cf.fontFamilies() else cf.fontFamily()
+        has_families = hasattr(cf, "fontFamilies") and cf.fontFamilies()
+        fam = cf.fontFamilies()[0] if has_families else cf.fontFamily()
         assert fam == "Arial"
 
         editor.commit_and_finish()
@@ -260,7 +274,10 @@ class TestAutoFitIntegration:
         item.shape.text.autofit = "shape"
 
         editor = item.start_text_editing()
-        editor.setPlainText("Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10")
+        editor.setPlainText(
+            "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\n"
+            "Line 6\nLine 7\nLine 8\nLine 9\nLine 10"
+        )
         editor.apply_autofit("shape")
 
         # Height should expand to hold all lines

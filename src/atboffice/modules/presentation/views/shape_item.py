@@ -9,7 +9,6 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
-    QFont,
     QPainter,
     QPainterPath,
     QPen,
