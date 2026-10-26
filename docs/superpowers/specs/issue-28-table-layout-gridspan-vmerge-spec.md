@@ -79,8 +79,8 @@ class CellMapEntry:
     rowspan: int = 1
     is_hidden: bool = False
 
-def table_map(table: Table) -> list[list[CellMapEntry]]:
-    ...
+
+def table_map(table: Table) -> list[list[CellMapEntry]]: ...
 ```
 
 ### 3.2 Layout Structures in `layout/table_layout.py`
@@ -101,6 +101,7 @@ class CellLayout:
     v_align: str = "top"
     content_offset_y: float = 0.0
 
+
 @dataclass
 class RowLayout:
     row: Row
@@ -110,6 +111,7 @@ class RowLayout:
     cells: list[CellLayout]
     is_header: bool = False
     is_repeated_header: bool = False
+
 
 @dataclass
 class TableLayout:

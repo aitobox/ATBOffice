@@ -289,6 +289,7 @@ class TestTableInteraction:
 
     def test_canvas_table_divider_hover_and_resize(self, canvas: WriterCanvasView) -> None:
         from PySide6.QtCore import QPoint
+
         from atboffice.modules.writer.models.table import create_simple_table
 
         canvas.doc.main.blocks.clear()
@@ -319,6 +320,7 @@ class TestTableInteraction:
         # Simulate release 20px to the right
         from PySide6.QtCore import QPointF
         from PySide6.QtGui import QMouseEvent
+
         release_event = QMouseEvent(
             QMouseEvent.Type.MouseButtonRelease,
             QPointF(div_x + 20, div_y),
@@ -331,4 +333,3 @@ class TestTableInteraction:
         assert canvas._resizing_table is False
         # Column 0 width should have expanded
         assert tbl.grid[0] > col0_w
-

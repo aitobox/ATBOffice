@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass
-from typing import Any
 
 from atboffice.modules.writer.models.document import (
     Cell,
@@ -16,7 +15,6 @@ from atboffice.modules.writer.models.document import (
 )
 from atboffice.modules.writer.models.properties import (
     CellProperties,
-    RowProperties,
     TableProperties,
 )
 
@@ -93,7 +91,9 @@ def table_map(table: Table) -> list[list[CellMapEntry]]:
                 # Check if there is a restart above with matching col_idx
                 has_restart_above = False
                 for k in range(r_idx - 1, -1, -1):
-                    above_entry = next((e for e in mapped_rows[k] if e.col_idx == entry.col_idx), None)
+                    above_entry = next(
+                        (e for e in mapped_rows[k] if e.col_idx == entry.col_idx), None
+                    )
                     if above_entry:
                         above_vm = getattr(above_entry.cell.tc_pr, "v_merge", None)
                         if above_vm == "restart":
@@ -110,8 +110,13 @@ def table_map(table: Table) -> list[list[CellMapEntry]]:
                 # Count subsequent continue cells in same column
                 entry.rowspan = 1
                 for k in range(r_idx + 1, num_rows):
-                    below_entry = next((e for e in mapped_rows[k] if e.col_idx == entry.col_idx), None)
-                    if below_entry and getattr(below_entry.cell.tc_pr, "v_merge", None) == "continue":
+                    below_entry = next(
+                        (e for e in mapped_rows[k] if e.col_idx == entry.col_idx), None
+                    )
+                    if (
+                        below_entry
+                        and getattr(below_entry.cell.tc_pr, "v_merge", None) == "continue"
+                    ):
                         entry.rowspan += 1
                     else:
                         break
@@ -129,7 +134,14 @@ def clean_merges(table: Table) -> None:
         for entry in m[r_idx]:
             if entry.cell.tc_pr.v_merge == "continue":
                 up = (
-                    next((x for x in m[r_idx - 1] if x.col_idx == entry.col_idx and x.span == entry.span), None)
+                    next(
+                        (
+                            x
+                            for x in m[r_idx - 1]
+                            if x.col_idx == entry.col_idx and x.span == entry.span
+                        ),
+                        None,
+                    )
                     if r_idx > 0
                     else None
                 )
@@ -216,7 +228,10 @@ def delete_rows(table: Table, r0: int, r1: int) -> None:
             if entry.cell.tc_pr.v_merge == "continue":
                 # Find if restart was in deleted range
                 had_restart_in_deleted = any(
-                    any(e.col_idx == entry.col_idx and e.cell.tc_pr.v_merge == "restart" for e in m[r])
+                    any(
+                        e.col_idx == entry.col_idx and e.cell.tc_pr.v_merge == "restart"
+                        for e in m[r]
+                    )
                     for r in range(r0, r1 + 1)
                 )
                 if had_restart_in_deleted:
@@ -224,7 +239,12 @@ def delete_rows(table: Table, r0: int, r1: int) -> None:
                     # If below cell was empty, carry content from the restart cell
                     if all(isinstance(b, Paragraph) and plen(b) == 0 for b in entry.cell.blocks):
                         src_entry = next(
-                            (e for r in range(r0, r1 + 1) for e in m[r] if e.col_idx == entry.col_idx and e.cell.tc_pr.v_merge == "restart"),
+                            (
+                                e
+                                for r in range(r0, r1 + 1)
+                                for e in m[r]
+                                if e.col_idx == entry.col_idx and e.cell.tc_pr.v_merge == "restart"
+                            ),
                             None,
                         )
                         if src_entry:
@@ -235,7 +255,12 @@ def delete_rows(table: Table, r0: int, r1: int) -> None:
         # Keep at least one valid row
         cols = len(table.grid) or 1
         table.rows.append(
-            Row(cells=[Cell(tc_pr=CellProperties(grid_span=1), blocks=[Paragraph(runs=[TextItem()])]) for _ in range(cols)])
+            Row(
+                cells=[
+                    Cell(tc_pr=CellProperties(grid_span=1), blocks=[Paragraph(runs=[TextItem()])])
+                    for _ in range(cols)
+                ]
+            )
         )
     clean_merges(table)
 
@@ -258,7 +283,9 @@ def insert_cols(
     m = table_map(table)
     for r_idx, row in enumerate(table.rows):
         row_entries = m[r_idx]
-        spanning = next((e for e in row_entries if e.col_idx < gi and e.col_idx + e.span > gi), None)
+        spanning = next(
+            (e for e in row_entries if e.col_idx < gi and e.col_idx + e.span > gi), None
+        )
         if spanning:
             spanning.cell.tc_pr.grid_span += count
             continue
@@ -307,7 +334,9 @@ def delete_cols(table: Table, c0: int, c1: int) -> None:
 
         row.cells = [c for c in row.cells if c not in cells_to_remove]
         if not row.cells:
-            row.cells.append(Cell(tc_pr=CellProperties(grid_span=1), blocks=[Paragraph(runs=[TextItem()])]))
+            row.cells.append(
+                Cell(tc_pr=CellProperties(grid_span=1), blocks=[Paragraph(runs=[TextItem()])])
+            )
 
     if not table.grid:
         table.grid.append(72.0)

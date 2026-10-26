@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, field
-from typing import Any
 
 from atboffice.modules.writer.layout.portions import (
     ParagraphLayout,
@@ -24,12 +23,9 @@ from atboffice.modules.writer.models.document import (
 )
 from atboffice.modules.writer.models.properties import (
     BorderProperties,
-    CellProperties,
-    RowProperties,
     ShadingProperties,
-    TableProperties,
 )
-from atboffice.modules.writer.models.table import CellMapEntry, table_map
+from atboffice.modules.writer.models.table import table_map
 
 
 @dataclass
@@ -120,7 +116,9 @@ def layout_table(
     num_rows = len(table.rows)
 
     # 1. Compute paragraph layouts and content height for each cell
-    cell_layouts_grid: list[list[CellLayout | None]] = [[None] * len(resolved_grid) for _ in range(num_rows)]
+    cell_layouts_grid: list[list[CellLayout | None]] = [
+        [None] * len(resolved_grid) for _ in range(num_rows)
+    ]
     cell_content_heights: dict[int, float] = {}  # id(cell) -> height
 
     for r_idx, row in enumerate(table.rows):
@@ -171,7 +169,9 @@ def layout_table(
         single_row_cells = [
             cell_layouts_grid[r_idx][e.col_idx]
             for e in m[r_idx]
-            if not e.is_hidden and e.rowspan == 1 and cell_layouts_grid[r_idx][e.col_idx] is not None
+            if not e.is_hidden
+            and e.rowspan == 1
+            and cell_layouts_grid[r_idx][e.col_idx] is not None
         ]
         max_content = max((c.content_height for c in single_row_cells), default=18.0)
         tr_pr = row.tr_pr

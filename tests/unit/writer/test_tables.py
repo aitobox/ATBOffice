@@ -1,11 +1,7 @@
 """Unit tests for Quire Table models, layout, and multi-page pagination."""
 
-import pytest
-
 from atboffice.modules.writer.layout.pagination import paginate_document
 from atboffice.modules.writer.layout.table_layout import (
-    CellLayout,
-    RowLayout,
     TableLayout,
     layout_table,
     split_table_for_page,
@@ -14,17 +10,12 @@ from atboffice.modules.writer.models.document import (
     Cell,
     Document,
     Paragraph,
-    Row,
-    Table,
     TextItem,
 )
 from atboffice.modules.writer.models.properties import (
-    CellProperties,
     RowProperties,
-    TableProperties,
 )
 from atboffice.modules.writer.models.table import (
-    CellMapEntry,
     create_simple_table,
     delete_cols,
     delete_rows,

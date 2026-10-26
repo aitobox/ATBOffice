@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from typing import Any
 
 from PySide6.QtCore import (
     QCoreApplication,
@@ -55,13 +56,13 @@ def safe_tr(text: str) -> str:
 
 
 # Standard Word 2003 visual styling constants
-COLOR_WORKSPACE_BG = QColor(140, 140, 140)       # Classic neutral gray workspace
-COLOR_PAGE_PAPER = QColor(255, 255, 255)         # Pure white paper sheet
-COLOR_PAGE_BORDER = QColor(112, 112, 112)        # 1px border around page
-COLOR_SHADOW_DARK = QColor(58, 58, 58, 160)      # Classic drop shadow (dark core)
-COLOR_SHADOW_LIGHT = QColor(80, 80, 80, 70)      # Soft drop shadow ambient falloff
-COLOR_SELECTION = QColor(51, 153, 255, 110)      # Word selection highlight blue
-COLOR_CARET = QColor(0, 0, 0)                    # Blinking caret black
+COLOR_WORKSPACE_BG = QColor(140, 140, 140)  # Classic neutral gray workspace
+COLOR_PAGE_PAPER = QColor(255, 255, 255)  # Pure white paper sheet
+COLOR_PAGE_BORDER = QColor(112, 112, 112)  # 1px border around page
+COLOR_SHADOW_DARK = QColor(58, 58, 58, 160)  # Classic drop shadow (dark core)
+COLOR_SHADOW_LIGHT = QColor(80, 80, 80, 70)  # Soft drop shadow ambient falloff
+COLOR_SELECTION = QColor(51, 153, 255, 110)  # Word selection highlight blue
+COLOR_CARET = QColor(0, 0, 0)  # Blinking caret black
 COLOR_MARGIN_GUIDE = QColor(200, 200, 200, 120)  # Subtle margin boundary guides
 
 
@@ -191,7 +192,7 @@ class WriterCanvasView(QAbstractScrollArea):
             total_h += h_px + gap_px
 
         total_h += 24.0  # Bottom padding
-        max_w += 48.0   # Horizontal padding
+        max_w += 48.0  # Horizontal padding
         return QSize(int(math.ceil(max_w)), int(math.ceil(total_h)))
 
     def page_rect_canvas(self, page_idx: int) -> QRectF:
@@ -387,9 +388,7 @@ class WriterCanvasView(QAbstractScrollArea):
         )
         painter.fillRect(primary_shadow, COLOR_SHADOW_DARK)
 
-    def _paint_page_content(
-        self, painter: QPainter, page_rect: QRectF, page: Page
-    ) -> None:
+    def _paint_page_content(self, painter: QPainter, page_rect: QRectF, page: Page) -> None:
         """Render lines, formatted portions, and table structures on a single page."""
         for reg in page.regions:
             for col in reg.columns:
@@ -410,7 +409,9 @@ class WriterCanvasView(QAbstractScrollArea):
                                 # Shading
                                 fill_val = getattr(cl.shd, "fill", "auto")
                                 if fill_val and fill_val not in ("auto", "clear", "none"):
-                                    hex_fill = fill_val if fill_val.startswith("#") else f"#{fill_val}"
+                                    hex_fill = (
+                                        fill_val if fill_val.startswith("#") else f"#{fill_val}"
+                                    )
                                     painter.fillRect(cell_rect, QColor(hex_fill))
 
                                 # Border
@@ -436,7 +437,9 @@ class WriterCanvasView(QAbstractScrollArea):
                                                 y_px = page_rect.top() + self.pt_to_px(line_y)
                                                 baseline_px = y_px + self.pt_to_px(line.baseline)
                                                 painter.setPen(QPen(QColor(0, 0, 0)))
-                                                painter.drawText(QPointF(x_px, baseline_px), po.text)
+                                                painter.drawText(
+                                                    QPointF(x_px, baseline_px), po.text
+                                                )
                                             cur_x += po_w
                         continue
 
@@ -567,9 +570,7 @@ class WriterCanvasView(QAbstractScrollArea):
             QPointF(caret_vp_x, caret_vp_y + caret_vp_h),
         )
 
-    def _hit_test_table_divider(
-        self, vp_pt: QPoint
-    ) -> dict[str, Any] | None:
+    def _hit_test_table_divider(self, vp_pt: QPoint) -> dict[str, Any] | None:
         """Hit test viewport position against table column or row dividers."""
         if not self.pagination or not self.pagination.pages:
             return None
