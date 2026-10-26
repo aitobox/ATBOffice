@@ -190,6 +190,33 @@ class Paragraph:
     sect: SectionProperties | None = None
     _o: int = 0  # Reading order index in story
 
+    @property
+    def indent_left(self) -> float:
+        """Left indent in points."""
+        return self.p_pr.ind.left
+
+    @indent_left.setter
+    def indent_left(self, val: float) -> None:
+        self.p_pr.ind.left = float(val)
+
+    @property
+    def indent_right(self) -> float:
+        """Right indent in points."""
+        return self.p_pr.ind.right
+
+    @indent_right.setter
+    def indent_right(self, val: float) -> None:
+        self.p_pr.ind.right = float(val)
+
+    @property
+    def indent_first(self) -> float:
+        """First line indent (or negative hanging indent) in points."""
+        return self.p_pr.ind.first_line
+
+    @indent_first.setter
+    def indent_first(self, val: float) -> None:
+        self.p_pr.ind.first_line = float(val)
+
 
 def plen(p: Paragraph) -> int:
     """Total character length of a paragraph."""

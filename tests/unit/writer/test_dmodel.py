@@ -58,7 +58,7 @@ def test_units_and_lengths():
 
     assert parse_length("72pt") == 72.0
     assert parse_length("1in") == 72.0
-    assert parse_length("1\"") == 72.0
+    assert parse_length('1"') == 72.0
     assert pytest.approx(parse_length("2.54cm"), 0.01) == 72.0
     assert pytest.approx(parse_length("25.4mm"), 0.01) == 72.0
 
@@ -163,12 +163,14 @@ def test_normalize_and_slice():
     r_pr_b = RunProperties(b=True, sz=14.0)
     r_pr_c = RunProperties(i=True, sz=14.0)
 
-    p = Paragraph(runs=[
-        TextItem(text="Hello ", r_pr=r_pr_a),
-        TextItem(text="World", r_pr=r_pr_b),
-        TextItem(text="", r_pr=r_pr_b),
-        TextItem(text="!", r_pr=r_pr_c),
-    ])
+    p = Paragraph(
+        runs=[
+            TextItem(text="Hello ", r_pr=r_pr_a),
+            TextItem(text="World", r_pr=r_pr_b),
+            TextItem(text="", r_pr=r_pr_b),
+            TextItem(text="!", r_pr=r_pr_c),
+        ]
+    )
 
     normalize(p)
     assert len(p.runs) == 2
@@ -250,3 +252,22 @@ def test_styles_and_cascade_resolution():
     assert resolved_r.font == "Arial"
     assert resolved_r.b is True
     assert resolved_r.sz == 16.0
+
+
+def test_paragraph_indent_properties():
+    """Verify convenience properties on Paragraph for ruler and formatting manipulation."""
+    p = Paragraph()
+    assert p.indent_left == 0.0
+    assert p.indent_right == 0.0
+    assert p.indent_first == 0.0
+
+    p.indent_left = 36.0
+    p.indent_right = 18.0
+    p.indent_first = 24.0
+
+    assert p.indent_left == 36.0
+    assert p.indent_right == 18.0
+    assert p.indent_first == 24.0
+    assert p.p_pr.ind.left == 36.0
+    assert p.p_pr.ind.right == 18.0
+    assert p.p_pr.ind.first_line == 24.0
