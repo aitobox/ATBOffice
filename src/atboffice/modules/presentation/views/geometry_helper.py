@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
-from PySide6.QtCore import QPointF, QRectF
 from PySide6.QtGui import QPainterPath
 
 

@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
-from PySide6.QtCore import QLineF, QRectF, Qt
+from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QPen
-from PySide6.QtWidgets import QGraphicsItemGroup, QGraphicsLineItem, QGraphicsScene
+from PySide6.QtWidgets import QGraphicsLineItem, QGraphicsScene
 
 
 @dataclass

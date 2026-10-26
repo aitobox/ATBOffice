@@ -13,7 +13,6 @@ from PySide6.QtGui import (
     QPainter,
     QPainterPath,
     QPen,
-    QTransform,
 )
 from PySide6.QtWidgets import (
     QGraphicsItem,
@@ -30,7 +29,7 @@ from atboffice.modules.presentation.views.geometry_helper import (
 )
 
 if TYPE_CHECKING:
-    from atboffice.modules.presentation.views.slide_canvas import SlideScene
+    pass
 
 
 HANDLE_SIZE = 8.0
@@ -489,36 +488,35 @@ class ShapeGraphicsItem(QGraphicsObject):
         dy = p_local.y() - p0_local.y()
 
         init_r = self._drag_initial_rect
-        l, t, r, b = 0.0, 0.0, init_r.width(), init_r.height()
+        left, top, right, bottom = 0.0, 0.0, init_r.width(), init_r.height()
 
         if "w" in handle_type:
-            l += dx
+            left += dx
         if "e" in handle_type:
-            r += dx
+            right += dx
         if "n" in handle_type:
-            t += dy
+            top += dy
         if "s" in handle_type:
-            b += dy
+            bottom += dy
 
         # Alt modifier: center resize
         is_center = bool(modifiers & Qt.KeyboardModifier.AltModifier)
         if is_center:
             if "w" in handle_type:
-                r -= dx
+                right -= dx
             elif "e" in handle_type:
-                l -= dx
+                left -= dx
             if "n" in handle_type:
-                b -= dy
+                bottom -= dy
             elif "s" in handle_type:
-                t -= dy
+                top -= dy
 
-        new_w = r - l
-        new_h = b - t
+        new_w = right - left
+        new_h = bottom - top
 
         # Shift modifier: maintain aspect ratio
         is_shift = bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
         if is_shift and init_r.height() > 0:
-            aspect = init_r.width() / init_r.height()
             scale_w = abs(new_w) / init_r.width()
             scale_h = abs(new_h) / init_r.height()
             scale = max(scale_w, scale_h)
@@ -526,30 +524,30 @@ class ShapeGraphicsItem(QGraphicsObject):
             nh = init_r.height() * scale
 
             if "w" in handle_type:
-                l = r - nw
+                left = right - nw
             else:
-                r = l + nw
+                right = left + nw
 
             if "n" in handle_type:
-                t = b - nh
+                top = bottom - nh
             else:
-                b = t + nh
+                bottom = top + nh
 
             if is_center:
-                l = -nw / 2.0
-                r = nw / 2.0
-                t = -nh / 2.0
-                b = nh / 2.0
+                left = -nw / 2.0
+                right = nw / 2.0
+                top = -nh / 2.0
+                bottom = nh / 2.0
 
-            new_w = r - l
-            new_h = b - t
+            new_w = right - left
+            new_h = bottom - top
 
         # Prevent inversion below min size
         new_w = max(10.0, new_w)
         new_h = max(10.0, new_h)
 
         # Map top-left back to scene coordinates
-        new_top_left_scene = self.mapToScene(QPointF(l, t))
+        new_top_left_scene = self.mapToScene(QPointF(left, top))
 
         self.prepareGeometryChange()
         self.shape.w = round(new_w, 2)

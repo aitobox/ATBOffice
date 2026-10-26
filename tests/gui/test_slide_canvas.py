@@ -18,16 +18,12 @@ from atboffice.modules.presentation.views.geometry_helper import (
 )
 from atboffice.modules.presentation.views.shape_item import (
     HandleType,
-    ShapeGraphicsItem,
-    TransformHandleItem,
 )
 from atboffice.modules.presentation.views.slide_canvas import (
     SlideCanvasView,
     SlideScene,
-    safe_tr,
 )
 from atboffice.modules.presentation.views.smart_guides import (
-    GuideLine,
     SmartGuideController,
 )
 
@@ -208,7 +204,6 @@ class TestShapeGraphicsItemAndHandles:
 
         init_w = item.shape.w
         init_h = item.shape.h
-        init_aspect = init_w / init_h
 
         # Normal resize
         item.begin_handle_drag(se_handle, QPointF(300.0, 200.0))
@@ -413,11 +408,19 @@ class TestCanvasViewAndPresentationViewIntegration:
         item1.setSelected(True)
 
         old_x = item1.pos().x()
-        ev_right = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Right, Qt.KeyboardModifier.NoModifier)
+        ev_right = QKeyEvent(
+            QKeyEvent.Type.KeyPress,
+            Qt.Key.Key_Right,
+            Qt.KeyboardModifier.NoModifier,
+        )
         canvas.keyPressEvent(ev_right)
         assert item1.pos().x() == old_x + 1.0
 
-        ev_del = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier)
+        ev_del = QKeyEvent(
+            QKeyEvent.Type.KeyPress,
+            Qt.Key.Key_Delete,
+            Qt.KeyboardModifier.NoModifier,
+        )
         canvas.keyPressEvent(ev_del)
         assert scene.get_shape_item("s1") is None
 

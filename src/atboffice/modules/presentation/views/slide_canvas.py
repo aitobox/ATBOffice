@@ -7,18 +7,14 @@ from typing import Any
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
-    QAction,
-    QBrush,
     QColor,
     QKeyEvent,
-    QMouseEvent,
     QPainter,
     QPen,
     QWheelEvent,
 )
 from PySide6.QtWidgets import (
     QApplication,
-    QGraphicsItem,
     QGraphicsScene,
     QGraphicsSceneMouseEvent,
     QGraphicsView,
@@ -39,26 +35,6 @@ def safe_tr(text: str) -> str:
         translated = app.translate("SlideCanvas", text)
         if translated and translated != text:
             return translated
-    translations: dict[str, str] = {
-        "置于顶层": "Bring to Front",
-        "置于底层": "Send to Back",
-        "上移一层": "Bring Forward",
-        "下移一层": "Send Backward",
-        "左对齐": "Align Left",
-        "水平居中": "Align Center",
-        "右对齐": "Align Right",
-        "顶端对齐": "Align Top",
-        "垂直居中": "Align Middle",
-        "底端对齐": "Align Bottom",
-        "横向分布": "Distribute Horizontally",
-        "纵向分布": "Distribute Vertically",
-        "组合": "Group",
-        "取消组合": "Ungroup",
-        "删除": "Delete",
-        "对齐方式": "Align",
-        "叠放次序": "Order",
-        "幻灯片画布": "Slide Canvas",
-    }
     # Default to Chinese native text for ATBOffice
     return text
 
@@ -147,7 +123,12 @@ class SlideScene(QGraphicsScene):
     def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent) -> None:
         super().mouseMoveEvent(event)
 
-        if self._is_dragging_item and self._dragged_item and (event.buttons() & Qt.MouseButton.LeftButton):
+        is_dragging = (
+            self._is_dragging_item
+            and self._dragged_item
+            and bool(event.buttons() & Qt.MouseButton.LeftButton)
+        )
+        if is_dragging and self._dragged_item:
             moving_rect = QRectF(
                 self._dragged_item.pos().x(),
                 self._dragged_item.pos().y(),
@@ -299,7 +280,8 @@ class SlideScene(QGraphicsScene):
         if axis == "h":
             sorted_items = sorted(selected, key=lambda it: it.pos().x())
             total_w = sum(it.shape.w for it in sorted_items)
-            span_w = (sorted_items[-1].pos().x() + sorted_items[-1].shape.w) - sorted_items[0].pos().x()
+            last_x = sorted_items[-1].pos().x() + sorted_items[-1].shape.w
+            span_w = last_x - sorted_items[0].pos().x()
             gap = max(0.0, (span_w - total_w) / max(1, len(sorted_items) - 1))
 
             cur_x = sorted_items[0].pos().x()
@@ -310,7 +292,8 @@ class SlideScene(QGraphicsScene):
         else:
             sorted_items = sorted(selected, key=lambda it: it.pos().y())
             total_h = sum(it.shape.h for it in sorted_items)
-            span_h = (sorted_items[-1].pos().y() + sorted_items[-1].shape.h) - sorted_items[0].pos().y()
+            last_y = sorted_items[-1].pos().y() + sorted_items[-1].shape.h
+            span_h = last_y - sorted_items[0].pos().y()
             gap = max(0.0, (span_h - total_h) / max(1, len(sorted_items) - 1))
 
             cur_y = sorted_items[0].pos().y()
@@ -488,11 +471,12 @@ class SlideCanvasView(QGraphicsView):
     # Keyboard & Wheel events
     # ------------------------------------------------------------------
     def keyPressEvent(self, event: QKeyEvent) -> None:
+        ctrl_held = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
         if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
             self._scene.delete_selected()
             event.accept()
             return
-        elif event.key() == Qt.Key.Key_G and (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+        elif event.key() == Qt.Key.Key_G and ctrl_held:
             if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
                 self._scene.ungroup_selected()
             else:
