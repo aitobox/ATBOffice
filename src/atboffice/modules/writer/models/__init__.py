@@ -116,6 +116,22 @@ from atboffice.modules.writer.models.styles import (
     resolve_r_props,
     style_chain,
 )
+from atboffice.modules.writer.models.omml import (
+    OfficeMathItem,
+    MathNode,
+    MathRun,
+    MathFraction,
+    MathSup,
+    MathSub,
+    MathSubSup,
+    MathRadical,
+    MathDelimiter,
+    MathNary,
+    MathFunction,
+    MathMatrix,
+    parse_omml,
+    serialize_omml,
+)
 
 __all__ = [
     "AnchorHandle",
