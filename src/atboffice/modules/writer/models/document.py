@@ -10,6 +10,7 @@ from typing import Any
 from atboffice.modules.writer.models.properties import (
     CellProperties,
     ParagraphProperties,
+    RevisionStamp,
     RowProperties,
     RunProperties,
     SectionProperties,
@@ -188,6 +189,8 @@ class Paragraph:
     p_pr: ParagraphProperties = field(default_factory=ParagraphProperties)
     r_pr: RunProperties = field(default_factory=RunProperties)
     sect: SectionProperties | None = None
+    mark_ins: RevisionStamp | None = None
+    mark_del: RevisionStamp | None = None
     _o: int = 0  # Reading order index in story
 
     @property
@@ -443,6 +446,17 @@ def walk(
     return True
 
 
+def all_stories(doc: Document) -> list[Story]:
+    """Return all story containers in the document."""
+    return [
+        doc.main,
+        *doc.hf.values(),
+        *doc.fn.values(),
+        *doc.en.values(),
+        *doc.comments.values(),
+    ]
+
+
 def reindex(doc: Document) -> dict[int, dict[str, Any]]:
     """Build global fast-lookup index and reading order for all paragraphs in all stories."""
     para_map: dict[int, dict[str, Any]] = {}
@@ -465,14 +479,7 @@ def reindex(doc: Document) -> dict[int, dict[str, Any]]:
         walk(st, visitor)
         st.paras = paras
 
-    all_stories = [
-        doc.main,
-        *doc.hf.values(),
-        *doc.fn.values(),
-        *doc.en.values(),
-        *doc.comments.values(),
-    ]
-    for s in all_stories:
+    for s in all_stories(doc):
         index_story(s)
 
     doc._idx = para_map

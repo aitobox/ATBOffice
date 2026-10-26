@@ -9,6 +9,12 @@ from atboffice.modules.writer.views.caret_controller import (
     DocPos,
     Selection,
 )
+from atboffice.modules.writer.views.review_pane import (
+    CommentBalloonWidget,
+    CommentEditDialog,
+    ReviewPane,
+    ReviewToolbar,
+)
 from atboffice.modules.writer.views.ruler import (
     HorizontalRuler,
     RulerUnit,
@@ -19,8 +25,12 @@ from atboffice.modules.writer.views.ruler import (
 
 __all__ = [
     "CaretController",
+    "CommentBalloonWidget",
+    "CommentEditDialog",
     "DocPos",
     "HorizontalRuler",
+    "ReviewPane",
+    "ReviewToolbar",
     "RulerUnit",
     "Selection",
     "TabKind",
