@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from typing import Any
 
 from PySide6.QtCore import (
     QCoreApplication,
@@ -55,13 +56,13 @@ def safe_tr(text: str) -> str:
 
 
 # Standard Word 2003 visual styling constants
-COLOR_WORKSPACE_BG = QColor(140, 140, 140)       # Classic neutral gray workspace
-COLOR_PAGE_PAPER = QColor(255, 255, 255)         # Pure white paper sheet
-COLOR_PAGE_BORDER = QColor(112, 112, 112)        # 1px border around page
-COLOR_SHADOW_DARK = QColor(58, 58, 58, 160)      # Classic drop shadow (dark core)
-COLOR_SHADOW_LIGHT = QColor(80, 80, 80, 70)      # Soft drop shadow ambient falloff
-COLOR_SELECTION = QColor(51, 153, 255, 110)      # Word selection highlight blue
-COLOR_CARET = QColor(0, 0, 0)                    # Blinking caret black
+COLOR_WORKSPACE_BG = QColor(140, 140, 140)  # Classic neutral gray workspace
+COLOR_PAGE_PAPER = QColor(255, 255, 255)  # Pure white paper sheet
+COLOR_PAGE_BORDER = QColor(112, 112, 112)  # 1px border around page
+COLOR_SHADOW_DARK = QColor(58, 58, 58, 160)  # Classic drop shadow (dark core)
+COLOR_SHADOW_LIGHT = QColor(80, 80, 80, 70)  # Soft drop shadow ambient falloff
+COLOR_SELECTION = QColor(51, 153, 255, 110)  # Word selection highlight blue
+COLOR_CARET = QColor(0, 0, 0)  # Blinking caret black
 COLOR_MARGIN_GUIDE = QColor(200, 200, 200, 120)  # Subtle margin boundary guides
 
 
@@ -94,6 +95,11 @@ class WriterCanvasView(QAbstractScrollArea):
 
         # Mouse drag state
         self._is_dragging: bool = False
+
+        # Table divider interactive resizing
+        self._resizing_table: bool = False
+        self._resize_info: dict[str, Any] | None = None
+        self._resize_guide_pos: QPoint | None = None
 
         # Connect controller signals
         self.controller.caret_changed.connect(self._on_caret_changed)
@@ -186,7 +192,7 @@ class WriterCanvasView(QAbstractScrollArea):
             total_h += h_px + gap_px
 
         total_h += 24.0  # Bottom padding
-        max_w += 48.0   # Horizontal padding
+        max_w += 48.0  # Horizontal padding
         return QSize(int(math.ceil(max_w)), int(math.ceil(total_h)))
 
     def page_rect_canvas(self, page_idx: int) -> QRectF:
@@ -345,6 +351,17 @@ class WriterCanvasView(QAbstractScrollArea):
         if self.hasFocus() and self.controller.caret_visible:
             self._paint_caret(painter)
 
+        # 7. Paint Table Resize Guide Line
+        if self._resizing_table and self._resize_guide_pos and self._resize_info:
+            guide_pen = QPen(QColor(0, 51, 153), 1.5, Qt.PenStyle.DashLine)
+            painter.setPen(guide_pen)
+            if self._resize_info.get("kind") == "col":
+                gx = float(self._resize_guide_pos.x())
+                painter.drawLine(QPointF(gx, 0), QPointF(gx, self.viewport().height()))
+            elif self._resize_info.get("kind") == "row":
+                gy = float(self._resize_guide_pos.y())
+                painter.drawLine(QPointF(0, gy), QPointF(self.viewport().width(), gy))
+
         painter.end()
 
     def _paint_page_shadow(self, painter: QPainter, page_rect: QRectF) -> None:
@@ -371,13 +388,61 @@ class WriterCanvasView(QAbstractScrollArea):
         )
         painter.fillRect(primary_shadow, COLOR_SHADOW_DARK)
 
-    def _paint_page_content(
-        self, painter: QPainter, page_rect: QRectF, page: Page
-    ) -> None:
-        """Render lines and formatted portions on a single physical page."""
+    def _paint_page_content(self, painter: QPainter, page_rect: QRectF, page: Page) -> None:
+        """Render lines, formatted portions, and table structures on a single page."""
         for reg in page.regions:
             for col in reg.columns:
                 for frag in col.fragments:
+                    if frag.table_layout is not None:
+                        tl = frag.table_layout
+                        frag_x = page.body_left + col.left
+                        frag_y = page.body_top + col.top + frag.top
+
+                        for rl in tl.rows:
+                            for cl in rl.cells:
+                                cell_x_px = page_rect.left() + self.pt_to_px(frag_x + cl.x)
+                                cell_y_px = page_rect.top() + self.pt_to_px(frag_y + cl.y)
+                                cell_w_px = self.pt_to_px(cl.width)
+                                cell_h_px = self.pt_to_px(cl.height)
+                                cell_rect = QRectF(cell_x_px, cell_y_px, cell_w_px, cell_h_px)
+
+                                # Shading
+                                fill_val = getattr(cl.shd, "fill", "auto")
+                                if fill_val and fill_val not in ("auto", "clear", "none"):
+                                    hex_fill = (
+                                        fill_val if fill_val.startswith("#") else f"#{fill_val}"
+                                    )
+                                    painter.fillRect(cell_rect, QColor(hex_fill))
+
+                                # Border
+                                painter.setPen(QPen(QColor(120, 120, 120), 1.0))
+                                painter.drawRect(cell_rect)
+
+                                # Cell text content
+                                cell_inner_x = frag_x + cl.x + 5.4
+                                cell_inner_y = frag_y + cl.y + cl.content_offset_y
+                                for playout in cl.paragraphs_layout:
+                                    for line in playout.lines:
+                                        line_y = cell_inner_y + line.top
+                                        cur_x = cell_inner_x + line.indent_left
+                                        for po in line.portions:
+                                            po_w = po.width
+                                            if po.type == PortionType.TEXT and po.text:
+                                                font_family = po.font_family or "Times New Roman"
+                                                font_size_pt = po.font_size or 12.0
+                                                font = QFont(font_family)
+                                                font.setPointSizeF(font_size_pt * self._zoom)
+                                                painter.setFont(font)
+                                                x_px = page_rect.left() + self.pt_to_px(cur_x)
+                                                y_px = page_rect.top() + self.pt_to_px(line_y)
+                                                baseline_px = y_px + self.pt_to_px(line.baseline)
+                                                painter.setPen(QPen(QColor(0, 0, 0)))
+                                                painter.drawText(
+                                                    QPointF(x_px, baseline_px), po.text
+                                                )
+                                            cur_x += po_w
+                        continue
+
                     frag_top = page.body_top + col.top + frag.top
                     for line in frag.lines:
                         line_y = frag_top + line.top
@@ -421,6 +486,8 @@ class WriterCanvasView(QAbstractScrollArea):
         for reg in page.regions:
             for col in reg.columns:
                 for frag in col.fragments:
+                    if frag.paragraph is None:
+                        continue
                     pid = frag.paragraph.id
                     inf = info(self.doc, pid)
                     if not inf or "p" not in inf:
@@ -503,14 +570,92 @@ class WriterCanvasView(QAbstractScrollArea):
             QPointF(caret_vp_x, caret_vp_y + caret_vp_h),
         )
 
+    def _hit_test_table_divider(self, vp_pt: QPoint) -> dict[str, Any] | None:
+        """Hit test viewport position against table column or row dividers."""
+        if not self.pagination or not self.pagination.pages:
+            return None
+
+        scroll_x = self.horizontalScrollBar().value()
+        scroll_y = self.verticalScrollBar().value()
+        threshold = 4.0
+
+        for p_idx, page in enumerate(self.pagination.pages):
+            page_rect = self.page_rect_canvas(p_idx)
+            page_vp_left = page_rect.left() - scroll_x
+            page_vp_top = page_rect.top() - scroll_y
+
+            for reg in page.regions:
+                for col in reg.columns:
+                    for frag in col.fragments:
+                        if frag.table_layout is None:
+                            continue
+                        tl = frag.table_layout
+                        frag_x = page.body_left + col.left
+                        frag_y = page.body_top + col.top + frag.top
+
+                        frag_vp_top = page_vp_top + self.pt_to_px(frag_y)
+                        frag_vp_bottom = frag_vp_top + self.pt_to_px(tl.height)
+                        frag_vp_left = page_vp_left + self.pt_to_px(frag_x)
+                        frag_vp_right = frag_vp_left + self.pt_to_px(tl.width)
+
+                        # Test vertical column dividers
+                        cur_x = frag_x
+                        for c_idx, col_w in enumerate(tl.grid):
+                            cur_x += col_w
+                            div_vp_x = page_vp_left + self.pt_to_px(cur_x)
+                            if (
+                                abs(vp_pt.x() - div_vp_x) <= threshold
+                                and frag_vp_top - 2 <= vp_pt.y() <= frag_vp_bottom + 2
+                            ):
+                                return {
+                                    "table": tl.table,
+                                    "kind": "col",
+                                    "index": c_idx,
+                                    "start_pt": vp_pt,
+                                    "initial_size": col_w,
+                                }
+
+                        # Test horizontal row dividers
+                        for r_idx, rl in enumerate(tl.rows):
+                            div_y = frag_y + rl.y + rl.height
+                            div_vp_y = page_vp_top + self.pt_to_px(div_y)
+                            if (
+                                abs(vp_pt.y() - div_vp_y) <= threshold
+                                and frag_vp_left - 2 <= vp_pt.x() <= frag_vp_right + 2
+                            ):
+                                return {
+                                    "table": tl.table,
+                                    "kind": "row",
+                                    "index": rl.row_idx,
+                                    "start_pt": vp_pt,
+                                    "initial_size": rl.height,
+                                }
+
+        return None
+
     # -----------------------------------------------------------------------
     # Mouse & Keyboard Event Handlers
     # -----------------------------------------------------------------------
 
+    def _event_pos(self, event: QMouseEvent) -> QPoint:
+        """Extract integer pixel QPoint from QMouseEvent safely across Qt versions."""
+        if hasattr(event, "position"):
+            return event.position().toPoint()
+        return event.pos()
+
     def mousePressEvent(self, event: QMouseEvent) -> None:
-        """Handle single-click, double-click, and triple-click selection."""
+        """Handle single-click, double-click, triple-click, and table divider resize."""
+        pos_pt = self._event_pos(event)
         if event.button() == Qt.MouseButton.LeftButton:
-            page_idx, pt_doc = self.viewport_to_doc_coords(event.pos())
+            hit = self._hit_test_table_divider(pos_pt)
+            if hit is not None:
+                self._resizing_table = True
+                self._resize_info = hit
+                self._resize_guide_pos = pos_pt
+                self.viewport().update()
+                return
+
+            page_idx, pt_doc = self.viewport_to_doc_coords(pos_pt)
             pos = self.controller.canvas_to_pos(page_idx, pt_doc)
 
             modifiers = event.modifiers()
@@ -522,22 +667,65 @@ class WriterCanvasView(QAbstractScrollArea):
             self.viewport().update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        """Handle mouse dragging for continuous text selection."""
+        """Handle mouse dragging for continuous selection and table resizing."""
+        pos_pt = self._event_pos(event)
+        if self._resizing_table:
+            self._resize_guide_pos = pos_pt
+            self.viewport().update()
+            return
+
         if self._is_dragging and (event.buttons() & Qt.MouseButton.LeftButton):
-            page_idx, pt_doc = self.viewport_to_doc_coords(event.pos())
+            page_idx, pt_doc = self.viewport_to_doc_coords(pos_pt)
             pos = self.controller.canvas_to_pos(page_idx, pt_doc)
             self.controller.set_pos(pos, extend_selection=True)
             self.viewport().update()
+            return
+
+        # Divider cursor hover detection
+        hit = self._hit_test_table_divider(pos_pt)
+        if hit is not None:
+            if hit["kind"] == "col":
+                self.viewport().setCursor(Qt.CursorShape.SplitHCursor)
+            else:
+                self.viewport().setCursor(Qt.CursorShape.SplitVCursor)
+        else:
+            self.viewport().setCursor(Qt.CursorShape.IBeamCursor)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        """End mouse selection drag."""
+        """End mouse selection drag or commit table resize."""
+        pos_pt = self._event_pos(event)
         if event.button() == Qt.MouseButton.LeftButton:
+            if self._resizing_table and self._resize_info:
+                table = self._resize_info["table"]
+                idx = self._resize_info["index"]
+                kind = self._resize_info["kind"]
+                init_sz = self._resize_info["initial_size"]
+
+                if kind == "col":
+                    delta_px = pos_pt.x() - self._resize_info["start_pt"].x()
+                    delta_pt = self.px_to_pt(delta_px)
+                    if 0 <= idx < len(table.grid):
+                        table.grid[idx] = max(12.0, round(init_sz + delta_pt, 2))
+                elif kind == "row":
+                    delta_px = pos_pt.y() - self._resize_info["start_pt"].y()
+                    delta_pt = self.px_to_pt(delta_px)
+                    if 0 <= idx < len(table.rows):
+                        table.rows[idx].tr_pr.h = max(12.0, round(init_sz + delta_pt, 2))
+                        table.rows[idx].tr_pr.h_rule = "exact"
+
+                self._resizing_table = False
+                self._resize_info = None
+                self._resize_guide_pos = None
+                self.set_document(self.doc)
+                return
+
             self._is_dragging = False
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
         """Handle double-click for word selection."""
+        pos_pt = self._event_pos(event)
         if event.button() == Qt.MouseButton.LeftButton:
-            page_idx, pt_doc = self.viewport_to_doc_coords(event.pos())
+            page_idx, pt_doc = self.viewport_to_doc_coords(pos_pt)
             pos = self.controller.canvas_to_pos(page_idx, pt_doc)
             self.controller.select_word_at(pos)
             self.viewport().update()

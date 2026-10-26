@@ -264,3 +264,72 @@ class TestBlinkTimer:
         ctrl.caret_visible = False
         ctrl.reset_blink()
         assert ctrl.caret_visible is True
+
+
+class TestTableInteraction:
+    def test_canvas_with_table(self, canvas: WriterCanvasView) -> None:
+        from atboffice.modules.writer.models.table import create_simple_table
+
+        tbl = create_simple_table(rows=2, cols=2, width=300.0)
+        canvas.doc.main.blocks.append(tbl)
+        reindex(canvas.doc)
+        canvas.set_document(canvas.doc)
+
+        assert canvas.pagination.total_pages >= 1
+        # Check that page 0 has table fragment
+        frags = [
+            frag
+            for reg in canvas.pagination.pages[0].regions
+            for col in reg.columns
+            for frag in col.fragments
+            if getattr(frag, "table_layout", None) is not None
+        ]
+        assert len(frags) == 1
+        assert frags[0].table_layout.table is tbl
+
+    def test_canvas_table_divider_hover_and_resize(self, canvas: WriterCanvasView) -> None:
+        from PySide6.QtCore import QPoint
+
+        from atboffice.modules.writer.models.table import create_simple_table
+
+        canvas.doc.main.blocks.clear()
+        tbl = create_simple_table(rows=2, cols=2, width=200.0)
+        canvas.doc.main.blocks.append(tbl)
+        reindex(canvas.doc)
+        canvas.set_document(canvas.doc)
+
+        tl = canvas.pagination.pages[0].regions[0].columns[0].fragments[0].table_layout
+        col0_w = tl.grid[0]
+        page_rect = canvas.page_rect_canvas(0)
+
+        # Coordinate of column divider
+        div_x = int(page_rect.left() + canvas.pt_to_px(canvas.doc.sect.ml + col0_w))
+        div_y = int(page_rect.top() + canvas.pt_to_px(canvas.doc.sect.mt + 10.0))
+        pt = QPoint(div_x, div_y)
+
+        hit = canvas._hit_test_table_divider(pt)
+        assert hit is not None
+        assert hit["kind"] == "col"
+        assert hit["index"] == 0
+
+        # Simulate resize drag
+        canvas._resizing_table = True
+        canvas._resize_info = hit
+        canvas._resize_guide_pos = pt
+
+        # Simulate release 20px to the right
+        from PySide6.QtCore import QPointF
+        from PySide6.QtGui import QMouseEvent
+
+        release_event = QMouseEvent(
+            QMouseEvent.Type.MouseButtonRelease,
+            QPointF(div_x + 20, div_y),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        canvas.mouseReleaseEvent(release_event)
+
+        assert canvas._resizing_table is False
+        # Column 0 width should have expanded
+        assert tbl.grid[0] > col0_w
