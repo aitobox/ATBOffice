@@ -68,3 +68,49 @@ def test_shape_basics_and_serialization():
     assert restored.fill.alpha == 0.9
     assert restored.placeholder.type == "title"
     assert restored.placeholder.idx == 0
+
+
+def test_15_design_templates_and_color_resolver():
+    from atboffice.modules.presentation.models.designs import (
+        DESIGNS,
+        DesignTemplate,
+        build_design,
+        resolve_color,
+    )
+
+    expected_keys = [
+        "default",
+        "azure",
+        "night",
+        "meadow",
+        "ember",
+        "graphite",
+        "blueprint",
+        "capsule",
+        "ocean",
+        "parchment",
+        "pixel",
+        "crimson",
+        "glass",
+        "radial",
+        "evergreen",
+    ]
+    assert len(DESIGNS) == 15
+    for key in expected_keys:
+        assert any(d.key == key for d in DESIGNS), f"Missing design key: {key}"
+
+    # Build concrete designs for 16:9
+    d_azure = build_design("azure", 960.0, 540.0)
+    assert d_azure.key == "azure"
+    assert d_azure.fonts["major"] == "Trebuchet MS"
+    assert len(d_azure.decorations) >= 2
+    assert d_azure.title_decorations is not None
+
+    # Color resolution
+    assert resolve_color("#123456", d_azure) == "#123456"
+    lt1 = d_azure.colors.lt1
+    assert resolve_color("bg1", d_azure) == lt1
+    assert resolve_color("lt1", d_azure) == lt1
+    assert resolve_color("accent1", d_azure) == d_azure.colors.accent1
+    assert resolve_color("unknown_slot", d_azure, fallback="#111111") == "#111111"
+

@@ -1,5 +1,14 @@
 """Presentation models package."""
 
+from atboffice.modules.presentation.models.designs import (
+    DESIGNS,
+    ColorScheme,
+    DesignDefinition,
+    DesignTemplate,
+    build_design,
+    color_mix,
+    resolve_color,
+)
 from atboffice.modules.presentation.models.shape import (
     Fill,
     Line,
@@ -28,6 +37,10 @@ __all__ = [
     "BODY_MARL",
     "BODY_SIZES",
     "BulletInfo",
+    "ColorScheme",
+    "DESIGNS",
+    "DesignDefinition",
+    "DesignTemplate",
     "Fill",
     "Line",
     "Paragraph",
@@ -37,7 +50,10 @@ __all__ = [
     "TextBody",
     "TextRun",
     "TextStyleLevel",
+    "build_design",
+    "color_mix",
     "get_default_body_styles",
     "get_default_other_styles",
     "get_default_title_style",
+    "resolve_color",
 ]
