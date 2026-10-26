@@ -6,16 +6,15 @@ positioning, text wrapping modes, manipulation handles, and linked text boxes.
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from atboffice.modules.writer.models.document import RunItem, Story
 from atboffice.modules.writer.models.properties import RunProperties
 
 
-class WrapMode(str, Enum):
+class WrapMode(StrEnum):
     """Text wrapping mode around a drawing object."""
 
     INLINE = "inline"
@@ -26,7 +25,7 @@ class WrapMode(str, Enum):
     TOP_BOTTOM = "topBottom"
 
 
-class WrapSide(str, Enum):
+class WrapSide(StrEnum):
     """Side on which text wraps around a floating obstacle."""
 
     BOTH = "both"
@@ -35,7 +34,7 @@ class WrapSide(str, Enum):
     LARGEST = "largest"
 
 
-class AnchorHandle(str, Enum):
+class AnchorHandle(StrEnum):
     """8-point selection/resize and rotation anchor handles."""
 
     NW = "nw"
@@ -61,9 +60,13 @@ class WrapDist:
 
 @dataclass
 class PositionH:
-    """Horizontal positioning properties for a floating object."""
+    """Horizontal positioning properties for a floating object.
 
-    rel: str = "column"  # page, margin, column, character, leftMargin, rightMargin, insideMargin, outsideMargin
+    rel choices: page, margin, column, character, leftMargin, rightMargin,
+                 insideMargin, outsideMargin
+    """
+
+    rel: str = "column"
     align: str | None = None  # left, center, right, inside, outside
     offset: float = 0.0  # offset in points
     percent: float | None = None
@@ -71,9 +74,13 @@ class PositionH:
 
 @dataclass
 class PositionV:
-    """Vertical positioning properties for a floating object."""
+    """Vertical positioning properties for a floating object.
 
-    rel: str = "paragraph"  # page, margin, topMargin, bottomMargin, paragraph, line, insideMargin, outsideMargin
+    rel choices: page, margin, topMargin, bottomMargin, paragraph, line,
+                 insideMargin, outsideMargin
+    """
+
+    rel: str = "paragraph"
     align: str | None = None  # top, center, bottom, inside, outside
     offset: float = 0.0  # offset in points
     percent: float | None = None

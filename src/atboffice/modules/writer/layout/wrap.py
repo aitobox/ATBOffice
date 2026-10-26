@@ -7,22 +7,17 @@ line obstacle avoidance, and story chaining across linked text boxes.
 from __future__ import annotations
 
 import copy
-import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from atboffice.modules.writer.models.document import (
     Paragraph,
-    RunItem,
     Story,
-    TextItem,
-    ilen,
-    split_at,
 )
 from atboffice.modules.writer.models.drawing import (
     DrawingObject,
     FloatProperties,
-    PictureItem,
     TextBoxItem,
     WrapDist,
     WrapMode,
@@ -348,8 +343,16 @@ def flow_linked_text_boxes(
 
                     cur_p = remaining_paras.pop(0)
                     split_idx = split_at(cur_p, split_char_offset)
-                    p1 = Paragraph(id=cur_p.id, p_pr=copy.deepcopy(cur_p.p_pr), runs=cur_p.runs[:split_idx])
-                    p2 = Paragraph(id=_next_nid(), p_pr=copy.deepcopy(cur_p.p_pr), runs=cur_p.runs[split_idx:])
+                    p1 = Paragraph(
+                        id=cur_p.id,
+                        p_pr=copy.deepcopy(cur_p.p_pr),
+                        runs=cur_p.runs[:split_idx],
+                    )
+                    p2 = Paragraph(
+                        id=_next_nid(),
+                        p_pr=copy.deepcopy(cur_p.p_pr),
+                        runs=cur_p.runs[split_idx:],
+                    )
                     box_paras.append(p1)
                     if p2.runs:
                         remaining_paras.insert(0, p2)

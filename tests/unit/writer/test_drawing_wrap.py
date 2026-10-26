@@ -2,19 +2,11 @@
 
 from __future__ import annotations
 
-import pytest
-
 
 def test_drawing_models_and_manipulation():
     from atboffice.modules.writer.models.drawing import (
         AnchorHandle,
-        Crop,
-        DrawingObject,
-        FloatProperties,
         PictureItem,
-        TextBoxItem,
-        WrapMode,
-        WrapSide,
         crop_object,
         drag_handle_resize,
         get_visible_dimensions,
@@ -40,7 +32,9 @@ def test_drawing_models_and_manipulation():
     assert dyt == 0.0
 
     # 8-handle drag resize (nw handle - offsets position)
-    nw2, nh2, dxl2, dyt2 = drag_handle_resize(pic, AnchorHandle.NW, dx=-10.0, dy=-8.0, lock_aspect=False)
+    nw2, nh2, dxl2, dyt2 = drag_handle_resize(
+        pic, AnchorHandle.NW, dx=-10.0, dy=-8.0, lock_aspect=False
+    )
     assert nw2 == 180.0
     assert nh2 == 144.0
     assert dxl2 == -10.0
@@ -63,7 +57,6 @@ def test_drawing_models_and_manipulation():
 
 def test_text_wrap_calculations():
     from atboffice.modules.writer.layout.wrap import (
-        FloatBox,
         calculate_line_segments,
         resolve_float_box,
     )
@@ -203,12 +196,10 @@ def test_document_and_portions_integration():
         Paragraph,
         TextItem,
         ilen,
-        plain_text,
     )
     from atboffice.modules.writer.models.drawing import (
         FloatProperties,
         PictureItem,
-        TextBoxItem,
         WrapMode,
     )
 
