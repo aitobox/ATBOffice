@@ -12,7 +12,6 @@ from atboffice.modules.writer.models.properties import (
     ParagraphProperties,
     RunProperties,
     SpacingProperties,
-    TabStop,
 )
 
 
@@ -141,23 +140,53 @@ def builtin_styles() -> dict[str, Style]:
         p_pr=ParagraphProperties(jc="center", sp=SpacingProperties(after=3.0), outline_level=1),
         r_pr=RunProperties(font="Arial"),
     )
-    add("BodyText", "Body Text", "paragraph", p_pr=ParagraphProperties(sp=SpacingProperties(after=6.0)))
+    add(
+        "BodyText",
+        "Body Text",
+        "paragraph",
+        p_pr=ParagraphProperties(sp=SpacingProperties(after=6.0)),
+    )
     add(
         "Quote",
         "Quote",
         "paragraph",
-        p_pr=ParagraphProperties(ind=IndentProperties(left=36.0, right=36.0), sp=SpacingProperties(after=6.0)),
+        p_pr=ParagraphProperties(
+            ind=IndentProperties(left=36.0, right=36.0),
+            sp=SpacingProperties(after=6.0),
+        ),
         r_pr=RunProperties(i=True),
     )
     add("PlainText", "Plain Text", "paragraph", r_pr=RunProperties(font="Courier New", sz=10.0))
 
     # Lists
-    add("ListBullet", "List Bullet", "paragraph", p_pr=ParagraphProperties(num=NumberingRef(id="__bul", lvl=0)))
-    add("ListNumber", "List Number", "paragraph", p_pr=ParagraphProperties(num=NumberingRef(id="__num", lvl=0)))
+    add(
+        "ListBullet",
+        "List Bullet",
+        "paragraph",
+        p_pr=ParagraphProperties(num=NumberingRef(id="__bul", lvl=0)),
+    )
+    add(
+        "ListNumber",
+        "List Number",
+        "paragraph",
+        p_pr=ParagraphProperties(num=NumberingRef(id="__num", lvl=0)),
+    )
 
     # Character Styles
-    add("DefaultParagraphFont", "Default Paragraph Font", "character", based_on=None, is_default=True)
-    add("Hyperlink", "Hyperlink", "character", based_on=None, r_pr=RunProperties(color="0000FF", u="single"))
+    add(
+        "DefaultParagraphFont",
+        "Default Paragraph Font",
+        "character",
+        based_on=None,
+        is_default=True,
+    )
+    add(
+        "Hyperlink",
+        "Hyperlink",
+        "character",
+        based_on=None,
+        r_pr=RunProperties(color="0000FF", u="single"),
+    )
     add("Strong", "Strong", "character", based_on=None, r_pr=RunProperties(b=True))
     add("Emphasis", "Emphasis", "character", based_on=None, r_pr=RunProperties(i=True))
 
@@ -182,7 +211,9 @@ def style_chain(doc: Any, style_id: str) -> list[Style]:
     return chain
 
 
-def merge_p_props(base: ParagraphProperties, over: ParagraphProperties | None) -> ParagraphProperties:
+def merge_p_props(
+    base: ParagraphProperties, over: ParagraphProperties | None
+) -> ParagraphProperties:
     """Merge override paragraph properties on top of base properties."""
     if not over:
         return copy.deepcopy(base)

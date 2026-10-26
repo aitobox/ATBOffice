@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any
 
 # Standard Paper Sizes in Points (width, height)
 PAPER_SIZES: dict[str, tuple[float, float]] = {
@@ -38,7 +37,11 @@ def parse_length(s: str | float | int, default_unit: str = "in") -> float | None
     """Parse a length string (e.g., '72pt', '1in', '2.54cm', '25.4mm') into points."""
     if isinstance(s, (int, float)):
         return float(s)
-    match = re.search(r"(-?\d*\.?\d+)\s*(cm|mm|pt|pi|in|\"|li|line|lines)?", str(s).strip(), re.IGNORECASE)
+    match = re.search(
+        r"(-?\d*\.?\d+)\s*(cm|mm|pt|pi|in|\"|li|line|lines)?",
+        str(s).strip(),
+        re.IGNORECASE,
+    )
     if not match:
         return None
     val = float(match.group(1))
@@ -232,7 +235,9 @@ class TableProperties:
     w: float = 0.0
     w_type: str = "auto"  # "auto", "dxa", "pct"
     borders: dict[str, BorderProperties] = field(default_factory=dict)
-    cell_mar: dict[str, float] = field(default_factory=lambda: {"t": 0.0, "b": 0.0, "l": 5.4, "r": 5.4})
+    cell_mar: dict[str, float] = field(
+        default_factory=lambda: {"t": 0.0, "b": 0.0, "l": 5.4, "r": 5.4}
+    )
 
 
 @dataclass

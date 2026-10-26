@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from atboffice.modules.writer.models.properties import (
     CellProperties,
@@ -70,7 +71,12 @@ class SymbolItem(RunItem):
     font: str = "Symbol"
     char: str = ""
 
-    def __init__(self, font: str = "Symbol", char: str = "", r_pr: RunProperties | None = None) -> None:
+    def __init__(
+        self,
+        font: str = "Symbol",
+        char: str = "",
+        r_pr: RunProperties | None = None,
+    ) -> None:
         super().__init__(t="sym", r_pr=r_pr or RunProperties())
         self.font = font
         self.char = char
@@ -83,7 +89,12 @@ class BookmarkStartItem(RunItem):
     name: str = ""
     bookmark_id: int = 0
 
-    def __init__(self, name: str = "", bookmark_id: int = 0, r_pr: RunProperties | None = None) -> None:
+    def __init__(
+        self,
+        name: str = "",
+        bookmark_id: int = 0,
+        r_pr: RunProperties | None = None,
+    ) -> None:
         super().__init__(t="bs", r_pr=r_pr or RunProperties())
         self.name = name
         self.bookmark_id = bookmark_id
@@ -108,7 +119,13 @@ class FieldBeginItem(RunItem):
     instr: str = ""
     locked: bool = False
 
-    def __init__(self, field_type: str = "", instr: str = "", locked: bool = False, r_pr: RunProperties | None = None) -> None:
+    def __init__(
+        self,
+        field_type: str = "",
+        instr: str = "",
+        locked: bool = False,
+        r_pr: RunProperties | None = None,
+    ) -> None:
         super().__init__(t="fb", r_pr=r_pr or RunProperties())
         self.field_type = field_type
         self.instr = instr
@@ -188,7 +205,8 @@ def ptext(p: Paragraph, from_idx: int | None = None, to_idx: int | None = None) 
         elif it.t == "tab":
             buf.append("\t")
         elif it.t == "br":
-            buf.append("\f" if getattr(it, "break_type", "") == "page" else "\v" if getattr(it, "break_type", "") == "column" else "\n")
+            br_type = getattr(it, "break_type", "")
+            buf.append("\f" if br_type == "page" else "\v" if br_type == "column" else "\n")
         elif it.t == "sym":
             buf.append(getattr(it, "char", "") or "￼")
         elif ilen(it) > 0:
@@ -257,7 +275,9 @@ class Document:
     main: Story = field(default_factory=lambda: Story(kind="main", blocks=[Paragraph()]))
     sect: SectionProperties = field(default_factory=SectionProperties)
     styles: dict[str, Any] = field(default_factory=dict)
-    defaults: dict[str, Any] = field(default_factory=lambda: {"r_pr": RunProperties(), "p_pr": ParagraphProperties()})
+    defaults: dict[str, Any] = field(
+        default_factory=lambda: {"r_pr": RunProperties(), "p_pr": ParagraphProperties()}
+    )
     numbering: dict[str, Any] = field(default_factory=lambda: {"abs": {}, "nums": {}})
     hf: dict[str, Story] = field(default_factory=dict)
     fn: dict[str, Story] = field(default_factory=dict)
@@ -282,7 +302,7 @@ class Document:
 
 
 def locate(p: Paragraph, o: int, side: str = "after") -> tuple[int, int, int]:
-    """Locate item covering character offset `o`: returns (item_index, offset_in_item, start_pos)."""
+    """Locate item covering character offset `o`: returns (item_idx, offset_in_item, start_pos)."""
     pos = 0
     runs = p.runs
     for i, it in enumerate(runs):
@@ -300,7 +320,7 @@ def locate(p: Paragraph, o: int, side: str = "after") -> tuple[int, int, int]:
 
 
 def split_at(p: Paragraph, o: int) -> int:
-    """Split runs so that a run boundary exists at character offset `o`. Returns item index at/after `o`."""
+    """Split runs so run boundary exists at offset `o`. Returns item index at/after `o`."""
     pos = 0
     for i, it in enumerate(p.runs):
         n = ilen(it)
@@ -418,7 +438,13 @@ def reindex(doc: Document) -> dict[int, dict[str, Any]]:
         walk(st, visitor)
         st.paras = paras
 
-    all_stories = [doc.main] + list(doc.hf.values()) + list(doc.fn.values()) + list(doc.en.values()) + list(doc.comments.values())
+    all_stories = [
+        doc.main,
+        *doc.hf.values(),
+        *doc.fn.values(),
+        *doc.en.values(),
+        *doc.comments.values(),
+    ]
     for s in all_stories:
         index_story(s)
 
@@ -447,7 +473,13 @@ def all_paragraphs(doc: Document, all_stories: bool = False) -> list[Paragraph]:
     if not all_stories:
         return doc.main.paras
     out: list[Paragraph] = []
-    stories = [doc.main] + list(doc.hf.values()) + list(doc.fn.values()) + list(doc.en.values()) + list(doc.comments.values())
+    stories = [
+        doc.main,
+        *doc.hf.values(),
+        *doc.fn.values(),
+        *doc.en.values(),
+        *doc.comments.values(),
+    ]
     for s in stories:
         out.extend(s.paras)
     return out
@@ -483,7 +515,6 @@ def sect_for(doc: Document, p: Paragraph) -> SectionProperties:
     inf = info(doc, p)
     if not inf or inf["story"] != doc.main:
         return doc.sect
-    top_block_idx = inf["parents"][0]["tbl"].id if inf["parents"] else inf["i"]
     for s in sections(doc):
         if inf["i"] < s["to"] or s["end_para"] is None:
             return s["sect"]

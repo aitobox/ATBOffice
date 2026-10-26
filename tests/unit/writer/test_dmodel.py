@@ -2,38 +2,17 @@
 
 import pytest
 
-from atboffice.modules.writer.models.properties import (
-    DocGridProperties,
-    IndentProperties,
-    ParagraphProperties,
-    RunProperties,
-    SectionProperties,
-    SpacingProperties,
-    TabStop,
-    TableProperties,
-    RowProperties,
-    CellProperties,
-    dxa_to_pt,
-    format_length,
-    parse_length,
-    pt_to_dxa,
-    PAPER_SIZES,
-)
 from atboffice.modules.writer.models.document import (
     BookmarkEndItem,
     BookmarkStartItem,
     BreakItem,
     Cell,
-    CommentRangeEnd,
-    CommentRangeStart,
     Document,
     FieldBeginItem,
     FieldEndItem,
     FieldSeparateItem,
     Paragraph,
     Row,
-    Story,
-    SymbolItem,
     TabItem,
     Table,
     TextItem,
@@ -46,18 +25,24 @@ from atboffice.modules.writer.models.document import (
     plain_text,
     plen,
     ptext,
-    reindex,
-    sections,
     sect_for,
+    sections,
     slice_runs,
     split_at,
     walk,
 )
+from atboffice.modules.writer.models.properties import (
+    PAPER_SIZES,
+    ParagraphProperties,
+    RunProperties,
+    SectionProperties,
+    dxa_to_pt,
+    format_length,
+    parse_length,
+    pt_to_dxa,
+)
 from atboffice.modules.writer.models.styles import (
-    Style,
     builtin_styles,
-    merge_p_props,
-    merge_r_props,
     resolve_p_props,
     resolve_r_props,
     style_chain,
@@ -161,7 +146,13 @@ def test_locate_split_and_insert_index():
     assert p.runs[2].text == "FGHIJ"
 
     # Insert index with markers
-    p2 = Paragraph(runs=[TextItem(text="Test"), BookmarkEndItem(bookmark_id=1), TextItem(text="Content")])
+    p2 = Paragraph(
+        runs=[
+            TextItem(text="Test"),
+            BookmarkEndItem(bookmark_id=1),
+            TextItem(text="Content"),
+        ]
+    )
     ins_idx = insert_index(p2, 4)
     assert ins_idx == 2  # After the bookmark end
 
