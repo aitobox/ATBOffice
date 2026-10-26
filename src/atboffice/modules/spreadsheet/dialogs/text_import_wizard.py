@@ -541,10 +541,13 @@ class TextImportWizard(QDialog):
         ]
         descs = [
             safe_tr(
-                "The Text Wizard has determined that your data is Delimited. If this is correct, choose Next, or choose the data type that best describes your data."
+                "The Text Wizard has determined that your data is Delimited. "
+                "If this is correct, choose Next, or choose the data type that "
+                "best describes your data."
             ),
             safe_tr(
-                "This screen lets you set the delimiters your data contains. You can see how your text is affected in the preview below."
+                "This screen lets you set the delimiters your data contains. "
+                "You can see how your text is affected in the preview below."
             ),
             safe_tr(
                 "This screen lets you select each column and set the Data Format."

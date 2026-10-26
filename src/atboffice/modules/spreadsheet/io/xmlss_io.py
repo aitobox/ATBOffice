@@ -13,7 +13,6 @@ from atboffice.modules.spreadsheet.calc.references import (
 )
 from atboffice.modules.spreadsheet.io.csv_io import decode_bytes
 from atboffice.modules.spreadsheet.models.sheet_model import (
-    BorderStyle,
     CellData,
     SheetDataModel,
 )

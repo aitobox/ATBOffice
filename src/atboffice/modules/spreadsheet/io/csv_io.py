@@ -11,7 +11,8 @@ if TYPE_CHECKING:
 
 
 def decode_bytes(data: bytes, encoding: str | None = None) -> tuple[str, str]:
-    """Decode raw bytes into text, automatically detecting BOM, UTF-16, UTF-8, GB18030, or Windows-1252.
+    """Decode raw bytes into text, automatically detecting BOM, UTF-16, UTF-8,
+    GB18030, or Windows-1252.
 
     Returns:
         tuple[str, str]: (decoded_text, detected_encoding)
@@ -119,7 +120,7 @@ def guess_fixed_breaks(text: str) -> list[int]:
     if not lines:
         return []
 
-    max_len = min(max(len(l) for l in lines), 500)
+    max_len = min(max(len(line) for line in lines), 500)
     space_freq = [0] * max_len
     for line in lines:
         for idx in range(min(len(line), max_len)):

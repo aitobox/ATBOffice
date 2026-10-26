@@ -1,6 +1,6 @@
 """Unit and GUI tests for CSV / TXT import wizard and XML Spreadsheet 2003 I/O."""
 
-import pytest
+from atboffice.modules.spreadsheet.dialogs.text_import_wizard import TextImportWizard
 from atboffice.modules.spreadsheet.io.csv_io import (
     convert_cell_value,
     decode_bytes,
@@ -10,6 +10,12 @@ from atboffice.modules.spreadsheet.io.csv_io import (
     parse_fixed_width,
     populate_sheet,
     sniff_delimiter,
+)
+from atboffice.modules.spreadsheet.io.xmlss_io import (
+    from_r1c1,
+    read_xmlss,
+    to_r1c1,
+    write_xmlss,
 )
 from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetDataModel
 
@@ -60,7 +66,7 @@ def test_decode_bytes_windows1252():
 
 
 def test_decode_bytes_explicit():
-    sample = "Col1,Col2\nA,B".encode("utf-8")
+    sample = b"Col1,Col2\nA,B"
     text, enc = decode_bytes(sample, encoding="utf-8")
     assert enc == "utf-8"
     assert text == "Col1,Col2\nA,B"
@@ -153,14 +159,6 @@ def test_populate_sheet_and_export_csv():
     assert "Gadget,5,100" in exported
 
 
-from atboffice.modules.spreadsheet.io.xmlss_io import (
-    from_r1c1,
-    read_xmlss,
-    to_r1c1,
-    write_xmlss,
-)
-
-
 def test_r1c1_conversions():
     # Relative from (2, 2) which is C3
     assert from_r1c1("R[-1]C[-1]", 2, 2) == "B2"
@@ -230,9 +228,6 @@ def test_xmlss_read_write_roundtrip():
     assert model2.get_merge_range(0, 1) == (0, 1, 0, 2)
     assert model2.get_cell_value(1, 0) == 10
     assert model2.get_cell(1, 2).formula == "SUM(A2:B2)"
-
-
-from atboffice.modules.spreadsheet.dialogs.text_import_wizard import TextImportWizard
 
 
 def test_text_import_wizard_init_and_navigation(qapp):
