@@ -9,6 +9,13 @@ from atboffice.modules.presentation.models.designs import (
     color_mix,
     resolve_color,
 )
+from atboffice.modules.presentation.models.layouts import (
+    LAYOUTS,
+    LayoutInfo,
+    get_layout_info,
+    layout_frames,
+    make_placeholder,
+)
 from atboffice.modules.presentation.models.shape import (
     Fill,
     Line,
@@ -42,6 +49,8 @@ __all__ = [
     "DesignDefinition",
     "DesignTemplate",
     "Fill",
+    "LAYOUTS",
+    "LayoutInfo",
     "Line",
     "Paragraph",
     "PlaceholderInfo",
@@ -55,5 +64,8 @@ __all__ = [
     "get_default_body_styles",
     "get_default_other_styles",
     "get_default_title_style",
+    "get_layout_info",
+    "layout_frames",
+    "make_placeholder",
     "resolve_color",
 ]

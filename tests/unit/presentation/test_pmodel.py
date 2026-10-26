@@ -114,3 +114,48 @@ def test_15_design_templates_and_color_resolver():
     assert resolve_color("accent1", d_azure) == d_azure.colors.accent1
     assert resolve_color("unknown_slot", d_azure, fallback="#111111") == "#111111"
 
+
+def test_21_layouts_and_frame_calculator():
+    from atboffice.modules.presentation.models.designs import build_design
+    from atboffice.modules.presentation.models.layouts import (
+        LAYOUTS,
+        layout_frames,
+        make_placeholder,
+    )
+
+    assert len(LAYOUTS) == 21
+    layout_keys = [l.key for l in LAYOUTS]
+    assert "title" in layout_keys
+    assert "twoText" in layout_keys
+    assert "fourContent" in layout_keys
+    assert "blank" in layout_keys
+    assert "vertTitleText" in layout_keys
+
+    design = build_design("default", 960.0, 540.0)
+
+    # 1. Blank layout has 0 frames
+    blank_frames = layout_frames("blank", design)
+    assert len(blank_frames) == 0
+
+    # 2. Title layout has 2 frames: ctrTitle and subTitle
+    title_frames = layout_frames("title", design)
+    assert len(title_frames) == 2
+    types = [f["type"] for f in title_frames]
+    assert "ctrTitle" in types
+    assert "subTitle" in types
+
+    # 3. FourContent layout has 5 frames: title + 4 obj
+    four_frames = layout_frames("fourContent", design)
+    assert len(four_frames) == 5
+    assert four_frames[0]["type"] == "title"
+    assert [f["type"] for f in four_frames[1:]] == ["obj", "obj", "obj", "obj"]
+
+    # 4. Check placeholder shape creation
+    sh = make_placeholder(title_frames[0], design)
+    assert sh.type == "text"
+    assert sh.placeholder is not None
+    assert sh.placeholder.type == "ctrTitle"
+    assert sh.text is not None
+    assert sh.text.is_empty()
+
+
