@@ -139,3 +139,66 @@ def test_serialize_roundtrip():
     assert out_elem.tag == f"{{{NS_M}}}oMath"
     serialized_str = ET.tostring(out_elem, encoding="unicode")
     assert "<m:f" in serialized_str or ":f" in serialized_str
+
+
+def test_math_layout_fraction():
+    from atboffice.modules.writer.layout.math_layout import layout_math_item
+
+    xml = f"""<m:oMath xmlns:m="{NS_M}">
+        <m:f>
+            <m:num><m:r><m:t>1</m:t></m:r></m:num>
+            <m:den><m:r><m:t>x + 1</m:t></m:r></m:den>
+        </m:f>
+    </m:oMath>"""
+    item = parse_omml(xml)
+    box = layout_math_item(item, font_size=12.0)
+    assert box.width > 0
+    assert box.height > 12.0  # Fraction is taller than single line
+    assert box.ascent > 0
+    assert box.descent > 0
+    assert item.width == box.width
+    assert item.height == box.height
+
+
+def test_math_layout_scripts_and_radical():
+    from atboffice.modules.writer.layout.math_layout import layout_math_item
+
+    xml = f"""<m:oMath xmlns:m="{NS_M}">
+        <m:rad>
+            <m:deg><m:r><m:t>3</m:t></m:r></m:deg>
+            <m:e>
+                <m:sSup>
+                    <m:e><m:r><m:t>x</m:t></m:r></m:e>
+                    <m:sup><m:r><m:t>2</m:t></m:r></m:sup>
+                </m:sSup>
+            </m:e>
+        </m:rad>
+    </m:oMath>"""
+    item = parse_omml(xml)
+    box = layout_math_item(item, font_size=14.0)
+    assert box.width > 0
+    assert box.height > 0
+    assert len(box.render_ops) > 0
+
+
+def test_paint_math_offscreen(qapp):
+    from PySide6.QtGui import QImage, QPainter
+    from atboffice.modules.writer.layout.math_layout import layout_math_item, paint_math
+
+    xml = f"""<m:oMath xmlns:m="{NS_M}">
+        <m:f>
+            <m:num><m:r><m:t>a</m:t></m:r></m:num>
+            <m:den><m:r><m:t>b</m:t></m:r></m:den>
+        </m:f>
+    </m:oMath>"""
+    item = parse_omml(xml)
+    box = layout_math_item(item, font_size=16.0)
+
+    img = QImage(200, 100, QImage.Format.Format_ARGB32_Premultiplied)
+    img.fill(0)
+    painter = QPainter(img)
+    try:
+        paint_math(painter, item, origin_x=10.0, baseline_y=50.0, zoom=1.0)
+    finally:
+        painter.end()
+
