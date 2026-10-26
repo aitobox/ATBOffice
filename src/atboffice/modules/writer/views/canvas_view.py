@@ -101,6 +101,11 @@ class WriterCanvasView(QAbstractScrollArea):
         self._resize_info: dict[str, Any] | None = None
         self._resize_guide_pos: QPoint | None = None
 
+        # Ruler guide lines (canvas coordinates)
+        self._ruler_guide_x: float | None = None
+        self._ruler_guide_y: float | None = None
+
+
         # Connect controller signals
         self.controller.caret_changed.connect(self._on_caret_changed)
         self.controller.selection_changed.connect(self.viewport().update)
@@ -362,7 +367,32 @@ class WriterCanvasView(QAbstractScrollArea):
                 gy = float(self._resize_guide_pos.y())
                 painter.drawLine(QPointF(0, gy), QPointF(self.viewport().width(), gy))
 
+        # 8. Paint Ruler Guide Line
+        if self._ruler_guide_x is not None or self._ruler_guide_y is not None:
+            ruler_pen = QPen(QColor(60, 60, 60, 200), 1.0, Qt.PenStyle.DashLine)
+            painter.setPen(ruler_pen)
+            if self._ruler_guide_x is not None:
+                gx = self._ruler_guide_x - scroll_x
+                painter.drawLine(QPointF(gx, 0), QPointF(gx, float(self.viewport().height())))
+            if self._ruler_guide_y is not None:
+                gy = self._ruler_guide_y - scroll_y
+                painter.drawLine(QPointF(0, gy), QPointF(float(self.viewport().width()), gy))
+
         painter.end()
+
+    def set_ruler_guide(self, x: float | None = None, y: float | None = None) -> None:
+        """Set alignment guide line position in virtual canvas coordinates and repaint."""
+        self._ruler_guide_x = x
+        self._ruler_guide_y = y
+        self.viewport().update()
+
+    def clear_ruler_guide(self) -> None:
+        """Clear active ruler alignment guide lines and repaint."""
+        if self._ruler_guide_x is not None or self._ruler_guide_y is not None:
+            self._ruler_guide_x = None
+            self._ruler_guide_y = None
+            self.viewport().update()
+
 
     def _paint_page_shadow(self, painter: QPainter, page_rect: QRectF) -> None:
         """Draw classic Word 2003 physical paper drop shadow."""

@@ -250,3 +250,23 @@ def test_styles_and_cascade_resolution():
     assert resolved_r.font == "Arial"
     assert resolved_r.b is True
     assert resolved_r.sz == 16.0
+
+
+def test_paragraph_indent_properties():
+    """Verify convenience properties on Paragraph for ruler and formatting manipulation."""
+    p = Paragraph()
+    assert p.indent_left == 0.0
+    assert p.indent_right == 0.0
+    assert p.indent_first == 0.0
+
+    p.indent_left = 36.0
+    p.indent_right = 18.0
+    p.indent_first = 24.0
+
+    assert p.indent_left == 36.0
+    assert p.indent_right == 18.0
+    assert p.indent_first == 24.0
+    assert p.p_pr.ind.left == 36.0
+    assert p.p_pr.ind.right == 18.0
+    assert p.p_pr.ind.first_line == 24.0
+
