@@ -166,6 +166,16 @@ class NumberingRef:
 
 
 @dataclass
+class RevisionStamp:
+    """Track Changes revision author and timestamp record."""
+
+    author: str = "Author"
+    date: str = ""  # ISO 8601 string, e.g. "2026-10-26T12:00:00Z"
+    id: int = 0
+    old: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class ParagraphProperties:
     """Paragraph formatting and layout properties."""
 
@@ -180,6 +190,7 @@ class ParagraphProperties:
     outline_level: int | None = None
     tabs: list[TabStop] = field(default_factory=list)
     num: NumberingRef | None = None
+    chg: RevisionStamp | None = None
 
 
 @dataclass
@@ -208,6 +219,9 @@ class RunProperties:
     lang: str = "en-US"
     lang_ea: str = "zh-CN"
     link: dict[str, Any] | None = None
+    ins: RevisionStamp | None = None
+    del_rev: RevisionStamp | None = None
+    chg: RevisionStamp | None = None
 
 
 @dataclass

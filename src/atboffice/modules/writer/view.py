@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QGridLayout, QWidget
 
 from atboffice.modules.writer.models.document import Document
 from atboffice.modules.writer.views.canvas_view import WriterCanvasView
+from atboffice.modules.writer.views.review_pane import ReviewPane, ReviewToolbar
 from atboffice.modules.writer.views.ruler import (
     HorizontalRuler,
     RulerUnit,
@@ -45,6 +46,15 @@ class WriterView(QWidget):
         self.canvas_view = WriterCanvasView(doc=doc, parent=self)
         layout.addWidget(self.canvas_view, 1, 1)
 
+        # 5. Collapsible Reviewing Pane on the right
+        self.review_pane = ReviewPane(doc=self.canvas_view.doc, parent=self)
+        self.review_pane.setVisible(False)
+        layout.addWidget(self.review_pane, 0, 2, 2, 1)
+
+        # 6. Reviewing Toolbar (floating / dockable toolbar)
+        self.review_toolbar = ReviewToolbar(parent=self)
+        self.review_toolbar.setVisible(False)
+
         # Wire ruler interactions and canvas attachments
         self.tab_selector.tab_kind_changed.connect(self.h_ruler.set_tab_selector_kind)
         self.h_ruler.attach_canvas(self.canvas_view)
@@ -56,6 +66,10 @@ class WriterView(QWidget):
         self.canvas_view.zoom_changed.connect(self._on_zoom_changed)
         self.canvas_view.caret_moved.connect(self._on_caret_moved)
         self.canvas_view.controller.document_modified.connect(self._on_document_modified)
+
+        # Wire review components
+        self.review_toolbar.review_pane_toggled.connect(self.set_review_pane_visible)
+        self.review_pane.item_activated.connect(self._on_review_item_activated)
 
         self.retranslate_ui()
 
@@ -70,6 +84,21 @@ class WriterView(QWidget):
     def _on_document_modified(self) -> None:
         self.h_ruler.update_geometry_from_canvas()
         self.v_ruler.update_geometry_from_canvas()
+        self.review_pane.refresh_items()
+
+    def _on_review_item_activated(self, para: Paragraph, start: int, end: int) -> None:
+        """Focus and position caret on activated review item."""
+        self.canvas_view.controller.set_caret(para.id, start)
+        self.canvas_view.update()
+
+    def set_review_pane_visible(self, visible: bool) -> None:
+        """Toggle Reviewing Pane visibility."""
+        self.review_pane.setVisible(visible)
+        self.review_toolbar.set_pane_state(visible)
+
+    def set_review_toolbar_visible(self, visible: bool) -> None:
+        """Toggle Reviewing Toolbar visibility."""
+        self.review_toolbar.setVisible(visible)
 
     def set_ruler_visible(self, visible: bool) -> None:
         """Toggle visibility of rulers and corner tab selector."""
@@ -88,3 +117,5 @@ class WriterView(QWidget):
         self.h_ruler.retranslate_ui()
         self.v_ruler.retranslate_ui()
         self.canvas_view.retranslate_ui()
+        self.review_pane.retranslate_ui()
+        self.review_toolbar.retranslate_ui()
