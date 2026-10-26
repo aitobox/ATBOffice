@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
-from PySide6.QtCore import QCoreApplication, QPointF, QRectF, Qt
+from PySide6.QtCore import QCoreApplication, QPointF, Qt
 from PySide6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen
 
 
@@ -13,7 +13,7 @@ def safe_tr(text: str) -> str:
     return QCoreApplication.translate("QuireRuler", text)
 
 
-class RulerUnit(str, Enum):
+class RulerUnit(StrEnum):
     """Supported ruler measurement units."""
 
     CM = "cm"
@@ -21,7 +21,7 @@ class RulerUnit(str, Enum):
     PT = "pt"
 
 
-class TabKind(str, Enum):
+class TabKind(StrEnum):
     """Tab stop and ruler drag selector kinds."""
 
     LEFT = "left"
@@ -92,7 +92,9 @@ def snap_to_grid(pt: float, unit: RulerUnit | str, disable_snap: bool = False) -
     return round(pt / step) * step
 
 
-def draw_tab_glyph(painter: QPainter, kind: TabKind | str, center: QPointF, size: float = 9.0) -> None:
+def draw_tab_glyph(
+    painter: QPainter, kind: TabKind | str, center: QPointF, size: float = 9.0
+) -> None:
     """Draw a vector glyph for a tab stop or indent selector."""
     k = TabKind(kind) if isinstance(kind, str) and kind in TabKind._value2member_map_ else kind
     cx = center.x()

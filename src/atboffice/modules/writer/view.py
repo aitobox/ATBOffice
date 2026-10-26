@@ -10,7 +10,6 @@ from atboffice.modules.writer.views.canvas_view import WriterCanvasView
 from atboffice.modules.writer.views.ruler import (
     HorizontalRuler,
     RulerUnit,
-    TabKind,
     TabSelectorWidget,
     VerticalRuler,
 )
@@ -89,4 +88,3 @@ class WriterView(QWidget):
         self.h_ruler.retranslate_ui()
         self.v_ruler.retranslate_ui()
         self.canvas_view.retranslate_ui()
-

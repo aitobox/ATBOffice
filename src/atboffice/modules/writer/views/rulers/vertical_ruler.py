@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -16,7 +16,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QWidget
 
-from atboffice.modules.writer.models.document import Paragraph, sect_for
+from atboffice.modules.writer.models.document import sect_for
 from atboffice.modules.writer.models.properties import SectionProperties
 from atboffice.modules.writer.views.rulers.types import (
     COLOR_RULER_BG_MARGIN,
@@ -26,7 +26,6 @@ from atboffice.modules.writer.views.rulers.types import (
     COLOR_RULER_TICK,
     PT_PER_CM,
     PT_PER_INCH,
-    PT_PER_MM,
     RulerUnit,
     safe_tr,
     snap_to_grid,
@@ -180,13 +179,17 @@ class VerticalRuler(QWidget):
         if page_b > 0 and page_t < height:
             clamped_page_t = max(0.0, page_t)
             clamped_page_h = min(height, page_b) - clamped_page_t
-            painter.fillRect(QRectF(2.0, clamped_page_t, width - 4.0, clamped_page_h), COLOR_RULER_BG_MARGIN)
+            painter.fillRect(
+                QRectF(2.0, clamped_page_t, width - 4.0, clamped_page_h), COLOR_RULER_BG_MARGIN
+            )
 
         # 3. Text Column Background (pure white)
         if text_b > 0 and text_t < height:
             clamped_text_t = max(0.0, text_t)
             clamped_text_h = max(0.0, min(height, text_b) - clamped_text_t)
-            painter.fillRect(QRectF(2.0, clamped_text_t, width - 4.0, clamped_text_h), COLOR_RULER_BG_PAGE)
+            painter.fillRect(
+                QRectF(2.0, clamped_text_t, width - 4.0, clamped_text_h), COLOR_RULER_BG_PAGE
+            )
 
         # 4. Ruler Border Lines
         painter.setPen(QPen(COLOR_RULER_BORDER, 1.0))
@@ -199,9 +202,13 @@ class VerticalRuler(QWidget):
         # 6. Draw Margin Dividers
         painter.setPen(QPen(QColor(100, 100, 100), 1.0))
         if 0 <= text_t <= height:
-            painter.drawLine(QPointF(2.0, round(text_t) + 0.5), QPointF(width - 2.0, round(text_t) + 0.5))
+            painter.drawLine(
+                QPointF(2.0, round(text_t) + 0.5), QPointF(width - 2.0, round(text_t) + 0.5)
+            )
         if 0 <= text_b <= height:
-            painter.drawLine(QPointF(2.0, round(text_b) + 0.5), QPointF(width - 2.0, round(text_b) + 0.5))
+            painter.drawLine(
+                QPointF(2.0, round(text_b) + 0.5), QPointF(width - 2.0, round(text_b) + 0.5)
+            )
 
     def _paint_ticks_and_numbers(
         self,
@@ -245,7 +252,9 @@ class VerticalRuler(QWidget):
                     # Draw rotated number or centered number
                     painter.translate(width / 2.0 + 2.0, y)
                     painter.rotate(-90.0)
-                    painter.drawText(QRectF(-12.0, -8.0, 24.0, 16.0), Qt.AlignmentFlag.AlignCenter, str(n))
+                    painter.drawText(
+                        QRectF(-12.0, -8.0, 24.0, 16.0), Qt.AlignmentFlag.AlignCenter, str(n)
+                    )
                     painter.restore()
                 painter.setPen(QPen(COLOR_RULER_TICK, 1.0))
                 painter.drawLine(QPointF(width - 8.0, y), QPointF(width - 3.0, y))

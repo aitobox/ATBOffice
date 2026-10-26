@@ -105,7 +105,6 @@ class WriterCanvasView(QAbstractScrollArea):
         self._ruler_guide_x: float | None = None
         self._ruler_guide_y: float | None = None
 
-
         # Connect controller signals
         self.controller.caret_changed.connect(self._on_caret_changed)
         self.controller.selection_changed.connect(self.viewport().update)
@@ -392,7 +391,6 @@ class WriterCanvasView(QAbstractScrollArea):
             self._ruler_guide_x = None
             self._ruler_guide_y = None
             self.viewport().update()
-
 
     def _paint_page_shadow(self, painter: QPainter, page_rect: QRectF) -> None:
         """Draw classic Word 2003 physical paper drop shadow."""

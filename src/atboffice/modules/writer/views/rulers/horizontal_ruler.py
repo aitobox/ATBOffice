@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -23,7 +23,6 @@ from atboffice.modules.writer.views.rulers.types import (
     COLOR_DEFTAB_TICK,
     COLOR_MARKER_BORDER,
     COLOR_MARKER_FILL,
-    COLOR_MARKER_HIGHLIGHT,
     COLOR_RULER_BG_MARGIN,
     COLOR_RULER_BG_PAGE,
     COLOR_RULER_BORDER,
@@ -31,14 +30,11 @@ from atboffice.modules.writer.views.rulers.types import (
     COLOR_RULER_TICK,
     PT_PER_CM,
     PT_PER_INCH,
-    PT_PER_MM,
     RulerUnit,
     TabKind,
     draw_tab_glyph,
-    pt_to_unit,
     safe_tr,
     snap_to_grid,
-    unit_to_pt,
 )
 
 if TYPE_CHECKING:
@@ -162,7 +158,9 @@ class HorizontalRuler(QWidget):
 
     def retranslate_ui(self) -> None:
         """Update localized tooltips and text."""
-        self.setToolTip(safe_tr("Horizontal Ruler (Drag indents, margins, or click to add tab stops)"))
+        self.setToolTip(
+            safe_tr("Horizontal Ruler (Drag indents, margins, or click to add tab stops)")
+        )
 
     # -----------------------------------------------------------------------
     # Coordinate Mapping Helpers
@@ -253,13 +251,17 @@ class HorizontalRuler(QWidget):
         if page_r > 0 and page_l < width:
             clamped_page_l = max(0.0, page_l)
             clamped_page_w = min(width, page_r) - clamped_page_l
-            painter.fillRect(QRectF(clamped_page_l, 2.0, clamped_page_w, height - 4.0), COLOR_RULER_BG_MARGIN)
+            painter.fillRect(
+                QRectF(clamped_page_l, 2.0, clamped_page_w, height - 4.0), COLOR_RULER_BG_MARGIN
+            )
 
         # 3. Text Column Background (pure white)
         if text_r > 0 and text_l < width:
             clamped_text_l = max(0.0, text_l)
             clamped_text_w = max(0.0, min(width, text_r) - clamped_text_l)
-            painter.fillRect(QRectF(clamped_text_l, 2.0, clamped_text_w, height - 4.0), COLOR_RULER_BG_PAGE)
+            painter.fillRect(
+                QRectF(clamped_text_l, 2.0, clamped_text_w, height - 4.0), COLOR_RULER_BG_PAGE
+            )
 
         # 4. Draw Ruler Border Lines
         painter.setPen(QPen(COLOR_RULER_BORDER, 1.0))
@@ -317,7 +319,11 @@ class HorizontalRuler(QWidget):
                 n = abs(k // subs)
                 if n != 0:
                     painter.setPen(QPen(COLOR_RULER_TEXT))
-                    painter.drawText(QRectF(x - 12.0, 3.0, 24.0, height - 6.0), Qt.AlignmentFlag.AlignCenter, str(n))
+                    painter.drawText(
+                        QRectF(x - 12.0, 3.0, 24.0, height - 6.0),
+                        Qt.AlignmentFlag.AlignCenter,
+                        str(n),
+                    )
                 painter.setPen(QPen(COLOR_RULER_TICK, 1.0))
                 painter.drawLine(QPointF(x, height - 8.0), QPointF(x, height - 3.0))
             else:
@@ -326,7 +332,9 @@ class HorizontalRuler(QWidget):
                 painter.setPen(QPen(COLOR_RULER_TICK, 1.0))
                 painter.drawLine(QPointF(x, height - 3.0 - tick_len), QPointF(x, height - 3.0))
 
-    def _paint_default_tabs(self, painter: QPainter, text_l: float, text_r: float, height: float) -> None:
+    def _paint_default_tabs(
+        self, painter: QPainter, text_l: float, text_r: float, height: float
+    ) -> None:
         """Draw small default tab stop tick marks at the bottom of the ruler."""
         px_pt = self.px_per_pt()
         def_tab_px = self._def_tab_pt * px_pt
@@ -343,7 +351,9 @@ class HorizontalRuler(QWidget):
 
         cur_x = start_px
         while cur_x < text_r:
-            painter.drawLine(QPointF(round(cur_x) + 0.5, height - 3.0), QPointF(round(cur_x) + 0.5, height - 1.0))
+            painter.drawLine(
+                QPointF(round(cur_x) + 0.5, height - 3.0), QPointF(round(cur_x) + 0.5, height - 1.0)
+            )
             cur_x += def_tab_px
 
     def _paint_tab_stops(self, painter: QPainter) -> None:
@@ -522,7 +532,9 @@ class HorizontalRuler(QWidget):
             p.indent_left = round(max(-72.0, pt), 2)
         elif kind == "right":
             from_right = (self.text_right_ruler() - x) / self.px_per_pt()
-            p.indent_right = round(max(0.0, snap_to_grid(from_right, self._unit, disable_snap=alt_pressed)), 2)
+            p.indent_right = round(
+                max(0.0, snap_to_grid(from_right, self._unit, disable_snap=alt_pressed)), 2
+            )
         elif kind == "tab":
             # If dragged vertically out of ruler area (> 18px), delete the tab stop
             is_off = y < -18.0 or y > float(self.height()) + 18.0

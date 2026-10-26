@@ -218,7 +218,6 @@ class Paragraph:
         self.p_pr.ind.first_line = float(val)
 
 
-
 def plen(p: Paragraph) -> int:
     """Total character length of a paragraph."""
     return sum(ilen(it) for it in p.runs)

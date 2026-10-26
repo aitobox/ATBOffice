@@ -6,12 +6,11 @@ from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.writer.models.document import Document, Paragraph
-from atboffice.modules.writer.models.properties import SectionProperties, TabStop
+from atboffice.modules.writer.models.properties import SectionProperties
 from atboffice.modules.writer.view import WriterView
 from atboffice.modules.writer.views.canvas_view import WriterCanvasView
 from atboffice.modules.writer.views.ruler import (
     PT_PER_CM,
-    PT_PER_INCH,
     HorizontalRuler,
     RulerUnit,
     TabKind,
@@ -104,7 +103,6 @@ def test_horizontal_ruler_markers_and_geometry(qapp):
     p.indent_first = 18.0
     p.indent_right = 72.0
 
-
     canvas = WriterCanvasView(doc=doc)
     canvas.resize(800, 600)
     canvas.show()
@@ -138,7 +136,6 @@ def test_horizontal_ruler_drag_indents(qapp):
     p.indent_left = 0.0
     p.indent_first = 0.0
     p.indent_right = 0.0
-
 
     canvas = WriterCanvasView(doc=doc)
     canvas.resize(800, 600)
@@ -197,7 +194,6 @@ def test_horizontal_ruler_tab_stops_add_move_and_delete(qapp):
     """Verify clicking ruler adds tab stop, dragging moves it, dragging off deletes it."""
     doc = Document()
     p = doc.main.blocks[0]
-
 
     canvas = WriterCanvasView(doc=doc)
     canvas.resize(800, 600)
@@ -377,10 +373,8 @@ def test_vertical_ruler_margins_and_drag(qapp):
 def test_writer_view_with_rulers_integration(qapp):
     """Verify WriterView integrates TabSelectorWidget, HorizontalRuler, and VerticalRuler."""
     doc = Document()
-    p = doc.main.blocks[0]
-
-
     view = WriterView(doc=doc)
+
     view.resize(800, 600)
     view.show()
 
