@@ -151,3 +151,82 @@ def test_populate_sheet_and_export_csv():
     exported = export_csv(model)
     assert '"Widget, Large",10,12.5' in exported
     assert "Gadget,5,100" in exported
+
+
+from atboffice.modules.spreadsheet.io.xmlss_io import (
+    from_r1c1,
+    read_xmlss,
+    to_r1c1,
+    write_xmlss,
+)
+
+
+def test_r1c1_conversions():
+    # Relative from (2, 2) which is C3
+    assert from_r1c1("R[-1]C[-1]", 2, 2) == "B2"
+    assert from_r1c1("R1C1", 2, 2) == "$A$1"
+    assert from_r1c1("RC[1]", 2, 2) == "D3"
+    assert from_r1c1("=SUM(R[-2]C:R[-1]C)", 2, 2) == "SUM(C1:C2)"
+
+    # to_r1c1 from C3 (2, 2)
+    assert to_r1c1("B2", 2, 2) == "=R[-1]C[-1]"
+    assert to_r1c1("$A$1", 2, 2) == "=R1C1"
+    assert to_r1c1("SUM(C1:C2)", 2, 2) == "=SUM(R[-2]C:R[-1]C)"
+
+
+def test_xmlss_read_write_roundtrip():
+    xml_data = """<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="Default" ss:Name="Normal">
+   <Alignment ss:Vertical="Bottom"/>
+   <Font ss:FontName="Arial" ss:Size="10"/>
+  </Style>
+  <Style ss:ID="sBold">
+   <Font ss:Bold="1" ss:FontName="Arial" ss:Size="10"/>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="Sheet1">
+  <Table>
+   <Row>
+    <Cell ss:StyleID="sBold"><Data ss:Type="String">Header 1</Data></Cell>
+    <Cell ss:MergeAcross="1" ss:StyleID="sBold"><Data ss:Type="String">Merged</Data></Cell>
+   </Row>
+   <Row>
+    <Cell><Data ss:Type="Number">10</Data></Cell>
+    <Cell><Data ss:Type="Number">20</Data></Cell>
+    <Cell ss:Formula="=SUM(RC[-2]:RC[-1])"><Data ss:Type="Number">30</Data></Cell>
+   </Row>
+  </Table>
+ </Worksheet>
+</Workbook>"""
+    model = read_xmlss(xml_data)
+    assert model.get_cell_value(0, 0) == "Header 1"
+    cell_0_0 = model.get_cell(0, 0)
+    assert cell_0_0.bold is True
+
+    # Check merge
+    assert model.is_merged(0, 1) is True
+    assert model.get_merge_range(0, 1) == (0, 1, 0, 2)
+
+    assert model.get_cell_value(1, 0) == 10
+    assert model.get_cell_value(1, 1) == 20
+    assert model.get_cell(1, 2).formula == "SUM(A2:B2)"
+
+    # Export to XMLSS
+    out_xml = write_xmlss(model, sheet_name="Sheet1")
+    assert "<Workbook" in out_xml
+    assert "Header 1" in out_xml
+    assert 'ss:MergeAcross="1"' in out_xml
+
+    # Re-read exported XMLSS
+    model2 = read_xmlss(out_xml)
+    assert model2.get_cell_value(0, 0) == "Header 1"
+    assert model2.get_cell(0, 0).bold is True
+    assert model2.get_merge_range(0, 1) == (0, 1, 0, 2)
+    assert model2.get_cell_value(1, 0) == 10
+    assert model2.get_cell(1, 2).formula == "SUM(A2:B2)"
