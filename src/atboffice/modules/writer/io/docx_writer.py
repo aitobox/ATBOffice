@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import io
-from pathlib import Path
-from typing import Any
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 from atboffice.modules.writer.models.document import (
     BookmarkEndItem,
     BookmarkStartItem,
     BreakItem,
-    Cell,
     CommentRangeEnd,
     CommentRangeStart,
     Document,
@@ -19,7 +17,6 @@ from atboffice.modules.writer.models.document import (
     FieldEndItem,
     FieldSeparateItem,
     Paragraph,
-    Row,
     RunItem,
     Story,
     SymbolItem,
@@ -28,15 +25,12 @@ from atboffice.modules.writer.models.document import (
     TextItem,
 )
 from atboffice.modules.writer.models.properties import (
-    CellProperties,
     ParagraphProperties,
-    RowProperties,
     RunProperties,
     SectionProperties,
-    TableProperties,
     pt_to_dxa,
 )
-from atboffice.modules.writer.models.styles import Style
+from atboffice.modules.writer.models.styles import Style, builtin_styles
 from atboffice.vfs.opc import PackageWriter, Relationship, SourcePackage
 from atboffice.vfs.order import enforce_schema_order
 from atboffice.vfs.xml_tree import serialize_xml
@@ -189,7 +183,7 @@ class DocxWriter:
             '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
             f'  <Relationship Id="rId1" Type="{REL_DOC}" Target="word/document.xml"/>\n'
             "</Relationships>"
-        ).encode("utf-8")
+        ).encode()
         writer.add_part("_rels/.rels", root_rels_xml, CT_RELS)
 
         return writer.to_bytes()
@@ -448,7 +442,12 @@ class DocxWriter:
             r_style = ET.SubElement(r_pr_elem, _w("rStyle"))
             r_style.set(_w("val"), r_pr.style)
 
-        if r_pr.font != "Times New Roman" or r_pr.font_ea != "SimSun" or r_pr.font_cs != "Times New Roman":
+        font_changed = (
+            r_pr.font != "Times New Roman"
+            or r_pr.font_ea != "SimSun"
+            or r_pr.font_cs != "Times New Roman"
+        )
+        if font_changed:
             r_fonts = ET.SubElement(r_pr_elem, _w("rFonts"))
             if r_pr.font:
                 r_fonts.set(_w("ascii"), r_pr.font)

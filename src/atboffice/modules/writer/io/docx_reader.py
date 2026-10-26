@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import io
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
-import xml.etree.ElementTree as ET
 
 from atboffice.modules.writer.models.document import (
     BookmarkEndItem,
@@ -29,13 +29,10 @@ from atboffice.modules.writer.models.document import (
     normalize,
 )
 from atboffice.modules.writer.models.properties import (
-    BorderProperties,
     CellProperties,
     ColumnsProperties,
-    DocGridProperties,
     IndentProperties,
     NumberingRef,
-    PageNumberProperties,
     ParagraphProperties,
     RowProperties,
     RunProperties,
@@ -44,7 +41,6 @@ from atboffice.modules.writer.models.properties import (
     SpacingProperties,
     TableProperties,
     TabStop,
-    dxa_to_pt,
 )
 from atboffice.modules.writer.models.styles import Style, builtin_styles
 from atboffice.vfs.opc import Relationship, SourcePackage
@@ -223,7 +219,10 @@ class DocxReader:
             next_elem = style_elem.find(f"{{{NS_W}}}next")
             next_s = _get_attr(next_elem, "val") if next_elem is not None else None
 
-            is_default = _bool_val(style_elem.find(f"{{{NS_W}}}default"), False) or _get_attr(style_elem, "default") == "1"
+            def_elem = style_elem.find(f"{{{NS_W}}}default")
+            is_default = (
+                _bool_val(def_elem, False) or _get_attr(style_elem, "default") == "1"
+            )
 
             p_pr = None
             p_pr_elem = style_elem.find(f"{{{NS_W}}}pPr")
@@ -454,8 +453,16 @@ class DocxReader:
                     line = line_num / 240.0 if rule == "auto" else line_num / 20.0
                 else:
                     line = 1.0
-                b_auto = _bool_val(child.find(f"{{{NS_W}}}beforeAutospacing"), False) or _get_attr(child, "beforeAutospacing") == "1"
-                a_auto = _bool_val(child.find(f"{{{NS_W}}}afterAutospacing"), False) or _get_attr(child, "afterAutospacing") == "1"
+                b_elem = child.find(f"{{{NS_W}}}beforeAutospacing")
+                a_elem = child.find(f"{{{NS_W}}}afterAutospacing")
+                b_auto = (
+                    _bool_val(b_elem, False)
+                    or _get_attr(child, "beforeAutospacing") == "1"
+                )
+                a_auto = (
+                    _bool_val(a_elem, False)
+                    or _get_attr(child, "afterAutospacing") == "1"
+                )
                 p_pr.sp = SpacingProperties(
                     before=b,
                     after=a,
@@ -465,14 +472,14 @@ class DocxReader:
                     after_auto=a_auto,
                 )
             elif tag == "ind":
-                l = _twips_to_pt(_get_attr(child, "left") or _get_attr(child, "start"))
-                r = _twips_to_pt(_get_attr(child, "right") or _get_attr(child, "end"))
+                ind_left = _twips_to_pt(_get_attr(child, "left") or _get_attr(child, "start"))
+                ind_right = _twips_to_pt(_get_attr(child, "right") or _get_attr(child, "end"))
                 fl = 0.0
                 if _get_attr(child, "hanging") is not None:
                     fl = -_twips_to_pt(_get_attr(child, "hanging"))
                 elif _get_attr(child, "firstLine") is not None:
                     fl = _twips_to_pt(_get_attr(child, "firstLine"))
-                p_pr.ind = IndentProperties(left=l, right=r, first_line=fl)
+                p_pr.ind = IndentProperties(left=ind_left, right=ind_right, first_line=fl)
             elif tag == "keepNext":
                 p_pr.keep_next = _bool_val(child, True)
             elif tag == "keepLines":
@@ -492,7 +499,8 @@ class DocxReader:
                 num_id_elem = child.find(f"{{{NS_W}}}numId")
                 num_id = _get_attr(num_id_elem if num_id_elem is not None else child, "val", "0")
                 ilvl_elem = child.find(f"{{{NS_W}}}ilvl")
-                ilvl = int(_get_attr(ilvl_elem if ilvl_elem is not None else child, "val", "0") or "0")
+                ilvl_str = _get_attr(ilvl_elem if ilvl_elem is not None else child, "val", "0")
+                ilvl = int(ilvl_str or "0")
                 p_pr.num = NumberingRef(id=str(num_id), lvl=ilvl)
             elif tag == "tabs":
                 tabs: list[TabStop] = []

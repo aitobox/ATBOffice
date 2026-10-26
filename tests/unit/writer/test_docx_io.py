@@ -258,12 +258,19 @@ def test_schema_ordering_enforcement() -> None:
 
 
 def test_docm_macro_lossless_preservation() -> None:
-    """Verify that editing a DOCM file carries untouched VBA binaries and other parts byte-for-byte."""
-    vba_binary_payload = b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1" + b"REALISTIC_VBA_PROJECT_BINARY_PAYLOAD" * 50
+    """Verify that editing a DOCM file carries untouched VBA binaries byte-for-byte."""
+    vba_payload = (
+        b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1"
+        + b"REALISTIC_VBA_PROJECT_BINARY_PAYLOAD" * 50
+    )
     image_payload = b"\x89PNG\r\n\x1a\n" + b"FAKE_PNG_BINARY_DATA" * 20
-    theme_xml = b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Office Theme"/>'
+    theme_xml = (
+        b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        b'<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+        b'name="Office Theme"/>'
+    )
 
-    vba_hash_orig = hashlib.sha256(vba_binary_payload).hexdigest()
+    vba_hash_orig = hashlib.sha256(vba_payload).hexdigest()
     image_hash_orig = hashlib.sha256(image_payload).hexdigest()
     theme_hash_orig = hashlib.sha256(theme_xml).hexdigest()
 
@@ -274,12 +281,16 @@ def test_docm_macro_lossless_preservation() -> None:
         ct_xml = (
             '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n'
-            '  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n'
+            '  <Default Extension="rels" '
+            'ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n'
             '  <Default Extension="xml" ContentType="application/xml"/>\n'
-            '  <Default Extension="bin" ContentType="application/vnd.ms-office.vbaProject"/>\n'
+            '  <Default Extension="bin" '
+            'ContentType="application/vnd.ms-office.vbaProject"/>\n'
             '  <Default Extension="png" ContentType="image/png"/>\n'
-            '  <Override PartName="/word/document.xml" ContentType="application/vnd.ms-word.document.macroEnabled.main+xml"/>\n'
-            '  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>\n'
+            '  <Override PartName="/word/document.xml" '
+            'ContentType="application/vnd.ms-word.document.macroEnabled.main+xml"/>\n'
+            '  <Override PartName="/word/styles.xml" '
+            'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>\n'
             "</Types>"
         )
         zf.writestr("[Content_Types].xml", ct_xml.encode("utf-8"))
@@ -288,41 +299,50 @@ def test_docm_macro_lossless_preservation() -> None:
         zf.writestr(
             "_rels/.rels",
             (
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
-                '  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>\n'
-                "</Relationships>"
-            ).encode("utf-8"),
+                b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                b'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+                b'  <Relationship Id="rId1" '
+                b'Type="http://schemas.openxmlformats.org/officeDocument/'
+                b'2006/relationships/officeDocument" '
+                b'Target="word/document.xml"/>\n'
+                b"</Relationships>"
+            ),
         )
 
         # word/document.xml
         zf.writestr(
             "word/document.xml",
             (
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-                '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">\n'
-                "  <w:body>\n"
-                "    <w:p><w:r><w:t>Original Unmodified Paragraph</w:t></w:r></w:p>\n"
-                "    <w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/></w:sectPr>\n"
-                "  </w:body>\n"
-                "</w:document>"
-            ).encode("utf-8"),
+                b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                b'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">\n'
+                b"  <w:body>\n"
+                b"    <w:p><w:r><w:t>Original Unmodified Paragraph</w:t></w:r></w:p>\n"
+                b"    <w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/></w:sectPr>\n"
+                b"  </w:body>\n"
+                b"</w:document>"
+            ),
         )
 
         # word/_rels/document.xml.rels
         zf.writestr(
             "word/_rels/document.xml.rels",
             (
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
-                '  <Relationship Id="rId1" Type="http://schemas.microsoft.com/office/2006/relationships/vbaProject" Target="vbaProject.bin"/>\n'
-                '  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>\n'
-                '  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>\n'
-                "</Relationships>"
-            ).encode("utf-8"),
+                b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                b'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+                b'  <Relationship Id="rId1" '
+                b'Type="http://schemas.microsoft.com/office/2006/relationships/vbaProject" '
+                b'Target="vbaProject.bin"/>\n'
+                b'  <Relationship Id="rId2" '
+                b'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" '
+                b'Target="media/image1.png"/>\n'
+                b'  <Relationship Id="rId3" '
+                b'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" '
+                b'Target="theme/theme1.xml"/>\n'
+                b"</Relationships>"
+            ),
         )
 
-        zf.writestr("word/vbaProject.bin", vba_binary_payload)
+        zf.writestr("word/vbaProject.bin", vba_payload)
         zf.writestr("word/media/image1.png", image_payload)
         zf.writestr("word/theme/theme1.xml", theme_xml)
 
@@ -346,9 +366,13 @@ def test_docm_macro_lossless_preservation() -> None:
     saved_pkg = SourcePackage.from_bytes(saved_docm_bytes)
 
     # 1. Byte-for-byte SHA256 preservation of untouched binary / theme parts
-    assert hashlib.sha256(saved_pkg.read_part("word/vbaProject.bin")).hexdigest() == vba_hash_orig
-    assert hashlib.sha256(saved_pkg.read_part("word/media/image1.png")).hexdigest() == image_hash_orig
-    assert hashlib.sha256(saved_pkg.read_part("word/theme/theme1.xml")).hexdigest() == theme_hash_orig
+    vba_hash_saved = hashlib.sha256(saved_pkg.read_part("word/vbaProject.bin")).hexdigest()
+    img_hash_saved = hashlib.sha256(saved_pkg.read_part("word/media/image1.png")).hexdigest()
+    thm_hash_saved = hashlib.sha256(saved_pkg.read_part("word/theme/theme1.xml")).hexdigest()
+
+    assert vba_hash_saved == vba_hash_orig
+    assert img_hash_saved == image_hash_orig
+    assert thm_hash_saved == theme_hash_orig
 
     # 2. Document content type remains macroEnabled
     ct = saved_pkg.get_content_type("word/document.xml")
@@ -365,8 +389,10 @@ def test_headers_and_footers_roundtrip() -> None:
     doc.main.blocks = [Paragraph(runs=[TextItem(text="Body content")])]
 
     # Header story
-    hdr_story = Story(kind="header", blocks=[Paragraph(runs=[TextItem(text="Header Page 1")])])
-    ftr_story = Story(kind="footer", blocks=[Paragraph(runs=[TextItem(text="Footer - Confidential")])])
+    hdr_p = Paragraph(runs=[TextItem(text="Header Page 1")])
+    ftr_p = Paragraph(runs=[TextItem(text="Footer - Confidential")])
+    hdr_story = Story(kind="header", blocks=[hdr_p])
+    ftr_story = Story(kind="footer", blocks=[ftr_p])
 
     doc.hf["rIdHdr1"] = hdr_story
     doc.hf["rIdFtr1"] = ftr_story
