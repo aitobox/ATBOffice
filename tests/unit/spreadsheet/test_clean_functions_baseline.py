@@ -1,4 +1,4 @@
-"""Precision baseline tests for 519 functions against .vibeoffice/tests/ledger/clean-functions.baseline.json."""
+"""Precision baseline tests for 519 functions against clean-functions.baseline.json."""
 
 from __future__ import annotations
 

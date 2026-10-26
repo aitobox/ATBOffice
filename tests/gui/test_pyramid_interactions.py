@@ -10,10 +10,9 @@ from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import QApplication
 
-from atboffice.modules.spreadsheet.models.selection_model import SelectionRange
-from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetDataModel
+from atboffice.modules.spreadsheet.models.sheet_model import CellData
 from atboffice.modules.spreadsheet.view import SpreadsheetView
-from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport, HitZone
+from atboffice.modules.spreadsheet.views.grid_viewport import HitZone
 
 
 @pytest.fixture

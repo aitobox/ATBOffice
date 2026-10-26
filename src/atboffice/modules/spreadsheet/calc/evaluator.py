@@ -165,19 +165,37 @@ def evaluate_ast(node: ASTNode, ctx: EvalContext | None = None) -> Any:
 
         # Unbox single cell Ref if needed, or convert to Arr
         if isinstance(left_val, Ref):
-            left_val = left_val.cell_value(left_val.r1, left_val.c1) if left_val.single else left_val.to_array()
+            left_val = (
+                left_val.cell_value(left_val.r1, left_val.c1)
+                if left_val.single
+                else left_val.to_array()
+            )
         if isinstance(right_val, Ref):
-            right_val = right_val.cell_value(right_val.r1, right_val.c1) if right_val.single else right_val.to_array()
+            right_val = (
+                right_val.cell_value(right_val.r1, right_val.c1)
+                if right_val.single
+                else right_val.to_array()
+            )
 
         if isinstance(left_val, Arr) or isinstance(right_val, Arr):
-            r_max = max(left_val.rows if isinstance(left_val, Arr) else 1, right_val.rows if isinstance(right_val, Arr) else 1)
-            c_max = max(left_val.cols if isinstance(left_val, Arr) else 1, right_val.cols if isinstance(right_val, Arr) else 1)
+            l_rows = left_val.rows if isinstance(left_val, Arr) else 1
+            r_rows = right_val.rows if isinstance(right_val, Arr) else 1
+            l_cols = left_val.cols if isinstance(left_val, Arr) else 1
+            r_cols = right_val.cols if isinstance(right_val, Arr) else 1
+            r_max = max(l_rows, r_rows)
+            c_max = max(l_cols, r_cols)
             out_matrix: list[list[Any]] = []
             for r in range(r_max):
                 row_items: list[Any] = []
                 for c in range(c_max):
-                    lv = left_val.get(r if isinstance(left_val, Arr) and left_val.rows > 1 else 0, c if isinstance(left_val, Arr) and left_val.cols > 1 else 0) if isinstance(left_val, Arr) else left_val
-                    rv = right_val.get(r if isinstance(right_val, Arr) and right_val.rows > 1 else 0, c if isinstance(right_val, Arr) and right_val.cols > 1 else 0) if isinstance(right_val, Arr) else right_val
+                    if isinstance(left_val, Arr):
+                        lv = left_val.get(r if l_rows > 1 else 0, c if l_cols > 1 else 0)
+                    else:
+                        lv = left_val
+                    if isinstance(right_val, Arr):
+                        rv = right_val.get(r if r_rows > 1 else 0, c if r_cols > 1 else 0)
+                    else:
+                        rv = right_val
                     row_items.append(_eval_binary_scalar(op, lv, rv, ctx))
                 out_matrix.append(row_items)
             return Arr(out_matrix)

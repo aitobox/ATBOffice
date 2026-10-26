@@ -1,4 +1,4 @@
-"""Comprehensive calculation engine regression tests ported from .vibeoffice/tests/ledger/calc.test.js.
+"""Calculation engine regression tests ported from .vibeoffice/tests/ledger/calc.test.js.
 
 Verifies cross-sheet references, criteria evaluation, arithmetic, strings,
 dates, lookup, financial, and statistical functions.
@@ -12,7 +12,6 @@ from typing import Any
 import pytest
 
 from atboffice.modules.spreadsheet.calc.context import EvalContext
-from atboffice.modules.spreadsheet.calc.errors import ExcelError
 from atboffice.modules.spreadsheet.calc.evaluator import evaluate
 
 
@@ -80,30 +79,30 @@ class TestCalcRegression:
         assert_eval(calc_context, "MEDIAN(A1:A10)", 5.5)
         assert_eval(calc_context, "STDEV(A1:A10)", 3.0276503540974917)
         assert_eval(calc_context, "SUMPRODUCT((A1:A10>5)*A1:A10)", 40)
-        assert_eval(calc_context, "SUMIF(A1:A10,\">5\")", 40)
-        assert_eval(calc_context, "COUNTIF(B1:B5,\"*e*\")", 4)
-        assert_eval(calc_context, "COUNTIFS(A1:A10,\">2\",A1:A10,\"<8\")", 5)
+        assert_eval(calc_context, 'SUMIF(A1:A10,">5")', 40)
+        assert_eval(calc_context, 'COUNTIF(B1:B5,"*e*")', 4)
+        assert_eval(calc_context, 'COUNTIFS(A1:A10,">2",A1:A10,"<8")', 5)
 
     def test_cross_sheet_and_lookups(self, calc_context: EvalContext):
-        assert_eval(calc_context, "AVERAGEIFS(Data!C2:C6,Data!B2:B6,\"West\")", 275)
-        assert_eval(calc_context, "SUMIFS(Data!C2:C6,Data!B2:B6,\"East\",Data!C2:C6,\">100\")", 175)
-        assert_eval(calc_context, "VLOOKUP(\"Cy\",Data!A1:D6,3,FALSE)", 175)
-        assert_eval(calc_context, "VLOOKUP(\"Zed\",Data!A1:D6,3,FALSE)", "#N/A")
-        assert_eval(calc_context, "HLOOKUP(\"Sales\",Data!A1:D6,3,FALSE)", 250)
-        assert_eval(calc_context, "INDEX(Data!A1:D6,MATCH(\"Di\",Data!A1:A6,0),2)", "North")
+        assert_eval(calc_context, 'AVERAGEIFS(Data!C2:C6,Data!B2:B6,"West")', 275)
+        assert_eval(calc_context, 'SUMIFS(Data!C2:C6,Data!B2:B6,"East",Data!C2:C6,">100")', 175)
+        assert_eval(calc_context, 'VLOOKUP("Cy",Data!A1:D6,3,FALSE)', 175)
+        assert_eval(calc_context, 'VLOOKUP("Zed",Data!A1:D6,3,FALSE)', "#N/A")
+        assert_eval(calc_context, 'HLOOKUP("Sales",Data!A1:D6,3,FALSE)', 250)
+        assert_eval(calc_context, 'INDEX(Data!A1:D6,MATCH("Di",Data!A1:A6,0),2)', "North")
         assert_eval(calc_context, "MATCH(7,A1:A10,1)", 7)
         assert_eval(calc_context, "MATCH(7.5,A1:A10)", 7)
         assert_eval(calc_context, "LOOKUP(6.5,A1:A10,A1:A10)", 6)
-        assert_eval(calc_context, "XLOOKUP(\"Ed\",Data!A2:A6,Data!C2:C6)", 300)
-        assert_eval(calc_context, "XMATCH(\"cherry\",B1:B5)", 3)
+        assert_eval(calc_context, 'XLOOKUP("Ed",Data!A2:A6,Data!C2:C6)', 300)
+        assert_eval(calc_context, 'XMATCH("cherry",B1:B5)', 3)
 
     def test_logic_and_branching(self, calc_context: EvalContext):
-        assert_eval(calc_context, "IFERROR(1/0,\"x\")", "x")
-        assert_eval(calc_context, "ISNA(MATCH(\"q\",B1:B5,0))", True)
-        assert_eval(calc_context, "IF(A1>0,\"pos\",\"neg\")", "pos")
-        assert_eval(calc_context, "IFS(A3=1,\"a\",A3=3,\"c\")", "c")
-        assert_eval(calc_context, "CHOOSE(2,\"a\",\"b\",\"c\")", "b")
-        assert_eval(calc_context, "SWITCH(2,1,\"one\",2,\"two\",\"other\")", "two")
+        assert_eval(calc_context, 'IFERROR(1/0,"x")', "x")
+        assert_eval(calc_context, 'ISNA(MATCH("q",B1:B5,0))', True)
+        assert_eval(calc_context, 'IF(A1>0,"pos","neg")', "pos")
+        assert_eval(calc_context, 'IFS(A3=1,"a",A3=3,"c")', "c")
+        assert_eval(calc_context, 'CHOOSE(2,"a","b","c")', "b")
+        assert_eval(calc_context, 'SWITCH(2,1,"one",2,"two","other")', "two")
 
     def test_math_and_numeric_functions(self, calc_context: EvalContext):
         assert_eval(calc_context, "ROUND(2.345,2)", 2.35)
@@ -130,26 +129,26 @@ class TestCalcRegression:
         assert_eval(calc_context, "0.1+0.2=0.3", True)
 
     def test_string_manipulation(self, calc_context: EvalContext):
-        assert_eval(calc_context, "LEN(\"hello\")", 5)
-        assert_eval(calc_context, "LEFT(\"hello\",2)", "he")
-        assert_eval(calc_context, "MID(\"hello\",2,3)", "ell")
-        assert_eval(calc_context, "RIGHT(\"hello\",3)", "llo")
-        assert_eval(calc_context, "UPPER(\"abc\")", "ABC")
-        assert_eval(calc_context, "PROPER(\"hello WORLD\")", "Hello World")
-        assert_eval(calc_context, "TRIM(\"  a   b  \")", "a b")
-        assert_eval(calc_context, "SUBSTITUTE(\"aaa\",\"a\",\"b\",2)", "aba")
-        assert_eval(calc_context, "REPLACE(\"abcdef\",2,3,\"X\")", "aXef")
-        assert_eval(calc_context, "FIND(\"l\",\"hello\")", 3)
-        assert_eval(calc_context, "SEARCH(\"L*O\",\"hello\")", 3)
-        assert_eval(calc_context, "TEXT(1234.567,\"#,##0.00\")", "1,234.57")
-        assert_eval(calc_context, "VALUE(\"1,234.5\")", 1234.5)
-        assert_eval(calc_context, "CONCATENATE(\"a\",1,TRUE)", "a1TRUE")
-        assert_eval(calc_context, "TEXTJOIN(\",\",TRUE,B1:B3)", "apple,banana,cherry")
-        assert_eval(calc_context, "REPT(\"ab\",3)", "ababab")
-        assert_eval(calc_context, "EXACT(\"a\",\"A\")", False)
-        assert_eval(calc_context, "\"a\"=\"A\"", True)
+        assert_eval(calc_context, 'LEN("hello")', 5)
+        assert_eval(calc_context, 'LEFT("hello",2)', "he")
+        assert_eval(calc_context, 'MID("hello",2,3)', "ell")
+        assert_eval(calc_context, 'RIGHT("hello",3)', "llo")
+        assert_eval(calc_context, 'UPPER("abc")', "ABC")
+        assert_eval(calc_context, 'PROPER("hello WORLD")', "Hello World")
+        assert_eval(calc_context, 'TRIM("  a   b  ")', "a b")
+        assert_eval(calc_context, 'SUBSTITUTE("aaa","a","b",2)', "aba")
+        assert_eval(calc_context, 'REPLACE("abcdef",2,3,"X")', "aXef")
+        assert_eval(calc_context, 'FIND("l","hello")', 3)
+        assert_eval(calc_context, 'SEARCH("L*O","hello")', 3)
+        assert_eval(calc_context, 'TEXT(1234.567,"#,##0.00")', "1,234.57")
+        assert_eval(calc_context, 'VALUE("1,234.5")', 1234.5)
+        assert_eval(calc_context, 'CONCATENATE("a",1,TRUE)', "a1TRUE")
+        assert_eval(calc_context, 'TEXTJOIN(",",TRUE,B1:B3)', "apple,banana,cherry")
+        assert_eval(calc_context, 'REPT("ab",3)', "ababab")
+        assert_eval(calc_context, 'EXACT("a","A")', False)
+        assert_eval(calc_context, '"a"="A"', True)
         assert_eval(calc_context, "CHAR(65)", "A")
-        assert_eval(calc_context, "CODE(\"a\")", 97)
+        assert_eval(calc_context, 'CODE("a")', 97)
 
     def test_date_and_time_functions(self, calc_context: EvalContext):
         assert_eval(calc_context, "DATE(2024,2,29)", 45351)
@@ -159,7 +158,7 @@ class TestCalcRegression:
         assert_eval(calc_context, "WEEKDAY(45351)", 5)
         assert_eval(calc_context, "EOMONTH(45292,1)", 45351)
         assert_eval(calc_context, "EDATE(45322,1)", 45351)
-        assert_eval(calc_context, "DATEDIF(DATE(2020,1,15),DATE(2024,3,10),\"y\")", 4)
+        assert_eval(calc_context, 'DATEDIF(DATE(2020,1,15),DATE(2024,3,10),"y")', 4)
         assert_eval(calc_context, "NETWORKDAYS(DATE(2024,1,1),DATE(2024,1,31))", 23)
         assert_eval(calc_context, "WORKDAY(DATE(2024,1,1),10)", 45306)
         assert_eval(calc_context, "WEEKNUM(DATE(2024,3,15))", 11)
@@ -188,11 +187,11 @@ class TestCalcRegression:
         assert_eval(calc_context, "STANDARDIZE(42,40,1.5)", 1.3333333333333333)
 
     def test_engineering_and_bitops(self, calc_context: EvalContext):
-        assert_eval(calc_context, "BIN2DEC(\"1111111111\")", -1)
+        assert_eval(calc_context, 'BIN2DEC("1111111111")', -1)
         assert_eval(calc_context, "DEC2BIN(9,4)", "1001")
         assert_eval(calc_context, "DEC2HEX(-54)", "FFFFFFFFCA")
-        assert_eval(calc_context, "HEX2DEC(\"A5\")", 165)
-        assert_eval(calc_context, "OCT2BIN(\"3\")", "11")
+        assert_eval(calc_context, 'HEX2DEC("A5")', 165)
+        assert_eval(calc_context, 'OCT2BIN("3")', "11")
         assert_eval(calc_context, "BITAND(13,25)", 9)
         assert_eval(calc_context, "BITOR(23,10)", 31)
         assert_eval(calc_context, "BITXOR(5,3)", 6)
@@ -203,7 +202,7 @@ class TestCalcRegression:
     def test_error_and_special_semantics(self, calc_context: EvalContext):
         assert_eval(calc_context, "1/0", "#DIV/0!")
         assert_eval(calc_context, "SQRT(-1)", "#NUM!")
-        assert_eval(calc_context, "\"a\"+1", "#VALUE!")
+        assert_eval(calc_context, '"a"+1', "#VALUE!")
         assert_eval(calc_context, "NA()", "#N/A")
         assert_eval(calc_context, "UNKNOWNFN(1)", "#NAME?")
         assert_eval(calc_context, "2^-1", 0.5)

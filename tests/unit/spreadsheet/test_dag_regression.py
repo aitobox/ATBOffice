@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
 from atboffice.modules.spreadsheet.calc.dag import (
-    CellAddress,
     Change,
     DependencyGraph,
 )

@@ -18,8 +18,6 @@ import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 
-import pytest
-
 from atboffice.modules.spreadsheet.calc.context import EvalContext
 from atboffice.modules.spreadsheet.calc.evaluator import evaluate
 from atboffice.vfs.opc import PackageWriter, SourcePackage
@@ -61,7 +59,7 @@ def create_realistic_office_xlsx_bytes() -> bytes:
             f'  <Override PartName="/xl/styles.xml" ContentType="{CT_STYLES}"/>\n'
             f'  <Override PartName="/xl/sharedStrings.xml" ContentType="{CT_SHARED_STRINGS}"/>\n'
             f'  <Override PartName="/xl/drawings/drawing1.xml" ContentType="{CT_DRAWING}"/>\n'
-            '</Types>'
+            "</Types>"
         )
         zf.writestr("[Content_Types].xml", content_types.encode("utf-8"))
 
@@ -70,7 +68,7 @@ def create_realistic_office_xlsx_bytes() -> bytes:
             '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
             f'  <Relationship Id="rId1" Type="{NS_DOC_REL}" Target="xl/workbook.xml"/>\n'
-            '</Relationships>'
+            "</Relationships>"
         )
         zf.writestr("_rels/.rels", root_rels.encode("utf-8"))
 
@@ -80,12 +78,12 @@ def create_realistic_office_xlsx_bytes() -> bytes:
             '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
             'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">\n'
             '  <fileVersion appName="xl" lastEdited="5" lowestEdited="5" rupBuild="9303"/>\n'
-            '  <sheets>\n'
+            "  <sheets>\n"
             '    <sheet name="Sheet1" sheetId="1" r:id="rId1"/>\n'
             '    <sheet name="Sheet2" sheetId="2" r:id="rId2"/>\n'
-            '  </sheets>\n'
+            "  </sheets>\n"
             '  <calcPr calcId="122211"/>\n'
-            '</workbook>'
+            "</workbook>"
         )
         zf.writestr("xl/workbook.xml", wb_xml.encode("utf-8"))
 
@@ -98,7 +96,7 @@ def create_realistic_office_xlsx_bytes() -> bytes:
             f'  <Relationship Id="rId3" Type="{NS_STYLE_REL}" Target="styles.xml"/>\n'
             f'  <Relationship Id="rId4" Type="{NS_SS_REL}" Target="sharedStrings.xml"/>\n'
             f'  <Relationship Id="rId5" Type="{NS_VBA_REL}" Target="vbaProject.bin"/>\n'
-            '</Relationships>'
+            "</Relationships>"
         )
         zf.writestr("xl/_rels/workbook.xml.rels", wb_rels.encode("utf-8"))
 
@@ -108,17 +106,17 @@ def create_realistic_office_xlsx_bytes() -> bytes:
             '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\n'
             '  <dimension ref="A1:B5"/>\n'
-            '  <sheetData>\n'
+            "  <sheetData>\n"
             '    <row r="1">\n'
             '      <c r="A1"><v>10</v></c>\n'
             '      <c r="B1"><f>SUM(A1:A5)</f><v>150</v></c>\n'
-            '    </row>\n'
+            "    </row>\n"
             '    <row r="2"><c r="A2"><v>20</v></c></row>\n'
             '    <row r="3"><c r="A3"><v>30</v></c></row>\n'
             '    <row r="4"><c r="A4"><v>40</v></c></row>\n'
             '    <row r="5"><c r="A5"><v>50</v></c></row>\n'
-            '  </sheetData>\n'
-            '</worksheet>'
+            "  </sheetData>\n"
+            "</worksheet>"
         )
         zf.writestr("xl/worksheets/sheet1.xml", ws1_xml.encode("utf-8"))
 
@@ -126,10 +124,10 @@ def create_realistic_office_xlsx_bytes() -> bytes:
         ws2_xml = (
             '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\n'
-            '  <sheetData>\n'
+            "  <sheetData>\n"
             '    <row r="1"><c r="A1"><v>999</v></c></row>\n'
-            '  </sheetData>\n'
-            '</worksheet>'
+            "  </sheetData>\n"
+            "</worksheet>"
         )
         zf.writestr("xl/worksheets/sheet2.xml", ws2_xml.encode("utf-8"))
 
@@ -138,20 +136,26 @@ def create_realistic_office_xlsx_bytes() -> bytes:
             '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\n'
             '  <fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>\n'
-            '  <fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>\n'
+            '  <fills count="2">\n'
+            '    <fill><patternFill patternType="none"/></fill>\n'
+            '    <fill><patternFill patternType="gray125"/></fill>\n'
+            "  </fills>\n"
             '  <borders count="1"><border><left/><right/><top/><bottom/></border></borders>\n'
-            '  <cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>\n'
-            '</styleSheet>'
+            '  <cellXfs count="1">\n'
+            '    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>\n'
+            "  </cellXfs>\n"
+            "</styleSheet>"
         )
         zf.writestr("xl/styles.xml", styles_xml.encode("utf-8"))
 
         # xl/sharedStrings.xml
         sst_xml = (
             '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-            '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="2" uniqueCount="2">\n'
-            '  <si><t>Revenue</t></si>\n'
-            '  <si><t>Cost</t></si>\n'
-            '</sst>'
+            '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"\n'
+            '     count="2" uniqueCount="2">\n'
+            "  <si><t>Revenue</t></si>\n"
+            "  <si><t>Cost</t></si>\n"
+            "</sst>"
         )
         zf.writestr("xl/sharedStrings.xml", sst_xml.encode("utf-8"))
 
@@ -159,12 +163,12 @@ def create_realistic_office_xlsx_bytes() -> bytes:
         draw_xml = (
             '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing">\n'
-            '</xdr:wsDr>'
+            "</xdr:wsDr>"
         )
         zf.writestr("xl/drawings/drawing1.xml", draw_xml.encode("utf-8"))
 
         # xl/vbaProject.bin (binary macro part with distinct bytes)
-        vba_bytes = b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\xCA\xFE\xBA\xBE" * 16
+        vba_bytes = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1\x00\x00\x00\x00\xca\xfe\xba\xbe" * 16
         zf.writestr("xl/vbaProject.bin", vba_bytes)
 
         # customXml/item1.xml
@@ -190,21 +194,21 @@ class TestOfficeSampleRoundtrip:
 
         # Target mutation: change A1 from 10 to 100 in sheet1.xml
         modified_ws1 = (
-            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-            '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\n'
-            '  <dimension ref="A1:B5"/>\n'
-            '  <sheetData>\n'
-            '    <row r="1">\n'
-            '      <c r="A1"><v>100</v></c>\n'
-            '      <c r="B1"><f>SUM(A1:A5)</f><v>240</v></c>\n'
-            '    </row>\n'
-            '    <row r="2"><c r="A2"><v>20</v></c></row>\n'
-            '    <row r="3"><c r="A3"><v>30</v></c></row>\n'
-            '    <row r="4"><c r="A4"><v>40</v></c></row>\n'
-            '    <row r="5"><c r="A5"><v>50</v></c></row>\n'
-            '  </sheetData>\n'
-            '</worksheet>'
-        ).encode("utf-8")
+            b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+            b'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\n'
+            b'  <dimension ref="A1:B5"/>\n'
+            b"  <sheetData>\n"
+            b'    <row r="1">\n'
+            b'      <c r="A1"><v>100</v></c>\n'
+            b'      <c r="B1"><f>SUM(A1:A5)</f><v>240</v></c>\n'
+            b"    </row>\n"
+            b'    <row r="2"><c r="A2"><v>20</v></c></row>\n'
+            b'    <row r="3"><c r="A3"><v>30</v></c></row>\n'
+            b'    <row r="4"><c r="A4"><v>40</v></c></row>\n'
+            b'    <row r="5"><c r="A5"><v>50</v></c></row>\n'
+            b"  </sheetData>\n"
+            b"</worksheet>"
+        )
 
         writer = PackageWriter(source_package=pkg)
         writer.replace_part("xl/worksheets/sheet1.xml", modified_ws1)
@@ -235,7 +239,7 @@ class TestOfficeSampleRoundtrip:
             reopened_content = reopened_pkg.read_part(part)
             reopened_hash = hashlib.sha256(reopened_content).hexdigest()
             assert reopened_hash == original_hashes[part], (
-                f"Part {part} was modified! Hash mismatch: {reopened_hash} != {original_hashes[part]}"
+                f"Part {part} modified: {reopened_hash} != {original_hashes[part]}"
             )
 
         # Verify modified part is present and updated
@@ -263,7 +267,7 @@ class TestOfficeSampleRoundtrip:
             f'<sheetData xmlns="{ns}"/>'
             f'<dimension xmlns="{ns}" ref="A1:B5"/>'
             f'<sheetPr xmlns="{ns}"/>'
-            f'</worksheet>'
+            f"</worksheet>"
         )
         root = ET.fromstring(raw_xml)
         enforce_schema_order(root, "spreadsheetml_worksheet")
