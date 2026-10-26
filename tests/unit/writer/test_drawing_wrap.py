@@ -191,3 +191,129 @@ def test_linked_text_boxes_overflow():
     assert res_overflow.is_complete is False
     assert res_overflow.overflow_story is not None
     assert len(res_overflow.overflow_story.paras) > 0
+
+
+def test_document_and_portions_integration():
+    from atboffice.modules.writer.layout.portions import (
+        PortionType,
+        decompose_paragraph_to_portions,
+    )
+    from atboffice.modules.writer.models.document import (
+        Document,
+        Paragraph,
+        TextItem,
+        ilen,
+        plain_text,
+    )
+    from atboffice.modules.writer.models.drawing import (
+        FloatProperties,
+        PictureItem,
+        TextBoxItem,
+        WrapMode,
+    )
+
+    doc = Document()
+    p = Paragraph(id=10)
+
+    # 1. Inline picture
+    inline_pic = PictureItem(width=50.0, height=30.0)
+    p.runs.append(TextItem(text="Hello "))
+    p.runs.append(inline_pic)
+    p.runs.append(TextItem(text=" world"))
+
+    doc.main.paras.append(p)
+
+    # Test ilen
+    assert ilen(inline_pic) == 1
+
+    # Decompose into portions: inline graphic should count for width & height
+    portions = decompose_paragraph_to_portions(p, doc)
+    graphic_portions = [pt for pt in portions if pt.type == PortionType.GRAPHIC]
+    assert len(graphic_portions) == 1
+    assert graphic_portions[0].width == 50.0
+    assert graphic_portions[0].ascent == 30.0
+    assert graphic_portions[0].counts_for_height is True
+
+    # 2. Floating picture anchor
+    p_float = Paragraph(id=11)
+    float_pic = PictureItem(
+        width=120.0,
+        height=80.0,
+        float_pr=FloatProperties(wrap=WrapMode.SQUARE),
+    )
+    p_float.runs.append(TextItem(text="Anchored "))
+    p_float.runs.append(float_pic)
+
+    float_portions = decompose_paragraph_to_portions(p_float, doc)
+    float_graphic_portions = [pt for pt in float_portions if pt.type == PortionType.GRAPHIC]
+    assert len(float_graphic_portions) == 1
+    assert float_graphic_portions[0].width == 0.0
+    assert float_graphic_portions[0].counts_for_height is False
+    assert float_graphic_portions[0].data == float_pic
+
+
+def test_wrap_sides_and_largest():
+    from atboffice.modules.writer.layout.wrap import (
+        FloatBox,
+        calculate_line_segments,
+    )
+    from atboffice.modules.writer.models.drawing import (
+        WrapDist,
+        WrapMode,
+        WrapSide,
+    )
+
+    # Obstacle placed slightly to the left of center in column [0, 400]
+    # Box spans [100, 200] with 10 padding -> [90, 210]
+    fb_both = FloatBox(
+        x=100.0,
+        y=50.0,
+        w=100.0,
+        h=100.0,
+        wrap_mode=WrapMode.SQUARE,
+        side=WrapSide.BOTH,
+        dist=WrapDist(left=10.0, right=10.0, top=10.0, bottom=10.0),
+    )
+
+    # BOTH sides: left segment [0, 90] (width 90), right segment [210, 400] (width 190)
+    segs_both = calculate_line_segments(0.0, 400.0, 80.0, 14.0, [fb_both])
+    assert segs_both == [(0.0, 90.0), (210.0, 400.0)]
+
+    # LEFT only: only segment to left of obstacle
+    fb_left = FloatBox(
+        x=100.0,
+        y=50.0,
+        w=100.0,
+        h=100.0,
+        wrap_mode=WrapMode.SQUARE,
+        side=WrapSide.LEFT,
+        dist=WrapDist(left=10.0, right=10.0, top=10.0, bottom=10.0),
+    )
+    segs_left = calculate_line_segments(0.0, 400.0, 80.0, 14.0, [fb_left])
+    assert segs_left == [(0.0, 90.0)]
+
+    # RIGHT only: only segment to right of obstacle
+    fb_right = FloatBox(
+        x=100.0,
+        y=50.0,
+        w=100.0,
+        h=100.0,
+        wrap_mode=WrapMode.SQUARE,
+        side=WrapSide.RIGHT,
+        dist=WrapDist(left=10.0, right=10.0, top=10.0, bottom=10.0),
+    )
+    segs_right = calculate_line_segments(0.0, 400.0, 80.0, 14.0, [fb_right])
+    assert segs_right == [(210.0, 400.0)]
+
+    # LARGEST: right segment (190) is wider than left (90)
+    fb_largest = FloatBox(
+        x=100.0,
+        y=50.0,
+        w=100.0,
+        h=100.0,
+        wrap_mode=WrapMode.SQUARE,
+        side=WrapSide.LARGEST,
+        dist=WrapDist(left=10.0, right=10.0, top=10.0, bottom=10.0),
+    )
+    segs_largest = calculate_line_segments(0.0, 400.0, 80.0, 14.0, [fb_largest])
+    assert segs_largest == [(210.0, 400.0)]

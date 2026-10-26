@@ -475,25 +475,45 @@ def decompose_paragraph_to_portions(
 
         else:
             # Inline graphic, shape, or custom object
-            w = getattr(item, "w", 0.0) or getattr(item, "width", 0.0) or 0.0
-            h = getattr(item, "h", 0.0) or getattr(item, "height", 0.0) or 0.0
-            if w > 0.0 or h > 0.0:
+            float_pr = getattr(item, "float_pr", None)
+            if float_pr is not None:
+                # Floating anchor: zero width in inline text stream
                 portions.append(
                     Portion(
                         type=PortionType.GRAPHIC,
                         text="",
-                        width=float(w),
-                        ascent=float(h),
+                        width=0.0,
+                        ascent=0.0,
                         descent=0.0,
                         font_size=font_sz,
                         font_family=font_family,
-                        counts_for_height=True,
+                        counts_for_height=False,
                         char_offset=char_offset,
                         length=1,
                         data=item,
                     )
                 )
                 char_offset += 1
+            else:
+                w = getattr(item, "w", 0.0) or getattr(item, "width", 0.0) or 0.0
+                h = getattr(item, "h", 0.0) or getattr(item, "height", 0.0) or 0.0
+                if w > 0.0 or h > 0.0:
+                    portions.append(
+                        Portion(
+                            type=PortionType.GRAPHIC,
+                            text="",
+                            width=float(w),
+                            ascent=float(h),
+                            descent=0.0,
+                            font_size=font_sz,
+                            font_family=font_family,
+                            counts_for_height=True,
+                            char_offset=char_offset,
+                            length=1,
+                            data=item,
+                        )
+                    )
+                    char_offset += 1
 
     # Empty paragraph or paragraph with no text: provide a Mark portion
     if not portions:
