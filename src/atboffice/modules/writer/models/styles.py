@@ -158,6 +158,20 @@ def builtin_styles() -> dict[str, Style]:
     )
     add("PlainText", "Plain Text", "paragraph", r_pr=RunProperties(font="Courier New", sz=10.0))
 
+    # TOC Styles
+    for i in range(1, 10):
+        add(
+            f"TOC{i}",
+            f"toc {i}",
+            "paragraph",
+            based_on="Normal",
+            next_s="Normal",
+            p_pr=ParagraphProperties(
+                ind=IndentProperties(left=(i - 1) * 11.0),
+                sp=SpacingProperties(after=2.0),
+            ),
+        )
+
     # Lists
     add(
         "ListBullet",

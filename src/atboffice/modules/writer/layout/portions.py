@@ -528,6 +528,25 @@ def decompose_paragraph_to_portions(
 # ---------------------------------------------------------------------------
 
 
+def find_next_tab_stop(
+    current_x: float,
+    left_margin: float,
+    tabs: list[Any],
+    default_tab_pitch: float = 36.0,
+) -> tuple[float, Any]:
+    """Find the next tab stop position in points and the tab stop object if any."""
+    rel_x = current_x - left_margin
+    # Check explicit paragraph tab stops
+    for tab in tabs:
+        pos = getattr(tab, "pos", None)
+        if pos is not None and pos > rel_x + 0.1:
+            return left_margin + pos, tab
+
+    # Fall back to default regular tab stops (e.g. 0.5 in = 36 pt)
+    next_tab = (math.floor(rel_x / default_tab_pitch) + 1.0) * default_tab_pitch
+    return left_margin + next_tab, None
+
+
 def compute_next_tab_stop(
     current_x: float,
     left_margin: float,
@@ -535,16 +554,8 @@ def compute_next_tab_stop(
     default_tab_pitch: float = 36.0,
 ) -> float:
     """Find the next tab stop position in points."""
-    rel_x = current_x - left_margin
-    # Check explicit paragraph tab stops
-    for tab in tabs:
-        pos = getattr(tab, "pos", None)
-        if pos is not None and pos > rel_x + 0.1:
-            return left_margin + pos
-
-    # Fall back to default regular tab stops (e.g. 0.5 in = 36 pt)
-    next_tab = (math.floor(rel_x / default_tab_pitch) + 1.0) * default_tab_pitch
-    return left_margin + next_tab
+    pos, _ = find_next_tab_stop(current_x, left_margin, tabs, default_tab_pitch)
+    return pos
 
 
 def layout_paragraph(
@@ -689,8 +700,27 @@ def layout_paragraph(
         if pt.type == PortionType.TAB:
             # Tab advance
             cur_x = target_indent_left() + current_width
-            next_x = compute_next_tab_stop(cur_x, target_indent_left(), p_pr.tabs)
-            pt.width = max(0.0, next_x - cur_x)
+            next_x, tab_obj = find_next_tab_stop(cur_x, target_indent_left(), p_pr.tabs)
+            pt.data = tab_obj
+            align = getattr(tab_obj, "align", "left") if tab_obj else "left"
+            if align == "right":
+                rem_w = 0.0
+                for look_idx in range(idx + 1, len(portions)):
+                    look_pt = portions[look_idx]
+                    if look_pt.type in (PortionType.TAB, PortionType.BREAK):
+                        break
+                    rem_w += look_pt.width
+                pt.width = max(0.0, next_x - cur_x - rem_w)
+            elif align == "center":
+                rem_w = 0.0
+                for look_idx in range(idx + 1, len(portions)):
+                    look_pt = portions[look_idx]
+                    if look_pt.type in (PortionType.TAB, PortionType.BREAK):
+                        break
+                    rem_w += look_pt.width
+                pt.width = max(0.0, next_x - cur_x - (rem_w / 2.0))
+            else:
+                pt.width = max(0.0, next_x - cur_x)
 
         avail_w = target_available_width()
 

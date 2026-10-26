@@ -490,51 +490,20 @@ def _update_dynamic_fields(
     doc: Document,
     pages: list[Page],
     section_pages: list[int],
-) -> None:
-    """Evaluate and update text values of dynamic PAGE, NUMPAGES, SECTIONPAGES fields."""
-    total_pages = len(pages)
-    for pg in pages:
-        # Check all paragraphs on page
-        all_frags: list[PageFragment] = []
-        if pg.header:
-            all_frags.extend(pg.header.fragments)
-        for reg in pg.regions:
-            for col in reg.columns:
-                all_frags.extend(col.fragments)
-        if pg.footer:
-            all_frags.extend(pg.footer.fragments)
+) -> bool:
+    """Evaluate and update text values of dynamic fields across all pages."""
+    from atboffice.modules.writer.models.field import update_fields
 
-        for frag in all_frags:
-            p = frag.paragraph
-            if p is None:
-                continue
-            in_field = False
-            cur_field_type = None
-            for it in p.runs:
-                if isinstance(it, FieldBeginItem):
-                    in_field = True
-                    cur_field_type = str(it.field_type or it.instr or "").strip().upper()
-                elif isinstance(it, FieldSeparateItem):
-                    pass
-                elif isinstance(it, FieldEndItem):
-                    in_field = False
-                    cur_field_type = None
-                elif in_field and isinstance(it, TextItem):
-                    if cur_field_type == "PAGE":
-                        it.text = format_number(pg.page_number, pg.page_number_format)
-                    elif cur_field_type == "NUMPAGES":
-                        it.text = format_number(total_pages, "decimal")
-                    elif cur_field_type == "SECTIONPAGES":
-                        sec_cnt = (
-                            section_pages[pg.section_index]
-                            if pg.section_index < len(section_pages)
-                            else 1
-                        )
-                        it.text = format_number(sec_cnt, "decimal")
+    p_res = PaginationResult(
+        pages=pages,
+        total_pages=len(pages),
+        section_pages=section_pages,
+    )
+    return update_fields(doc, p_res)
 
 
-def paginate_document(doc: Document) -> PaginationResult:
-    """Execute complete multi-page pagination for a Document."""
+def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
+    """Execute complete multi-page pagination for a Document without field backfill."""
     t0 = time.perf_counter()
     ctx = _PaginationContext(doc)
 
@@ -738,9 +707,6 @@ def paginate_document(doc: Document) -> PaginationResult:
         if 0 <= pg.section_index < len(sec_pages):
             sec_pages[pg.section_index] += 1
 
-    # Dynamic page number resolution
-    _update_dynamic_fields(doc, ctx.pages, sec_pages)
-
     dur = (time.perf_counter() - t0) * 1000.0
     return PaginationResult(
         pages=ctx.pages,
@@ -748,3 +714,26 @@ def paginate_document(doc: Document) -> PaginationResult:
         section_pages=sec_pages,
         duration_ms=dur,
     )
+
+
+def paginate_document(doc: Document, max_passes: int = 2) -> PaginationResult:
+    """Execute multi-page pagination with dynamic field evaluation and two-pass verification."""
+    t0 = time.perf_counter()
+    from atboffice.modules.writer.models.field import update_fields
+
+    # Pass 1: Initial layout
+    res = _execute_single_pagination_pass(doc)
+    doc._last_pagination = res  # type: ignore[attr-defined]
+
+    # Evaluate dynamic fields with Pass 1 geometry
+    changed = update_fields(doc, res)
+
+    # Pass 2: Repaginate if field expansions occurred to stabilize page counts
+    if changed and max_passes > 1:
+        res2 = _execute_single_pagination_pass(doc)
+        doc._last_pagination = res2  # type: ignore[attr-defined]
+        update_fields(doc, res2)
+        res = res2
+
+    res.duration_ms = (time.perf_counter() - t0) * 1000.0
+    return res

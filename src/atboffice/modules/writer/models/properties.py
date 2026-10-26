@@ -206,6 +206,7 @@ class RunProperties:
     spacing: float = 0.0
     lang: str = "en-US"
     lang_ea: str = "zh-CN"
+    link: dict[str, Any] | None = None
 
 
 @dataclass

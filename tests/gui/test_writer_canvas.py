@@ -333,3 +333,45 @@ class TestTableInteraction:
         assert canvas._resizing_table is False
         # Column 0 width should have expanded
         assert tbl.grid[0] > col0_w
+
+    def test_canvas_toc_hyperlink_jump(self, qapp: QApplication) -> None:
+        """Verify TOC hyperlink click or jump_to_bookmark positions caret and scrolls."""
+        from atboffice.modules.writer.layout.toc import insert_or_update_toc
+        from atboffice.modules.writer.models.document import BreakItem, Paragraph, TextItem
+        from atboffice.modules.writer.models.field import find_bookmarks
+        from atboffice.modules.writer.models.properties import ParagraphProperties
+
+        canvas = WriterCanvasView()
+        doc = canvas.doc
+
+        p_ch1 = Paragraph(
+            runs=[TextItem("Chapter 1: Deep Dive")],
+            p_pr=ParagraphProperties(style="Heading1"),
+        )
+        p_break = Paragraph(runs=[BreakItem("page")])
+        p_ch2 = Paragraph(
+            runs=[TextItem("Chapter 2: Advanced Topics")],
+            p_pr=ParagraphProperties(style="Heading1"),
+        )
+        doc.main.paras = [p_ch1, p_break, p_ch2]
+        doc.main.blocks = list(doc.main.paras)
+
+        insert_or_update_toc(doc, 'TOC \\o "1-2" \\h', at_idx=0)
+        canvas.set_document(doc)
+
+        bms = find_bookmarks(doc)
+        assert len(bms) >= 2
+
+        # Find bookmark for chapter 2
+        bm_ch2 = None
+        for name, b in bms.items():
+            if b.p == p_ch2:
+                bm_ch2 = name
+                break
+        assert bm_ch2 is not None
+
+        # Execute jump to bookmark
+        ok = canvas.jump_to_bookmark(bm_ch2)
+        assert ok is True
+        assert canvas.controller.pos.para_id == p_ch2.id
+
