@@ -25,6 +25,7 @@ from atboffice.modules.writer.models.document import (
     BreakItem,
     Document,
     Paragraph,
+    SymbolItem,
     TabItem,
     TextItem,
 )
@@ -470,6 +471,28 @@ def decompose_paragraph_to_portions(
             )
             char_offset += 1
 
+        elif isinstance(item, SymbolItem):
+            char = getattr(item, "char", "") or ""
+            sym_font = getattr(item, "font", "") or font_family
+            w = measure_char_width(char, font_sz, sym_font)
+            ascent, descent = compute_font_metrics(font_sz, sym_font)
+            portions.append(
+                Portion(
+                    type=PortionType.TEXT,
+                    text=char,
+                    width=w,
+                    ascent=ascent,
+                    descent=descent,
+                    font_size=font_sz,
+                    font_family=sym_font,
+                    counts_for_height=True,
+                    char_offset=char_offset,
+                    length=len(char),
+                    data=item,
+                )
+            )
+            char_offset += len(char)
+
         elif isinstance(item, OfficeMathItem):
             from atboffice.modules.writer.layout.math_layout import layout_math_item
 
@@ -692,6 +715,10 @@ def layout_paragraph(
                 max_sz = max((pt.font_size for pt in counting), default=mark_sz)
                 pitch = sect.doc_grid.line_pitch
                 height = compute_grid_line_height(pitch, line_mult, max_sz, dominant_font)
+                natural_content = ascent + descent
+                if natural_content > height:
+                    grid_steps = max(1, int(math.ceil(natural_content / pitch - 0.02)))
+                    height = max(height, grid_steps * pitch)
                 natural_line = max_sz * get_line_factor(dominant_font)
                 top_padding = max(0.0, (height - natural_line) / 2.0)
                 baseline = top_padding + ascent

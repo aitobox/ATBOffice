@@ -606,6 +606,17 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
                     if p_pr.keep_lines and col.fragments:
                         total_p_h = sum(ln.height for ln in lines_to_place)
                         if total_p_h > avail_h + 0.5:
+                            if ctx.keep_chain:
+                                first_b_idx = ctx.keep_chain[0][0]
+                                for _, _, kfrag, kcol in reversed(ctx.keep_chain):
+                                    if kfrag in kcol.fragments:
+                                        kcol.fragments.remove(kfrag)
+                                        kcol.used_height -= kfrag.height + kfrag.space_before
+                                ctx.keep_chain.clear()
+                                ctx.advance_column_or_page(si, sect)
+                                b_idx = first_b_idx
+                                restarted_b_idx = True
+                                break
                             ctx.advance_column_or_page(si, sect)
                             continue
 
