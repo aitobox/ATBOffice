@@ -21,6 +21,11 @@ from atboffice.modules.writer.layout.portions import (
     LayoutLine,
     layout_paragraph,
 )
+from atboffice.modules.writer.layout.table_layout import (
+    TableLayout,
+    layout_table,
+    split_table_for_page,
+)
 from atboffice.modules.writer.models.document import (
     BreakItem,
     Document,
@@ -29,6 +34,7 @@ from atboffice.modules.writer.models.document import (
     FieldSeparateItem,
     Paragraph,
     Story,
+    Table,
     TextItem,
     sections,
 )
@@ -109,16 +115,17 @@ def format_number(n: int, fmt: str = "decimal") -> str:
 class PageFragment:
     """Rendered portion of a paragraph (or block) placed on a column frame."""
 
-    paragraph: Paragraph
-    line_start_idx: int
-    line_end_idx: int
-    lines: list[LayoutLine]
-    top: float
-    height: float
+    paragraph: Paragraph | None = None
+    line_start_idx: int = 0
+    line_end_idx: int = 0
+    lines: list[LayoutLine] = field(default_factory=list)
+    top: float = 0.0
+    height: float = 0.0
     space_before: float = 0.0
     space_after: float = 0.0
     char_start: int = 0
     char_end: int = 0
+    table_layout: TableLayout | None = None
 
 
 @dataclass
@@ -499,6 +506,8 @@ def _update_dynamic_fields(
 
         for frag in all_frags:
             p = frag.paragraph
+            if p is None:
+                continue
             in_field = False
             cur_field_type = None
             for it in p.runs:
@@ -549,6 +558,47 @@ def paginate_document(doc: Document) -> PaginationResult:
             if guard > 20000:
                 break
             block = blocks[b_idx]
+            if isinstance(block, Table):
+                col = ctx.current_column()
+                col_w = col.width if col else ctx.current_page.body_width
+                t_layout = layout_table(block, container_width=col_w, doc=doc)
+
+                start_row = 0
+                is_first_slice = True
+                while start_row is not None and start_row < len(t_layout.rows):
+                    col = ctx.current_column()
+                    space_left = col.height - col.used_height
+                    if space_left < 20.0 and col.fragments:
+                        ctx.advance_column_or_page(si, sect)
+                        col = ctx.current_column()
+                        space_left = col.height - col.used_height
+
+                    sliced_tbl, next_row = split_table_for_page(
+                        t_layout,
+                        start_row=start_row,
+                        avail_height=space_left,
+                        is_first_page=is_first_slice,
+                    )
+                    if sliced_tbl is None or not sliced_tbl.rows:
+                        break
+
+                    frag = PageFragment(
+                        paragraph=None,
+                        top=col.used_height,
+                        height=sliced_tbl.height,
+                        table_layout=sliced_tbl,
+                    )
+                    col.fragments.append(frag)
+                    col.used_height += sliced_tbl.height
+
+                    start_row = next_row
+                    is_first_slice = False
+                    if start_row is not None:
+                        ctx.advance_column_or_page(si, sect)
+
+                b_idx += 1
+                continue
+
             if not isinstance(block, Paragraph):
                 b_idx += 1
                 continue

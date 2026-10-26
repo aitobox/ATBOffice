@@ -290,6 +290,35 @@ class CaretController(QObject):
             for reg in page.regions:
                 for col in reg.columns:
                     for frag in col.fragments:
+                        if frag.paragraph is None:
+                            if frag.table_layout is not None:
+                                tl = frag.table_layout
+                                frag_x = page.body_left + col.left
+                                frag_y = page.body_top + col.top + frag.top
+                                for rl in tl.rows:
+                                    for cl in rl.cells:
+                                        for block, playout in zip(cl.cell.blocks, cl.paragraphs_layout):
+                                            if isinstance(block, Paragraph) and block.id == target_pid:
+                                                cell_inner_x = frag_x + cl.x + 5.4
+                                                cell_inner_y = frag_y + cl.y + cl.content_offset_y
+                                                for line in playout.lines:
+                                                    line_y = cell_inner_y + line.top
+                                                    line_h = max(line.height, 14.0)
+                                                    if not line.portions:
+                                                        return p_idx, QPointF(cell_inner_x + line.indent_left, line_y), line_h
+                                                    l_start = line.portions[0].char_offset
+                                                    l_end = line.portions[-1].char_offset + line.portions[-1].length
+                                                    if l_start <= target_off <= l_end or line is playout.lines[-1]:
+                                                        x = cell_inner_x + line.indent_left
+                                                        for po in line.portions:
+                                                            if target_off >= po.char_offset + po.length:
+                                                                x += po.width
+                                                            else:
+                                                                sub = max(0, target_off - po.char_offset)
+                                                                x += measure_text_width(po.text[:sub], po.font_size, po.font_family)
+                                                                return p_idx, QPointF(x, line_y), line_h
+                                                        return p_idx, QPointF(x, line_y), line_h
+                            continue
                         if frag.paragraph.id != target_pid:
                             continue
 
@@ -368,6 +397,28 @@ class CaretController(QObject):
             if dist < min_y_dist:
                 min_y_dist = dist
                 best_col, best_frag = col, frag
+
+        if best_frag.paragraph is None:
+            if best_frag.table_layout is not None:
+                tl = best_frag.table_layout
+                frag_x = page.body_left + best_col.left
+                frag_y = page.body_top + best_col.top + best_frag.top
+                target_x = point_pt.x()
+                for rl in tl.rows:
+                    for cl in rl.cells:
+                        cell_left = frag_x + cl.x
+                        cell_right = cell_left + cl.width
+                        cell_top = frag_y + cl.y
+                        cell_bottom = cell_top + cl.height
+                        if cell_left <= target_x <= cell_right and cell_top <= target_y <= cell_bottom:
+                            for block in cl.cell.blocks:
+                                if isinstance(block, Paragraph):
+                                    return DocPos(block.id, 0)
+                if tl.rows and tl.rows[0].cells and tl.rows[0].cells[0].cell.blocks:
+                    fb = tl.rows[0].cells[0].cell.blocks[0]
+                    if isinstance(fb, Paragraph):
+                        return DocPos(fb.id, 0)
+            return DocPos(self.doc.main.blocks[0].id if self.doc.main.blocks else 1, 0)
 
         if not best_frag.lines:
             return DocPos(best_frag.paragraph.id, 0)
