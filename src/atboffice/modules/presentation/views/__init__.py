@@ -18,6 +18,12 @@ from atboffice.modules.presentation.views.smart_guides import (
     GuideLine,
     SmartGuideController,
 )
+from atboffice.modules.presentation.views.text_editor import (
+    ShapeTextEditorItem,
+    calculate_autofit_scale,
+    calculate_shape_autofit_size,
+    clamp_outline_level,
+)
 
 __all__ = [
     "create_shape_path",
@@ -30,4 +36,8 @@ __all__ = [
     "SlideScene",
     "SlideCanvasView",
     "safe_tr",
+    "ShapeTextEditorItem",
+    "calculate_autofit_scale",
+    "calculate_shape_autofit_size",
+    "clamp_outline_level",
 ]

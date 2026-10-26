@@ -9,7 +9,6 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
-    QFont,
     QPainter,
     QPainterPath,
     QPen,
@@ -175,6 +174,10 @@ class ShapeGraphicsItem(QGraphicsObject):
         )
         self.setAcceptHoverEvents(True)
 
+        # In-place text editor state
+        self.is_editing_text: bool = False
+        self._text_editor: Any = None
+
         # Handles
         self._handles: list[TransformHandleItem] = []
         self._drag_start_scene_pos = QPointF()
@@ -322,8 +325,8 @@ class ShapeGraphicsItem(QGraphicsObject):
         painter.setBrush(fill_brush)
         painter.drawPath(path)
 
-        # 3. Draw inner text if present
-        if self.shape.text and self.shape.text.plain_text.strip():
+        # 3. Draw inner text if present and not currently being edited
+        if not self.is_editing_text and self.shape.text and self.shape.text.plain_text.strip():
             self._paint_text(painter, w, h)
 
         # 4. Selection bounding ring
@@ -333,8 +336,10 @@ class ShapeGraphicsItem(QGraphicsObject):
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(QRectF(0.0, 0.0, w, h))
 
-    def _resolve_color(self, color_name: str) -> QColor:
+    def _resolve_color(self, color_name: str | None) -> QColor:
         """Resolve color names or hex strings to QColor."""
+        if not color_name:
+            return QColor("#000000")
         if color_name.startswith("#") or color_name.startswith("rgb"):
             return QColor(color_name)
         # Standard palette mappings
@@ -358,35 +363,63 @@ class ShapeGraphicsItem(QGraphicsObject):
     def _paint_text(self, painter: QPainter, w: float, h: float) -> None:
         """Draw multiline text within shape boundaries."""
         text_body = self.shape.text
-        if not text_body:
+        if not text_body or text_body.is_empty():
             return
 
-        text = text_body.plain_text
-        insets = text_body.insets  # (top, right, bottom, left)
-        text_rect = QRectF(
-            insets[3],
-            insets[0],
-            max(10.0, w - insets[1] - insets[3]),
-            max(10.0, h - insets[0] - insets[2]),
+        insets = text_body.insets
+        ins_l, ins_t, ins_r, ins_b = insets
+        avail_w = max(10.0, w - ins_l - ins_r)
+        avail_h = max(10.0, h - ins_t - ins_b)
+        text_rect = QRectF(ins_l, ins_t, avail_w, avail_h)
+
+        from atboffice.modules.presentation.views.text_editor import ShapeTextEditorItem
+        ShapeTextEditorItem.render_static_text(
+            painter, text_body, text_rect, self._resolve_color
         )
 
-        font = QFont("Tahoma", 14)
-        if text_body.paragraphs and text_body.paragraphs[0].runs:
-            first_run = text_body.paragraphs[0].runs[0]
-            if first_run.font:
-                font.setFamily(first_run.font)
-            if first_run.size:
-                font.setPointSizeF(first_run.size)
-            if first_run.bold:
-                font.setBold(True)
-            if first_run.italic:
-                font.setItalic(True)
+    def mouseDoubleClickEvent(self, event: QGraphicsSceneMouseEvent) -> None:
+        """Activate in-place rich text editing on left double-click."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            event.accept()
+            self.start_text_editing()
+        else:
+            super().mouseDoubleClickEvent(event)
 
-        painter.setFont(font)
-        painter.setPen(QPen(self._resolve_color("tx1")))
+    def start_text_editing(self) -> Any:
+        """Activate in-place rich text editor."""
+        from atboffice.modules.presentation.models.text import TextBody
+        from atboffice.modules.presentation.views.text_editor import ShapeTextEditorItem
 
-        align_flags = Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap
-        painter.drawText(text_rect, align_flags, text)
+        if self.is_editing_text and self._text_editor:
+            return self._text_editor
+
+        if not self.shape.text:
+            self.shape.text = TextBody.create_empty()
+
+        self.is_editing_text = True
+        self._update_handles_visibility(False)
+
+        self._text_editor = ShapeTextEditorItem(self)
+        self._text_editor.setFocus()
+        self.update()
+        return self._text_editor
+
+    def finish_text_editing(self) -> None:
+        """Finish in-place rich text editing and cleanup editor item."""
+        if not self.is_editing_text:
+            return
+
+        self.is_editing_text = False
+        if self._text_editor:
+            sc = self._text_editor.scene()
+            if sc:
+                sc.removeItem(self._text_editor)
+            self._text_editor.setParentItem(None)
+            self._text_editor = None
+
+        self._update_handles_visibility(self.isSelected())
+        self.update()
+        self.geometryChanged.emit()
 
     def itemChange(
         self, change: QGraphicsItem.GraphicsItemChange, value: Any
