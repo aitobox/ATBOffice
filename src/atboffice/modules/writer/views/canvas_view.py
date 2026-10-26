@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import math
-from typing import Any
 
 from PySide6.QtCore import (
     QCoreApplication,
     QPoint,
     QPointF,
-    QRect,
     QRectF,
     QSize,
     Qt,
@@ -18,7 +16,6 @@ from PySide6.QtCore import (
 from PySide6.QtGui import (
     QColor,
     QFont,
-    QFontMetricsF,
     QKeyEvent,
     QMouseEvent,
     QPainter,
@@ -28,7 +25,6 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QAbstractScrollArea,
-    QScrollBar,
     QWidget,
 )
 
@@ -38,24 +34,18 @@ from atboffice.modules.writer.layout.pagination import (
     paginate_document,
 )
 from atboffice.modules.writer.layout.portions import (
-    LayoutLine,
-    Portion,
     PortionType,
     measure_text_width,
 )
 from atboffice.modules.writer.models.document import (
     Document,
     Paragraph,
-    TextItem,
-    all_paragraphs,
     info,
     plen,
     reindex,
 )
 from atboffice.modules.writer.views.caret_controller import (
     CaretController,
-    DocPos,
-    Selection,
 )
 
 
@@ -399,7 +389,6 @@ class WriterCanvasView(QAbstractScrollArea):
                                 # Font setup
                                 font_family = po.font_family or "Times New Roman"
                                 font_size_pt = po.font_size or 12.0
-                                font_size_px = max(6.0, self.pt_to_px(font_size_pt))
 
                                 font = QFont(font_family)
                                 font.setPointSizeF(font_size_pt * self._zoom)
@@ -408,9 +397,6 @@ class WriterCanvasView(QAbstractScrollArea):
                                 # Calculate portion rect on viewport
                                 x_px = page_rect.left() + self.pt_to_px(cur_x)
                                 y_px = page_rect.top() + self.pt_to_px(line_y)
-                                w_px = self.pt_to_px(po_w)
-                                h_px = self.pt_to_px(max(line.height, 14.0))
-
                                 baseline_px = y_px + self.pt_to_px(line.baseline)
 
                                 # Draw text string

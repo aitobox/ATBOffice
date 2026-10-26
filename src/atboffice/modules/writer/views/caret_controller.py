@@ -5,19 +5,17 @@ from __future__ import annotations
 import copy
 import re
 from dataclasses import dataclass
-from typing import Any
 
 from PySide6.QtCore import QObject, QPointF, Qt, QTimer, Signal
 from PySide6.QtGui import QKeyEvent
 
 from atboffice.modules.writer.layout.pagination import (
-    Page,
+    ColumnFrame,
     PageFragment,
     PaginationResult,
     paginate_document,
 )
 from atboffice.modules.writer.layout.portions import (
-    LayoutLine,
     Portion,
     measure_text_width,
 )
@@ -281,7 +279,7 @@ class CaretController(QObject):
     # -----------------------------------------------------------------------
 
     def pos_to_canvas(self, pos: DocPos) -> tuple[int, QPointF, float]:
-        """Convert a document position to physical page index, page point (pt), and caret height (pt)."""
+        """Convert a document position to page index, page point (pt), and caret height (pt)."""
         if not self.pagination or not self.pagination.pages:
             return 0, QPointF(90.0, 72.0), 15.6
 
@@ -303,7 +301,11 @@ class CaretController(QObject):
                             # Determine line character span
                             if not line.portions:
                                 # Empty line
-                                return p_idx, QPointF(page.body_left + col.left + line.indent_left, line_y), line_h
+                                return (
+                                    p_idx,
+                                    QPointF(page.body_left + col.left + line.indent_left, line_y),
+                                    line_h,
+                                )
 
                             l_start = line.portions[0].char_offset
                             l_end = line.portions[-1].char_offset + line.portions[-1].length
@@ -331,7 +333,7 @@ class CaretController(QObject):
         return 0, QPointF(p0.body_left, p0.body_top), 15.6
 
     def canvas_to_pos(self, page_idx: int, point_pt: QPointF) -> DocPos:
-        """Convert physical page coordinates (in points) to the nearest DocPos using binary search."""
+        """Convert physical page coordinates (pt) to nearest DocPos via binary search."""
         if not self.pagination or not self.pagination.pages:
             first_p = self._first_paragraph()
             return DocPos(first_p.id if first_p else 0, 0)

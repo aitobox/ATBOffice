@@ -5,7 +5,6 @@ from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QApplication
 
-from atboffice.modules.writer.layout.pagination import paginate_document
 from atboffice.modules.writer.models.document import (
     Document,
     Paragraph,
@@ -17,7 +16,6 @@ from atboffice.modules.writer.models.document import (
 )
 from atboffice.modules.writer.views.canvas_view import WriterCanvasView
 from atboffice.modules.writer.views.caret_controller import (
-    CaretController,
     DocPos,
     Selection,
 )
