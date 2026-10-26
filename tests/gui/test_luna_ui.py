@@ -1,8 +1,7 @@
 """Tests for Office 2003 Luna Blue/Silver styling, toolbar, and color picker."""
 
 import sys
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
+
 from PySide6.QtWidgets import QWidget
 
 from atboffice.ui.components.color_picker import (

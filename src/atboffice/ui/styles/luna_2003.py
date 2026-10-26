@@ -117,12 +117,16 @@ def get_luna_stylesheet(theme: str = "blue") -> str:
     return f"""
     /* Main Window and Docking area */
     QMainWindow {{
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {dock_top}, stop:1 {dock_bottom});
+        background: qlineargradient(
+            x1:0, y1:0, x2:0, y2:1, stop:0 {dock_top}, stop:1 {dock_bottom}
+        );
     }}
 
     /* Classic Office 2003 Command Bars */
     QToolBar {{
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {tb_a}, stop:0.5 {tb_b}, stop:1 {tb_c});
+        background: qlineargradient(
+            x1:0, y1:0, x2:0, y2:1, stop:0 {tb_a}, stop:0.5 {tb_b}, stop:1 {tb_c}
+        );
         border-top: 1px solid {tb_a};
         border-left: 1px solid {tb_a};
         border-right: 1px solid {tb_edge};
