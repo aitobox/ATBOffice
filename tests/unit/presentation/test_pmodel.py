@@ -159,3 +159,42 @@ def test_21_layouts_and_frame_calculator():
     assert sh.text.is_empty()
 
 
+def test_slide_lifecycle_and_duplication():
+    from atboffice.modules.presentation.models.designs import build_design
+    from atboffice.modules.presentation.models.slide import (
+        Slide,
+        Transition,
+        create_slide,
+        dup_slide,
+    )
+
+    design = build_design("azure", 960.0, 540.0)
+    slide = create_slide(layout="text", design=design)
+
+    assert slide.layout == "text"
+    assert slide.design_id == design.id
+    assert len(slide.shapes) == 2  # title + body
+    assert slide.transition.type == "none"
+
+    # Set text on body placeholder
+    body_sh = slide.shapes[1]
+    body_sh.text.set_plain_text("Item 1\nItem 2")
+    assert body_sh.text.plain_text == "Item 1\nItem 2"
+
+    # Clone slide
+    copy_slide = dup_slide(slide)
+    assert copy_slide.id != slide.id
+    assert len(copy_slide.shapes) == len(slide.shapes)
+    assert copy_slide.shapes[0].id != slide.shapes[0].id
+    assert copy_slide.shapes[1].id != slide.shapes[1].id
+    assert copy_slide.shapes[1].text.plain_text == "Item 1\nItem 2"
+
+    # Serialization
+    data = slide.to_dict()
+    restored = Slide.from_dict(data)
+    assert restored.id == slide.id
+    assert len(restored.shapes) == 2
+    assert restored.shapes[1].text.plain_text == "Item 1\nItem 2"
+
+
+

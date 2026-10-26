@@ -23,6 +23,13 @@ from atboffice.modules.presentation.models.shape import (
     Shadow,
     Shape,
 )
+from atboffice.modules.presentation.models.slide import (
+    Animation,
+    Slide,
+    Transition,
+    create_slide,
+    dup_slide,
+)
 from atboffice.modules.presentation.models.text import (
     BODY_BULLETS,
     BODY_INDENT,
@@ -39,6 +46,7 @@ from atboffice.modules.presentation.models.text import (
 )
 
 __all__ = [
+    "Animation",
     "BODY_BULLETS",
     "BODY_INDENT",
     "BODY_MARL",
@@ -56,11 +64,15 @@ __all__ = [
     "PlaceholderInfo",
     "Shadow",
     "Shape",
+    "Slide",
     "TextBody",
     "TextRun",
     "TextStyleLevel",
+    "Transition",
     "build_design",
     "color_mix",
+    "create_slide",
+    "dup_slide",
     "get_default_body_styles",
     "get_default_other_styles",
     "get_default_title_style",
