@@ -167,6 +167,73 @@ SCHEMA_ORDERS: dict[str, list[str]] = {
         "oMath",
         "rPrChange",
     ],
+    # Common PresentationML Shape: p:CT_Shape
+    "presentationml_sp": [
+        "nvSpPr",
+        "spPr",
+        "style",
+        "txBody",
+        "extLst",
+    ],
+    # Common PresentationML/DrawingML Shape Properties: a:CT_ShapeProperties
+    "presentationml_sppr": [
+        "xfrm",
+        "custGeom",
+        "prstGeom",
+        "noFill",
+        "solidFill",
+        "gradFill",
+        "blipFill",
+        "pattFill",
+        "grpFill",
+        "ln",
+        "effectLst",
+        "effectDag",
+        "scene3d",
+        "sp3d",
+        "extLst",
+    ],
+    # Common PresentationML Picture: p:CT_Picture
+    "presentationml_pic": [
+        "nvPicPr",
+        "blipFill",
+        "spPr",
+        "style",
+        "extLst",
+    ],
+    # Common PresentationML Graphic Frame: p:CT_GraphicalObjectFrame
+    "presentationml_graphicframe": [
+        "nvGraphicFramePr",
+        "xfrm",
+        "graphic",
+        "extLst",
+    ],
+    # PresentationML Slide: p:CT_Slide
+    "presentationml_slide": [
+        "cSld",
+        "clrMapOvr",
+        "transition",
+        "timing",
+        "extLst",
+    ],
+    # PresentationML Presentation: p:CT_Presentation
+    "presentationml_presentation": [
+        "sldMasterIdLst",
+        "notesMasterIdLst",
+        "handoutMasterIdLst",
+        "sldIdLst",
+        "sldSz",
+        "notesSz",
+        "smartTags",
+        "embeddedFontLst",
+        "custShowLst",
+        "photoAlbum",
+        "custDataLst",
+        "kinsoku",
+        "defaultTextStyle",
+        "modifyVerifier",
+        "extLst",
+    ],
 }
 
 # Aliases
@@ -174,6 +241,13 @@ SCHEMA_ORDERS["worksheet"] = SCHEMA_ORDERS["spreadsheetml_worksheet"]
 SCHEMA_ORDERS["workbook"] = SCHEMA_ORDERS["spreadsheetml_workbook"]
 SCHEMA_ORDERS["styles"] = SCHEMA_ORDERS["spreadsheetml_styles"]
 SCHEMA_ORDERS["styleSheet"] = SCHEMA_ORDERS["spreadsheetml_styles"]
+SCHEMA_ORDERS["sp"] = SCHEMA_ORDERS["presentationml_sp"]
+SCHEMA_ORDERS["spPr"] = SCHEMA_ORDERS["presentationml_sppr"]
+SCHEMA_ORDERS["pic"] = SCHEMA_ORDERS["presentationml_pic"]
+SCHEMA_ORDERS["graphicFrame"] = SCHEMA_ORDERS["presentationml_graphicframe"]
+SCHEMA_ORDERS["slide"] = SCHEMA_ORDERS["presentationml_slide"]
+SCHEMA_ORDERS["sld"] = SCHEMA_ORDERS["presentationml_slide"]
+SCHEMA_ORDERS["presentation"] = SCHEMA_ORDERS["presentationml_presentation"]
 
 
 def _strip_ns(tag: str) -> str:
