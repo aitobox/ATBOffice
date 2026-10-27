@@ -652,7 +652,7 @@ class PptxWriter:
                     c_xml.encode("utf-8"),
                     content_type=CT_COMMENTS,
                 )
-                if not any(r.type == REL_COMMENTS for r in s_rels._relationships):
+                if not s_rels.has_type(REL_COMMENTS):
                     s_rels.add(REL_COMMENTS, f"../comments/comment{num_str}.xml")
 
             self.pkg_writer.replace_part(
@@ -723,7 +723,7 @@ class PptxWriter:
                 ca_xml.encode("utf-8"),
                 content_type=CT_COMMENT_AUTHORS,
             )
-            if not any(r.type == REL_COMMENT_AUTHORS for r in pres_rels._relationships):
+            if not pres_rels.has_type(REL_COMMENT_AUTHORS):
                 pres_rels.add(REL_COMMENT_AUTHORS, "commentAuthors.xml")
 
         self.pkg_writer.replace_part(
