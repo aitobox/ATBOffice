@@ -773,6 +773,15 @@ class LecternWorkspace(QWidget):
         self.design_pane.design_applied.connect(self.apply_design)
         self.task_pane.register_pane("design", safe_tr("幻灯片设计"), self.design_pane)
 
+        from atboffice.modules.presentation.smartart.text_pane import SmartArtTextPane
+
+        self.smartart_pane = SmartArtTextPane(self.task_pane)
+        self.smartart_pane.diagram_changed.connect(self._on_smartart_diagram_changed)
+        self.smartart_pane.converted_to_shapes.connect(self._on_smartart_converted_to_shapes)
+        self.task_pane.register_pane("smartart", safe_tr("智能图示设计"), self.smartart_pane)
+
+        self.scene.selectionChangedCustom.connect(self._on_canvas_selection_changed)
+
         self.task_pane.show_pane("layout")
         self.main_splitter.addWidget(self.task_pane)
 
@@ -912,9 +921,69 @@ class LecternWorkspace(QWidget):
         if self.presentation.slides:
             self.current_slide.notes = text
 
+    def _on_canvas_selection_changed(self) -> None:
+        items = self.scene.selectedItems()
+        for it in items:
+            sh = getattr(it, "shape", None)
+            if sh and sh.is_diagram:
+                self.task_pane.show_pane("smartart")
+                self.smartart_pane.set_diagram(sh)
+                return
+
+    def insert_smartart(
+        self,
+        layout_id: str = "process",
+        colors: str = "ocean",
+        style: str = "moderate",
+    ) -> Shape:
+        """Insert a new IntelliArt diagram on the current slide and open editor pane."""
+        from atboffice.modules.presentation.smartart.engine import (
+            SmartArtEngine,
+            relayout,
+        )
+
+        eng = SmartArtEngine()
+        blank_items = eng.blank(layout_id)
+        s_obj = Shape(
+            id=f"diagram_{eng.new_id()}",
+            type="group",
+            name=f"IntelliArt ({layout_id})",
+            x=80.0,
+            y=80.0,
+            w=520.0,
+            h=340.0,
+            sa={
+                "layout": layout_id,
+                "colors": colors,
+                "style": style,
+                "items": [it.to_dict() for it in blank_items],
+            },
+        )
+        relayout(s_obj)
+        cur = self.current_slide
+        cur.shapes.append(s_obj)
+        self.scene.load_slide(cur)
+        self.task_pane.show_pane("smartart")
+        self.smartart_pane.set_diagram(s_obj)
+        self._refresh_current_thumbnail()
+        return s_obj
+
+    def _on_smartart_diagram_changed(self, shape: Shape) -> None:
+        cur = self.current_slide
+        self.scene.load_slide(cur)
+        self._refresh_current_thumbnail()
+
+    def _on_smartart_converted_to_shapes(self, shape: Shape) -> None:
+        cur = self.current_slide
+        self.scene.load_slide(cur)
+        self._refresh_current_thumbnail()
+        self.task_pane.show_pane("layout")
+
     def retranslate_ui(self) -> None:
         """Retranslate all workspace controls."""
         self.left_pane.setTabText(0, safe_tr("幻灯片"))
         self.left_pane.setTabText(1, safe_tr("大纲"))
         self.notes_pane.retranslate_ui()
         self.canvas_view.retranslate_ui()
+        if hasattr(self, "smartart_pane"):
+            self.smartart_pane.retranslate_ui()

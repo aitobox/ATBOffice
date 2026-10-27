@@ -23,6 +23,10 @@ from atboffice.modules.presentation.io.writer_templates import (
 from atboffice.modules.presentation.io.xml_utils import (
     CT_APP,
     CT_CORE,
+    CT_DIAGRAM_COLORS,
+    CT_DIAGRAM_DATA,
+    CT_DIAGRAM_LAYOUT,
+    CT_DIAGRAM_STYLE,
     CT_NOTES_MASTER,
     CT_NOTES_SLIDE,
     CT_PRES_PROPS,
@@ -38,6 +42,10 @@ from atboffice.modules.presentation.io.xml_utils import (
     NS_A,
     NS_P,
     NS_R,
+    REL_DIAGRAM_COLORS,
+    REL_DIAGRAM_DATA,
+    REL_DIAGRAM_LAYOUT,
+    REL_DIAGRAM_STYLE,
     REL_IMAGE,
     REL_NOTES_MASTER,
     REL_NOTES_SLIDE,
@@ -49,6 +57,12 @@ from atboffice.modules.presentation.io.xml_utils import (
     XML_DECL,
     RelationshipBuilder,
     pt_to_emu,
+)
+from atboffice.modules.presentation.smartart.io import (
+    colors_xml,
+    data_xml,
+    layout_xml,
+    style_xml,
 )
 from atboffice.modules.presentation.models.presentation import Presentation
 from atboffice.modules.presentation.models.slide import Slide
@@ -212,6 +226,32 @@ class PptxWriter:
             resolver = make_media_resolver(s_rels)
             s_xml = slide_to_xml(slide, design=self.primary_design, media_resolver=resolver)
             self.pkg_writer.replace_part(slide_part, s_xml.encode("utf-8"), content_type=CT_SLIDE)
+
+            # SmartArt diagram parts
+            diag_idx = 0
+            for sh in slide.shapes:
+                if sh.is_diagram and sh.sa:
+                    diag_idx += 1
+                    diag_tag = f"diag_s{i}_{diag_idx}"
+                    d_xml = data_xml(sh.sa, key=diag_tag).encode("utf-8")
+                    l_xml = layout_xml(sh.sa.get("layout", "process")).encode("utf-8")
+                    c_xml = colors_xml(sh.sa.get("colors", "ocean")).encode("utf-8")
+                    q_xml = style_xml(sh.sa.get("style", "moderate")).encode("utf-8")
+
+                    d_part = f"ppt/diagrams/data_{diag_tag}.xml"
+                    l_part = f"ppt/diagrams/layout_{diag_tag}.xml"
+                    c_part = f"ppt/diagrams/colors_{diag_tag}.xml"
+                    q_part = f"ppt/diagrams/quickStyle_{diag_tag}.xml"
+
+                    self.pkg_writer.replace_part(d_part, d_xml, content_type=CT_DIAGRAM_DATA)
+                    self.pkg_writer.replace_part(l_part, l_xml, content_type=CT_DIAGRAM_LAYOUT)
+                    self.pkg_writer.replace_part(c_part, c_xml, content_type=CT_DIAGRAM_COLORS)
+                    self.pkg_writer.replace_part(q_part, q_xml, content_type=CT_DIAGRAM_STYLE)
+
+                    s_rels.add(REL_DIAGRAM_DATA, f"../diagrams/data_{diag_tag}.xml")
+                    s_rels.add(REL_DIAGRAM_LAYOUT, f"../diagrams/layout_{diag_tag}.xml")
+                    s_rels.add(REL_DIAGRAM_COLORS, f"../diagrams/colors_{diag_tag}.xml")
+                    s_rels.add(REL_DIAGRAM_STYLE, f"../diagrams/quickStyle_{diag_tag}.xml")
 
             # Speaker Notes
             if slide.notes and slide.notes.strip():
