@@ -217,6 +217,9 @@ class Paragraph:
     def plain_text(self) -> str:
         return "".join(r.text for r in self.runs)
 
+    def to_plain_text(self) -> str:
+        return self.plain_text
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "lvl": self.level,
@@ -252,6 +255,9 @@ class TextBody:
     @property
     def plain_text(self) -> str:
         return "\n".join(p.plain_text for p in self.paragraphs)
+
+    def to_plain_text(self) -> str:
+        return self.plain_text
 
     def is_empty(self) -> bool:
         return not self.paragraphs or all(len(p.plain_text) == 0 for p in self.paragraphs)
