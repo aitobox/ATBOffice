@@ -47,6 +47,47 @@ def transition_to_xml(trans: Transition | None) -> str:
     return f"<p:transition {' '.join(attrs)}>{child}</p:transition>"
 
 
+def timing_to_xml(slide: Slide, resolved_ids: dict[str, str]) -> str:
+    """Generate PresentationML <p:timing> node for media playback."""
+    media_shapes = [sh for sh in slide.shapes if sh.media_item]
+    if not media_shapes:
+        return ""
+
+    media_nodes = []
+    c_tn_id = 3
+    for sh in media_shapes:
+        sh_id = resolved_ids.get(sh.id, "2")
+        pb = sh.media_item.playback if sh.media_item else None
+        vol = int((pb.volume if pb else 0.8) * 100000)
+        show_when_stopped = "0" if (pb and pb.hide_while_not_playing) else "1"
+        repeat_attr = ' repeatCount="indefinite"' if (pb and pb.loop) else ""
+
+        media_nodes.append(
+            f'<p:cMediaNode vol="{vol}" showWhenStopped="{show_when_stopped}">'
+            f'<p:cTn id="{c_tn_id}" fill="hold"{repeat_attr}>'
+            f'<p:stCondLst><p:cond delay="0"/></p:stCondLst>'
+            f'</p:cTn>'
+            f'<p:tgtEl><p:spTgt spid="{sh_id}"/></p:tgtEl>'
+            f'</p:cMediaNode>'
+        )
+        c_tn_id += 1
+
+    children_xml = "".join(media_nodes)
+    return (
+        "<p:timing><p:tnLst><p:par>"
+        '<p:cTn id="1" dur="indefinite" restart="never" nodeType="tmRoot">'
+        "<p:childTnLst>"
+        '<p:seq concurrent="1" nextAc="seek">'
+        '<p:cTn id="2" dur="indefinite" nodeType="mainSeq">'
+        f"<p:childTnLst>{children_xml}</p:childTnLst>"
+        "</p:cTn>"
+        "</p:seq>"
+        "</p:childTnLst>"
+        "</p:cTn>"
+        "</p:par></p:tnLst></p:timing>"
+    )
+
+
 def slide_to_xml(
     slide: Slide,
     design: DesignTemplate | None = None,
@@ -55,11 +96,15 @@ def slide_to_xml(
 ) -> str:
     """Serialize Slide model into a complete PresentationML <p:sld> XML document."""
     next_id_val = 2
+    resolved_ids: dict[str, str] = {}
 
     def id_resolver(sid: str) -> str:
         nonlocal next_id_val
+        if sid in resolved_ids:
+            return resolved_ids[sid]
         val = str(next_id_val)
         next_id_val += 1
+        resolved_ids[sid] = val
         return val
 
     # Root group non-visual container
@@ -92,6 +137,7 @@ def slide_to_xml(
     c_sld = f"<p:cSld>{sp_tree}</p:cSld>"
     clr_map = "<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>"
     trans_xml = transition_to_xml(slide.transition)
+    timing_xml = timing_to_xml(slide, resolved_ids)
 
     attrs = [
         f'xmlns:a="{NS_A}"',
@@ -101,7 +147,7 @@ def slide_to_xml(
     if slide.hidden:
         attrs.append('show="0"')
 
-    raw_xml = f"<p:sld {' '.join(attrs)}>{c_sld}{clr_map}{trans_xml}</p:sld>"
+    raw_xml = f"<p:sld {' '.join(attrs)}>{c_sld}{clr_map}{trans_xml}{timing_xml}</p:sld>"
     elem = ET.fromstring(raw_xml)
     enforce_schema_order(elem, "slide")
 

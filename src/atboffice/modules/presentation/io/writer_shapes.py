@@ -151,6 +151,39 @@ def picture_to_xml(
     return f"<p:pic>{nv_pic_pr}{blip_fill}{sp_pr}</p:pic>"
 
 
+def media_picture_to_xml(
+    shape: Shape,
+    shape_id: str,
+    poster_rid: str,
+    media_rid: str,
+    file_rid: str,
+    design: DesignTemplate | None = None,
+) -> str:
+    """Serialize Multimedia Video/Audio Shape to PresentationML <p:pic>."""
+    c_nv_name = escape_xml(shape.name or f"Media {shape_id}")
+    c_nv_pr = (
+        f'<p:cNvPr id="{shape_id}" name="{c_nv_name}">'
+        '<a:hlinkClick r:action="ppaction://media"/>'
+        '<p:extLst>'
+        '<p:ext uri="{DAA4B390-3183-40C9-BE18-7BFA0C31F651}">'
+        f'<p14:media xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main" r:embed="{media_rid}"/>'
+        '</p:ext>'
+        '</p:extLst>'
+        '</p:cNvPr>'
+    )
+    c_nv_pic = '<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr>'
+    media_tag = "p:audioFile" if (shape.media_item and shape.media_item.is_audio) else "p:videoFile"
+    nv_pr = f'<{media_tag} r:link="{file_rid}"/>' if file_rid else ""
+    nv_pic_pr = f"<p:nvPicPr>{c_nv_pr}{c_nv_pic}<p:nvPr>{nv_pr}</p:nvPr></p:nvPicPr>"
+
+    blip_fill = (
+        f'<p:blipFill><a:blip r:embed="{poster_rid}"/>'
+        "<a:stretch><a:fillRect/></a:stretch></p:blipFill>"
+    )
+    sp_pr = shape_properties_to_xml(shape, design=design, tag="p:spPr")
+    return f"<p:pic>{nv_pic_pr}{blip_fill}{sp_pr}</p:pic>"
+
+
 def shape_to_xml(
     shape: Shape,
     id_resolver: Callable[[str], str],
@@ -193,7 +226,26 @@ def shape_to_xml(
     if shape.type == "table":
         return table_to_xml(shape, shape_id, design=design, lang=lang)
 
-    # 3. Pictures / Images
+    # 3. Multimedia Video/Audio
+    if shape.media_item:
+        poster_rid = ""
+        media_rid = ""
+        file_rid = ""
+        if media_resolver:
+            poster_rid = media_resolver(f"media_poster:{shape.id}")
+            media_rid = media_resolver(f"media_p14:{shape.id}")
+            file_rid = media_resolver(f"media_file:{shape.id}")
+        if poster_rid or media_rid:
+            return media_picture_to_xml(
+                shape,
+                shape_id,
+                poster_rid=poster_rid or media_rid,
+                media_rid=media_rid or poster_rid,
+                file_rid=file_rid or media_rid or poster_rid,
+                design=design,
+            )
+
+    # 4. Pictures / Images
     if shape.type == "image":
         embed_rid = ""
         if media_resolver and shape.media:

@@ -14,6 +14,12 @@ NS_P = "http://schemas.openxmlformats.org/presentationml/2006/main"
 NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main"
 NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 NS_RELS = "http://schemas.openxmlformats.org/package/2006/relationships"
+NS_P14 = "http://schemas.microsoft.com/office/powerpoint/2010/main"
+
+ET.register_namespace("p", NS_P)
+ET.register_namespace("a", NS_A)
+ET.register_namespace("r", NS_R)
+ET.register_namespace("p14", NS_P14)
 
 # Relationship Types
 REL_OFFICE_DOCUMENT = (
@@ -26,6 +32,9 @@ REL_THEME = "http://schemas.openxmlformats.org/officeDocument/2006/relationships
 REL_NOTES_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide"
 REL_NOTES_MASTER = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesMaster"
 REL_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+REL_VIDEO = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/video"
+REL_AUDIO = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/audio"
+REL_MEDIA = "http://schemas.microsoft.com/office/2007/relationships/media"
 REL_HYPERLINK = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
 REL_DIAGRAM_DATA = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData"
 REL_DIAGRAM_LAYOUT = (

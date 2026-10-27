@@ -11,6 +11,13 @@ from typing import Any
 from atboffice.modules.presentation.models.designs import (
     ColorScheme,
 )
+from atboffice.modules.presentation.models.media_item import (
+    MediaItem,
+    PlaybackSettings,
+    guess_media_content_type,
+    is_audio_extension,
+    is_video_extension,
+)
 from atboffice.modules.presentation.models.presentation import (
     Presentation,
 )
@@ -44,6 +51,9 @@ REL_SLIDE_LAYOUT = "http://schemas.openxmlformats.org/officeDocument/2006/relati
 REL_THEME = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"
 REL_NOTES_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide"
 REL_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+REL_VIDEO = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/video"
+REL_AUDIO = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/audio"
+REL_MEDIA = "http://schemas.microsoft.com/office/2007/relationships/media"
 
 EMUS_PER_PT = 12700.0
 
@@ -307,13 +317,19 @@ class PptxReader:
         slide_id = Path(slide_path).stem
         slide = Slide(id=slide_id, layout="text")
 
+        # Parse media timing from <p:timing>
+        timing_elem = _get_child(slide_xml, "timing")
+        timing_map = self._parse_slide_media_timing(timing_elem)
+
         # 1. Slide Shapes
         c_sld = _get_child(slide_xml, "cSld")
         if c_sld is not None:
             sp_tree = _get_child(c_sld, "spTree")
             if sp_tree is not None:
                 for child in sp_tree:
-                    shape = self._parse_shape(child, slide_path, rel_map)
+                    shape = self._parse_shape(
+                        child, slide_path, rel_map, timing_map=timing_map
+                    )
                     if shape:
                         slide.shapes.append(shape)
 
@@ -329,26 +345,77 @@ class PptxReader:
 
         return slide
 
+    def _parse_slide_media_timing(
+        self,
+        timing_elem: ET.Element | None,
+    ) -> dict[str, PlaybackSettings]:
+        """Extract media playback settings keyed by target shape ID."""
+        if timing_elem is None:
+            return {}
+        settings_by_id: dict[str, PlaybackSettings] = {}
+        for node in timing_elem.iter():
+            ltag = _local_tag(node.tag)
+            if ltag in ("cMediaNode", "video", "audio"):
+                spid = None
+                for child in node.iter():
+                    if _local_tag(child.tag) == "spTgt":
+                        spid = _get_attr(child, "spid")
+                        break
+                if not spid:
+                    continue
+
+                vol_str = _get_attr(node, "vol")
+                volume = 0.8
+                if vol_str is not None:
+                    try:
+                        volume = max(0.0, min(1.0, float(vol_str) / 100000.0))
+                    except (ValueError, TypeError):
+                        pass
+
+                show_when_stopped = _get_attr(node, "showWhenStopped", "1")
+                hide_while_not_playing = (show_when_stopped == "0")
+
+                loop = False
+                c_tn = _get_child(node, "cTn")
+                if c_tn is not None:
+                    repeat_count = _get_attr(c_tn, "repeatCount", "")
+                    if repeat_count in ("indefinite", "INF"):
+                        loop = True
+
+                settings_by_id[spid] = PlaybackSettings(
+                    volume=volume,
+                    hide_while_not_playing=hide_while_not_playing,
+                    loop=loop,
+                )
+        return settings_by_id
+
     def _parse_shape(
         self,
         elem: ET.Element,
         slide_path: str,
         rel_map: dict[str, Any],
+        timing_map: dict[str, PlaybackSettings] | None = None,
     ) -> Shape | None:
         """Parse shape, picture, table, or group element."""
         tag = _local_tag(elem.tag)
 
         if tag == "sp":
-            return self._parse_sp_element(elem)
+            return self._parse_sp_element(elem, slide_path=slide_path, rel_map=rel_map, timing_map=timing_map)
         elif tag == "pic":
-            return self._parse_pic_element(elem, slide_path, rel_map)
+            return self._parse_pic_element(elem, slide_path, rel_map, timing_map=timing_map)
         elif tag == "graphicFrame":
             return self._parse_graphic_frame(elem, slide_path=slide_path, rel_map=rel_map)
         elif tag == "grpSp":
             return self._parse_group_element(elem, slide_path, rel_map)
         return None
 
-    def _parse_sp_element(self, elem: ET.Element) -> Shape:
+    def _parse_sp_element(
+        self,
+        elem: ET.Element,
+        slide_path: str = "",
+        rel_map: dict[str, Any] | None = None,
+        timing_map: dict[str, PlaybackSettings] | None = None,
+    ) -> Shape:
         """Parse standard <p:sp> shape or text box."""
         nv_sp_pr = _get_child(elem, "nvSpPr")
         c_nv_pr = _get_child(nv_sp_pr, "cNvPr") if nv_sp_pr is not None else None
@@ -385,6 +452,47 @@ class PptxReader:
         if placeholder and placeholder.type in ("title", "ctrTitle", "subTitle"):
             shape_type = "text"
 
+        # Check for media in nvPr (e.g. standalone audio icon/shape)
+        media_item = None
+        media_key = None
+        if nv_pr is not None and rel_map is not None:
+            for child in nv_pr:
+                ltag = _local_tag(child.tag)
+                if ltag in ("audioFile", "videoFile", "quickTimeFile", "audioCd"):
+                    m_rid = ""
+                    for k, v in child.attrib.items():
+                        if _local_tag(k) in ("link", "embed"):
+                            m_rid = v
+                            break
+                    if m_rid and m_rid in rel_map:
+                        rel = rel_map[m_rid]
+                        media_path = _resolve_path(slide_path, rel.target)
+                        media_bytes = (
+                            self.package.read_part(media_path)
+                            if self.package.has_part(media_path)
+                            else None
+                        )
+                        if media_bytes:
+                            self.media_map[media_path] = media_bytes
+                        c_type = (
+                            self.package.get_content_type(media_path)
+                            if self.package.has_part(media_path)
+                            else guess_media_content_type(media_path)
+                        )
+                        is_aud = ltag in ("audioFile", "audioCd") or is_audio_extension(media_path)
+                        pb = (timing_map or {}).get(shape_id, PlaybackSettings())
+                        media_item = MediaItem(
+                            media_type="audio" if is_aud else "video",
+                            media_path=media_path,
+                            content_type=c_type,
+                            media_bytes=media_bytes,
+                            playback=pb,
+                            original_element=ltag,
+                        )
+                        media_key = media_path
+                        shape_type = "image"
+                        break
+
         return Shape(
             id=shape_id or "sp_1",
             type=shape_type,
@@ -400,6 +508,8 @@ class PptxReader:
             shadow=shadow,
             placeholder=placeholder,
             text=text_body,
+            media=media_key,
+            media_item=media_item,
         )
 
     def _parse_pic_element(
@@ -407,17 +517,19 @@ class PptxReader:
         elem: ET.Element,
         slide_path: str,
         rel_map: dict[str, Any],
+        timing_map: dict[str, PlaybackSettings] | None = None,
     ) -> Shape:
-        """Parse <p:pic> image element."""
+        """Parse <p:pic> image or multimedia element."""
         nv_pic_pr = _get_child(elem, "nvPicPr")
         c_nv_pr = _get_child(nv_pic_pr, "cNvPr") if nv_pic_pr is not None else None
+        nv_pr = _get_child(nv_pic_pr, "nvPr") if nv_pic_pr is not None else None
         pic_id = _get_attr(c_nv_pr, "id", f"pic_{id(elem)}")
         pic_name = _get_attr(c_nv_pr, "name", "Picture")
 
         sp_pr = _get_child(elem, "spPr")
         x, y, w, h, rot = self._parse_transform(sp_pr)
 
-        # Image embed relationship
+        # 1. Poster image embed relationship from <p:blipFill>/<a:blip>
         blip_fill = _get_child(elem, "blipFill")
         blip = _get_child(blip_fill, "blip") if blip_fill is not None else None
         embed_id = ""
@@ -427,13 +539,90 @@ class PptxReader:
                     embed_id = v
                     break
 
-        media_key: str | None = None
-        rel = rel_map.get(embed_id)
-        if rel:
-            media_path = _resolve_path(slide_path, rel.target)
-            if self.package.has_part(media_path):
-                self.media_map[media_path] = self.package.read_part(media_path)
-                media_key = media_path
+        poster_path: str | None = None
+        poster_bytes: bytes | None = None
+        p_rel = rel_map.get(embed_id)
+        if p_rel:
+            resolved_p = _resolve_path(slide_path, p_rel.target)
+            if self.package.has_part(resolved_p):
+                poster_bytes = self.package.read_part(resolved_p)
+                self.media_map[resolved_p] = poster_bytes
+                poster_path = resolved_p
+            else:
+                poster_path = resolved_p
+
+        # 2. Check for media references in nvPr (videoFile, audioFile, quickTimeFile)
+        media_rel_id = ""
+        media_tag_name = ""
+        if nv_pr is not None:
+            for child in nv_pr:
+                ltag = _local_tag(child.tag)
+                if ltag in ("videoFile", "audioFile", "quickTimeFile", "audioCd"):
+                    media_tag_name = ltag
+                    for k, v in child.attrib.items():
+                        if _local_tag(k) in ("link", "embed"):
+                            media_rel_id = v
+                            break
+                    if media_rel_id:
+                        break
+
+        # Check cNvPr extension list for p14:media
+        if not media_rel_id and c_nv_pr is not None:
+            ext_lst = _get_child(c_nv_pr, "extLst")
+            if ext_lst is not None:
+                for ext in ext_lst:
+                    for child in ext:
+                        if _local_tag(child.tag) == "media":
+                            for k, v in child.attrib.items():
+                                if _local_tag(k) == "embed":
+                                    media_rel_id = v
+                                    media_tag_name = "p14:media"
+                                    break
+
+        # Fallback: What if embed_id itself targets a video/audio file?
+        if not media_rel_id and p_rel:
+            t_lower = p_rel.target.lower()
+            if is_audio_extension(t_lower) or is_video_extension(t_lower) or p_rel.type in (REL_VIDEO, REL_AUDIO, REL_MEDIA):
+                media_rel_id = embed_id
+                media_tag_name = "audioFile" if is_audio_extension(t_lower) else "videoFile"
+                # Poster is not a separate image
+                poster_path = None
+                poster_bytes = None
+
+        media_item: MediaItem | None = None
+        if media_rel_id and media_rel_id in rel_map:
+            m_rel = rel_map[media_rel_id]
+            resolved_m = _resolve_path(slide_path, m_rel.target)
+            media_bytes = (
+                self.package.read_part(resolved_m)
+                if self.package.has_part(resolved_m)
+                else None
+            )
+            if media_bytes:
+                self.media_map[resolved_m] = media_bytes
+            c_type = (
+                self.package.get_content_type(resolved_m)
+                if self.package.has_part(resolved_m)
+                else guess_media_content_type(resolved_m)
+            )
+            is_aud = (
+                media_tag_name in ("audioFile", "audioCd")
+                or is_audio_extension(resolved_m)
+                or m_rel.type == REL_AUDIO
+            )
+            pb = (timing_map or {}).get(pic_id, PlaybackSettings())
+            media_item = MediaItem(
+                media_type="audio" if is_aud else "video",
+                media_path=resolved_m,
+                content_type=c_type,
+                media_bytes=media_bytes,
+                poster_path=poster_path,
+                poster_bytes=poster_bytes,
+                playback=pb,
+                original_element=media_tag_name or "videoFile",
+            )
+
+        media_key = poster_path or (media_item.media_path if media_item else None)
 
         return Shape(
             id=pic_id or "pic_1",
@@ -448,6 +637,7 @@ class PptxReader:
             fill=Fill.none(),
             line=Line.none(),
             media=media_key,
+            media_item=media_item,
         )
 
     def _parse_graphic_frame(

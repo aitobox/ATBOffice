@@ -6,6 +6,7 @@ import copy
 from dataclasses import dataclass, field
 from typing import Any
 
+from atboffice.modules.presentation.models.media_item import MediaItem
 from atboffice.modules.presentation.models.text import TextBody
 
 
@@ -193,6 +194,7 @@ class Shape:
     adj: dict[str, Any] | None = None
     kids: list[Shape] = field(default_factory=list)
     media: str | None = None
+    media_item: MediaItem | None = None
     crop: dict[str, float] | None = None
     tbl: dict[str, Any] | None = None
     link: dict[str, Any] | None = None
@@ -263,6 +265,8 @@ class Shape:
             d["kids"] = [k.to_dict() for k in self.kids]
         if self.media:
             d["media"] = self.media
+        if self.media_item:
+            d["media_item"] = self.media_item.to_dict()
         if self.crop:
             d["crop"] = dict(self.crop)
         if self.tbl:
@@ -299,6 +303,7 @@ class Shape:
             adj=dict(data.get("adj")) if data.get("adj") else None,
             kids=[cls.from_dict(k) for k in data.get("kids", [])],
             media=data.get("media"),
+            media_item=MediaItem.from_dict(data.get("media_item")),
             crop=dict(data.get("crop")) if data.get("crop") else None,
             tbl=copy.deepcopy(data.get("tbl")),
             link=copy.deepcopy(data.get("link")),

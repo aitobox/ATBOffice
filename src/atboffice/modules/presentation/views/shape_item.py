@@ -9,11 +9,15 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
+    QFont,
+    QImage,
     QPainter,
     QPainterPath,
     QPen,
+    QPixmap,
 )
 from PySide6.QtWidgets import (
+    QApplication,
     QGraphicsItem,
     QGraphicsObject,
     QGraphicsSceneMouseEvent,
@@ -33,6 +37,16 @@ if TYPE_CHECKING:
 
 HANDLE_SIZE = 8.0
 ROT_HANDLE_OFFSET = 24.0
+
+
+def safe_tr(text: str) -> str:
+    """Translate UI text with fallback to Chinese native text for ATBOffice."""
+    app = QApplication.instance()
+    if app:
+        translated = app.translate("ShapeGraphicsItem", text)
+        if translated and translated != text:
+            return translated
+    return text
 
 
 class HandleType:
@@ -178,6 +192,10 @@ class ShapeGraphicsItem(QGraphicsObject):
         self.is_editing_text: bool = False
         self._text_editor: Any = None
 
+        # Multimedia preview state
+        self._is_preview_playing: bool = False
+        self.retranslate_ui()
+
         # Handles
         self._handles: list[TransformHandleItem] = []
         self._drag_start_scene_pos = QPointF()
@@ -291,6 +309,16 @@ class ShapeGraphicsItem(QGraphicsObject):
             ChartPainter.paint_chart(painter, c_data, QRectF(0.0, 0.0, w, h))
             return
 
+        # 0.1 Multimedia / Picture rendering
+        if self.shape.media_item or self.shape.type == "image":
+            self._paint_media_or_image(painter, w, h)
+            if self.isSelected():
+                sel_pen = QPen(QColor(0, 120, 215, 180), 1.0, Qt.PenStyle.DashLine)
+                painter.setPen(sel_pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRect(QRectF(0.0, 0.0, w, h))
+            return
+
         # 1. Shadow effect
         if self.shape.shadow:
             sh_path = create_shape_path(self.shape.geom, w, h, self.shape.adj)
@@ -389,6 +417,214 @@ class ShapeGraphicsItem(QGraphicsObject):
         ShapeTextEditorItem.render_static_text(
             painter, text_body, text_rect, self._resolve_color
         )
+
+    def retranslate_ui(self) -> None:
+        """Update tooltips and labels on locale switch."""
+        if self.shape.media_item:
+            media_lbl = safe_tr("视频") if self.shape.media_item.is_video else safe_tr("音频")
+            tip = f"{media_lbl}{safe_tr('多媒体')}: {self.shape.name} ({safe_tr('单击中央徽标预览播放')})"
+            self.setToolTip(tip)
+
+    def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> None:
+        """Handle media preview toggle or propagate standard selection/move."""
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and self.shape.media_item
+            and not self.is_editing_text
+        ):
+            pos = event.pos()
+            w = max(1.0, self.shape.w)
+            h = max(1.0, self.shape.h)
+            badge_d = min(50.0, min(w, h) * 0.38)
+            cx = w / 2.0
+            cy = h / 2.0 - (8.0 if h >= 70.0 else 0.0)
+            badge_r = QRectF(cx - badge_d / 2.0, cy - badge_d / 2.0, badge_d, badge_d)
+            bar_h = 24.0
+            bar_r = QRectF(0.0, h - bar_h, w, bar_h) if h >= 60.0 else QRectF()
+            if badge_r.contains(pos) or (bar_r.isValid() and bar_r.contains(pos)):
+                self._is_preview_playing = not self._is_preview_playing
+                self.update()
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def _paint_media_or_image(self, painter: QPainter, w: float, h: float) -> None:
+        """Paint image poster frame or multimedia playback preview overlay."""
+        m_item = self.shape.media_item
+
+        # 1. Background / Poster frame
+        drawn_image = False
+        poster_bytes = None
+        if m_item and m_item.poster_bytes:
+            poster_bytes = m_item.poster_bytes
+
+        if poster_bytes:
+            qimg = QImage.fromData(poster_bytes)
+            if not qimg.isNull():
+                pix = QPixmap.fromImage(qimg)
+                painter.drawPixmap(QRectF(0.0, 0.0, w, h).toRect(), pix)
+                drawn_image = True
+
+        if not drawn_image:
+            # Fallback procedural background
+            if m_item and m_item.is_audio:
+                bg_rect = QRectF(0.0, 0.0, w, h)
+                painter.setPen(QPen(QColor(180, 195, 210), 1.0))
+                painter.setBrush(QBrush(QColor(240, 244, 248)))
+                painter.drawRoundedRect(bg_rect, 4.0, 4.0)
+                self._draw_speaker_icon(painter, w, h)
+            elif m_item and m_item.is_video:
+                bg_rect = QRectF(0.0, 0.0, w, h)
+                painter.setPen(QPen(QColor(50, 50, 55), 1.0))
+                painter.setBrush(QBrush(QColor(25, 27, 32)))
+                painter.drawRoundedRect(bg_rect, 4.0, 4.0)
+            else:
+                bg_rect = QRectF(0.0, 0.0, w, h)
+                painter.setPen(QPen(QColor(200, 200, 200), 1.0, Qt.PenStyle.DashLine))
+                painter.setBrush(QBrush(QColor(245, 245, 245)))
+                painter.drawRect(bg_rect)
+
+        # 2. Multimedia Playback Controls Overlay
+        if m_item:
+            self._paint_playback_controls(painter, w, h)
+
+    def _draw_speaker_icon(self, painter: QPainter, w: float, h: float) -> None:
+        """Draw classic audio speaker symbol with sound waves."""
+        cx = w / 2.0
+        cy = h / 2.0 - (10.0 if h >= 60.0 else 0.0)
+        s = min(28.0, min(w, h) * 0.35)
+
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setPen(QPen(QColor(70, 90, 120), 1.5))
+        painter.setBrush(QBrush(QColor(100, 130, 170)))
+
+        # Speaker body: rectangle + flared polygon
+        path = QPainterPath()
+        path.moveTo(cx - s * 0.5, cy - s * 0.3)
+        path.lineTo(cx - s * 0.2, cy - s * 0.3)
+        path.lineTo(cx + s * 0.2, cy - s * 0.7)
+        path.lineTo(cx + s * 0.2, cy + s * 0.7)
+        path.lineTo(cx - s * 0.2, cy + s * 0.3)
+        path.lineTo(cx - s * 0.5, cy + s * 0.3)
+        path.closeSubpath()
+        painter.drawPath(path)
+
+        # Sound arcs
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawArc(QRectF(cx + s * 0.1, cy - s * 0.4, s * 0.5, s * 0.8), -60 * 16, 120 * 16)
+        painter.drawArc(QRectF(cx + s * 0.25, cy - s * 0.65, s * 0.7, s * 1.3), -60 * 16, 120 * 16)
+
+        # Filename label
+        if h >= 80.0 and self.shape.name:
+            font = QFont("Helvetica", 8)
+            painter.setFont(font)
+            painter.setPen(QPen(QColor(60, 75, 95)))
+            lbl_rect = QRectF(4.0, cy + s * 0.8, w - 8.0, 18.0)
+            painter.drawText(lbl_rect, Qt.AlignmentFlag.AlignCenter, self.shape.name)
+
+        painter.restore()
+
+    def _paint_playback_controls(self, painter: QPainter, w: float, h: float) -> None:
+        """Draw interactive center play badge and bottom playback control bar."""
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+        # 1. Central Play Badge
+        badge_d = min(50.0, min(w, h) * 0.38)
+        if badge_d >= 16.0:
+            cx = w / 2.0
+            cy = h / 2.0 - (8.0 if h >= 70.0 else 0.0)
+            badge_r = QRectF(cx - badge_d / 2.0, cy - badge_d / 2.0, badge_d, badge_d)
+
+            # Circular semi-transparent background
+            painter.setPen(QPen(QColor(255, 255, 255, 180), 1.5))
+            badge_bg = QColor(20, 24, 30, 200 if not self._is_preview_playing else 230)
+            painter.setBrush(QBrush(badge_bg))
+            painter.drawEllipse(badge_r)
+
+            # Draw Play triangle or Pause bars
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(QColor(255, 255, 255, 230)))
+            if not self._is_preview_playing:
+                tri_path = QPainterPath()
+                tw = badge_d * 0.35
+                th = badge_d * 0.4
+                tri_path.moveTo(cx - tw * 0.4, cy - th * 0.5)
+                tri_path.lineTo(cx + tw * 0.6, cy)
+                tri_path.lineTo(cx - tw * 0.4, cy + th * 0.5)
+                tri_path.closeSubpath()
+                painter.drawPath(tri_path)
+            else:
+                pw = badge_d * 0.12
+                ph = badge_d * 0.36
+                painter.drawRect(QRectF(cx - pw * 1.5, cy - ph / 2.0, pw, ph))
+                painter.drawRect(QRectF(cx + pw * 0.5, cy - ph / 2.0, pw, ph))
+
+        # 2. Bottom Playback Control Bar (only when height allows)
+        bar_h = 24.0
+        if h >= 60.0 and w >= 100.0:
+            bar_rect = QRectF(0.0, h - bar_h, w, bar_h)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(QColor(15, 18, 22, 215)))
+            painter.drawRect(bar_rect)
+
+            # Play/Pause micro glyph on left
+            painter.setBrush(QBrush(QColor(220, 225, 230)))
+            btn_x = 10.0
+            btn_y = h - bar_h / 2.0
+            if not self._is_preview_playing:
+                p_tri = QPainterPath()
+                p_tri.moveTo(btn_x, btn_y - 4.5)
+                p_tri.lineTo(btn_x + 7.0, btn_y)
+                p_tri.lineTo(btn_x, btn_y + 4.5)
+                p_tri.closeSubpath()
+                painter.drawPath(p_tri)
+            else:
+                painter.drawRect(QRectF(btn_x, btn_y - 4.0, 2.5, 8.0))
+                painter.drawRect(QRectF(btn_x + 4.0, btn_y - 4.0, 2.5, 8.0))
+
+            # Timeline track
+            track_left = btn_x + 16.0
+            track_right = w - 60.0
+            track_y = btn_y
+            if track_right > track_left:
+                painter.setPen(
+                    QPen(
+                        QColor(80, 85, 95),
+                        2.5,
+                        Qt.PenStyle.SolidLine,
+                        Qt.PenCapStyle.RoundCap,
+                    )
+                )
+                painter.drawLine(QPointF(track_left, track_y), QPointF(track_right, track_y))
+                # Active progress
+                prog_w = (track_right - track_left) * (0.35 if self._is_preview_playing else 0.0)
+                if prog_w > 0:
+                    painter.setPen(
+                        QPen(
+                            QColor(0, 120, 215),
+                            2.5,
+                            Qt.PenStyle.SolidLine,
+                            Qt.PenCapStyle.RoundCap,
+                        )
+                    )
+                    painter.drawLine(QPointF(track_left, track_y), QPointF(track_left + prog_w, track_y))
+                    painter.setBrush(QBrush(QColor(255, 255, 255)))
+                    painter.setPen(QPen(QColor(0, 120, 215), 1.0))
+                    painter.drawEllipse(QPointF(track_left + prog_w, track_y), 3.5, 3.5)
+
+            # Time code label
+            painter.setFont(QFont("Monospace", 7))
+            painter.setPen(QPen(QColor(180, 185, 195)))
+            time_text = "00:15" if self._is_preview_playing else "00:00"
+            painter.drawText(
+                QRectF(w - 55.0, h - bar_h, 50.0, bar_h),
+                Qt.AlignmentFlag.AlignCenter,
+                time_text,
+            )
+
+        painter.restore()
 
     def mouseDoubleClickEvent(self, event: QGraphicsSceneMouseEvent) -> None:
         """Activate in-place rich text editing or datasheet dialog on left double-click."""
