@@ -96,6 +96,7 @@ __all__ = [
     "get_default_other_styles",
     "get_default_title_style",
     "get_layout_info",
+    "guess_media_content_type",
     "layout_frames",
     "make_placeholder",
     "resolve_color",

@@ -422,7 +422,8 @@ class ShapeGraphicsItem(QGraphicsObject):
         """Update tooltips and labels on locale switch."""
         if self.shape.media_item:
             media_lbl = safe_tr("视频") if self.shape.media_item.is_video else safe_tr("音频")
-            tip = f"{media_lbl}{safe_tr('多媒体')}: {self.shape.name} ({safe_tr('单击中央徽标预览播放')})"
+            preview_hint = safe_tr("单击中央徽标预览播放")
+            tip = f"{media_lbl}{safe_tr('多媒体')}: {self.shape.name} ({preview_hint})"
             self.setToolTip(tip)
 
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> None:
@@ -609,7 +610,10 @@ class ShapeGraphicsItem(QGraphicsObject):
                             Qt.PenCapStyle.RoundCap,
                         )
                     )
-                    painter.drawLine(QPointF(track_left, track_y), QPointF(track_left + prog_w, track_y))
+                    painter.drawLine(
+                        QPointF(track_left, track_y),
+                        QPointF(track_left + prog_w, track_y),
+                    )
                     painter.setBrush(QBrush(QColor(255, 255, 255)))
                     painter.setPen(QPen(QColor(0, 120, 215), 1.0))
                     painter.drawEllipse(QPointF(track_left + prog_w, track_y), 3.5, 3.5)

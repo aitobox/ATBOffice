@@ -400,7 +400,12 @@ class PptxReader:
         tag = _local_tag(elem.tag)
 
         if tag == "sp":
-            return self._parse_sp_element(elem, slide_path=slide_path, rel_map=rel_map, timing_map=timing_map)
+            return self._parse_sp_element(
+                elem,
+                slide_path=slide_path,
+                rel_map=rel_map,
+                timing_map=timing_map,
+            )
         elif tag == "pic":
             return self._parse_pic_element(elem, slide_path, rel_map, timing_map=timing_map)
         elif tag == "graphicFrame":
@@ -582,7 +587,12 @@ class PptxReader:
         # Fallback: What if embed_id itself targets a video/audio file?
         if not media_rel_id and p_rel:
             t_lower = p_rel.target.lower()
-            if is_audio_extension(t_lower) or is_video_extension(t_lower) or p_rel.type in (REL_VIDEO, REL_AUDIO, REL_MEDIA):
+            is_target_media = (
+                is_audio_extension(t_lower)
+                or is_video_extension(t_lower)
+                or p_rel.type in (REL_VIDEO, REL_AUDIO, REL_MEDIA)
+            )
+            if is_target_media:
                 media_rel_id = embed_id
                 media_tag_name = "audioFile" if is_audio_extension(t_lower) else "videoFile"
                 # Poster is not a separate image

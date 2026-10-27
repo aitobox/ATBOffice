@@ -42,6 +42,7 @@ from atboffice.modules.presentation.io.xml_utils import (
     NS_A,
     NS_P,
     NS_R,
+    REL_AUDIO,
     REL_DIAGRAM_COLORS,
     REL_DIAGRAM_DATA,
     REL_DIAGRAM_LAYOUT,
@@ -56,7 +57,6 @@ from atboffice.modules.presentation.io.xml_utils import (
     REL_SLIDE_MASTER,
     REL_THEME,
     REL_VIDEO,
-    REL_AUDIO,
     XML_DECL,
     RelationshipBuilder,
     pt_to_emu,
@@ -211,7 +211,9 @@ class PptxWriter:
                     if media_key.startswith(("media_poster:", "media_p14:", "media_file:")):
                         prefix, shape_id = media_key.split(":", 1)
                         if shape_id not in media_cache:
-                            target_shape = next((sh for sh in slide.shapes if sh.id == shape_id), None)
+                            target_shape = next(
+                                (sh for sh in slide.shapes if sh.id == shape_id), None
+                            )
                             m_item = target_shape.media_item if target_shape else None
                             media_map = self.pres.props.get("_media_map", {})
 
@@ -231,7 +233,9 @@ class PptxWriter:
                             m_filename = f"media{self._media_counter}.{m_ext}"
                             self._media_counter += 1
                             m_part = f"ppt/media/{m_filename}"
-                            ct = (m_item.content_type if m_item else None) or guess_media_content_type(m_filename)
+                            ct = (
+                                m_item.content_type if m_item else None
+                            ) or guess_media_content_type(m_filename)
                             self.pkg_writer.replace_part(m_part, raw_media, content_type=ct)
 
                             p14_rid = slide_rels.add(REL_MEDIA, f"../media/{m_filename}")
@@ -272,7 +276,9 @@ class PptxWriter:
                             p_filename = f"image{self._media_counter}.{p_ext}"
                             self._media_counter += 1
                             p_part = f"ppt/media/{p_filename}"
-                            self.pkg_writer.replace_part(p_part, raw_poster, content_type=f"image/{p_ext}")
+                            self.pkg_writer.replace_part(
+                                p_part, raw_poster, content_type=f"image/{p_ext}"
+                            )
                             poster_rid = slide_rels.add(REL_IMAGE, f"../media/{p_filename}")
 
                             media_cache[shape_id] = {

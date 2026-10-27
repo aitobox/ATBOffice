@@ -1,35 +1,27 @@
-"""Comprehensive unit tests for multimedia video/audio lossless preservation, PPTX I/O, and canvas view."""
+"""Unit tests for multimedia video/audio lossless preservation and canvas view."""
 
 from __future__ import annotations
 
 import hashlib
 import io
-import xml.etree.ElementTree as ET
 import zipfile
 
 from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QImage, QPainter, QPixmap
-from PySide6.QtWidgets import QApplication, QGraphicsScene, QGraphicsSceneMouseEvent
+from PySide6.QtGui import QPainter, QPixmap
+from PySide6.QtWidgets import QGraphicsScene, QGraphicsSceneMouseEvent
 
 from atboffice.modules.presentation.io import (
-    PptxReader,
-    PptxWriter,
     read_pptx,
     write_pptx,
 )
 from atboffice.modules.presentation.models.media_item import (
-    MEDIA_MIME_TYPES,
     MediaItem,
     PlaybackSettings,
-    guess_media_content_type,
-    is_audio_extension,
-    is_video_extension,
 )
 from atboffice.modules.presentation.models.presentation import Presentation
 from atboffice.modules.presentation.models.shape import Shape
 from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.views.shape_item import ShapeGraphicsItem
-
 
 # 1x1 Transparent dummy PNG
 DUMMY_PNG = (
@@ -133,7 +125,7 @@ def test_shape_media_item_integration():
 
 
 def test_pptx_video_embed_and_lossless_roundtrip():
-    """Verify embedding a video file, writing to PPTX, and byte-level lossless preservation upon reload."""
+    """Verify embedding a video file, writing to PPTX, and lossless preservation upon reload."""
     pres = Presentation.create_new(title="Video Preservation Test", empty=True)
     slide = Slide(id="s1", layout="blank")
 
@@ -182,7 +174,8 @@ def test_pptx_video_embed_and_lossless_roundtrip():
         found_video_part = next((n for n in media_parts if n.endswith(".mp4")), None)
         assert found_video_part is not None
         saved_video_bytes = zf.read(found_video_part)
-        assert hashlib.sha256(saved_video_bytes).hexdigest() == hashlib.sha256(DUMMY_MP4).hexdigest()
+        video_hash = hashlib.sha256(saved_video_bytes).hexdigest()
+        assert video_hash == hashlib.sha256(DUMMY_MP4).hexdigest()
 
         # Check slide XML for <p:pic> with p14:media and p:videoFile
         slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
@@ -216,9 +209,11 @@ def test_pptx_video_embed_and_lossless_roundtrip():
     assert m_restored.media_bytes is not None
 
     # Byte-level 100% hash check
-    assert hashlib.sha256(m_restored.media_bytes).hexdigest() == hashlib.sha256(DUMMY_MP4).hexdigest()
+    m_hash = hashlib.sha256(m_restored.media_bytes).hexdigest()
+    assert m_hash == hashlib.sha256(DUMMY_MP4).hexdigest()
     assert m_restored.poster_bytes is not None
-    assert hashlib.sha256(m_restored.poster_bytes).hexdigest() == hashlib.sha256(DUMMY_PNG).hexdigest()
+    p_hash = hashlib.sha256(m_restored.poster_bytes).hexdigest()
+    assert p_hash == hashlib.sha256(DUMMY_PNG).hexdigest()
 
     # Playback settings check
     assert m_restored.playback.volume == 0.75
@@ -268,14 +263,16 @@ def test_pptx_audio_embed_and_lossless_roundtrip():
         audio_part = next((n for n in zf.namelist() if n.endswith(".mp3")), None)
         assert audio_part is not None
         saved_audio = zf.read(audio_part)
-        assert hashlib.sha256(saved_audio).hexdigest() == hashlib.sha256(DUMMY_MP3).hexdigest()
+        aud_saved_hash = hashlib.sha256(saved_audio).hexdigest()
+        assert aud_saved_hash == hashlib.sha256(DUMMY_MP3).hexdigest()
 
     # Read back and assert audio byte hash
     restored_pres = read_pptx(pptx_bytes)
     restored_shape = restored_pres.slides[0].shapes[0]
     assert restored_shape.media_item is not None
     assert restored_shape.media_item.is_audio is True
-    assert hashlib.sha256(restored_shape.media_item.media_bytes).hexdigest() == hashlib.sha256(DUMMY_MP3).hexdigest()
+    aud_res_hash = hashlib.sha256(restored_shape.media_item.media_bytes).hexdigest()
+    assert aud_res_hash == hashlib.sha256(DUMMY_MP3).hexdigest()
 
 
 def test_canvas_item_media_rendering_and_interaction(qtbot):
