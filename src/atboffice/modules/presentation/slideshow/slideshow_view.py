@@ -23,6 +23,14 @@ from PySide6.QtWidgets import (
 )
 
 from atboffice.modules.presentation.models.slide import Slide, Transition
+from atboffice.modules.presentation.slideshow.animations import (
+    AnimationStep,
+    AnimationStepPlayer,
+    FrameState,
+    apply_initial_state,
+    apply_step_state,
+    compile_steps,
+)
 from atboffice.modules.presentation.slideshow.transitions import (
     get_transition_duration,
     render_slide_to_image,
@@ -86,6 +94,18 @@ class SlideShowView(QWidget):
         self._auto_timer.setSingleShot(True)
         self._auto_timer.timeout.connect(self._on_auto_advance)
 
+        # Custom animation stepping engine
+        self._anim_player = AnimationStepPlayer(
+            slide_w=self.presentation.w,
+            slide_h=self.presentation.h,
+            parent=self,
+        )
+        self._anim_player.frameChanged.connect(self._on_custom_anim_frame)
+        self._anim_player.stepFinished.connect(self._on_custom_anim_step_finished)
+        self._anim_steps: list[AnimationStep] = []
+        self._anim_step_idx: int = 0
+        self._frame_states: dict[str, FrameState] = {}
+
         # Idle cursor timer (auto-hide cursor after 3s)
         self._idle_timer = QTimer(self)
         self._idle_timer.setInterval(3000)
@@ -104,7 +124,8 @@ class SlideShowView(QWidget):
             self.setWindowFlags(Qt.WindowType.Window)
             self.resize(960, 540)
 
-        # Render first slide immediately
+        # Initialize slide animations and render first slide immediately
+        self._init_current_slide_animations()
         self._load_current_slide_image()
         self._schedule_auto_advance()
         self._idle_timer.start()
@@ -150,14 +171,63 @@ class SlideShowView(QWidget):
         return img
 
     def _load_current_slide_image(self) -> None:
-        self._img_curr = self._get_slide_image(self.current_slide_index)
+        slide = self.current_slide
+        if slide:
+            self._img_curr = render_slide_to_image(
+                slide,
+                self.presentation,
+                int(self.presentation.w),
+                int(self.presentation.h),
+                frame_states=self._frame_states if self._anim_steps else None,
+            )
+        else:
+            self._img_curr = self._get_slide_image(self.current_slide_index)
+
+    def _init_current_slide_animations(self) -> None:
+        """Compile and set initial state for current slide animations."""
+        self._anim_player.stop()
+        slide = self.current_slide
+        if slide and slide.animations:
+            self._anim_steps = compile_steps(slide, self.presentation.w, self.presentation.h)
+            self._anim_step_idx = 0
+            self._frame_states = apply_initial_state(self._anim_steps)
+        else:
+            self._anim_steps = []
+            self._anim_step_idx = 0
+            self._frame_states = {}
+
+    def _play_current_anim_step(self) -> None:
+        """Play the current build animation step."""
+        if not self._anim_steps or self._anim_step_idx >= len(self._anim_steps):
+            return
+        step = self._anim_steps[self._anim_step_idx]
+        slide = self.current_slide
+        bounds_map: dict[str, QRectF] = {}
+        if slide:
+            for s in slide.shapes:
+                bounds_map[s.id] = QRectF(s.x, s.y, s.w, s.h)
+        self._anim_player.play(step, self._anim_step_idx, self._frame_states, bounds_map)
+
+    def _on_custom_anim_frame(self, states: dict) -> None:
+        """Receive updated frame states from 60 FPS animation player."""
+        self._frame_states.update(states)
+        self._load_current_slide_image()
+        self.update()
+
+    def _on_custom_anim_step_finished(self, step_idx: int) -> None:
+        """Handle completion of an animation step and auto-chain subsequent steps."""
+        self._anim_step_idx = step_idx + 1
+        if self._anim_step_idx < len(self._anim_steps):
+            next_step = self._anim_steps[self._anim_step_idx]
+            if next_step.is_auto:
+                self._play_current_anim_step()
 
     # --------------------------------------------------------------------------
     # Navigation Methods
     # --------------------------------------------------------------------------
 
     def next_slide(self) -> None:
-        """Advance to next slide, complete transition, unblank, or exit."""
+        """Advance to next slide, complete transition, trigger animation step, or unblank."""
         if not self.is_active:
             return
 
@@ -177,7 +247,17 @@ class SlideShowView(QWidget):
             self.finish_transition_now()
             return
 
-        # 4. Find next non-hidden slide
+        # 4. If an animation is currently actively playing, finish it immediately
+        if self._anim_player.is_playing:
+            self._anim_player.finish_now()
+            return
+
+        # 5. If there are animation steps remaining on this slide, play next step!
+        if self._anim_steps and self._anim_step_idx < len(self._anim_steps):
+            self._play_current_anim_step()
+            return
+
+        # 6. Find next non-hidden slide
         next_pos = self.pos + 1
         while next_pos < len(self.order):
             s_idx = self.order[next_pos]
@@ -186,7 +266,7 @@ class SlideShowView(QWidget):
                     break
             next_pos += 1
 
-        # 5. Check if past end
+        # 7. Check if past end
         if next_pos >= len(self.order):
             if self.presentation.show.loop:
                 # Wrap to beginning
@@ -209,7 +289,7 @@ class SlideShowView(QWidget):
         self._transition_to_pos(next_pos)
 
     def prev_slide(self) -> None:
-        """Return to previous slide or unblank."""
+        """Return to previous slide, rewind animation step, or unblank."""
         if not self.is_active:
             return
 
@@ -225,6 +305,23 @@ class SlideShowView(QWidget):
 
         if self.in_transition:
             self.finish_transition_now()
+
+        # Rewind animation step if any step has been played
+        if self._anim_steps and self._anim_step_idx > 0:
+            self._anim_player.stop()
+            self._anim_step_idx -= 1
+            slide = self.current_slide
+            bounds_map = {s.id: QRectF(s.x, s.y, s.w, s.h) for s in slide.shapes} if slide else {}
+            self._frame_states = apply_step_state(
+                self._anim_steps,
+                self._anim_step_idx,
+                bounds_map,
+                self.presentation.w,
+                self.presentation.h,
+            )
+            self._load_current_slide_image()
+            self.update()
+            return
 
         prev_pos = self.pos - 1
         while prev_pos >= 0:
@@ -260,13 +357,15 @@ class SlideShowView(QWidget):
     def _transition_to_pos(self, new_pos: int) -> None:
         """Transition from current slide to new_pos."""
         self._auto_timer.stop()
+        self._anim_player.stop()
         old_idx = self.current_slide_index
         self.pos = new_pos
         new_idx = self.current_slide_index
         self.is_ended = False
 
         self._img_prev = self._img_curr or self._get_slide_image(old_idx)
-        self._img_curr = self._get_slide_image(new_idx)
+        self._init_current_slide_animations()
+        self._load_current_slide_image()
 
         # Get transition definition
         slide = self.current_slide
@@ -332,6 +431,7 @@ class SlideShowView(QWidget):
         if not self.is_active:
             return
         self._anim_timer.stop()
+        self._anim_player.stop()
         self._auto_timer.stop()
         self._idle_timer.stop()
         self.is_active = False
