@@ -59,6 +59,10 @@ class PresentationView(QWidget):
         """Launch presentation in slide show mode."""
         return self.workspace.start_slideshow(from_current=from_current, fullscreen=fullscreen)
 
+    def navigate_comment(self, direction: int = 1) -> Any | None:
+        """Navigate to next or previous comment across presentation slides."""
+        return self.workspace.navigate_comment(direction=direction)
+
     @property
     def view_mode(self) -> str:
         """Current workspace view mode ('normal', 'sorter', 'master')."""

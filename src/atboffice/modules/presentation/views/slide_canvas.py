@@ -22,8 +22,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.modules.presentation.models.comment import Comment
 from atboffice.modules.presentation.models.shape import Shape
 from atboffice.modules.presentation.models.slide import Slide
+from atboffice.modules.presentation.views.comment_overlay import (
+    CommentCardWidget,
+    CommentMarkerItem,
+)
 from atboffice.modules.presentation.views.shape_item import ShapeGraphicsItem
 from atboffice.modules.presentation.views.smart_guides import SmartGuideController
 
@@ -43,21 +48,25 @@ class SlideScene(QGraphicsScene):
     """QGraphicsScene representing a single Slide canvas with Smart Guides & layout tools."""
 
     selectionChangedCustom = Signal()
+    commentClicked = Signal(object)
 
     def __init__(
         self,
         slide: Slide | None = None,
         slide_width: float = 960.0,
         slide_height: float = 540.0,
+        presentation: Any | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.slide_width = float(slide_width)
         self.slide_height = float(slide_height)
+        self.presentation = presentation
         self.slide: Slide = slide or Slide(id=f"sl_{uuid.uuid4().hex[:8]}")
 
         self.guide_controller = SmartGuideController(snap_threshold=6.0)
         self._items_by_id: dict[str, ShapeGraphicsItem] = {}
+        self._comment_items: list[CommentMarkerItem] = []
         self._is_dragging_item = False
         self._dragged_item: ShapeGraphicsItem | None = None
 
@@ -74,6 +83,7 @@ class SlideScene(QGraphicsScene):
         self.slide = slide
         self.clear()
         self._items_by_id.clear()
+        self._comment_items.clear()
 
         for idx, sh in enumerate(slide.shapes):
             if sh.is_chart:
@@ -85,6 +95,67 @@ class SlideScene(QGraphicsScene):
             item.setZValue(float(idx))
             self.addItem(item)
             self._items_by_id[sh.id] = item
+
+        for cm in slide.comments:
+            marker = CommentMarkerItem(
+                cm,
+                self.presentation,
+                on_click=self._on_comment_marker_clicked,
+            )
+            self.addItem(marker)
+            self._comment_items.append(marker)
+
+    def _on_comment_marker_clicked(self, marker: CommentMarkerItem) -> None:
+        self.commentClicked.emit(marker.comment)
+        for v in self.views():
+            if hasattr(v, "show_comment_card"):
+                v.show_comment_card(marker.comment)
+
+    def add_comment_at(self, x: float, y: float, text: str = "") -> Comment:
+        """Create and add a new Comment at (x, y) coordinates."""
+        pres = self.presentation
+        author_id = "0"
+        if pres:
+            author = pres.get_or_create_author(safe_tr("审阅人"))
+            author_id = author.id
+
+        idx = 1
+        for cm in self.slide.comments:
+            if cm.author_id == author_id:
+                idx = max(idx, cm.idx + 1)
+
+        new_cm = Comment(
+            id=f"cm_{uuid.uuid4().hex[:8]}",
+            author_id=author_id,
+            text=text,
+            x=round(x, 2),
+            y=round(y, 2),
+            idx=idx,
+        )
+        self.slide.comments.append(new_cm)
+        marker = CommentMarkerItem(
+            new_cm,
+            self.presentation,
+            on_click=self._on_comment_marker_clicked,
+        )
+        self.addItem(marker)
+        self._comment_items.append(marker)
+        self.commentClicked.emit(new_cm)
+        self.update()
+        return new_cm
+
+    def remove_comment(self, comment: Comment) -> None:
+        """Remove a comment and its marker item from the scene."""
+        if comment in self.slide.comments:
+            self.slide.comments.remove(comment)
+        to_remove = [m for m in self._comment_items if m.comment == comment]
+        for m in to_remove:
+            self.removeItem(m)
+            self._comment_items.remove(m)
+        self.update()
+
+    def get_comment_markers(self) -> list[CommentMarkerItem]:
+        return list(self._comment_items)
 
     def get_shape_item(self, shape_id: str) -> ShapeGraphicsItem | None:
         return self._items_by_id.get(shape_id)
@@ -383,6 +454,7 @@ class SlideCanvasView(QGraphicsView):
         self._scene = scene or SlideScene()
         self.setScene(self._scene)
 
+        self._active_card: CommentCardWidget | None = None
         self.zoom = 1.0
         self.setRenderHints(
             QPainter.RenderHint.Antialiasing
@@ -425,11 +497,47 @@ class SlideCanvasView(QGraphicsView):
             safe_tr("幻灯片自由交互编辑画布 (PowerPoint 2003 视图)")
         )
 
+    def insert_comment_at(self, x: float, y: float, text: str = "") -> Comment:
+        """Insert a comment at given canvas coordinates and present card."""
+        cm = self._scene.add_comment_at(x, y, text=text)
+        self.show_comment_card(cm)
+        return cm
+
+    def show_comment_card(self, comment: Comment) -> None:
+        """Display interactive comment card overlay next to comment position."""
+        if self._active_card:
+            self._active_card.close()
+            self._active_card = None
+
+        pres = getattr(self._scene, "presentation", None)
+        if not pres:
+            from atboffice.modules.presentation.models.presentation import Presentation
+
+            pres = Presentation()
+            self._scene.presentation = pres
+
+        card = CommentCardWidget(comment, pres, parent=self)
+        self._active_card = card
+
+        view_pos = self.mapFromScene(QPointF(comment.x, comment.y))
+        card.move(int(view_pos.x() + 35), int(view_pos.y()))
+        card.commentDeleted.connect(lambda c: self._scene.remove_comment(c))
+        card.show()
+        card.raise_()
+        card.text_edit.setFocus()
+
     # ------------------------------------------------------------------
     # Context Menu
     # ------------------------------------------------------------------
     def contextMenuEvent(self, event: Any) -> None:
         menu = QMenu(self)
+
+        act_comment = menu.addAction(safe_tr("插入批注"))
+        scene_pos = self.mapToScene(event.pos())
+        act_comment.triggered.connect(
+            lambda: self.insert_comment_at(scene_pos.x(), scene_pos.y())
+        )
+        menu.addSeparator()
 
         # Z-Order submenu
         order_menu = menu.addMenu(safe_tr("叠放次序"))

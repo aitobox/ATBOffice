@@ -15,11 +15,13 @@ NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main"
 NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 NS_RELS = "http://schemas.openxmlformats.org/package/2006/relationships"
 NS_P14 = "http://schemas.microsoft.com/office/powerpoint/2010/main"
+NS_P188 = "http://schemas.microsoft.com/office/powerpoint/2018/8/main"
 
 ET.register_namespace("p", NS_P)
 ET.register_namespace("a", NS_A)
 ET.register_namespace("r", NS_R)
 ET.register_namespace("p14", NS_P14)
+ET.register_namespace("p188", NS_P188)
 
 # Relationship Types
 REL_OFFICE_DOCUMENT = (
@@ -46,6 +48,14 @@ REL_DIAGRAM_COLORS = (
 REL_DIAGRAM_STYLE = (
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramQuickStyle"
 )
+REL_COMMENT_AUTHORS = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/commentAuthors"
+)
+REL_COMMENTS = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
+)
+REL_AUTHORS_MODERN = "http://schemas.microsoft.com/office/2018/10/relationships/authors"
+REL_COMMENTS_MODERN = "http://schemas.microsoft.com/office/2018/10/relationships/comments"
 
 # Content Types
 CT_PRESENTATION = (
@@ -68,6 +78,12 @@ CT_DIAGRAM_DATA = "application/vnd.openxmlformats-officedocument.drawingml.diagr
 CT_DIAGRAM_LAYOUT = "application/vnd.openxmlformats-officedocument.drawingml.diagramLayout+xml"
 CT_DIAGRAM_COLORS = "application/vnd.openxmlformats-officedocument.drawingml.diagramColors+xml"
 CT_DIAGRAM_STYLE = "application/vnd.openxmlformats-officedocument.drawingml.diagramStyle+xml"
+CT_COMMENT_AUTHORS = (
+    "application/vnd.openxmlformats-officedocument.presentationml.commentAuthors+xml"
+)
+CT_COMMENTS = "application/vnd.openxmlformats-officedocument.presentationml.comments+xml"
+CT_AUTHORS_MODERN = "application/vnd.ms-powerpoint.authors+xml"
+CT_COMMENTS_MODERN = "application/vnd.ms-powerpoint.comments+xml"
 
 EMUS_PER_PT = 12700.0
 XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'

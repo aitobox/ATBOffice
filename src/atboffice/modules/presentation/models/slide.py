@@ -7,6 +7,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from atboffice.modules.presentation.models.comment import Comment
 from atboffice.modules.presentation.models.designs import DesignTemplate
 from atboffice.modules.presentation.models.layouts import layout_frames, make_placeholder
 from atboffice.modules.presentation.models.shape import Shape
@@ -162,6 +163,7 @@ class Slide:
     notes: str = ""
     transition: Transition = field(default_factory=Transition)
     animations: list[Animation] = field(default_factory=list)
+    comments: list[Comment] = field(default_factory=list)
     hidden: bool = False
 
     def add_shape(self, shape: Shape) -> None:
@@ -215,6 +217,7 @@ class Slide:
             "notes": self.notes,
             "trans": self.transition.to_dict(),
             "anims": [a.to_dict() for a in self.animations],
+            "comments": [c.to_dict() for c in self.comments],
             "hidden": self.hidden,
         }
 
@@ -228,6 +231,7 @@ class Slide:
             notes=str(data.get("notes", "")),
             transition=Transition.from_dict(data.get("trans")),
             animations=[Animation.from_dict(a) for a in data.get("anims", [])],
+            comments=[Comment.from_dict(c) for c in data.get("comments", [])],
             hidden=bool(data.get("hidden", False)),
         )
 
@@ -280,6 +284,16 @@ def dup_slide(slide: Slide) -> Slide:
             )
         )
 
+    new_comments: list[Comment] = []
+    for cm in slide.comments:
+        new_cm = copy.deepcopy(cm)
+        new_cm.id = f"cm_{uuid.uuid4().hex[:8]}"
+        if new_cm.shape_id:
+            new_cm.shape_id = id_map.get(new_cm.shape_id, new_cm.shape_id)
+        for rep in new_cm.replies:
+            rep.id = f"rep_{uuid.uuid4().hex[:8]}"
+        new_comments.append(new_cm)
+
     return Slide(
         id=new_slide_id,
         layout=slide.layout,
@@ -288,5 +302,6 @@ def dup_slide(slide: Slide) -> Slide:
         notes=slide.notes,
         transition=copy.deepcopy(slide.transition),
         animations=new_anims,
+        comments=new_comments,
         hidden=slide.hidden,
     )

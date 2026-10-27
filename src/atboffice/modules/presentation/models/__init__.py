@@ -1,5 +1,10 @@
 """Presentation models package."""
 
+from atboffice.modules.presentation.models.comment import (
+    Comment,
+    CommentAuthor,
+    CommentReply,
+)
 from atboffice.modules.presentation.models.designs import (
     DESIGNS,
     ColorScheme,
@@ -65,6 +70,9 @@ __all__ = [
     "BODY_SIZES",
     "BulletInfo",
     "ColorScheme",
+    "Comment",
+    "CommentAuthor",
+    "CommentReply",
     "DESIGNS",
     "DesignDefinition",
     "DesignTemplate",

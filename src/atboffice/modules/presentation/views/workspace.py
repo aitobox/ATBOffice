@@ -43,6 +43,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.modules.presentation.models.comment import Comment
 from atboffice.modules.presentation.models.designs import (
     DESIGNS,
     DesignTemplate,
@@ -929,6 +930,7 @@ class LecternWorkspace(QWidget):
             slide=current_slide,
             slide_width=self.presentation.w,
             slide_height=self.presentation.h,
+            presentation=self.presentation,
             parent=self,
         )
         self.canvas_view = SlideCanvasView(scene=self.scene, parent=self.center_splitter)
@@ -993,6 +995,7 @@ class LecternWorkspace(QWidget):
         self.presentation = presentation
         self.current_slide_index = 0
 
+        self.scene.presentation = presentation
         self.scene.slide_width = presentation.w
         self.scene.slide_height = presentation.h
 
@@ -1044,6 +1047,42 @@ class LecternWorkspace(QWidget):
             if s.id == slide.id:
                 self.set_current_slide_index(i)
                 return
+
+    def navigate_comment(self, direction: int = 1) -> tuple[int, Comment] | None:
+        """Jump to next (direction=1) or previous (direction=-1) comment in presentation."""
+        all_cms = self.presentation.all_comments()
+        if not all_cms:
+            return None
+
+        cur_slide_idx = self.current_slide_index
+        target_idx = 0
+        found = False
+        for i, (s_idx, _) in enumerate(all_cms):
+            if s_idx == cur_slide_idx:
+                target_idx = (i + direction) % len(all_cms)
+                found = True
+                break
+            elif s_idx > cur_slide_idx and direction > 0:
+                target_idx = i
+                found = True
+                break
+
+        if not found:
+            target_idx = 0 if direction > 0 else len(all_cms) - 1
+
+        target_slide_idx, target_cm = all_cms[target_idx]
+        if target_slide_idx != self.current_slide_index:
+            self.set_current_slide_index(target_slide_idx)
+
+        # Highlight and focus the comment marker
+        for marker in self.scene.get_comment_markers():
+            if marker.comment.id == target_cm.id:
+                marker.setSelected(True)
+                self.canvas_view.ensureVisible(marker)
+                self.canvas_view.show_comment_card(target_cm)
+                break
+
+        return (target_slide_idx, target_cm)
 
     def move_slide(self, from_idx: int, to_idx: int) -> None:
         """Reorder slides within the presentation."""

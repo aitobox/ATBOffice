@@ -8,6 +8,11 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
+from atboffice.modules.presentation.models.comment import (
+    Comment,
+    CommentAuthor,
+    CommentReply,
+)
 from atboffice.modules.presentation.models.designs import (
     ColorScheme,
 )
@@ -54,6 +59,15 @@ REL_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships
 REL_VIDEO = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/video"
 REL_AUDIO = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/audio"
 REL_MEDIA = "http://schemas.microsoft.com/office/2007/relationships/media"
+REL_COMMENT_AUTHORS = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/commentAuthors"
+)
+REL_COMMENTS = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
+)
+REL_AUTHORS_MODERN = "http://schemas.microsoft.com/office/2018/10/relationships/authors"
+REL_COMMENTS_MODERN = "http://schemas.microsoft.com/office/2018/10/relationships/comments"
+NS_P188 = "http://schemas.microsoft.com/office/powerpoint/2018/8/main"
 
 EMUS_PER_PT = 12700.0
 
@@ -181,6 +195,9 @@ class PptxReader:
 
         # 4. Parse Themes
         self._parse_themes(pres_part, pres_rels, pres)
+
+        # 4.1 Parse Comment Authors
+        self._parse_comment_authors(pres_part, pres_rels, pres)
 
         # 5. Parse Slide ID List
         sld_id_lst = _get_child(pres_xml, "sldIdLst")
@@ -342,6 +359,9 @@ class PptxReader:
         notes_text = self._extract_notes(slide_path, rel_map)
         if notes_text:
             slide.notes = notes_text
+
+        # 4. Slide Comments
+        self._parse_slide_comments(slide_path, rel_map, slide, pres)
 
         return slide
 
@@ -1067,7 +1087,6 @@ class PptxReader:
                         n_bytes = self.package.read_part(notes_path)
                         n_xml = ET.fromstring(n_bytes)
                         texts: list[str] = []
-                        # Find body placeholder shape in notesSlide
                         for sp in n_xml.iter():
                             if _local_tag(sp.tag) == "sp":
                                 nv_sp_pr = _get_child(sp, "nvSpPr")
@@ -1090,6 +1109,196 @@ class PptxReader:
                     except Exception:
                         pass
         return ""
+
+    def _parse_comment_authors(
+        self, pres_part: str, pres_rels: list[Any], pres: Presentation
+    ) -> None:
+        """Parse legacy and modern comment authors into presentation model."""
+        author_targets: list[str] = []
+        for rel in pres_rels:
+            r_type = rel.type or ""
+            if (
+                r_type == REL_COMMENT_AUTHORS
+                or r_type == REL_AUTHORS_MODERN
+                or r_type.endswith("/commentAuthors")
+                or r_type.endswith("/authors")
+            ):
+                author_targets.append(_resolve_path(pres_part, rel.target))
+
+        # Check default paths if relationships omitted
+        if not author_targets:
+            if self.package.has_part("ppt/commentAuthors.xml"):
+                author_targets.append("ppt/commentAuthors.xml")
+            if self.package.has_part("ppt/authors.xml"):
+                author_targets.append("ppt/authors.xml")
+
+        for part_path in author_targets:
+            if not self.package.has_part(part_path):
+                continue
+            try:
+                xml_data = self.package.read_part(part_path)
+                root = ET.fromstring(xml_data)
+                for elem in root.iter():
+                    tag = _local_tag(elem.tag)
+                    if tag in ("cmAuthor", "author"):
+                        aid = _get_attr(elem, "id", "") or ""
+                        name = _get_attr(elem, "name", "") or "Author"
+                        initials = _get_attr(elem, "initials", "") or ""
+                        last_idx = int(_get_attr(elem, "lastIdx", "0") or "0")
+                        clr_idx = int(_get_attr(elem, "clrIdx", "0") or "0")
+                        user_id = _get_attr(elem, "userId", "") or ""
+                        provider_id = _get_attr(elem, "providerId", "") or ""
+                        author = CommentAuthor(
+                            id=aid,
+                            name=name,
+                            initials=initials,
+                            last_idx=last_idx,
+                            color_idx=clr_idx,
+                            user_id=user_id,
+                            provider_id=provider_id,
+                        )
+                        if not any(a.id == aid for a in pres.comment_authors):
+                            pres.comment_authors.append(author)
+            except Exception:
+                continue
+
+    def _parse_slide_comments(
+        self,
+        slide_path: str,
+        rel_map: dict[str, Any],
+        slide: Slide,
+        pres: Presentation,
+    ) -> None:
+        """Parse legacy and modern comments associated with this slide."""
+        comment_parts: list[str] = []
+        for rel in rel_map.values():
+            r_type = rel.type or ""
+            if (
+                r_type == REL_COMMENTS
+                or r_type == REL_COMMENTS_MODERN
+                or r_type.endswith("/comments")
+            ):
+                target = _resolve_path(slide_path, rel.target)
+                if self.package.has_part(target) and target not in comment_parts:
+                    comment_parts.append(target)
+
+        # Fallback check for standard naming
+        if not comment_parts:
+            stem = Path(slide_path).stem
+            # e.g. slide1 -> comment1.xml
+            idx_part = "".join(ch for ch in stem if ch.isdigit())
+            candidate = f"ppt/comments/comment{idx_part}.xml" if idx_part else ""
+            if candidate and self.package.has_part(candidate):
+                comment_parts.append(candidate)
+
+        for part_path in comment_parts:
+            try:
+                xml_data = self.package.read_part(part_path)
+                root = ET.fromstring(xml_data)
+                is_modern = (
+                    "2018/8" in (root.tag or "")
+                    or "2018/8" in (root.attrib.get("xmlns", "") or "")
+                    or any("2018/8" in str(v) for v in root.attrib.values())
+                )
+
+                for elem in root.iter():
+                    if _local_tag(elem.tag) != "cm":
+                        continue
+
+                    cm_id = _get_attr(elem, "id", "") or f"cm_{len(slide.comments) + 1}"
+                    author_id = _get_attr(elem, "authorId", "0") or "0"
+                    created = _get_attr(
+                        elem, "created", _get_attr(elem, "dt", "") or ""
+                    ) or ""
+                    idx = int(_get_attr(elem, "idx", "1") or "1")
+                    status = _get_attr(elem, "status", "active") or "active"
+
+                    # Coordinates from <pos>
+                    pos_elem = _get_child(elem, "pos")
+                    if pos_elem is None:
+                        for sub in elem:
+                            if _local_tag(sub.tag) == "pos":
+                                pos_elem = sub
+                                break
+
+                    x_val, y_val = 20.0, 20.0
+                    if pos_elem is not None:
+                        raw_x = _get_attr(pos_elem, "x", "254000")
+                        raw_y = _get_attr(pos_elem, "y", "254000")
+                        try:
+                            fx = float(raw_x or 254000)
+                            fy = float(raw_y or 254000)
+                            x_val = round(fx / 12700.0, 2) if fx > 2000.0 else round(fx, 2)
+                            y_val = round(fy / 12700.0, 2) if fy > 2000.0 else round(fy, 2)
+                        except ValueError:
+                            pass
+
+                    # Extract text
+                    text = ""
+                    text_elem = _get_child(elem, "text")
+                    if text_elem is not None and text_elem.text:
+                        text = text_elem.text
+                    else:
+                        tx_body = _get_child(elem, "txBody")
+                        if tx_body is not None:
+                            body_parts = [
+                                node.text
+                                for node in tx_body.iter()
+                                if _local_tag(node.tag) == "t" and node.text
+                            ]
+                            text = "".join(body_parts).strip()
+
+                    # Shape anchor: search for <spMk id="...">
+                    shape_id = None
+                    for node in elem.iter():
+                        if _local_tag(node.tag) == "spMk":
+                            shape_id = _get_attr(node, "id")
+                            if shape_id:
+                                break
+
+                    # Modern replies
+                    replies: list[CommentReply] = []
+                    reply_lst = _get_child(elem, "replyLst")
+                    if reply_lst is not None:
+                        for rep in _get_children(reply_lst, "reply"):
+                            rep_id = _get_attr(rep, "id", "") or f"rep_{len(replies) + 1}"
+                            rep_auth = _get_attr(rep, "authorId", author_id) or author_id
+                            rep_created = _get_attr(rep, "created", created) or created
+                            rep_text_parts: list[str] = [
+                                t.text
+                                for t in rep.iter()
+                                if _local_tag(t.tag) == "t" and t.text
+                            ]
+                            replies.append(
+                                CommentReply(
+                                    id=rep_id,
+                                    author_id=rep_auth,
+                                    created=rep_created,
+                                    text="".join(rep_text_parts).strip(),
+                                )
+                            )
+
+                    # Ensure author exists in presentation
+                    if not pres.find_author(author_id):
+                        pres.get_or_create_author(name=f"Author {author_id}")
+
+                    slide.comments.append(
+                        Comment(
+                            id=cm_id,
+                            author_id=author_id,
+                            text=text,
+                            x=x_val,
+                            y=y_val,
+                            idx=idx,
+                            created=created,
+                            shape_id=shape_id,
+                            status=status,
+                            replies=replies,
+                            is_modern=is_modern,
+                        )
+                    )
+            except Exception:
+                continue
 
 
 def read_pptx(source: Path | str | bytes | io.BytesIO) -> Presentation:
