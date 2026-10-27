@@ -9,6 +9,7 @@ Provides:
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 from PySide6.QtCore import QRectF, QSize, Qt, Signal
@@ -44,17 +45,19 @@ from PySide6.QtWidgets import (
 
 from atboffice.modules.presentation.models.designs import (
     DESIGNS,
+    DesignTemplate,
     build_design,
 )
 from atboffice.modules.presentation.models.layouts import (
     LAYOUTS,
     LayoutInfo,
     layout_frames,
+    make_placeholder,
 )
 from atboffice.modules.presentation.models.presentation import Presentation
 from atboffice.modules.presentation.models.shape import Shape
 from atboffice.modules.presentation.models.slide import Slide
-from atboffice.modules.presentation.models.text import TextBody
+from atboffice.modules.presentation.models.text import Paragraph, TextBody, TextRun
 from atboffice.modules.presentation.views.slide_canvas import (
     SlideCanvasView,
     SlideScene,
@@ -141,6 +144,169 @@ def render_slide_thumbnail(
         painter.end()
 
     return pixmap
+
+
+def build_master_slide(
+    presentation: Presentation,
+    design: DesignTemplate,
+    master_kind: str = "slide",
+) -> Slide:
+    """Build a synthetic master slide for editing in master view."""
+    title_kind = master_kind == "title"
+    deco = (
+        list(design.title_decorations)
+        if (title_kind and design.title_decorations is not None)
+        else list(design.decorations)
+    )
+    ph = design.placeholder_frames
+
+    def mk_ph(
+        ptype: str,
+        r: tuple[float, float, float, float] | list[float],
+        text_paras: list[str],
+    ) -> Shape:
+        fr = {"type": ptype, "x": r[0], "y": r[1], "w": r[2], "h": r[3]}
+        s = make_placeholder(fr, design)
+        s.id = f"mph-{ptype}"
+        paras = [
+            Paragraph(level=i if ptype == "body" else 0, runs=[TextRun(text=t)])
+            for i, t in enumerate(text_paras)
+        ]
+        s.text = TextBody(
+            anchor="ctr" if ptype in ("title", "ctrTitle") else "t",
+            paragraphs=paras,
+            wrap=True,
+            autofit="none",
+        )
+        return s
+
+    shapes: list[Shape] = [copy.deepcopy(sh) for sh in deco]
+
+    if title_kind:
+        ctr_r = ph.get("ctrTitle", (120.0, 150.0, 720.0, 100.0))
+        sub_r = ph.get("subTitle", (120.0, 270.0, 720.0, 120.0))
+        shapes.append(mk_ph("ctrTitle", ctr_r, [safe_tr("单击此处编辑母版标题样式")]))
+        shapes.append(mk_ph("subTitle", sub_r, [safe_tr("单击此处编辑母版副标题样式")]))
+    else:
+        title_r = ph.get("title", (48.0, 36.0, 864.0, 72.0))
+        body_r = ph.get("body", (48.0, 120.0, 864.0, 360.0))
+        shapes.append(mk_ph("title", title_r, [safe_tr("单击此处编辑母版标题样式")]))
+        body_levels = [
+            safe_tr("单击此处编辑母版文本样式"),
+            safe_tr("第二级"),
+            safe_tr("第三级"),
+            safe_tr("第四级"),
+            safe_tr("第五级"),
+        ]
+        shapes.append(mk_ph("body", body_r, body_levels))
+
+    # Footers
+    if "dt" in ph:
+        shapes.append(mk_ph("dt", ph["dt"], ["<日期/时间>"]))
+    if "ftr" in ph:
+        shapes.append(mk_ph("ftr", ph["ftr"], ["<页脚>"]))
+    if "sldNum" in ph:
+        shapes.append(mk_ph("sldNum", ph["sldNum"], ["<#>"]))
+
+    ms = Slide(
+        id=f"master_{master_kind}",
+        layout="title" if title_kind else "text",
+        design_id=design.id,
+        shapes=shapes,
+    )
+    setattr(ms, "is_master", True)
+    setattr(ms, "master_kind", master_kind)
+    setattr(ms, "master_bg", design.title_bg if (title_kind and design.title_bg) else design.bg)
+    return ms
+
+
+def sync_master_slide(presentation: Presentation, master_slide: Slide) -> None:
+    """Fold master view edits back into the design template."""
+    design_id = master_slide.design_id
+    design = presentation.designs.get(design_id) or presentation.get_design_for_slide(None)
+    if not design:
+        return
+
+    master_kind = getattr(master_slide, "master_kind", "slide")
+    title_kind = master_kind == "title"
+
+    # Separate decorations from placeholder shapes
+    decos = [copy.deepcopy(s) for s in master_slide.shapes if not str(s.id).startswith("mph-")]
+    if title_kind:
+        design.title_decorations = decos
+    else:
+        design.decorations = decos
+
+    # Update placeholder positions
+    for s in master_slide.shapes:
+        if not str(s.id).startswith("mph-"):
+            continue
+        ptype = s.placeholder.type if s.placeholder else str(s.id).replace("mph-", "")
+        design.placeholder_frames[ptype] = (
+            round(s.x, 2),
+            round(s.y, 2),
+            round(s.w, 2),
+            round(s.h, 2),
+        )
+
+    # Update background
+    if hasattr(master_slide, "master_bg") and master_slide.master_bg:
+        if title_kind:
+            design.title_bg = master_slide.master_bg
+        else:
+            design.bg = master_slide.master_bg
+
+
+class MasterViewCloseBar(QFrame):
+    """Notification and toolbar banner for closing Slide Master View."""
+
+    close_clicked = Signal()
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setStyleSheet(
+            """
+            MasterViewCloseBar {
+                background-color: #FFF2CC;
+                border-bottom: 2px solid #D6B656;
+                padding: 4px 8px;
+            }
+            """
+        )
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 6, 12, 6)
+        layout.setSpacing(12)
+
+        self.title_label = QLabel(safe_tr("幻灯片母版视图 — 在此定制全局母版排版与样式"), self)
+        self.title_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        self.title_label.setStyleSheet("color: #7F6000;")
+        layout.addWidget(self.title_label)
+
+        layout.addStretch()
+
+        self.btn_close = QToolButton(self)
+        self.btn_close.setText(safe_tr("关闭母版视图"))
+        self.btn_close.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self.btn_close.setStyleSheet(
+            """
+            QToolButton {
+                background-color: #2B579A;
+                color: #FFFFFF;
+                border: 1px solid #1E3D6B;
+                border-radius: 3px;
+                padding: 4px 14px;
+            }
+            QToolButton:hover {
+                background-color: #3B72C4;
+            }
+            """
+        )
+        self.btn_close.clicked.connect(self.close_clicked)
+        layout.addWidget(self.btn_close)
+
+    def retranslate_ui(self) -> None:
+        self.title_label.setText(safe_tr("幻灯片母版视图 — 在此定制全局母版排版与样式"))
+        self.btn_close.setText(safe_tr("关闭母版视图"))
 
 
 class SlideThumbnailList(QListWidget):
@@ -701,6 +867,9 @@ class LecternWorkspace(QWidget):
         super().__init__(parent)
         self.presentation = presentation or Presentation()
         self.current_slide_index: int = 0
+        self._view_mode: str = "normal"
+        self.master_kind: str = "slide"
+        self.master_slide: Slide | None = None
 
         self._init_ui()
         self.load_presentation(self.presentation)
@@ -740,8 +909,20 @@ class LecternWorkspace(QWidget):
 
         self.main_splitter.addWidget(self.left_pane)
 
-        # 2. Center Area (Vertical Splitter: Canvas + Speaker Notes)
-        self.center_splitter = QSplitter(Qt.Vertical, self.main_splitter)
+        # 2. Center Area (Vertical Splitter in Center Stack: Canvas + Notes vs Sorter)
+        self.center_stack = QStackedWidget(self.main_splitter)
+
+        self.center_normal_widget = QWidget(self.center_stack)
+        center_normal_layout = QVBoxLayout(self.center_normal_widget)
+        center_normal_layout.setContentsMargins(0, 0, 0, 0)
+        center_normal_layout.setSpacing(0)
+
+        self.master_close_bar = MasterViewCloseBar(self.center_normal_widget)
+        self.master_close_bar.close_clicked.connect(self.exit_master_view)
+        self.master_close_bar.hide()
+        center_normal_layout.addWidget(self.master_close_bar)
+
+        self.center_splitter = QSplitter(Qt.Vertical, self.center_normal_widget)
 
         current_slide = self.presentation.slides[0] if self.presentation.slides else None
         self.scene = SlideScene(
@@ -761,7 +942,17 @@ class LecternWorkspace(QWidget):
         self.center_splitter.setStretchFactor(0, 4)
         self.center_splitter.setStretchFactor(1, 1)
 
-        self.main_splitter.addWidget(self.center_splitter)
+        center_normal_layout.addWidget(self.center_splitter)
+        self.center_stack.addWidget(self.center_normal_widget)
+
+        from atboffice.modules.presentation.views.sorter_view import SlideSorterView
+
+        self.sorter_view = SlideSorterView(presentation=self.presentation, parent=self.center_stack)
+        self.sorter_view.slide_double_clicked.connect(self._on_sorter_slide_double_clicked)
+        self.sorter_view.slides_reordered.connect(self._on_sorter_slides_reordered)
+        self.center_stack.addWidget(self.sorter_view)
+
+        self.main_splitter.addWidget(self.center_stack)
 
         # 3. Right Task Pane
         self.task_pane = LecternTaskPane(self.main_splitter)
@@ -908,8 +1099,105 @@ class LecternWorkspace(QWidget):
             self.notes_pane.set_plain_text("", emit_signal=False)
 
     def _on_thumbnail_clicked(self, row: int) -> None:
+        if self._view_mode == "master":
+            kind = "title" if row == 1 else "slide"
+            if kind != self.master_kind:
+                if self.master_slide:
+                    sync_master_slide(self.presentation, self.master_slide)
+                self.enter_master_view(kind)
+            return
         if row >= 0 and row != self.current_slide_index:
             self.set_current_slide_index(row)
+
+    @property
+    def view_mode(self) -> str:
+        return self._view_mode
+
+    def set_view_mode(self, mode: str) -> None:
+        """Switch workspace view mode ('normal', 'sorter', 'master')."""
+        if mode not in ("normal", "sorter", "master"):
+            mode = "normal"
+        self._view_mode = mode
+
+        if mode == "sorter":
+            self.left_pane.hide()
+            self.task_pane.hide()
+            self.master_close_bar.hide()
+            self.sorter_view.load_presentation(self.presentation)
+            if self.presentation.slides:
+                self.sorter_view.select_slide(self.current_slide_index)
+            self.center_stack.setCurrentWidget(self.sorter_view)
+        elif mode == "master":
+            self.left_pane.show()
+            self.task_pane.hide()
+            self.master_close_bar.show()
+            self.notes_pane.hide()
+            self.enter_master_view(self.master_kind)
+            self.center_stack.setCurrentWidget(self.center_normal_widget)
+        else:  # "normal"
+            self.left_pane.show()
+            self.task_pane.show()
+            self.master_close_bar.hide()
+            self.notes_pane.show()
+            self._restore_normal_thumbnails()
+            self._refresh_active_slide()
+            self.center_stack.setCurrentWidget(self.center_normal_widget)
+
+    def _on_sorter_slide_double_clicked(self, index: int) -> None:
+        self.set_view_mode("normal")
+        self.set_current_slide_index(index)
+
+    def _on_sorter_slides_reordered(self, indices: list[int], target_index: int) -> None:
+        self._refresh_thumbnails()
+        self.outline_editor.reload(self.presentation)
+        self._refresh_active_slide()
+
+    def enter_master_view(self, master_kind: str = "slide") -> None:
+        """Enter master editing view."""
+        self._view_mode = "master"
+        self.master_kind = master_kind
+        design = self.presentation.get_design_for_slide(
+            self.current_slide if self.presentation.slides else None
+        )
+        self.master_slide = build_master_slide(
+            self.presentation, design, master_kind=master_kind
+        )
+        self.scene.load_slide(self.master_slide)
+        self.canvas_view.zoom_fit()
+        self._refresh_master_thumbnails()
+
+    def exit_master_view(self) -> None:
+        """Sync master edits back to design and return to normal view."""
+        if self.master_slide:
+            sync_master_slide(self.presentation, self.master_slide)
+        self.set_view_mode("normal")
+
+    def _refresh_master_thumbnails(self) -> None:
+        self.thumbnail_list.clear()
+        design = self.presentation.get_design_for_slide(
+            self.current_slide if self.presentation.slides else None
+        )
+
+        # 1. Slide master
+        sm = build_master_slide(self.presentation, design, master_kind="slide")
+        sm_pix = render_slide_thumbnail(sm, self.presentation, width=160)
+        item1 = QListWidgetItem(QIcon(sm_pix), safe_tr("1 幻灯片母版"))
+        item1.setSizeHint(QSize(160, sm_pix.height() + 24))
+        self.thumbnail_list.addItem(item1)
+
+        # 2. Title master
+        tm = build_master_slide(self.presentation, design, master_kind="title")
+        tm_pix = render_slide_thumbnail(tm, self.presentation, width=160)
+        item2 = QListWidgetItem(QIcon(tm_pix), safe_tr("2 标题母版"))
+        item2.setSizeHint(QSize(160, tm_pix.height() + 24))
+        self.thumbnail_list.addItem(item2)
+
+        cur_row = 1 if self.master_kind == "title" else 0
+        self.thumbnail_list.setCurrentRow(cur_row)
+
+    def _restore_normal_thumbnails(self) -> None:
+        self._refresh_thumbnails()
+        self.outline_editor.reload(self.presentation)
 
     def _on_outline_content_changed(self) -> None:
         # Refresh current slide scene and thumbnail
@@ -985,5 +1273,9 @@ class LecternWorkspace(QWidget):
         self.left_pane.setTabText(1, safe_tr("大纲"))
         self.notes_pane.retranslate_ui()
         self.canvas_view.retranslate_ui()
+        if hasattr(self, "master_close_bar"):
+            self.master_close_bar.retranslate_ui()
+        if hasattr(self, "sorter_view"):
+            self.sorter_view.retranslate_ui()
         if hasattr(self, "smartart_pane"):
             self.smartart_pane.retranslate_ui()
