@@ -42,11 +42,13 @@ from atboffice.modules.presentation.io.xml_utils import (
     NS_A,
     NS_P,
     NS_R,
+    REL_AUDIO,
     REL_DIAGRAM_COLORS,
     REL_DIAGRAM_DATA,
     REL_DIAGRAM_LAYOUT,
     REL_DIAGRAM_STYLE,
     REL_IMAGE,
+    REL_MEDIA,
     REL_NOTES_MASTER,
     REL_NOTES_SLIDE,
     REL_OFFICE_DOCUMENT,
@@ -54,10 +56,12 @@ from atboffice.modules.presentation.io.xml_utils import (
     REL_SLIDE_LAYOUT,
     REL_SLIDE_MASTER,
     REL_THEME,
+    REL_VIDEO,
     XML_DECL,
     RelationshipBuilder,
     pt_to_emu,
 )
+from atboffice.modules.presentation.models.media_item import guess_media_content_type
 from atboffice.modules.presentation.models.presentation import Presentation
 from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.smartart.io import (
@@ -199,9 +203,98 @@ class PptxWriter:
             )
             s_rels.add(REL_SLIDE_LAYOUT, layout_target)
 
-            # Media resolver for embedded pictures and charts
+            # Media resolver for embedded pictures, multimedia and charts
             def make_media_resolver(slide_rels: RelationshipBuilder):
+                media_cache: dict[str, dict[str, str]] = {}
+
                 def media_resolver(media_key: str) -> str:
+                    if media_key.startswith(("media_poster:", "media_p14:", "media_file:")):
+                        prefix, shape_id = media_key.split(":", 1)
+                        if shape_id not in media_cache:
+                            target_shape = next(
+                                (sh for sh in slide.shapes if sh.id == shape_id), None
+                            )
+                            m_item = target_shape.media_item if target_shape else None
+                            media_map = self.pres.props.get("_media_map", {})
+
+                            # 1. Media binary Part
+                            raw_media = m_item.media_bytes if m_item else None
+                            if raw_media is None and m_item and m_item.media_path:
+                                raw_media = media_map.get(m_item.media_path)
+                                if raw_media is None and os.path.exists(m_item.media_path):
+                                    try:
+                                        raw_media = Path(m_item.media_path).read_bytes()
+                                    except OSError:
+                                        pass
+                            if raw_media is None:
+                                raw_media = b""
+
+                            m_ext = m_item.extension if m_item else "mp4"
+                            m_filename = f"media{self._media_counter}.{m_ext}"
+                            self._media_counter += 1
+                            m_part = f"ppt/media/{m_filename}"
+                            ct = (
+                                m_item.content_type if m_item else None
+                            ) or guess_media_content_type(m_filename)
+                            self.pkg_writer.replace_part(m_part, raw_media, content_type=ct)
+
+                            p14_rid = slide_rels.add(REL_MEDIA, f"../media/{m_filename}")
+                            if m_item and m_item.is_audio:
+                                file_rid = slide_rels.add(REL_AUDIO, f"../media/{m_filename}")
+                            else:
+                                file_rid = slide_rels.add(REL_VIDEO, f"../media/{m_filename}")
+
+                            # 2. Poster image Part
+                            raw_poster = m_item.poster_bytes if m_item else None
+                            if raw_poster is None and m_item and m_item.poster_path:
+                                raw_poster = media_map.get(m_item.poster_path)
+                            if raw_poster is None and target_shape and target_shape.media:
+                                raw_poster = media_map.get(target_shape.media)
+                                if raw_poster is None and os.path.exists(target_shape.media):
+                                    try:
+                                        raw_poster = Path(target_shape.media).read_bytes()
+                                    except OSError:
+                                        pass
+                            if raw_poster is None:
+                                # Default minimal 1x1 transparent PNG
+                                raw_poster = (
+                                    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06"
+                                    b"\x00\x00\x00\x1f\x15c4\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01"
+                                    b"\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+                                )
+
+                            p_ext = "png"
+                            if m_item and m_item.poster_path and "." in m_item.poster_path:
+                                cand = m_item.poster_path.rsplit(".", 1)[-1].lower()
+                                if cand in ("png", "jpg", "jpeg", "gif", "bmp", "webp"):
+                                    p_ext = cand
+                            elif target_shape and target_shape.media and "." in target_shape.media:
+                                cand = target_shape.media.rsplit(".", 1)[-1].lower()
+                                if cand in ("png", "jpg", "jpeg", "gif", "bmp", "webp"):
+                                    p_ext = cand
+
+                            p_filename = f"image{self._media_counter}.{p_ext}"
+                            self._media_counter += 1
+                            p_part = f"ppt/media/{p_filename}"
+                            self.pkg_writer.replace_part(
+                                p_part, raw_poster, content_type=f"image/{p_ext}"
+                            )
+                            poster_rid = slide_rels.add(REL_IMAGE, f"../media/{p_filename}")
+
+                            media_cache[shape_id] = {
+                                "poster": poster_rid,
+                                "p14": p14_rid,
+                                "file": file_rid,
+                            }
+
+                        info = media_cache[shape_id]
+                        if prefix == "media_poster":
+                            return info["poster"]
+                        elif prefix == "media_p14":
+                            return info["p14"]
+                        else:
+                            return info["file"]
+
                     if media_key.startswith("chart:"):
                         chart_id = media_key.split(":", 1)[1]
                         c_idx = self._chart_counter

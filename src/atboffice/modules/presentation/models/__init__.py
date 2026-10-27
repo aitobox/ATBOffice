@@ -16,6 +16,11 @@ from atboffice.modules.presentation.models.layouts import (
     layout_frames,
     make_placeholder,
 )
+from atboffice.modules.presentation.models.media_item import (
+    MediaItem,
+    PlaybackSettings,
+    guess_media_content_type,
+)
 from atboffice.modules.presentation.models.presentation import (
     STANDARD_SLIDE_SIZES,
     HeaderFooterSettings,
@@ -68,7 +73,9 @@ __all__ = [
     "LAYOUTS",
     "LayoutInfo",
     "Line",
+    "MediaItem",
     "Paragraph",
+    "PlaybackSettings",
     "PlaceholderInfo",
     "Presentation",
     "STANDARD_SLIDE_SIZES",
@@ -89,6 +96,7 @@ __all__ = [
     "get_default_other_styles",
     "get_default_title_style",
     "get_layout_info",
+    "guess_media_content_type",
     "layout_frames",
     "make_placeholder",
     "resolve_color",
