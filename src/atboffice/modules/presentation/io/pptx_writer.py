@@ -7,7 +7,6 @@ import os
 import posixpath
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Any
 
 from atboffice.modules.presentation.io.writer_slide import notes_slide_to_xml, slide_to_xml
 from atboffice.modules.presentation.io.writer_templates import (
@@ -49,7 +48,6 @@ from atboffice.modules.presentation.io.xml_utils import (
     REL_THEME,
     XML_DECL,
     RelationshipBuilder,
-    escape_xml,
     pt_to_emu,
 )
 from atboffice.modules.presentation.models.presentation import Presentation
@@ -108,7 +106,11 @@ class PptxWriter:
         # 1. Package root rels (_rels/.rels)
         root_rels = RelationshipBuilder()
         root_rels.add(REL_OFFICE_DOCUMENT, pres_part)
-        self.pkg_writer.replace_part("_rels/.rels", root_rels.to_xml(), content_type="application/vnd.openxmlformats-package.relationships+xml")
+        self.pkg_writer.replace_part(
+            "_rels/.rels",
+            root_rels.to_xml(),
+            content_type="application/vnd.openxmlformats-package.relationships+xml",
+        )
 
         # 2. Themes (ppt/theme/theme1.xml)
         theme_part = "ppt/theme/theme1.xml"
@@ -123,26 +125,40 @@ class PptxWriter:
         ]
         for l_part, l_type in layout_parts:
             l_xml = build_slide_layout_xml(l_type)
-            self.pkg_writer.replace_part(l_part, l_xml.encode("utf-8"), content_type=CT_SLIDE_LAYOUT)
+            self.pkg_writer.replace_part(
+                l_part, l_xml.encode("utf-8"), content_type=CT_SLIDE_LAYOUT
+            )
             # Layout rel to master
             l_rels = RelationshipBuilder()
             l_rels.add(REL_SLIDE_MASTER, "../slideMasters/slideMaster1.xml")
             l_rels_path = f"ppt/slideLayouts/_rels/{posixpath.basename(l_part)}.rels"
-            self.pkg_writer.replace_part(l_rels_path, l_rels.to_xml(), content_type="application/vnd.openxmlformats-package.relationships+xml")
+            self.pkg_writer.replace_part(
+                l_rels_path,
+                l_rels.to_xml(),
+                content_type="application/vnd.openxmlformats-package.relationships+xml",
+            )
 
         # 4. Slide Master (ppt/slideMasters/slideMaster1.xml)
         master_part = "ppt/slideMasters/slideMaster1.xml"
         master_rels = RelationshipBuilder()
         layout_entries: list[tuple[int, str]] = []
         for idx, (l_part, _) in enumerate(layout_parts, start=1):
-            r_id = master_rels.add(REL_SLIDE_LAYOUT, f"../slideLayouts/{posixpath.basename(l_part)}")
+            r_id = master_rels.add(
+                REL_SLIDE_LAYOUT, f"../slideLayouts/{posixpath.basename(l_part)}"
+            )
             layout_entries.append((2147483648 + idx, r_id))
         master_rels.add(REL_THEME, "../theme/theme1.xml")
 
         master_xml = build_slide_master_xml(self.primary_design, layout_entries)
-        self.pkg_writer.replace_part(master_part, master_xml.encode("utf-8"), content_type=CT_SLIDE_MASTER)
+        self.pkg_writer.replace_part(
+            master_part, master_xml.encode("utf-8"), content_type=CT_SLIDE_MASTER
+        )
         master_rels_path = "ppt/slideMasters/_rels/slideMaster1.xml.rels"
-        self.pkg_writer.replace_part(master_rels_path, master_rels.to_xml(), content_type="application/vnd.openxmlformats-package.relationships+xml")
+        self.pkg_writer.replace_part(
+            master_rels_path,
+            master_rels.to_xml(),
+            content_type="application/vnd.openxmlformats-package.relationships+xml",
+        )
 
         # 5. Slides serialization & relationships
         pres_rels = RelationshipBuilder()
@@ -153,7 +169,9 @@ class PptxWriter:
         if has_any_notes:
             notes_master_part = "ppt/notesMasters/notesMaster1.xml"
             nm_xml = build_notes_master_xml()
-            self.pkg_writer.replace_part(notes_master_part, nm_xml.encode("utf-8"), content_type=CT_NOTES_MASTER)
+            self.pkg_writer.replace_part(
+                notes_master_part, nm_xml.encode("utf-8"), content_type=CT_NOTES_MASTER
+            )
 
         for i, slide in enumerate(self.pres.slides, start=1):
             slide_part = f"ppt/slides/slide{i}.xml"
@@ -188,6 +206,7 @@ class PptxWriter:
                     m_part = f"ppt/media/{m_filename}"
                     self.pkg_writer.replace_part(m_part, raw_bytes, content_type=f"image/{ext}")
                     return slide_rels.add(REL_IMAGE, f"../media/{m_filename}")
+
                 return media_resolver
 
             resolver = make_media_resolver(s_rels)
@@ -198,39 +217,73 @@ class PptxWriter:
             if slide.notes and slide.notes.strip():
                 notes_part = f"ppt/notesSlides/notesSlide{i}.xml"
                 n_xml = notes_slide_to_xml(slide.notes)
-                self.pkg_writer.replace_part(notes_part, n_xml.encode("utf-8"), content_type=CT_NOTES_SLIDE)
+                self.pkg_writer.replace_part(
+                    notes_part, n_xml.encode("utf-8"), content_type=CT_NOTES_SLIDE
+                )
 
                 n_rels = RelationshipBuilder()
                 n_rels.add(REL_NOTES_MASTER, "../notesMasters/notesMaster1.xml")
                 n_rels.add(REL_SLIDE, f"../slides/slide{i}.xml")
                 n_rels_path = f"ppt/notesSlides/_rels/notesSlide{i}.xml.rels"
-                self.pkg_writer.replace_part(n_rels_path, n_rels.to_xml(), content_type="application/vnd.openxmlformats-package.relationships+xml")
+                self.pkg_writer.replace_part(
+                    n_rels_path,
+                    n_rels.to_xml(),
+                    content_type="application/vnd.openxmlformats-package.relationships+xml",
+                )
 
                 s_rels.add(REL_NOTES_SLIDE, f"../notesSlides/notesSlide{i}.xml")
 
             s_rels_path = f"ppt/slides/_rels/slide{i}.xml.rels"
-            self.pkg_writer.replace_part(s_rels_path, s_rels.to_xml(), content_type="application/vnd.openxmlformats-package.relationships+xml")
+            self.pkg_writer.replace_part(
+                s_rels_path,
+                s_rels.to_xml(),
+                content_type="application/vnd.openxmlformats-package.relationships+xml",
+            )
 
             r_id = pres_rels.add(REL_SLIDE, f"slides/slide{i}.xml")
             slide_id_entries.append((255 + i, r_id))
 
         # Auxiliary Parts
-        self.pkg_writer.replace_part("ppt/presProps.xml", build_pres_props_xml().encode("utf-8"), content_type=CT_PRES_PROPS)
-        self.pkg_writer.replace_part("ppt/viewProps.xml", build_view_props_xml().encode("utf-8"), content_type=CT_VIEW_PROPS)
-        self.pkg_writer.replace_part("ppt/tableStyles.xml", build_table_styles_xml().encode("utf-8"), content_type=CT_TABLE_STYLES)
-        self.pkg_writer.replace_part("docProps/core.xml", build_core_properties_xml(self.pres.title, self.pres.props.get("author", "")).encode("utf-8"), content_type=CT_CORE)
-        self.pkg_writer.replace_part("docProps/app.xml", build_app_properties_xml(len(self.pres.slides)).encode("utf-8"), content_type=CT_APP)
+        self.pkg_writer.replace_part(
+            "ppt/presProps.xml", build_pres_props_xml().encode("utf-8"), content_type=CT_PRES_PROPS
+        )
+        self.pkg_writer.replace_part(
+            "ppt/viewProps.xml", build_view_props_xml().encode("utf-8"), content_type=CT_VIEW_PROPS
+        )
+        self.pkg_writer.replace_part(
+            "ppt/tableStyles.xml",
+            build_table_styles_xml().encode("utf-8"),
+            content_type=CT_TABLE_STYLES,
+        )
+        self.pkg_writer.replace_part(
+            "docProps/core.xml",
+            build_core_properties_xml(self.pres.title, self.pres.props.get("author", "")).encode(
+                "utf-8"
+            ),
+            content_type=CT_CORE,
+        )
+        self.pkg_writer.replace_part(
+            "docProps/app.xml",
+            build_app_properties_xml(len(self.pres.slides)).encode("utf-8"),
+            content_type=CT_APP,
+        )
 
         # 6. ppt/presentation.xml and its rels
         pres_rels_path = "ppt/_rels/presentation.xml.rels"
-        self.pkg_writer.replace_part(pres_rels_path, pres_rels.to_xml(), content_type="application/vnd.openxmlformats-package.relationships+xml")
+        self.pkg_writer.replace_part(
+            pres_rels_path,
+            pres_rels.to_xml(),
+            content_type="application/vnd.openxmlformats-package.relationships+xml",
+        )
 
         w_emu = pt_to_emu(self.pres.w, default=12192000)
         h_emu = pt_to_emu(self.pres.h, default=6858000)
-        sld_id_items = "".join(f'<p:sldId id="{sid}" r:id="{rid}"/>' for sid, rid in slide_id_entries)
+        sld_id_items = "".join(
+            f'<p:sldId id="{sid}" r:id="{rid}"/>' for sid, rid in slide_id_entries
+        )
 
         pres_xml_str = (
-            f"<p:presentation xmlns:a=\"{NS_A}\" xmlns:r=\"{NS_R}\" xmlns:p=\"{NS_P}\">"
+            f'<p:presentation xmlns:a="{NS_A}" xmlns:r="{NS_R}" xmlns:p="{NS_P}">'
             '<p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst>'
             f"<p:sldIdLst>{sld_id_items}</p:sldIdLst>"
             f'<p:sldSz cx="{w_emu}" cy="{h_emu}"/>'
@@ -241,7 +294,9 @@ class PptxWriter:
         elem = ET.fromstring(pres_xml_str)
         enforce_schema_order(elem, "presentation")
         final_pres_xml = f"{XML_DECL}{ET.tostring(elem, encoding='unicode')}"
-        self.pkg_writer.replace_part(pres_part, final_pres_xml.encode("utf-8"), content_type=main_ct)
+        self.pkg_writer.replace_part(
+            pres_part, final_pres_xml.encode("utf-8"), content_type=main_ct
+        )
 
     def _write_lossless_roundtrip(self) -> None:
         """Preserve unmodified slides, masters, themes, and media byte-for-byte."""
@@ -274,7 +329,12 @@ class PptxWriter:
             orig_state = getattr(slide, "_original_state", None)
             is_dirty = getattr(slide, "is_dirty", False)
 
-            if not is_dirty and orig_state is not None and slide.to_dict() == orig_state and self.source_pkg.has_part(part_name):
+            if (
+                not is_dirty
+                and orig_state is not None
+                and slide.to_dict() == orig_state
+                and self.source_pkg.has_part(part_name)
+            ):
                 # Unmodified: Keep byte-for-byte!
                 continue
 
@@ -309,12 +369,17 @@ class PptxWriter:
                     m_part = f"ppt/media/{m_filename}"
                     self.pkg_writer.replace_part(m_part, raw_bytes, content_type=f"image/{ext}")
                     return slide_rels.add(REL_IMAGE, f"../media/{m_filename}")
+
                 return media_resolver
 
             resolver = make_media_resolver(s_rels)
             s_xml = slide_to_xml(slide, design=self.primary_design, media_resolver=resolver)
             self.pkg_writer.replace_part(part_name, s_xml.encode("utf-8"), content_type=CT_SLIDE)
-            self.pkg_writer.replace_part(s_rels_path, s_rels.to_xml(), content_type="application/vnd.openxmlformats-package.relationships+xml")
+            self.pkg_writer.replace_part(
+                s_rels_path,
+                s_rels.to_xml(),
+                content_type="application/vnd.openxmlformats-package.relationships+xml",
+            )
 
         # Delete any removed slides
         live_parts_set = {p for _, p in live_slides_parts}
@@ -347,7 +412,11 @@ class PptxWriter:
                 rel_map_by_target[p_rel] = rid
             slide_id_entries.append((255 + i, rid))
 
-        self.pkg_writer.replace_part(pres_rels_path, pres_rels.to_xml(), content_type="application/vnd.openxmlformats-package.relationships+xml")
+        self.pkg_writer.replace_part(
+            pres_rels_path,
+            pres_rels.to_xml(),
+            content_type="application/vnd.openxmlformats-package.relationships+xml",
+        )
 
         # Update ppt/presentation.xml content
         pres_bytes = self.source_pkg.read_part(pres_part)
@@ -375,7 +444,9 @@ class PptxWriter:
 
         enforce_schema_order(pres_elem, "presentation")
         final_pres_xml = f"{XML_DECL}{ET.tostring(pres_elem, encoding='unicode')}"
-        self.pkg_writer.replace_part(pres_part, final_pres_xml.encode("utf-8"), content_type=main_ct)
+        self.pkg_writer.replace_part(
+            pres_part, final_pres_xml.encode("utf-8"), content_type=main_ct
+        )
 
 
 def write_pptx(

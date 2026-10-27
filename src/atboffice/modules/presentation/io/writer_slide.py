@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
-from typing import Any, Callable
+from collections.abc import Callable
 
 from atboffice.modules.presentation.io.writer_shapes import shape_to_xml
 from atboffice.modules.presentation.io.xml_utils import (
@@ -64,17 +64,17 @@ def slide_to_xml(
 
     # Root group non-visual container
     grp_root = (
-        '<p:nvGrpSpPr>'
+        "<p:nvGrpSpPr>"
         '<p:cNvPr id="1" name=""/>'
-        '<p:cNvGrpSpPr/>'
-        '<p:nvPr/>'
-        '</p:nvGrpSpPr>'
-        '<p:grpSpPr>'
-        '<a:xfrm>'
+        "<p:cNvGrpSpPr/>"
+        "<p:nvPr/>"
+        "</p:nvGrpSpPr>"
+        "<p:grpSpPr>"
+        "<a:xfrm>"
         '<a:off x="0" y="0"/><a:ext cx="0" cy="0"/>'
         '<a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/>'
-        '</a:xfrm>'
-        '</p:grpSpPr>'
+        "</a:xfrm>"
+        "</p:grpSpPr>"
     )
 
     shapes_xml = "".join(
@@ -127,28 +127,39 @@ def notes_slide_to_xml(
     paras_xml = "".join(paras) or f'<a:p><a:endParaRPr lang="{lang}"/></a:p>'
 
     grp_root = (
-        '<p:nvGrpSpPr>'
+        "<p:nvGrpSpPr>"
         '<p:cNvPr id="1" name=""/>'
-        '<p:cNvGrpSpPr/>'
-        '<p:nvPr/>'
-        '</p:nvGrpSpPr>'
-        '<p:grpSpPr>'
-        '<a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm>'
-        '</p:grpSpPr>'
+        "<p:cNvGrpSpPr/>"
+        "<p:nvPr/>"
+        "</p:nvGrpSpPr>"
+        "<p:grpSpPr>"
+        "<a:xfrm>"
+        '<a:off x="0" y="0"/><a:ext cx="0" cy="0"/>'
+        '<a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/>'
+        "</a:xfrm>"
+        "</p:grpSpPr>"
     )
 
     sld_img_sp = (
-        '<p:sp>'
-        '<p:nvSpPr><p:cNvPr id="2" name="Slide Image Placeholder 1"/><p:cNvSpPr><a:spLocks noGrp="1" noRot="1" noChangeAspect="1"/></p:cNvSpPr><p:nvPr><p:ph type="sldImg"/></p:nvPr></p:nvSpPr>'
-        '<p:spPr/>'
-        '</p:sp>'
+        "<p:sp>"
+        "<p:nvSpPr>"
+        '<p:cNvPr id="2" name="Slide Image Placeholder 1"/>'
+        '<p:cNvSpPr><a:spLocks noGrp="1" noRot="1" noChangeAspect="1"/></p:cNvSpPr>'
+        '<p:nvPr><p:ph type="sldImg"/></p:nvPr>'
+        "</p:nvSpPr>"
+        "<p:spPr/>"
+        "</p:sp>"
     )
     notes_sp = (
-        '<p:sp>'
-        '<p:nvSpPr><p:cNvPr id="3" name="Notes Placeholder 2"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr>'
-        '<p:spPr/>'
-        f'<p:txBody><a:bodyPr/><a:lstStyle/>{paras_xml}</p:txBody>'
-        '</p:sp>'
+        "<p:sp>"
+        "<p:nvSpPr>"
+        '<p:cNvPr id="3" name="Notes Placeholder 2"/>'
+        '<p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>'
+        '<p:nvPr><p:ph type="body" idx="1"/></p:nvPr>'
+        "</p:nvSpPr>"
+        "<p:spPr/>"
+        f"<p:txBody><a:bodyPr/><a:lstStyle/>{paras_xml}</p:txBody>"
+        "</p:sp>"
     )
 
     sp_tree = f"<p:spTree>{grp_root}{sld_img_sp}{notes_sp}</p:spTree>"
@@ -156,8 +167,6 @@ def notes_slide_to_xml(
     clr_map = "<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>"
 
     root_xml = (
-        f'<p:notes xmlns:a="{NS_A}" xmlns:r="{NS_R}" xmlns:p="{NS_P}">'
-        f"{c_sld}{clr_map}"
-        "</p:notes>"
+        f'<p:notes xmlns:a="{NS_A}" xmlns:r="{NS_R}" xmlns:p="{NS_P}">{c_sld}{clr_map}</p:notes>'
     )
     return f"{XML_DECL}{root_xml}"

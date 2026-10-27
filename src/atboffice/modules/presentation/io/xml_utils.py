@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import html
-import math
 import xml.etree.ElementTree as ET
 from typing import Any
 
@@ -20,66 +19,32 @@ NS_RELS = "http://schemas.openxmlformats.org/package/2006/relationships"
 REL_OFFICE_DOCUMENT = (
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
 )
-REL_SLIDE = (
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide"
-)
-REL_SLIDE_MASTER = (
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster"
-)
-REL_SLIDE_LAYOUT = (
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout"
-)
-REL_THEME = (
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"
-)
-REL_NOTES_SLIDE = (
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide"
-)
-REL_NOTES_MASTER = (
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesMaster"
-)
-REL_IMAGE = (
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
-)
-REL_HYPERLINK = (
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
-)
+REL_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide"
+REL_SLIDE_MASTER = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster"
+REL_SLIDE_LAYOUT = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout"
+REL_THEME = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"
+REL_NOTES_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide"
+REL_NOTES_MASTER = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesMaster"
+REL_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+REL_HYPERLINK = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
 
 # Content Types
-CT_PRESENTATION = "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"
+CT_PRESENTATION = (
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"
+)
 CT_SLIDESHOW = "application/vnd.openxmlformats-officedocument.presentationml.slideshow.main+xml"
 CT_TEMPLATE = "application/vnd.openxmlformats-officedocument.presentationml.template.main+xml"
-CT_SLIDE = (
-    "application/vnd.openxmlformats-officedocument.presentationml.slide+xml"
-)
-CT_SLIDE_LAYOUT = (
-    "application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"
-)
-CT_SLIDE_MASTER = (
-    "application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"
-)
+CT_SLIDE = "application/vnd.openxmlformats-officedocument.presentationml.slide+xml"
+CT_SLIDE_LAYOUT = "application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"
+CT_SLIDE_MASTER = "application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"
 CT_THEME = "application/vnd.openxmlformats-officedocument.theme+xml"
-CT_NOTES_SLIDE = (
-    "application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml"
-)
-CT_NOTES_MASTER = (
-    "application/vnd.openxmlformats-officedocument.presentationml.notesMaster+xml"
-)
-CT_PRES_PROPS = (
-    "application/vnd.openxmlformats-officedocument.presentationml.presProps+xml"
-)
-CT_VIEW_PROPS = (
-    "application/vnd.openxmlformats-officedocument.presentationml.viewProps+xml"
-)
-CT_TABLE_STYLES = (
-    "application/vnd.openxmlformats-officedocument.presentationml.tableStyles+xml"
-)
-CT_CORE = (
-    "application/vnd.openxmlformats-package.core-properties+xml"
-)
-CT_APP = (
-    "application/vnd.openxmlformats-officedocument.extended-properties+xml"
-)
+CT_NOTES_SLIDE = "application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml"
+CT_NOTES_MASTER = "application/vnd.openxmlformats-officedocument.presentationml.notesMaster+xml"
+CT_PRES_PROPS = "application/vnd.openxmlformats-officedocument.presentationml.presProps+xml"
+CT_VIEW_PROPS = "application/vnd.openxmlformats-officedocument.presentationml.viewProps+xml"
+CT_TABLE_STYLES = "application/vnd.openxmlformats-officedocument.presentationml.tableStyles+xml"
+CT_CORE = "application/vnd.openxmlformats-package.core-properties+xml"
+CT_APP = "application/vnd.openxmlformats-officedocument.extended-properties+xml"
 
 EMUS_PER_PT = 12700.0
 XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
@@ -185,7 +150,11 @@ def color_to_xml(
 
     c = color or "#000000"
     if c and not c.startswith("#") and c in SCHEME_COLORS:
-        return f'<a:schemeClr val="{c}">{alpha_xml}</a:schemeClr>' if alpha_xml else f'<a:schemeClr val="{c}"/>'
+        return (
+            f'<a:schemeClr val="{c}">{alpha_xml}</a:schemeClr>'
+            if alpha_xml
+            else f'<a:schemeClr val="{c}"/>'
+        )
 
     if design is not None:
         resolved = resolve_color(c, design).replace("#", "").upper()
@@ -195,7 +164,11 @@ def color_to_xml(
     if len(resolved) != 6:
         resolved = "000000"
 
-    return f'<a:srgbClr val="{resolved}">{alpha_xml}</a:srgbClr>' if alpha_xml else f'<a:srgbClr val="{resolved}"/>'
+    return (
+        f'<a:srgbClr val="{resolved}">{alpha_xml}</a:srgbClr>'
+        if alpha_xml
+        else f'<a:srgbClr val="{resolved}"/>'
+    )
 
 
 def fill_to_xml(
@@ -229,13 +202,18 @@ def fill_to_xml(
         prst = fill.pattern or "pct50"
         fg_clr = color_to_xml(fill.fg or "#000000", design=design)
         bg_clr = color_to_xml(fill.bg or "#FFFFFF", design=design)
-        return f'<a:pattFill prst="{prst}"><a:fgClr>{fg_clr}</a:fgClr><a:bgClr>{bg_clr}</a:bgClr></a:pattFill>'
+        return (
+            f'<a:pattFill prst="{prst}">'
+            f"<a:fgClr>{fg_clr}</a:fgClr>"
+            f"<a:bgClr>{bg_clr}</a:bgClr>"
+            "</a:pattFill>"
+        )
 
     if fill.type == "img" and embed_rid:
         return (
             f'<a:blipFill dpi="0" rotWithShape="1">'
             f'<a:blip r:embed="{embed_rid}"/>'
-            '<a:stretch><a:fillRect/></a:stretch>'
+            "<a:stretch><a:fillRect/></a:stretch>"
             "</a:blipFill>"
         )
 
@@ -284,7 +262,8 @@ def shadow_to_xml(
     clr_xml = color_to_xml(shadow.color, shadow.alpha, design)
     return (
         "<a:effectLst>"
-        f'<a:outerShdw blurRad="{blur_emu}" dist="{dist_emu}" dir="{dir_val}" algn="tl" rotWithShape="0">'
+        f'<a:outerShdw blurRad="{blur_emu}" dist="{dist_emu}" '
+        f'dir="{dir_val}" algn="tl" rotWithShape="0">'
         f"{clr_xml}"
         "</a:outerShdw>"
         "</a:effectLst>"

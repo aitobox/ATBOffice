@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
-from typing import Any, Callable
+from collections.abc import Callable
 
 from atboffice.modules.presentation.io.writer_text import text_body_to_xml
 from atboffice.modules.presentation.io.xml_utils import (
@@ -17,7 +16,6 @@ from atboffice.modules.presentation.io.xml_utils import (
 )
 from atboffice.modules.presentation.models.designs import DesignTemplate
 from atboffice.modules.presentation.models.shape import Shape
-from atboffice.vfs.order import enforce_schema_order
 
 
 def non_visual_properties_to_xml(
@@ -69,7 +67,7 @@ def table_to_xml(
 ) -> str:
     """Serialize Table shape to PresentationML <p:graphicFrame>."""
     c_nv_pr = non_visual_properties_to_xml(shape_id, shape)
-    c_nv_gframe = "<p:cNvGraphicFramePr><a:graphicFrameLocks noGrp=\"1\"/></p:cNvGraphicFramePr>"
+    c_nv_gframe = '<p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr>'
     nv_pr = placeholder_nv_to_xml(shape)
     nv_graphic_frame = f"<p:nvGraphicFramePr>{c_nv_pr}{c_nv_gframe}{nv_pr}</p:nvGraphicFramePr>"
     xfrm_xml = transform_to_xml(shape, "p:xfrm")
@@ -85,7 +83,10 @@ def table_to_xml(
         for c in r.get("cells", []):
             tx_xml = text_body_to_xml(c.get("tx"), design=design, tag="a:txBody", lang=lang)
             if not tx_xml:
-                tx_xml = '<a:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="en-US"/></a:p></a:txBody>'
+                tx_xml = (
+                    "<a:txBody><a:bodyPr/><a:lstStyle/>"
+                    '<a:p><a:endParaRPr lang="en-US"/></a:p></a:txBody>'
+                )
             tc_pr = "<a:tcPr/>"
             cells_xml.append(f"<a:tc>{tx_xml}{tc_pr}</a:tc>")
         rows_xml.append(f'<a:tr h="{h_emu}">{"".join(cells_xml)}</a:tr>')
@@ -94,7 +95,7 @@ def table_to_xml(
     tbl_grid = f"<a:tblGrid>{grid_xml}</a:tblGrid>"
     table_content = f"<a:tbl>{tbl_pr}{tbl_grid}{''.join(rows_xml)}</a:tbl>"
     graphic = (
-        '<a:graphic>'
+        "<a:graphic>"
         '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table">'
         f"{table_content}"
         "</a:graphicData>"
@@ -119,7 +120,7 @@ def picture_to_xml(
 
     blip_fill = (
         f'<p:blipFill><a:blip r:embed="{embed_rid}"/>'
-        '<a:stretch><a:fillRect/></a:stretch></p:blipFill>'
+        "<a:stretch><a:fillRect/></a:stretch></p:blipFill>"
     )
     sp_pr = shape_properties_to_xml(shape, design=design, tag="p:spPr")
 
@@ -185,9 +186,7 @@ def shape_to_xml(
 
     sp_pr = shape_properties_to_xml(shape, design=design, tag="p:spPr")
     tx_body = (
-        text_body_to_xml(shape.text, design=design, tag="p:txBody", lang=lang)
-        if shape.text
-        else ""
+        text_body_to_xml(shape.text, design=design, tag="p:txBody", lang=lang) if shape.text else ""
     )
 
     # Strict schema order: nvSpPr -> spPr -> style -> txBody -> extLst

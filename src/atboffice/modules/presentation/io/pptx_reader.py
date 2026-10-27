@@ -10,13 +10,9 @@ from typing import Any
 
 from atboffice.modules.presentation.models.designs import (
     ColorScheme,
-    DesignTemplate,
-    build_design,
 )
 from atboffice.modules.presentation.models.presentation import (
-    HeaderFooterSettings,
     Presentation,
-    SlideShowSettings,
 )
 from atboffice.modules.presentation.models.shape import (
     Fill,
@@ -39,7 +35,9 @@ NS_P = "http://schemas.openxmlformats.org/presentationml/2006/main"
 NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main"
 NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 
-REL_OFFICE_DOCUMENT = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
+REL_OFFICE_DOCUMENT = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
+)
 REL_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide"
 REL_SLIDE_MASTER = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster"
 REL_SLIDE_LAYOUT = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout"
@@ -219,9 +217,7 @@ class PptxReader:
             return "ppt/presentation.xml"
         raise ValueError("Package does not contain an officeDocument presentation part.")
 
-    def _parse_themes(
-        self, pres_part: str, pres_rels: list[Any], pres: Presentation
-    ) -> None:
+    def _parse_themes(self, pres_part: str, pres_rels: list[Any], pres: Presentation) -> None:
         """Parse theme colors and fonts from theme part."""
         theme_parts: list[str] = []
         for rel in pres_rels:
@@ -381,7 +377,11 @@ class PptxReader:
         tx_body_elem = _get_child(elem, "txBody")
         text_body = self._parse_text_body(tx_body_elem) if tx_body_elem is not None else None
 
-        shape_type = "text" if (geom == "rect" and text_body and not fill.type != "none" and line.type == "none") else "shape"
+        shape_type = (
+            "text"
+            if (geom == "rect" and text_body and not fill.type != "none" and line.type == "none")
+            else "shape"
+        )
         if placeholder and placeholder.type in ("title", "ctrTitle", "subTitle"):
             shape_type = "text"
 
@@ -480,7 +480,9 @@ class PptxReader:
                 row_cells: list[dict[str, Any]] = []
                 for tc_elem in _get_children(tr_elem, "tc"):
                     tx_body = _get_child(tc_elem, "txBody")
-                    cell_text = self._parse_text_body(tx_body) if tx_body is not None else TextBody()
+                    cell_text = (
+                        self._parse_text_body(tx_body) if tx_body is not None else TextBody()
+                    )
                     row_cells.append({"tx": cell_text, "text": cell_text.plain_text})
                 tbl_dict["rows"].append({"h": h_pt, "cells": row_cells})
 
@@ -703,12 +705,6 @@ class PptxReader:
                     level = 0
 
             algn_val = _get_attr(p_pr, "algn")
-            if algn_val == "ctr":
-                align = "center"
-            elif algn_val == "r":
-                align = "right"
-            elif algn_val == "just":
-                align = "justify"
 
             bu_char = _get_child(p_pr, "buChar")
             if bu_char is not None:
@@ -822,7 +818,9 @@ class PptxReader:
                         for sp in n_xml.iter():
                             if _local_tag(sp.tag) == "sp":
                                 nv_sp_pr = _get_child(sp, "nvSpPr")
-                                nv_pr = _get_child(nv_sp_pr, "nvPr") if nv_sp_pr is not None else None
+                                nv_pr = (
+                                    _get_child(nv_sp_pr, "nvPr") if nv_sp_pr is not None else None
+                                )
                                 ph = _get_child(nv_pr, "ph") if nv_pr is not None else None
                                 if ph is not None and _get_attr(ph, "type") == "body":
                                     tx_body = _get_child(sp, "txBody")

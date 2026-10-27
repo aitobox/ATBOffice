@@ -5,9 +5,7 @@ from __future__ import annotations
 import io
 import xml.etree.ElementTree as ET
 import zipfile
-from pathlib import Path
 
-import pytest
 from atboffice.modules.presentation.io import (
     PptxReader,
     PptxWriter,
@@ -69,9 +67,15 @@ def test_pptx_ppsx_potx_content_types():
     pres.slides.append(Slide(id="s1", layout="blank"))
 
     formats = {
-        "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml",
-        "ppsx": "application/vnd.openxmlformats-officedocument.presentationml.slideshow.main+xml",
-        "potx": "application/vnd.openxmlformats-officedocument.presentationml.template.main+xml",
+        "pptx": (
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"
+        ),
+        "ppsx": (
+            "application/vnd.openxmlformats-officedocument.presentationml.slideshow.main+xml"
+        ),
+        "potx": (
+            "application/vnd.openxmlformats-officedocument.presentationml.template.main+xml"
+        ),
     }
 
     for fmt, expected_ct in formats.items():
@@ -80,7 +84,9 @@ def test_pptx_ppsx_potx_content_types():
             ct_xml = zf.read("[Content_Types].xml")
             root = ET.fromstring(ct_xml)
             found = False
-            for override in root.findall("{http://schemas.openxmlformats.org/package/2006/content-types}Override"):
+            for override in root.findall(
+                "{http://schemas.openxmlformats.org/package/2006/content-types}Override"
+            ):
                 if override.attrib.get("PartName") == "/ppt/presentation.xml":
                     assert override.attrib.get("ContentType") == expected_ct
                     found = True
@@ -231,7 +237,11 @@ def test_picture_embedding_and_extraction():
     pres = Presentation.create_new(title="Picture Test", empty=True)
     slide = Slide(id="s1", layout="blank")
 
-    dummy_png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+    dummy_png = (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06"
+        b"\x00\x00\x00\x1f\x15c4\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01"
+        b"\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
     pres.props["_media_map"] = {"img_logo.png": dummy_png}
 
     pic = Shape(
@@ -285,7 +295,7 @@ def test_slide_transitions_and_notes():
 
 
 def test_lossless_preservation_unmodified_slides_byte_identical():
-    """Verify that editing 1 slide in a 3-slide package preserves the other 2 slides byte-for-byte."""
+    """Verify editing 1 slide in a 3-slide package preserves other 2 slides byte-for-byte."""
     # 1. Create baseline 3-slide presentation
     pres_orig = Presentation.create_new(title="Lossless Preservation Test", empty=True)
     for i in range(1, 4):
@@ -377,7 +387,9 @@ def test_schema_ordering_conformance():
         children_tags = [c.tag.split("}")[-1] for c in root]
         sld_filtered = [t for t in sld_expected if t in children_tags]
         actual_filtered = [t for t in children_tags if t in sld_expected]
-        assert actual_filtered == sld_filtered, f"Slide order mismatch: {actual_filtered} != {sld_filtered}"
+        assert actual_filtered == sld_filtered, (
+            f"Slide order mismatch: {actual_filtered} != {sld_filtered}"
+        )
 
         # Check p:sp child ordering
         sp_elem = None
@@ -390,4 +402,6 @@ def test_schema_ordering_conformance():
         sp_tags = [c.tag.split("}")[-1] for c in sp_elem]
         sp_filtered = [t for t in sp_expected if t in sp_tags]
         actual_sp = [t for t in sp_tags if t in sp_expected]
-        assert actual_sp == sp_filtered, f"Shape order mismatch: {actual_sp} != {sp_filtered}"
+        assert actual_sp == sp_filtered, (
+            f"Shape order mismatch: {actual_sp} != {sp_filtered}"
+        )

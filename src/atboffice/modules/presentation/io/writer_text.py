@@ -131,7 +131,8 @@ def paragraph_to_xml(
             fld_type = escape_xml(r.field)
             r_pr = run_props_to_xml(r, tag="a:rPr", design=design, lang=lang)
             runs_xml.append(
-                f'<a:fld id="{fld_id}" type="{fld_type}">{r_pr}<a:t>{escape_xml(r.text)}</a:t></a:fld>'
+                f'<a:fld id="{fld_id}" type="{fld_type}">'
+                f"{r_pr}<a:t>{escape_xml(r.text)}</a:t></a:fld>"
             )
             continue
 
