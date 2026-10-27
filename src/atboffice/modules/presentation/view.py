@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from atboffice.modules.presentation.models.presentation import Presentation
@@ -48,6 +50,14 @@ class PresentationView(QWidget):
     def load_slide(self, slide: Slide) -> None:
         """Switch active slide shown on the canvas."""
         self.workspace.load_slide(slide)
+
+    def start_slideshow(
+        self,
+        from_current: bool = False,
+        fullscreen: bool = False,
+    ) -> Any | None:
+        """Launch presentation in slide show mode."""
+        return self.workspace.start_slideshow(from_current=from_current, fullscreen=fullscreen)
 
     def retranslate_ui(self) -> None:
         """Retranslate presentation UI controls."""

@@ -16,9 +16,11 @@ from PySide6.QtGui import (
     QColor,
     QFont,
     QIcon,
+    QKeySequence,
     QPainter,
     QPen,
     QPixmap,
+    QShortcut,
 )
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -295,8 +297,7 @@ class OutlineEditorWidget(QWidget):
                             (
                                 sh
                                 for sh in s.shapes
-                                if sh.placeholder
-                                and sh.placeholder.type in ("title", "ctrTitle")
+                                if sh.placeholder and sh.placeholder.type in ("title", "ctrTitle")
                             ),
                             s.shapes[0] if s.shapes else None,
                         )
@@ -779,6 +780,14 @@ class LecternWorkspace(QWidget):
         self.main_splitter.setStretchFactor(1, 5)
         self.main_splitter.setStretchFactor(2, 2)
 
+        self._active_slideshow: Any | None = None
+
+        # Presentation shortcuts (F5: from start, Shift+F5: from current)
+        self._shortcut_f5 = QShortcut(QKeySequence(Qt.Key.Key_F5), self)
+        self._shortcut_f5.activated.connect(lambda: self.start_slideshow(from_current=False))
+        self._shortcut_shift_f5 = QShortcut(QKeySequence("Shift+F5"), self)
+        self._shortcut_shift_f5.activated.connect(lambda: self.start_slideshow(from_current=True))
+
     def load_presentation(self, presentation: Presentation) -> None:
         """Load presentation document and update all panes."""
         self.presentation = presentation
@@ -803,6 +812,31 @@ class LecternWorkspace(QWidget):
             if self.thumbnail_list.currentRow() != clamped:
                 self.thumbnail_list.setCurrentRow(clamped)
             self.slide_changed.emit(clamped)
+
+    def set_current_slide(self, index: int) -> None:
+        """Alias for set_current_slide_index."""
+        self.set_current_slide_index(index)
+
+    def start_slideshow(
+        self,
+        from_current: bool = False,
+        fullscreen: bool = False,
+    ) -> Any | None:
+        """Launch the presentation in fullscreen or windowed SlideShowView."""
+        if not self.presentation.slides:
+            return None
+        from atboffice.modules.presentation.slideshow.slideshow_view import SlideShowView
+
+        start_idx = self.current_slide_index if from_current else 0
+        show_view = SlideShowView(
+            presentation=self.presentation,
+            start_slide_index=start_idx,
+            fullscreen=fullscreen,
+        )
+        show_view.slideChanged.connect(self.set_current_slide_index)
+        self._active_slideshow = show_view
+        show_view.show()
+        return show_view
 
     def load_slide(self, slide: Slide) -> None:
         """Switch active slide by reference."""
