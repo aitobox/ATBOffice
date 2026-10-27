@@ -64,31 +64,90 @@ class Transition:
 
 @dataclass
 class Animation:
-    """Shape entry/exit/emphasis animation on a slide."""
+    """Shape entry/exit/emphasis/motion-path animation on a slide."""
 
     id: str
     sid: str  # Target shape id
-    type: str = "appear"
-    trigger: str = "click"  # "click", "after", "with"
-    duration: float = 0.5
+    cls: str = "entr"  # "entr", "emph", "exit", "path"
+    eff: str = "appear"  # Effect name (e.g. flyIn, zoom, spin, right)
+    dir: str | None = None
+    start: str = "click"  # "click", "with", "after"
+    dur: int = 500  # duration in milliseconds
+    delay: int = 0  # delay in milliseconds
+    by: str = "all"  # "all" or "para" (by paragraph)
+    repeat: int = 1  # for emphasis (e.g. spin, teeter)
+    amount: float = 360.0  # for spin degrees or zoom scale percentage
+    pts: list[list[float]] = field(default_factory=list)  # for motion paths
+    para: int | None = None  # specific paragraph index when expanded
+
+    # Backwards compatibility properties
+    @property
+    def type(self) -> str:
+        return self.eff
+
+    @type.setter
+    def type(self, val: str) -> None:
+        self.eff = val
+
+    @property
+    def trigger(self) -> str:
+        return self.start
+
+    @trigger.setter
+    def trigger(self, val: str) -> None:
+        self.start = val
+
+    @property
+    def duration(self) -> float:
+        return self.dur / 1000.0
+
+    @duration.setter
+    def duration(self, val: float) -> None:
+        self.dur = int(val * 1000)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "id": self.id,
             "sid": self.sid,
-            "type": self.type,
-            "trigger": self.trigger,
-            "duration": self.duration,
+            "cls": self.cls,
+            "eff": self.eff,
+            "type": self.eff,
+            "dir": self.dir,
+            "start": self.start,
+            "trigger": self.start,
+            "dur": self.dur,
+            "duration": self.dur / 1000.0,
+            "delay": self.delay,
+            "by": self.by,
+            "repeat": self.repeat,
+            "amount": self.amount,
         }
+        if self.pts:
+            d["pts"] = self.pts
+        if self.para is not None:
+            d["para"] = self.para
+        return d
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Animation:
+        eff = str(data.get("eff", data.get("type", "appear")))
+        cls_val = str(data.get("cls", "entr"))
+        start = str(data.get("start", data.get("trigger", "click")))
+        dur = int(data.get("dur", int(float(data.get("duration", 0.5)) * 1000)))
         return cls(
             id=str(data.get("id", f"a_{uuid.uuid4().hex[:6]}")),
             sid=str(data.get("sid", "")),
-            type=str(data.get("type", "appear")),
-            trigger=str(data.get("trigger", "click")),
-            duration=float(data.get("duration", 0.5)),
+            cls=cls_val,
+            eff=eff,
+            dir=str(data["dir"]) if data.get("dir") is not None else None,
+            start=start,
+            dur=dur,
+            delay=int(data.get("delay", 0)),
+            by=str(data.get("by", "all")),
+            repeat=int(data.get("repeat", 1)),
+            amount=float(data.get("amount", 360.0)),
+            pts=[list(p) for p in data.get("pts", [])] if "pts" in data else [],
+            para=int(data["para"]) if data.get("para") is not None else None,
         )
 
 

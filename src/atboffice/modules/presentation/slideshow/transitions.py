@@ -233,8 +233,9 @@ def render_slide_to_image(
     presentation: Presentation,
     width: int = 960,
     height: int = 540,
+    frame_states: dict[str, Any] | None = None,
 ) -> QImage:
-    """Render a slide with background and shapes onto a QImage."""
+    """Render a slide with background and shapes onto a QImage with animation frame support."""
     w = max(100.0, presentation.w)
     h = max(100.0, presentation.h)
 
@@ -260,6 +261,11 @@ def render_slide_to_image(
             if sh.w <= 0 or sh.h <= 0:
                 continue
 
+            state = frame_states.get(sh.id) if frame_states else None
+            if state is not None:
+                if not getattr(state, "visible", True) or getattr(state, "opacity", 1.0) <= 0.001:
+                    continue
+
             rect = QRectF(sh.x * sx, sh.y * sy, sh.w * sx, sh.h * sy)
 
             # Geometry path if available
@@ -267,7 +273,24 @@ def render_slide_to_image(
                 getattr(sh, "geom", "rect"), rect.width(), rect.height(), sh.adj
             )
             painter.save()
-            painter.translate(rect.topLeft())
+            if state is not None:
+                op = getattr(state, "opacity", 1.0)
+                if op < 1.0:
+                    painter.setOpacity(max(0.0, min(1.0, op)))
+                tx = getattr(state, "translate_x", 0.0) * sx
+                ty = getattr(state, "translate_y", 0.0) * sy
+                rot = getattr(state, "rotation", 0.0)
+                scale_x = getattr(state, "scale_x", 1.0)
+                scale_y = getattr(state, "scale_y", 1.0)
+                center = rect.center()
+                painter.translate(center.x() + tx, center.y() + ty)
+                if rot != 0.0:
+                    painter.rotate(rot)
+                if scale_x != 1.0 or scale_y != 1.0:
+                    painter.scale(scale_x, scale_y)
+                painter.translate(-rect.width() / 2.0, -rect.height() / 2.0)
+            else:
+                painter.translate(rect.topLeft())
 
             # Fill
             if sh.fill and sh.fill.type == "solid":
