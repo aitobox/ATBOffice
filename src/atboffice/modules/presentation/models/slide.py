@@ -20,14 +20,30 @@ class Transition:
     speed: str = "fast"  # "fast", "med", "slow"
     click: bool = True  # Advance on mouse click
     after: float | None = None  # Advance automatically after N seconds
+    dir: str | None = None
+    thruBlk: bool = False
+    spokes: int | None = None
+    orient: str | None = None
+    dur: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "type": self.type,
             "spd": self.speed,
             "click": self.click,
             "after": self.after,
         }
+        if self.dir is not None:
+            d["dir"] = self.dir
+        if self.thruBlk:
+            d["thruBlk"] = True
+        if self.spokes is not None:
+            d["spokes"] = self.spokes
+        if self.orient is not None:
+            d["orient"] = self.orient
+        if self.dur is not None:
+            d["dur"] = self.dur
+        return d
 
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> Transition:
@@ -38,6 +54,11 @@ class Transition:
             speed=str(data.get("spd", data.get("speed", "fast"))),
             click=bool(data.get("click", True)),
             after=float(data["after"]) if data.get("after") is not None else None,
+            dir=str(data["dir"]) if data.get("dir") is not None else None,
+            thruBlk=bool(data.get("thruBlk", False)),
+            spokes=int(data["spokes"]) if data.get("spokes") is not None else None,
+            orient=str(data["orient"]) if data.get("orient") is not None else None,
+            dur=int(data["dur"]) if data.get("dur") is not None else None,
         )
 
 

@@ -49,6 +49,14 @@ class PresentationView(QWidget):
         """Switch active slide shown on the canvas."""
         self.workspace.load_slide(slide)
 
+    def start_slideshow(
+        self,
+        from_current: bool = False,
+        fullscreen: bool = False,
+    ) -> Any | None:
+        """Launch presentation in slide show mode."""
+        return self.workspace.start_slideshow(from_current=from_current, fullscreen=fullscreen)
+
     def retranslate_ui(self) -> None:
         """Retranslate presentation UI controls."""
         self.setWindowTitle(safe_tr("演示文稿"))
