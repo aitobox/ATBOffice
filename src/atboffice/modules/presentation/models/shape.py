@@ -197,6 +197,7 @@ class Shape:
     tbl: dict[str, Any] | None = None
     link: dict[str, Any] | None = None
     sa: dict[str, Any] | None = None
+    chart: dict[str, Any] | None = None
     poly: list[list[float]] | None = None
     custom_path: dict[str, Any] | None = None
 
@@ -232,6 +233,10 @@ class Shape:
     def is_diagram(self) -> bool:
         return self.type == "group" and bool(self.sa)
 
+    @property
+    def is_chart(self) -> bool:
+        return self.type == "chart" or bool(self.chart)
+
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
             "id": self.id,
@@ -266,6 +271,8 @@ class Shape:
             d["link"] = copy.deepcopy(self.link)
         if self.sa:
             d["sa"] = copy.deepcopy(self.sa)
+        if self.chart:
+            d["chart"] = copy.deepcopy(self.chart)
         if self.poly:
             d["poly"] = [list(pt) for pt in self.poly]
         if self.custom_path:
@@ -296,6 +303,7 @@ class Shape:
             tbl=copy.deepcopy(data.get("tbl")),
             link=copy.deepcopy(data.get("link")),
             sa=copy.deepcopy(data.get("sa")),
+            chart=copy.deepcopy(data.get("chart")),
             poly=[list(pt) for pt in data["poly"]] if "poly" in data and data["poly"] else None,
             custom_path=copy.deepcopy(data.get("custom_path")),
         )

@@ -278,6 +278,19 @@ class ShapeGraphicsItem(QGraphicsObject):
         w = max(1.0, self.shape.w)
         h = max(1.0, self.shape.h)
 
+        # 0. Chart rendering if shape is a chart
+        if self.shape.is_chart:
+            from atboffice.modules.presentation.chart.model import ChartData
+            from atboffice.modules.presentation.chart.painter import ChartPainter
+
+            c_data = (
+                self.shape.chart
+                if isinstance(self.shape.chart, ChartData)
+                else ChartData.from_dict(self.shape.chart)
+            )
+            ChartPainter.paint_chart(painter, c_data, QRectF(0.0, 0.0, w, h))
+            return
+
         # 1. Shadow effect
         if self.shape.shadow:
             sh_path = create_shape_path(self.shape.geom, w, h, self.shape.adj)
@@ -378,8 +391,34 @@ class ShapeGraphicsItem(QGraphicsObject):
         )
 
     def mouseDoubleClickEvent(self, event: QGraphicsSceneMouseEvent) -> None:
-        """Activate in-place rich text editing on left double-click."""
+        """Activate in-place rich text editing or datasheet dialog on left double-click."""
         if event.button() == Qt.MouseButton.LeftButton:
+            if self.shape.is_chart:
+                event.accept()
+                from PySide6.QtWidgets import QDialog
+
+                from atboffice.modules.presentation.chart.model import ChartData
+                from atboffice.modules.presentation.dialogs.datasheet_dialog import (
+                    DatasheetDialog,
+                )
+
+                c_data = (
+                    self.shape.chart
+                    if isinstance(self.shape.chart, ChartData)
+                    else ChartData.from_dict(self.shape.chart)
+                )
+                parent_view = (
+                    self.scene().views()[0]
+                    if self.scene() and self.scene().views()
+                    else None
+                )
+                dlg = DatasheetDialog(chart=c_data, parent=parent_view)
+                if dlg.exec() == QDialog.DialogCode.Accepted:
+                    self.shape.chart = dlg.get_chart_data().to_dict()
+                    self.update()
+                    self.geometryChanged.emit()
+                return
+
             event.accept()
             self.start_text_editing()
         else:

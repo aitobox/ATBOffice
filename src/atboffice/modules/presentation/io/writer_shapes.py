@@ -106,6 +106,29 @@ def table_to_xml(
     return f"<p:graphicFrame>{nv_graphic_frame}{xfrm_xml}{graphic}</p:graphicFrame>"
 
 
+def chart_frame_to_xml(
+    shape: Shape,
+    shape_id: str,
+    chart_rid: str,
+) -> str:
+    """Serialize Chart shape to PresentationML <p:graphicFrame>."""
+    c_nv_pr = non_visual_properties_to_xml(shape_id, shape)
+    c_nv_gframe = '<p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr>'
+    nv_pr = placeholder_nv_to_xml(shape)
+    nv_graphic_frame = f"<p:nvGraphicFramePr>{c_nv_pr}{c_nv_gframe}{nv_pr}</p:nvGraphicFramePr>"
+    xfrm_xml = transform_to_xml(shape, "p:xfrm")
+    graphic = (
+        "<a:graphic>"
+        '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">'
+        f'<c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" '
+        f'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
+        f'r:id="{chart_rid}"/>'
+        "</a:graphicData>"
+        "</a:graphic>"
+    )
+    return f"<p:graphicFrame>{nv_graphic_frame}{xfrm_xml}{graphic}</p:graphicFrame>"
+
+
 def picture_to_xml(
     shape: Shape,
     shape_id: str,
@@ -159,7 +182,14 @@ def shape_to_xml(
         )
         return f"<p:grpSp>{nv_grp_sp_pr}{grp_sp_pr}{kids_xml}</p:grpSp>"
 
-    # 2. Table Frames
+    # 2. Table & Chart Frames
+    if shape.is_chart:
+        chart_rid = ""
+        if media_resolver:
+            chart_rid = media_resolver(f"chart:{shape.id}")
+        if chart_rid:
+            return chart_frame_to_xml(shape, shape_id, chart_rid)
+
     if shape.type == "table":
         return table_to_xml(shape, shape_id, design=design, lang=lang)
 
