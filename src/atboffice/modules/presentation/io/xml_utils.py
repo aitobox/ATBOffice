@@ -144,6 +144,22 @@ class RelationshipBuilder:
         self._rels: list[dict[str, str]] = []
         self._next_id = start_id
 
+    def has_type(self, rel_type: str) -> bool:
+        """Check if a relationship with the given type is already registered."""
+        return any(r["type"] == rel_type for r in self._rels)
+
+    @property
+    def _relationships(self) -> list[Any]:
+        """Compatibility property exposing objects with .type, .target, .id."""
+        class _RelProxy:
+            def __init__(self, d: dict[str, str]) -> None:
+                self.id = d["id"]
+                self.type = d["type"]
+                self.target = d["target"]
+                self.target_mode = d.get("target_mode", "Internal")
+
+        return [_RelProxy(r) for r in self._rels]
+
     def add(
         self,
         rel_type: str,

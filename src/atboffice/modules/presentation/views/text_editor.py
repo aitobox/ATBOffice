@@ -177,9 +177,13 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         shape_item: ShapeGraphicsItem,
         parent: QGraphicsItem | None = None,
     ) -> None:
+        import copy
+
         super().__init__(parent or shape_item)
         self.shape_item = shape_item
         self.shape = shape_item.shape
+        self._is_finishing = False
+        self._orig_text_body = copy.deepcopy(self.shape.text) if self.shape.text else None
 
         self.setZValue(200.0)
         self.setTextInteractionFlags(Qt.TextInteractionFlag.TextEditorInteraction)
@@ -817,6 +821,9 @@ class ShapeTextEditorItem(QGraphicsTextItem):
     # ------------------------------------------------------------------
     def commit_and_finish(self) -> None:
         """Sync changes back to shape.text model and end in-place editing."""
+        if self._is_finishing:
+            return
+        self._is_finishing = True
         updated_tb = self.to_text_body()
         self.shape.text = updated_tb
 
@@ -831,6 +838,11 @@ class ShapeTextEditorItem(QGraphicsTextItem):
 
     def cancel_editing(self) -> None:
         """Cancel editing without committing newly typed changes."""
+        if self._is_finishing:
+            return
+        self._is_finishing = True
+        if self._orig_text_body is not None:
+            self.shape.text = self._orig_text_body
         self.shape_item.finish_text_editing()
 
     def _on_contents_changed(self) -> None:
@@ -845,10 +857,10 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         key = event.key()
         modifiers = event.modifiers()
 
-        # 1. Escape: Commit and exit
+        # 1. Escape: Cancel and rollback
         if key == Qt.Key.Key_Escape:
             event.accept()
-            self.commit_and_finish()
+            self.cancel_editing()
             return
 
         # 2. Tab & Shift+Tab: Demote / Promote
@@ -890,7 +902,8 @@ class ShapeTextEditorItem(QGraphicsTextItem):
     def focusOutEvent(self, event: QFocusEvent) -> None:
         """Auto-commit when losing focus."""
         super().focusOutEvent(event)
-        self.commit_and_finish()
+        if not self._is_finishing:
+            self.commit_and_finish()
 
     def contextMenuEvent(self, event: Any) -> None:
         """Display rich text formatting context menu."""
