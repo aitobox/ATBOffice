@@ -11,6 +11,7 @@ from atboffice.modules.presentation.views.slide_canvas import (
     SlideScene,
     safe_tr,
 )
+from atboffice.modules.presentation.views.workspace import LecternWorkspace
 
 
 class PresentationView(QWidget):
@@ -29,34 +30,26 @@ class PresentationView(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        current_slide = self.presentation.slides[0] if self.presentation.slides else None
-        self.scene = SlideScene(
-            slide=current_slide,
-            slide_width=self.presentation.w,
-            slide_height=self.presentation.h,
-            parent=self,
-        )
-        self.canvas_view = SlideCanvasView(scene=self.scene, parent=self)
-        layout.addWidget(self.canvas_view)
+        self.workspace = LecternWorkspace(presentation=self.presentation, parent=self)
+        self.scene: SlideScene = self.workspace.scene
+        self.canvas_view: SlideCanvasView = self.workspace.canvas_view
 
+        layout.addWidget(self.workspace)
         self.retranslate_ui()
 
     def load_presentation(self, pres: Presentation) -> None:
         """Load presentation document and refresh slide canvas."""
         self.presentation = pres
         self.current_slide_index = 0
-        current_slide = pres.slides[0] if pres.slides else None
-        self.scene.slide_width = pres.w
-        self.scene.slide_height = pres.h
-        if current_slide:
-            self.scene.load_slide(current_slide)
-        self.canvas_view.zoom_fit()
+        self.workspace.load_presentation(pres)
+        self.scene = self.workspace.scene
+        self.canvas_view = self.workspace.canvas_view
 
     def load_slide(self, slide: Slide) -> None:
         """Switch active slide shown on the canvas."""
-        self.scene.load_slide(slide)
+        self.workspace.load_slide(slide)
 
     def retranslate_ui(self) -> None:
         """Retranslate presentation UI controls."""
         self.setWindowTitle(safe_tr("演示文稿"))
-        self.canvas_view.retranslate_ui()
+        self.workspace.retranslate_ui()
