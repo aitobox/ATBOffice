@@ -9,17 +9,14 @@ Provides:
 
 from __future__ import annotations
 
-import copy
 from typing import Any
 
-from PySide6.QtCore import QPoint, QRect, QRectF, QSize, Qt, Signal, Slot
+from PySide6.QtCore import QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (
-    QAction,
     QColor,
     QFont,
     QIcon,
     QPainter,
-    QPalette,
     QPen,
     QPixmap,
 )
@@ -32,7 +29,6 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMenu,
-    QPushButton,
     QScrollArea,
     QSizePolicy,
     QSplitter,
@@ -46,7 +42,6 @@ from PySide6.QtWidgets import (
 
 from atboffice.modules.presentation.models.designs import (
     DESIGNS,
-    DesignTemplate,
     build_design,
 )
 from atboffice.modules.presentation.models.layouts import (
@@ -57,7 +52,7 @@ from atboffice.modules.presentation.models.layouts import (
 from atboffice.modules.presentation.models.presentation import Presentation
 from atboffice.modules.presentation.models.shape import Shape
 from atboffice.modules.presentation.models.slide import Slide
-from atboffice.modules.presentation.models.text import Paragraph, TextBody
+from atboffice.modules.presentation.models.text import TextBody
 from atboffice.modules.presentation.views.slide_canvas import (
     SlideCanvasView,
     SlideScene,
@@ -396,8 +391,8 @@ class SlideLayoutPane(QWidget):
 
         # Group layouts
         groups: dict[str, list[LayoutInfo]] = {}
-        for l in LAYOUTS:
-            groups.setdefault(l.group, []).append(l)
+        for layout_info in LAYOUTS:
+            groups.setdefault(layout_info.group, []).append(layout_info)
 
         group_names = {
             "Text Layouts": safe_tr("文本版式:"),
@@ -420,12 +415,12 @@ class SlideLayoutPane(QWidget):
             card_col = QVBoxLayout()
             card_col.setSpacing(6)
 
-            for l in grp_layouts:
+            for layout_item in grp_layouts:
                 btn = QToolButton(self)
-                btn.setText(safe_tr(l.name))
+                btn.setText(safe_tr(layout_item.name))
                 btn.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
                 btn.setIconSize(QSize(64, 48))
-                btn.setIcon(self._create_layout_icon(l.key))
+                btn.setIcon(self._create_layout_icon(layout_item.key))
                 btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
                 btn.setStyleSheet(
                     """
@@ -442,7 +437,7 @@ class SlideLayoutPane(QWidget):
                     }
                     """
                 )
-                key = l.key
+                key = layout_item.key
                 btn.clicked.connect(lambda checked=False, k=key: self.apply_layout(k))
                 self.layout_cards[key] = btn
                 layout.addWidget(btn)

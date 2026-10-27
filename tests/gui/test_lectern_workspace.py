@@ -3,23 +3,15 @@
 from __future__ import annotations
 
 import pytest
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.presentation.models.designs import build_design
 from atboffice.modules.presentation.models.presentation import Presentation
-from atboffice.modules.presentation.models.shape import Shape
-from atboffice.modules.presentation.models.slide import Slide
-from atboffice.modules.presentation.models.text import Paragraph, TextBody
+from atboffice.modules.presentation.models.text import TextBody
 from atboffice.modules.presentation.view import PresentationView
 from atboffice.modules.presentation.views.workspace import (
-    LecternTaskPane,
     LecternWorkspace,
-    OutlineEditorWidget,
     SlideDesignPane,
     SlideLayoutPane,
-    SlideThumbnailList,
-    SpeakerNotesPane,
 )
 
 
