@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from PySide6.QtCore import QPoint, Qt
-from PySide6.QtGui import QContextMenuEvent, QKeyEvent
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.presentation.models.presentation import Presentation
@@ -101,14 +101,18 @@ def test_slideshow_keyboard_navigation(qapp, sample_presentation):
     view = SlideShowView(presentation=sample_presentation, start_slide_index=0)
 
     # Space -> Next slide
-    event_space = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Space, Qt.KeyboardModifier.NoModifier, " ")
+    event_space = QKeyEvent(
+        QKeyEvent.Type.KeyPress, Qt.Key.Key_Space, Qt.KeyboardModifier.NoModifier, " "
+    )
     view.keyPressEvent(event_space)
     if view.in_transition:
         view.finish_transition_now()
     assert view.current_slide_index == 1
 
     # Backspace -> Previous slide
-    event_bs = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Backspace, Qt.KeyboardModifier.NoModifier)
+    event_bs = QKeyEvent(
+        QKeyEvent.Type.KeyPress, Qt.Key.Key_Backspace, Qt.KeyboardModifier.NoModifier
+    )
     view.keyPressEvent(event_bs)
     if view.in_transition:
         view.finish_transition_now()
@@ -146,7 +150,9 @@ def test_slideshow_keyboard_navigation(qapp, sample_presentation):
     assert view.current_slide_index == 0
 
     # Key Escape -> End show
-    event_esc = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier)
+    event_esc = QKeyEvent(
+        QKeyEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier
+    )
     view.keyPressEvent(event_esc)
     assert view.is_active is False
 

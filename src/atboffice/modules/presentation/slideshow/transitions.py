@@ -95,17 +95,29 @@ TRANSITION_CATALOGUE: list[TransitionEffect] = [
     TransitionEffect("push_r", "Push Right", "向右推移", "push", dir="r"),
     TransitionEffect("push_u", "Push Up", "向上推移", "push", dir="u"),
     # Random Bars (2)
-    TransitionEffect("random_bar_horz", "Random Bars Horizontal", "水平随机线条", "randomBar", dir="horz"),
-    TransitionEffect("random_bar_vert", "Random Bars Vertical", "垂直随机线条", "randomBar", dir="vert"),
+    TransitionEffect(
+        "random_bar_horz", "Random Bars Horizontal", "水平随机线条", "randomBar", dir="horz"
+    ),
+    TransitionEffect(
+        "random_bar_vert", "Random Bars Vertical", "垂直随机线条", "randomBar", dir="vert"
+    ),
     # Shape (3)
     TransitionEffect("shape_circle", "Shape Circle", "圆形扩展", "circle"),
     TransitionEffect("shape_diamond", "Shape Diamond", "菱形扩展", "diamond"),
     TransitionEffect("shape_plus", "Shape Plus", "十字扩展", "plus"),
     # Split (4)
-    TransitionEffect("split_horz_in", "Split Horizontal In", "水平向内分割", "split", orient="horz", dir="in"),
-    TransitionEffect("split_horz_out", "Split Horizontal Out", "水平向外分割", "split", orient="horz", dir="out"),
-    TransitionEffect("split_vert_in", "Split Vertical In", "垂直向内分割", "split", orient="vert", dir="in"),
-    TransitionEffect("split_vert_out", "Split Vertical Out", "垂直向外分割", "split", orient="vert", dir="out"),
+    TransitionEffect(
+        "split_horz_in", "Split Horizontal In", "水平向内分割", "split", orient="horz", dir="in"
+    ),
+    TransitionEffect(
+        "split_horz_out", "Split Horizontal Out", "水平向外分割", "split", orient="horz", dir="out"
+    ),
+    TransitionEffect(
+        "split_vert_in", "Split Vertical In", "垂直向内分割", "split", orient="vert", dir="in"
+    ),
+    TransitionEffect(
+        "split_vert_out", "Split Vertical Out", "垂直向外分割", "split", orient="vert", dir="out"
+    ),
     # Strips (4)
     TransitionEffect("strips_ld", "Strips Left-Down", "阶梯状向左下", "strips", dir="ld"),
     TransitionEffect("strips_lu", "Strips Left-Up", "阶梯状向左上", "strips", dir="lu"),
@@ -123,11 +135,21 @@ TRANSITION_CATALOGUE: list[TransitionEffect] = [
     # Wedge (1)
     TransitionEffect("wedge", "Wedge", "扇形展开", "wedge"),
     # Wheel (5)
-    TransitionEffect("wheel_1", "Wheel Clockwise, 1 Spoke", "顺时针轮子 (1 辐条)", "wheel", spokes=1),
-    TransitionEffect("wheel_2", "Wheel Clockwise, 2 Spokes", "顺时针轮子 (2 辐条)", "wheel", spokes=2),
-    TransitionEffect("wheel_3", "Wheel Clockwise, 3 Spokes", "顺时针轮子 (3 辐条)", "wheel", spokes=3),
-    TransitionEffect("wheel_4", "Wheel Clockwise, 4 Spokes", "顺时针轮子 (4 辐条)", "wheel", spokes=4),
-    TransitionEffect("wheel_8", "Wheel Clockwise, 8 Spokes", "顺时针轮子 (8 辐条)", "wheel", spokes=8),
+    TransitionEffect(
+        "wheel_1", "Wheel Clockwise, 1 Spoke", "顺时针轮子 (1 辐条)", "wheel", spokes=1
+    ),
+    TransitionEffect(
+        "wheel_2", "Wheel Clockwise, 2 Spokes", "顺时针轮子 (2 辐条)", "wheel", spokes=2
+    ),
+    TransitionEffect(
+        "wheel_3", "Wheel Clockwise, 3 Spokes", "顺时针轮子 (3 辐条)", "wheel", spokes=3
+    ),
+    TransitionEffect(
+        "wheel_4", "Wheel Clockwise, 4 Spokes", "顺时针轮子 (4 辐条)", "wheel", spokes=4
+    ),
+    TransitionEffect(
+        "wheel_8", "Wheel Clockwise, 8 Spokes", "顺时针轮子 (8 辐条)", "wheel", spokes=8
+    ),
     # Wipe (4)
     TransitionEffect("wipe_d", "Wipe Down", "向下擦除", "wipe", dir="d"),
     TransitionEffect("wipe_l", "Wipe Left", "向左擦除", "wipe", dir="l"),
@@ -205,6 +227,7 @@ def _direction_vector(d: str | None) -> tuple[float, float]:
 # Slide Snapshot Rendering
 # ==============================================================================
 
+
 def render_slide_to_image(
     slide: Slide,
     presentation: Presentation,
@@ -240,7 +263,9 @@ def render_slide_to_image(
             rect = QRectF(sh.x * sx, sh.y * sy, sh.w * sx, sh.h * sy)
 
             # Geometry path if available
-            path = create_shape_path(getattr(sh, "geom", "rect"), rect.width(), rect.height(), sh.adj)
+            path = create_shape_path(
+                getattr(sh, "geom", "rect"), rect.width(), rect.height(), sh.adj
+            )
             painter.save()
             painter.translate(rect.topLeft())
 
@@ -269,7 +294,9 @@ def render_slide_to_image(
                 inner_rect = QRectF(4, 4, rect.width() - 8, rect.height() - 8)
                 painter.drawText(
                     inner_rect,
-                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap,
+                    Qt.AlignmentFlag.AlignLeft
+                    | Qt.AlignmentFlag.AlignTop
+                    | Qt.TextFlag.TextWordWrap,
                     sh.text.plain_text,
                 )
 
@@ -283,6 +310,7 @@ def render_slide_to_image(
 # ==============================================================================
 # Transition Frame Rendering (58 Transition Algorithms)
 # ==============================================================================
+
 
 def render_transition_frame(
     painter: QPainter,
@@ -307,10 +335,7 @@ def render_transition_frame(
 
     # Handle random transition selection
     if t_type == "random":
-        pool = [
-            t for t in TRANSITION_CATALOGUE
-            if t.type not in ("none", "random")
-        ]
+        pool = [t for t in TRANSITION_CATALOGUE if t.type not in ("none", "random")]
         chosen = pool[hash(str(trans.dir or "r")) % len(pool)]
         t_type = chosen.type
         trans = Transition(
@@ -510,12 +535,14 @@ def render_transition_frame(
             r = max_r * p
             clip_path.addEllipse(QPointF(cx, cy), r, r)
         elif t_type == "diamond":
-            poly = QPolygonF([
-                QPointF(cx, cy - p * h),
-                QPointF(cx + p * w, cy),
-                QPointF(cx, cy + p * h),
-                QPointF(cx - p * w, cy),
-            ])
+            poly = QPolygonF(
+                [
+                    QPointF(cx, cy - p * h),
+                    QPointF(cx + p * w, cy),
+                    QPointF(cx, cy + p * h),
+                    QPointF(cx - p * w, cy),
+                ]
+            )
             clip_path.addPolygon(poly)
         elif t_type == "plus":
             pw, ph = p * w / 2.0, p * h / 2.0

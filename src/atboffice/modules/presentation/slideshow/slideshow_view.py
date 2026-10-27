@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
+from PySide6.QtCore import QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
     QContextMenuEvent,
@@ -18,7 +18,6 @@ from PySide6.QtGui import (
     QWheelEvent,
 )
 from PySide6.QtWidgets import (
-    QApplication,
     QMenu,
     QWidget,
 )
@@ -99,10 +98,7 @@ class SlideShowView(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
 
         if fullscreen:
-            self.setWindowFlags(
-                Qt.WindowType.Window
-                | Qt.WindowType.FramelessWindowHint
-            )
+            self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
             self.showFullScreen()
         else:
             self.setWindowFlags(Qt.WindowType.Window)
@@ -145,7 +141,11 @@ class SlideShowView(QWidget):
             return img
 
         # Fallback empty image
-        img = QImage(int(self.presentation.w), int(self.presentation.h), QImage.Format.Format_ARGB32_Premultiplied)
+        img = QImage(
+            int(self.presentation.w),
+            int(self.presentation.h),
+            QImage.Format.Format_ARGB32_Premultiplied,
+        )
         img.fill(QColor("#FFFFFF"))
         return img
 
@@ -193,7 +193,10 @@ class SlideShowView(QWidget):
                 loop_pos = 0
                 while loop_pos < len(self.order) - 1:
                     s_idx = self.order[loop_pos]
-                    if 0 <= s_idx < len(self.presentation.slides) and not self.presentation.slides[s_idx].hidden:
+                    if (
+                        0 <= s_idx < len(self.presentation.slides)
+                        and not self.presentation.slides[s_idx].hidden
+                    ):
                         break
                     loop_pos += 1
                 self._transition_to_pos(loop_pos)
@@ -610,7 +613,9 @@ class SlideShowView(QWidget):
         b_w = w / 3.0
         painter.drawText(QRectF(r.left(), r.top(), b_w, h), Qt.AlignmentFlag.AlignCenter, "◄")
         painter.drawText(QRectF(r.left() + b_w, r.top(), b_w, h), Qt.AlignmentFlag.AlignCenter, "≡")
-        painter.drawText(QRectF(r.left() + b_w * 2.0, r.top(), b_w, h), Qt.AlignmentFlag.AlignCenter, "►")
+        painter.drawText(
+            QRectF(r.left() + b_w * 2.0, r.top(), b_w, h), Qt.AlignmentFlag.AlignCenter, "►"
+        )
 
     def retranslate_ui(self) -> None:
         """Update window title and UI strings."""

@@ -297,8 +297,7 @@ class OutlineEditorWidget(QWidget):
                             (
                                 sh
                                 for sh in s.shapes
-                                if sh.placeholder
-                                and sh.placeholder.type in ("title", "ctrTitle")
+                                if sh.placeholder and sh.placeholder.type in ("title", "ctrTitle")
                             ),
                             s.shapes[0] if s.shapes else None,
                         )

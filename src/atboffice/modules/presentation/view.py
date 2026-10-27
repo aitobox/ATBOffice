@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from atboffice.modules.presentation.models.presentation import Presentation

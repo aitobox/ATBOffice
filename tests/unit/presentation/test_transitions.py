@@ -8,10 +8,8 @@ from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.presentation.models.presentation import Presentation
 from atboffice.modules.presentation.models.shape import Shape
-from atboffice.modules.presentation.models.slide import Slide, Transition
+from atboffice.modules.presentation.models.slide import Transition
 from atboffice.modules.presentation.slideshow.transitions import (
-    TRANSITION_CATALOGUE,
-    TransitionEffect,
     get_transition_duration,
     get_transition_name,
     list_transitions,
