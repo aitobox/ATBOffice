@@ -14,10 +14,12 @@ def measure_with(font: str = "") -> Callable[[str, float], float]:
 
     By default, uses an average glyph width factor of 0.5 * font size.
     """
+
     def _measure(text: str, size: float) -> float:
         if not text:
             return 0.0
-        # If Qt QFontMetrics is available, we could use it, but 0.5 * len * size is fast and deterministic
+        # If Qt QFontMetrics is available, we could use it,
+        # but 0.5 * len * size is fast and deterministic
         return len(text) * size * 0.5
 
     return _measure

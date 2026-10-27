@@ -217,7 +217,9 @@ def make_radial(items: list[SmartArtItem], box: dict[str, float]) -> list[dict[s
                     "level": 1,
                     "text": {
                         "lines": lines_of(it, False),
-                        "box": tb(sx - small_d * 0.35, sy - small_d * 0.35, small_d * 0.7, small_d * 0.7),
+                        "box": tb(
+                            sx - small_d * 0.35, sy - small_d * 0.35, small_d * 0.7, small_d * 0.7
+                        ),
                         "anchor": "ctr",
                         "align": "ctr",
                     },
@@ -253,7 +255,10 @@ def make_continuous_cycle(items: list[SmartArtItem], box: dict[str, float]) -> l
     r = (s_dim - nh) / 2.0
 
     ring = [
-        [cx + r * math.cos((2.0 * math.pi * j) / 72.0), cy + r * math.sin((2.0 * math.pi * j) / 72.0)]
+        [
+            cx + r * math.cos((2.0 * math.pi * j) / 72.0),
+            cy + r * math.sin((2.0 * math.pi * j) / 72.0),
+        ]
         for j in range(73)
     ]
     out: list[dict[str, Any]] = [

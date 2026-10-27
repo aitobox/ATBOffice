@@ -16,12 +16,31 @@ PALETTES: dict[str, list[Any]] = {
     "amber": ["Amber", ["#B45309", "#CA8A04"], "span", "#FFFFFF", "#B45309"],
     "forest": ["Forest", ["#166534", "#65A30D"], "span", "#FFFFFF", "#166534"],
     "slate": ["Slate", ["#1E293B", "#64748B"], "span", "#FFFFFF", "#1E293B"],
-    "vivid": ["Vivid", ["#E03131", "#E8590C", "#2F9E44", "#1971C2", "#7048E8"], "cycle", "#FFFFFF", "#E03131"],
-    "jewel": ["Jewel", ["#0E7490", "#7E22CE", "#BE123C", "#15803D", "#1D4ED8"], "cycle", "#FFFFFF", "#0E7490"],
-    "pastel": ["Pastel", ["#FBCFE8", "#BFDBFE", "#BBF7D0", "#FDE68A", "#DDD6FE"], "cycle", "#1F2937", "#64748B"],
+    "vivid": [
+        "Vivid",
+        ["#E03131", "#E8590C", "#2F9E44", "#1971C2", "#7048E8"],
+        "cycle",
+        "#FFFFFF",
+        "#E03131",
+    ],
+    "jewel": [
+        "Jewel",
+        ["#0E7490", "#7E22CE", "#BE123C", "#15803D", "#1D4ED8"],
+        "cycle",
+        "#FFFFFF",
+        "#0E7490",
+    ],
+    "pastel": [
+        "Pastel",
+        ["#FBCFE8", "#BFDBFE", "#BBF7D0", "#FDE68A", "#DDD6FE"],
+        "cycle",
+        "#1F2937",
+        "#64748B",
+    ],
 }
 
-# 13 Built-in Quick Styles: [ID, Name, [LineRef, FillRef, EffectRef], Language ('fill' | 'outline' | 'tint')]
+# 13 Built-in Quick Styles:
+# [ID, Name, [LineRef, FillRef, EffectRef], Language ('fill' | 'outline' | 'tint')]
 STYLES: list[list[Any]] = [
     ["simple", "Simple Fill", [2, 1, 0], "fill"],
     ["flat", "Flat", [0, 1, 0], "fill"],
@@ -168,7 +187,11 @@ def paint_shape(s: dict[str, Any], sa: dict[str, Any], pal: Any = None) -> dict[
     # Style effects & shadows
     refs = style_refs(style_id)
     fx = refs[2]
-    shadow = {"c": "#000000", "a": 0.25, "dx": 0.0, "dy": float(fx), "blur": float(fx) * 2.0} if fx > 0 and not venn else None
+    shadow = (
+        {"c": "#000000", "a": 0.25, "dx": 0.0, "dy": float(fx), "blur": float(fx) * 2.0}
+        if fx > 0 and not venn
+        else None
+    )
 
     # Text color
     default_text = "#1F2937" if venn else texts[idx % len(texts)]

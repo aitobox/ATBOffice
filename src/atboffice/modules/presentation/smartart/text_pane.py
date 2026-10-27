@@ -13,14 +13,12 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 
 from atboffice.modules.presentation.models.shape import Shape
 from atboffice.modules.presentation.smartart.engine import (
-    CATEGORIES,
     LAYOUTS,
     PALETTES,
     STYLES,
@@ -73,7 +71,9 @@ class SmartArtRowEdit(QLineEdit):
             self.item_key_pressed.emit("promote", event)
             return
 
-        if (modifiers & Qt.KeyboardModifier.AltModifier) and (modifiers & Qt.KeyboardModifier.ShiftModifier):
+        if (modifiers & Qt.KeyboardModifier.AltModifier) and (
+            modifiers & Qt.KeyboardModifier.ShiftModifier
+        ):
             if key == Qt.Key.Key_Up:
                 event.accept()
                 self.item_key_pressed.emit("up", event)
@@ -238,7 +238,10 @@ class SmartArtTextPane(QWidget):
         self.btn_down.setToolTip(safe_tr("向下调整同级次序 (Alt+Shift+Down)"))
 
         self.lbl_note.setText(
-            safe_tr("提示: 回车创建新项；Tab/Shift+Tab 升降层级；Alt+Shift+上下键交换顺序；空行退格删除节点。")
+            safe_tr(
+                "提示: 回车创建新项；Tab/Shift+Tab 升降层级；"
+                "Alt+Shift+上下键交换顺序；空行退格删除节点。"
+            )
         )
         self.lbl_layout.setText(safe_tr("图示版式:"))
         self.lbl_colors.setText(safe_tr("调色板色彩:"))
@@ -400,7 +403,9 @@ class SmartArtTextPane(QWidget):
     def _on_add_after(self) -> None:
         items = self._get_items()
         tid = self.active_item_id or (items[-1].id if items else "")
-        new_id = self.engine.add_after(items, tid, "") if tid else self.engine.blank("process", 1)[0].id
+        new_id = (
+            self.engine.add_after(items, tid, "") if tid else self.engine.blank("process", 1)[0].id
+        )
         self.active_item_id = new_id
         self._save_and_relayout(items, refresh=True)
 

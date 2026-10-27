@@ -41,7 +41,13 @@ def make_pyramid(items: list[SmartArtItem], box: dict[str, float]) -> list[dict[
         inset = (w_bot - w_top) / 2.0
 
         geom = "triangle" if i == 0 else "trapezoid"
-        adj = [50000] if i == 0 else [round(inset / min(w_bot, lh) * 100000)] if min(w_bot, lh) > 0 else [0]
+        adj = (
+            [50000]
+            if i == 0
+            else [round(inset / min(w_bot, lh) * 100000)]
+            if min(w_bot, lh) > 0
+            else [0]
+        )
         tw = w_bot * 0.5 if i == 0 else w_top + inset * 0.8
         th = lh * 0.5 if i == 0 else lh
 
@@ -97,7 +103,7 @@ def make_inverted_pyramid(items: list[SmartArtItem], box: dict[str, float]) -> l
         w_t = w_at(y_top)
         w_b = w_at(y_bot)
         y_at += lh + gap
-        last = (i == n - 1)
+        last = i == n - 1
 
         if last:
             pts = [[cx - w_t / 2.0, y_top], [cx + w_t / 2.0, y_top], [cx, y_bot]]

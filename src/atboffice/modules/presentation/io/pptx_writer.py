@@ -58,14 +58,14 @@ from atboffice.modules.presentation.io.xml_utils import (
     RelationshipBuilder,
     pt_to_emu,
 )
+from atboffice.modules.presentation.models.presentation import Presentation
+from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.smartart.io import (
     colors_xml,
     data_xml,
     layout_xml,
     style_xml,
 )
-from atboffice.modules.presentation.models.presentation import Presentation
-from atboffice.modules.presentation.models.slide import Slide
 from atboffice.vfs.opc import PackageWriter, SourcePackage
 from atboffice.vfs.order import enforce_schema_order
 

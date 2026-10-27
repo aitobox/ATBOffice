@@ -262,7 +262,7 @@ LAYOUTS: list[dict[str, Any]] = [
 
 def get_layout(layout_id: str) -> dict[str, Any] | None:
     """Find layout definition dictionary by id."""
-    for l in LAYOUTS:
-        if l["id"] == layout_id:
-            return l
+    for layout_def in LAYOUTS:
+        if layout_def["id"] == layout_id:
+            return layout_def
     return None

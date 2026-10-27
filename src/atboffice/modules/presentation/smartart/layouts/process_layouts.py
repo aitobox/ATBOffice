@@ -1,4 +1,7 @@
-"""Process category layouts for SmartArt (process, chevron, stepUp, continuousArrow, vProcess, timeline)."""
+"""Process category layouts for SmartArt.
+
+Includes: process, chevron, stepUp, continuousArrow, vProcess, timeline.
+"""
 
 from __future__ import annotations
 
@@ -242,7 +245,7 @@ def make_timeline(items: list[SmartArtItem], box: dict[str, float]) -> list[dict
                 "colorCnt": n,
             }
         )
-        up = (i % 2 == 0)
+        up = i % 2 == 0
         y = box["y"] if up else cy + d / 2.0
         lw = min(step * 1.2, box["w"])
         lx = max(box["x"], min(mx - lw / 2.0, box["x"] + box["w"] - lw))

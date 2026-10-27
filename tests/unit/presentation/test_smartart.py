@@ -1,7 +1,9 @@
 """Unit tests for Lectern IntelliArt (SmartArt) engine, layout, and UI components."""
 
 import math
+
 import pytest
+
 from atboffice.modules.presentation.models.shape import Shape
 from atboffice.modules.presentation.smartart.engine import (
     CATEGORIES,
@@ -10,7 +12,6 @@ from atboffice.modules.presentation.smartart.engine import (
     STYLES,
     SmartArtEngine,
     SmartArtItem,
-    fit_text,
     mix_hex,
     paint_shape,
     relayout,
@@ -122,9 +123,17 @@ class TestAll26Layouts:
         assert len(LAYOUTS) == 26
         assert len(CATEGORIES) == 7
         cats = [c[0] for c in CATEGORIES]
-        assert cats == ["list", "process", "cycle", "hierarchy", "relationship", "matrix", "pyramid"]
+        assert cats == [
+            "list",
+            "process",
+            "cycle",
+            "hierarchy",
+            "relationship",
+            "matrix",
+            "pyramid",
+        ]
 
-        layout_ids = [l["id"] for l in LAYOUTS]
+        layout_ids = [lo["id"] for lo in LAYOUTS]
         assert len(set(layout_ids)) == 26
 
     @pytest.mark.parametrize("layout_def", LAYOUTS)
@@ -183,8 +192,12 @@ class TestAdaptiveFontSizing:
 
         # Long text should yield smaller font size
         long_items = [
-            SmartArtItem(id="1", text="This is a substantially longer description with many sentences."),
-            SmartArtItem(id="2", text="Comprehensive architectural transformation in Python and Qt."),
+            SmartArtItem(
+                id="1", text="This is a substantially longer description with many sentences."
+            ),
+            SmartArtItem(
+                id="2", text="Comprehensive architectural transformation in Python and Qt."
+            ),
             SmartArtItem(id="3", text="Ensuring robust adaptive font size without overflow."),
         ]
         res_long = eng.layout("process", long_items, box)
@@ -360,4 +373,3 @@ class TestSmartArtTextPane:
         pane._on_convert_to_shapes()
         assert len(converted) == 1
         assert g.sa is None
-

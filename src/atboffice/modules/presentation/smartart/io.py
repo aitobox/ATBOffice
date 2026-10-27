@@ -49,8 +49,10 @@ def data_xml(
 
     pts: list[str] = [
         f'<dgm:pt modelId="{doc_id}" type="doc">'
-        f'<dgm:prSet loTypeId="{lo_id}" loCatId="list" qsTypeId="{qs_id}" qsCatId="simple" csTypeId="{cs_id}" csCatId="colorful" phldr="1"/>'
-        f'<dgm:spPr/><dgm:t><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="en-US" dirty="0"/></a:p></dgm:t></dgm:pt>'
+        f'<dgm:prSet loTypeId="{lo_id}" loCatId="list" qsTypeId="{qs_id}" '
+        f'qsCatId="simple" csTypeId="{cs_id}" csCatId="colorful" phldr="1"/>'
+        f"<dgm:spPr/><dgm:t><a:bodyPr/><a:lstStyle/><a:p>"
+        f'<a:endParaRPr lang="en-US" dirty="0"/></a:p></dgm:t></dgm:pt>'
     ]
     cxns: list[str] = []
 
@@ -64,23 +66,34 @@ def data_xml(
             text = html.escape(str(it.get("text", "")))
 
             t_elem = (
-                f'<dgm:t><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US" dirty="0"/><a:t>{text}</a:t></a:r></a:p></dgm:t>'
+                f'<dgm:t><a:bodyPr/><a:lstStyle/><a:p><a:r>'
+                f'<a:rPr lang="en-US" dirty="0"/><a:t>{text}</a:t></a:r></a:p></dgm:t>'
                 if text
-                else '<dgm:t><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="en-US" dirty="0"/></a:p></dgm:t>'
+                else (
+                    '<dgm:t><a:bodyPr/><a:lstStyle/><a:p>'
+                    '<a:endParaRPr lang="en-US" dirty="0"/></a:p></dgm:t>'
+                )
             )
 
-            pts.append(f'<dgm:pt modelId="{m_id}"><dgm:prSet phldrT="[Text]"/><dgm:spPr/>{t_elem}</dgm:pt>')
             pts.append(
-                f'<dgm:pt modelId="{par_id}" type="parTrans" cxnId="{cx_id}"><dgm:prSet/><dgm:spPr/>'
-                f'<dgm:t><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="en-US" dirty="0"/></a:p></dgm:t></dgm:pt>'
+                f'<dgm:pt modelId="{m_id}"><dgm:prSet phldrT="[Text]"/><dgm:spPr/>{t_elem}</dgm:pt>'
             )
             pts.append(
-                f'<dgm:pt modelId="{sib_id}" type="sibTrans" cxnId="{cx_id}"><dgm:prSet/><dgm:spPr/>'
-                f'<dgm:t><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="en-US" dirty="0"/></a:p></dgm:t></dgm:pt>'
+                f'<dgm:pt modelId="{par_id}" type="parTrans" cxnId="{cx_id}">'
+                f"<dgm:prSet/><dgm:spPr/>"
+                f'<dgm:t><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="en-US" dirty="0"/></a:p>'
+                f"</dgm:t></dgm:pt>"
+            )
+            pts.append(
+                f'<dgm:pt modelId="{sib_id}" type="sibTrans" cxnId="{cx_id}">'
+                f"<dgm:prSet/><dgm:spPr/>"
+                f'<dgm:t><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="en-US" dirty="0"/></a:p>'
+                f"</dgm:t></dgm:pt>"
             )
 
             cxns.append(
-                f'<dgm:cxn modelId="{cx_id}" srcId="{parent_id}" destId="{m_id}" srcOrd="{i}" destOrd="0" parTransId="{par_id}" sibTransId="{sib_id}"/>'
+                f'<dgm:cxn modelId="{cx_id}" srcId="{parent_id}" destId="{m_id}" '
+                f'srcOrd="{i}" destOrd="0" parTransId="{par_id}" sibTransId="{sib_id}"/>'
             )
             if it.get("kids"):
                 _walk(it["kids"], m_id)
@@ -97,7 +110,7 @@ def data_xml(
     )
 
     return (
-        f"{HEAD}<dgm:dataModel xmlns:dgm=\"{NS_DGM}\" xmlns:a=\"{NS_A}\" xmlns:r=\"{NS_R}\">"
+        f'{HEAD}<dgm:dataModel xmlns:dgm="{NS_DGM}" xmlns:a="{NS_A}" xmlns:r="{NS_R}">'
         f"<dgm:ptLst>{''.join(pts)}</dgm:ptLst>"
         f"<dgm:cxnLst>{''.join(cxns)}</dgm:cxnLst>"
         f"<dgm:bg/><dgm:whole/>{ext}</dgm:dataModel>"
@@ -113,24 +126,32 @@ def layout_xml(layout_id: str, ctx: dict[str, Any] | None = None) -> str:
     cat = str(lay.get("cat", "list"))
 
     sample = (
-        '<dgm:sampData useDef="1"><dgm:dataModel><dgm:ptLst/><dgm:bg/><dgm:whole/></dgm:dataModel></dgm:sampData>'
-        '<dgm:styleData useDef="1"><dgm:dataModel><dgm:ptLst/><dgm:bg/><dgm:whole/></dgm:dataModel></dgm:styleData>'
-        '<dgm:clrData useDef="1"><dgm:dataModel><dgm:ptLst/><dgm:bg/><dgm:whole/></dgm:dataModel></dgm:clrData>'
+        '<dgm:sampData useDef="1"><dgm:dataModel>'
+        '<dgm:ptLst/><dgm:bg/><dgm:whole/></dgm:dataModel></dgm:sampData>'
+        '<dgm:styleData useDef="1"><dgm:dataModel>'
+        '<dgm:ptLst/><dgm:bg/><dgm:whole/></dgm:dataModel></dgm:styleData>'
+        '<dgm:clrData useDef="1"><dgm:dataModel>'
+        '<dgm:ptLst/><dgm:bg/><dgm:whole/></dgm:dataModel></dgm:clrData>'
     )
     body = (
-        '<dgm:layoutNode name="diagram"><dgm:varLst><dgm:dir/><dgm:resizeHandles val="exact"/></dgm:varLst>'
+        '<dgm:layoutNode name="diagram"><dgm:varLst><dgm:dir/>'
+        '<dgm:resizeHandles val="exact"/></dgm:varLst>'
         '<dgm:alg type="lin"><dgm:param type="linDir" val="fromL"/></dgm:alg>'
-        '<dgm:shape xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:blip=""><dgm:adjLst/></dgm:shape>'
-        '<dgm:presOf/><dgm:constrLst/><dgm:ruleLst/>'
+        '<dgm:shape xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
+        'r:blip=""><dgm:adjLst/></dgm:shape>'
+        "<dgm:presOf/><dgm:constrLst/><dgm:ruleLst/>"
         '<dgm:forEach name="nodes" axis="ch" ptType="node">'
-        '<dgm:layoutNode name="node" styleLbl="node1"><dgm:varLst><dgm:bulletEnabled val="1"/></dgm:varLst>'
-        '<dgm:alg type="tx"/><dgm:shape type="roundRect" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:blip=""><dgm:adjLst/></dgm:shape>'
+        '<dgm:layoutNode name="node" styleLbl="node1">'
+        '<dgm:varLst><dgm:bulletEnabled val="1"/></dgm:varLst>'
+        '<dgm:alg type="tx"/><dgm:shape type="roundRect" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
+        'r:blip=""><dgm:adjLst/></dgm:shape>'
         '<dgm:presOf axis="desOrSelf" ptType="node"/><dgm:constrLst/><dgm:ruleLst/>'
         "</dgm:layoutNode></dgm:forEach></dgm:layoutNode>"
     )
 
     return (
-        f"{HEAD}<dgm:layoutDef xmlns:dgm=\"{NS_DGM}\" xmlns:a=\"{NS_A}\" uniqueId=\"{uid}\">"
+        f'{HEAD}<dgm:layoutDef xmlns:dgm="{NS_DGM}" xmlns:a="{NS_A}" uniqueId="{uid}">'
         f'<dgm:title val="{name}"/><dgm:desc val="{desc}"/>'
         f'<dgm:catLst><dgm:cat type="{cat}" pri="10000"/></dgm:catLst>'
         f"{sample}{body}</dgm:layoutDef>"
@@ -156,7 +177,7 @@ def colors_xml(colors_id: str, pal: Any = None, lang: str = "fill") -> str:
     )
 
     return (
-        f"{HEAD}<dgm:colorsDef xmlns:dgm=\"{NS_DGM}\" xmlns:a=\"{NS_A}\" uniqueId=\"{uid}\">"
+        f'{HEAD}<dgm:colorsDef xmlns:dgm="{NS_DGM}" xmlns:a="{NS_A}" uniqueId="{uid}">'
         f'<dgm:title val="{name}"/><dgm:desc val=""/>'
         f'<dgm:catLst><dgm:cat type="colorful" pri="10000"/></dgm:catLst>'
         f"{lbl}</dgm:colorsDef>"
@@ -186,7 +207,8 @@ def style_xml(style_id: str) -> str:
     for lbl_name in labels:
         lbl_xmls.append(
             f'<dgm:styleLbl name="{lbl_name}">'
-            f'<dgm:scene3d><a:camera prst="orthographicFront"/><a:lightRig rig="threePt" dir="t"/></dgm:scene3d>'
+            f'<dgm:scene3d><a:camera prst="orthographicFront"/>'
+            f'<a:lightRig rig="threePt" dir="t"/></dgm:scene3d>'
             f"<dgm:sp3d/><dgm:txPr/>"
             f'<dgm:style><a:lnRef idx="1"><a:scrgbClr r="0" g="0" b="0"/></a:lnRef>'
             f'<a:fillRef idx="1"><a:scrgbClr r="0" g="0" b="0"/></a:fillRef>'
@@ -196,9 +218,10 @@ def style_xml(style_id: str) -> str:
         )
 
     return (
-        f"{HEAD}<dgm:styleDef xmlns:dgm=\"{NS_DGM}\" xmlns:a=\"{NS_A}\" uniqueId=\"{uid}\">"
+        f'{HEAD}<dgm:styleDef xmlns:dgm="{NS_DGM}" xmlns:a="{NS_A}" uniqueId="{uid}">'
         f'<dgm:title val="{name}"/><dgm:desc val=""/>'
         f'<dgm:catLst><dgm:cat type="simple" pri="10000"/></dgm:catLst>'
-        f'<dgm:scene3d><a:camera prst="orthographicFront"/><a:lightRig rig="threePt" dir="t"/></dgm:scene3d>'
+        f'<dgm:scene3d><a:camera prst="orthographicFront"/>'
+        f'<a:lightRig rig="threePt" dir="t"/></dgm:scene3d>'
         f"{''.join(lbl_xmls)}</dgm:styleDef>"
     )

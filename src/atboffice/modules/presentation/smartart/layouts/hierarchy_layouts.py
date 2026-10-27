@@ -40,9 +40,19 @@ def layout_tree(
     levels = box["w"] if across else box["h"]
 
     if across:
-        u = min(spread / (wu * a) if (wu * a) > 0 else spread, levels / (d_depth + (d_depth - 1) * gap_y) if (d_depth + (d_depth - 1) * gap_y) > 0 else levels)
+        u = min(
+            spread / (wu * a) if (wu * a) > 0 else spread,
+            levels / (d_depth + (d_depth - 1) * gap_y)
+            if (d_depth + (d_depth - 1) * gap_y) > 0
+            else levels,
+        )
     else:
-        u = min(spread / wu if wu > 0 else spread, levels / (d_depth * a + (d_depth - 1) * gap_y) if (d_depth * a + (d_depth - 1) * gap_y) > 0 else levels)
+        u = min(
+            spread / wu if wu > 0 else spread,
+            levels / (d_depth * a + (d_depth - 1) * gap_y)
+            if (d_depth * a + (d_depth - 1) * gap_y) > 0
+            else levels,
+        )
 
     nw = u
     nh = a * u
@@ -51,13 +61,19 @@ def layout_tree(
     gap = gap_y * (nw if across else u)
 
     start0 = (box["y"] if across else box["x"]) + (spread - wu * sib) / 2.0
-    top = (box["x"] if across else box["y"]) + (levels - (d_depth * lev + (d_depth - 1) * gap)) / 2.0
+    top = (box["x"] if across else box["y"]) + (
+        levels - (d_depth * lev + (d_depth - 1) * gap)
+    ) / 2.0
 
     out: list[dict[str, Any]] = []
     count = 0
 
     def at_box(along: float, down: float, w: float, h: float) -> dict[str, float]:
-        return {"x": down, "y": along, "w": w, "h": h} if across else {"x": along, "y": down, "w": w, "h": h}
+        return (
+            {"x": down, "y": along, "w": w, "h": h}
+            if across
+            else {"x": along, "y": down, "w": w, "h": h}
+        )
 
     def pt(along: float, down: float) -> list[float]:
         return [down, along] if across else [along, down]

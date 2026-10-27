@@ -80,23 +80,35 @@ def locate(items: list[SmartArtItem], item_id: str) -> dict[str, Any] | None:
 def blank(layout_id: str, n: int | None = None) -> list[SmartArtItem]:
     """Generate blank outline items for a fresh diagram of given layout."""
     if layout_id in ("orgChart", "hierarchy", "hHierarchy"):
-        top = SmartArtItem(id=new_id(), text="", kids=[
-            SmartArtItem(id=new_id(), text=""),
-            SmartArtItem(id=new_id(), text=""),
-            SmartArtItem(id=new_id(), text=""),
-        ])
+        top = SmartArtItem(
+            id=new_id(),
+            text="",
+            kids=[
+                SmartArtItem(id=new_id(), text=""),
+                SmartArtItem(id=new_id(), text=""),
+                SmartArtItem(id=new_id(), text=""),
+            ],
+        )
         return [top]
 
     if layout_id == "radial":
-        centre = SmartArtItem(id=new_id(), text="", kids=[
-            SmartArtItem(id=new_id(), text=""),
-            SmartArtItem(id=new_id(), text=""),
-            SmartArtItem(id=new_id(), text=""),
-            SmartArtItem(id=new_id(), text=""),
-        ])
+        centre = SmartArtItem(
+            id=new_id(),
+            text="",
+            kids=[
+                SmartArtItem(id=new_id(), text=""),
+                SmartArtItem(id=new_id(), text=""),
+                SmartArtItem(id=new_id(), text=""),
+                SmartArtItem(id=new_id(), text=""),
+            ],
+        )
         return [centre]
 
-    count = n if n is not None else (3 if layout_id in ("venn", "target") else (5 if layout_id == "cycle" else 3))
+    count = (
+        n
+        if n is not None
+        else (3 if layout_id in ("venn", "target") else (5 if layout_id == "cycle" else 3))
+    )
     return [SmartArtItem(id=new_id(), text="") for _ in range(count)]
 
 

@@ -1,4 +1,7 @@
-"""List category layouts for SmartArt (blockList, verticalBullet, stackedList, hBullet, linedList, vBox)."""
+"""List category layouts for SmartArt.
+
+Includes: blockList, verticalBullet, stackedList, hBullet, linedList, vBox.
+"""
 
 from __future__ import annotations
 
@@ -57,7 +60,14 @@ def make_block_list(items: list[SmartArtItem], box: dict[str, float]) -> list[di
                 y,
                 w,
                 h,
-                {"text": {"lines": lines_of(it, True), "box": tb(x, y, w, h), "anchor": "ctr", "align": "ctr"}},
+                {
+                    "text": {
+                        "lines": lines_of(it, True),
+                        "box": tb(x, y, w, h),
+                        "anchor": "ctr",
+                        "align": "ctr",
+                    }
+                },
             )
         )
     return out
@@ -68,7 +78,9 @@ def make_vertical_bullet(items: list[SmartArtItem], box: dict[str, float]) -> li
     n = max(1, len(items))
     kid_h = 0.5
     g = 0.12
-    weight = sum(1.0 + (kid_h * len(it.kids) + 0.1 if it.kids else 0.0) for it in items) + (n - 1) * g
+    weight = (
+        sum(1.0 + (kid_h * len(it.kids) + 0.1 if it.kids else 0.0) for it in items) + (n - 1) * g
+    )
     u = min(box["h"] / weight if weight > 0 else box["h"], box["w"] * 0.3)
     y = box["y"] + (box["h"] - u * weight) / 2.0
 
@@ -155,7 +167,9 @@ def make_stacked_list(items: list[SmartArtItem], box: dict[str, float]) -> list[
                 "colorCnt": n,
                 "text": {
                     "lines": kid_lines(it),
-                    "box": tb(cx + d * 1.1, y + rh * 0.12, max(0.01, box["w"] - d * 1.2), rh * 0.76),
+                    "box": tb(
+                        cx + d * 1.1, y + rh * 0.12, max(0.01, box["w"] - d * 1.2), rh * 0.76
+                    ),
                     "anchor": "t",
                     "align": "l",
                 },
@@ -214,7 +228,12 @@ def make_h_bullet(items: list[SmartArtItem], box: dict[str, float]) -> list[dict
                 "colorCnt": n,
                 "text": {
                     "lines": kid_lines(it),
-                    "box": tb(x + cw * 0.08, box["y"] + hh + cw * 0.04, max(0.01, cw * 0.86), max(0.01, box["h"] - hh - cw * 0.04)),
+                    "box": tb(
+                        x + cw * 0.08,
+                        box["y"] + hh + cw * 0.04,
+                        max(0.01, cw * 0.86),
+                        max(0.01, box["h"] - hh - cw * 0.04),
+                    ),
                     "anchor": "t",
                     "align": "l",
                 },
@@ -328,7 +347,12 @@ def make_v_box(items: list[SmartArtItem], box: dict[str, float]) -> list[dict[st
                 "colorCnt": n,
                 "text": {
                     "lines": kid_lines(it),
-                    "box": tb(box["x"] + box["w"] * 0.05, by + th * 0.55, box["w"] * 0.9, max(0.01, u - th * 0.55)),
+                    "box": tb(
+                        box["x"] + box["w"] * 0.05,
+                        by + th * 0.55,
+                        box["w"] * 0.9,
+                        max(0.01, u - th * 0.55),
+                    ),
                     "anchor": "t",
                     "align": "l",
                 },

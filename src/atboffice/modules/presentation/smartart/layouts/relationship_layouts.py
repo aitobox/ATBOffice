@@ -90,7 +90,14 @@ def make_target(items: list[SmartArtItem], box: dict[str, float]) -> list[dict[s
                 y,
                 d,
                 d,
-                {"text": {"lines": lines_of(it, False), "box": band, "anchor": "ctr", "align": "ctr"}},
+                {
+                    "text": {
+                        "lines": lines_of(it, False),
+                        "box": band,
+                        "anchor": "ctr",
+                        "align": "ctr",
+                    }
+                },
             )
         )
     return out

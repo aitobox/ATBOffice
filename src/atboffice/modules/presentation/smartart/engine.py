@@ -180,7 +180,11 @@ def relayout(group_shape: Shape, design: Any = None) -> None:
         poly = s.get("poly") if geom == "poly" else None
         custom_path = None
         if geom == "path" and s.get("path"):
-            custom_path = {"paths": [{"w": s["w"], "h": s["h"], "cmds": s["path"], "fill": "none", "stroke": True}]}
+            custom_path = {
+                "paths": [
+                    {"w": s["w"], "h": s["h"], "cmds": s["path"], "fill": "none", "stroke": True}
+                ]
+            }
 
         tb_obj: TextBody | None = None
         if s.get("text"):
@@ -194,7 +198,13 @@ def relayout(group_shape: Shape, design: Any = None) -> None:
                 lvl = ln.get("lvl", 0)
                 bullet_info = BulletInfo(type="char", char="•") if lvl else BulletInfo(type="none")
                 run = Run(text=str(ln.get("t", "")), size=font_sz, color=text_color)
-                paras.append(Paragraph(level=lvl, runs=[run], props={"algn": align_mode, "bu": bullet_info.to_dict()}))
+                paras.append(
+                    Paragraph(
+                        level=lvl,
+                        runs=[run],
+                        props={"algn": align_mode, "bu": bullet_info.to_dict()},
+                    )
+                )
             tb_obj = TextBody(
                 anchor=text_info.get("anchor", "ctr"),
                 paragraphs=paras,
