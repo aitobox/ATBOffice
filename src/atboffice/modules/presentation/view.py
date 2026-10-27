@@ -59,6 +59,15 @@ class PresentationView(QWidget):
         """Launch presentation in slide show mode."""
         return self.workspace.start_slideshow(from_current=from_current, fullscreen=fullscreen)
 
+    @property
+    def view_mode(self) -> str:
+        """Current workspace view mode ('normal', 'sorter', 'master')."""
+        return self.workspace.view_mode
+
+    def set_view_mode(self, mode: str) -> None:
+        """Switch view mode ('normal', 'sorter', 'master')."""
+        self.workspace.set_view_mode(mode)
+
     def retranslate_ui(self) -> None:
         """Retranslate presentation UI controls."""
         self.setWindowTitle(safe_tr("演示文稿"))
