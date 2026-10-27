@@ -200,6 +200,10 @@ class TextRun:
         )
 
 
+Run = TextRun
+
+
+
 @dataclass
 class Paragraph:
     """Paragraph with an outline level (0-8), properties, and runs."""
