@@ -7,12 +7,12 @@ ink annotations, and laser pointer synchronized with audience SlideShowView.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import math
 import time
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -28,7 +28,6 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
-    QGridLayout,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -318,7 +317,10 @@ class PresenterConsole(QMainWindow):
     ) -> None:
         super().__init__(parent)
         self.presentation = presentation
-        self.current_slide_index: int = max(0, min(start_slide_index, len(presentation.slides) - 1)) if presentation.slides else 0
+        total_slides = len(presentation.slides)
+        self.current_slide_index: int = (
+            max(0, min(start_slide_index, total_slides - 1)) if total_slides else 0
+        )
         self.audience_view: SlideShowView | None = audience_view
         self.elapsed_seconds: int = 0
         self.is_timer_running: bool = True
@@ -330,7 +332,10 @@ class PresenterConsole(QMainWindow):
         self.setStyleSheet(
             """
             QMainWindow { background-color: #212121; color: #FFFFFF; }
-            QLabel { color: #DDDDDD; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+            QLabel {
+                color: #DDDDDD;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            }
             QPushButton {
                 background-color: #333333;
                 color: #FFFFFF;
@@ -371,7 +376,9 @@ class PresenterConsole(QMainWindow):
         header.setSpacing(10)
 
         self.timer_label = QLabel("00:00:00")
-        self.timer_label.setStyleSheet("font-size: 22px; font-weight: bold; color: #00E676; min-width: 90px;")
+        self.timer_label.setStyleSheet(
+            "font-size: 22px; font-weight: bold; color: #00E676; min-width: 90px;"
+        )
         header.addWidget(self.timer_label)
 
         self.btn_pause_timer = QPushButton("❚❚")
@@ -403,7 +410,9 @@ class PresenterConsole(QMainWindow):
         header.addWidget(self.btn_swap_screens)
 
         self.btn_end_show = QPushButton(safe_tr("结束放映"))
-        self.btn_end_show.setStyleSheet("background-color: #D32F2F; color: #FFFFFF; font-weight: bold;")
+        self.btn_end_show.setStyleSheet(
+            "background-color: #D32F2F; color: #FFFFFF; font-weight: bold;"
+        )
         self.btn_end_show.clicked.connect(self.end_show)
         header.addWidget(self.btn_end_show)
 
@@ -580,8 +589,13 @@ class PresenterConsole(QMainWindow):
         for i, slide in enumerate(self.presentation.slides):
             btn = QPushButton(f"{i + 1}")
             btn.setFixedSize(140, 80)
-            btn.setStyleSheet("font-size: 13px; font-weight: bold; background-color: #333333; border: 1px solid #666;")
-            btn.clicked.connect(lambda checked=False, target=i: self.select_slide_from_drawer(target))
+            btn.setStyleSheet(
+                "font-size: 13px; font-weight: bold; "
+                "background-color: #333333; border: 1px solid #666;"
+            )
+            btn.clicked.connect(
+                lambda checked=False, target=i: self.select_slide_from_drawer(target)
+            )
             self.drawer_thumbs_layout.addWidget(btn)
         self.drawer_thumbs_layout.addStretch()
 
@@ -675,7 +689,9 @@ class PresenterConsole(QMainWindow):
         next_idx = self.current_slide_index + 1
         if next_idx < len(self.presentation.slides):
             next_slide = self.presentation.slides[next_idx]
-            self.next_preview_title.setText(f"{safe_tr('下一张')}: {safe_tr('幻灯片')} {next_idx + 1}")
+            prefix = safe_tr("下一张")
+            suffix = f"{safe_tr('幻灯片')} {next_idx + 1}"
+            self.next_preview_title.setText(f"{prefix}: {suffix}")
             img = render_slide_to_image(next_slide, self.presentation, width=320, height=180)
             self.next_preview_label.setPixmap(QPixmap.fromImage(img))
         else:
@@ -863,7 +879,8 @@ class PresenterConsole(QMainWindow):
     def retranslate_ui(self) -> None:
         """Dynamically re-translate all UI text."""
         self.setWindowTitle(safe_tr("演讲者控制台 - Lectern"))
-        self.btn_pause_timer.setToolTip(safe_tr("暂停计时") if self.is_timer_running else safe_tr("继续计时"))
+        tip = safe_tr("暂停计时") if self.is_timer_running else safe_tr("继续计时")
+        self.btn_pause_timer.setToolTip(tip)
         self.btn_reset_timer.setToolTip(safe_tr("重置计时"))
         self.btn_swap_screens.setText(safe_tr("交换显示器"))
         self.btn_end_show.setText(safe_tr("结束放映"))

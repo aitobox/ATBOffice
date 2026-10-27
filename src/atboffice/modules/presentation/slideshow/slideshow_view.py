@@ -425,7 +425,8 @@ class SlideShowView(QWidget):
     def toggle_blank(self, color: str | QColor) -> None:
         """Toggle blank screen (e.g. '#000000', '#FFFFFF', or QColor)."""
         target = QColor(color) if isinstance(color, str) else color
-        current = QColor(self.blank_color) if isinstance(self.blank_color, str) else self.blank_color
+        bc = self.blank_color
+        current = QColor(bc) if isinstance(bc, str) else bc
         if current is not None and current == target:
             self.blank_color = None
         else:
@@ -651,7 +652,11 @@ class SlideShowView(QWidget):
                 return
 
             if self.blank_color is not None:
-                bc = QColor(self.blank_color) if isinstance(self.blank_color, str) else self.blank_color
+                bc = (
+                    QColor(self.blank_color)
+                    if isinstance(self.blank_color, str)
+                    else self.blank_color
+                )
                 painter.fillRect(stage_rect, bc)
                 return
 

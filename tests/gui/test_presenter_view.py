@@ -180,13 +180,17 @@ def test_presenter_console_init_and_layout(qapp, sample_presentation):
     console = PresenterConsole(sample_presentation, start_slide_index=0)
     assert PresenterView is PresenterConsole
     assert console.current_slide_index == 0
-    assert console.notes_edit.toPlainText() == "Welcome to the presentation. Here are key speaker points."
+    assert (
+        console.notes_edit.toPlainText()
+        == "Welcome to the presentation. Here are key speaker points."
+    )
     assert "00:00:00" in console.timer_label.text()
     assert console.is_timer_running is True
 
     # Next slide preview shows slide 1
     assert console.next_preview_label is not None
-    assert "2" in console.next_preview_title.text() or "幻灯片 2" in console.next_preview_title.text() or "2." in console.next_preview_title.text()
+    next_title = console.next_preview_title.text()
+    assert "2" in next_title or "幻灯片 2" in next_title or "2." in next_title
 
     console.close()
 
@@ -228,7 +232,9 @@ def test_presenter_console_navigation(qapp, sample_presentation):
     # Advance to slide 2 (empty notes edge case)
     console.next_slide()
     assert console.current_slide_index == 2
-    assert console.notes_edit.toPlainText() == "" or "无演讲者备注" in console.notes_placeholder.text()
+    notes_empty = console.notes_edit.toPlainText() == ""
+    placeholder_ok = "无演讲者备注" in console.notes_placeholder.text()
+    assert notes_empty or placeholder_ok
 
     # Previous back to 1
     console.prev_slide()
@@ -346,7 +352,9 @@ def test_presenter_console_keyboard_shortcuts(qapp, sample_presentation):
     assert console.current_slide_index == 1
 
     # Prev via Backspace
-    key_back = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Backspace, Qt.KeyboardModifier.NoModifier)
+    key_back = QKeyEvent(
+        QKeyEvent.Type.KeyPress, Qt.Key.Key_Backspace, Qt.KeyboardModifier.NoModifier
+    )
     console.keyPressEvent(key_back)
     assert console.current_slide_index == 0
 
@@ -370,17 +378,23 @@ def test_presenter_console_keyboard_shortcuts(qapp, sample_presentation):
     assert console.canvas.mode == "pen"
 
     # Laser shortcut (Ctrl+L)
-    key_laser = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_L, Qt.KeyboardModifier.ControlModifier)
+    key_laser = QKeyEvent(
+        QKeyEvent.Type.KeyPress, Qt.Key.Key_L, Qt.KeyboardModifier.ControlModifier
+    )
     console.keyPressEvent(key_laser)
     assert console.canvas.mode == "laser"
 
     # Eraser shortcut (Ctrl+E)
-    key_eraser = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_E, Qt.KeyboardModifier.ControlModifier)
+    key_eraser = QKeyEvent(
+        QKeyEvent.Type.KeyPress, Qt.Key.Key_E, Qt.KeyboardModifier.ControlModifier
+    )
     console.keyPressEvent(key_eraser)
     assert console.canvas.mode == "eraser"
 
     # Arrow shortcut (Ctrl+A)
-    key_arrow = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_A, Qt.KeyboardModifier.ControlModifier)
+    key_arrow = QKeyEvent(
+        QKeyEvent.Type.KeyPress, Qt.Key.Key_A, Qt.KeyboardModifier.ControlModifier
+    )
     console.keyPressEvent(key_arrow)
     assert console.canvas.mode == "arrow"
 
