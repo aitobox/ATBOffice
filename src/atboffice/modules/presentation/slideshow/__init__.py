@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+from atboffice.modules.presentation.slideshow.presenter_view import (
+    InkPoint,
+    InkStroke,
+    InteractiveSlideCanvas,
+    PresenterConsole,
+    PresenterView,
+)
 from atboffice.modules.presentation.slideshow.slideshow_view import SlideShowView
 from atboffice.modules.presentation.slideshow.transitions import (
     TRANSITION_CATALOGUE,
@@ -14,6 +21,11 @@ from atboffice.modules.presentation.slideshow.transitions import (
 )
 
 __all__ = [
+    "InkPoint",
+    "InkStroke",
+    "InteractiveSlideCanvas",
+    "PresenterConsole",
+    "PresenterView",
     "SlideShowView",
     "TRANSITION_CATALOGUE",
     "TransitionEffect",

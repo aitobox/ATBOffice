@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QRectF, Qt, QTimer, Signal
+from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
     QContextMenuEvent,
@@ -14,7 +14,9 @@ from PySide6.QtGui import (
     QKeyEvent,
     QMouseEvent,
     QPainter,
+    QPainterPath,
     QPen,
+    QRadialGradient,
     QWheelEvent,
 )
 from PySide6.QtWidgets import (
@@ -60,10 +62,12 @@ class SlideShowView(QWidget):
         self.is_active = True
         self.in_transition = False
         self.is_ended = False
-        self.blank_color: str | None = None
+        self.blank_color: QColor | str | None = None
         self.goto_buf: str = ""
         self._mouse_down = False
         self._cursor_visible = True
+        self.ink_strokes: dict[int, list[Any]] = {}
+        self.laser_pos: tuple[float, float] | None = None
 
         # Build slide display order (all slide indices)
         self.order: list[int] = list(range(len(presentation.slides)))
@@ -418,12 +422,15 @@ class SlideShowView(QWidget):
         if self.is_active and not self.is_ended and not self.in_transition:
             self.next_slide()
 
-    def toggle_blank(self, color: str) -> None:
-        """Toggle blank screen (e.g. '#000000' or '#FFFFFF')."""
-        if self.blank_color == color:
+    def toggle_blank(self, color: str | QColor) -> None:
+        """Toggle blank screen (e.g. '#000000', '#FFFFFF', or QColor)."""
+        target = QColor(color) if isinstance(color, str) else color
+        bc = self.blank_color
+        current = QColor(bc) if isinstance(bc, str) else bc
+        if current is not None and current == target:
             self.blank_color = None
         else:
-            self.blank_color = color
+            self.blank_color = target
         self.update()
 
     def end_show(self) -> None:
@@ -645,7 +652,12 @@ class SlideShowView(QWidget):
                 return
 
             if self.blank_color is not None:
-                painter.fillRect(stage_rect, QColor(self.blank_color))
+                bc = (
+                    QColor(self.blank_color)
+                    if isinstance(self.blank_color, str)
+                    else self.blank_color
+                )
+                painter.fillRect(stage_rect, bc)
                 return
 
             # 4. Render transition frame or current slide
@@ -675,6 +687,56 @@ class SlideShowView(QWidget):
                 painter.drawImage(stage_rect, frame_img)
             elif self._img_curr:
                 painter.drawImage(stage_rect, self._img_curr)
+
+            # Draw ink annotation strokes for current slide
+            strokes = self.ink_strokes.get(self._curr_idx, [])
+            if strokes:
+                scale_x = sw / pw
+                scale_y = sh / ph
+                for stroke in strokes:
+                    pts = getattr(stroke, "points", [])
+                    if len(pts) < 2:
+                        continue
+                    color_str = getattr(stroke, "color", "#FF0000")
+                    alpha = float(getattr(stroke, "alpha", 1.0))
+                    width = float(getattr(stroke, "width", 3.0)) * scale
+                    qcolor = QColor(color_str)
+                    qcolor.setAlphaF(min(1.0, max(0.0, alpha)))
+                    pen = QPen(qcolor, max(1.0, width))
+                    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+                    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+                    painter.setPen(pen)
+                    path = QPainterPath()
+                    first = True
+                    for px, py in pts:
+                        sx = ox + px * scale_x
+                        sy = oy + py * scale_y
+                        if first:
+                            path.moveTo(sx, sy)
+                            first = False
+                        else:
+                            path.lineTo(sx, sy)
+                    painter.drawPath(path)
+
+            # Draw laser pointer if active
+            if self.laser_pos is not None:
+                lx, ly = self.laser_pos
+                scale_x = sw / pw
+                scale_y = sh / ph
+                sx = ox + lx * scale_x
+                sy = oy + ly * scale_y
+                halo_rad = 16.0 * scale
+                gradient = QRadialGradient(sx, sy, halo_rad)
+                gradient.setColorAt(0.0, QColor(255, 30, 30, 220))
+                gradient.setColorAt(0.4, QColor(255, 50, 50, 140))
+                gradient.setColorAt(1.0, QColor(255, 50, 50, 0))
+                painter.setBrush(gradient)
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.drawEllipse(QPointF(sx, sy), halo_rad, halo_rad)
+
+                core_rad = 4.0 * scale
+                painter.setBrush(QColor(255, 255, 255, 240))
+                painter.drawEllipse(QPointF(sx, sy), core_rad, core_rad)
 
             # 5. On-screen Goto Overlay ("定位到幻灯片: 2")
             if self.goto_buf:
