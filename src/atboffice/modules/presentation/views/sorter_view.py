@@ -2,7 +2,8 @@
 
 Provides:
 - Multi-column responsive grid card layout adapting to viewport width.
-- Slide thumbnails with sequence numbering, transition effect badges, advance timing, and hidden slide indicators.
+- Slide thumbnails with sequence numbering, transition effect badges,
+  advance timing, and hidden slide indicators.
 - Multi-selection support (single-click, Ctrl/Cmd+click, Shift+click).
 - Visual drag-and-drop slide reordering with insertion line indicator.
 - Double-click navigation into Normal view.
@@ -13,13 +14,11 @@ Provides:
 from __future__ import annotations
 
 import copy
-from typing import Any
 
-from PySide6.QtCore import QPoint, QRect, QSize, Qt, Signal
+from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
-    QIcon,
     QMouseEvent,
     QPainter,
     QPaintEvent,
@@ -499,7 +498,11 @@ class SlideSorterView(QScrollArea):
         if best_ref:
             self._drop_target_index = target_idx
             geo = best_ref.geometry()
-            marker_x = (geo.left() - self.spacing // 2) if before else (geo.right() + self.spacing // 2)
+            marker_x = (
+                (geo.left() - self.spacing // 2)
+                if before
+                else (geo.right() + self.spacing // 2)
+            )
             self.grid_widget.drop_marker_x = marker_x
             self.grid_widget.drop_marker_y = geo.top()
             self.grid_widget.drop_marker_h = geo.height()
@@ -580,7 +583,9 @@ class SlideSorterView(QScrollArea):
         menu = QMenu(self)
         act_dup = menu.addAction(safe_tr("复制幻灯片"))
         act_del = menu.addAction(safe_tr("删除幻灯片"))
-        act_hide = menu.addAction(safe_tr("隐藏幻灯片") if not self.presentation.slides[index].hidden else safe_tr("取消隐藏"))
+        is_hidden = self.presentation.slides[index].hidden
+        hide_text = safe_tr("取消隐藏") if is_hidden else safe_tr("隐藏幻灯片")
+        act_hide = menu.addAction(hide_text)
 
         action = menu.exec(global_pos)
         if action == act_dup:

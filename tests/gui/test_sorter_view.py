@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-from PySide6.QtCore import Qt
 
 from atboffice.modules.presentation.models.designs import build_design
 from atboffice.modules.presentation.models.presentation import Presentation

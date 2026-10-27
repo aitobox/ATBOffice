@@ -909,7 +909,7 @@ class LecternWorkspace(QWidget):
 
         self.main_splitter.addWidget(self.left_pane)
 
-        # 2. Center Area (Vertical Splitter inside Center Stack: Canvas + Speaker Notes vs Sorter View)
+        # 2. Center Area (Vertical Splitter in Center Stack: Canvas + Notes vs Sorter)
         self.center_stack = QStackedWidget(self.main_splitter)
 
         self.center_normal_widget = QWidget(self.center_stack)
