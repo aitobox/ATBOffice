@@ -87,6 +87,7 @@ class PptxWriter:
             else presentation.get_design_for_slide(None)
         )
         self._media_counter = 1
+        self._chart_counter = 1
 
     def _resolve_main_content_type(self) -> str:
         if self.format == "ppsx":
@@ -198,9 +199,62 @@ class PptxWriter:
             )
             s_rels.add(REL_SLIDE_LAYOUT, layout_target)
 
-            # Media resolver for embedded pictures
+            # Media resolver for embedded pictures and charts
             def make_media_resolver(slide_rels: RelationshipBuilder):
                 def media_resolver(media_key: str) -> str:
+                    if media_key.startswith("chart:"):
+                        chart_id = media_key.split(":", 1)[1]
+                        c_idx = self._chart_counter
+                        self._chart_counter += 1
+                        chart_shape = next((sh for sh in slide.shapes if sh.id == chart_id), None)
+                        c_data = chart_shape.chart if chart_shape and chart_shape.chart else {}
+                        from atboffice.modules.presentation.chart.io import (
+                            chart_to_xml,
+                            create_embedded_workbook,
+                        )
+                        from atboffice.modules.presentation.chart.model import ChartData
+
+                        c_xml = chart_to_xml(c_data).encode("utf-8")
+                        chart_part = f"ppt/charts/chart{c_idx}.xml"
+                        self.pkg_writer.replace_part(
+                            chart_part,
+                            c_xml,
+                            content_type="application/vnd.openxmlformats-officedocument.drawingml.chart+xml",
+                        )
+
+                        chart_data_obj = (
+                            c_data
+                            if isinstance(c_data, ChartData)
+                            else ChartData.from_dict(c_data)
+                        )
+                        wb_bytes = (
+                            chart_data_obj.embedded_workbook
+                            if chart_data_obj.embedded_workbook
+                            else create_embedded_workbook(chart_data_obj)
+                        )
+                        if wb_bytes:
+                            wb_part = f"ppt/embeddings/Microsoft_Excel_Worksheet{c_idx}.xlsx"
+                            self.pkg_writer.replace_part(
+                                wb_part,
+                                wb_bytes,
+                                content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            )
+                            c_rels = RelationshipBuilder()
+                            c_rels.add(
+                                "http://schemas.openxmlformats.org/officeDocument/2006/relationships/package",
+                                f"../embeddings/Microsoft_Excel_Worksheet{c_idx}.xlsx",
+                            )
+                            self.pkg_writer.replace_part(
+                                f"ppt/charts/_rels/chart{c_idx}.xml.rels",
+                                c_rels.to_xml(),
+                                content_type="application/vnd.openxmlformats-package.relationships+xml",
+                            )
+
+                        return slide_rels.add(
+                            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart",
+                            f"../charts/chart{c_idx}.xml",
+                        )
+
                     media_map = self.pres.props.get("_media_map", {})
                     raw_bytes = media_map.get(media_key)
                     if raw_bytes is None and os.path.exists(media_key):

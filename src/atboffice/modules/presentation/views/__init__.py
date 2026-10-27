@@ -1,5 +1,6 @@
 """Presentation views package."""
 
+from atboffice.modules.presentation.views.chart_item import ChartGraphicsItem
 from atboffice.modules.presentation.views.geometry_helper import (
     create_shape_path,
     get_adjustment_handles,
@@ -31,6 +32,7 @@ __all__ = [
     "HandleType",
     "TransformHandleItem",
     "ShapeGraphicsItem",
+    "ChartGraphicsItem",
     "GuideLine",
     "SmartGuideController",
     "SlideScene",

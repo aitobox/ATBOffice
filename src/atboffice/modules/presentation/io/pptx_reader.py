@@ -343,7 +343,7 @@ class PptxReader:
         elif tag == "pic":
             return self._parse_pic_element(elem, slide_path, rel_map)
         elif tag == "graphicFrame":
-            return self._parse_graphic_frame(elem)
+            return self._parse_graphic_frame(elem, slide_path=slide_path, rel_map=rel_map)
         elif tag == "grpSp":
             return self._parse_group_element(elem, slide_path, rel_map)
         return None
@@ -450,8 +450,13 @@ class PptxReader:
             media=media_key,
         )
 
-    def _parse_graphic_frame(self, elem: ET.Element) -> Shape:
-        """Parse <p:graphicFrame> table element."""
+    def _parse_graphic_frame(
+        self,
+        elem: ET.Element,
+        slide_path: str = "",
+        rel_map: dict[str, Any] | None = None,
+    ) -> Shape:
+        """Parse <p:graphicFrame> table or chart element."""
         c_nv_pr = None
         nv_frame_pr = _get_child(elem, "nvGraphicFramePr")
         if nv_frame_pr is not None:
@@ -463,10 +468,58 @@ class PptxReader:
         xfrm = _get_child(elem, "xfrm")
         x, y, w, h, rot = self._parse_xfrm_element(xfrm)
 
-        # Find table in graphicData
-        tbl_dict: dict[str, Any] = {"cols": [], "rows": []}
         graphic = _get_child(elem, "graphic")
         graphic_data = _get_child(graphic, "graphicData") if graphic is not None else None
+
+        # 1. Check if graphicData has chart
+        chart_elem = None
+        if graphic_data is not None:
+            for child in graphic_data:
+                if child.tag.endswith("chart"):
+                    chart_elem = child
+                    break
+
+        if chart_elem is not None:
+            r_id = _get_attr(chart_elem, "id")
+            chart_dict = None
+            if r_id and rel_map and r_id in rel_map:
+                rel = rel_map[r_id]
+                chart_target = rel.target if hasattr(rel, "target") else str(rel)
+                chart_path = _resolve_path(slide_path, chart_target)
+                if self.package.has_part(chart_path):
+                    from atboffice.modules.presentation.chart.io import parse_chart_xml
+
+                    chart_bytes = self.package.read_part(chart_path)
+                    chart_obj = parse_chart_xml(chart_bytes)
+
+                    # Look for embedded workbook in chart rels
+                    chart_rels = self.package.get_relationships(chart_path)
+                    for cr in chart_rels:
+                        if (
+                            "spreadsheetml" in cr.type.lower()
+                            or "package" in cr.type.lower()
+                            or cr.target.endswith(".xlsx")
+                        ):
+                            wb_path = _resolve_path(chart_path, cr.target)
+                            if self.package.has_part(wb_path):
+                                chart_obj.embedded_workbook = self.package.read_part(wb_path)
+                                break
+                    chart_dict = chart_obj.to_dict()
+
+            return Shape(
+                id=frame_id or "chart_1",
+                type="chart",
+                name=frame_name or "Chart",
+                x=x,
+                y=y,
+                w=w,
+                h=h,
+                rot=rot,
+                chart=chart_dict,
+            )
+
+        # 2. Find table in graphicData
+        tbl_dict: dict[str, Any] = {"cols": [], "rows": []}
         tbl_elem = _get_child(graphic_data, "tbl") if graphic_data is not None else None
 
         if tbl_elem is not None:

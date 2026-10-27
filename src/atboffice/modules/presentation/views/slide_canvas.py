@@ -76,7 +76,12 @@ class SlideScene(QGraphicsScene):
         self._items_by_id.clear()
 
         for idx, sh in enumerate(slide.shapes):
-            item = ShapeGraphicsItem(sh)
+            if sh.is_chart:
+                from atboffice.modules.presentation.views.chart_item import ChartGraphicsItem
+
+                item = ChartGraphicsItem(sh)
+            else:
+                item = ShapeGraphicsItem(sh)
             item.setZValue(float(idx))
             self.addItem(item)
             self._items_by_id[sh.id] = item
