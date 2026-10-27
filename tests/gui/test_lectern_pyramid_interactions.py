@@ -14,16 +14,15 @@ from __future__ import annotations
 import pytest
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QKeyEvent
-from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.presentation.models.designs import build_design
 from atboffice.modules.presentation.models.presentation import Presentation
 from atboffice.modules.presentation.models.shape import Fill, Line, Shadow, Shape
-from atboffice.modules.presentation.models.slide import Slide, Transition
-from atboffice.modules.presentation.models.text import Paragraph, TextBody, TextRun
+from atboffice.modules.presentation.models.slide import Transition
+from atboffice.modules.presentation.models.text import TextBody
 from atboffice.modules.presentation.slideshow.slideshow_view import SlideShowView
-from atboffice.modules.presentation.views.shape_item import HandleType, ShapeGraphicsItem
-from atboffice.modules.presentation.views.slide_canvas import SlideCanvasView, SlideScene
+from atboffice.modules.presentation.views.shape_item import HandleType
+from atboffice.modules.presentation.views.slide_canvas import SlideScene
 from atboffice.modules.presentation.views.workspace import LecternWorkspace
 
 
@@ -83,7 +82,9 @@ def sample_presentation() -> Presentation:
 
 
 @pytest.fixture
-def workspace_view(qtbot: pytest.FixtureRequest, sample_presentation: Presentation) -> LecternWorkspace:
+def workspace_view(
+    qtbot: pytest.FixtureRequest, sample_presentation: Presentation
+) -> LecternWorkspace:
     """Create and show LecternWorkspace."""
     ws = LecternWorkspace(presentation=sample_presentation)
     qtbot.addWidget(ws)
@@ -190,21 +191,29 @@ class TestTransformHandlesAndNudge:
         y0 = item.pos().y()
 
         # Key Right: 1 pt nudge
-        canvas.keyPressEvent(QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Right, Qt.KeyboardModifier.NoModifier))
+        canvas.keyPressEvent(
+            QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Right, Qt.KeyboardModifier.NoModifier)
+        )
         assert item.pos().x() == pytest.approx(x0 + 1.0, abs=0.1)
 
         # Key Down: 1 pt nudge
-        canvas.keyPressEvent(QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Down, Qt.KeyboardModifier.NoModifier))
+        canvas.keyPressEvent(
+            QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Down, Qt.KeyboardModifier.NoModifier)
+        )
         assert item.pos().y() == pytest.approx(y0 + 1.0, abs=0.1)
 
         # Shift + Key Left: 8 pt nudge
         x1 = item.pos().x()
-        canvas.keyPressEvent(QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Left, Qt.KeyboardModifier.ShiftModifier))
+        canvas.keyPressEvent(
+            QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Left, Qt.KeyboardModifier.ShiftModifier)
+        )
         assert item.pos().x() == pytest.approx(x1 - 8.0, abs=0.1)
 
         # Delete key: removes selected shape
         shape_count_before = len(scene.slide.shapes)
-        canvas.keyPressEvent(QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier))
+        canvas.keyPressEvent(
+            QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier)
+        )
         assert len(scene.slide.shapes) == shape_count_before - 1
         assert scene.get_shape_item("rect_test") is None
 
@@ -264,7 +273,8 @@ class TestWorkspaceNavigationAndShortcuts:
         workspace_view.set_current_slide_index(1)
         assert workspace_view.current_slide_index == 1
         assert workspace_view.thumbnail_list.currentRow() == 1
-        assert workspace_view.canvas_view.scene().slide.id == workspace_view.presentation.slides[1].id
+        cur_slide = workspace_view.presentation.slides[1]
+        assert workspace_view.canvas_view.scene().slide.id == cur_slide.id
 
         # Switch to slide 2
         workspace_view.set_current_slide_index(2)
@@ -345,7 +355,10 @@ class TestSlideshowAndTransitionsTrigger:
         assert view.current_slide_index == 0
 
         # Key Escape -> ends show immediately
-        view.keyPressEvent(QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier))
+        ev_esc = QKeyEvent(
+            QKeyEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier
+        )
+        view.keyPressEvent(ev_esc)
         assert view.is_active is False
 
 

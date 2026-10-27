@@ -23,7 +23,6 @@ import io
 import re
 import xml.etree.ElementTree as ET
 import zipfile
-from pathlib import Path
 
 import pytest
 
@@ -32,8 +31,8 @@ from atboffice.modules.presentation.models.comment import Comment, CommentAuthor
 from atboffice.modules.presentation.models.designs import build_design
 from atboffice.modules.presentation.models.presentation import Presentation
 from atboffice.modules.presentation.models.shape import Fill, Line, Shadow, Shape
-from atboffice.modules.presentation.models.slide import Slide, Transition
-from atboffice.modules.presentation.models.text import Paragraph, TextBody, TextRun
+from atboffice.modules.presentation.models.slide import Transition
+from atboffice.modules.presentation.models.text import TextBody
 from atboffice.vfs.opc import SourcePackage
 
 # ---------------------------------------------------------------------------
