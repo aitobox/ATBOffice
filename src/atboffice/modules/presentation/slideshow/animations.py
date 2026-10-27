@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QObject, QRectF, QTimer, Signal
 from PySide6.QtWidgets import QApplication
@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QApplication
 from atboffice.modules.presentation.models.slide import Animation, Slide
 
 if TYPE_CHECKING:
-    from atboffice.modules.presentation.models.shape import Shape
+    pass
 
 
 def safe_tr(text: str) -> str:
@@ -91,7 +91,6 @@ def safe_tr(text: str) -> str:
         "In": "放大/向内",
         "Out": "缩小/向外",
         "Across": "横向",
-        "Down": "纵向",
         "Horizontal In": "水平向内",
         "Horizontal Out": "水平向外",
         "Vertical In": "垂直向内",
@@ -182,6 +181,7 @@ SPOKES = [
 # ==============================================================================
 # 50+ Effects Catalogue (Entrance, Emphasis, Exit, Motion Paths)
 # ==============================================================================
+
 
 @dataclass(frozen=True)
 class EffectDef:
@@ -309,6 +309,7 @@ def effect_display_name(cls: str, eff: str) -> str:
 # Easing & Math
 # ==============================================================================
 
+
 def clamp(val: float, min_v: float, max_v: float) -> float:
     return max(min_v, min(max_v, val))
 
@@ -358,6 +359,7 @@ def path_points(anim: Animation) -> list[list[float]]:
 # ==============================================================================
 # Frame State Calculation
 # ==============================================================================
+
 
 @dataclass
 class FrameState:
@@ -434,7 +436,7 @@ def compute_frame(
         eff = "appear"
 
     if eff == "appear":
-        state.visible = entering or (t < 1.0)
+        state.visible = (t >= 1.0) if entering else (t < 1.0)
         return state
 
     if eff == "fade":
@@ -521,6 +523,7 @@ def compute_frame(
 # Step Compiler & Sequencing
 # ==============================================================================
 
+
 @dataclass
 class AnimationItem:
     """Compiled runtime animation target item."""
@@ -545,7 +548,12 @@ class AnimationStep:
     last_end: int = 0
 
 
-def compile_steps(slide: Slide, slide_w: float = 960.0, slide_h: float = 540.0, no_anim: bool = False) -> list[AnimationStep]:
+def compile_steps(
+    slide: Slide,
+    slide_w: float = 960.0,
+    slide_h: float = 540.0,
+    no_anim: bool = False,
+) -> list[AnimationStep]:
     """Compile slide animations into sequential build steps according to trigger rules."""
     if no_anim or not slide.animations:
         return []
@@ -570,7 +578,9 @@ def compile_steps(slide: Slide, slide_w: float = 960.0, slide_h: float = 540.0, 
                 p_text = p.plain_text.strip()
                 if not p_text:
                     continue
-                start_trigger = a.start if not prior else ("with" if (p.level or 0) > 0 else a.start)
+                start_trigger = (
+                    a.start if not prior else ("with" if (p.level or 0) > 0 else a.start)
+                )
                 delay_val = 0 if (prior and (p.level or 0) > 0) else a.delay
                 clone = Animation(
                     id=f"{a.id}_p{idx}",
@@ -619,7 +629,9 @@ def compile_steps(slide: Slide, slide_w: float = 960.0, slide_h: float = 540.0, 
             start_time = a.delay
 
         # Instant appear/disappear have duration 0
-        is_instant = (a.cls == "entr" and a.eff == "appear") or (a.cls == "exit" and a.eff == "disappear")
+        is_instant = (a.cls == "entr" and a.eff == "appear") or (
+            a.cls == "exit" and a.eff == "disappear"
+        )
         end_time = start_time + (0 if is_instant else dur)
 
         item = AnimationItem(
@@ -696,6 +708,7 @@ def apply_step_state(
 # 60 FPS Animation Step Player
 # ==============================================================================
 
+
 class AnimationStepPlayer(QObject):
     """High-precision 60 FPS step animator for presentation slideshows."""
 
@@ -744,6 +757,7 @@ class AnimationStepPlayer(QObject):
             it.done = False
 
         import time
+
         self._start_time_ms = time.perf_counter() * 1000.0
         self._timer.start()
         self._on_tick()
@@ -789,6 +803,7 @@ class AnimationStepPlayer(QObject):
             return
 
         import time
+
         elapsed = (time.perf_counter() * 1000.0) - self._start_time_ms
         all_done = True
         current_states = dict(self._base_states)

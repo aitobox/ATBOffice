@@ -8,15 +8,14 @@ list reordering, deletion, and preview controls with complete i18n support.
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QIcon, QPainter, QPixmap
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QComboBox,
-    QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -39,12 +38,11 @@ from atboffice.modules.presentation.slideshow.animations import (
     default_dir,
     effect_display_name,
     find_effect,
-    list_effects,
     safe_tr,
 )
 
 if TYPE_CHECKING:
-    from atboffice.modules.presentation.models.shape import Shape
+    pass
 
 
 def _make_star_icon(color_hex: str) -> QIcon:
@@ -215,9 +213,7 @@ class AnimationPane(QWidget):
         self.btn_slideshow.setText(safe_tr("Slide Show"))
         self.chk_auto_preview.setText(safe_tr("AutoPreview"))
         self.lbl_empty.setText(
-            safe_tr(
-                "Select an element of the slide, then click 'Add Effect' to add animation."
-            )
+            safe_tr("Select an element of the slide, then click 'Add Effect' to add animation.")
         )
 
         self._rebuild_menus()
@@ -243,9 +239,7 @@ class AnimationPane(QWidget):
                 act = sub.addAction(safe_tr(eff_def.name))
                 act.setData((cls_key, eff_def.key))
                 act.triggered.connect(
-                    lambda checked=False, c=cls_key, e=eff_def.key: self._on_add_effect_chosen(
-                        c, e
-                    )
+                    lambda checked=False, c=cls_key, e=eff_def.key: self._on_add_effect_chosen(c, e)
                 )
 
     def _rebuild_start_combo(self) -> None:
@@ -431,6 +425,11 @@ class AnimationPane(QWidget):
         if not target_shape_id:
             return
 
+        default_dur = (
+            2000
+            if cls_key in ("emph", "path")
+            else (0 if eff_key in ("appear", "disappear") else 500)
+        )
         new_anim = Animation(
             id=f"a_{uuid.uuid4().hex[:6]}",
             sid=target_shape_id,
@@ -438,7 +437,7 @@ class AnimationPane(QWidget):
             eff=eff_key,
             dir=default_dir(cls_key, eff_key),
             start="click",
-            dur=2000 if cls_key in ("emph", "path") else (0 if eff_key in ("appear", "disappear") else 500),
+            dur=default_dur,
             delay=0,
             by="all",
         )

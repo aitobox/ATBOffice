@@ -1,13 +1,10 @@
 """Comprehensive tests for custom animations engine, timing task pane, and slideshow stepping."""
 
 import pytest
-from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QKeyEvent
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QRectF
 
-from atboffice.modules.presentation.models.designs import DesignTemplate
 from atboffice.modules.presentation.models.presentation import Presentation
-from atboffice.modules.presentation.models.shape import PlaceholderInfo, Shape
+from atboffice.modules.presentation.models.shape import Shape
 from atboffice.modules.presentation.models.slide import Animation, Slide
 from atboffice.modules.presentation.models.text import Paragraph, TextBody, TextRun
 from atboffice.modules.presentation.slideshow.animations import (
@@ -23,7 +20,6 @@ from atboffice.modules.presentation.slideshow.animations import (
     AnimationItem,
     AnimationStep,
     AnimationStepPlayer,
-    FrameState,
     apply_initial_state,
     apply_step_state,
     clamp,
@@ -41,10 +37,10 @@ from atboffice.modules.presentation.slideshow.animations import (
 from atboffice.modules.presentation.slideshow.slideshow_view import SlideShowView
 from atboffice.modules.presentation.views.animation_pane import AnimationPane
 
-
 # ==============================================================================
 # 1. Catalogue & Metadata Tests
 # ==============================================================================
+
 
 def test_catalogue_counts():
     """Verify that there are 50+ total effect definitions across all 4 categories."""
@@ -106,6 +102,7 @@ def test_safe_tr_and_display_name():
 # 2. Math & Easing Functions
 # ==============================================================================
 
+
 def test_easing_curves():
     """Test boundary and midpoint behaviors of easing algorithms."""
     assert ease_out(0.0) == pytest.approx(0.0)
@@ -143,6 +140,7 @@ def test_motion_path_points():
 # 3. Frame Computation Tests
 # ==============================================================================
 
+
 def test_compute_frame_entrance():
     """Test frame states for Entrance animations."""
     bounds = QRectF(100, 100, 200, 100)
@@ -150,6 +148,7 @@ def test_compute_frame_entrance():
     # Appear: hidden until progress reaches 1.0
     anim_appear = Animation(id="a1", sid="s1", cls="entr", eff="appear")
     f0 = compute_frame(anim_appear, 0.0, bounds)
+    assert f0.visible is False
     f1 = compute_frame(anim_appear, 1.0, bounds)
     assert f1.visible is True
 
@@ -210,6 +209,7 @@ def test_compute_frame_motion_path():
 # ==============================================================================
 # 4. Step Compilation & Sequencing
 # ==============================================================================
+
 
 def test_compile_steps_grouping():
     """Test grouping animations by click, with, and after triggers."""
@@ -281,6 +281,7 @@ def test_apply_initial_and_step_state():
 # 5. AnimationStepPlayer
 # ==============================================================================
 
+
 def test_animation_step_player(qtbot):
     """Test QTimer-driven step player execution and finish_now."""
     player = AnimationStepPlayer(slide_w=960, slide_h=540)
@@ -315,6 +316,7 @@ def test_animation_step_player(qtbot):
 # ==============================================================================
 # 6. AnimationPane GUI Tests
 # ==============================================================================
+
 
 def test_animation_pane_ui(qtbot):
     """Test AnimationPane interactions: adding, modifying, reordering, deleting."""
@@ -368,6 +370,7 @@ def test_animation_pane_ui(qtbot):
 # ==============================================================================
 # 7. SlideShowView Animation Stepping Tests
 # ==============================================================================
+
 
 def test_slideshow_animation_stepping(qtbot):
     """Test SlideShowView stepping through animations before advancing slide."""

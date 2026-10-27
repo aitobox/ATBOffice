@@ -188,9 +188,7 @@ class SlideShowView(QWidget):
         self._anim_player.stop()
         slide = self.current_slide
         if slide and slide.animations:
-            self._anim_steps = compile_steps(
-                slide, self.presentation.w, self.presentation.h
-            )
+            self._anim_steps = compile_steps(slide, self.presentation.w, self.presentation.h)
             self._anim_step_idx = 0
             self._frame_states = apply_initial_state(self._anim_steps)
         else:
@@ -208,9 +206,7 @@ class SlideShowView(QWidget):
         if slide:
             for s in slide.shapes:
                 bounds_map[s.id] = QRectF(s.x, s.y, s.w, s.h)
-        self._anim_player.play(
-            step, self._anim_step_idx, self._frame_states, bounds_map
-        )
+        self._anim_player.play(step, self._anim_step_idx, self._frame_states, bounds_map)
 
     def _on_custom_anim_frame(self, states: dict) -> None:
         """Receive updated frame states from 60 FPS animation player."""
@@ -315,11 +311,7 @@ class SlideShowView(QWidget):
             self._anim_player.stop()
             self._anim_step_idx -= 1
             slide = self.current_slide
-            bounds_map = (
-                {s.id: QRectF(s.x, s.y, s.w, s.h) for s in slide.shapes}
-                if slide
-                else {}
-            )
+            bounds_map = {s.id: QRectF(s.x, s.y, s.w, s.h) for s in slide.shapes} if slide else {}
             self._frame_states = apply_step_state(
                 self._anim_steps,
                 self._anim_step_idx,
