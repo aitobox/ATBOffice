@@ -196,6 +196,9 @@ class Shape:
     crop: dict[str, float] | None = None
     tbl: dict[str, Any] | None = None
     link: dict[str, Any] | None = None
+    sa: dict[str, Any] | None = None
+    poly: list[list[float]] | None = None
+    custom_path: dict[str, Any] | None = None
 
     def translate(self, dx: float, dy: float) -> None:
         self.x += dx
@@ -224,6 +227,10 @@ class Shape:
 
     def clone(self) -> Shape:
         return copy.deepcopy(self)
+
+    @property
+    def is_diagram(self) -> bool:
+        return self.type == "group" and bool(self.sa)
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -257,6 +264,12 @@ class Shape:
             d["tbl"] = copy.deepcopy(self.tbl)
         if self.link:
             d["link"] = copy.deepcopy(self.link)
+        if self.sa:
+            d["sa"] = copy.deepcopy(self.sa)
+        if self.poly:
+            d["poly"] = [list(pt) for pt in self.poly]
+        if self.custom_path:
+            d["custom_path"] = copy.deepcopy(self.custom_path)
         return d
 
     @classmethod
@@ -282,4 +295,7 @@ class Shape:
             crop=dict(data.get("crop")) if data.get("crop") else None,
             tbl=copy.deepcopy(data.get("tbl")),
             link=copy.deepcopy(data.get("link")),
+            sa=copy.deepcopy(data.get("sa")),
+            poly=[list(pt) for pt in data["poly"]] if "poly" in data and data["poly"] else None,
+            custom_path=copy.deepcopy(data.get("custom_path")),
         )

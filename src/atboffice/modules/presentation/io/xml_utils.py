@@ -27,6 +27,16 @@ REL_NOTES_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relatio
 REL_NOTES_MASTER = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesMaster"
 REL_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
 REL_HYPERLINK = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
+REL_DIAGRAM_DATA = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData"
+REL_DIAGRAM_LAYOUT = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout"
+)
+REL_DIAGRAM_COLORS = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramColors"
+)
+REL_DIAGRAM_STYLE = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramQuickStyle"
+)
 
 # Content Types
 CT_PRESENTATION = (
@@ -45,6 +55,10 @@ CT_VIEW_PROPS = "application/vnd.openxmlformats-officedocument.presentationml.vi
 CT_TABLE_STYLES = "application/vnd.openxmlformats-officedocument.presentationml.tableStyles+xml"
 CT_CORE = "application/vnd.openxmlformats-package.core-properties+xml"
 CT_APP = "application/vnd.openxmlformats-officedocument.extended-properties+xml"
+CT_DIAGRAM_DATA = "application/vnd.openxmlformats-officedocument.drawingml.diagramData+xml"
+CT_DIAGRAM_LAYOUT = "application/vnd.openxmlformats-officedocument.drawingml.diagramLayout+xml"
+CT_DIAGRAM_COLORS = "application/vnd.openxmlformats-officedocument.drawingml.diagramColors+xml"
+CT_DIAGRAM_STYLE = "application/vnd.openxmlformats-officedocument.drawingml.diagramStyle+xml"
 
 EMUS_PER_PT = 12700.0
 XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
