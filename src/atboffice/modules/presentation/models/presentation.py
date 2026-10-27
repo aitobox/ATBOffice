@@ -7,6 +7,7 @@ import datetime
 from dataclasses import dataclass, field
 from typing import Any
 
+from atboffice.modules.presentation.models.comment import Comment, CommentAuthor
 from atboffice.modules.presentation.models.designs import DesignTemplate, build_design
 from atboffice.modules.presentation.models.layouts import layout_frames, make_placeholder
 from atboffice.modules.presentation.models.shape import PlaceholderInfo, Shape
@@ -126,6 +127,7 @@ class Presentation:
     show: SlideShowSettings = field(default_factory=SlideShowSettings)
     hf: HeaderFooterSettings = field(default_factory=HeaderFooterSettings)
     props: dict[str, Any] = field(default_factory=dict)
+    comment_authors: list[CommentAuthor] = field(default_factory=list)
 
     @classmethod
     def create_new(
@@ -191,6 +193,41 @@ class Presentation:
         if 0 <= from_idx < len(self.slides) and 0 <= to_idx < len(self.slides):
             s = self.slides.pop(from_idx)
             self.slides.insert(to_idx, s)
+
+    def get_or_create_author(self, name: str, initials: str = "") -> CommentAuthor:
+        """Retrieve an existing author by name or create a newly indexed author."""
+        name_clean = name.strip() or "Author"
+        for auth in self.comment_authors:
+            if auth.name.strip().lower() == name_clean.lower():
+                return auth
+        max_id = -1
+        for auth in self.comment_authors:
+            if auth.id.isdigit():
+                max_id = max(max_id, int(auth.id))
+        next_id = str(max_id + 1)
+        new_author = CommentAuthor(
+            id=next_id,
+            name=name_clean,
+            initials=initials,
+            color_idx=len(self.comment_authors) % 32,
+        )
+        self.comment_authors.append(new_author)
+        return new_author
+
+    def find_author(self, author_id: str) -> CommentAuthor | None:
+        """Look up comment author by unique id."""
+        for auth in self.comment_authors:
+            if auth.id == author_id:
+                return auth
+        return None
+
+    def all_comments(self) -> list[tuple[int, Comment]]:
+        """Return all comments across slides with their 0-based slide indices."""
+        res: list[tuple[int, Comment]] = []
+        for s_idx, slide in enumerate(self.slides):
+            for cm in slide.comments:
+                res.append((s_idx, cm))
+        return res
 
     def apply_layout(self, slide: Slide, key: str) -> None:
         """Re-apply a layout to an existing slide, preserving existing text and content."""

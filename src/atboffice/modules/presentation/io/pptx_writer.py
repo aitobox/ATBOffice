@@ -22,6 +22,8 @@ from atboffice.modules.presentation.io.writer_templates import (
 )
 from atboffice.modules.presentation.io.xml_utils import (
     CT_APP,
+    CT_COMMENT_AUTHORS,
+    CT_COMMENTS,
     CT_CORE,
     CT_DIAGRAM_COLORS,
     CT_DIAGRAM_DATA,
@@ -43,6 +45,8 @@ from atboffice.modules.presentation.io.xml_utils import (
     NS_P,
     NS_R,
     REL_AUDIO,
+    REL_COMMENT_AUTHORS,
+    REL_COMMENTS,
     REL_DIAGRAM_COLORS,
     REL_DIAGRAM_DATA,
     REL_DIAGRAM_LAYOUT,
@@ -420,6 +424,32 @@ class PptxWriter:
 
                 s_rels.add(REL_NOTES_SLIDE, f"../notesSlides/notesSlide{i}.xml")
 
+            # Comments on this slide
+            if slide.comments:
+                cm_lst_elem = ET.Element(f"{{{NS_P}}}cmLst")
+                for cm in slide.comments:
+                    cm_elem = ET.SubElement(cm_lst_elem, f"{{{NS_P}}}cm")
+                    cm_elem.attrib["authorId"] = str(cm.author_id)
+                    if cm.created:
+                        cm_elem.attrib["dt"] = cm.created
+                    cm_elem.attrib["idx"] = str(cm.idx)
+
+                    pos_elem = ET.SubElement(cm_elem, f"{{{NS_P}}}pos")
+                    pos_elem.attrib["x"] = str(int(round(cm.x * 12700.0)))
+                    pos_elem.attrib["y"] = str(int(round(cm.y * 12700.0)))
+
+                    text_elem = ET.SubElement(cm_elem, f"{{{NS_P}}}text")
+                    text_elem.text = cm.text
+
+                c_part = f"ppt/comments/comment{i}.xml"
+                c_xml = f"{XML_DECL}{ET.tostring(cm_lst_elem, encoding='unicode')}"
+                self.pkg_writer.replace_part(
+                    c_part,
+                    c_xml.encode("utf-8"),
+                    content_type=CT_COMMENTS,
+                )
+                s_rels.add(REL_COMMENTS, f"../comments/comment{i}.xml")
+
             s_rels_path = f"ppt/slides/_rels/slide{i}.xml.rels"
             self.pkg_writer.replace_part(
                 s_rels_path,
@@ -454,6 +484,39 @@ class PptxWriter:
             build_app_properties_xml(len(self.pres.slides)).encode("utf-8"),
             content_type=CT_APP,
         )
+
+        # Comment Authors
+        all_comments = [c for s in self.pres.slides for c in s.comments]
+        if all_comments or self.pres.comment_authors:
+            for cm in all_comments:
+                if not self.pres.find_author(cm.author_id):
+                    self.pres.get_or_create_author(name=f"Author {cm.author_id}")
+
+            author_last_idx: dict[str, int] = {
+                a.id: a.last_idx for a in self.pres.comment_authors
+            }
+            for cm in all_comments:
+                author_last_idx[cm.author_id] = max(
+                    author_last_idx.get(cm.author_id, 0), cm.idx
+                )
+
+            ca_elem = ET.Element(f"{{{NS_P}}}cmAuthorLst")
+            for auth in self.pres.comment_authors:
+                last_idx = author_last_idx.get(auth.id, auth.last_idx)
+                sub = ET.SubElement(ca_elem, f"{{{NS_P}}}cmAuthor")
+                sub.attrib["id"] = str(auth.id)
+                sub.attrib["name"] = auth.name
+                sub.attrib["initials"] = auth.initials or auth.name[:2].upper()
+                sub.attrib["lastIdx"] = str(last_idx)
+                sub.attrib["clrIdx"] = str(auth.color_idx)
+
+            ca_xml = f"{XML_DECL}{ET.tostring(ca_elem, encoding='unicode')}"
+            self.pkg_writer.replace_part(
+                "ppt/commentAuthors.xml",
+                ca_xml.encode("utf-8"),
+                content_type=CT_COMMENT_AUTHORS,
+            )
+            pres_rels.add(REL_COMMENT_AUTHORS, "commentAuthors.xml")
 
         # 6. ppt/presentation.xml and its rels
         pres_rels_path = "ppt/_rels/presentation.xml.rels"
@@ -562,6 +625,36 @@ class PptxWriter:
             resolver = make_media_resolver(s_rels)
             s_xml = slide_to_xml(slide, design=self.primary_design, media_resolver=resolver)
             self.pkg_writer.replace_part(part_name, s_xml.encode("utf-8"), content_type=CT_SLIDE)
+
+            # Comments on this modified slide
+            if slide.comments:
+                cm_lst_elem = ET.Element(f"{{{NS_P}}}cmLst")
+                for cm in slide.comments:
+                    cm_elem = ET.SubElement(cm_lst_elem, f"{{{NS_P}}}cm")
+                    cm_elem.attrib["authorId"] = str(cm.author_id)
+                    if cm.created:
+                        cm_elem.attrib["dt"] = cm.created
+                    cm_elem.attrib["idx"] = str(cm.idx)
+
+                    pos_elem = ET.SubElement(cm_elem, f"{{{NS_P}}}pos")
+                    pos_elem.attrib["x"] = str(int(round(cm.x * 12700.0)))
+                    pos_elem.attrib["y"] = str(int(round(cm.y * 12700.0)))
+
+                    text_elem = ET.SubElement(cm_elem, f"{{{NS_P}}}text")
+                    text_elem.text = cm.text
+
+                stem = Path(part_name).stem
+                num_str = "".join(ch for ch in stem if ch.isdigit()) or "1"
+                c_part = f"ppt/comments/comment{num_str}.xml"
+                c_xml = f"{XML_DECL}{ET.tostring(cm_lst_elem, encoding='unicode')}"
+                self.pkg_writer.replace_part(
+                    c_part,
+                    c_xml.encode("utf-8"),
+                    content_type=CT_COMMENTS,
+                )
+                if not any(r.type == REL_COMMENTS for r in s_rels._relationships):
+                    s_rels.add(REL_COMMENTS, f"../comments/comment{num_str}.xml")
+
             self.pkg_writer.replace_part(
                 s_rels_path,
                 s_rels.to_xml(),
@@ -598,6 +691,40 @@ class PptxWriter:
                 rid = pres_rels.add(REL_SLIDE, p_rel)
                 rel_map_by_target[p_rel] = rid
             slide_id_entries.append((255 + i, rid))
+
+        # Comment Authors
+        all_comments = [c for s in self.pres.slides for c in s.comments]
+        if all_comments or self.pres.comment_authors:
+            for cm in all_comments:
+                if not self.pres.find_author(cm.author_id):
+                    self.pres.get_or_create_author(name=f"Author {cm.author_id}")
+
+            author_last_idx: dict[str, int] = {
+                a.id: a.last_idx for a in self.pres.comment_authors
+            }
+            for cm in all_comments:
+                author_last_idx[cm.author_id] = max(
+                    author_last_idx.get(cm.author_id, 0), cm.idx
+                )
+
+            ca_elem = ET.Element(f"{{{NS_P}}}cmAuthorLst")
+            for auth in self.pres.comment_authors:
+                last_idx = author_last_idx.get(auth.id, auth.last_idx)
+                sub = ET.SubElement(ca_elem, f"{{{NS_P}}}cmAuthor")
+                sub.attrib["id"] = str(auth.id)
+                sub.attrib["name"] = auth.name
+                sub.attrib["initials"] = auth.initials or auth.name[:2].upper()
+                sub.attrib["lastIdx"] = str(last_idx)
+                sub.attrib["clrIdx"] = str(auth.color_idx)
+
+            ca_xml = f"{XML_DECL}{ET.tostring(ca_elem, encoding='unicode')}"
+            self.pkg_writer.replace_part(
+                "ppt/commentAuthors.xml",
+                ca_xml.encode("utf-8"),
+                content_type=CT_COMMENT_AUTHORS,
+            )
+            if not any(r.type == REL_COMMENT_AUTHORS for r in pres_rels._relationships):
+                pres_rels.add(REL_COMMENT_AUTHORS, "commentAuthors.xml")
 
         self.pkg_writer.replace_part(
             pres_rels_path,
