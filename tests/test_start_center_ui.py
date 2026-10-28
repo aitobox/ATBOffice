@@ -276,15 +276,61 @@ def test_start_center_remove_single_item(qtbot, tmp_path: Path):
 
 
 def test_start_center_retranslate_ui(qtbot):
-    """Test retranslate_ui updates localized labels and titles."""
+    """Test retranslate_ui updates localized labels, titles, and refreshes recents."""
     win = StartCenterWindow()
     qtbot.addWidget(win)
 
-    win.retranslate_ui()
+    with patch.object(win, "refresh_recent_files") as mock_refresh:
+        win.retranslate_ui()
+        mock_refresh.assert_called_once()
+
     assert "ATBOffice" in win.windowTitle()
     assert win.lbl_recent_title.text() != ""
     assert win.lbl_templates_title.text() != ""
     assert win.btn_clear_recent.text() != ""
+
+
+def test_start_center_recent_item_activated_invoked_exactly_once(qtbot, tmp_path: Path):
+    """Test activating a recent item emits itemActivated and opens document exactly once."""
+    win = StartCenterWindow()
+    qtbot.addWidget(win)
+
+    sample = tmp_path / "single_open.docx"
+    sample.touch()
+
+    wm = WindowManager.get_instance()
+    wm.recent_files.add_file(sample, "quire")
+    win.refresh_recent_files()
+
+    item = win.recent_list_widget.item(0)
+    with patch.object(wm, "open_file_auto") as mock_open:
+        win.recent_list_widget.itemActivated.emit(item)
+        assert mock_open.call_count == 1
+
+
+def test_start_center_template_card_mouse_press(qtbot):
+    """Test TemplateCard triggers callback on LeftButton mouse press with QMouseEvent."""
+    from unittest.mock import MagicMock
+
+    from PySide6.QtCore import QPointF
+    from PySide6.QtGui import QMouseEvent
+
+    from atboffice.ui.shell.start_center import TemplateCard
+
+    mock_cb = MagicMock()
+    card = TemplateCard("Test", "Subtitle", "📄", mock_cb)
+    qtbot.addWidget(card)
+
+    left_event = QMouseEvent(
+        QMouseEvent.Type.MouseButtonPress,
+        QPointF(10.0, 10.0),
+        QPointF(10.0, 10.0),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    card.mousePressEvent(left_event)
+    mock_cb.assert_called_once()
 
 
 def test_start_center_settings_and_about(qtbot):

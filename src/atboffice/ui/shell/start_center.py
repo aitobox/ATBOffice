@@ -8,7 +8,13 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from PySide6.QtCore import QCoreApplication, QSize, Qt
-from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent, QFont
+from PySide6.QtGui import (
+    QDragEnterEvent,
+    QDragMoveEvent,
+    QDropEvent,
+    QFont,
+    QMouseEvent,
+)
 from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
@@ -201,7 +207,7 @@ class TemplateCard(QFrame):
         self.lbl_subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.lbl_subtitle)
 
-    def mousePressEvent(self, event) -> None:
+    def mousePressEvent(self, event: QMouseEvent) -> None:
         """Trigger template creation when clicked."""
         if event.button() == Qt.MouseButton.LeftButton:
             self.on_create()
@@ -473,7 +479,6 @@ class StartCenterWindow(BaseOfficeWindow):
             "QListWidget::item:selected { background: #EFF6FF; }"
         )
         self.recent_list_widget.itemActivated.connect(self._on_recent_item_activated)
-        self.recent_list_widget.itemDoubleClicked.connect(self._on_recent_item_activated)
         layout.addWidget(self.recent_list_widget, stretch=1)
 
         return page
@@ -860,3 +865,5 @@ class StartCenterWindow(BaseOfficeWindow):
             )
         if hasattr(self, "lbl_templates_title"):
             self.lbl_templates_title.setText(safe_tr("模板库与新建"))
+
+        self.refresh_recent_files()
