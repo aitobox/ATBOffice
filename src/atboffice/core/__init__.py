@@ -6,6 +6,7 @@ from atboffice.core.recent_files import (
     RecentFilesManager,
     RecentItem,
 )
+from atboffice.core.window_manager import WindowManager
 
 __all__ = [
     "ATBApplication",
@@ -13,5 +14,6 @@ __all__ = [
     "DEFAULT_STORAGE_PATH",
     "RecentFilesManager",
     "RecentItem",
+    "WindowManager",
 ]
 
