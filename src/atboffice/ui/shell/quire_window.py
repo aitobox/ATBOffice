@@ -61,12 +61,17 @@ class QuireWindow(BaseOfficeWindow):
         """Mark document as modified when content edits occur."""
         self.set_modified(True)
 
+    @property
+    def default_doc_name(self) -> str:
+        """Default document name for Quire documents."""
+        return safe_tr("未命名文档")
+
     def update_window_title(self) -> None:
         """Set window title according to active document and dirty flag."""
         doc_name = (
             self.current_file_path.name
             if self.current_file_path is not None
-            else safe_tr("未命名文档")
+            else self.default_doc_name
         )
         self.setWindowTitle(f"{doc_name} — {self.app_name} [*]")
 
@@ -204,10 +209,7 @@ class QuireWindow(BaseOfficeWindow):
         QMessageBox.about(
             self,
             safe_tr("关于 ATBOffice Quire"),
-            safe_tr(
-                "<h3>ATBOffice Quire</h3>"
-                "<p>经典 Word 2003 风格原生文字处理与排版引擎。</p>"
-            ),
+            safe_tr("<h3>ATBOffice Quire</h3><p>经典 Word 2003 风格原生文字处理与排版引擎。</p>"),
         )
 
     def retranslate_ui(self) -> None:

@@ -44,9 +44,7 @@ class LecternWindow(BaseOfficeWindow):
         self._setup_toolbars()
 
         # 4. Connect slide changes to dirty tracking
-        self.presentation_view.workspace.slide_changed.connect(
-            self._on_presentation_modified
-        )
+        self.presentation_view.workspace.slide_changed.connect(self._on_presentation_modified)
 
         # 5. Load file or set initial document title
         if file_path is not None:
@@ -62,12 +60,17 @@ class LecternWindow(BaseOfficeWindow):
         """Mark presentation as modified when slide content or layout changes."""
         self.set_modified(True)
 
+    @property
+    def default_doc_name(self) -> str:
+        """Default document name for Lectern presentations."""
+        return safe_tr("未命名演示文稿")
+
     def update_window_title(self) -> None:
         """Set window title according to active presentation and dirty flag."""
         doc_name = (
             self.current_file_path.name
             if self.current_file_path is not None
-            else safe_tr("未命名演示文稿")
+            else self.default_doc_name
         )
         self.setWindowTitle(f"{doc_name} — {self.app_name} [*]")
 

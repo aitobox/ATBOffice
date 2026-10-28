@@ -164,6 +164,7 @@ def test_ledger_window_cell_committed_transitions_modified(qtbot) -> None:
     assert win.is_modified is False
     win.spreadsheet_view.editor_controller.cell_committed.emit(0, 0, "Test Value")
     assert win.is_modified is True
+    win.set_modified(False)
 
 
 def test_mac_menu_bar_contextualization_by_app_type(qtbot) -> None:

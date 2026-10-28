@@ -65,9 +65,7 @@ class BaseOfficeWindow(QMainWindow):
 
         if hasattr(self, "menu_bar") and hasattr(self.menu_bar, "action_map"):
             if "theme_luna_blue" in self.menu_bar.action_map:
-                self.menu_bar.action_map["theme_luna_blue"].setChecked(
-                    self.current_theme == "blue"
-                )
+                self.menu_bar.action_map["theme_luna_blue"].setChecked(self.current_theme == "blue")
             if "theme_luna_silver" in self.menu_bar.action_map:
                 self.menu_bar.action_map["theme_luna_silver"].setChecked(
                     self.current_theme == "silver"
@@ -183,6 +181,11 @@ class BaseOfficeWindow(QMainWindow):
             ),
         )
 
+    @property
+    def default_doc_name(self) -> str:
+        """Default document name when no file is currently associated."""
+        return safe_tr("未命名文档")
+
     def maybe_save_prompt(self) -> bool:
         """Prompt to save unsaved modifications before navigating or closing."""
         if not self.is_modified:
@@ -191,14 +194,14 @@ class BaseOfficeWindow(QMainWindow):
         doc_name = (
             self.current_file_path.name
             if self.current_file_path is not None
-            else safe_tr("未命名文档")
+            else self.default_doc_name
         )
         res = QMessageBox.warning(
             self,
             self.app_name,
-            safe_tr(
-                "是否保存对“{name}”的更改？\n如果您不保存，所做的修改将会永久丢失。"
-            ).format(name=doc_name),
+            safe_tr("是否保存对“{name}”的更改？\n如果您不保存，所做的修改将会永久丢失。").format(
+                name=doc_name
+            ),
             QMessageBox.StandardButton.Save
             | QMessageBox.StandardButton.Discard
             | QMessageBox.StandardButton.Cancel,
@@ -221,11 +224,7 @@ class BaseOfficeWindow(QMainWindow):
         if file_path is None and self.current_file_path is None:
             return self.save_file_as()
 
-        target = (
-            Path(file_path).resolve()
-            if file_path is not None
-            else self.current_file_path
-        )
+        target = Path(file_path).resolve() if file_path is not None else self.current_file_path
         if target is None:
             return False
 
@@ -239,9 +238,7 @@ class BaseOfficeWindow(QMainWindow):
             QMessageBox.critical(
                 self,
                 safe_tr("保存失败"),
-                safe_tr("无法保存文件“{target}”：\n{exc}").format(
-                    target=target, exc=exc
-                ),
+                safe_tr("无法保存文件“{target}”：\n{exc}").format(target=target, exc=exc),
             )
             return False
 
@@ -251,11 +248,7 @@ class BaseOfficeWindow(QMainWindow):
 
     def save_file_as(self) -> bool:
         """Prompt user with standard file dialog to save document to a new path."""
-        default_path = (
-            str(self.current_file_path)
-            if self.current_file_path is not None
-            else ""
-        )
+        default_path = str(self.current_file_path) if self.current_file_path is not None else ""
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             safe_tr("另存为"),

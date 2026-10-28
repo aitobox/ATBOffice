@@ -21,6 +21,7 @@ def test_base_office_window_title_and_dirty(qtbot) -> None:
     win.current_file_path = Path("/tmp/sample.docx")
     win.update_window_title()
     assert "sample.docx" in win.windowTitle()
+    win.set_modified(False)
 
 
 def test_base_office_window_close_signal(qtbot) -> None:
@@ -84,6 +85,7 @@ def test_base_office_window_maybe_save_prompt_discard(qtbot, monkeypatch) -> Non
     assert win.maybe_save_prompt() is True
     # Remains modified (didn't save)
     assert win.is_modified is True
+    win.set_modified(False)
 
 
 def test_base_office_window_maybe_save_prompt_cancel(qtbot, monkeypatch) -> None:
@@ -96,11 +98,10 @@ def test_base_office_window_maybe_save_prompt_cancel(qtbot, monkeypatch) -> None
     )
 
     assert win.maybe_save_prompt() is False
+    win.set_modified(False)
 
 
-def test_base_office_window_close_event_ignored_on_cancel(
-    qtbot, monkeypatch
-) -> None:
+def test_base_office_window_close_event_ignored_on_cancel(qtbot, monkeypatch) -> None:
     win = BaseOfficeWindow()
     qtbot.addWidget(win)
     win.set_modified(True)
@@ -116,6 +117,7 @@ def test_base_office_window_close_event_ignored_on_cancel(
     win.closeEvent(ev)
     assert not ev.isAccepted()
     assert len(closed_signals) == 0
+    win.set_modified(False)
 
 
 def test_base_office_window_save_file_as_cancel(qtbot, monkeypatch) -> None:
@@ -125,17 +127,14 @@ def test_base_office_window_save_file_as_cancel(qtbot, monkeypatch) -> None:
 
     from PySide6.QtWidgets import QFileDialog
 
-    monkeypatch.setattr(
-        QFileDialog, "getSaveFileName", lambda *args, **kwargs: ("", "")
-    )
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *args, **kwargs: ("", ""))
 
     assert win.save_file() is False
     assert win.is_modified is True
+    win.set_modified(False)
 
 
-def test_base_office_window_save_file_as_success(
-    qtbot, monkeypatch, tmp_path: Path
-) -> None:
+def test_base_office_window_save_file_as_success(qtbot, monkeypatch, tmp_path: Path) -> None:
     win = BaseOfficeWindow()
     qtbot.addWidget(win)
     win.set_modified(True)
@@ -196,9 +195,7 @@ def test_base_office_window_custom_subclass(qtbot) -> None:
     assert "notes.docx — Quire [*]" in win.windowTitle()
 
 
-def test_base_office_window_save_failure_handling(
-    qtbot, monkeypatch, tmp_path: Path
-) -> None:
+def test_base_office_window_save_failure_handling(qtbot, monkeypatch, tmp_path: Path) -> None:
     win = BaseOfficeWindow()
     qtbot.addWidget(win)
     test_file = tmp_path / "protected.docx"
@@ -221,3 +218,4 @@ def test_base_office_window_save_failure_handling(
     assert win.save_file() is False
     assert len(critical_called) == 1
     assert win.is_modified is True
+    win.set_modified(False)

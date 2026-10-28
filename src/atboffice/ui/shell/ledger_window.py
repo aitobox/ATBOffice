@@ -50,15 +50,9 @@ class LedgerWindow(BaseOfficeWindow):
         self.setStatusBar(self.status_bar)
 
         # 5. Connect spreadsheet selection and mode signals to status bar & dirty hook
-        self.spreadsheet_view.selection.selection_changed.connect(
-            self._update_spreadsheet_status
-        )
-        self.spreadsheet_view.selection.active_cell_changed.connect(
-            self._update_spreadsheet_status
-        )
-        self.spreadsheet_view.editor_controller.mode_changed.connect(
-            self.status_bar.set_mode
-        )
+        self.spreadsheet_view.selection.selection_changed.connect(self._update_spreadsheet_status)
+        self.spreadsheet_view.selection.active_cell_changed.connect(self._update_spreadsheet_status)
+        self.spreadsheet_view.editor_controller.mode_changed.connect(self.status_bar.set_mode)
         self.spreadsheet_view.editor_controller.cell_committed.connect(
             lambda *_: self.set_modified(True)
         )
@@ -79,12 +73,17 @@ class LedgerWindow(BaseOfficeWindow):
             self.spreadsheet_view.model, self.spreadsheet_view.selection
         )
 
+    @property
+    def default_doc_name(self) -> str:
+        """Default document name for Ledger workbooks."""
+        return safe_tr("未命名工作簿")
+
     def update_window_title(self) -> None:
         """Set window title according to active workbook and dirty flag."""
         doc_name = (
             self.current_file_path.name
             if self.current_file_path is not None
-            else safe_tr("未命名工作簿")
+            else self.default_doc_name
         )
         self.setWindowTitle(f"{doc_name} — {self.app_name} [*]")
 
@@ -285,8 +284,7 @@ class LedgerWindow(BaseOfficeWindow):
             self,
             safe_tr("关于 ATBOffice Ledger"),
             safe_tr(
-                "<h3>ATBOffice Ledger</h3>"
-                "<p>经典 Excel 2003 风格跨平台原生电子表格与计算引擎。</p>"
+                "<h3>ATBOffice Ledger</h3><p>经典 Excel 2003 风格跨平台原生电子表格与计算引擎。</p>"
             ),
         )
 

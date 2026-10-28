@@ -154,6 +154,7 @@ class TestMainWindowLifecycle:
         close_event = QCloseEvent()
         window.closeEvent(close_event)
         assert not close_event.isAccepted()
+        window.set_modified(False)
 
     def test_close_event_modified_discard(self, qapp: ATBApplication, qtbot, monkeypatch) -> None:
         window = MainWindow()
@@ -181,4 +182,3 @@ class TestMainWindowLifecycle:
 
         exit_code = main_entry.main(["atboffice", str(test_file)], exec_app=False)
         assert exit_code == 0
-
