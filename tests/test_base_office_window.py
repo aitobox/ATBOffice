@@ -1,9 +1,7 @@
 """Tests for BaseOfficeWindow lifecycle, dirty state, theme, and prompts."""
 
 from pathlib import Path
-from unittest.mock import MagicMock
 
-import pytest
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QMessageBox
 
@@ -153,6 +151,28 @@ def test_base_office_window_save_file_as_success(
     assert win.is_modified is False
     assert win.current_file_path == target_file
     assert target_file.exists()
+
+
+def test_base_office_window_save_file_as_prepopulates_path(
+    qtbot, monkeypatch, tmp_path: Path
+) -> None:
+    win = BaseOfficeWindow()
+    qtbot.addWidget(win)
+    existing_file = tmp_path / "existing.docx"
+    win.current_file_path = existing_file
+
+    from PySide6.QtWidgets import QFileDialog
+
+    passed_paths: list[str] = []
+
+    def fake_get_save_file_name(parent, title, default_path, filter_str):
+        passed_paths.append(default_path)
+        return (str(tmp_path / "new_name.docx"), "")
+
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", fake_get_save_file_name)
+
+    assert win.save_file_as() is True
+    assert passed_paths == [str(existing_file)]
 
 
 def test_base_office_window_retranslate_ui(qtbot) -> None:

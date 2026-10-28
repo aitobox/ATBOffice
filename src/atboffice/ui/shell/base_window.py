@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from PySide6.QtCore import QCoreApplication, Signal
 from PySide6.QtGui import QCloseEvent
@@ -71,8 +70,8 @@ class BaseOfficeWindow(QMainWindow):
             self,
             self.app_name,
             safe_tr(
-                f"是否保存对“{doc_name}”的更改？\n如果您不保存，所做的修改将会永久丢失。"
-            ),
+                "是否保存对“{name}”的更改？\n如果您不保存，所做的修改将会永久丢失。"
+            ).format(name=doc_name),
             QMessageBox.StandardButton.Save
             | QMessageBox.StandardButton.Discard
             | QMessageBox.StandardButton.Cancel,
@@ -113,7 +112,9 @@ class BaseOfficeWindow(QMainWindow):
             QMessageBox.critical(
                 self,
                 safe_tr("保存失败"),
-                safe_tr(f"无法保存文件“{target}”：\n{exc}"),
+                safe_tr("无法保存文件“{target}”：\n{exc}").format(
+                    target=target, exc=exc
+                ),
             )
             return False
 
@@ -123,15 +124,15 @@ class BaseOfficeWindow(QMainWindow):
 
     def save_file_as(self) -> bool:
         """Prompt user with standard file dialog to save document to a new path."""
-        default_dir = (
-            str(self.current_file_path.parent)
+        default_path = (
+            str(self.current_file_path)
             if self.current_file_path is not None
             else ""
         )
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             safe_tr("另存为"),
-            default_dir,
+            default_path,
             self.get_file_filter(),
         )
         if file_path:
