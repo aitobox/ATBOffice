@@ -22,6 +22,9 @@ dev = [
 
 [project.scripts]
 atboffice = "atboffice.__main__:main"
+atboffice-quire = "atboffice.__main__:main_quire"
+atboffice-ledger = "atboffice.__main__:main_ledger"
+atboffice-lectern = "atboffice.__main__:main_lectern"
 
 [tool.setuptools.packages.find]
 where = ["src"]
