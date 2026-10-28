@@ -244,6 +244,8 @@ def test_window_manager_quit_application_cancelled_by_dirty_window(qtbot):
             # Windows must remain intact
             assert len(mgr.active_windows) == 2
 
+    w1.set_modified(False)
+
 
 def test_window_manager_quit_application_discard_dirty_window(qtbot):
     """quit_application proceeds if user discards changes on dirty window."""
