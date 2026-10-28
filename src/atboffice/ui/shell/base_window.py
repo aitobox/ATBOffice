@@ -28,6 +28,8 @@ class BaseOfficeWindow(QMainWindow):
         self.current_theme: str = "blue"
         if not hasattr(self, "app_name"):
             self.app_name: str = "ATBOffice"
+        if not hasattr(self, "app_type"):
+            self.app_type: str = "generic"
 
         self.update_window_title()
         self.apply_theme(self.current_theme)

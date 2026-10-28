@@ -114,6 +114,24 @@ def test_window_manager_multiple_windows_lifecycle(qtbot):
     assert sc.isVisible()
 
 
+def test_window_manager_unregister_unknown_window_guard(qtbot):
+    """Unregistering a window that was never active should not resurrect Start Center."""
+    mgr = WindowManager()
+
+    sc = BaseOfficeWindow()
+    qtbot.addWidget(sc)
+    mgr._start_center = sc
+    sc.hide()
+
+    unknown = BaseOfficeWindow()
+    qtbot.addWidget(unknown)
+
+    assert len(mgr.active_windows) == 0
+    # Unregister unknown window should not trigger show_start_center
+    mgr.unregister_window(unknown)
+    assert not sc.isVisible()
+
+
 def test_window_manager_signal_connection_on_window_closed(qtbot):
     """Window closeEvent triggers window_closed signal and unregisters."""
     mgr = WindowManager()

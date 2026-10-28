@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 import time
-import pytest
+from pathlib import Path
 
 from atboffice.core.recent_files import (
     DEFAULT_STORAGE_PATH,
     RecentFilesManager,
-    RecentItem,
 )
 
 

@@ -18,6 +18,8 @@ class TestATBApplication:
         assert hasattr(qapp, "register_main_window")
 
     def test_file_open_event_dispatch_and_queue(self, qapp: ATBApplication) -> None:
+        qapp.register_main_window(None)
+        qapp._pending_files.clear()
         received_files: list[str] = []
         qapp.file_open_requested.connect(received_files.append)
 

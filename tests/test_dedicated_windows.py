@@ -154,3 +154,70 @@ def test_shell_exports() -> None:
     assert shell.QuireWindow is QuireWindow
     assert shell.LedgerWindow is LedgerWindow
     assert shell.LecternWindow is LecternWindow
+
+
+def test_ledger_window_cell_committed_transitions_modified(qtbot) -> None:
+    """Test emitting cell_committed transitions is_modified to True."""
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    assert win.is_modified is False
+    win.spreadsheet_view.editor_controller.cell_committed.emit(0, 0, "Test Value")
+    assert win.is_modified is True
+
+
+def test_mac_menu_bar_contextualization_by_app_type(qtbot) -> None:
+    """Verify MacMenuBar actions and visibility are contextualized by app type."""
+    from atboffice.ui.shell.mac_menu import MacMenuBar
+    from atboffice.ui.shell.start_center import StartCenterWindow
+
+    quire = QuireWindow()
+    ledger = LedgerWindow()
+    lectern = LecternWindow()
+    start_center = StartCenterWindow()
+    generic_menu = MacMenuBar(app_type="generic")
+
+    qtbot.addWidget(quire)
+    qtbot.addWidget(ledger)
+    qtbot.addWidget(lectern)
+    qtbot.addWidget(start_center)
+
+    # 1. Quire Window
+    assert quire.app_type == "quire"
+    q_actions = quire.menu_bar.action_map
+    assert q_actions["file_new"].text() == "新建文档"
+    assert q_actions["file_save"].text() == "保存当前文档"
+    assert q_actions["file_close"].text() == "关闭文档"
+    assert q_actions["edit_format_cells"].isVisible() is False
+
+    # 2. Ledger Window
+    assert ledger.app_type == "ledger"
+    l_actions = ledger.menu_bar.action_map
+    assert l_actions["file_new"].text() == "新建工作簿"
+    assert l_actions["file_save"].text() == "保存当前工作簿"
+    assert l_actions["file_close"].text() == "关闭工作簿"
+    assert l_actions["edit_format_cells"].isVisible() is True
+    assert l_actions["edit_format_cells"].text() == "设置单元格格式…"
+
+    # 3. Lectern Window
+    assert lectern.app_type == "lectern"
+    lec_actions = lectern.menu_bar.action_map
+    assert lec_actions["file_new"].text() == "新建演示文稿"
+    assert lec_actions["file_save"].text() == "保存当前演示文稿"
+    assert lec_actions["file_close"].text() == "关闭演示文稿"
+    assert lec_actions["edit_format_cells"].isVisible() is False
+
+    # 4. StartCenter Window
+    assert start_center.app_type == "start_center"
+    sc_actions = start_center.menu_bar.action_map
+    assert sc_actions["file_new"].text() == "新建"
+    assert sc_actions["file_save"].text() == "保存"
+    assert sc_actions["file_close"].text() == "关闭"
+    assert sc_actions["edit_format_cells"].isVisible() is False
+
+    # 5. Generic standalone menu bar
+    gen_actions = generic_menu.action_map
+    assert gen_actions["file_new"].text() == "新建"
+    assert gen_actions["file_save"].text() == "保存"
+    assert gen_actions["file_close"].text() == "关闭"
+    assert gen_actions["edit_format_cells"].isVisible() is False

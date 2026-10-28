@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
 import tempfile
 import time
+from pathlib import Path
 from typing import Any, NamedTuple
 
 logger = logging.getLogger(__name__)
@@ -76,7 +76,8 @@ class RecentFilesManager:
         """Initialize the recent files manager.
 
         Args:
-            storage_path: JSON file path for persistence. Defaults to ~/.atboffice/recent_files.json.
+            storage_path: JSON file path for persistence.
+                Defaults to ~/.atboffice/recent_files.json.
             max_items: Maximum number of recent files to retain (FIFO eviction).
         """
         if storage_path is not None:
@@ -160,7 +161,7 @@ class RecentFilesManager:
             return
 
         try:
-            with open(self.storage_path, "r", encoding="utf-8") as f:
+            with open(self.storage_path, encoding="utf-8") as f:
                 data = json.load(f)
 
             if not isinstance(data, list):

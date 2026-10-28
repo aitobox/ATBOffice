@@ -149,14 +149,15 @@ class WindowManager(QObject):
         Args:
             win: Window instance being closed.
         """
-        if win in self._active_windows:
+        was_active = win in self._active_windows
+        if was_active:
             self._active_windows.remove(win)
             try:
                 win.window_closed.disconnect(self.unregister_window)
             except (TypeError, RuntimeError):
                 pass
 
-        if not self._is_quitting and len(self._active_windows) == 0:
+        if was_active and not self._is_quitting and len(self._active_windows) == 0:
             self.show_start_center()
 
     def open_quire(self, path: str | Path | None = None) -> BaseOfficeWindow:

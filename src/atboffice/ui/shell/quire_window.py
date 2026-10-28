@@ -28,6 +28,7 @@ class QuireWindow(BaseOfficeWindow):
         parent: QWidget | None = None,
     ) -> None:
         self.app_name = "ATBOffice Quire"
+        self.app_type = "quire"
         super().__init__(parent)
         self.resize(1100, 750)
 

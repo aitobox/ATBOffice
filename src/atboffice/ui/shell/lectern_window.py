@@ -28,6 +28,7 @@ class LecternWindow(BaseOfficeWindow):
         parent: QWidget | None = None,
     ) -> None:
         self.app_name = "ATBOffice Lectern"
+        self.app_type = "lectern"
         super().__init__(parent)
         self.resize(1100, 720)
 

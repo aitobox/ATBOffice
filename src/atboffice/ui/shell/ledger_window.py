@@ -30,6 +30,7 @@ class LedgerWindow(BaseOfficeWindow):
         parent: QWidget | None = None,
     ) -> None:
         self.app_name = "ATBOffice Ledger"
+        self.app_type = "ledger"
         super().__init__(parent)
         self.resize(1100, 720)
 
@@ -48,7 +49,7 @@ class LedgerWindow(BaseOfficeWindow):
         self.status_bar = StatusBar(self)
         self.setStatusBar(self.status_bar)
 
-        # 5. Connect spreadsheet selection and mode signals to status bar
+        # 5. Connect spreadsheet selection and mode signals to status bar & dirty hook
         self.spreadsheet_view.selection.selection_changed.connect(
             self._update_spreadsheet_status
         )
@@ -57,6 +58,9 @@ class LedgerWindow(BaseOfficeWindow):
         )
         self.spreadsheet_view.editor_controller.mode_changed.connect(
             self.status_bar.set_mode
+        )
+        self.spreadsheet_view.editor_controller.cell_committed.connect(
+            lambda *_: self.set_modified(True)
         )
 
         # 6. Load file or set initial document title

@@ -20,16 +20,40 @@ def safe_tr(text: str) -> str:
 class MacMenuBar(QMenuBar):
     """System menu bar adhering to Apple Human Interface Guidelines."""
 
-    def __init__(self, parent: QMainWindow | None = None) -> None:
+    def __init__(
+        self,
+        parent: QMainWindow | None = None,
+        app_type: str = "generic",
+    ) -> None:
         super().__init__(parent)
         self.setNativeMenuBar(True)
 
+        if app_type != "generic":
+            self.app_type = app_type
+        else:
+            self.app_type = getattr(parent, "app_type", "generic")
+
         self.action_map: dict[str, QAction] = {}
         self.menu_map: dict[str, QMenu] = {}
+        self.sep_format_cells: QAction | None = None
 
         self._build_menus()
         self.retranslate_ui()
         self._bind_window_slots(parent)
+
+    def _update_format_cells_visibility(self) -> None:
+        """Update visibility of format cells action and separator based on app context."""
+        is_ledger = self.app_type == "ledger"
+        if "edit_format_cells" in self.action_map:
+            self.action_map["edit_format_cells"].setVisible(is_ledger)
+        if self.sep_format_cells is not None:
+            self.sep_format_cells.setVisible(is_ledger)
+
+    def set_app_type(self, app_type: str) -> None:
+        """Switch application context dynamically and update labels/visibility."""
+        self.app_type = app_type
+        self._update_format_cells_visibility()
+        self.retranslate_ui()
 
     def _build_menus(self) -> None:
         """Create menu hierarchy and register standard actions."""
@@ -77,10 +101,11 @@ class MacMenuBar(QMenuBar):
         self.action_map["edit_paste"] = menu_edit.addAction("")
         self.action_map["edit_paste"].setShortcut(QKeySequence.StandardKey.Paste)
 
-        menu_edit.addSeparator()
+        self.sep_format_cells = menu_edit.addSeparator()
 
         self.action_map["edit_format_cells"] = menu_edit.addAction("")
         self.action_map["edit_format_cells"].setShortcut(QKeySequence("Ctrl+1"))
+        self._update_format_cells_visibility()
 
         # 3. View Menu
         menu_view = self.addMenu("")
@@ -184,6 +209,8 @@ class MacMenuBar(QMenuBar):
 
     def retranslate_ui(self) -> None:
         """Translate all menus and actions dynamically."""
+        self._update_format_cells_visibility()
+
         if "file" in self.menu_map:
             self.menu_map["file"].setTitle(safe_tr("文件"))
         if "edit" in self.menu_map:
@@ -197,25 +224,42 @@ class MacMenuBar(QMenuBar):
         if "help" in self.menu_map:
             self.menu_map["help"].setTitle(safe_tr("帮助"))
 
+        if self.app_type == "quire":
+            new_text, new_tip = safe_tr("新建文档"), safe_tr("创建空白文档")
+            save_text, save_tip = safe_tr("保存当前文档"), safe_tr("保存当前文本文档")
+            close_text, close_tip = safe_tr("关闭文档"), safe_tr("关闭当前文档窗口")
+        elif self.app_type == "ledger":
+            new_text, new_tip = safe_tr("新建工作簿"), safe_tr("创建空白工作簿")
+            save_text, save_tip = safe_tr("保存当前工作簿"), safe_tr("保存当前电子表格")
+            close_text, close_tip = safe_tr("关闭工作簿"), safe_tr("关闭当前工作簿窗口")
+        elif self.app_type == "lectern":
+            new_text, new_tip = safe_tr("新建演示文稿"), safe_tr("创建空白演示文稿")
+            save_text, save_tip = safe_tr("保存当前演示文稿"), safe_tr("保存当前幻灯片演示")
+            close_text, close_tip = safe_tr("关闭演示文稿"), safe_tr("关闭当前演示窗口")
+        else:
+            new_text, new_tip = safe_tr("新建"), safe_tr("创建新文件")
+            save_text, save_tip = safe_tr("保存"), safe_tr("保存当前文件")
+            close_text, close_tip = safe_tr("关闭"), safe_tr("关闭当前窗口")
+
         translations: dict[str, tuple[str, str]] = {
-            "file_new": (safe_tr("新建工作簿"), safe_tr("创建空白工作簿")),
-            "file_open": (safe_tr("打开…"), safe_tr("打开现有工作簿文档")),
-            "file_save": (safe_tr("保存"), safe_tr("保存当前工作簿")),
-            "file_save_as": (safe_tr("另存为…"), safe_tr("将当前工作簿保存到新路径")),
-            "file_close": (safe_tr("关闭窗口"), safe_tr("关闭当前工作窗口")),
+            "file_new": (new_text, new_tip),
+            "file_open": (safe_tr("打开…"), safe_tr("打开现有文档或文件")),
+            "file_save": (save_text, save_tip),
+            "file_save_as": (safe_tr("另存为…"), safe_tr("将当前文件保存到新路径")),
+            "file_close": (close_text, close_tip),
             "edit_undo": (safe_tr("撤销"), safe_tr("撤销上一步操作")),
             "edit_redo": (safe_tr("重做"), safe_tr("恢复撤销的操作")),
-            "edit_cut": (safe_tr("剪切"), safe_tr("剪切选中单元格或内容")),
-            "edit_copy": (safe_tr("复制"), safe_tr("复制选中单元格或内容")),
+            "edit_cut": (safe_tr("剪切"), safe_tr("剪切选中内容")),
+            "edit_copy": (safe_tr("复制"), safe_tr("复制选中内容")),
             "edit_paste": (safe_tr("粘贴"), safe_tr("粘贴剪贴板内容")),
             "edit_format_cells": (
                 safe_tr("设置单元格格式…"),
                 safe_tr("打开单元格格式设置对话框"),
             ),
             "view_fullscreen": (safe_tr("全屏切换"), safe_tr("进入或退出全屏模式")),
-            "view_zoom_in": (safe_tr("放大"), safe_tr("放大工作表视图")),
-            "view_zoom_out": (safe_tr("缩小"), safe_tr("缩小工作表视图")),
-            "view_zoom_reset": (safe_tr("实际大小"), safe_tr("重置工作表视图比例")),
+            "view_zoom_in": (safe_tr("放大"), safe_tr("放大视图")),
+            "view_zoom_out": (safe_tr("缩小"), safe_tr("缩小视图")),
+            "view_zoom_reset": (safe_tr("实际大小"), safe_tr("重置视图比例")),
             "theme_luna_blue": (
                 safe_tr("Office 2003 经典蓝"),
                 safe_tr("切换为经典 Luna 蓝色视觉风格"),
@@ -242,8 +286,8 @@ class MacMenuBar(QMenuBar):
                 action.setStatusTip(tooltip)
 
 
-def setup_mac_menu(window: QMainWindow) -> MacMenuBar:
+def setup_mac_menu(window: QMainWindow, app_type: str = "generic") -> MacMenuBar:
     """Configure native macOS menu bar on the given window."""
-    menu_bar = MacMenuBar(window)
+    menu_bar = MacMenuBar(window, app_type=app_type)
     window.setMenuBar(menu_bar)
     return menu_bar

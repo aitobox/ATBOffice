@@ -219,6 +219,7 @@ class StartCenterWindow(BaseOfficeWindow):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         self.app_name = "ATBOffice"
+        self.app_type = "start_center"
         super().__init__(parent)
         self.resize(1000, 680)
         self.setMinimumSize(800, 520)
