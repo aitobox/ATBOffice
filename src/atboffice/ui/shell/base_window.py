@@ -56,6 +56,131 @@ class BaseOfficeWindow(QMainWindow):
         self.current_theme = theme_name
         apply_luna_theme(self, theme_name)
 
+    def set_theme(self, theme: str) -> None:
+        """Switch active Office 2003 Luna theme ('blue' or 'silver')."""
+        self.current_theme = theme.lower()
+        self.apply_theme(self.current_theme)
+
+        if hasattr(self, "menu_bar") and hasattr(self.menu_bar, "action_map"):
+            if "theme_luna_blue" in self.menu_bar.action_map:
+                self.menu_bar.action_map["theme_luna_blue"].setChecked(
+                    self.current_theme == "blue"
+                )
+            if "theme_luna_silver" in self.menu_bar.action_map:
+                self.menu_bar.action_map["theme_luna_silver"].setChecked(
+                    self.current_theme == "silver"
+                )
+
+    def new_file(self) -> bool:
+        """Create a new blank document, prompting to save changes if modified."""
+        if not self.maybe_save_prompt():
+            return False
+        self.current_file_path = None
+        self.set_modified(False)
+        self.update_window_title()
+        return True
+
+    def open_file_dialog(self) -> bool:
+        """Present standard file dialog to select and open a document."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            safe_tr("打开文档"),
+            "",
+            self.get_file_filter(),
+        )
+        if file_path:
+            return self.open_file(file_path)
+        return False
+
+    def open_file(self, file_path: str | Path) -> bool:
+        """Open a file from the specified path, prompting to save if dirty."""
+        if not self.maybe_save_prompt():
+            return False
+
+        path = Path(file_path).resolve()
+        if not path.exists():
+            QMessageBox.critical(
+                self,
+                safe_tr("打开失败"),
+                safe_tr("找不到指定的文件：{path}").format(path=path),
+            )
+            return False
+
+        self.current_file_path = path
+        self.set_modified(False)
+        self.update_window_title()
+
+        try:
+            from atboffice.core.window_manager import WindowManager
+
+            wm = WindowManager.get_instance()
+            app_type = wm.detect_app_type(path)
+            wm.recent_files.add_file(path, app_type)
+        except Exception:
+            pass
+
+        return True
+
+    def toggle_fullscreen(self) -> None:
+        """Toggle fullscreen mode."""
+        if self.isFullScreen():
+            self.showNormal()
+        else:
+            self.showFullScreen()
+
+    def toggle_maximized(self) -> None:
+        """Toggle maximized window mode."""
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
+
+    def undo(self) -> None:
+        """Undo last action placeholder."""
+        pass
+
+    def redo(self) -> None:
+        """Redo last action placeholder."""
+        pass
+
+    def cut(self) -> None:
+        """Cut selection placeholder."""
+        pass
+
+    def copy(self) -> None:
+        """Copy selection placeholder."""
+        pass
+
+    def paste(self) -> None:
+        """Paste selection placeholder."""
+        pass
+
+    def zoom_in(self) -> None:
+        """Zoom in placeholder."""
+        pass
+
+    def zoom_out(self) -> None:
+        """Zoom out placeholder."""
+        pass
+
+    def zoom_reset(self) -> None:
+        """Zoom reset placeholder."""
+        pass
+
+    def show_help(self) -> None:
+        """Display help documentation placeholder."""
+        pass
+
+    def show_about(self) -> None:
+        """Display application about dialog."""
+        QMessageBox.about(
+            self,
+            safe_tr("关于 {app_name}").format(app_name=self.app_name),
+            safe_tr("<h3>{app_name}</h3><p>ATBOffice 原生办公套件。</p>").format(
+                app_name=self.app_name
+            ),
+        )
+
     def maybe_save_prompt(self) -> bool:
         """Prompt to save unsaved modifications before navigating or closing."""
         if not self.is_modified:
