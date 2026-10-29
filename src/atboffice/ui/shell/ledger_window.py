@@ -5,14 +5,19 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication
+from PySide6.QtCore import QCoreApplication, Qt
 from PySide6.QtWidgets import QMessageBox, QWidget
 
+from atboffice.core.action_registry import ActionRegistry
 from atboffice.modules.spreadsheet.view import SpreadsheetView
 from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.status_bar import StatusBar
 from atboffice.ui.components.toolbar import OfficeToolBar
 from atboffice.ui.shell.base_window import BaseOfficeWindow
+from atboffice.ui.shell.ledger_toolbars import (
+    build_ledger_toolbars,
+    retranslate_ledger_toolbars,
+)
 from atboffice.ui.shell.mac_menu import MacMenuBar, setup_mac_menu
 
 
@@ -34,22 +39,26 @@ class LedgerWindow(BaseOfficeWindow):
         super().__init__(parent)
         self.resize(1100, 720)
 
-        # 1. Embed SpreadsheetView
+        # 1. Action Registry command bus
+        self.action_registry = ActionRegistry(self)
+        self._bind_action_handlers()
+
+        # 2. Embed SpreadsheetView
         self.spreadsheet_view = SpreadsheetView(parent=self)
         self.setCentralWidget(self.spreadsheet_view)
         self.formula_bar = self.spreadsheet_view.formula_bar
 
-        # 2. Setup native macOS menu bar
+        # 3. Setup native macOS menu bar
         self.menu_bar: MacMenuBar = setup_mac_menu(self)
 
-        # 3. Setup Office 2003 Luna toolbars
+        # 4. Setup Office 2003 Luna toolbars
         self._setup_toolbars()
 
-        # 4. Setup AutoCalculate status bar
+        # 5. Setup AutoCalculate status bar
         self.status_bar = StatusBar(self)
         self.setStatusBar(self.status_bar)
 
-        # 5. Connect spreadsheet selection and mode signals to status bar & dirty hook
+        # 6. Connect spreadsheet selection and mode signals to status bar & dirty hook
         self.spreadsheet_view.selection.selection_changed.connect(self._update_spreadsheet_status)
         self.spreadsheet_view.selection.active_cell_changed.connect(self._update_spreadsheet_status)
         self.spreadsheet_view.editor_controller.mode_changed.connect(self.status_bar.set_mode)
@@ -57,7 +66,7 @@ class LedgerWindow(BaseOfficeWindow):
             lambda *_: self.set_modified(True)
         )
 
-        # 6. Load file or set initial document title
+        # 7. Load file or set initial document title
         if file_path is not None:
             resolved = Path(file_path).resolve()
             self.current_file_path = resolved
@@ -67,11 +76,27 @@ class LedgerWindow(BaseOfficeWindow):
 
         self.set_modified(False)
 
+    def _bind_action_handlers(self) -> None:
+        """Bind window callbacks to core action IDs in ActionRegistry."""
+        self.action_registry.set_handler("new", self.new_file)
+        self.action_registry.set_handler("open", self.open_file_dialog)
+        self.action_registry.set_handler("save", self.save_file)
+        self.action_registry.set_handler("cut", self.cut)
+        self.action_registry.set_handler("copy", self.copy)
+        self.action_registry.set_handler("paste", self.paste)
+        self.action_registry.set_handler("undo", self.undo)
+        self.action_registry.set_handler("redo", self.redo)
+        self.action_registry.set_handler("bold", self._toggle_bold)
+        self.action_registry.set_handler("italic", self._toggle_italic)
+        self.action_registry.set_handler("underline", self._toggle_underline)
+        self.action_registry.set_handler("format_cells", self.format_cells)
+
     def _update_spreadsheet_status(self, *_: Any) -> None:
-        """Forward spreadsheet selection updates to the status bar."""
+        """Forward spreadsheet selection updates to the status bar and context toolbars."""
         self.status_bar.update_calculation(
             self.spreadsheet_view.model, self.spreadsheet_view.selection
         )
+        self.update_context_toolbars({})
 
     @property
     def default_doc_name(self) -> str:
@@ -104,94 +129,85 @@ class LedgerWindow(BaseOfficeWindow):
         return True
 
     def _setup_toolbars(self) -> None:
-        """Initialize Excel 2003 Luna Standard and Formatting toolbars."""
-        # 1. Standard Toolbar
-        self.toolbar_standard = OfficeToolBar(safe_tr("常用"), self)
-        self.addToolBar(self.toolbar_standard)
-
-        self.toolbar_standard.add_office_action(
-            safe_tr("新建(&N)"),
-            tooltip=safe_tr("新建空白工作簿 (Ctrl+N)"),
-            callback=self.new_file,
-        )
-        self.toolbar_standard.add_office_action(
-            safe_tr("打开(&O)..."),
-            tooltip=safe_tr("打开工作簿 (Ctrl+O)"),
-            callback=self.open_file_dialog,
-        )
-        self.toolbar_standard.add_office_action(
-            safe_tr("保存(&S)"),
-            tooltip=safe_tr("保存工作簿 (Ctrl+S)"),
-            callback=self.save_file,
-        )
-        self.toolbar_standard.add_office_separator()
-        self.toolbar_standard.add_office_action(
-            safe_tr("剪切(&T)"),
-            tooltip=safe_tr("剪切 (Ctrl+X)"),
-            callback=self.cut,
-        )
-        self.toolbar_standard.add_office_action(
-            safe_tr("复制(&C)"),
-            tooltip=safe_tr("复制 (Ctrl+C)"),
-            callback=self.copy,
-        )
-        self.toolbar_standard.add_office_action(
-            safe_tr("粘贴(&P)"),
-            tooltip=safe_tr("粘贴 (Ctrl+V)"),
-            callback=self.paste,
-        )
-        self.toolbar_standard.add_office_separator()
-        self.toolbar_standard.add_office_action(
-            safe_tr("撤销(&U)"),
-            tooltip=safe_tr("撤销 (Ctrl+Z)"),
-            callback=self.undo,
-        )
-        self.toolbar_standard.add_office_action(
-            safe_tr("重做(&R)"),
-            tooltip=safe_tr("重做 (Ctrl+Y)"),
-            callback=self.redo,
+        """Initialize Excel 2003 Luna 8 toolbars cluster."""
+        self.toolbars: dict[str, OfficeToolBar] = build_ledger_toolbars(
+            self, self.action_registry
         )
 
-        # 2. Formatting Toolbar
-        self.toolbar_formatting = OfficeToolBar(safe_tr("格式"), self)
-        self.addToolBar(self.toolbar_formatting)
+        # Bottom toolbar: Drawing
+        self.addToolBar(Qt.ToolBarArea.BottomToolBarArea, self.toolbars["drawing"])
 
-        self.act_bold = self.toolbar_formatting.add_office_action(
-            safe_tr("加粗(&B)"),
-            tooltip=safe_tr("加粗 (Ctrl+B)"),
-            callback=self._toggle_bold,
-            checkable=True,
-        )
-        self.act_italic = self.toolbar_formatting.add_office_action(
-            safe_tr("倾斜(&I)"),
-            tooltip=safe_tr("倾斜 (Ctrl+I)"),
-            callback=self._toggle_italic,
-            checkable=True,
-        )
-        self.act_underline = self.toolbar_formatting.add_office_action(
-            safe_tr("下划线(&U)"),
-            tooltip=safe_tr("下划线 (Ctrl+U)"),
-            callback=self._toggle_underline,
-            checkable=True,
-        )
-        self.toolbar_formatting.add_office_separator()
+        # Top toolbars in standard display order
+        for name in [
+            "standard",
+            "formatting",
+            "borders",
+            "auditing",
+            "reviewing",
+            "list",
+            "chart",
+        ]:
+            if name in self.toolbars:
+                self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.toolbars[name])
 
-        # Color Pickers
-        self.btn_font_color = ColorPickerButton(
-            mode="font", default_color="#000000", parent=self.toolbar_formatting
-        )
-        self.btn_font_color.setToolTip(safe_tr("字体颜色"))
-        self.btn_font_color.setStatusTip(safe_tr("更改文本字体颜色"))
-        self.btn_font_color.color_applied.connect(self._apply_font_color)
-        self.toolbar_formatting.addWidget(self.btn_font_color)
+        # Backward compatibility aliases
+        self.toolbar_standard = self.toolbars["standard"]
+        self.toolbar_formatting = self.toolbars["formatting"]
+        self.act_bold = self.action_registry.get_action("bold")
+        self.act_italic = self.action_registry.get_action("italic")
+        self.act_underline = self.action_registry.get_action("underline")
 
-        self.btn_fill_color = ColorPickerButton(
-            mode="fill", default_color="#FFFF00", parent=self.toolbar_formatting
-        )
-        self.btn_fill_color.setToolTip(safe_tr("填充颜色"))
-        self.btn_fill_color.setStatusTip(safe_tr("更改单元格背景颜色"))
-        self.btn_fill_color.color_applied.connect(self._apply_fill_color)
-        self.toolbar_formatting.addWidget(self.btn_fill_color)
+        # Color picker compatibility references
+        for cp in self.toolbars["formatting"].findChildren(ColorPickerButton):
+            if cp.mode == "font":
+                self.btn_font_color = cp
+                self.btn_font_color.color_applied.connect(self._apply_font_color)
+            elif cp.mode == "fill":
+                self.btn_fill_color = cp
+                self.btn_fill_color.color_applied.connect(self._apply_fill_color)
+
+        # Default display modes for all 8 toolbars
+        self.toolbar_modes: dict[str, bool | str] = {
+            "standard": True,
+            "formatting": True,
+            "drawing": False,
+            "borders": False,
+            "auditing": False,
+            "reviewing": False,
+            "list": "auto",
+            "chart": "auto",
+        }
+
+        # Apply initial contextual visibility
+        self.update_context_toolbars({})
+
+    def set_toolbar_mode(self, name: str, mode: bool | str) -> None:
+        """Set toolbar visibility mode: True, False, or 'auto'."""
+        self.toolbar_modes[name] = mode
+        if isinstance(mode, bool) and name in self.toolbars:
+            self.toolbars[name].setVisible(mode)
+
+    def update_context_toolbars(self, context: dict[str, Any] | None = None) -> None:
+        """Update contextual toolbar visibility based on selection and document state."""
+        ctx = context or {}
+        for name, mode in self.toolbar_modes.items():
+            tb = self.toolbars.get(name)
+            if tb is None:
+                continue
+
+            if mode is True:
+                target_visible = True
+            elif mode is False:
+                target_visible = False
+            else:  # "auto"
+                if name == "chart":
+                    target_visible = bool(ctx.get("is_chart"))
+                elif name == "list":
+                    target_visible = bool(ctx.get("in_table"))
+                else:
+                    target_visible = False
+
+            tb.setVisible(target_visible)
 
     def _get_selected_cell_range(self) -> tuple[int, int, int, int]:
         sel = self.spreadsheet_view.selection
@@ -212,7 +228,8 @@ class LedgerWindow(BaseOfficeWindow):
                 cell.bold = new_val
                 model.set_cell(r, c, cell)
         self.spreadsheet_view.grid.viewport().update()
-        self.act_bold.setChecked(new_val)
+        if self.act_bold:
+            self.act_bold.setChecked(new_val)
         self.set_modified(True)
 
     def _toggle_italic(self) -> None:
@@ -227,7 +244,8 @@ class LedgerWindow(BaseOfficeWindow):
                 cell.italic = new_val
                 model.set_cell(r, c, cell)
         self.spreadsheet_view.grid.viewport().update()
-        self.act_italic.setChecked(new_val)
+        if self.act_italic:
+            self.act_italic.setChecked(new_val)
         self.set_modified(True)
 
     def _toggle_underline(self) -> None:
@@ -242,7 +260,8 @@ class LedgerWindow(BaseOfficeWindow):
                 cell.underline = new_val
                 model.set_cell(r, c, cell)
         self.spreadsheet_view.grid.viewport().update()
-        self.act_underline.setChecked(new_val)
+        if self.act_underline:
+            self.act_underline.setChecked(new_val)
         self.set_modified(True)
 
     def _apply_font_color(self, color: str) -> None:
@@ -291,17 +310,15 @@ class LedgerWindow(BaseOfficeWindow):
     def retranslate_ui(self) -> None:
         """Update localized UI strings when application language changes."""
         super().retranslate_ui()
-        if hasattr(self, "toolbar_standard"):
-            self.toolbar_standard.setWindowTitle(safe_tr("常用"))
-        if hasattr(self, "toolbar_formatting"):
-            self.toolbar_formatting.setWindowTitle(safe_tr("格式"))
-        if hasattr(self, "btn_font_color"):
+        if hasattr(self, "toolbars") and self.toolbars:
+            retranslate_ledger_toolbars(self.toolbars, safe_tr)
+        if hasattr(self, "btn_font_color") and self.btn_font_color:
             self.btn_font_color.setToolTip(safe_tr("字体颜色"))
             self.btn_font_color.setStatusTip(safe_tr("更改文本字体颜色"))
-        if hasattr(self, "btn_fill_color"):
+        if hasattr(self, "btn_fill_color") and self.btn_fill_color:
             self.btn_fill_color.setToolTip(safe_tr("填充颜色"))
             self.btn_fill_color.setStatusTip(safe_tr("更改单元格背景颜色"))
-        if hasattr(self, "spreadsheet_view"):
+        if hasattr(self, "spreadsheet_view") and self.spreadsheet_view:
             self.spreadsheet_view.retranslate_ui()
-        if hasattr(self, "menu_bar"):
+        if hasattr(self, "menu_bar") and self.menu_bar:
             self.menu_bar.retranslate_ui()
