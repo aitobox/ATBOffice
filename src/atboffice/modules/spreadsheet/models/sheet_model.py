@@ -234,6 +234,7 @@ class SheetDataModel:
         self.geometry = SheetGeometry()
         self.merges: list[tuple[int, int, int, int]] = []
         self.auto_filter: Any | None = None
+        self.drawings: list[Any] = []
 
     def add_merge(self, r1: int, c1: int, r2: int, c2: int) -> None:
         """Add a merged cell region (r1, c1, r2, c2)."""

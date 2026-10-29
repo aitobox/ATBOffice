@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from PySide6.QtCore import QCoreApplication, Qt
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
@@ -16,6 +18,9 @@ from atboffice.modules.spreadsheet.views.editor_controller import (
 )
 from atboffice.modules.spreadsheet.views.formula_bar import FormulaBar
 from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport
+from atboffice.modules.spreadsheet.views.object_layer import (
+    SpreadsheetObjectLayer,
+)
 from atboffice.modules.spreadsheet.views.sheet_tab_bar import SheetTabBar
 
 
@@ -90,7 +95,34 @@ class SpreadsheetView(QWidget):
         self.sheet_tab_bar = SheetTabBar(workbook=self._workbook, parent=self)
         self.grid.addScrollBarWidget(self.sheet_tab_bar, Qt.AlignmentFlag.AlignLeft)
 
+        # 6. Floating Object Layer overlay
+        self.object_layer = SpreadsheetObjectLayer(
+            model=active_sheet, parent=self.grid.viewport()
+        )
+        self.object_layer.set_header_dimensions(
+            self.grid.row_header_width, self.grid.col_header_height
+        )
+        self.grid.horizontalScrollBar().valueChanged.connect(self._sync_object_layer_scroll)
+        self.grid.verticalScrollBar().valueChanged.connect(self._sync_object_layer_scroll)
+
         self.retranslate_ui()
+
+    def _sync_object_layer_scroll(self, _: int = 0) -> None:
+        """Synchronize object layer scroll coordinates with grid viewport."""
+        if hasattr(self, "object_layer") and hasattr(self, "grid"):
+            self.object_layer.set_scroll_offset(
+                self.grid.horizontalScrollBar().value(),
+                self.grid.verticalScrollBar().value(),
+            )
+
+    def resizeEvent(self, event: Any) -> None:
+        super().resizeEvent(event)
+        if hasattr(self, "object_layer") and hasattr(self, "grid"):
+            self.object_layer.setGeometry(self.grid.viewport().rect())
+            self.object_layer.set_header_dimensions(
+                self.grid.row_header_width, self.grid.col_header_height
+            )
+            self._sync_object_layer_scroll()
 
     @property
     def workbook(self) -> WorkbookModel:
@@ -132,6 +164,9 @@ class SpreadsheetView(QWidget):
 
         self.grid.set_model_and_selection(active_sheet, active_sel)
         self.editor_controller.set_model_and_selection(active_sheet, active_sel)
+        if hasattr(self, "object_layer") and self.object_layer is not None:
+            self.object_layer.set_model(active_sheet)
+            self._sync_object_layer_scroll()
         self.grid.viewport().update()
 
     def _on_sheet_removed(self, index: int, name: str) -> None:
@@ -163,3 +198,5 @@ class SpreadsheetView(QWidget):
         self.grid.retranslate_ui()
         if hasattr(self, "sheet_tab_bar") and self.sheet_tab_bar is not None:
             self.sheet_tab_bar.retranslate_ui()
+        if hasattr(self, "object_layer") and self.object_layer is not None:
+            self.object_layer.retranslate_ui()

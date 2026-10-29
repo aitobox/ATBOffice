@@ -22,6 +22,7 @@ NS_MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 NS_PKG_REL = "http://schemas.openxmlformats.org/package/2006/relationships"
 NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main"
+NS_XDR = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
 NS_CORE = "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
 NS_DC = "http://purl.org/dc/elements/1.1/"
 NS_DCTERMS = "http://purl.org/dc/terms/"
@@ -39,6 +40,7 @@ CT_THEME = "application/vnd.openxmlformats-officedocument.theme+xml"
 CT_CORE_PROPS = "application/vnd.openxmlformats-package.core-properties+xml"
 CT_APP_PROPS = "application/vnd.openxmlformats-officedocument.extended-properties+xml"
 CT_RELATIONSHIPS = "application/vnd.openxmlformats-package.relationships+xml"
+CT_DRAWING = "application/vnd.openxmlformats-officedocument.drawing+xml"
 
 REL_OFFICE_DOC = (
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
@@ -60,6 +62,12 @@ REL_CORE_PROPS = (
 )
 REL_APP_PROPS = (
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties"
+)
+REL_DRAWING = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing"
+)
+REL_IMAGE = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
 )
 
 RE_UNSAFE_XML = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
@@ -493,6 +501,7 @@ def _serialize_worksheet(
     style_manager: StyleManager,
     sst_manager: SharedStringsManager,
     is_active: bool,
+    drawing_rid: str | None = None,
 ) -> bytes:
     """Serialize a single worksheet to SpreadsheetML XML."""
     coords = list(sheet.cells.keys())
@@ -653,8 +662,148 @@ def _serialize_worksheet(
         '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" '
         'header="0.3" footer="0.3"/>'
     )
+    if drawing_rid:
+        parts.append(f'<drawing r:id="{drawing_rid}"/>')
     parts.append("</worksheet>")
 
+    return "".join(parts).encode("utf-8")
+
+
+def _serialize_drawings(
+    drawings: list[Any],
+    image_rids: dict[int, str],
+) -> bytes:
+    """Serialize sheet drawings into SpreadsheetML DrawingML (xl/drawings/drawingN.xml)."""
+    parts = [
+        XML_HEADER,
+        f'<xdr:wsDr xmlns:xdr="{NS_XDR}" xmlns:a="{NS_A}">',
+    ]
+
+    geom_map = {
+        "rect": "rect",
+        "roundRect": "roundRect",
+        "oval": "ellipse",
+        "arrow": "rightArrow",
+        "line": "line",
+        "textbox": "rect",
+        "chart": "rect",
+    }
+
+    for obj in drawings:
+        f_col = obj.from_point.col
+        f_col_off = obj.from_point.col_off * 9525
+        f_row = obj.from_point.row
+        f_row_off = obj.from_point.row_off * 9525
+
+        t_col = obj.to_point.col
+        t_col_off = obj.to_point.col_off * 9525
+        t_row = obj.to_point.row
+        t_row_off = obj.to_point.row_off * 9525
+
+        anchor_type_val = (
+            obj.anchor_type.value
+            if hasattr(obj.anchor_type, "value")
+            else str(obj.anchor_type)
+        )
+
+        parts.append(
+            f'<xdr:twoCellAnchor editAs="{anchor_type_val}">'
+            f"<xdr:from><xdr:col>{f_col}</xdr:col><xdr:colOff>{f_col_off}</xdr:colOff>"
+            f"<xdr:row>{f_row}</xdr:row><xdr:rowOff>{f_row_off}</xdr:rowOff></xdr:from>"
+            f"<xdr:to><xdr:col>{t_col}</xdr:col><xdr:colOff>{t_col_off}</xdr:colOff>"
+            f"<xdr:row>{t_row}</xdr:row><xdr:rowOff>{t_row_off}</xdr:rowOff></xdr:to>"
+        )
+
+        name_esc = _xml_escape(obj.name or f"Object {obj.id}")
+
+        if obj.kind == "image" and obj.id in image_rids:
+            img_rid = image_rids[obj.id]
+            nv_pic_pr = (
+                f'<xdr:nvPicPr><xdr:cNvPr id="{obj.id}" name="{name_esc}"/>'
+                f"<xdr:cNvPicPr/></xdr:nvPicPr>"
+            )
+            blip_fill = (
+                f"<xdr:blipFill>"
+                f'<a:blip xmlns:r="{NS_R}" r:embed="{img_rid}"/>'
+                f"<a:stretch><a:fillRect/></a:stretch>"
+                f"</xdr:blipFill>"
+            )
+            parts.append(
+                f"<xdr:pic>{nv_pic_pr}{blip_fill}"
+                f'<xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>'
+                f"</xdr:pic>"
+            )
+        else:
+            geom = geom_map.get(obj.kind, "rect")
+            is_tb = "1" if obj.kind == "textbox" else "0"
+
+            # Fill
+            fill_clean = (
+                obj.fill_color.lstrip("#").upper() if obj.fill_color else "4F81BD"
+            )
+            if len(fill_clean) > 6:
+                fill_clean = fill_clean[:6]
+            fill_xml = f'<a:solidFill><a:srgbClr val="{fill_clean}"/></a:solidFill>'
+
+            # Line
+            line_clean = (
+                obj.line_color.lstrip("#").upper() if obj.line_color else "385D8A"
+            )
+            if len(line_clean) > 6:
+                line_clean = line_clean[:6]
+            lw_emu = int(max(0.5, getattr(obj, "line_width", 1.0)) * 12700)
+            line_xml = (
+                f'<a:ln w="{lw_emu}">'
+                f'<a:solidFill><a:srgbClr val="{line_clean}"/></a:solidFill>'
+                f"</a:ln>"
+            )
+
+            # Text body
+            tx_body = ""
+            if getattr(obj, "text", "") or obj.kind == "textbox":
+                txt_clean = (
+                    getattr(obj, "text_color", "#000000").lstrip("#").upper()
+                )
+                if len(txt_clean) > 6:
+                    txt_clean = txt_clean[:6]
+                p_items = []
+                for line in (getattr(obj, "text", "") or "").split("\n"):
+                    f_name = _xml_escape(getattr(obj, "font_family", "Calibri"))
+                    p_items.append(
+                        f"<a:p><a:r>"
+                        f'<a:rPr lang="en-US" sz="{getattr(obj, "font_size", 11) * 100}">'
+                        f'<a:solidFill><a:srgbClr val="{txt_clean}"/></a:solidFill>'
+                        f'<a:latin typeface="{f_name}"/>'
+                        f"</a:rPr>"
+                        f"<a:t>{_xml_escape(line)}</a:t>"
+                        f"</a:r></a:p>"
+                    )
+                tx_body = (
+                    f"<xdr:txBody>"
+                    f'<a:bodyPr vertOverflow="clip" horzOverflow="clip"/>'
+                    f"<a:lstStyle/>"
+                    f'{"".join(p_items)}'
+                    f"</xdr:txBody>"
+                )
+
+            nv_sp_pr = (
+                f'<xdr:nvSpPr><xdr:cNvPr id="{obj.id}" name="{name_esc}"/>'
+                f'<xdr:cNvSpPr txBox="{is_tb}"/></xdr:nvSpPr>'
+            )
+            parts.append(
+                f'<xdr:sp macro="" textlink="">'
+                f"{nv_sp_pr}"
+                f"<xdr:spPr>"
+                f'<a:prstGeom prst="{geom}"><a:avLst/></a:prstGeom>'
+                f"{fill_xml}{line_xml}"
+                f"</xdr:spPr>"
+                f"{tx_body}"
+                f"</xdr:sp>"
+            )
+
+        parts.append("<xdr:clientData/></xdr:twoCellAnchor>")
+
+    parts.append("</xdr:wsDr>")
     return "".join(parts).encode("utf-8")
 
 
@@ -839,12 +988,78 @@ def write_xlsx(
     sheet_count = len(workbook)
     sheet_rids = [f"rId{i}" for i in range(1, sheet_count + 1)]
 
-    # 1. Serialize each worksheet
+    # 1. Serialize each worksheet and associated drawings
+    drawing_count = 0
+    media_count = 0
     for i, sheet in enumerate(workbook.sheets, start=1):
+        has_drawings = hasattr(sheet, "drawings") and bool(sheet.drawings)
+        drawing_rid = "rIdDrawing" if has_drawings else None
         is_active = (i - 1) == workbook.active_sheet_index
-        ws_bytes = _serialize_worksheet(sheet, style_manager, sst_manager, is_active)
+        ws_bytes = _serialize_worksheet(
+            sheet, style_manager, sst_manager, is_active, drawing_rid=drawing_rid
+        )
         part_name = f"xl/worksheets/sheet{i}.xml"
         pkg_writer.add_part(part_name, ws_bytes, CT_WORKSHEET)
+
+        if has_drawings:
+            drawing_count += 1
+            drawing_part = f"xl/drawings/drawing{drawing_count}.xml"
+
+            # Check image payloads
+            image_rids: dict[int, str] = {}
+            drawing_rels: list[str] = []
+            rel_counter = 1
+            for obj in sheet.drawings:
+                if obj.kind == "image" and getattr(obj, "image_data", None):
+                    media_count += 1
+                    ext = "png"
+                    mime = getattr(obj, "image_mime", "image/png")
+                    if "jpeg" in mime or "jpg" in mime:
+                        ext = "jpg"
+                    media_part = f"xl/media/image{media_count}.{ext}"
+                    pkg_writer.add_part(media_part, obj.image_data, mime)
+
+                    rid = f"rId{rel_counter}"
+                    rel_counter += 1
+                    image_rids[obj.id] = rid
+                    rel_elem = (
+                        f'<Relationship Id="{rid}" Type="{REL_IMAGE}" '
+                        f'Target="../media/image{media_count}.{ext}"/>'
+                    )
+                    drawing_rels.append(rel_elem)
+
+            # Add drawing part
+            drawing_bytes = _serialize_drawings(sheet.drawings, image_rids)
+            pkg_writer.add_part(drawing_part, drawing_bytes, CT_DRAWING)
+
+            # Add drawing rels if any
+            if drawing_rels:
+                drawing_rels_xml = (
+                    f'{XML_HEADER}<Relationships xmlns="{NS_PKG_REL}">'
+                    f'{"".join(drawing_rels)}'
+                    f"</Relationships>"
+                ).encode()
+                pkg_writer.add_part(
+                    f"xl/drawings/_rels/drawing{drawing_count}.xml.rels",
+                    drawing_rels_xml,
+                    CT_RELATIONSHIPS,
+                )
+
+            # Add sheet rels
+            rel_sheet = (
+                f'<Relationship Id="{drawing_rid}" Type="{REL_DRAWING}" '
+                f'Target="../drawings/drawing{drawing_count}.xml"/>'
+            )
+            sheet_rels_xml = (
+                f'{XML_HEADER}<Relationships xmlns="{NS_PKG_REL}">'
+                f"{rel_sheet}"
+                f"</Relationships>"
+            ).encode()
+            pkg_writer.add_part(
+                f"xl/worksheets/_rels/sheet{i}.xml.rels",
+                sheet_rels_xml,
+                CT_RELATIONSHIPS,
+            )
 
     # 2. Serialize sharedStrings.xml if strings were encountered
     sst_bytes = sst_manager.to_xml()
