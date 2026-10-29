@@ -171,6 +171,27 @@ class CommentRangeEnd(RunItem):
         self.comment_id = comment_id
 
 
+@dataclass
+class NoteRefItem(RunItem):
+    """Footnote or endnote reference item."""
+
+    kind: str = "fn"  # "fn" or "en"
+    note_id: str = "0"
+    custom_mark: str = ""
+
+    def __init__(
+        self,
+        kind: str = "fn",
+        note_id: str = "0",
+        custom_mark: str = "",
+        r_pr: RunProperties | None = None,
+    ) -> None:
+        super().__init__(t=kind, r_pr=r_pr or RunProperties())
+        self.kind = kind
+        self.note_id = str(note_id)
+        self.custom_mark = custom_mark
+
+
 def ilen(item: RunItem) -> int:
     """Character position length of an inline run item."""
     if item.t == "text":
