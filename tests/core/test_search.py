@@ -1,19 +1,21 @@
 """Tests for cross-module Search & Replace core engine."""
 
-import pytest
 import re
+
+import pytest
+
 from atboffice.core.search import (
-    SearchOptions,
-    SearchMatch,
     SearchController,
-    WriterSearchAdapter,
+    SearchMatch,
+    SearchOptions,
     SpreadsheetSearchAdapter,
+    WriterSearchAdapter,
 )
-from atboffice.modules.writer.models.document import Document, Paragraph, TextItem
-from atboffice.modules.writer.views.caret_controller import CaretController, DocPos
-from atboffice.modules.writer.layout.pagination import paginate_document
-from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel, CellData
 from atboffice.modules.spreadsheet.models.selection_model import SelectionModel
+from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetDataModel
+from atboffice.modules.writer.layout.pagination import paginate_document
+from atboffice.modules.writer.models.document import Document, Paragraph, TextItem
+from atboffice.modules.writer.views.caret_controller import CaretController
 
 
 class TestSearchOptions:
@@ -191,7 +193,9 @@ class TestSearchController:
         controller.match_found.connect(found_matches.append)
 
         no_match_count = [0]
-        controller.no_match_found.connect(lambda: no_match_count.__setitem__(0, no_match_count[0] + 1))
+        controller.no_match_found.connect(
+            lambda: no_match_count.__setitem__(0, no_match_count[0] + 1)
+        )
 
         # Search for Beta
         m = controller.find_next(SearchOptions(text="Beta"))

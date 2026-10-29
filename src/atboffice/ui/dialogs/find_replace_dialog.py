@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from PySide6.QtCore import QCoreApplication, Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -23,9 +21,6 @@ from PySide6.QtWidgets import (
 )
 
 from atboffice.core.search import SearchController, SearchOptions
-
-if TYPE_CHECKING:
-    from atboffice.core.search import SearchMatch
 
 
 def safe_tr(text: str) -> str:

@@ -1,12 +1,10 @@
 """Tests for shell window Find & Replace integration."""
 
-import pytest
-from PySide6.QtWidgets import QMessageBox
 
-from atboffice.ui.shell.quire_window import QuireWindow
-from atboffice.ui.shell.ledger_window import LedgerWindow
-from atboffice.modules.writer.models.document import Paragraph, TextItem
 from atboffice.modules.spreadsheet.models.sheet_model import CellData
+from atboffice.modules.writer.models.document import Paragraph, TextItem
+from atboffice.ui.shell.ledger_window import LedgerWindow
+from atboffice.ui.shell.quire_window import QuireWindow
 
 
 def test_quire_window_find_replace_integration(qapp, monkeypatch):

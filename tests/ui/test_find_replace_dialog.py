@@ -1,16 +1,14 @@
 """Tests for FindReplaceDialog."""
 
 import pytest
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMessageBox
 
 from atboffice.core.search import (
     SearchController,
-    SearchOptions,
     SpreadsheetSearchAdapter,
 )
-from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel, CellData
 from atboffice.modules.spreadsheet.models.selection_model import SelectionModel
+from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetDataModel
 from atboffice.ui.dialogs.find_replace_dialog import FindReplaceDialog
 
 

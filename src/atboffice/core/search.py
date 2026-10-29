@@ -7,7 +7,6 @@ implementations for Quire (Writer) and Ledger (Spreadsheet).
 
 from __future__ import annotations
 
-import copy
 import logging
 import re
 from abc import ABC, abstractmethod
@@ -22,7 +21,6 @@ from atboffice.modules.writer.models.document import (
     Document,
     Paragraph,
     all_paragraphs,
-    ilen,
     ptext,
     reindex,
 )
