@@ -17,23 +17,19 @@ the original application:
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QSize, Qt
-from PySide6.QtGui import QAction, QIcon, QKeySequence
+from PySide6.QtCore import QCoreApplication
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QComboBox,
     QMainWindow,
     QMenu,
-    QWidget,
 )
 
 from atboffice.core.action_registry import ActionRegistry, ActionSpec
 from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.toolbar import OfficeToolBar
-
-if TYPE_CHECKING:
-    pass
 
 
 def safe_tr(text: str) -> str:
@@ -77,8 +73,8 @@ class QuireToolBarCluster:
     ) -> QAction:
         spec = ActionSpec(
             id=aid,
-            label=label,
-            tip=tip,
+            label=safe_tr(label),
+            tip=safe_tr(tip) if tip else "",
             shortcut=shortcut,
             checkable=checkable,
             checked=checked,
@@ -88,84 +84,130 @@ class QuireToolBarCluster:
         )
         return self.action_registry.register_action(spec, parent=self.window)
 
+    def _add(
+        self,
+        tb: OfficeToolBar,
+        aid: str,
+        label: str,
+        tip: str = "",
+        shortcut: Any = None,
+        checkable: bool = False,
+        checked: bool = False,
+        is_split: bool = False,
+        is_drop: bool = False,
+        handler: Callable[[], Any] | None = None,
+    ) -> QAction:
+        act = self._reg_act(
+            aid=aid,
+            label=label,
+            tip=tip,
+            shortcut=shortcut,
+            checkable=checkable,
+            checked=checked,
+            is_split=is_split,
+            is_drop=is_drop,
+            handler=handler,
+        )
+        tb.addAction(act)
+        return act
+
+    def _add_drop(
+        self,
+        tb: OfficeToolBar,
+        label: str,
+        items: list[str],
+    ) -> None:
+        menu = QMenu(tb)
+        for item in items:
+            menu.addAction(safe_tr(item))
+        tb.add_drop_button(safe_tr(label), None, menu)
+
+    def _add_split(
+        self,
+        tb: OfficeToolBar,
+        aid: str,
+        label: str,
+        tip: str,
+        items: list[str],
+        shortcut: Any = None,
+    ) -> None:
+        act = self._reg_act(
+            aid=aid,
+            label=label,
+            tip=tip,
+            shortcut=shortcut,
+            is_split=True,
+        )
+        menu = QMenu(tb)
+        for item in items:
+            menu.addAction(safe_tr(item))
+        tb.add_split_action(act, menu)
+
     def _build_standard_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("常用"), self.window)
 
-        # File and basic commands
-        tb.addAction(self._reg_act("new", safe_tr("新建(&N)"), safe_tr("新建空白文档 (Ctrl+N)"), QKeySequence.StandardKey.New))
-        tb.addAction(self._reg_act("open", safe_tr("打开(&O)..."), safe_tr("打开文档 (Ctrl+O)"), QKeySequence.StandardKey.Open))
-        tb.addAction(self._reg_act("save", safe_tr("保存(&S)"), safe_tr("保存文档 (Ctrl+S)"), QKeySequence.StandardKey.Save))
-        tb.addAction(self._reg_act("permission", safe_tr("权限(&M)"), safe_tr("权限设置 (只读/编辑)")))
-        tb.addAction(self._reg_act("sendMail", safe_tr("发送(&E)"), safe_tr("通过电子邮件发送")))
-        tb.addAction(self._reg_act("print", safe_tr("打印(&P)..."), safe_tr("打印文档 (Ctrl+P)"), QKeySequence.StandardKey.Print))
-        tb.addAction(self._reg_act("printPreview", safe_tr("打印预览(&V)"), safe_tr("打印预览")))
-        tb.addAction(self._reg_act("spelling", safe_tr("拼写和语法(&S)..."), safe_tr("拼写和语法检查 (F7)"), "F7"))
-        tb.addAction(self._reg_act("research", safe_tr("信息检索(&R)..."), safe_tr("信息检索与翻译 (Alt+Click)")))
+        self._add(tb, "new", "新建(&N)", "新建空白文档 (Ctrl+N)", QKeySequence.StandardKey.New)
+        self._add(tb, "open", "打开(&O)...", "打开文档 (Ctrl+O)", QKeySequence.StandardKey.Open)
+        self._add(tb, "save", "保存(&S)", "保存文档 (Ctrl+S)", QKeySequence.StandardKey.Save)
+        self._add(tb, "permission", "权限(&M)", "权限设置 (只读/编辑)")
+        self._add(tb, "sendMail", "发送(&E)", "通过电子邮件发送")
+        self._add(tb, "print", "打印(&P)...", "打印文档 (Ctrl+P)", QKeySequence.StandardKey.Print)
+        self._add(tb, "printPreview", "打印预览(&V)", "打印预览")
+        self._add(tb, "spelling", "拼写和语法(&S)...", "拼写和语法检查 (F7)", "F7")
+        self._add(tb, "research", "信息检索(&R)...", "信息检索与翻译 (Alt+Click)")
 
         tb.add_office_separator()
 
-        # Clipboard
-        tb.addAction(self._reg_act("cut", safe_tr("剪切(&T)"), safe_tr("剪切 (Ctrl+X)"), QKeySequence.StandardKey.Cut))
-        tb.addAction(self._reg_act("copy", safe_tr("复制(&C)"), safe_tr("复制 (Ctrl+C)"), QKeySequence.StandardKey.Copy))
-        tb.addAction(self._reg_act("paste", safe_tr("粘贴(&P)"), safe_tr("粘贴 (Ctrl+V)"), QKeySequence.StandardKey.Paste))
-        tb.addAction(self._reg_act("painter", safe_tr("格式刷(&P)"), safe_tr("格式刷 (双击可连续应用)")))
+        self._add(tb, "cut", "剪切(&T)", "剪切 (Ctrl+X)", QKeySequence.StandardKey.Cut)
+        self._add(tb, "copy", "复制(&C)", "复制 (Ctrl+C)", QKeySequence.StandardKey.Copy)
+        self._add(tb, "paste", "粘贴(&P)", "粘贴 (Ctrl+V)", QKeySequence.StandardKey.Paste)
+        self._add(tb, "painter", "格式刷(&P)", "格式刷 (双击可连续应用)")
 
         tb.add_office_separator()
 
-        # Undo / Redo split buttons
-        undo_act = self._reg_act("undo", safe_tr("撤销(&U)"), safe_tr("撤销 (Ctrl+Z)"), QKeySequence.StandardKey.Undo, is_split=True)
-        undo_menu = QMenu(tb)
-        undo_menu.addAction(safe_tr("无操作可撤销"))
-        tb.add_split_action(undo_act, undo_menu)
-
-        redo_act = self._reg_act("redo", safe_tr("重做(&R)"), safe_tr("重做 (Ctrl+Y)"), QKeySequence.StandardKey.Redo, is_split=True)
-        redo_menu = QMenu(tb)
-        redo_menu.addAction(safe_tr("无操作可重做"))
-        tb.add_split_action(redo_act, redo_menu)
+        self._add_split(
+            tb, "undo", "撤销(&U)", "撤销 (Ctrl+Z)", ["无操作可撤销"], QKeySequence.StandardKey.Undo
+        )
+        self._add_split(
+            tb, "redo", "重做(&R)", "重做 (Ctrl+Y)", ["无操作可重做"], QKeySequence.StandardKey.Redo
+        )
 
         tb.add_office_separator()
 
-        # Insert items
-        tb.addAction(self._reg_act("hyperlink", safe_tr("插入超链接(&I)..."), safe_tr("插入超链接 (Ctrl+K)"), "Ctrl+K"))
-        tb.addAction(self._reg_act("tb_tables", safe_tr("表格和边框(&B)"), safe_tr("显示或隐藏表格和边框工具栏")))
+        self._add(tb, "hyperlink", "插入超链接(&I)...", "插入超链接 (Ctrl+K)", "Ctrl+K")
+        self._add(tb, "tb_tables", "表格和边框(&B)", "显示或隐藏表格和边框工具栏")
+        self._add_drop(
+            tb, "插入表格", ["插入表格(&I)...", "插入列在左侧", "插入行在上方"]
+        )
+        self._add(tb, "insertExcel", "插入 Excel 工作表(&E)", "插入 Microsoft Excel 工作表")
+        self._add_drop(tb, "分栏", ["一栏", "两栏", "三栏", "偏左", "偏右"])
+        self._add(tb, "tb_drawing", "绘图(&D)", "显示或隐藏绘图工具栏")
+        self._add(tb, "docMap", "文档结构图(&D)", "显示或隐藏文档结构图", checkable=True)
+        self._add(
+            tb, "showMarks", "显示/隐藏编辑标记(&S)", "显示或隐藏段落标记与格式", checkable=True
+        )
 
-        table_menu = QMenu(tb)
-        table_menu.addAction(safe_tr("插入表格(&I)..."))
-        table_menu.addAction(safe_tr("插入列在左侧"))
-        table_menu.addAction(safe_tr("插入行在上方"))
-        tb.add_drop_button(safe_tr("插入表格"), None, table_menu)
-
-        tb.addAction(self._reg_act("insertExcel", safe_tr("插入 Excel 工作表(&E)"), safe_tr("插入 Microsoft Excel 工作表")))
-
-        col_menu = QMenu(tb)
-        for c in [safe_tr("一栏"), safe_tr("两栏"), safe_tr("三栏"), safe_tr("偏左"), safe_tr("偏右")]:
-            col_menu.addAction(c)
-        tb.add_drop_button(safe_tr("分栏"), None, col_menu)
-
-        tb.addAction(self._reg_act("tb_drawing", safe_tr("绘图(&D)"), safe_tr("显示或隐藏绘图工具栏")))
-        tb.addAction(self._reg_act("docMap", safe_tr("文档结构图(&D)"), safe_tr("显示或隐藏文档结构图"), checkable=True))
-        tb.addAction(self._reg_act("showMarks", safe_tr("显示/隐藏编辑标记(&S)"), safe_tr("显示或隐藏段落标记与格式"), checkable=True))
-
-        # Zoom Combo
         zoom_combo = QComboBox(tb)
         zoom_combo.setObjectName("Quire_ZoomCombo")
         zoom_combo.setEditable(True)
-        zoom_combo.addItems(["500%", "200%", "150%", "100%", "75%", "50%", "25%", safe_tr("页宽"), safe_tr("整页")])
+        zoom_combo.addItems([
+            "500%", "200%", "150%", "100%", "75%", "50%", "25%",
+            safe_tr("页宽"), safe_tr("整页"),
+        ])
         zoom_combo.setCurrentText("100%")
         zoom_combo.setToolTip(safe_tr("显示比例"))
         tb.addWidget(zoom_combo)
 
-        tb.addAction(self._reg_act("help", safe_tr("帮助(&H)"), safe_tr("Microsoft Word 帮助 (F1)"), "F1"))
-        tb.addAction(self._reg_act("viewReading", safe_tr("阅读版式(&R)"), safe_tr("进入阅读版式视图")))
+        self._add(tb, "help", "帮助(&H)", "Microsoft Word 帮助 (F1)", "F1")
+        self._add(tb, "viewReading", "阅读版式(&R)", "进入阅读版式视图")
 
         return tb
 
     def _build_formatting_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("格式"), self.window)
 
-        tb.addAction(self._reg_act("stylesPane", safe_tr("样式和格式(&S)..."), safe_tr("打开样式和格式任务窗格")))
+        self._add(tb, "stylesPane", "样式和格式(&S)...", "打开样式和格式任务窗格")
 
-        # Style combo
         style_combo = QComboBox(tb)
         style_combo.setObjectName("Quire_StyleCombo")
         style_combo.addItems([
@@ -180,15 +222,15 @@ class QuireToolBarCluster:
         style_combo.setToolTip(safe_tr("样式"))
         tb.addWidget(style_combo)
 
-        # Font combo
         font_combo = QComboBox(tb)
         font_combo.setObjectName("Quire_FontCombo")
         font_combo.setEditable(True)
-        font_combo.addItems(["宋体", "黑体", "楷体", "仿宋", "Arial", "Times New Roman", "Calibri", "Courier New"])
+        font_combo.addItems([
+            "宋体", "黑体", "楷体", "仿宋", "Arial", "Times New Roman", "Calibri", "Courier New"
+        ])
         font_combo.setToolTip(safe_tr("字体"))
         tb.addWidget(font_combo)
 
-        # Size combo
         size_combo = QComboBox(tb)
         size_combo.setObjectName("Quire_SizeCombo")
         size_combo.setEditable(True)
@@ -201,45 +243,38 @@ class QuireToolBarCluster:
         size_combo.setToolTip(safe_tr("字号"))
         tb.addWidget(size_combo)
 
-        # Basic styles
-        tb.addAction(self._reg_act("bold", safe_tr("加粗(&B)"), safe_tr("加粗 (Ctrl+B)"), "Ctrl+B", checkable=True))
-        tb.addAction(self._reg_act("italic", safe_tr("倾斜(&I)"), safe_tr("倾斜 (Ctrl+I)"), "Ctrl+I", checkable=True))
-        tb.addAction(self._reg_act("underline", safe_tr("下划线(&U)"), safe_tr("下划线 (Ctrl+U)"), "Ctrl+U", checkable=True))
+        self._add(tb, "bold", "加粗(&B)", "加粗 (Ctrl+B)", "Ctrl+B", checkable=True)
+        self._add(tb, "italic", "倾斜(&I)", "倾斜 (Ctrl+I)", "Ctrl+I", checkable=True)
+        self._add(tb, "underline", "下划线(&U)", "下划线 (Ctrl+U)", "Ctrl+U", checkable=True)
 
         tb.add_office_separator()
 
-        # Alignment
-        tb.addAction(self._reg_act("alignLeft", safe_tr("左对齐(&L)"), safe_tr("左对齐 (Ctrl+L)"), "Ctrl+L", checkable=True))
-        tb.addAction(self._reg_act("alignCenter", safe_tr("居中(&E)"), safe_tr("居中 (Ctrl+E)"), "Ctrl+E", checkable=True))
-        tb.addAction(self._reg_act("alignRight", safe_tr("右对齐(&R)"), safe_tr("右对齐 (Ctrl+R)"), "Ctrl+R", checkable=True))
-        tb.addAction(self._reg_act("justify", safe_tr("两端对齐(&J)"), safe_tr("两端对齐 (Ctrl+J)"), "Ctrl+J", checkable=True))
+        self._add(tb, "alignLeft", "左对齐(&L)", "左对齐 (Ctrl+L)", "Ctrl+L", checkable=True)
+        self._add(tb, "alignCenter", "居中(&E)", "居中 (Ctrl+E)", "Ctrl+E", checkable=True)
+        self._add(tb, "alignRight", "右对齐(&R)", "右对齐 (Ctrl+R)", "Ctrl+R", checkable=True)
+        self._add(tb, "justify", "两端对齐(&J)", "两端对齐 (Ctrl+J)", "Ctrl+J", checkable=True)
 
         tb.add_office_separator()
 
-        # Line spacing
-        ls_menu = QMenu(tb)
-        for sp in ["1.0", "1.5", "2.0", "2.5", "3.0", safe_tr("更多...")]:
-            ls_menu.addAction(sp)
-        tb.add_drop_button(safe_tr("行距"), None, ls_menu)
+        self._add_drop(tb, "行距", ["1.0", "1.5", "2.0", "2.5", "3.0", "更多..."])
 
         tb.add_office_separator()
 
-        # Lists & indent
-        tb.addAction(self._reg_act("numbering", safe_tr("编号(&N)"), safe_tr("项目编号"), checkable=True))
-        tb.addAction(self._reg_act("bullets", safe_tr("项目符号(&U)"), safe_tr("项目符号"), checkable=True))
-        tb.addAction(self._reg_act("decIndent", safe_tr("减少缩进量(&D)"), safe_tr("减少缩进量")))
-        tb.addAction(self._reg_act("incIndent", safe_tr("增加缩进量(&I)"), safe_tr("增加缩进量")))
+        self._add(tb, "numbering", "编号(&N)", "项目编号", checkable=True)
+        self._add(tb, "bullets", "项目符号(&U)", "项目符号", checkable=True)
+        self._add(tb, "decIndent", "减少缩进量(&D)", "减少缩进量")
+        self._add(tb, "incIndent", "增加缩进量(&I)", "增加缩进量")
 
         tb.add_office_separator()
 
-        # Border split button
-        border_act = self._reg_act("borderBtn", safe_tr("边框(&B)"), safe_tr("外部边框与网格"), is_split=True)
-        b_menu = QMenu(tb)
-        for b_name in [safe_tr("无边框"), safe_tr("全框线"), safe_tr("外侧框线"), safe_tr("下框线")]:
-            b_menu.addAction(b_name)
-        tb.add_split_action(border_act, b_menu)
+        self._add_split(
+            tb,
+            "borderBtn",
+            "边框(&B)",
+            "外部边框与网格",
+            ["无边框", "全框线", "外侧框线", "下框线"],
+        )
 
-        # Highlight & Font color pickers
         highlight_btn = ColorPickerButton(mode="fill", default_color="#FFFF00", parent=tb)
         highlight_btn.setObjectName("Quire_HighlightBtn")
         highlight_btn.setToolTip(safe_tr("突出显示"))
@@ -257,121 +292,106 @@ class QuireToolBarCluster:
     def _build_tables_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("表格和边框"), self.window)
 
-        tb.addAction(self._reg_act("drawTable", safe_tr("绘制表格(&D)"), safe_tr("绘制表格线")))
-        tb.addAction(self._reg_act("eraser", safe_tr("擦除(&E)"), safe_tr("擦除表格线")))
+        self._add(tb, "drawTable", "绘制表格(&D)", "绘制表格线")
+        self._add(tb, "eraser", "擦除(&E)", "擦除表格线")
 
         tb.add_office_separator()
 
-        # Dash style, line style, line color
-        dash_menu = QMenu(tb)
-        for s in [safe_tr("实线"), safe_tr("虚线"), safe_tr("点线"), safe_tr("双线")]:
-            dash_menu.addAction(s)
-        tb.add_drop_button(safe_tr("线型"), None, dash_menu)
-
-        weight_menu = QMenu(tb)
-        for w in ["0.5 pt", "0.75 pt", "1.0 pt", "1.5 pt", "2.25 pt", "3.0 pt"]:
-            weight_menu.addAction(w)
-        tb.add_drop_button(safe_tr("粗细"), None, weight_menu)
-
-        color_menu = QMenu(tb)
-        color_menu.addAction(safe_tr("自动"))
-        color_menu.addAction(safe_tr("黑色"))
-        color_menu.addAction(safe_tr("蓝色"))
-        color_menu.addAction(safe_tr("红色"))
-        tb.add_drop_button(safe_tr("边框颜色"), None, color_menu)
-
-        border_act = self._reg_act("tableBorderBtn", safe_tr("边框(&B)"), safe_tr("应用边框"), is_split=True)
-        tb_b_menu = QMenu(tb)
-        tb_b_menu.addAction(safe_tr("所有框线"))
-        tb.add_split_action(border_act, tb_b_menu)
-
-        fill_menu = QMenu(tb)
-        fill_menu.addAction(safe_tr("无填充颜色"))
-        fill_menu.addAction(safe_tr("浅灰色"))
-        tb.add_drop_button(safe_tr("底纹颜色"), None, fill_menu)
+        self._add_drop(tb, "线型", ["实线", "虚线", "点线", "双线"])
+        self._add_drop(
+            tb, "粗细", ["0.5 pt", "0.75 pt", "1.0 pt", "1.5 pt", "2.25 pt", "3.0 pt"]
+        )
+        self._add_drop(tb, "边框颜色", ["自动", "黑色", "蓝色", "红色"])
+        self._add_split(tb, "tableBorderBtn", "边框(&B)", "应用边框", ["所有框线"])
+        self._add_drop(tb, "底纹颜色", ["无填充颜色", "浅灰色"])
 
         tb.add_office_separator()
 
-        ins_menu = QMenu(tb)
-        ins_menu.addAction(safe_tr("插入表格(&I)..."))
-        ins_menu.addAction(safe_tr("在左侧插入列"))
-        ins_menu.addAction(safe_tr("在右侧插入列"))
-        ins_menu.addAction(safe_tr("在上方插入行"))
-        ins_menu.addAction(safe_tr("在下方插入行"))
-        tb.add_drop_button(safe_tr("插入"), None, ins_menu)
-
-        tb.addAction(self._reg_act("mergeCells", safe_tr("合并单元格(&M)"), safe_tr("合并选定单元格")))
-        tb.addAction(self._reg_act("splitCells", safe_tr("拆分单元格(&P)..."), safe_tr("拆分单元格")))
-
-        tb.add_office_separator()
-
-        align_menu = QMenu(tb)
-        for a in [safe_tr("靠上对齐"), safe_tr("居中对齐"), safe_tr("靠下对齐")]:
-            align_menu.addAction(a)
-        tb.add_drop_button(safe_tr("对齐"), None, align_menu)
-
-        tb.addAction(self._reg_act("distRows", safe_tr("平均分布各行(&R)"), safe_tr("平均分布各行高度")))
-        tb.addAction(self._reg_act("distCols", safe_tr("平均分布各列(&C)"), safe_tr("平均分布各列宽度")))
+        self._add_drop(
+            tb,
+            "插入",
+            [
+                "插入表格(&I)...",
+                "在左侧插入列",
+                "在右侧插入列",
+                "在上方插入行",
+                "在下方插入行",
+            ],
+        )
+        self._add(tb, "mergeCells", "合并单元格(&M)", "合并选定单元格")
+        self._add(tb, "splitCells", "拆分单元格(&P)...", "拆分单元格")
 
         tb.add_office_separator()
 
-        tb.addAction(self._reg_act("tableAutoFormat", safe_tr("表格自动套用格式(&F)..."), safe_tr("表格自动套用格式")))
-        tb.addAction(self._reg_act("textDirection", safe_tr("更改文字方向(&D)"), safe_tr("更改单元格文字方向")))
+        self._add_drop(tb, "对齐", ["靠上对齐", "居中对齐", "靠下对齐"])
+        self._add(tb, "distRows", "平均分布各行(&R)", "平均分布各行高度")
+        self._add(tb, "distCols", "平均分布各列(&C)", "平均分布各列宽度")
 
         tb.add_office_separator()
 
-        tb.addAction(self._reg_act("sortAsc", safe_tr("升序排序(&A)"), safe_tr("升序排序表格数据")))
-        tb.addAction(self._reg_act("sortDesc", safe_tr("降序排序(&Z)"), safe_tr("降序排序表格数据")))
-        tb.addAction(self._reg_act("autoSum", safe_tr("自动求和(&S)"), safe_tr("计算单元格总和")))
+        self._add(tb, "tableAutoFormat", "表格自动套用格式(&F)...", "表格自动套用格式")
+        self._add(tb, "textDirection", "更改文字方向(&D)", "更改单元格文字方向")
+
+        tb.add_office_separator()
+
+        self._add(tb, "sortAsc", "升序排序(&A)", "升序排序表格数据")
+        self._add(tb, "sortDesc", "降序排序(&Z)", "降序排序表格数据")
+        self._add(tb, "autoSum", "自动求和(&S)", "计算单元格总和")
 
         return tb
 
     def _build_reviewing_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("审阅"), self.window)
 
-        rev_menu = QMenu(tb)
-        for m in [safe_tr("显示标记的最终状态"), safe_tr("最终状态"), safe_tr("显示标记的原始状态"), safe_tr("原始状态")]:
-            rev_menu.addAction(m)
-        tb.add_drop_button(safe_tr("显示以供审阅"), None, rev_menu)
-
-        show_menu = QMenu(tb)
-        for item in [safe_tr("批注"), safe_tr("墨迹"), safe_tr("插入和删除"), safe_tr("格式")]:
-            show_menu.addAction(item)
-        tb.add_drop_button(safe_tr("显示"), None, show_menu)
+        self._add_drop(
+            tb,
+            "显示以供审阅",
+            ["显示标记的最终状态", "最终状态", "显示标记的原始状态", "原始状态"],
+        )
+        self._add_drop(tb, "显示", ["批注", "墨迹", "插入和删除", "格式"])
 
         tb.add_office_separator()
 
-        tb.addAction(self._reg_act("prevChange", safe_tr("前一处修订或批注(&P)"), safe_tr("定位到前一处修订或批注")))
-        tb.addAction(self._reg_act("nextChange", safe_tr("后一处修订或批注(&N)"), safe_tr("定位到后一处修订或批注")))
+        self._add(tb, "prevChange", "前一处修订或批注(&P)", "定位到前一处修订或批注")
+        self._add(tb, "nextChange", "后一处修订或批注(&N)", "定位到后一处修订或批注")
 
         tb.add_office_separator()
 
-        accept_act = self._reg_act("acceptChange", safe_tr("接受所选修订(&A)"), safe_tr("接受所选修订"), is_split=True)
-        acc_menu = QMenu(tb)
-        acc_menu.addAction(safe_tr("接受所选修订"))
-        acc_menu.addAction(safe_tr("接受对文档所做的所有修订"))
-        tb.add_split_action(accept_act, acc_menu)
-
-        reject_act = self._reg_act("rejectChange", safe_tr("拒绝所选修订(&R)"), safe_tr("拒绝所选修订或删除批注"), is_split=True)
-        rej_menu = QMenu(tb)
-        rej_menu.addAction(safe_tr("拒绝所选修订"))
-        rej_menu.addAction(safe_tr("拒绝对文档所做的所有修订"))
-        rej_menu.addAction(safe_tr("删除文档中的所有批注"))
-        tb.add_split_action(reject_act, rej_menu)
+        self._add_split(
+            tb,
+            "acceptChange",
+            "接受所选修订(&A)",
+            "接受所选修订",
+            ["接受所选修订", "接受对文档所做的所有修订"],
+        )
+        self._add_split(
+            tb,
+            "rejectChange",
+            "拒绝所选修订(&R)",
+            "拒绝所选修订或删除批注",
+            ["拒绝所选修订", "拒绝对文档所做的所有修订", "删除文档中的所有批注"],
+        )
 
         tb.add_office_separator()
 
-        tb.addAction(self._reg_act("insertComment", safe_tr("插入批注(&C)"), safe_tr("插入新批注")))
-        tb.addAction(self._reg_act("trackChanges", safe_tr("修订(&T)"), safe_tr("开启或关闭修订记录 (Ctrl+Shift+E)"), "Ctrl+Shift+E", checkable=True))
-        tb.addAction(self._reg_act("reviewingPane", safe_tr("审阅窗格(&V)"), safe_tr("显示或隐藏审阅窗格"), checkable=True))
+        self._add(tb, "insertComment", "插入批注(&C)", "插入新批注")
+        self._add(
+            tb,
+            "trackChanges",
+            "修订(&T)",
+            "开启或关闭修订记录 (Ctrl+Shift+E)",
+            "Ctrl+Shift+E",
+            checkable=True,
+        )
+        self._add(tb, "reviewingPane", "审阅窗格(&V)", "显示或隐藏审阅窗格", checkable=True)
 
         return tb
 
     def _build_outlining_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("大纲"), self.window)
 
-        tb.addAction(self._reg_act("promoteH1", safe_tr("提升到 1 级(&1)"), safe_tr("直接提升为标题 1")))
-        tb.addAction(self._reg_act("promote", safe_tr("提升(&P)"), safe_tr("提升大纲级别 (Alt+Shift+Left)")))
+        self._add(tb, "promoteH1", "提升到 1 级(&1)", "直接提升为标题 1")
+        self._add(tb, "promote", "提升(&P)", "提升大纲级别 (Alt+Shift+Left)")
 
         olvl_combo = QComboBox(tb)
         olvl_combo.setObjectName("Quire_OutlineLevelCombo")
@@ -380,92 +400,107 @@ class QuireToolBarCluster:
         olvl_combo.setToolTip(safe_tr("大纲级别"))
         tb.addWidget(olvl_combo)
 
-        tb.addAction(self._reg_act("demote", safe_tr("降低(&D)"), safe_tr("降低大纲级别 (Alt+Shift+Right)")))
-        tb.addAction(self._reg_act("demoteBody", safe_tr("降为正文(&B)"), safe_tr("将标题降为正文文本 (Ctrl+Shift+N)")))
+        self._add(tb, "demote", "降低(&D)", "降低大纲级别 (Alt+Shift+Right)")
+        self._add(tb, "demoteBody", "降为正文(&B)", "将标题降为正文文本 (Ctrl+Shift+N)")
 
         tb.add_office_separator()
 
-        tb.addAction(self._reg_act("moveUp", safe_tr("上移(&U)"), safe_tr("上移选定段落 (Alt+Shift+Up)")))
-        tb.addAction(self._reg_act("moveDown", safe_tr("下移(&O)"), safe_tr("下移选定段落 (Alt+Shift+Down)")))
-        tb.addAction(self._reg_act("expand", safe_tr("展开(&E)"), safe_tr("展开下级内容")))
-        tb.addAction(self._reg_act("collapse", safe_tr("折叠(&C)"), safe_tr("折叠下级内容")))
+        self._add(tb, "moveUp", "上移(&U)", "上移选定段落 (Alt+Shift+Up)")
+        self._add(tb, "moveDown", "下移(&O)", "下移选定段落 (Alt+Shift+Down)")
+        self._add(tb, "expand", "展开(&E)", "展开下级内容")
+        self._add(tb, "collapse", "折叠(&C)", "折叠下级内容")
 
         show_lvl_combo = QComboBox(tb)
         show_lvl_combo.setObjectName("Quire_ShowLevelCombo")
-        show_lvl_combo.addItems([safe_tr("显示所有级别")] + [safe_tr(f"显示级别 {n}") for n in range(1, 10)])
+        show_lvl_combo.addItems(
+            [safe_tr("显示所有级别")] + [safe_tr(f"显示级别 {n}") for n in range(1, 10)]
+        )
         show_lvl_combo.setToolTip(safe_tr("显示级别"))
         tb.addWidget(show_lvl_combo)
 
-        tb.addAction(self._reg_act("olFirstLine", safe_tr("仅显示首行(&F)"), safe_tr("仅显示段落首行"), checkable=True))
-        tb.addAction(self._reg_act("olFormatting", safe_tr("显示格式(&S)"), safe_tr("显示文本实际格式"), checkable=True))
+        self._add(tb, "olFirstLine", "仅显示首行(&F)", "仅显示段落首行", checkable=True)
+        self._add(tb, "olFormatting", "显示格式(&S)", "显示文本实际格式", checkable=True)
 
         tb.add_office_separator()
 
-        tb.addAction(self._reg_act("updateTOC", safe_tr("更新目录(&T)"), safe_tr("更新文档目录")))
-        tb.addAction(self._reg_act("gotoTOC", safe_tr("转到目录(&G)"), safe_tr("跳转到目录位置")))
+        self._add(tb, "updateTOC", "更新目录(&T)", "更新文档目录")
+        self._add(tb, "gotoTOC", "转到目录(&G)", "跳转到目录位置")
 
         return tb
 
     def _build_header_footer_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("页眉和页脚"), self.window)
 
-        autotext_menu = QMenu(tb)
-        for at in [safe_tr("-页码-"), safe_tr("创建人与日期"), safe_tr("机密"), safe_tr("第 X 页 共 Y 页")]:
-            autotext_menu.addAction(at)
-        tb.add_drop_button(safe_tr("插入自动图文集"), None, autotext_menu)
+        self._add_drop(
+            tb,
+            "插入自动图文集",
+            ["-页码-", "创建人与日期", "机密", "第 X 页 共 Y 页"],
+        )
 
         tb.add_office_separator()
 
-        tb.addAction(self._reg_act("hfPageNum", safe_tr("插入页码(&P)"), safe_tr("插入页码字段")))
-        tb.addAction(self._reg_act("hfNumPages", safe_tr("插入页数(&N)"), safe_tr("插入总页数字段")))
-        tb.addAction(self._reg_act("hfFormatPageNum", safe_tr("设置页码格式(&F)..."), safe_tr("设置页码格式")))
-        tb.addAction(self._reg_act("hfDate", safe_tr("插入日期(&D)"), safe_tr("插入当前日期字段")))
-        tb.addAction(self._reg_act("hfTime", safe_tr("插入时间(&T)"), safe_tr("插入当前时间字段")))
+        self._add(tb, "hfPageNum", "插入页码(&P)", "插入页码字段")
+        self._add(tb, "hfNumPages", "插入页数(&N)", "插入总页数字段")
+        self._add(tb, "hfFormatPageNum", "设置页码格式(&F)...", "设置页码格式")
+        self._add(tb, "hfDate", "插入日期(&D)", "插入当前日期字段")
+        self._add(tb, "hfTime", "插入时间(&T)", "插入当前时间字段")
 
         tb.add_office_separator()
 
-        tb.addAction(self._reg_act("pageSetup", safe_tr("页面设置(&U)..."), safe_tr("页面设置")))
-        tb.addAction(self._reg_act("hfShowText", safe_tr("显示/隐藏文档文字(&W)"), safe_tr("显示或隐藏正文文字"), checkable=True))
-        tb.addAction(self._reg_act("hfLinkPrev", safe_tr("链接到前一个(&L)"), safe_tr("链接到前一节页眉页脚"), checkable=True))
+        self._add(tb, "pageSetup", "页面设置(&U)...", "页面设置")
+        self._add(
+            tb, "hfShowText", "显示/隐藏文档文字(&W)", "显示或隐藏正文文字", checkable=True
+        )
+        self._add(
+            tb, "hfLinkPrev", "链接到前一个(&L)", "链接到前一节页眉页脚", checkable=True
+        )
 
         tb.add_office_separator()
 
-        tb.addAction(self._reg_act("hfSwitch", safe_tr("在页眉和页脚间切换(&S)"), safe_tr("在页眉与页脚区域之间切换")))
-        tb.addAction(self._reg_act("hfPrev", safe_tr("显示前一项(&B)"), safe_tr("跳转到上一节页眉页脚")))
-        tb.addAction(self._reg_act("hfNext", safe_tr("显示下一项(&X)"), safe_tr("跳转到下一节页眉页脚")))
+        self._add(tb, "hfSwitch", "在页眉和页脚间切换(&S)", "在页眉与页脚区域之间切换")
+        self._add(tb, "hfPrev", "显示前一项(&B)", "跳转到上一节页眉页脚")
+        self._add(tb, "hfNext", "显示下一项(&X)", "跳转到下一节页眉页脚")
 
         tb.add_office_separator()
 
-        tb.addAction(self._reg_act("hfClose", safe_tr("关闭(&C)"), safe_tr("关闭页眉和页脚")))
+        self._add(tb, "hfClose", "关闭(&C)", "关闭页眉和页脚")
 
         return tb
 
     def _build_drawing_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("绘图"), self.window)
 
-        draw_menu = QMenu(tb)
-        for item in [safe_tr("组合(&G)"), safe_tr("取消组合(&U)"), safe_tr("叠放次序(&O)"), safe_tr("微移(&N)"), safe_tr("对齐或分布(&A)"), safe_tr("旋转或翻转(&R)")]:
-            draw_menu.addAction(item)
-        tb.add_drop_button(safe_tr("绘图(&R)"), None, draw_menu)
-
-        tb.addAction(self._reg_act("selectObjects", safe_tr("选择对象(&S)"), safe_tr("选择画布上的图形对象"), checkable=True))
+        self._add_drop(
+            tb,
+            "绘图(&R)",
+            [
+                "组合(&G)",
+                "取消组合(&U)",
+                "叠放次序(&O)",
+                "微移(&N)",
+                "对齐或分布(&A)",
+                "旋转或翻转(&R)",
+            ],
+        )
+        self._add(tb, "selectObjects", "选择对象(&S)", "选择画布上的图形对象", checkable=True)
 
         tb.add_office_separator()
 
-        as_menu = QMenu(tb)
-        for s in [safe_tr("线条"), safe_tr("连接符"), safe_tr("基本形状"), safe_tr("箭头总汇"), safe_tr("流程图"), safe_tr("星与旗帜"), safe_tr("标注")]:
-            as_menu.addAction(s)
-        tb.add_drop_button(safe_tr("自选图形(&U)"), None, as_menu)
+        self._add_drop(
+            tb,
+            "自选图形(&U)",
+            ["线条", "连接符", "基本形状", "箭头总汇", "流程图", "星与旗帜", "标注"],
+        )
 
-        tb.addAction(self._reg_act("drawLine", safe_tr("线条(&L)"), safe_tr("绘制直线")))
-        tb.addAction(self._reg_act("drawArrow", safe_tr("箭头(&A)"), safe_tr("绘制箭头")))
-        tb.addAction(self._reg_act("drawRect", safe_tr("矩形(&R)"), safe_tr("绘制矩形")))
-        tb.addAction(self._reg_act("drawOval", safe_tr("椭圆(&O)"), safe_tr("绘制椭圆")))
-        tb.addAction(self._reg_act("textBox", safe_tr("文本框(&T)"), safe_tr("绘制文本框")))
-        tb.addAction(self._reg_act("insertWordArt", safe_tr("插入艺术字(&W)..."), safe_tr("插入艺术字")))
-        tb.addAction(self._reg_act("insertDiagram", safe_tr("插入图示(&D)..."), safe_tr("插入组织结构图或循环图")))
-        tb.addAction(self._reg_act("insertClipArt", safe_tr("剪贴画(&C)..."), safe_tr("插入剪贴画")))
-        tb.addAction(self._reg_act("insertPicture", safe_tr("插入图片(&P)..."), safe_tr("插入来自文件的图片")))
+        self._add(tb, "drawLine", "线条(&L)", "绘制直线")
+        self._add(tb, "drawArrow", "箭头(&A)", "绘制箭头")
+        self._add(tb, "drawRect", "矩形(&R)", "绘制矩形")
+        self._add(tb, "drawOval", "椭圆(&O)", "绘制椭圆")
+        self._add(tb, "textBox", "文本框(&T)", "绘制文本框")
+        self._add(tb, "insertWordArt", "插入艺术字(&W)...", "插入艺术字")
+        self._add(tb, "insertDiagram", "插入图示(&D)...", "插入组织结构图或循环图")
+        self._add(tb, "insertClipArt", "剪贴画(&C)...", "插入剪贴画")
+        self._add(tb, "insertPicture", "插入图片(&P)...", "插入来自文件的图片")
 
         tb.add_office_separator()
 
@@ -486,42 +521,33 @@ class QuireToolBarCluster:
 
         tb.add_office_separator()
 
-        d_line_menu = QMenu(tb)
-        d_line_menu.addAction(safe_tr("0.75 磅"))
-        tb.add_drop_button(safe_tr("线型"), None, d_line_menu)
-
-        d_dash_menu = QMenu(tb)
-        d_dash_menu.addAction(safe_tr("短划线"))
-        tb.add_drop_button(safe_tr("虚线线型"), None, d_dash_menu)
-
-        d_arr_menu = QMenu(tb)
-        d_arr_menu.addAction(safe_tr("箭头样式 1"))
-        tb.add_drop_button(safe_tr("箭头样式"), None, d_arr_menu)
-
-        d_shd_menu = QMenu(tb)
-        d_shd_menu.addAction(safe_tr("阴影样式 1"))
-        tb.add_drop_button(safe_tr("阴影样式"), None, d_shd_menu)
+        self._add_drop(tb, "线型", ["0.75 磅"])
+        self._add_drop(tb, "虚线线型", ["短划线"])
+        self._add_drop(tb, "箭头样式", ["箭头样式 1"])
+        self._add_drop(tb, "阴影样式", ["阴影样式 1"])
 
         return tb
 
     def _build_mail_merge_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("邮件合并"), self.window)
 
-        tb.addAction(self._reg_act("mmMainDoc", safe_tr("主文档设置(&M)..."), safe_tr("设置邮件合并主文档类型")))
-        tb.addAction(self._reg_act("mmOpenSource", safe_tr("打开数据源(&D)..."), safe_tr("连接外部数据源")))
-        tb.addAction(self._reg_act("mmRecipients", safe_tr("收件人列表(&R)..."), safe_tr("编辑收件人列表")))
+        self._add(tb, "mmMainDoc", "主文档设置(&M)...", "设置邮件合并主文档类型")
+        self._add(tb, "mmOpenSource", "打开数据源(&D)...", "连接外部数据源")
+        self._add(tb, "mmRecipients", "收件人列表(&R)...", "编辑收件人列表")
 
         tb.add_office_separator()
 
-        tb.addAction(self._reg_act("mmAddress", safe_tr("地址块(&A)..."), safe_tr("插入规范地址块域")))
-        tb.addAction(self._reg_act("mmGreeting", safe_tr("问候语(&G)..."), safe_tr("插入问候语域")))
-        tb.addAction(self._reg_act("mmInsertField", safe_tr("插入合并域(&F)..."), safe_tr("插入特定字段")))
+        self._add(tb, "mmAddress", "地址块(&A)...", "插入规范地址块域")
+        self._add(tb, "mmGreeting", "问候语(&G)...", "插入问候语域")
+        self._add(tb, "mmInsertField", "插入合并域(&F)...", "插入特定字段")
 
         tb.add_office_separator()
 
-        tb.addAction(self._reg_act("mmViewData", safe_tr("查看合并数据(&V)"), safe_tr("切换查看合并数据与域代码"), checkable=True))
-        tb.addAction(self._reg_act("mmFirst", safe_tr("首记录(&1)"), safe_tr("跳转到第一条记录")))
-        tb.addAction(self._reg_act("mmPrev", safe_tr("上一记录(&P)"), safe_tr("跳转到上一条记录")))
+        self._add(
+            tb, "mmViewData", "查看合并数据(&V)", "切换查看合并数据与域代码", checkable=True
+        )
+        self._add(tb, "mmFirst", "首记录(&1)", "跳转到第一条记录")
+        self._add(tb, "mmPrev", "上一记录(&P)", "跳转到上一条记录")
 
         rec_combo = QComboBox(tb)
         rec_combo.setObjectName("Quire_MMRecordCombo")
@@ -530,69 +556,56 @@ class QuireToolBarCluster:
         rec_combo.setToolTip(safe_tr("记录编号"))
         tb.addWidget(rec_combo)
 
-        tb.addAction(self._reg_act("mmNext", safe_tr("下一记录(&N)"), safe_tr("跳转到下一条记录")))
-        tb.addAction(self._reg_act("mmLast", safe_tr("尾记录(&L)"), safe_tr("跳转到最后一条记录")))
+        self._add(tb, "mmNext", "下一记录(&N)", "跳转到下一条记录")
+        self._add(tb, "mmLast", "尾记录(&L)", "跳转到最后一条记录")
 
         tb.add_office_separator()
 
-        tb.addAction(self._reg_act("mmMergeNew", safe_tr("合并到新文档(&N)..."), safe_tr("生成合并结果新文档")))
-        tb.addAction(self._reg_act("mmMergePrint", safe_tr("合并到打印机(&P)..."), safe_tr("批量输出到打印机")))
+        self._add(tb, "mmMergeNew", "合并到新文档(&N)...", "生成合并结果新文档")
+        self._add(tb, "mmMergePrint", "合并到打印机(&P)...", "批量输出到打印机")
 
         return tb
 
     def _build_picture_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("图片"), self.window)
 
-        tb.addAction(self._reg_act("pic_insert", safe_tr("插入图片(&I)..."), safe_tr("从文件插入图片")))
+        self._add(tb, "pic_insert", "插入图片(&I)...", "从文件插入图片")
+        self._add_drop(tb, "颜色", ["自动(&A)", "灰度(&G)", "黑白(&B)", "冲蚀(&W)"])
 
-        col_menu = QMenu(tb)
-        for c in [safe_tr("自动(&A)"), safe_tr("灰度(&G)"), safe_tr("黑白(&B)"), safe_tr("冲蚀(&W)")]:
-            col_menu.addAction(c)
-        tb.add_drop_button(safe_tr("颜色"), None, col_menu)
-
-        tb.addAction(self._reg_act("picMoreContrast", safe_tr("增加对比度(&M)"), safe_tr("增加图片对比度")))
-        tb.addAction(self._reg_act("picLessContrast", safe_tr("降低对比度(&L)"), safe_tr("降低图片对比度")))
-        tb.addAction(self._reg_act("picMoreBright", safe_tr("增加亮度(&B)"), safe_tr("增加图片亮度")))
-        tb.addAction(self._reg_act("picLessBright", safe_tr("降低亮度(&D)"), safe_tr("降低图片亮度")))
+        self._add(tb, "picMoreContrast", "增加对比度(&M)", "增加图片对比度")
+        self._add(tb, "picLessContrast", "降低对比度(&L)", "降低图片对比度")
+        self._add(tb, "picMoreBright", "增加亮度(&B)", "增加图片亮度")
+        self._add(tb, "picLessBright", "降低亮度(&D)", "降低图片亮度")
 
         tb.add_office_separator()
 
-        tb.addAction(self._reg_act("picCrop", safe_tr("裁剪(&R)"), safe_tr("激活裁剪控制柄"), checkable=True))
-        tb.addAction(self._reg_act("picRotate", safe_tr("向左旋转 90°(&T)"), safe_tr("向左旋转 90 度")))
-
-        ls_menu = QMenu(tb)
-        ls_menu.addAction(safe_tr("0.75 磅"))
-        tb.add_drop_button(safe_tr("线条样式"), None, ls_menu)
+        self._add(tb, "picCrop", "裁剪(&R)", "激活裁剪控制柄", checkable=True)
+        self._add(tb, "picRotate", "向左旋转 90°(&T)", "向左旋转 90 度")
+        self._add_drop(tb, "线条样式", ["0.75 磅"])
 
         tb.add_office_separator()
 
-        wrap_menu = QMenu(tb)
-        for w in [safe_tr("嵌入型"), safe_tr("四周型"), safe_tr("紧密型"), safe_tr("衬于文字下方"), safe_tr("浮于文字上方")]:
-            wrap_menu.addAction(w)
-        tb.add_drop_button(safe_tr("文字环绕"), None, wrap_menu)
-
-        tb.addAction(self._reg_act("formatObject", safe_tr("设置对象格式(&O)..."), safe_tr("设置对象格式对话框")))
-        tb.addAction(self._reg_act("picReset", safe_tr("重设图片(&P)"), safe_tr("恢复原始尺寸与颜色设置")))
+        self._add_drop(
+            tb,
+            "文字环绕",
+            ["嵌入型", "四周型", "紧密型", "衬于文字下方", "浮于文字上方"],
+        )
+        self._add(tb, "formatObject", "设置对象格式(&O)...", "设置对象格式对话框")
+        self._add(tb, "picReset", "重设图片(&P)", "恢复原始尺寸与颜色设置")
 
         return tb
 
     def _build_wordart_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("艺术字"), self.window)
 
-        tb.addAction(self._reg_act("wa_insert", safe_tr("插入艺术字(&W)..."), safe_tr("插入新艺术字对象")))
-        tb.addAction(self._reg_act("wordartEdit", safe_tr("编辑文字(&E)..."), safe_tr("编辑艺术字文字与字体")))
-        tb.addAction(self._reg_act("wordartGallery", safe_tr("艺术字库(&G)..."), safe_tr("选择艺术字预设样式库")))
-        tb.addAction(self._reg_act("wa_format", safe_tr("设置对象格式(&O)..."), safe_tr("设置艺术字轮廓与填充")))
-
-        shape_menu = QMenu(tb)
-        for shp in [safe_tr("纯文本"), safe_tr("波浪"), safe_tr("上凸"), safe_tr("下凹"), safe_tr("环形")]:
-            shape_menu.addAction(shp)
-        tb.add_drop_button(safe_tr("艺术字形状"), None, shape_menu)
-
-        wrap_menu = QMenu(tb)
-        for w in [safe_tr("嵌入型"), safe_tr("四周型"), safe_tr("紧密型"), safe_tr("浮于文字上方")]:
-            wrap_menu.addAction(w)
-        tb.add_drop_button(safe_tr("文字环绕"), None, wrap_menu)
+        self._add(tb, "wa_insert", "插入艺术字(&W)...", "插入新艺术字对象")
+        self._add(tb, "wordartEdit", "编辑文字(&E)...", "编辑艺术字文字与字体")
+        self._add(tb, "wordartGallery", "艺术字库(&G)...", "选择艺术字预设样式库")
+        self._add(tb, "wa_format", "设置对象格式(&O)...", "设置艺术字轮廓与填充")
+        self._add_drop(
+            tb, "艺术字形状", ["纯文本", "波浪", "上凸", "下凹", "环形"]
+        )
+        self._add_drop(tb, "文字环绕", ["嵌入型", "四周型", "紧密型", "浮于文字上方"])
 
         return tb
 

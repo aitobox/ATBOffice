@@ -53,9 +53,14 @@ def test_action_registry_binding(qtbot) -> None:
     assert isinstance(win.action_registry, ActionRegistry)
 
     # Core actions must be registered in action_registry
-    core_actions = ["new", "open", "save", "cut", "copy", "paste", "undo", "redo", "bold", "italic", "underline"]
+    core_actions = [
+        "new", "open", "save", "cut", "copy", "paste",
+        "undo", "redo", "bold", "italic", "underline",
+    ]
     for aid in core_actions:
-        assert win.action_registry.has_action(aid), f"Action {aid} should be registered in action_registry"
+        assert win.action_registry.has_action(aid), (
+            f"Action {aid} should be registered in action_registry"
+        )
 
     # Test triggering an action through the registry
     triggered_actions = []
