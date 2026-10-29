@@ -52,8 +52,17 @@ def test_action_registry_binding(qtbot) -> None:
 
     # Core actions must be registered in action_registry
     core_actions = [
-        "new", "open", "save", "cut", "copy", "paste",
-        "undo", "redo", "bold", "italic", "underline",
+        "new",
+        "open",
+        "save",
+        "cut",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "bold",
+        "italic",
+        "underline",
     ]
     for aid in core_actions:
         assert win.action_registry.has_action(aid), (

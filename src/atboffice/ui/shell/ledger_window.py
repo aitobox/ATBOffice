@@ -130,9 +130,7 @@ class LedgerWindow(BaseOfficeWindow):
 
     def _setup_toolbars(self) -> None:
         """Initialize Excel 2003 Luna 8 toolbars cluster."""
-        self.toolbars: dict[str, OfficeToolBar] = build_ledger_toolbars(
-            self, self.action_registry
-        )
+        self.toolbars: dict[str, OfficeToolBar] = build_ledger_toolbars(self, self.action_registry)
 
         # Bottom toolbar: Drawing
         self.addToolBar(Qt.ToolBarArea.BottomToolBarArea, self.toolbars["drawing"])

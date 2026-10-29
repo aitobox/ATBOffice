@@ -182,7 +182,15 @@ class LedgerToolBarCluster:
             "autoSum",
             "自动求和(&U)",
             "计算所选区域的总和",
-            ["求和(&S)", "平均值(&A)", "计数(&C)", "最大值(&M)", "最小值(&I)", "-", "更多函数(&F)..."],
+            [
+                "求和(&S)",
+                "平均值(&A)",
+                "计数(&C)",
+                "最大值(&M)",
+                "最小值(&I)",
+                "-",
+                "更多函数(&F)...",
+            ],
         )
         self._add(tb, "sortAsc", "升序排序(&A)", "以所选列升序排序")
         self._add(tb, "sortDesc", "降序排序(&D)", "以所选列降序排序")
@@ -195,10 +203,16 @@ class LedgerToolBarCluster:
         zoom_combo = QComboBox(tb)
         zoom_combo.setObjectName("Ledger_ZoomCombo")
         zoom_combo.setEditable(True)
-        zoom_combo.addItems([
-            "200%", "100%", "75%", "50%", "25%",
-            safe_tr("选定区域"),
-        ])
+        zoom_combo.addItems(
+            [
+                "200%",
+                "100%",
+                "75%",
+                "50%",
+                "25%",
+                safe_tr("选定区域"),
+            ]
+        )
         zoom_combo.setCurrentText("100%")
         zoom_combo.setToolTip(safe_tr("显示比例"))
         tb.addWidget(zoom_combo)
@@ -215,18 +229,44 @@ class LedgerToolBarCluster:
         font_combo = QComboBox(tb)
         font_combo.setObjectName("Ledger_FontCombo")
         font_combo.setEditable(True)
-        font_combo.addItems([
-            "Arial", "Calibri", "宋体", "黑体", "微软雅黑", "Times New Roman", "Courier New", "Verdana"
-        ])
+        font_combo.addItems(
+            [
+                "Arial",
+                "Calibri",
+                "宋体",
+                "黑体",
+                "微软雅黑",
+                "Times New Roman",
+                "Courier New",
+                "Verdana",
+            ]
+        )
         font_combo.setToolTip(safe_tr("字体"))
         tb.addWidget(font_combo)
 
         size_combo = QComboBox(tb)
         size_combo.setObjectName("Ledger_SizeCombo")
         size_combo.setEditable(True)
-        size_combo.addItems([
-            "8", "9", "10", "11", "12", "14", "16", "18", "20", "22", "24", "26", "28", "36", "48", "72",
-        ])
+        size_combo.addItems(
+            [
+                "8",
+                "9",
+                "10",
+                "11",
+                "12",
+                "14",
+                "16",
+                "18",
+                "20",
+                "22",
+                "24",
+                "26",
+                "28",
+                "36",
+                "48",
+                "72",
+            ]
+        )
         size_combo.setCurrentText("10")
         size_combo.setToolTip(safe_tr("字号"))
         tb.addWidget(size_combo)
@@ -264,7 +304,16 @@ class LedgerToolBarCluster:
             "bordersApply",
             "边框(&B)",
             "应用单元格边框预设",
-            ["下框线", "上框线", "左框线", "右框线", "无边框", "所有框线", "粗外侧框线", "双下框线"],
+            [
+                "下框线",
+                "上框线",
+                "左框线",
+                "右框线",
+                "无边框",
+                "所有框线",
+                "粗外侧框线",
+                "双下框线",
+            ],
         )
 
         fill_color_btn = ColorPickerButton(mode="fill", default_color="#FFFF00", parent=tb)
@@ -308,7 +357,9 @@ class LedgerToolBarCluster:
 
         tb.add_office_separator()
 
-        self._add(tb, "tracePrecedents", "追踪引用单元格(&P)", "追踪向当前单元格提供数值的引用单元格")
+        self._add(
+            tb, "tracePrecedents", "追踪引用单元格(&P)", "追踪向当前单元格提供数值的引用单元格"
+        )
         self._add(tb, "traceDependents", "追踪从属单元格(&D)", "追踪引用当前单元格数值的从属单元格")
         self._add(tb, "removeArrows", "移去所有箭头(&A)", "移去工作表中的所有追踪箭头")
 
@@ -351,9 +402,20 @@ class LedgerToolBarCluster:
         self._add_drop(
             tb,
             "列表(&L)",
-            ["插入行(&R)", "插入列(&C)", "-", "排序(&S)...", "自动筛选(&A)", "-", "汇总行(&T)", "转换为区域(&V)"],
+            [
+                "插入行(&R)",
+                "插入列(&C)",
+                "-",
+                "排序(&S)...",
+                "自动筛选(&A)",
+                "-",
+                "汇总行(&T)",
+                "转换为区域(&V)",
+            ],
         )
-        self._add(tb, "totalRow", "汇总行(&T)", "在列表底部显示或隐藏自动汇总计算行", checkable=True)
+        self._add(
+            tb, "totalRow", "汇总行(&T)", "在列表底部显示或隐藏自动汇总计算行", checkable=True
+        )
 
         return tb
 
@@ -363,7 +425,15 @@ class LedgerToolBarCluster:
         self._add_drop(
             tb,
             "图表类型(&T)",
-            ["柱形图(&C)", "折线图(&L)", "饼图(&P)", "条形图(&B)", "面积图(&A)", "散点图(&X)", "雷达图(&R)"],
+            [
+                "柱形图(&C)",
+                "折线图(&L)",
+                "饼图(&P)",
+                "条形图(&B)",
+                "面积图(&A)",
+                "散点图(&X)",
+                "雷达图(&R)",
+            ],
         )
         self._add(tb, "formatObject", "设置图表格式(&O)...", "打开所选图表对象的格式设置对话框")
 
@@ -372,7 +442,9 @@ class LedgerToolBarCluster:
     def _build_drawing_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("绘图"), self.window)
 
-        self._add_drop(tb, "绘图(&R)", ["置于顶层(&F)", "置于底层(&B)", "-", "组合(&G)", "取消组合(&U)"])
+        self._add_drop(
+            tb, "绘图(&R)", ["置于顶层(&F)", "置于底层(&B)", "-", "组合(&G)", "取消组合(&U)"]
+        )
 
         tb.add_office_separator()
 
