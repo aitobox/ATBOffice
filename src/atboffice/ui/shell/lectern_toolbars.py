@@ -158,7 +158,9 @@ class LecternToolBarCluster:
 
         tb.add_office_separator()
 
-        self._add(tb, "print", "打印(&P)...", "打印演示文稿 (Ctrl+P)", QKeySequence.StandardKey.Print)
+        self._add(
+            tb, "print", "打印(&P)...", "打印演示文稿 (Ctrl+P)", QKeySequence.StandardKey.Print
+        )
         self._add(tb, "printPreview", "打印预览(&V)", "打印预览")
         self._add(tb, "spelling", "拼写检查(&S)...", "拼写检查 (F7)", "F7")
 
@@ -304,8 +306,20 @@ class LecternToolBarCluster:
 
         tb.add_office_separator()
 
-        self._add(tb, "promote", "提升级别(&P)", "降低缩进量 / 提升级别 (Alt+Shift+Left)", "Alt+Shift+Left")
-        self._add(tb, "demote", "降低级别(&D)", "增加缩进量 / 降低级别 (Alt+Shift+Right)", "Alt+Shift+Right")
+        self._add(
+            tb,
+            "promote",
+            "提升级别(&P)",
+            "降低缩进量 / 提升级别 (Alt+Shift+Left)",
+            "Alt+Shift+Left",
+        )
+        self._add(
+            tb,
+            "demote",
+            "降低级别(&D)",
+            "增加缩进量 / 降低级别 (Alt+Shift+Right)",
+            "Alt+Shift+Right",
+        )
 
         tb.add_office_separator()
 
@@ -362,15 +376,25 @@ class LecternToolBarCluster:
     def _build_outlining_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("大纲"), self.window)
 
-        self._add(tb, "outline_promote", "提升(&P)", "提升大纲级别 (Alt+Shift+Left)", "Alt+Shift+Left")
-        self._add(tb, "outline_demote", "降低(&D)", "降低大纲级别 (Alt+Shift+Right)", "Alt+Shift+Right")
+        self._add(
+            tb, "outline_promote", "提升(&P)", "提升大纲级别 (Alt+Shift+Left)", "Alt+Shift+Left"
+        )
+        self._add(
+            tb, "outline_demote", "降低(&D)", "降低大纲级别 (Alt+Shift+Right)", "Alt+Shift+Right"
+        )
         self._add(tb, "moveParaUp", "上移(&U)", "上移选定段落 (Alt+Shift+Up)", "Alt+Shift+Up")
         self._add(tb, "moveParaDown", "下移(&O)", "下移选定段落 (Alt+Shift+Down)", "Alt+Shift+Down")
 
         tb.add_office_separator()
 
         self._add(tb, "outline_summarySlide", "摘要幻灯片(&S)", "生成摘要幻灯片")
-        self._add(tb, "outline_showFormatting", "显示格式(&F)", "在大纲视图中显示或隐藏文本格式", checkable=True)
+        self._add(
+            tb,
+            "outline_showFormatting",
+            "显示格式(&F)",
+            "在大纲视图中显示或隐藏文本格式",
+            checkable=True,
+        )
 
         return tb
 
@@ -382,7 +406,12 @@ class LecternToolBarCluster:
             "diagramAddShape",
             "添加形状(&A)",
             "在所选关系图元素周围添加新形状",
-            ["在后面添加形状(&A)", "在前面添加形状(&B)", "在上方添加形状(&O)", "在下方添加形状(&E)"],
+            [
+                "在后面添加形状(&A)",
+                "在前面添加形状(&B)",
+                "在上方添加形状(&O)",
+                "在下方添加形状(&E)",
+            ],
         )
         self._add(tb, "diagramPromote", "升级(&P)", "提升所选图示元素层级")
         self._add(tb, "diagramDemote", "降级(&D)", "降低所选图示元素层级")
@@ -401,9 +430,17 @@ class LecternToolBarCluster:
 
         tb.add_office_separator()
 
-        self._add(tb, "diagramTextPane", "文本窗格(&T)", "显示或隐藏 IntelliArt 文本大纲窗格", checkable=True)
+        self._add(
+            tb,
+            "diagramTextPane",
+            "文本窗格(&T)",
+            "显示或隐藏 IntelliArt 文本大纲窗格",
+            checkable=True,
+        )
         self._add(tb, "diagramReset", "重设图形(&R)", "撤销格式修改并重置默认样式")
-        self._add(tb, "diagramToShapes", "转换为形状(&S)", "将 IntelliArt 关系图解散为标准独立自选图形")
+        self._add(
+            tb, "diagramToShapes", "转换为形状(&S)", "将 IntelliArt 关系图解散为标准独立自选图形"
+        )
 
         return tb
 
@@ -422,7 +459,16 @@ class LecternToolBarCluster:
             "tableBordersAll",
             "边框(&B)",
             "应用表格边框样式",
-            ["所有框线", "外侧框线", "内侧框线", "无框线", "顶端框线", "底端框线", "左侧框线", "右侧框线"],
+            [
+                "所有框线",
+                "外侧框线",
+                "内侧框线",
+                "无框线",
+                "顶端框线",
+                "底端框线",
+                "左侧框线",
+                "右侧框线",
+            ],
         )
         self._add_drop(tb, "底纹颜色", ["无填充", "浅灰色", "黄色", "浅蓝色", "浅绿色"])
 
@@ -502,16 +548,26 @@ class LecternToolBarCluster:
 
         tb.add_office_separator()
 
-        self._add_drop(
-            tb, "艺术字形状(&S)", ["纯文本", "波浪", "上凸", "下凹", "环形", "倒三角形"]
+        self._add_drop(tb, "艺术字形状(&S)", ["纯文本", "波浪", "上凸", "下凹", "环形", "倒三角形"])
+        self._add(
+            tb,
+            "waSameHeight",
+            "艺术字同样高度(&H)",
+            "使所选艺术字大小写字母具有相同高度",
+            checkable=True,
         )
-        self._add(tb, "waSameHeight", "艺术字同样高度(&H)", "使所选艺术字大小写字母具有相同高度", checkable=True)
-        self._add(tb, "waVertical", "艺术字垂直文字(&V)", "将艺术字排列方向切换为纵向排版", checkable=True)
+        self._add(
+            tb, "waVertical", "艺术字垂直文字(&V)", "将艺术字排列方向切换为纵向排版", checkable=True
+        )
 
         tb.add_office_separator()
 
-        self._add_drop(tb, "艺术字对齐(&A)", ["左对齐(&L)", "居中(&C)", "右对齐(&R)", "两端对齐(&J)"])
-        self._add_drop(tb, "字符间距(&P)", ["很紧(&V)", "紧密(&T)", "常规(&N)", "稀疏(&L)", "很松(&E)"])
+        self._add_drop(
+            tb, "艺术字对齐(&A)", ["左对齐(&L)", "居中(&C)", "右对齐(&R)", "两端对齐(&J)"]
+        )
+        self._add_drop(
+            tb, "字符间距(&P)", ["很紧(&V)", "紧密(&T)", "常规(&N)", "稀疏(&L)", "很松(&E)"]
+        )
 
         return tb
 
