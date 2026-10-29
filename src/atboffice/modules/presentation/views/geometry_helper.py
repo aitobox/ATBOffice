@@ -107,13 +107,51 @@ def get_adjustment_handles(geom: str) -> list[AdjustmentHandleDef]:
 
 
 def create_shape_path(
-    geom: str, w: float, h: float, adj: dict[str, Any] | None = None
+    geom: str,
+    w: float,
+    h: float,
+    adj: dict[str, Any] | None = None,
+    custom_path: dict[str, Any] | None = None,
 ) -> QPainterPath:
-    """Generate a closed vector QPainterPath for the given geometry preset."""
+    """Generate a vector QPainterPath for the given geometry preset or custom path."""
     path = QPainterPath()
     w = max(1.0, float(w))
     h = max(1.0, float(h))
     adj = adj or {}
+
+    if (geom == "custom" or custom_path) and custom_path and "paths" in custom_path:
+        for p_info in custom_path["paths"]:
+            pw = float(p_info.get("w", w)) or w
+            ph = float(p_info.get("h", h)) or h
+            sx = w / pw if pw > 0 else 1.0
+            sy = h / ph if ph > 0 else 1.0
+            for cmd in p_info.get("cmds", []):
+                op = cmd[0]
+                if op == "M" and len(cmd) >= 3:
+                    path.moveTo(float(cmd[1]) * sx, float(cmd[2]) * sy)
+                elif op == "L" and len(cmd) >= 3:
+                    path.lineTo(float(cmd[1]) * sx, float(cmd[2]) * sy)
+                elif op == "C" and len(cmd) >= 7:
+                    path.cubicTo(
+                        float(cmd[1]) * sx, float(cmd[2]) * sy,
+                        float(cmd[3]) * sx, float(cmd[4]) * sy,
+                        float(cmd[5]) * sx, float(cmd[6]) * sy,
+                    )
+                elif op == "Q" and len(cmd) >= 5:
+                    path.quadTo(
+                        float(cmd[1]) * sx, float(cmd[2]) * sy,
+                        float(cmd[3]) * sx, float(cmd[4]) * sy,
+                    )
+                elif op == "A" and len(cmd) >= 5:
+                    wr = float(cmd[1]) * sx
+                    hr = float(cmd[2]) * sy
+                    st_ang = float(cmd[3])
+                    sw_ang = float(cmd[4])
+                    cur = path.currentPosition()
+                    path.arcTo(cur.x() - wr, cur.y() - hr, wr * 2, hr * 2, -st_ang, -sw_ang)
+                elif op == "Z":
+                    path.closeSubpath()
+        return path
 
     if geom == "roundRect":
         a_val = float(adj.get("adj", 16667))
