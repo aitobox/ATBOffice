@@ -7,15 +7,11 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-import pytest
-
 from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
 from atboffice.modules.spreadsheet.io.xlsx_writer import write_xlsx
 from atboffice.modules.spreadsheet.models.sheet_model import (
     BorderStyle,
     CellData,
-    FormatDelta,
-    SheetDataModel,
 )
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 from atboffice.vfs.opc import SourcePackage

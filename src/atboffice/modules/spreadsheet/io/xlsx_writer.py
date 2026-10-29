@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import io
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, BinaryIO
 
@@ -716,13 +715,13 @@ def _serialize_root_rels() -> bytes:
         f'  <Relationship Id="rId2" Type="{REL_CORE_PROPS}" Target="docProps/core.xml"/>\n'
         f'  <Relationship Id="rId3" Type="{REL_APP_PROPS}" Target="docProps/app.xml"/>\n'
         f"</Relationships>"
-    ).encode("utf-8")
+    ).encode()
 
 
 def _serialize_core_props() -> bytes:
     """Serialize docProps/core.xml."""
     now_iso = (
-        datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        datetime.now(UTC).isoformat().replace("+00:00", "Z")
     )
     return (
         f"{XML_HEADER}"
@@ -733,7 +732,7 @@ def _serialize_core_props() -> bytes:
         f'  <dcterms:created xsi:type="dcterms:W3CDTF">{now_iso}</dcterms:created>\n'
         f'  <dcterms:modified xsi:type="dcterms:W3CDTF">{now_iso}</dcterms:modified>\n'
         f"</cp:coreProperties>"
-    ).encode("utf-8")
+    ).encode()
 
 
 def _serialize_app_props(sheet_names: list[str]) -> bytes:
@@ -757,7 +756,7 @@ def _serialize_app_props(sheet_names: list[str]) -> bytes:
         f"  <HyperlinksChanged>false</HyperlinksChanged>\n"
         f"  <AppVersion>12.0000</AppVersion>\n"
         f"</Properties>"
-    ).encode("utf-8")
+    ).encode()
 
 
 def _serialize_theme() -> bytes:
@@ -781,18 +780,30 @@ def _serialize_theme() -> bytes:
         f'      <a:folHlink><a:srgbClr val="800080"/></a:folHlink>\n'
         f'    </a:clrScheme>\n'
         f'    <a:fontScheme name="Office">\n'
-        f'      <a:majorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>\n'
-        f'      <a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>\n'
+        f'      <a:majorFont>\n'
+        f'        <a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/>\n'
+        f'      </a:majorFont>\n'
+        f'      <a:minorFont>\n'
+        f'        <a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/>\n'
+        f'      </a:minorFont>\n'
         f'    </a:fontScheme>\n'
         f'    <a:fmtScheme name="Office">\n'
-        f'      <a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>\n'
-        f'      <a:lnStyleLst><a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst>\n'
-        f'      <a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>\n'
-        f'      <a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst>\n'
+        f'      <a:fillStyleLst>\n'
+        f'        <a:solidFill><a:schemeClr val="phClr"/></a:solidFill>\n'
+        f'      </a:fillStyleLst>\n'
+        f'      <a:lnStyleLst>\n'
+        f'        <a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>\n'
+        f'      </a:lnStyleLst>\n'
+        f'      <a:effectStyleLst>\n'
+        f'        <a:effectStyle><a:effectLst/></a:effectStyle>\n'
+        f'      </a:effectStyleLst>\n'
+        f'      <a:bgFillStyleLst>\n'
+        f'        <a:solidFill><a:schemeClr val="phClr"/></a:solidFill>\n'
+        f'      </a:bgFillStyleLst>\n'
         f'    </a:fmtScheme>\n'
         f'  </a:themeElements>\n'
         f"</a:theme>"
-    ).encode("utf-8")
+    ).encode()
 
 
 def write_xlsx(
