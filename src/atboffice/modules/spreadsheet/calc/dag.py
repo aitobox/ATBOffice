@@ -1,8 +1,11 @@
 """DAG dependency tracking, three-color cycle detection, and topological sorting."""
 
+from __future__ import annotations
+
 from collections import deque
 from dataclasses import dataclass, field
 from enum import IntEnum
+from typing import Any
 
 from atboffice.modules.spreadsheet.calc.parser import parse
 from atboffice.modules.spreadsheet.calc.references import cell_name, walk
@@ -11,6 +14,7 @@ from atboffice.modules.spreadsheet.calc.tokens import (
     ASTNode,
     CellRefNode,
     FunctionCallNode,
+    SheetReference,
 )
 
 VOLATILE_FUNCTIONS: frozenset[str] = frozenset(
@@ -43,6 +47,10 @@ class CellAddress:
     sheet: str
     r: int
     c: int
+
+    @property
+    def sheet_id(self) -> str:
+        return self.sheet
 
     def __str__(self) -> str:
         return f"{self.sheet}!{cell_name(self.r, self.c)}"
@@ -146,6 +154,16 @@ def extract_precedents(ast: ASTNode, default_sheet: str = "Sheet1") -> Precedent
             c1 = min(node.c1, node.c2)
             c2 = max(node.c1, node.c2)
             out.refs.append(CellRange(target_sheet, r1, c1, r2, c2))
+        elif isinstance(node, SheetReference):
+            target_sheet = node.sheet_name or default_sheet
+            if node.is_range:
+                r1 = min(node.r1, node.r2)
+                r2 = max(node.r1, node.r2)
+                c1 = min(node.c1, node.c2)
+                c2 = max(node.c1, node.c2)
+                out.refs.append(CellRange(target_sheet, r1, c1, r2, c2))
+            else:
+                out.refs.append(CellAddress(target_sheet, node.r, node.c))
 
     walk(ast, visitor)
     return out
@@ -502,3 +520,122 @@ class DependencyGraph:
             max_iterations=self.max_iterations,
             tolerance=self.tolerance,
         )
+
+    def recalculate(
+        self,
+        workbook: Any,
+        ctx: Any | None = None,
+    ) -> CycleReport:
+        """Scan all formula cells across all sheets in workbook, detect cycles, and recompute."""
+        from atboffice.modules.spreadsheet.calc.context import EvalContext
+        from atboffice.modules.spreadsheet.calc.errors import CYCLE, VALUE
+        from atboffice.modules.spreadsheet.calc.evaluator import evaluate
+
+        if ctx is None:
+            ctx = EvalContext(workbook=workbook)
+        elif ctx.workbook is None:
+            ctx.workbook = workbook
+
+        # 1. Clear existing formula registrations and rebuild from workbook
+        self.clear()
+        sheets = getattr(workbook, "sheets", [])
+        for sh in sheets:
+            sh_name = getattr(sh, "name", "Sheet1")
+            cells_dict = getattr(sh, "cells", {})
+            for (r, c), cell in cells_dict.items():
+                formula = getattr(cell, "formula", None)
+                if formula:
+                    self.set_cell_formula(sh_name, r, c, formula)
+
+        # 2. Cycle detection across all registered formula cells
+        cycle_report = self.detect_cycles()
+
+        # 3. For any circular cells, mark them with CYCLE error immediately
+        for addr in cycle_report.circular_cells:
+            sh = (
+                workbook.get_sheet_by_name(addr.sheet)
+                if hasattr(workbook, "get_sheet_by_name")
+                else None
+            )
+            if sh is not None:
+                cell = sh.get_cell(addr.r, addr.c) if hasattr(sh, "get_cell") else None
+                if cell is not None:
+                    cell.value = CYCLE
+
+        # 4. Filter non-circular formula cells and topologically sort them
+        non_circular_dirty = [
+            addr for addr in self._formula_cells if addr not in cycle_report.circular_cells
+        ]
+        eval_order = self.topological_sort(non_circular_dirty)
+
+        # 5. Evaluate in topological order
+        for addr in eval_order:
+            sh = (
+                workbook.get_sheet_by_name(addr.sheet)
+                if hasattr(workbook, "get_sheet_by_name")
+                else None
+            )
+            if sh is not None:
+                cell = sh.get_cell(addr.r, addr.c) if hasattr(sh, "get_cell") else None
+                if cell is not None and getattr(cell, "formula", None):
+                    ctx.current_sheet = addr.sheet
+                    ctx.current_row = addr.r
+                    ctx.current_col = addr.c
+                    try:
+                        cell.value = evaluate(cell.formula, ctx)
+                    except Exception:
+                        cell.value = VALUE
+
+        return cycle_report
+
+    def recalculate_cell(
+        self,
+        sheet: str,
+        r: int,
+        c: int,
+        workbook: Any,
+        ctx: Any | None = None,
+    ) -> RecalcPlan:
+        """Invalidate and recalculate downstream dependents when cell (sheet, r, c) changes."""
+        from atboffice.modules.spreadsheet.calc.context import EvalContext
+        from atboffice.modules.spreadsheet.calc.errors import CYCLE, VALUE
+        from atboffice.modules.spreadsheet.calc.evaluator import evaluate
+
+        if ctx is None:
+            ctx = EvalContext(workbook=workbook)
+        elif ctx.workbook is None:
+            ctx.workbook = workbook
+
+        plan = self.get_recalc_plan([CellAddress(sheet, r, c)])
+
+        for addr in plan.cycle_report.circular_cells:
+            sh = (
+                workbook.get_sheet_by_name(addr.sheet)
+                if hasattr(workbook, "get_sheet_by_name")
+                else None
+            )
+            if sh is not None:
+                cell = sh.get_cell(addr.r, addr.c) if hasattr(sh, "get_cell") else None
+                if cell is not None:
+                    cell.value = CYCLE
+
+        for addr in plan.eval_order:
+            if addr in plan.cycle_report.circular_cells:
+                continue
+            sh = (
+                workbook.get_sheet_by_name(addr.sheet)
+                if hasattr(workbook, "get_sheet_by_name")
+                else None
+            )
+            if sh is not None:
+                cell = sh.get_cell(addr.r, addr.c) if hasattr(sh, "get_cell") else None
+                if cell is not None and getattr(cell, "formula", None):
+                    ctx.current_sheet = addr.sheet
+                    ctx.current_row = addr.r
+                    ctx.current_col = addr.c
+                    try:
+                        cell.value = evaluate(cell.formula, ctx)
+                    except Exception:
+                        cell.value = VALUE
+
+        return plan

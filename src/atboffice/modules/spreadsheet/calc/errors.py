@@ -41,6 +41,7 @@ NA: Final[ExcelError] = ExcelError("#N/A")
 GETTING_DATA: Final[ExcelError] = ExcelError("#GETTING_DATA")
 SPILL: Final[ExcelError] = ExcelError("#SPILL!")
 CALC: Final[ExcelError] = ExcelError("#CALC!")
+CYCLE: Final[ExcelError] = ExcelError("#CYCLE!")
 
 ALL_ERRORS: Final[tuple[ExcelError, ...]] = (
     NULL,
@@ -53,6 +54,7 @@ ALL_ERRORS: Final[tuple[ExcelError, ...]] = (
     GETTING_DATA,
     SPILL,
     CALC,
+    CYCLE,
 )
 
 ERROR_MAP: Final[dict[str, ExcelError]] = {err.code: err for err in ALL_ERRORS}

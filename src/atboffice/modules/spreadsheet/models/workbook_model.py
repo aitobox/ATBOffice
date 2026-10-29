@@ -212,3 +212,10 @@ class WorkbookModel(QObject):
         self._active_sheet_index = self._sheets.index(active_sheet_ref)
 
         self.sheet_moved.emit(from_index, to_index)
+
+    def recalculate(self) -> Any:
+        """Recalculate all formulas across all worksheets using dependency DAG."""
+        from atboffice.modules.spreadsheet.calc.dag import DependencyGraph
+
+        graph = DependencyGraph()
+        return graph.recalculate(self)

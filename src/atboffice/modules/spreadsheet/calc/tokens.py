@@ -106,6 +106,23 @@ class CellRefNode(ASTNode):
     book: str | None = None
     bang: bool = False
 
+    @property
+    def sheet_reference(self) -> SheetReference | None:
+        if self.sheet:
+            c_str = f"{'$' if self.ca else ''}{self._col_name(self.c)}{'$' if self.ra else ''}{self.r + 1}"
+            return SheetReference(sheet_name=self.sheet, cell_range=c_str, target=self)
+        return None
+
+    @staticmethod
+    def _col_name(c: int) -> str:
+        s = ""
+        c = c + 1
+        while c > 0:
+            m = (c - 1) % 26
+            s = chr(65 + m) + s
+            c = (c - 1) // 26
+        return s
+
 
 @dataclass
 class AreaRefNode(ASTNode):
@@ -125,6 +142,98 @@ class AreaRefNode(ASTNode):
     book: str | None = None
     kind: str | None = None  # None | "cols" | "rows"
     bang: bool = False
+
+    @property
+    def sheet_reference(self) -> SheetReference | None:
+        if self.sheet:
+            p1 = f"{'$' if self.ca1 else ''}{CellRefNode._col_name(self.c1)}{'$' if self.ra1 else ''}{self.r1 + 1}"
+            p2 = f"{'$' if self.ca2 else ''}{CellRefNode._col_name(self.c2)}{'$' if self.ra2 else ''}{self.r2 + 1}"
+            return SheetReference(sheet_name=self.sheet, cell_range=f"{p1}:{p2}", target=self)
+        return None
+
+
+@dataclass
+class SheetReference(ASTNode):
+    """Sheet-qualified reference AST node (e.g. Sheet2!A1 or 'Q1 Summary'!B5:C10)."""
+
+    sheet_name: str = ""
+    cell_range: str = ""
+    t: str = "sheet_ref"
+    r: int = 0
+    c: int = 0
+    ra: bool = False
+    ca: bool = False
+    r1: int = 0
+    c1: int = 0
+    r2: int = 0
+    c2: int = 0
+    ra1: bool = False
+    ca1: bool = False
+    ra2: bool = False
+    ca2: bool = False
+    is_range: bool = False
+    target: ASTNode | None = None
+
+    def __post_init__(self) -> None:
+        if self.target is not None:
+            if isinstance(self.target, CellRefNode):
+                self.r = self.target.r
+                self.c = self.target.c
+                self.ra = self.target.ra
+                self.ca = self.target.ca
+                self.is_range = False
+            elif isinstance(self.target, AreaRefNode):
+                self.r1 = self.target.r1
+                self.c1 = self.target.c1
+                self.r2 = self.target.r2
+                self.c2 = self.target.c2
+                self.ra1 = self.target.ra1
+                self.ca1 = self.target.ca1
+                self.ra2 = self.target.ra2
+                self.ca2 = self.target.ca2
+                self.is_range = True
+        elif self.cell_range:
+            self._parse_range_str(self.cell_range)
+
+    def _parse_range_str(self, s: str) -> None:
+        import re
+
+        clean = s.strip()
+        re_cell = re.compile(r"^(\$?)([A-Za-z]{1,3})(\$?)(\d{1,7})$")
+
+        def col_idx(col_str: str) -> int:
+            n = 0
+            for ch in col_str.upper():
+                n = n * 26 + (ord(ch) - 64)
+            return n - 1
+
+        if ":" in clean:
+            parts = clean.split(":")
+            if len(parts) == 2:
+                self.is_range = True
+                p1, p2 = parts[0].strip(), parts[1].strip()
+                m1, m2 = re_cell.match(p1), re_cell.match(p2)
+                if m1 and m2:
+                    c1_val = col_idx(m1.group(2))
+                    r1_val = int(m1.group(4)) - 1
+                    c2_val = col_idx(m2.group(2))
+                    r2_val = int(m2.group(4)) - 1
+                    self.r1 = min(r1_val, r2_val)
+                    self.c1 = min(c1_val, c2_val)
+                    self.r2 = max(r1_val, r2_val)
+                    self.c2 = max(c1_val, c2_val)
+                    self.ra1 = bool(m1.group(3))
+                    self.ca1 = bool(m1.group(1))
+                    self.ra2 = bool(m2.group(3))
+                    self.ca2 = bool(m2.group(1))
+        else:
+            m = re_cell.match(clean)
+            if m:
+                self.c = col_idx(m.group(2))
+                self.r = int(m.group(4)) - 1
+                self.ca = bool(m.group(1))
+                self.ra = bool(m.group(3))
+                self.is_range = False
 
 
 @dataclass
