@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import io
 import zipfile
-import pytest
 
 from PySide6.QtGui import QPainterPath
 
@@ -27,79 +26,84 @@ def _create_minimal_pptx_zip(
 ) -> bytes:
     """Helper to build an in-memory PPTX zip archive with specified XML parts."""
     buf = io.BytesIO()
+    types_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n'
+        '  <Default Extension="rels"\n'
+        '    ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n'
+        '  <Default Extension="xml" ContentType="application/xml"/>\n'
+        '  <Override PartName="/ppt/presentation.xml"\n'
+        '    ContentType="application/vnd.openxmlformats-officedocument.'
+        'presentationml.presentation.main+xml"/>\n'
+        '  <Override PartName="/ppt/slides/slide1.xml"\n'
+        '    ContentType="application/vnd.openxmlformats-officedocument.'
+        'presentationml.slide+xml"/>\n'
+        '  <Override PartName="/ppt/slideLayouts/slideLayout1.xml"\n'
+        '    ContentType="application/vnd.openxmlformats-officedocument.'
+        'presentationml.slideLayout+xml"/>\n'
+        '  <Override PartName="/ppt/slideMasters/slideMaster1.xml"\n'
+        '    ContentType="application/vnd.openxmlformats-officedocument.'
+        'presentationml.slideMaster+xml"/>\n'
+        '  <Override PartName="/ppt/theme/theme1.xml"\n'
+        '    ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>\n'
+        "</Types>"
+    )
+
+    root_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+        '  <Relationship Id="rId1"\n'
+        '    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/'
+        'officeDocument"\n'
+        '    Target="ppt/presentation.xml"/>\n'
+        "</Relationships>"
+    )
+
+    pres_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"\n'
+        '                xmlns:r="http://schemas.openxmlformats.org/officeDocument/'
+        '2006/relationships">\n'
+        '  <p:sldSz cx="9144000" cy="5143500"/>\n'
+        "  <p:sldIdLst>\n"
+        '    <p:sldId id="256" r:id="rId2"/>\n'
+        "  </p:sldIdLst>\n"
+        "</p:presentation>"
+    )
+
+    pres_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+        '  <Relationship Id="rId1"\n'
+        '    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"\n'
+        '    Target="theme/theme1.xml"/>\n'
+        '  <Relationship Id="rId2"\n'
+        '    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide"\n'
+        '    Target="slides/slide1.xml"/>\n'
+        '  <Relationship Id="rId3"\n'
+        '    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/'
+        'slideMaster"\n'
+        '    Target="slideMasters/slideMaster1.xml"/>\n'
+        "</Relationships>"
+    )
+
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        # [Content_Types].xml
-        zf.writestr(
-            "[Content_Types].xml",
-            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="xml" ContentType="application/xml"/>
-  <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
-  <Override PartName="/ppt/slides/slide1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>
-  <Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>
-  <Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>
-  <Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
-</Types>""",
-        )
-
-        # _rels/.rels
-        zf.writestr(
-            "_rels/.rels",
-            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
-</Relationships>""",
-        )
-
-        # ppt/presentation.xml
-        zf.writestr(
-            "ppt/presentation.xml",
-            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
-                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <p:sldSz cx="9144000" cy="5143500"/>
-  <p:sldIdLst>
-    <p:sldId id="256" r:id="rId2"/>
-  </p:sldIdLst>
-</p:presentation>""",
-        )
-
-        # ppt/_rels/presentation.xml.rels
-        zf.writestr(
-            "ppt/_rels/presentation.xml.rels",
-            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>
-  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
-  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>
-</Relationships>""",
-        )
-
-        # ppt/slides/slide1.xml
+        zf.writestr("[Content_Types].xml", types_xml)
+        zf.writestr("_rels/.rels", root_rels)
+        zf.writestr("ppt/presentation.xml", pres_xml)
+        zf.writestr("ppt/_rels/presentation.xml.rels", pres_rels)
         zf.writestr("ppt/slides/slide1.xml", slide_xml_content)
 
-        # ppt/slides/_rels/slide1.xml.rels
         if slide_rels_content:
             zf.writestr("ppt/slides/_rels/slide1.xml.rels", slide_rels_content)
-
-        # ppt/slideLayouts/slideLayout1.xml
         if layout_xml_content:
             zf.writestr("ppt/slideLayouts/slideLayout1.xml", layout_xml_content)
-
-        # ppt/slideLayouts/_rels/slideLayout1.xml.rels
         if layout_rels_content:
             zf.writestr("ppt/slideLayouts/_rels/slideLayout1.xml.rels", layout_rels_content)
-
-        # ppt/slideMasters/slideMaster1.xml
         if master_xml_content:
             zf.writestr("ppt/slideMasters/slideMaster1.xml", master_xml_content)
-
-        # ppt/slideMasters/_rels/slideMaster1.xml.rels
         if master_rels_content:
             zf.writestr("ppt/slideMasters/_rels/slideMaster1.xml.rels", master_rels_content)
-
-        # ppt/theme/theme1.xml
         if theme_xml_content:
             zf.writestr("ppt/theme/theme1.xml", theme_xml_content)
 
@@ -108,7 +112,7 @@ def _create_minimal_pptx_zip(
 
 
 def test_custom_geometry_guide_evaluation_and_paths():
-    """Verify DrawingML a:custGeom parsing, guide formula evaluation, and QPainterPath generation."""
+    """Verify DrawingML a:custGeom parsing, guide formula evaluation, and QPainterPath."""
     slide_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
        xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
@@ -179,7 +183,6 @@ def test_custom_geometry_guide_evaluation_and_paths():
 
     path_data = shape.custom_path["paths"][0]
     assert len(path_data["cmds"]) == 4
-    # cmds: M 0 0, L midX 0, C ..., Z
     assert path_data["cmds"][0][0] == "M"
     assert path_data["cmds"][1][0] == "L"
     assert path_data["cmds"][2][0] == "C"
@@ -193,7 +196,7 @@ def test_custom_geometry_guide_evaluation_and_paths():
 
 
 def test_master_placeholder_inheritance_chain():
-    """Verify placeholder transforms, fonts, sizes, and colors inherit through slide -> layout -> master."""
+    """Verify placeholder transforms, fonts, sizes, and colors inherit through master."""
     slide_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
        xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
@@ -223,10 +226,15 @@ def test_master_placeholder_inheritance_chain():
   </p:cSld>
 </p:sld>"""
 
-    slide_rels = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
-</Relationships>"""
+    slide_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+        '  <Relationship Id="rId1"\n'
+        '    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/'
+        'slideLayout"\n'
+        '    Target="../slideLayouts/slideLayout1.xml"/>\n'
+        "</Relationships>"
+    )
 
     layout_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sldLayout xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
@@ -254,10 +262,15 @@ def test_master_placeholder_inheritance_chain():
   </p:cSld>
 </p:sldLayout>"""
 
-    layout_rels = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/>
-</Relationships>"""
+    layout_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+        '  <Relationship Id="rId1"\n'
+        '    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/'
+        'slideMaster"\n'
+        '    Target="../slideMasters/slideMaster1.xml"/>\n'
+        "</Relationships>"
+    )
 
     master_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sldMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
@@ -386,7 +399,8 @@ def test_animation_timing_tree_parsing():
                       <p:stCondLst><p:cond delay="indefinite"/></p:stCondLst>
                       <p:childTnLst>
                         <p:par>
-                          <p:cTn id="4" presetID="10" presetClass="entr" presetSubtype="0" dur="800" nodeType="clickEffect">
+                          <p:cTn id="4" presetID="10" presetClass="entr" presetSubtype="0"
+                                 dur="800" nodeType="clickEffect">
                             <p:stCondLst><p:cond delay="250"/></p:stCondLst>
                             <p:childTnLst>
                               <p:animEffect transition="in" filter="fade">
@@ -399,7 +413,8 @@ def test_animation_timing_tree_parsing():
                           </p:cTn>
                         </p:par>
                         <p:par>
-                          <p:cTn id="6" presetID="2" presetClass="entr" presetSubtype="8" dur="600" nodeType="afterEffect">
+                          <p:cTn id="6" presetID="2" presetClass="entr" presetSubtype="8"
+                                 dur="600" nodeType="afterEffect">
                             <p:childTnLst>
                               <p:set>
                                 <p:cBhvr>
@@ -430,7 +445,6 @@ def test_animation_timing_tree_parsing():
 
     assert len(slide.animations) == 2
 
-    # Animation 1: Fade on shape 101, click trigger, delay 250ms, duration 800ms
     a1 = slide.animations[0]
     assert a1.sid == "101"
     assert a1.cls == "entr"
@@ -439,7 +453,6 @@ def test_animation_timing_tree_parsing():
     assert a1.dur == 800
     assert a1.delay == 250
 
-    # Animation 2: FlyIn on shape 102, after trigger, duration 600ms, from top (subtype 8 -> dir 't')
     a2 = slide.animations[1]
     assert a2.sid == "102"
     assert a2.cls == "entr"
@@ -502,7 +515,7 @@ def test_custom_geometry_arc_and_quad_bezier():
 
 
 def test_placeholder_penetration_when_layout_omits_placeholder():
-    """Verify slide placeholder inherits directly from master when layout does not define that placeholder."""
+    """Verify slide placeholder inherits from master when layout omits that placeholder."""
     slide_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
        xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
@@ -526,24 +539,37 @@ def test_placeholder_penetration_when_layout_omits_placeholder():
   </p:cSld>
 </p:sld>"""
 
-    slide_rels = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
-</Relationships>"""
+    slide_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+        '  <Relationship Id="rId1"\n'
+        '    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/'
+        'slideLayout"\n'
+        '    Target="../slideLayouts/slideLayout1.xml"/>\n'
+        "</Relationships>"
+    )
 
-    # Layout has NO placeholders
     layout_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sldLayout xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
              xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
-  <p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>
+  <p:cSld>
+    <p:spTree>
+      <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+      <p:grpSpPr/>
+    </p:spTree>
+  </p:cSld>
 </p:sldLayout>"""
 
-    layout_rels = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/>
-</Relationships>"""
+    layout_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+        '  <Relationship Id="rId1"\n'
+        '    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/'
+        'slideMaster"\n'
+        '    Target="../slideMasters/slideMaster1.xml"/>\n'
+        "</Relationships>"
+    )
 
-    # Master has body placeholder with transform and formatting
     master_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sldMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
               xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
@@ -636,7 +662,8 @@ def test_animation_timing_paragraph_and_emphasis():
                     <p:cTn id="3" fill="hold">
                       <p:childTnLst>
                         <p:par>
-                          <p:cTn id="4" presetID="8" presetClass="emph" dur="1000" nodeType="clickEffect">
+                          <p:cTn id="4" presetID="8" presetClass="emph" dur="1000"
+                                 nodeType="clickEffect">
                             <p:childTnLst>
                               <p:set>
                                 <p:cBhvr>

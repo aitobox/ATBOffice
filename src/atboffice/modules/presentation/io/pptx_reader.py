@@ -1296,7 +1296,11 @@ class PptxReader:
             l_rels = self.package.get_relationships(layout_path)
 
             m_rel = next(
-                (r for r in l_rels if r.type == REL_SLIDE_MASTER or r.type.endswith("/slideMaster")),
+                (
+                    r
+                    for r in l_rels
+                    if r.type == REL_SLIDE_MASTER or r.type.endswith("/slideMaster")
+                ),
                 None,
             )
             master_info = None
