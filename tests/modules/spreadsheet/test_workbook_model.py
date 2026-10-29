@@ -89,7 +89,7 @@ class TestWorkbookModel:
     def test_remove_sheet(self, qapp):
         wb = WorkbookModel()
         s2 = wb.add_sheet("Sheet2")
-        s3 = wb.add_sheet("Sheet3")
+        wb.add_sheet("Sheet3")
         assert len(wb) == 3
 
         removed_signals = []

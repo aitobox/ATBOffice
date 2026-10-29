@@ -109,7 +109,9 @@ class CellRefNode(ASTNode):
     @property
     def sheet_reference(self) -> SheetReference | None:
         if self.sheet:
-            c_str = f"{'$' if self.ca else ''}{self._col_name(self.c)}{'$' if self.ra else ''}{self.r + 1}"
+            ca_str = "$" if self.ca else ""
+            ra_str = "$" if self.ra else ""
+            c_str = f"{ca_str}{self._col_name(self.c)}{ra_str}{self.r + 1}"
             return SheetReference(sheet_name=self.sheet, cell_range=c_str, target=self)
         return None
 
@@ -146,8 +148,14 @@ class AreaRefNode(ASTNode):
     @property
     def sheet_reference(self) -> SheetReference | None:
         if self.sheet:
-            p1 = f"{'$' if self.ca1 else ''}{CellRefNode._col_name(self.c1)}{'$' if self.ra1 else ''}{self.r1 + 1}"
-            p2 = f"{'$' if self.ca2 else ''}{CellRefNode._col_name(self.c2)}{'$' if self.ra2 else ''}{self.r2 + 1}"
+            p1 = (
+                f"{'$' if self.ca1 else ''}{CellRefNode._col_name(self.c1)}"
+                f"{'$' if self.ra1 else ''}{self.r1 + 1}"
+            )
+            p2 = (
+                f"{'$' if self.ca2 else ''}{CellRefNode._col_name(self.c2)}"
+                f"{'$' if self.ra2 else ''}{self.r2 + 1}"
+            )
             return SheetReference(sheet_name=self.sheet, cell_range=f"{p1}:{p2}", target=self)
         return None
 

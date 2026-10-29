@@ -6,9 +6,9 @@ from atboffice.modules.spreadsheet.calc.context import EvalContext
 from atboffice.modules.spreadsheet.calc.dag import CellAddress, DependencyGraph
 from atboffice.modules.spreadsheet.calc.errors import CYCLE, REF
 from atboffice.modules.spreadsheet.calc.evaluator import evaluate
-from atboffice.modules.spreadsheet.calc.parser import parse, parse_sheet_reference
+from atboffice.modules.spreadsheet.calc.parser import parse_sheet_reference
 from atboffice.modules.spreadsheet.calc.tokens import AreaRefNode, CellRefNode, SheetReference
-from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetDataModel
+from atboffice.modules.spreadsheet.models.sheet_model import CellData
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 
 
@@ -18,6 +18,7 @@ class TestSheetReferenceAST:
     def test_parse_sheet_reference_simple(self):
         ref = parse_sheet_reference("Sheet2!A1")
         assert ref is not None
+        assert isinstance(ref, SheetReference)
         assert ref.sheet_name == "Sheet2"
         assert ref.cell_range == "A1"
         assert ref.r == 0
@@ -73,7 +74,6 @@ class TestCrossSheetEvaluation:
     @pytest.fixture
     def workbook(self) -> WorkbookModel:
         wb = WorkbookModel()
-        s1 = wb.active_sheet  # Sheet1
         s2 = wb.add_sheet("Sheet2")
         s3 = wb.add_sheet("Q1 Summary")
         s4 = wb.add_sheet("O'Reilly")

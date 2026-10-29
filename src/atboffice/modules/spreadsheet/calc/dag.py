@@ -75,7 +75,7 @@ class CellRange:
             return False
         return self.r1 <= r <= self.r2 and self.c1 <= c <= self.c2
 
-    def intersects(self, other: "CellRange") -> bool:
+    def intersects(self, other: CellRange) -> bool:
         """Check if this range intersects with another range."""
         if self.sheet != other.sheet:
             return False

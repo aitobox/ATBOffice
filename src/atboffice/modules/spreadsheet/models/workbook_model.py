@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from PySide6.QtCore import QObject, Signal
 
@@ -123,7 +124,8 @@ class WorkbookModel(QObject):
         """Validate a proposed worksheet name against Excel constraints and duplicates."""
         if not is_valid_sheet_name(name):
             raise ValueError(
-                f"Invalid sheet name '{name}'. Names must be 1-31 characters, cannot start or end with single quotes, and cannot contain :\\/?*[]"
+                f"Invalid sheet name '{name}'. Names must be 1-31 characters, "
+                "cannot start or end with single quotes, and cannot contain :\\/?*[]"
             )
         target = name.strip().lower()
         for idx, s in enumerate(self._sheets):
