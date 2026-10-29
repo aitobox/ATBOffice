@@ -15,10 +15,12 @@ from atboffice.modules.spreadsheet.calc.coercion import (
 from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext, Ref
 from atboffice.modules.spreadsheet.calc.errors import (
     CALC,
+    CYCLE,
     DIV0,
     NA,
     NAME,
     NUM,
+    REF,
     VALUE,
     ExcelError,
     is_error,
@@ -37,6 +39,7 @@ from atboffice.modules.spreadsheet.calc.tokens import (
     LiteralNode,
     NameNode,
     ParenNode,
+    SheetReference,
     UnaryOpNode,
 )
 
@@ -122,17 +125,54 @@ def evaluate_ast(node: ASTNode, ctx: EvalContext | None = None) -> Any:
             return fn_val
         return CALC
 
-    if isinstance(node, CellRefNode):
-        sheet = node.sheet or ctx.current_sheet
+    if isinstance(node, SheetReference):
+        sheet = node.sheet_name or ctx.current_sheet
+        if ctx.workbook is not None and hasattr(ctx.workbook, "get_sheet_by_name"):
+            if ctx.workbook.get_sheet_by_name(sheet) is None:
+                return REF
+
+        if node.is_range:
+            return ctx.create_ref(sheet, node.r1, node.c1, node.r2, node.c2)
+
+        key = (sheet.lower(), node.r, node.c)
+        if key in ctx.visiting:
+            return CYCLE
+
         val = ctx.get_cell_value(sheet, node.r, node.c)
         if isinstance(val, str) and val.startswith("="):
-            # Evaluate nested formula
-            nested_ast = parse(val[1:])
-            return evaluate_ast(nested_ast, ctx)
+            ctx.visiting.add(key)
+            try:
+                nested_ast = parse(val[1:])
+                return evaluate_ast(nested_ast, ctx)
+            finally:
+                ctx.visiting.discard(key)
+        return val
+
+    if isinstance(node, CellRefNode):
+        sheet = node.sheet or ctx.current_sheet
+        if ctx.workbook is not None and hasattr(ctx.workbook, "get_sheet_by_name"):
+            if ctx.workbook.get_sheet_by_name(sheet) is None:
+                return REF
+
+        key = (sheet.lower(), node.r, node.c)
+        if key in ctx.visiting:
+            return CYCLE
+
+        val = ctx.get_cell_value(sheet, node.r, node.c)
+        if isinstance(val, str) and val.startswith("="):
+            ctx.visiting.add(key)
+            try:
+                nested_ast = parse(val[1:])
+                return evaluate_ast(nested_ast, ctx)
+            finally:
+                ctx.visiting.discard(key)
         return val
 
     if isinstance(node, AreaRefNode):
         sheet = node.sheet or ctx.current_sheet
+        if ctx.workbook is not None and hasattr(ctx.workbook, "get_sheet_by_name"):
+            if ctx.workbook.get_sheet_by_name(sheet) is None:
+                return REF
         return ctx.create_ref(sheet, node.r1, node.c1, node.r2, node.c2)
 
     if isinstance(node, ArrayNode):
@@ -310,8 +350,15 @@ def evaluate_ast(node: ASTNode, ctx: EvalContext | None = None) -> Any:
     return VALUE
 
 
-def evaluate(formula: str, ctx: EvalContext | None = None) -> Any:
+def evaluate(
+    formula: str, ctx: EvalContext | None = None, workbook: Any | None = None
+) -> Any:
     """Parse and evaluate an Excel formula expression (with or without leading '=')."""
+    if ctx is None:
+        ctx = EvalContext(workbook=workbook)
+    elif workbook is not None and ctx.workbook is None:
+        ctx.workbook = workbook
+
     clean_formula = formula.strip()
     if clean_formula.startswith("="):
         clean_formula = clean_formula[1:].strip()

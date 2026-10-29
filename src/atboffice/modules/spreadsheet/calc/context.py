@@ -98,6 +98,8 @@ class EvalContext:
     current_col: int = 0
     workbook_data: dict[str, dict[tuple[int, int], Any]] = field(default_factory=dict)
     vars: dict[str, Any] = field(default_factory=dict)
+    workbook: Any | None = None
+    visiting: set[tuple[str, int, int]] = field(default_factory=set)
 
     def with_vars(self, extra_vars: dict[str, Any]) -> EvalContext:
         """Create a child evaluation context with additional local variables."""
@@ -112,16 +114,58 @@ class EvalContext:
             current_col=self.current_col,
             workbook_data=self.workbook_data,
             vars=merged_vars,
+            workbook=self.workbook,
+            visiting=self.visiting,
         )
 
     def get_cell_value(self, sheet: str, r: int, c: int) -> Any:
+        target_sheet = sheet or self.current_sheet
+        key = (target_sheet.lower(), r, c)
+
         if self.cell_getter is not None:
-            return self.cell_getter(sheet, r, c)
-        if sheet in self.workbook_data:
-            return self.workbook_data[sheet].get((r, c), None)
+            return self.cell_getter(target_sheet, r, c)
+
+        if self.workbook is not None:
+            sh = None
+            if hasattr(self.workbook, "get_sheet_by_name"):
+                sh = self.workbook.get_sheet_by_name(target_sheet)
+            if sh is not None:
+                if hasattr(sh, "get_cell"):
+                    cell = sh.get_cell(r, c)
+                    if cell is not None:
+                        formula = getattr(cell, "formula", None)
+                        if formula and cell.value is None:
+                            if key in self.visiting:
+                                from atboffice.modules.spreadsheet.calc.errors import CYCLE
+
+                                return CYCLE
+                            from atboffice.modules.spreadsheet.calc.evaluator import evaluate
+
+                            self.visiting.add(key)
+                            try:
+                                return evaluate(formula, self)
+                            finally:
+                                self.visiting.discard(key)
+                        return getattr(cell, "value", None)
+                    return None
+                if hasattr(sh, "get_cell_value"):
+                    return sh.get_cell_value(r, c)
+            else:
+                from atboffice.modules.spreadsheet.calc.errors import REF
+
+                return REF
+
+        if target_sheet in self.workbook_data:
+            return self.workbook_data[target_sheet].get((r, c), None)
+
+        for s_name, s_data in self.workbook_data.items():
+            if s_name.lower() == target_sheet.lower():
+                return s_data.get((r, c), None)
+
         return None
 
     def create_ref(
         self, sheet: str, r1: int, c1: int, r2: int | None = None, c2: int | None = None
     ) -> Ref:
-        return Ref(sheet, r1, c1, r2, c2, getter=self.get_cell_value)
+        target_sheet = sheet or self.current_sheet
+        return Ref(target_sheet, r1, c1, r2, c2, getter=self.get_cell_value)

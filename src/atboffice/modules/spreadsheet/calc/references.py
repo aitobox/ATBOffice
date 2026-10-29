@@ -19,6 +19,7 @@ from atboffice.modules.spreadsheet.calc.tokens import (
     ParenNode,
     PercentNode,
     RefErrNode,
+    SheetReference,
     UnaryOpNode,
     UnionNode,
 )
@@ -181,6 +182,9 @@ def walk(node: ASTNode | None, fn: Callable[[ASTNode], None]) -> None:
         for row in node.rows:
             for item in row:
                 walk(item, fn)
+    elif isinstance(node, SheetReference):
+        if node.target is not None:
+            walk(node.target, fn)
 
 
 def map_ast(
@@ -225,6 +229,10 @@ def map_ast(
             [res for item in row if (res := map_ast(item, fn)) is not None]
             for row in copied.rows
         ]
+        return copied
+    elif isinstance(copied, SheetReference):
+        if copied.target is not None:
+            copied.target = map_ast(copied.target, fn)
         return copied
     return copy.copy(node)
 

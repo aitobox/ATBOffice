@@ -28,6 +28,7 @@ from atboffice.modules.spreadsheet.calc.tokens import (
     ParseError,
     PercentNode,
     RefErrNode,
+    SheetReference,
     StructuredRefNode,
     Token,
     UnaryOpNode,
@@ -45,6 +46,7 @@ ERRORS: Final[list[str]] = [
     "#GETTING_DATA",
     "#SPILL!",
     "#CALC!",
+    "#CYCLE!",
     "#FIELD!",
     "#BLOCKED!",
     "#UNKNOWN!",
@@ -1195,3 +1197,48 @@ def ref_node_of(t: Token) -> CellRefNode | AreaRefNode:
         kind=t.kind,
         bang=t.bang,
     )
+
+
+def parse_sheet_reference(text: str) -> SheetReference | None:
+    """Parse a sheet-qualified reference string into a SheetReference AST node.
+
+    Handles single-quoted sheet names with escaped quotes (e.g. 'O''Reilly'!A1)
+    and unquoted sheet names (e.g. Sheet2!B5:C10).
+    """
+    clean = text.strip()
+    if clean.startswith("="):
+        clean = clean[1:].strip()
+    if "!" not in clean:
+        return None
+
+    sheet_name: str
+    cell_range: str
+
+    if clean.startswith("'"):
+        # Quoted sheet name
+        j = 1
+        n = len(clean)
+        s = ""
+        while j < n:
+            if clean[j] == "'":
+                if j + 1 < n and clean[j + 1] == "'":
+                    s += "'"
+                    j += 2
+                    continue
+                break
+            s += clean[j]
+            j += 1
+        if j >= n or j + 1 >= n or clean[j + 1] != "!":
+            return None
+        sheet_name = s
+        cell_range = clean[j + 2 :].strip()
+    else:
+        # Unquoted sheet name
+        parts = clean.split("!", 1)
+        sheet_name = parts[0].strip()
+        cell_range = parts[1].strip()
+
+    if not sheet_name or not cell_range:
+        return None
+
+    return SheetReference(sheet_name=sheet_name, cell_range=cell_range)
