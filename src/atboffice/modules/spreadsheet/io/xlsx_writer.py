@@ -718,13 +718,18 @@ def _serialize_drawings(
 
         if obj.kind == "image" and obj.id in image_rids:
             img_rid = image_rids[obj.id]
-            parts.append(
-                f"<xdr:pic>"
-                f'<xdr:nvPicPr><xdr:cNvPr id="{obj.id}" name="{name_esc}"/><xdr:cNvPicPr/></xdr:nvPicPr>'
+            nv_pic_pr = (
+                f'<xdr:nvPicPr><xdr:cNvPr id="{obj.id}" name="{name_esc}"/>'
+                f"<xdr:cNvPicPr/></xdr:nvPicPr>"
+            )
+            blip_fill = (
                 f"<xdr:blipFill>"
                 f'<a:blip xmlns:r="{NS_R}" r:embed="{img_rid}"/>'
                 f"<a:stretch><a:fillRect/></a:stretch>"
                 f"</xdr:blipFill>"
+            )
+            parts.append(
+                f"<xdr:pic>{nv_pic_pr}{blip_fill}"
                 f'<xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>'
                 f"</xdr:pic>"
             )
@@ -763,11 +768,12 @@ def _serialize_drawings(
                     txt_clean = txt_clean[:6]
                 p_items = []
                 for line in (getattr(obj, "text", "") or "").split("\n"):
+                    f_name = _xml_escape(getattr(obj, "font_family", "Calibri"))
                     p_items.append(
                         f"<a:p><a:r>"
                         f'<a:rPr lang="en-US" sz="{getattr(obj, "font_size", 11) * 100}">'
                         f'<a:solidFill><a:srgbClr val="{txt_clean}"/></a:solidFill>'
-                        f'<a:latin typeface="{_xml_escape(getattr(obj, "font_family", "Calibri"))}"/>'
+                        f'<a:latin typeface="{f_name}"/>'
                         f"</a:rPr>"
                         f"<a:t>{_xml_escape(line)}</a:t>"
                         f"</a:r></a:p>"
@@ -780,9 +786,13 @@ def _serialize_drawings(
                     f"</xdr:txBody>"
                 )
 
+            nv_sp_pr = (
+                f'<xdr:nvSpPr><xdr:cNvPr id="{obj.id}" name="{name_esc}"/>'
+                f'<xdr:cNvSpPr txBox="{is_tb}"/></xdr:nvSpPr>'
+            )
             parts.append(
                 f'<xdr:sp macro="" textlink="">'
-                f'<xdr:nvSpPr><xdr:cNvPr id="{obj.id}" name="{name_esc}"/><xdr:cNvSpPr txBox="{is_tb}"/></xdr:nvSpPr>'
+                f"{nv_sp_pr}"
                 f"<xdr:spPr>"
                 f'<a:prstGeom prst="{geom}"><a:avLst/></a:prstGeom>'
                 f"{fill_xml}{line_xml}"
@@ -1012,9 +1022,11 @@ def write_xlsx(
                     rid = f"rId{rel_counter}"
                     rel_counter += 1
                     image_rids[obj.id] = rid
-                    drawing_rels.append(
-                        f'<Relationship Id="{rid}" Type="{REL_IMAGE}" Target="../media/image{media_count}.{ext}"/>'
+                    rel_elem = (
+                        f'<Relationship Id="{rid}" Type="{REL_IMAGE}" '
+                        f'Target="../media/image{media_count}.{ext}"/>'
                     )
+                    drawing_rels.append(rel_elem)
 
             # Add drawing part
             drawing_bytes = _serialize_drawings(sheet.drawings, image_rids)
@@ -1026,7 +1038,7 @@ def write_xlsx(
                     f'{XML_HEADER}<Relationships xmlns="{NS_PKG_REL}">'
                     f'{"".join(drawing_rels)}'
                     f"</Relationships>"
-                ).encode("utf-8")
+                ).encode()
                 pkg_writer.add_part(
                     f"xl/drawings/_rels/drawing{drawing_count}.xml.rels",
                     drawing_rels_xml,
@@ -1034,11 +1046,15 @@ def write_xlsx(
                 )
 
             # Add sheet rels
+            rel_sheet = (
+                f'<Relationship Id="{drawing_rid}" Type="{REL_DRAWING}" '
+                f'Target="../drawings/drawing{drawing_count}.xml"/>'
+            )
             sheet_rels_xml = (
                 f'{XML_HEADER}<Relationships xmlns="{NS_PKG_REL}">'
-                f'<Relationship Id="{drawing_rid}" Type="{REL_DRAWING}" Target="../drawings/drawing{drawing_count}.xml"/>'
+                f"{rel_sheet}"
                 f"</Relationships>"
-            ).encode("utf-8")
+            ).encode()
             pkg_writer.add_part(
                 f"xl/worksheets/_rels/sheet{i}.xml.rels",
                 sheet_rels_xml,

@@ -693,7 +693,8 @@ def _parse_worksheet_drawings(
                         img_target = drw_rels[embed_id][1]
                         if img_target in zip_file.namelist():
                             img_bytes = zip_file.read(img_target)
-                            if img_target.lower().endswith(".jpg") or img_target.lower().endswith(".jpeg"):
+                            target_lower = img_target.lower()
+                            if target_lower.endswith((".jpg", ".jpeg")):
                                 img_mime = "image/jpeg"
 
             obj = FloatingObject(
@@ -792,7 +793,8 @@ def _parse_worksheet_drawings(
             all_text = "\n".join(tx_lines)
 
             # Determine kind
-            if is_tb or (prst_geom == "rect" and all_text and fill_col.upper() in ("#FFFFFF", "#FFF")):
+            is_white_fill = fill_col.upper() in ("#FFFFFF", "#FFF")
+            if is_tb or (prst_geom == "rect" and all_text and is_white_fill):
                 kind = "textbox"
             elif prst_geom == "roundRect":
                 kind = "roundRect"

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import io
 import zipfile
-import pytest
 
-from PySide6.QtCore import QPoint, QRect, Qt
+import pytest
 from PySide6.QtWidgets import QApplication
 
+from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
+from atboffice.modules.spreadsheet.io.xlsx_writer import write_xlsx
 from atboffice.modules.spreadsheet.models.sheet_model import (
     CellData,
     SheetDataModel,
@@ -24,8 +25,6 @@ from atboffice.modules.spreadsheet.views.object_layer import (
     object_to_rect,
     rect_to_anchor,
 )
-from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
-from atboffice.modules.spreadsheet.io.xlsx_writer import write_xlsx
 
 
 @pytest.fixture(scope="session")

@@ -21,7 +21,6 @@ from PySide6.QtGui import (
     QKeyEvent,
     QMouseEvent,
     QPainter,
-    QPainterPath,
     QPen,
     QPixmap,
     QPolygon,
@@ -544,7 +543,8 @@ class SpreadsheetObjectLayer(QWidget):
         elif obj.kind == "arrow":
             painter.drawLine(rect.topLeft(), rect.bottomRight())
             # Arrow head
-            head = QPolygon([rect.bottomRight(), rect.bottomRight() + QPoint(-8, -4), rect.bottomRight() + QPoint(-4, -8)])
+            br = rect.bottomRight()
+            head = QPolygon([br, br + QPoint(-8, -4), br + QPoint(-4, -8)])
             painter.drawPolygon(head)
         elif obj.kind == "image":
             if obj.image_data:
