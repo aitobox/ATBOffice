@@ -7,7 +7,12 @@ from typing import Any
 
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPaintEvent
-from PySide6.QtWidgets import QToolBar, QWidget
+from PySide6.QtWidgets import QMenu, QToolBar, QWidget
+
+from atboffice.ui.components.toolbar_buttons import (
+    OfficeDropDownButton,
+    OfficeSplitButton,
+)
 
 from atboffice.ui.styles.luna_2003 import (
     LUNA_BLUE_GRIP,
@@ -151,3 +156,24 @@ class OfficeToolBar(QToolBar):
         """Add classic Office 2003 double-line separator."""
         sep = OfficeToolBarSeparator(self)
         return self.addWidget(sep)
+
+    def add_split_action(
+        self,
+        action: QAction,
+        menu: QMenu,
+    ) -> OfficeSplitButton:
+        """Add an Office 2003 split button with a default action and drop-down menu."""
+        btn = OfficeSplitButton(action=action, menu=menu, parent=self)
+        self.addWidget(btn)
+        return btn
+
+    def add_drop_button(
+        self,
+        text: str,
+        icon: QIcon | None,
+        menu: QMenu,
+    ) -> OfficeDropDownButton:
+        """Add an Office 2003 drop-down button that reveals a menu upon click."""
+        btn = OfficeDropDownButton(text=text, icon=icon, menu=menu, parent=self)
+        self.addWidget(btn)
+        return btn
