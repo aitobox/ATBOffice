@@ -31,7 +31,6 @@ from atboffice.modules.writer.models.document import (
 )
 from atboffice.modules.writer.models.drawing import (
     Crop,
-    DrawingObject,
     FloatProperties,
     PictureItem,
     PositionH,
@@ -300,7 +299,11 @@ class DocxReader:
                 continue
 
             multi_elem = an.find(f"{{{NS_W}}}multiLevelType")
-            multi = _get_attr(multi_elem, "val", "multilevel") if multi_elem is not None else "multilevel"
+            multi = (
+                _get_attr(multi_elem, "val", "multilevel")
+                if multi_elem is not None
+                else "multilevel"
+            )
 
             style_link_elem = an.find(f"{{{NS_W}}}numStyleLink")
             style_link = _get_attr(style_link_elem, "val") if style_link_elem is not None else None
@@ -319,13 +322,21 @@ class DocxReader:
                     continue
 
                 start_elem = lv.find(f"{{{NS_W}}}start")
-                start_val = int(_get_attr(start_elem, "val", "1") or "1") if start_elem is not None else 1
+                start_val = (
+                    int(_get_attr(start_elem, "val", "1") or "1") if start_elem is not None else 1
+                )
 
                 fmt_elem = lv.find(f"{{{NS_W}}}numFmt")
-                fmt_val = _get_attr(fmt_elem, "val", "decimal") if fmt_elem is not None else "decimal"
+                fmt_val = (
+                    _get_attr(fmt_elem, "val", "decimal") if fmt_elem is not None else "decimal"
+                )
 
                 text_elem = lv.find(f"{{{NS_W}}}lvlText")
-                text_val = _get_attr(text_elem, "val", f"%{ilvl + 1}.") if text_elem is not None else f"%{ilvl + 1}."
+                text_val = (
+                    _get_attr(text_elem, "val", f"%{ilvl + 1}.")
+                    if text_elem is not None
+                    else f"%{ilvl + 1}."
+                )
 
                 jc_elem = lv.find(f"{{{NS_W}}}lvlJc")
                 jc_val = _get_attr(jc_elem, "val", "left") if jc_elem is not None else "left"
@@ -336,7 +347,11 @@ class DocxReader:
                 is_lgl = lv.find(f"{{{NS_W}}}isLgl") is not None
 
                 restart_elem = lv.find(f"{{{NS_W}}}lvlRestart")
-                restart = int(_get_attr(restart_elem, "val", "0") or "0") - 1 if restart_elem is not None else None
+                restart = (
+                    int(_get_attr(restart_elem, "val", "0") or "0") - 1
+                    if restart_elem is not None
+                    else None
+                )
 
                 p_style_elem = lv.find(f"{{{NS_W}}}pStyle")
                 p_style = _get_attr(p_style_elem, "val") if p_style_elem is not None else None
@@ -348,7 +363,9 @@ class DocxReader:
                 if p_pr_elem is not None:
                     ind_elem = p_pr_elem.find(f"{{{NS_W}}}ind")
                     if ind_elem is not None:
-                        ind_dict["l"] = _twips_to_pt(_get_attr(ind_elem, "left") or _get_attr(ind_elem, "start"))
+                        ind_dict["l"] = _twips_to_pt(
+                            _get_attr(ind_elem, "left") or _get_attr(ind_elem, "start")
+                        )
                         if _get_attr(ind_elem, "hanging") is not None:
                             ind_dict["fl"] = -_twips_to_pt(_get_attr(ind_elem, "hanging"))
                         elif _get_attr(ind_elem, "firstLine") is not None:
@@ -825,7 +842,12 @@ class DocxReader:
             tbl_cell_mar_elem = tbl_pr_elem.find(f"{{{NS_W}}}tblCellMar")
             if tbl_cell_mar_elem is not None:
                 cell_mar: dict[str, float] = {}
-                for side, tag_name in (("t", "top"), ("b", "bottom"), ("l", "left"), ("r", "right")):
+                for side, tag_name in (
+                    ("t", "top"),
+                    ("b", "bottom"),
+                    ("l", "left"),
+                    ("r", "right"),
+                ):
                     mar_side = tbl_cell_mar_elem.find(f"{{{NS_W}}}{tag_name}")
                     if mar_side is not None:
                         cell_mar[side] = _twips_to_pt(_get_attr(mar_side, "w", "0"))
@@ -904,7 +926,12 @@ class DocxReader:
                     tc_mar_elem = tc_pr_elem.find(f"{{{NS_W}}}tcMar")
                     if tc_mar_elem is not None:
                         tc_mar: dict[str, float] = {}
-                        for side, tag_name in (("t", "top"), ("b", "bottom"), ("l", "left"), ("r", "right")):
+                        for side, tag_name in (
+                            ("t", "top"),
+                            ("b", "bottom"),
+                            ("l", "left"),
+                            ("r", "right"),
+                        ):
                             mar_side = tc_mar_elem.find(f"{{{NS_W}}}{tag_name}")
                             if mar_side is not None:
                                 tc_mar[side] = _twips_to_pt(_get_attr(mar_side, "w", "0"))
@@ -1202,7 +1229,10 @@ class DocxReader:
         dist = WrapDist(top=0.0, bottom=0.0, left=9.0, right=9.0)
         wrap_mode = WrapMode.SQUARE
         wrap_side = WrapSide.BOTH
-        behind = _bool_val(anchor.find(f"{{{NS_WP}}}behindDoc"), False) or _get_attr(anchor, "behindDoc") == "1"
+        behind = (
+            _bool_val(anchor.find(f"{{{NS_WP}}}behindDoc"), False)
+            or _get_attr(anchor, "behindDoc") == "1"
+        )
 
         dist_t = _get_attr(anchor, "distT")
         if dist_t is not None:
@@ -1306,7 +1336,11 @@ class DocxReader:
                         alt_text = _get_attr(child, "title", "") or _get_attr(shape, "alt", "")
 
                 float_pr = None
-                if props.get("position") == "absolute" or "margin-left" in props or "margin-top" in props:
+                if (
+                    props.get("position") == "absolute"
+                    or "margin-left" in props
+                    or "margin-top" in props
+                ):
                     pos_h = PositionH(rel="column", offset=props.get("margin-left", 0.0))
                     pos_v = PositionV(rel="paragraph", offset=props.get("margin-top", 0.0))
                     z_index = int(props.get("z-index", 0))

@@ -3,7 +3,7 @@
 Covers:
 - Multi-level numbering lists (abstractNum, num, lvl, lvlOverride, numFmt, lvlText)
 - Complex tables (gridSpan, vMerge, trHeight, tcMar, tblCellMar)
-- DrawingML inline & floating anchor pictures (extent, posH, posV, wrapMode, z-index, crop, rotation)
+- DrawingML inline & floating anchor pictures (extent, posH, posV, wrapMode, z-index)
 - VML legacy pictures (w:pict)
 - Footnotes, endnotes, bookmarks, and section break properties
 """
@@ -12,18 +12,18 @@ from __future__ import annotations
 
 import io
 import zipfile
+
 import pytest
 
 from atboffice.modules.writer.io import read_docx
 from atboffice.modules.writer.models.document import (
-    BookmarkStartItem,
-    BookmarkEndItem,
     NoteRefItem,
     Paragraph,
     Table,
-    TextItem,
 )
 from atboffice.modules.writer.models.drawing import PictureItem, WrapMode
+
+_NS_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 
 
 def _make_docx_package(parts: dict[str, str | bytes]) -> bytes:
@@ -32,35 +32,51 @@ def _make_docx_package(parts: dict[str, str | bytes]) -> bytes:
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         # Default Content_Types if not provided
         if "[Content_Types].xml" not in parts:
-            ct = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="xml" ContentType="application/xml"/>
-  <Default Extension="png" ContentType="image/png"/>
-  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
-  <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
-  <Override PartName="/word/endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>
-</Types>"""
+            ct = (
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n'
+                '  <Default Extension="rels" '
+                'ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n'
+                '  <Default Extension="xml" ContentType="application/xml"/>\n'
+                '  <Default Extension="png" ContentType="image/png"/>\n'
+                '  <Override PartName="/word/document.xml" '
+                'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>\n'
+                '  <Override PartName="/word/numbering.xml" '
+                'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>\n'
+                '  <Override PartName="/word/footnotes.xml" '
+                'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>\n'
+                '  <Override PartName="/word/endnotes.xml" '
+                'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>\n'
+                "</Types>"
+            )
             zf.writestr("[Content_Types].xml", ct)
 
         # Default _rels/.rels if not provided
         if "_rels/.rels" not in parts:
-            root_rels = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-</Relationships>"""
+            root_rels = (
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+                f'  <Relationship Id="rId1" Type="{_NS_REL}/officeDocument" '
+                'Target="word/document.xml"/>\n'
+                "</Relationships>"
+            )
             zf.writestr("_rels/.rels", root_rels)
 
         # Default word/_rels/document.xml.rels if not provided
         if "word/_rels/document.xml.rels" not in parts:
-            doc_rels = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rIdNum" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
-  <Relationship Id="rIdImg1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>
-  <Relationship Id="rIdFn" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
-  <Relationship Id="rIdEn" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="endnotes.xml"/>
-</Relationships>"""
+            doc_rels = (
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+                f'  <Relationship Id="rIdNum" Type="{_NS_REL}/numbering" '
+                'Target="numbering.xml"/>\n'
+                f'  <Relationship Id="rIdImg1" Type="{_NS_REL}/image" '
+                'Target="media/image1.png"/>\n'
+                f'  <Relationship Id="rIdFn" Type="{_NS_REL}/footnotes" '
+                'Target="footnotes.xml"/>\n'
+                f'  <Relationship Id="rIdEn" Type="{_NS_REL}/endnotes" '
+                'Target="endnotes.xml"/>\n'
+                "</Relationships>"
+            )
             zf.writestr("word/_rels/document.xml.rels", doc_rels)
 
         # Write provided parts
@@ -142,10 +158,12 @@ def test_numbering_advanced_parsing() -> None:
   </w:body>
 </w:document>"""
 
-    pkg_bytes = _make_docx_package({
-        "word/numbering.xml": numbering_xml,
-        "word/document.xml": doc_xml,
-    })
+    pkg_bytes = _make_docx_package(
+        {
+            "word/numbering.xml": numbering_xml,
+            "word/document.xml": doc_xml,
+        }
+    )
 
     doc = read_docx(pkg_bytes)
 
@@ -269,10 +287,10 @@ def test_table_complex_spans_and_margins() -> None:
 
     # Table properties & margins
     assert tbl.tbl_pr.jc == "center"
-    assert tbl.tbl_pr.cell_mar["t"] == 6.0   # 120 / 20
-    assert tbl.tbl_pr.cell_mar["b"] == 6.0   # 120 / 20
-    assert tbl.tbl_pr.cell_mar["l"] == 9.0   # 180 / 20
-    assert tbl.tbl_pr.cell_mar["r"] == 9.0   # 180 / 20
+    assert tbl.tbl_pr.cell_mar["t"] == 6.0  # 120 / 20
+    assert tbl.tbl_pr.cell_mar["b"] == 6.0  # 120 / 20
+    assert tbl.tbl_pr.cell_mar["l"] == 9.0  # 180 / 20
+    assert tbl.tbl_pr.cell_mar["r"] == 9.0  # 180 / 20
 
     # Row 0: Spanned header
     r0 = tbl.rows[0]
@@ -330,7 +348,8 @@ def test_drawingml_inline_and_anchor() -> None:
     </w:p>
     <w:p>
       <w:drawing>
-        <wp:anchor distT="0" distB="0" distL="114300" distR="114300" relativeHeight="251659264" behindDoc="0">
+        <wp:anchor distT="0" distB="0" distL="114300" distR="114300"
+                   relativeHeight="251659264" behindDoc="0">
           <wp:positionH relativeFrom="column">
             <wp:posOffset>381000</wp:posOffset>
           </wp:positionH>
@@ -355,11 +374,17 @@ def test_drawingml_inline_and_anchor() -> None:
   </w:body>
 </w:document>"""
 
-    fake_png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
-    pkg_bytes = _make_docx_package({
-        "word/document.xml": doc_xml,
-        "word/media/image1.png": fake_png,
-    })
+    fake_png = (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+        b"\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\nIDATx\x9cc\x00\x01\x00"
+        b"\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+    pkg_bytes = _make_docx_package(
+        {
+            "word/document.xml": doc_xml,
+            "word/media/image1.png": fake_png,
+        }
+    )
 
     doc = read_docx(pkg_bytes)
 
@@ -388,15 +413,17 @@ def test_drawingml_inline_and_anchor() -> None:
     pic2 = p1.runs[0]
     assert isinstance(pic2, PictureItem)
     assert pic2.name == "FloatingAnchorPic"
-    assert pic2.width == pytest.approx(200.0)   # 2540000 / 12700
+    assert pic2.width == pytest.approx(200.0)  # 2540000 / 12700
     assert pic2.height == pytest.approx(100.0)  # 1270000 / 12700
     assert pic2.float_pr is not None
     assert pic2.float_pr.wrap == WrapMode.SQUARE
     assert pic2.float_pr.pos_h.rel == "column"
     assert pic2.float_pr.pos_h.offset == pytest.approx(30.0)  # 381000 / 12700
     assert pic2.float_pr.pos_v.rel == "paragraph"
-    assert pic2.float_pr.pos_v.offset == pytest.approx(20.0)  # 2540000 / 12700 = 20.0 (or 254000/12700=20)
-    assert pic2.float_pr.dist.left == pytest.approx(9.0)     # 114300 / 12700 = 9.0
+    assert pic2.float_pr.pos_v.offset == pytest.approx(
+        20.0
+    )  # 2540000 / 12700 = 20.0 (or 254000/12700=20)
+    assert pic2.float_pr.dist.left == pytest.approx(9.0)  # 114300 / 12700 = 9.0
 
 
 def test_vml_pict_backward_compat() -> None:
@@ -409,7 +436,8 @@ def test_vml_pict_backward_compat() -> None:
     <w:p>
       <w:r>
         <w:pict>
-          <v:shape id="Picture_x0020_1" style="width:144pt;height:72pt;position:absolute;margin-left:18pt;margin-top:24pt;z-index:251658240">
+          <v:shape id="Picture_x0020_1"
+                   style="width:144pt;height:72pt;position:absolute;margin-left:18pt;margin-top:24pt;z-index:251658240">
             <v:imagedata r:id="rIdImg1" title="Legacy VML Logo"/>
           </v:shape>
         </w:pict>
@@ -418,10 +446,12 @@ def test_vml_pict_backward_compat() -> None:
   </w:body>
 </w:document>"""
 
-    pkg_bytes = _make_docx_package({
-        "word/document.xml": doc_xml,
-        "word/media/image1.png": b"fake_png_data",
-    })
+    pkg_bytes = _make_docx_package(
+        {
+            "word/document.xml": doc_xml,
+            "word/media/image1.png": b"fake_png_data",
+        }
+    )
 
     doc = read_docx(pkg_bytes)
     p0 = doc.main.blocks[0]
@@ -475,11 +505,13 @@ def test_footnotes_endnotes_bookmarks_and_sections() -> None:
   </w:body>
 </w:document>"""
 
-    pkg_bytes = _make_docx_package({
-        "word/footnotes.xml": fn_xml,
-        "word/endnotes.xml": en_xml,
-        "word/document.xml": doc_xml,
-    })
+    pkg_bytes = _make_docx_package(
+        {
+            "word/footnotes.xml": fn_xml,
+            "word/endnotes.xml": en_xml,
+            "word/document.xml": doc_xml,
+        }
+    )
 
     doc = read_docx(pkg_bytes)
 
