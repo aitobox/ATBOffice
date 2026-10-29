@@ -101,6 +101,14 @@ class MacMenuBar(QMenuBar):
         self.action_map["edit_paste"] = menu_edit.addAction("")
         self.action_map["edit_paste"].setShortcut(QKeySequence.StandardKey.Paste)
 
+        menu_edit.addSeparator()
+
+        self.action_map["edit_find"] = menu_edit.addAction("")
+        self.action_map["edit_find"].setShortcut(QKeySequence.StandardKey.Find)
+
+        self.action_map["edit_replace"] = menu_edit.addAction("")
+        self.action_map["edit_replace"].setShortcut(QKeySequence.StandardKey.Replace)
+
         self.sep_format_cells = menu_edit.addSeparator()
 
         self.action_map["edit_format_cells"] = menu_edit.addAction("")
@@ -184,6 +192,8 @@ class MacMenuBar(QMenuBar):
         connect_if("edit_cut", "cut")
         connect_if("edit_copy", "copy")
         connect_if("edit_paste", "paste")
+        connect_if("edit_find", "open_find_dialog")
+        connect_if("edit_replace", "open_replace_dialog")
         connect_if("edit_format_cells", "format_cells")
 
         connect_if("view_fullscreen", "toggle_fullscreen")
@@ -252,6 +262,8 @@ class MacMenuBar(QMenuBar):
             "edit_cut": (safe_tr("剪切"), safe_tr("剪切选中内容")),
             "edit_copy": (safe_tr("复制"), safe_tr("复制选中内容")),
             "edit_paste": (safe_tr("粘贴"), safe_tr("粘贴剪贴板内容")),
+            "edit_find": (safe_tr("查找…"), safe_tr("在当前文档或工作表中查找文本")),
+            "edit_replace": (safe_tr("替换…"), safe_tr("查找并替换指定文本")),
             "edit_format_cells": (
                 safe_tr("设置单元格格式…"),
                 safe_tr("打开单元格格式设置对话框"),

@@ -9,10 +9,12 @@ from PySide6.QtCore import QCoreApplication, Qt
 from PySide6.QtWidgets import QMessageBox, QWidget
 
 from atboffice.core.action_registry import ActionRegistry
+from atboffice.core.search import SearchController, SpreadsheetSearchAdapter
 from atboffice.modules.spreadsheet.view import SpreadsheetView
 from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.status_bar import StatusBar
 from atboffice.ui.components.toolbar import OfficeToolBar
+from atboffice.ui.dialogs.find_replace_dialog import FindReplaceDialog
 from atboffice.ui.shell.base_window import BaseOfficeWindow
 from atboffice.ui.shell.ledger_toolbars import (
     build_ledger_toolbars,
@@ -47,6 +49,16 @@ class LedgerWindow(BaseOfficeWindow):
         self.spreadsheet_view = SpreadsheetView(parent=self)
         self.setCentralWidget(self.spreadsheet_view)
         self.formula_bar = self.spreadsheet_view.formula_bar
+
+        # Search Controller & Adapter
+        self.search_controller = SearchController(self)
+        self.search_adapter = SpreadsheetSearchAdapter(
+            model=self.spreadsheet_view.model,
+            selection=self.spreadsheet_view.selection,
+            spreadsheet_view=self.spreadsheet_view,
+        )
+        self.search_controller.set_adapter(self.search_adapter)
+        self._find_replace_dialog: FindReplaceDialog | None = None
 
         # 3. Setup native macOS menu bar
         self.menu_bar: MacMenuBar = setup_mac_menu(self)
@@ -90,6 +102,31 @@ class LedgerWindow(BaseOfficeWindow):
         self.action_registry.set_handler("italic", self._toggle_italic)
         self.action_registry.set_handler("underline", self._toggle_underline)
         self.action_registry.set_handler("format_cells", self.format_cells)
+        self.action_registry.set_handler("find", self.open_find_dialog)
+        self.action_registry.set_handler("replace", self.open_replace_dialog)
+
+    def _ensure_find_replace_dialog(self) -> FindReplaceDialog:
+        """Create or return existing FindReplaceDialog instance."""
+        if self._find_replace_dialog is None:
+            self._find_replace_dialog = FindReplaceDialog(
+                controller=self.search_controller, parent=self
+            )
+        return self._find_replace_dialog
+
+    def open_find_dialog(self) -> None:
+        """Display the Find and Replace dialog on Find tab."""
+        # Ensure adapter is pointing to the current active sheet
+        self.search_adapter.model = self.spreadsheet_view.model
+        self.search_adapter.selection = self.spreadsheet_view.selection
+        dlg = self._ensure_find_replace_dialog()
+        dlg.show_find()
+
+    def open_replace_dialog(self) -> None:
+        """Display the Find and Replace dialog on Replace tab."""
+        self.search_adapter.model = self.spreadsheet_view.model
+        self.search_adapter.selection = self.spreadsheet_view.selection
+        dlg = self._ensure_find_replace_dialog()
+        dlg.show_replace()
 
     def _update_spreadsheet_status(self, *_: Any) -> None:
         """Forward spreadsheet selection updates to the status bar and context toolbars."""
