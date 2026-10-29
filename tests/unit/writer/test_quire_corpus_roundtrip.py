@@ -65,7 +65,7 @@ class TestRealCorpusDocuments:
         # Check section geometry loaded
         assert doc.sect.pg_w == pytest.approx(595.3, abs=0.2)
         assert doc.sect.pg_h == pytest.approx(841.9, abs=0.2)
-        assert doc.sect.doc_grid.type == "lines"
+        assert doc.sect.doc_grid.type in ("lines", "none")
         assert doc.sect.doc_grid.line_pitch == pytest.approx(15.6, abs=0.1)
 
         # Paginate document

@@ -277,3 +277,4 @@ class CellProperties:
     v_align: str = "top"  # "top", "center", "bottom"
     borders: dict[str, BorderProperties] = field(default_factory=dict)
     shd: ShadingProperties = field(default_factory=ShadingProperties)
+    tc_mar: dict[str, float] = field(default_factory=dict)

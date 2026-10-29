@@ -18,6 +18,7 @@ from atboffice.modules.writer.models.document import (
     FieldBeginItem,
     FieldEndItem,
     FieldSeparateItem,
+    NoteRefItem,
     Paragraph,
     Row,
     RunItem,
@@ -28,10 +29,22 @@ from atboffice.modules.writer.models.document import (
     TextItem,
     normalize,
 )
+from atboffice.modules.writer.models.drawing import (
+    Crop,
+    FloatProperties,
+    PictureItem,
+    PositionH,
+    PositionV,
+    WrapDist,
+    WrapMode,
+    WrapSide,
+)
 from atboffice.modules.writer.models.omml import parse_omml
 from atboffice.modules.writer.models.properties import (
+    BorderProperties,
     CellProperties,
     ColumnsProperties,
+    DocGridProperties,
     IndentProperties,
     NumberingRef,
     ParagraphProperties,
@@ -54,6 +67,9 @@ NS_WP = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
 NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main"
 NS_PIC = "http://schemas.openxmlformats.org/drawingml/2006/picture"
 NS_XML = "http://www.w3.org/XML/1998/namespace"
+NS_V = "urn:schemas-microsoft-com:vml"
+NS_O = "urn:schemas-microsoft-com:office:office"
+NS_W10 = "urn:schemas-microsoft-com:office:word"
 
 CT_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"
 CT_DOCM = "application/vnd.ms-word.document.macroEnabled.main+xml"
@@ -122,6 +138,16 @@ def _eighths_to_pt(val: str | int | float | None, default: float = 0.5) -> float
         return default
 
 
+def _emu_to_pt(val: str | int | float | None, default: float = 0.0) -> float:
+    """Convert EMUs (English Metric Units, 1 pt = 12700 EMUs) to points."""
+    if val is None or val == "":
+        return default
+    try:
+        return float(val) / 12700.0
+    except (ValueError, TypeError):
+        return default
+
+
 class DocxReader:
     """Reads ECMA-376 WordprocessingML (.docx, .docm) into Quire Document."""
 
@@ -138,10 +164,13 @@ class DocxReader:
         self._discover_main_part()
         self._load_document_relationships()
         self._parse_styles()
+        self._parse_numbering()
         self._parse_settings()
         self._parse_fonts()
         self._parse_body()
         self._parse_headers_footers()
+        self._parse_footnotes()
+        self._parse_endnotes()
         self.doc._doc_format = self.doc_format  # type: ignore[attr-defined]
         return self.doc
 
@@ -246,6 +275,196 @@ class DocxReader:
             )
 
         self.doc.styles = styles
+
+    def _parse_numbering(self) -> None:
+        """Parse word/numbering.xml into doc.numbering."""
+        num_path = self._rel_target("numbering") or "word/numbering.xml"
+        if not self.pkg.has_part(num_path):
+            self.doc.numbering = {"abs": {}, "nums": {}}
+            return
+
+        try:
+            root = ET.fromstring(self.pkg.read_part(num_path))
+        except Exception:
+            self.doc.numbering = {"abs": {}, "nums": {}}
+            return
+
+        abs_map: dict[str, dict[str, Any]] = {}
+        nums_map: dict[str, dict[str, Any]] = {}
+
+        # 1. Parse abstractNum elements
+        for an in root.findall(f"{{{NS_W}}}abstractNum"):
+            an_id = _get_attr(an, "abstractNumId")
+            if not an_id:
+                continue
+
+            multi_elem = an.find(f"{{{NS_W}}}multiLevelType")
+            multi = (
+                _get_attr(multi_elem, "val", "multilevel")
+                if multi_elem is not None
+                else "multilevel"
+            )
+
+            style_link_elem = an.find(f"{{{NS_W}}}numStyleLink")
+            style_link = _get_attr(style_link_elem, "val") if style_link_elem is not None else None
+
+            name_elem = an.find(f"{{{NS_W}}}name")
+            name = _get_attr(name_elem, "val", "") if name_elem is not None else ""
+
+            levels: list[dict[str, Any]] = [{} for _ in range(9)]
+            for lv in an.findall(f"{{{NS_W}}}lvl"):
+                ilvl_str = _get_attr(lv, "ilvl", "0")
+                try:
+                    ilvl = int(ilvl_str)
+                except ValueError:
+                    continue
+                if not (0 <= ilvl < 9):
+                    continue
+
+                start_elem = lv.find(f"{{{NS_W}}}start")
+                start_val = (
+                    int(_get_attr(start_elem, "val", "1") or "1") if start_elem is not None else 1
+                )
+
+                fmt_elem = lv.find(f"{{{NS_W}}}numFmt")
+                fmt_val = (
+                    _get_attr(fmt_elem, "val", "decimal") if fmt_elem is not None else "decimal"
+                )
+
+                text_elem = lv.find(f"{{{NS_W}}}lvlText")
+                text_val = (
+                    _get_attr(text_elem, "val", f"%{ilvl + 1}.")
+                    if text_elem is not None
+                    else f"%{ilvl + 1}."
+                )
+
+                jc_elem = lv.find(f"{{{NS_W}}}lvlJc")
+                jc_val = _get_attr(jc_elem, "val", "left") if jc_elem is not None else "left"
+
+                suff_elem = lv.find(f"{{{NS_W}}}suff")
+                suff_val = _get_attr(suff_elem, "val", "tab") if suff_elem is not None else "tab"
+
+                is_lgl = lv.find(f"{{{NS_W}}}isLgl") is not None
+
+                restart_elem = lv.find(f"{{{NS_W}}}lvlRestart")
+                restart = (
+                    int(_get_attr(restart_elem, "val", "0") or "0") - 1
+                    if restart_elem is not None
+                    else None
+                )
+
+                p_style_elem = lv.find(f"{{{NS_W}}}pStyle")
+                p_style = _get_attr(p_style_elem, "val") if p_style_elem is not None else None
+
+                # Indents & Spacing in pPr
+                ind_dict = {"l": 0.0, "fl": 0.0}
+                p_pr_elem = lv.find(f"{{{NS_W}}}pPr")
+                tab_pos = None
+                if p_pr_elem is not None:
+                    ind_elem = p_pr_elem.find(f"{{{NS_W}}}ind")
+                    if ind_elem is not None:
+                        ind_dict["l"] = _twips_to_pt(
+                            _get_attr(ind_elem, "left") or _get_attr(ind_elem, "start")
+                        )
+                        if _get_attr(ind_elem, "hanging") is not None:
+                            ind_dict["fl"] = -_twips_to_pt(_get_attr(ind_elem, "hanging"))
+                        elif _get_attr(ind_elem, "firstLine") is not None:
+                            ind_dict["fl"] = _twips_to_pt(_get_attr(ind_elem, "firstLine"))
+
+                    tabs_elem = p_pr_elem.find(f"{{{NS_W}}}tabs")
+                    if tabs_elem is not None:
+                        tab_elem = tabs_elem.find(f"{{{NS_W}}}tab")
+                        if tab_elem is not None:
+                            tab_pos = _twips_to_pt(_get_attr(tab_elem, "pos"))
+
+                # Run properties
+                r_pr_elem = lv.find(f"{{{NS_W}}}rPr")
+                r_pr = self._parse_r_pr(r_pr_elem) if r_pr_elem is not None else RunProperties()
+
+                levels[ilvl] = {
+                    "ilvl": ilvl,
+                    "start": start_val,
+                    "fmt": fmt_val,
+                    "text": text_val,
+                    "jc": jc_val,
+                    "suff": suff_val,
+                    "ind": ind_dict,
+                    "tab_pos": tab_pos,
+                    "is_lgl": is_lgl,
+                    "restart": restart,
+                    "p_style": p_style,
+                    "r_pr": r_pr,
+                }
+
+            # Fill missing levels up to 9
+            for i in range(9):
+                if not levels[i]:
+                    levels[i] = {
+                        "ilvl": i,
+                        "start": 1,
+                        "fmt": "decimal",
+                        "text": f"%{i + 1}.",
+                        "jc": "left",
+                        "suff": "tab",
+                        "ind": {"l": 0.0, "fl": 0.0},
+                        "tab_pos": None,
+                        "is_lgl": False,
+                        "restart": None,
+                        "p_style": None,
+                        "r_pr": RunProperties(),
+                    }
+
+            abs_map[an_id] = {
+                "id": an_id,
+                "multi": multi,
+                "name": name,
+                "style_link": style_link,
+                "levels": levels,
+            }
+
+        # 2. Parse num elements
+        for n in root.findall(f"{{{NS_W}}}num"):
+            num_id = _get_attr(n, "numId")
+            if not num_id:
+                continue
+
+            abs_ref_elem = n.find(f"{{{NS_W}}}abstractNumId")
+            abs_ref = _get_attr(abs_ref_elem, "val", "") if abs_ref_elem is not None else ""
+
+            ov_map: dict[int, dict[str, Any]] = {}
+            for ov in n.findall(f"{{{NS_W}}}lvlOverride"):
+                ov_ilvl_str = _get_attr(ov, "ilvl", "0")
+                try:
+                    ov_ilvl = int(ov_ilvl_str)
+                except ValueError:
+                    continue
+
+                ov_dict: dict[str, Any] = {}
+                start_ov = ov.find(f"{{{NS_W}}}startOverride")
+                if start_ov is not None:
+                    ov_dict["start"] = int(_get_attr(start_ov, "val", "1") or "1")
+
+                lvl_ov = ov.find(f"{{{NS_W}}}lvl")
+                if lvl_ov is not None:
+                    fmt_elem = lvl_ov.find(f"{{{NS_W}}}numFmt")
+                    if fmt_elem is not None:
+                        ov_dict["fmt"] = _get_attr(fmt_elem, "val", "decimal")
+                    text_elem = lvl_ov.find(f"{{{NS_W}}}lvlText")
+                    if text_elem is not None:
+                        ov_dict["text"] = _get_attr(text_elem, "val", f"%{ov_ilvl + 1}.")
+                    start_elem = lvl_ov.find(f"{{{NS_W}}}start")
+                    if start_elem is not None:
+                        ov_dict["start"] = int(_get_attr(start_elem, "val", "1") or "1")
+
+                ov_map[ov_ilvl] = ov_dict
+
+            nums_map[num_id] = {
+                "id": num_id,
+                "abs": abs_ref,
+                "ov": ov_map,
+            }
+
+        self.doc.numbering = {"abs": abs_map, "nums": nums_map}
 
     def _parse_settings(self) -> None:
         """Parse word/settings.xml into doc.settings."""
@@ -368,6 +587,25 @@ class DocxReader:
                     runs.append(TextItem(text="‑", r_pr=r_pr))
                 elif c_tag == "softHyphen":
                     runs.append(TextItem(text="­", r_pr=r_pr))
+                elif c_tag == "drawing":
+                    self._parse_drawing(child, runs, r_pr)
+                elif c_tag == "pict":
+                    self._parse_vml_pict(child, runs, r_pr)
+                elif c_tag == "footnoteReference":
+                    n_id = _get_attr(child, "id", "0") or "0"
+                    runs.append(NoteRefItem(kind="fn", note_id=n_id, r_pr=r_pr))
+                elif c_tag == "endnoteReference":
+                    n_id = _get_attr(child, "id", "0") or "0"
+                    runs.append(NoteRefItem(kind="en", note_id=n_id, r_pr=r_pr))
+                elif c_tag == "bookmarkStart":
+                    name = _get_attr(child, "name", "")
+                    b_id = int(_get_attr(child, "id", "0") or "0")
+                    runs.append(BookmarkStartItem(name=name, bookmark_id=b_id))
+                    if name:
+                        self.doc.props.setdefault("bookmarks", {})[name] = b_id
+                elif c_tag == "bookmarkEnd":
+                    b_id = int(_get_attr(child, "id", "0") or "0")
+                    runs.append(BookmarkEndItem(bookmark_id=b_id))
                 elif c_tag == "fldChar":
                     fld_type = _get_attr(child, "fldCharType", "")
                     if fld_type == "begin":
@@ -394,10 +632,26 @@ class DocxReader:
             for child in elem:
                 self._parse_inline_element(child, runs, inherited_r_pr, h_link)
 
+        elif tag == "drawing":
+            self._parse_drawing(elem, runs, inherited_r_pr)
+
+        elif tag == "pict":
+            self._parse_vml_pict(elem, runs, inherited_r_pr)
+
+        elif tag == "footnoteReference":
+            n_id = _get_attr(elem, "id", "0") or "0"
+            runs.append(NoteRefItem(kind="fn", note_id=n_id, r_pr=inherited_r_pr))
+
+        elif tag == "endnoteReference":
+            n_id = _get_attr(elem, "id", "0") or "0"
+            runs.append(NoteRefItem(kind="en", note_id=n_id, r_pr=inherited_r_pr))
+
         elif tag == "bookmarkStart":
             name = _get_attr(elem, "name", "")
             b_id = int(_get_attr(elem, "id", "0") or "0")
             runs.append(BookmarkStartItem(name=name, bookmark_id=b_id))
+            if name:
+                self.doc.props.setdefault("bookmarks", {})[name] = b_id
 
         elif tag == "bookmarkEnd":
             b_id = int(_get_attr(elem, "id", "0") or "0")
@@ -583,6 +837,36 @@ class DocxReader:
             if w_elem is not None:
                 tbl_pr.w_type = _get_attr(w_elem, "type", "auto")
                 tbl_pr.w = _twips_to_pt(_get_attr(w_elem, "w", "0"))
+
+            # Table Cell Margins (w:tblCellMar)
+            tbl_cell_mar_elem = tbl_pr_elem.find(f"{{{NS_W}}}tblCellMar")
+            if tbl_cell_mar_elem is not None:
+                cell_mar: dict[str, float] = {}
+                for side, tag_name in (
+                    ("t", "top"),
+                    ("b", "bottom"),
+                    ("l", "left"),
+                    ("r", "right"),
+                ):
+                    mar_side = tbl_cell_mar_elem.find(f"{{{NS_W}}}{tag_name}")
+                    if mar_side is not None:
+                        cell_mar[side] = _twips_to_pt(_get_attr(mar_side, "w", "0"))
+                if cell_mar:
+                    tbl_pr.cell_mar = cell_mar
+
+            # Table Borders (w:tblBorders)
+            tbl_bds_elem = tbl_pr_elem.find(f"{{{NS_W}}}tblBorders")
+            if tbl_bds_elem is not None:
+                tbl_bds: dict[str, BorderProperties] = {}
+                for b_tag in ("top", "left", "bottom", "right", "insideH", "insideV"):
+                    b_elem = tbl_bds_elem.find(f"{{{NS_W}}}{b_tag}")
+                    if b_elem is not None:
+                        val = _get_attr(b_elem, "val", "none")
+                        sz = _eighths_to_pt(_get_attr(b_elem, "sz", "4"))
+                        color = _get_attr(b_elem, "color", "auto")
+                        tbl_bds[b_tag] = BorderProperties(val=val, sz=sz, color=color)
+                tbl_pr.borders = tbl_bds
+
             tbl.tbl_pr = tbl_pr
 
         # Table Grid
@@ -625,7 +909,8 @@ class DocxReader:
                         tc_pr.grid_span = int(_get_attr(gs_elem, "val", "1") or "1")
                     vm_elem = tc_pr_elem.find(f"{{{NS_W}}}vMerge")
                     if vm_elem is not None:
-                        tc_pr.v_merge = _get_attr(vm_elem, "val", "continue")
+                        vm_val = _get_attr(vm_elem, "val")
+                        tc_pr.v_merge = vm_val if vm_val else "continue"
                     va_elem = tc_pr_elem.find(f"{{{NS_W}}}vAlign")
                     if va_elem is not None:
                         tc_pr.v_align = _get_attr(va_elem, "val", "top")
@@ -637,6 +922,33 @@ class DocxReader:
                             color=_get_attr(shd_elem, "color", "auto"),
                             fill=f"#{fill.upper()}" if fill and fill.lower() != "auto" else "auto",
                         )
+                    # Cell Margins (w:tcMar)
+                    tc_mar_elem = tc_pr_elem.find(f"{{{NS_W}}}tcMar")
+                    if tc_mar_elem is not None:
+                        tc_mar: dict[str, float] = {}
+                        for side, tag_name in (
+                            ("t", "top"),
+                            ("b", "bottom"),
+                            ("l", "left"),
+                            ("r", "right"),
+                        ):
+                            mar_side = tc_mar_elem.find(f"{{{NS_W}}}{tag_name}")
+                            if mar_side is not None:
+                                tc_mar[side] = _twips_to_pt(_get_attr(mar_side, "w", "0"))
+                        tc_pr.tc_mar = tc_mar
+
+                    # Cell Borders (w:tcBorders)
+                    tc_bds_elem = tc_pr_elem.find(f"{{{NS_W}}}tcBorders")
+                    if tc_bds_elem is not None:
+                        tc_bds: dict[str, BorderProperties] = {}
+                        for b_tag in ("top", "left", "bottom", "right"):
+                            b_elem = tc_bds_elem.find(f"{{{NS_W}}}{b_tag}")
+                            if b_elem is not None:
+                                val = _get_attr(b_elem, "val", "none")
+                                sz = _eighths_to_pt(_get_attr(b_elem, "sz", "4"))
+                                color = _get_attr(b_elem, "color", "auto")
+                                tc_bds[b_tag] = BorderProperties(val=val, sz=sz, color=color)
+                        tc_pr.borders = tc_bds
                     cell.tc_pr = tc_pr
 
                 # Cell Blocks
@@ -706,6 +1018,16 @@ class DocxReader:
                 refs["ftr"][r_type] = r_id
         sect.refs = refs
 
+        # Document grid
+        doc_grid_elem = sect_elem.find(f"{{{NS_W}}}docGrid")
+        if doc_grid_elem is not None:
+            dg_type = _get_attr(doc_grid_elem, "type", "lines")
+            dg_pitch = _twips_to_pt(_get_attr(doc_grid_elem, "linePitch"), 15.6)
+            dg_char = _twips_to_pt(_get_attr(doc_grid_elem, "charSpace"), 0.0)
+            sect.doc_grid = DocGridProperties(type=dg_type, line_pitch=dg_pitch, char_space=dg_char)
+        else:
+            sect.doc_grid = DocGridProperties(type="none", line_pitch=15.6, char_space=0.0)
+
         return sect
 
     def _parse_headers_footers(self) -> None:
@@ -744,6 +1066,331 @@ class DocxReader:
                         )
                     except Exception:
                         pass
+
+    def _parse_footnotes(self) -> None:
+        """Parse word/footnotes.xml into doc.fn."""
+        fn_path = self._rel_target("footnotes") or "word/footnotes.xml"
+        if not self.pkg.has_part(fn_path):
+            return
+
+        try:
+            root = ET.fromstring(self.pkg.read_part(fn_path))
+            for fn in root:
+                if _local_tag(fn) != "footnote":
+                    continue
+                fn_type = _get_attr(fn, "type", "normal")
+                if fn_type in ("separator", "continuationSeparator", "continuationNotice"):
+                    continue
+                fn_id = _get_attr(fn, "id")
+                if not fn_id:
+                    continue
+                blocks: list[Paragraph | Table] = []
+                for child in fn:
+                    c_tag = _local_tag(child)
+                    if c_tag == "p":
+                        blocks.append(self._parse_paragraph(child))
+                    elif c_tag == "tbl":
+                        blocks.append(self._parse_table(child))
+                if not blocks:
+                    blocks.append(Paragraph())
+                self.doc.fn[fn_id] = Story(kind="footnote", blocks=blocks)
+        except Exception:
+            pass
+
+    def _parse_endnotes(self) -> None:
+        """Parse word/endnotes.xml into doc.en."""
+        en_path = self._rel_target("endnotes") or "word/endnotes.xml"
+        if not self.pkg.has_part(en_path):
+            return
+
+        try:
+            root = ET.fromstring(self.pkg.read_part(en_path))
+            for en in root:
+                if _local_tag(en) != "endnote":
+                    continue
+                en_type = _get_attr(en, "type", "normal")
+                if en_type in ("separator", "continuationSeparator", "continuationNotice"):
+                    continue
+                en_id = _get_attr(en, "id")
+                if not en_id:
+                    continue
+                blocks: list[Paragraph | Table] = []
+                for child in en:
+                    c_tag = _local_tag(child)
+                    if c_tag == "p":
+                        blocks.append(self._parse_paragraph(child))
+                    elif c_tag == "tbl":
+                        blocks.append(self._parse_table(child))
+                if not blocks:
+                    blocks.append(Paragraph())
+                self.doc.en[en_id] = Story(kind="endnote", blocks=blocks)
+        except Exception:
+            pass
+
+    def _parse_drawing(
+        self,
+        elem: ET.Element,
+        runs: list[RunItem],
+        r_pr: RunProperties | None = None,
+    ) -> None:
+        """Parse <w:drawing> element containing <wp:inline> or <wp:anchor>."""
+        container = None
+        is_anchor = False
+        for c in elem:
+            c_tag = _local_tag(c)
+            if c_tag == "inline":
+                container = c
+                is_anchor = False
+                break
+            elif c_tag == "anchor":
+                container = c
+                is_anchor = True
+                break
+
+        if container is None:
+            return
+
+        width_pt = 72.0
+        height_pt = 72.0
+        for c in container:
+            if _local_tag(c) == "extent":
+                width_pt = _emu_to_pt(_get_attr(c, "cx"), 72.0)
+                height_pt = _emu_to_pt(_get_attr(c, "cy"), 72.0)
+                break
+
+        name = ""
+        alt_text = ""
+        doc_id = 0
+        for c in container:
+            if _local_tag(c) == "docPr":
+                name = _get_attr(c, "name", "")
+                alt_text = _get_attr(c, "descr", "") or _get_attr(c, "title", "")
+                try:
+                    doc_id = int(_get_attr(c, "id", "0") or "0")
+                except ValueError:
+                    doc_id = 0
+                break
+
+        float_pr = None
+        if is_anchor:
+            float_pr = self._parse_float_properties(container)
+
+        image_part = ""
+        crop = Crop()
+        rotation = 0.0
+
+        for gd in container.iter():
+            tag = _local_tag(gd)
+            if tag == "blip":
+                r_id = (
+                    _get_attr(gd, "embed")
+                    or _get_attr(gd, "link")
+                    or _get_attr(gd, "r:embed")
+                    or _get_attr(gd, "r:link")
+                )
+                if r_id and r_id in self.rels:
+                    rel = self.rels[r_id]
+                    t = rel.target.lstrip("/")
+                    if not t.startswith("word/") and not t.startswith("docProps/"):
+                        t = f"word/{t}"
+                    image_part = t
+            elif tag == "srcRect":
+                crop_l = float(_get_attr(gd, "l", "0") or "0") / 100000.0
+                crop_t = float(_get_attr(gd, "t", "0") or "0") / 100000.0
+                crop_r = float(_get_attr(gd, "r", "0") or "0") / 100000.0
+                crop_b = float(_get_attr(gd, "b", "0") or "0") / 100000.0
+                crop = Crop(left=crop_l, top=crop_t, right=crop_r, bottom=crop_b)
+            elif tag == "xfrm":
+                rot_str = _get_attr(gd, "rot")
+                if rot_str:
+                    try:
+                        rotation = float(rot_str) / 60000.0
+                    except ValueError:
+                        rotation = 0.0
+
+        pic = PictureItem(
+            id=doc_id,
+            name=name,
+            width=width_pt,
+            height=height_pt,
+            rotation=rotation,
+            float_pr=float_pr,
+            r_pr=r_pr or RunProperties(),
+            image_part=image_part,
+            alt_text=alt_text,
+            crop=crop,
+        )
+        runs.append(pic)
+
+    def _parse_float_properties(self, anchor: ET.Element) -> FloatProperties:
+        """Parse floating layout parameters from <wp:anchor>."""
+        pos_h = PositionH(rel="column", offset=0.0)
+        pos_v = PositionV(rel="paragraph", offset=0.0)
+        dist = WrapDist(top=0.0, bottom=0.0, left=9.0, right=9.0)
+        wrap_mode = WrapMode.SQUARE
+        wrap_side = WrapSide.BOTH
+        behind = (
+            _bool_val(anchor.find(f"{{{NS_WP}}}behindDoc"), False)
+            or _get_attr(anchor, "behindDoc") == "1"
+        )
+
+        dist_t = _get_attr(anchor, "distT")
+        if dist_t is not None:
+            dist.top = _emu_to_pt(dist_t)
+        dist_b = _get_attr(anchor, "distB")
+        if dist_b is not None:
+            dist.bottom = _emu_to_pt(dist_b)
+        dist_l = _get_attr(anchor, "distL")
+        if dist_l is not None:
+            dist.left = _emu_to_pt(dist_l)
+        dist_r = _get_attr(anchor, "distR")
+        if dist_r is not None:
+            dist.right = _emu_to_pt(dist_r)
+
+        z_index = 0
+        rel_h = _get_attr(anchor, "relativeHeight")
+        if rel_h is not None:
+            try:
+                z_index = int(rel_h)
+            except ValueError:
+                pass
+
+        for c in anchor:
+            c_tag = _local_tag(c)
+            if c_tag == "positionH":
+                pos_h.rel = _get_attr(c, "relativeFrom", "column") or "column"
+                for sub in c:
+                    sub_tag = _local_tag(sub)
+                    if sub_tag == "align" and sub.text:
+                        pos_h.align = sub.text.strip()
+                    elif sub_tag == "posOffset" and sub.text:
+                        pos_h.offset = _emu_to_pt(sub.text.strip())
+            elif c_tag == "positionV":
+                pos_v.rel = _get_attr(c, "relativeFrom", "paragraph") or "paragraph"
+                for sub in c:
+                    sub_tag = _local_tag(sub)
+                    if sub_tag == "align" and sub.text:
+                        pos_v.align = sub.text.strip()
+                    elif sub_tag == "posOffset" and sub.text:
+                        pos_v.offset = _emu_to_pt(sub.text.strip())
+            elif c_tag == "wrapSquare":
+                wrap_mode = WrapMode.SQUARE
+                ws_val = _get_attr(c, "wrapText", "bothSides")
+                if ws_val == "left":
+                    wrap_side = WrapSide.LEFT
+                elif ws_val == "right":
+                    wrap_side = WrapSide.RIGHT
+                elif ws_val == "largest":
+                    wrap_side = WrapSide.LARGEST
+                else:
+                    wrap_side = WrapSide.BOTH
+            elif c_tag == "wrapTight":
+                wrap_mode = WrapMode.TIGHT
+            elif c_tag == "wrapThrough":
+                wrap_mode = WrapMode.TIGHT
+            elif c_tag == "wrapTopAndBottom":
+                wrap_mode = WrapMode.TOP_BOTTOM
+            elif c_tag == "wrapNone":
+                wrap_mode = WrapMode.BEHIND if behind else WrapMode.IN_FRONT
+
+        return FloatProperties(
+            wrap=wrap_mode,
+            side=wrap_side,
+            dist=dist,
+            pos_h=pos_h,
+            pos_v=pos_v,
+            z_index=z_index,
+            behind=behind,
+        )
+
+    def _parse_vml_pict(
+        self,
+        elem: ET.Element,
+        runs: list[RunItem],
+        r_pr: RunProperties | None = None,
+    ) -> None:
+        """Parse legacy VML <w:pict> image and shape elements."""
+        for shape in elem.iter():
+            tag = _local_tag(shape)
+            if tag in ("shape", "rect"):
+                style_str = _get_attr(shape, "style", "")
+                props = self._parse_vml_style(style_str)
+
+                image_part = ""
+                alt_text = ""
+                for child in shape.iter():
+                    c_tag = _local_tag(child)
+                    if c_tag == "imagedata":
+                        r_id = (
+                            _get_attr(child, "id")
+                            or _get_attr(child, "href")
+                            or _get_attr(child, "r:id")
+                            or _get_attr(child, "r:href")
+                        )
+                        if r_id and r_id in self.rels:
+                            rel = self.rels[r_id]
+                            t = rel.target.lstrip("/")
+                            if not t.startswith("word/") and not t.startswith("docProps/"):
+                                t = f"word/{t}"
+                            image_part = t
+                        alt_text = _get_attr(child, "title", "") or _get_attr(shape, "alt", "")
+
+                float_pr = None
+                if (
+                    props.get("position") == "absolute"
+                    or "margin-left" in props
+                    or "margin-top" in props
+                ):
+                    pos_h = PositionH(rel="column", offset=props.get("margin-left", 0.0))
+                    pos_v = PositionV(rel="paragraph", offset=props.get("margin-top", 0.0))
+                    z_index = int(props.get("z-index", 0))
+                    float_pr = FloatProperties(
+                        wrap=WrapMode.SQUARE,
+                        pos_h=pos_h,
+                        pos_v=pos_v,
+                        z_index=z_index,
+                    )
+
+                pic = PictureItem(
+                    width=props.get("width", 72.0),
+                    height=props.get("height", 72.0),
+                    float_pr=float_pr,
+                    r_pr=r_pr or RunProperties(),
+                    image_part=image_part,
+                    alt_text=alt_text,
+                )
+                runs.append(pic)
+
+    def _parse_vml_style(self, style_str: str) -> dict[str, Any]:
+        """Parse CSS-like style string from VML elements into numerical point values."""
+        res: dict[str, Any] = {}
+        for part in style_str.split(";"):
+            if ":" not in part:
+                continue
+            k, v = part.split(":", 1)
+            k = k.strip().lower()
+            v = v.strip()
+            if v.endswith("pt"):
+                try:
+                    res[k] = float(v[:-2])
+                except ValueError:
+                    pass
+            elif v.endswith("in"):
+                try:
+                    res[k] = float(v[:-2]) * 72.0
+                except ValueError:
+                    pass
+            elif v.endswith("px"):
+                try:
+                    res[k] = float(v[:-2]) * 0.75
+                except ValueError:
+                    pass
+            else:
+                try:
+                    res[k] = float(v)
+                except ValueError:
+                    res[k] = v
+        return res
 
 
 def read_docx(source: str | Path | bytes | io.BytesIO) -> Document:
