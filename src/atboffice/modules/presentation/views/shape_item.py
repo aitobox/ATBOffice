@@ -321,7 +321,9 @@ class ShapeGraphicsItem(QGraphicsObject):
 
         # 1. Shadow effect
         if self.shape.shadow:
-            sh_path = create_shape_path(self.shape.geom, w, h, self.shape.adj)
+            sh_path = create_shape_path(
+                self.shape.geom, w, h, self.shape.adj, self.shape.custom_path
+            )
             painter.save()
             sh_dist = self.shape.shadow.dist
             sh_ang = math.radians(self.shape.shadow.angle)
@@ -336,7 +338,9 @@ class ShapeGraphicsItem(QGraphicsObject):
             painter.restore()
 
         # 2. Main shape path
-        path = create_shape_path(self.shape.geom, w, h, self.shape.adj)
+        path = create_shape_path(
+            self.shape.geom, w, h, self.shape.adj, self.shape.custom_path
+        )
 
         # Fill
         fill_brush = QBrush(Qt.BrushStyle.NoBrush)
