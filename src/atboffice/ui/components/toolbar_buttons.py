@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QCoreApplication, QPoint, QRect, QSize, Qt
+from PySide6.QtCore import QCoreApplication, QPoint, QSize, Qt
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPaintEvent, QPolygon
 from PySide6.QtWidgets import (
     QMenu,
@@ -13,13 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from atboffice.ui.styles.luna_2003 import (
-    LUNA_BLUE_HOT_A,
-    LUNA_BLUE_HOT_B,
     LUNA_BLUE_HOT_BORDER,
-    LUNA_BLUE_PRESS_A,
-    LUNA_BLUE_PRESS_B,
-    LUNA_BLUE_PRESS_BORDER,
-    LUNA_BLUE_TB_BORDER,
     format_mnemonic,
 )
 

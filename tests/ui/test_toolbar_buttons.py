@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QPoint, Qt
-from PySide6.QtGui import QAction, QIcon
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMenu, QWidget
 
 from atboffice.ui.components.toolbar import OfficeToolBar
@@ -16,7 +16,7 @@ def test_split_button_init(qtbot) -> None:
 
     action = QAction("Test Action", widget)
     menu = QMenu("Test Menu", widget)
-    menu_action = menu.addAction("Sub Item")
+    menu.addAction("Sub Item")
 
     btn = OfficeSplitButton(action=action, menu=menu, parent=widget)
     qtbot.addWidget(btn)

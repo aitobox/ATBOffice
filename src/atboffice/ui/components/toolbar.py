@@ -13,7 +13,6 @@ from atboffice.ui.components.toolbar_buttons import (
     OfficeDropDownButton,
     OfficeSplitButton,
 )
-
 from atboffice.ui.styles.luna_2003 import (
     LUNA_BLUE_GRIP,
     LUNA_BLUE_GRIP_HI,
