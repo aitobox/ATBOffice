@@ -9,39 +9,121 @@ from __future__ import annotations
 import io
 import os
 import tempfile
+import urllib.parse
 import xml.etree.ElementTree as ET
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 # Standard OPC Namespaces
 NS_CONTENT_TYPES = "http://schemas.openxmlformats.org/package/2006/content-types"
 NS_RELATIONSHIPS = "http://schemas.openxmlformats.org/package/2006/relationships"
+NS_OFFICE_RELATIONSHIPS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+NS_STRICT_RELATIONSHIPS = "http://purl.oclc.org/ooxml/officeDocument/relationships"
 
 
-@dataclass(frozen=True)
-class Relationship:
-    """Represents an OPC part relationship item."""
+def normalize_part_name(part_name: str) -> str:
+    """Normalize OPC part name by stripping leading slashes, converting Windows separators,
+    and resolving redundant dot segments.
+    """
+    if not part_name:
+        return ""
+    clean = part_name.replace("\\", "/").strip()
+    clean = urllib.parse.unquote(clean)
+    clean = clean.lstrip("/")
 
-    id: str
-    type: str
-    target: str
-    target_mode: str = "Internal"
+    segments: list[str] = []
+    for seg in clean.split("/"):
+        if not seg or seg == ".":
+            continue
+        elif seg == "..":
+            if segments:
+                segments.pop()
+        else:
+            segments.append(seg)
+    return "/".join(segments)
 
 
-def _normalize_part_name(part_name: str) -> str:
-    """Normalize OPC part name by stripping leading slashes."""
-    return part_name.lstrip("/")
+# Backwards compatibility alias
+_normalize_part_name = normalize_part_name
 
 
-def _get_rels_path(owner_part: str) -> str:
+def resolve_part_uri(
+    owner_part: str, uri: str, return_fragment: bool = False
+) -> str | tuple[str, str]:
+    """Resolve an internal part URI relative to its owner part within the package.
+
+    Raises ValueError if target URI attempts to escape package bounds (e.g. '../..').
+    """
+    if not uri:
+        return ("", "") if return_fragment else ""
+
+    # Extract anchor / fragment if present
+    fragment = ""
+    target = uri
+    if "#" in target:
+        target, fragment = target.split("#", 1)
+
+    target = urllib.parse.unquote(target).replace("\\", "/").strip()
+
+    if target.startswith("/"):
+        base_segments: list[str] = []
+        target = target.lstrip("/")
+    else:
+        owner_norm = normalize_part_name(owner_part)
+        if "/" in owner_norm:
+            base_segments = owner_norm.rsplit("/", 1)[0].split("/")
+        else:
+            base_segments = []
+
+    res_segments = list(base_segments)
+    for seg in target.split("/"):
+        if not seg or seg == ".":
+            continue
+        elif seg == "..":
+            if not res_segments:
+                raise ValueError(
+                    f"Part URI escapes package bounds: owner='{owner_part}', uri='{uri}'"
+                )
+            res_segments.pop()
+        else:
+            res_segments.append(seg)
+
+    resolved = "/".join(res_segments)
+    if return_fragment:
+        return resolved, fragment
+    return resolved
+
+
+def relative_part_uri(owner_part: str, target_part: str) -> str:
+    """Compute relative URI path from owner part directory to target part."""
+    owner_norm = normalize_part_name(owner_part)
+    target_norm = normalize_part_name(target_part)
+
+    if not owner_norm:
+        return target_norm
+
+    from_dirs = owner_norm.split("/")[:-1] if "/" in owner_norm else []
+    to_parts = target_norm.split("/")
+
+    # Strip common leading directory components
+    while from_dirs and to_parts and from_dirs[0] == to_parts[0]:
+        from_dirs.pop(0)
+        to_parts.pop(0)
+
+    prefix = "../" * len(from_dirs)
+    return prefix + "/".join(to_parts)
+
+
+def get_rels_path(owner_part: str) -> str:
     """Compute the path of the .rels part for a given owner part name.
 
     Package-level root ('') -> '_rels/.rels'
     'xl/workbook.xml' -> 'xl/_rels/workbook.xml.rels'
     'workbook.xml' -> '_rels/workbook.xml.rels'
     """
-    owner = _normalize_part_name(owner_part)
+    owner = normalize_part_name(owner_part)
     if not owner:
         return "_rels/.rels"
     if "/" in owner:
@@ -50,14 +132,18 @@ def _get_rels_path(owner_part: str) -> str:
     return f"_rels/{owner}.rels"
 
 
-def _get_owner_from_rels_path(rels_path: str) -> str:
+# Backwards compatibility alias
+_get_rels_path = get_rels_path
+
+
+def get_owner_from_rels_path(rels_path: str) -> str:
     """Compute owner part name from a .rels part path.
 
     '_rels/.rels' -> ''
     'xl/_rels/workbook.xml.rels' -> 'xl/workbook.xml'
     '_rels/foo.xml.rels' -> 'foo.xml'
     """
-    path = _normalize_part_name(rels_path)
+    path = normalize_part_name(rels_path)
     if path == "_rels/.rels":
         return ""
     if "/_rels/" in path:
@@ -68,6 +154,75 @@ def _get_owner_from_rels_path(rels_path: str) -> str:
     elif path.startswith("_rels/") and path.endswith(".rels"):
         return path[6:-5]
     return ""
+
+
+# Backwards compatibility alias
+_get_owner_from_rels_path = get_owner_from_rels_path
+
+
+@dataclass(frozen=True)
+class Relationship:
+    """Represents an OPC part relationship item."""
+
+    id: str
+    type: str
+    target: str
+    target_mode: str = "Internal"
+    fragment: str = ""
+
+    @property
+    def is_external(self) -> bool:
+        """Check if relationship points outside the package container."""
+        return self.target_mode.strip().lower() == "external"
+
+    def resolve_target(self, owner_part: str) -> str:
+        """Resolve internal target part name relative to owner_part."""
+        if self.is_external:
+            return self.target
+        return resolve_part_uri(owner_part, self.target)
+
+
+def preserve_unmodified_parts(
+    source: SourcePackage | zipfile.ZipFile | bytes | Path | str,
+    target_zip: zipfile.ZipFile,
+    modified_parts: set[str] | dict[str, Any],
+    deleted_parts: set[str] | None = None,
+) -> list[str]:
+    """Copy unmodified parts directly from source container into target_zip byte-for-byte.
+
+    Returns the list of preserved part names.
+    """
+    mod_set = {normalize_part_name(p) for p in modified_parts}
+    del_set = {normalize_part_name(p) for p in (deleted_parts or set())}
+
+    preserved: list[str] = []
+
+    if isinstance(source, SourcePackage):
+        for name, data in source._parts_data.items():
+            norm = normalize_part_name(name)
+            if norm not in mod_set and norm not in del_set:
+                target_zip.writestr(name, data)
+                preserved.append(norm)
+    elif isinstance(source, zipfile.ZipFile):
+        for info in source.infolist():
+            if not info.is_dir():
+                norm = normalize_part_name(info.filename)
+                if norm not in mod_set and norm not in del_set:
+                    target_zip.writestr(info.filename, source.read(info.filename))
+                    preserved.append(norm)
+    else:
+        pkg = (
+            SourcePackage.from_bytes(source)
+            if isinstance(source, bytes)
+            else SourcePackage.open(source)
+        )
+        for name, data in pkg._parts_data.items():
+            norm = normalize_part_name(name)
+            if norm not in mod_set and norm not in del_set:
+                target_zip.writestr(name, data)
+                preserved.append(norm)
+
+    return preserved
 
 
 class SourcePackage:
@@ -109,7 +264,7 @@ class SourcePackage:
                 parts_data: dict[str, bytes] = {}
                 for info in zf.infolist():
                     if not info.is_dir():
-                        norm_name = _normalize_part_name(info.filename)
+                        norm_name = normalize_part_name(info.filename)
                         parts_data[norm_name] = zf.read(info.filename)
         except zipfile.BadZipFile as exc:
             raise ValueError(f"Not a valid ZIP/OPC package: {exc}") from exc
@@ -135,7 +290,7 @@ class SourcePackage:
                         if ext and ct:
                             default_content_types[ext] = ct
                     elif tag == "Override":
-                        part_name = _normalize_part_name(elem.get("PartName") or "")
+                        part_name = normalize_part_name(elem.get("PartName") or "")
                         ct = elem.get("ContentType") or ""
                         if part_name and ct:
                             content_types[part_name] = ct
@@ -145,7 +300,7 @@ class SourcePackage:
         # Parse .rels files
         for name, r_bytes in parts_data.items():
             if name.endswith(".rels"):
-                owner = _get_owner_from_rels_path(name)
+                owner = get_owner_from_rels_path(name)
                 rels_list: list[Relationship] = []
                 try:
                     root = ET.fromstring(r_bytes)
@@ -156,6 +311,9 @@ class SourcePackage:
                             r_type = elem.get("Type") or ""
                             r_target = elem.get("Target") or ""
                             r_mode = elem.get("TargetMode") or "Internal"
+                            frag = ""
+                            if "#" in r_target:
+                                _, frag = r_target.split("#", 1)
                             if r_id and r_type and r_target:
                                 rels_list.append(
                                     Relationship(
@@ -163,6 +321,7 @@ class SourcePackage:
                                         type=r_type,
                                         target=r_target,
                                         target_mode=r_mode,
+                                        fragment=frag,
                                     )
                                 )
                 except Exception:
@@ -178,18 +337,18 @@ class SourcePackage:
 
     def has_part(self, part_name: str) -> bool:
         """Check if part exists in package."""
-        return _normalize_part_name(part_name) in self._parts_data
+        return normalize_part_name(part_name) in self._parts_data
 
     def read_part(self, part_name: str) -> bytes:
         """Read raw bytes of a package part."""
-        norm_name = _normalize_part_name(part_name)
+        norm_name = normalize_part_name(part_name)
         if norm_name not in self._parts_data:
             raise KeyError(f"Part not found in package: {part_name}")
         return self._parts_data[norm_name]
 
     def get_content_type(self, part_name: str) -> str | None:
         """Resolve content type for a given part name."""
-        norm_name = _normalize_part_name(part_name)
+        norm_name = normalize_part_name(part_name)
         if norm_name in self._content_types:
             return self._content_types[norm_name]
         ext = norm_name.rsplit(".", 1)[-1].lower() if "." in norm_name else ""
@@ -197,12 +356,62 @@ class SourcePackage:
 
     def get_relationships(self, owner_part: str = "") -> list[Relationship]:
         """Get relationships defined for an owner part ('' for root relationships)."""
-        norm_owner = _normalize_part_name(owner_part)
+        norm_owner = normalize_part_name(owner_part)
         return list(self._relationships.get(norm_owner, []))
 
     def parts(self) -> list[str]:
         """List all normalized part names."""
         return list(self._parts_data.keys())
+
+    def subtree(self, start_part: str = "") -> list[str]:
+        """Traverse relationship DAG from start_part ('' for package root).
+
+        Returns all reachable internal parts with cycle protection.
+        """
+        visited: set[str] = set()
+        queue: list[str] = []
+        ordered_parts: list[str] = []
+
+        norm_start = normalize_part_name(start_part)
+        if norm_start:
+            visited.add(norm_start)
+            ordered_parts.append(norm_start)
+            queue.append(norm_start)
+        else:
+            queue.append("")
+
+        while queue:
+            curr = queue.pop(0)
+            rels = self.get_relationships(curr)
+            for r in rels:
+                if r.is_external:
+                    continue
+                try:
+                    target = resolve_part_uri(curr, r.target)
+                    if target and target not in visited:
+                        visited.add(target)
+                        ordered_parts.append(target)
+                        queue.append(target)
+                except ValueError:
+                    continue
+
+        return ordered_parts
+
+    def find_referrers(self, part_name: str) -> list[tuple[str, Relationship]]:
+        """Find all (owner_part, relationship) pairs that point to part_name."""
+        norm_target = normalize_part_name(part_name)
+        referrers: list[tuple[str, Relationship]] = []
+
+        for owner, rels in self._relationships.items():
+            for r in rels:
+                if not r.is_external:
+                    try:
+                        resolved = resolve_part_uri(owner, r.target)
+                        if resolved == norm_target:
+                            referrers.append((owner, r))
+                    except ValueError:
+                        pass
+        return referrers
 
 
 class PackageWriter:
@@ -219,7 +428,7 @@ class PackageWriter:
         self, part_name: str, content: bytes, content_type: str | None = None
     ) -> None:
         """Replace an existing part with new content."""
-        norm = _normalize_part_name(part_name)
+        norm = normalize_part_name(part_name)
         self._modified_parts[norm] = content
         self._deleted_parts.discard(norm)
         if content_type:
@@ -229,14 +438,14 @@ class PackageWriter:
         self, part_name: str, content: bytes, content_type: str = "application/xml"
     ) -> None:
         """Add a new part to package."""
-        norm = _normalize_part_name(part_name)
+        norm = normalize_part_name(part_name)
         self._added_parts[norm] = content
         self._deleted_parts.discard(norm)
         self._part_content_types[norm] = content_type
 
     def delete_part(self, part_name: str) -> None:
         """Mark a part for deletion from package."""
-        norm = _normalize_part_name(part_name)
+        norm = normalize_part_name(part_name)
         self._deleted_parts.add(norm)
         self._modified_parts.pop(norm, None)
         self._added_parts.pop(norm, None)
@@ -281,7 +490,7 @@ class PackageWriter:
         return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
     def to_bytes(self) -> bytes:
-        """Serialize package into a complete ZIP byte buffer."""
+        """Serialize package into a complete ZIP byte buffer with byte-for-byte carry."""
         active_parts: dict[str, bytes] = {}
 
         # 1. Carry unmodified parts from source package byte-for-byte
@@ -320,7 +529,7 @@ class PackageWriter:
         else:
             active_parts["[Content_Types].xml"] = self._build_content_types_xml(active_parts)
 
-        # 5. Pack into ZIP archive
+        # 5. Pack into ZIP archive with deterministic ordering
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
             # Always write [Content_Types].xml first per OPC convention
