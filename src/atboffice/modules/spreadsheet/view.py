@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QCoreApplication
+from PySide6.QtCore import QCoreApplication, Qt
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from atboffice.modules.spreadsheet.models.selection_model import (
@@ -16,6 +16,7 @@ from atboffice.modules.spreadsheet.views.editor_controller import (
 )
 from atboffice.modules.spreadsheet.views.formula_bar import FormulaBar
 from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport
+from atboffice.modules.spreadsheet.views.sheet_tab_bar import SheetTabBar
 
 
 def safe_tr(text: str) -> str:
@@ -84,6 +85,10 @@ class SpreadsheetView(QWidget):
         # Connect workbook signals for active sheet synchronization and cleanup
         self._workbook.active_sheet_changed.connect(self._on_active_sheet_changed)
         self._workbook.sheet_removed.connect(self._on_sheet_removed)
+
+        # 5. Bottom SheetTabBar embedded in grid viewport scrollbar
+        self.sheet_tab_bar = SheetTabBar(workbook=self._workbook, parent=self)
+        self.grid.addScrollBarWidget(self.sheet_tab_bar, Qt.AlignmentFlag.AlignLeft)
 
         self.retranslate_ui()
 
@@ -156,3 +161,5 @@ class SpreadsheetView(QWidget):
         """Retranslate all UI strings in this view."""
         self.formula_bar.retranslate_ui()
         self.grid.retranslate_ui()
+        if hasattr(self, "sheet_tab_bar") and self.sheet_tab_bar is not None:
+            self.sheet_tab_bar.retranslate_ui()
