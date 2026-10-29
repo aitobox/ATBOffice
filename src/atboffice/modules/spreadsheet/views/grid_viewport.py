@@ -124,6 +124,16 @@ class GridViewport(QAbstractScrollArea):
         self._update_scrollbars()
         self.retranslate_ui()
 
+    def set_model_and_selection(
+        self, model: SheetDataModel, selection: SelectionModel
+    ) -> None:
+        """Switch active SheetDataModel and SelectionModel."""
+        self.model = model
+        self.selection = selection
+        self.geometry_mapper = model.geometry
+        self._update_scrollbars()
+        self.viewport().update()
+
     def retranslate_ui(self) -> None:
         """Update localized UI text and trigger repaint."""
         self.viewport().update()

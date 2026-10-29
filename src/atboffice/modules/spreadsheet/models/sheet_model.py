@@ -228,7 +228,8 @@ class SheetGeometry:
 class SheetDataModel:
     """In-memory sparse cell storage for a worksheet."""
 
-    def __init__(self) -> None:
+    def __init__(self, name: str = "Sheet1") -> None:
+        self.name = name
         self.cells: dict[tuple[int, int], CellData] = {}
         self.geometry = SheetGeometry()
         self.merges: list[tuple[int, int, int, int]] = []
