@@ -171,6 +171,28 @@ class EditorController(QObject):
         self._update_name_box()
         self._update_formula_bar_from_model()
 
+    def set_model_and_selection(
+        self, model: SheetDataModel, selection: SelectionModel
+    ) -> None:
+        """Switch active SheetDataModel and SelectionModel."""
+        if self.is_active:
+            self.cancel()
+
+        try:
+            self.selection.active_cell_changed.disconnect(self._on_selection_changed)
+            self.selection.selection_changed.disconnect(self._on_selection_range_changed)
+        except (RuntimeError, TypeError):
+            pass
+
+        self.model = model
+        self.selection = selection
+
+        self.selection.active_cell_changed.connect(self._on_selection_changed)
+        self.selection.selection_changed.connect(self._on_selection_range_changed)
+
+        self._update_name_box()
+        self._update_formula_bar_from_model()
+
     @property
     def is_active(self) -> bool:
         """Return True if currently in any active editing mode."""
