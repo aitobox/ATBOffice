@@ -114,12 +114,14 @@ class LedgerToolBarCluster:
         items: list[str],
     ) -> None:
         menu = QMenu(tb)
+        menu.setProperty("drop_label", label)
         for item in items:
             if item == "-":
                 menu.addSeparator()
             else:
                 menu.addAction(safe_tr(item))
-        tb.add_drop_button(safe_tr(label), None, menu)
+        btn = tb.add_drop_button(safe_tr(label), None, menu)
+        btn.setProperty("drop_menu", menu)
 
     def _add_split(
         self,
@@ -143,7 +145,9 @@ class LedgerToolBarCluster:
                 menu.addSeparator()
             else:
                 menu.addAction(safe_tr(item))
-        tb.add_split_action(act, menu)
+        act.setProperty("split_menu", menu)
+        btn = tb.add_split_action(act, menu)
+        btn.setProperty("split_action", act)
 
     def _build_standard_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("常用"), self.window)
