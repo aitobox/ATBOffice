@@ -176,6 +176,7 @@ class StyleManager:
         # CellXfs
         self.cell_xfs: list[dict[str, Any]] = []
         self.cell_xf_map: dict[tuple[Any, ...], int] = {}
+        self.dxfs: list[dict[str, Any]] = []
 
         # Default normal cellXf at index 0
         self.cell_xfs.append(
@@ -397,6 +398,23 @@ class StyleManager:
         self.cell_xf_map[xf_key] = idx
         return idx
 
+    def add_dxf(
+        self,
+        bg_color: str | None = None,
+        fg_color: str | None = None,
+        bold: bool | None = None,
+        italic: bool | None = None,
+    ) -> int:
+        """Register differential formatting record for conditional formatting."""
+        dxf = {
+            "bg_color": bg_color,
+            "fg_color": fg_color,
+            "bold": bold,
+            "italic": italic,
+        }
+        self.dxfs.append(dxf)
+        return len(self.dxfs) - 1
+
     def to_styles_xml(self) -> bytes:
         parts = [XML_HEADER, f'<styleSheet xmlns="{NS_MAIN}">']
 
@@ -484,7 +502,33 @@ class StyleManager:
         )
 
         # 8. dxfs
-        parts.append('<dxfs count="0"/>')
+        if not self.dxfs:
+            parts.append('<dxfs count="0"/>')
+        else:
+            parts.append(f'<dxfs count="{len(self.dxfs)}">')
+            for d in self.dxfs:
+                parts.append("<dxf>")
+                font_parts = []
+                if d.get("bold"):
+                    font_parts.append('<b val="1"/>')
+                if d.get("italic"):
+                    font_parts.append('<i val="1"/>')
+                if d.get("fg_color"):
+                    c_hex = _color_hex(d["fg_color"])
+                    if c_hex:
+                        font_parts.append(f'<color rgb="{c_hex}"/>')
+                if font_parts:
+                    parts.append(f"<font>{''.join(font_parts)}</font>")
+
+                if d.get("bg_color"):
+                    c_hex = _color_hex(d["bg_color"])
+                    if c_hex:
+                        parts.append(
+                            '<fill><patternFill patternType="solid">'
+                            f'<fgColor rgb="{c_hex}"/></patternFill></fill>'
+                        )
+                parts.append("</dxf>")
+            parts.append("</dxfs>")
 
         # 9. tableStyles
         parts.append(
@@ -656,6 +700,94 @@ def _serialize_worksheet(
             ref = f"{cell_name(m[0], m[1])}:{cell_name(m[2], m[3])}"
             parts.append(f'<mergeCell ref="{ref}"/>')
         parts.append("</mergeCells>")
+
+    # Conditional Formatting (<conditionalFormatting>)
+    for cf in getattr(sheet, "conditional_formats", []):
+        parts.append(f'<conditionalFormatting sqref="{cf.sqref}">')
+        for rule in cf.rules:
+            if rule.color_scale:
+                parts.append(f'<cfRule type="colorScale" priority="{rule.priority}">')
+                parts.append("<colorScale>")
+                for cfvo in rule.color_scale.cfvos:
+                    v_attr = f' val="{cfvo.val}"' if cfvo.val is not None else ""
+                    parts.append(f'<cfvo type="{cfvo.type}"{v_attr}/>')
+                for col in rule.color_scale.colors:
+                    c_hex = _color_hex(col) or "FFFFFFFF"
+                    parts.append(f'<color rgb="{c_hex}"/>')
+                parts.append("</colorScale>")
+                parts.append("</cfRule>")
+            elif rule.data_bar:
+                db = rule.data_bar
+                parts.append(
+                    f'<cfRule type="dataBar" priority="{rule.priority}">'
+                    f'<dataBar minLength="{int(db.min_len * 100)}" '
+                    f'maxLength="{int(db.max_len * 100)}">'
+                )
+                for cfvo in db.cfvos:
+                    v_attr = f' val="{cfvo.val}"' if cfvo.val is not None else ""
+                    parts.append(f'<cfvo type="{cfvo.type}"{v_attr}/>')
+                c_hex = _color_hex(db.color) or "FF638EC6"
+                parts.append(f'<color rgb="{c_hex}"/>')
+                parts.append("</dataBar></cfRule>")
+            else:
+                dxf_id = style_manager.add_dxf(
+                    bg_color=rule.bg_color,
+                    fg_color=rule.fg_color,
+                    bold=rule.bold,
+                    italic=rule.italic,
+                )
+                r_attrs = [
+                    f'type="{rule.type}"',
+                    f'priority="{rule.priority}"',
+                    f'dxfId="{dxf_id}"',
+                ]
+                if rule.operator:
+                    r_attrs.append(f'operator="{rule.operator}"')
+                if rule.stop_if_true:
+                    r_attrs.append('stopIfTrue="1"')
+                if rule.text:
+                    r_attrs.append(f'text="{_xml_escape(rule.text)}"')
+                parts.append(f'<cfRule {" ".join(r_attrs)}>')
+                for f in rule.formula:
+                    parts.append(f"<formula>{_xml_escape(str(f))}</formula>")
+                parts.append("</cfRule>")
+        parts.append("</conditionalFormatting>")
+
+    # Data Validations (<dataValidations>)
+    dvs = getattr(sheet, "data_validations", [])
+    if dvs:
+        parts.append(f'<dataValidations count="{len(dvs)}">')
+        for dv in dvs:
+            dv_attrs = [f'type="{dv.type}"']
+            if dv.operator:
+                dv_attrs.append(f'operator="{dv.operator}"')
+            if dv.allow_blank:
+                dv_attrs.append('allowBlank="1"')
+            if dv.show_dropdown:
+                dv_attrs.append('showDropDown="1"')
+            if dv.show_input_message:
+                dv_attrs.append('showInputMessage="1"')
+            if dv.show_error_alert:
+                dv_attrs.append('showErrorMessage="1"')
+            if dv.error_style:
+                dv_attrs.append(f'errorStyle="{dv.error_style}"')
+            if dv.input_title:
+                dv_attrs.append(f'promptTitle="{_xml_escape(dv.input_title)}"')
+            if dv.input_message:
+                dv_attrs.append(f'prompt="{_xml_escape(dv.input_message)}"')
+            if dv.error_title:
+                dv_attrs.append(f'errorTitle="{_xml_escape(dv.error_title)}"')
+            if dv.error_message:
+                dv_attrs.append(f'error="{_xml_escape(dv.error_message)}"')
+            if dv.sqref:
+                dv_attrs.append(f'sqref="{dv.sqref}"')
+            parts.append(f'<dataValidation {" ".join(dv_attrs)}>')
+            if dv.formula1:
+                parts.append(f"<formula1>{_xml_escape(str(dv.formula1))}</formula1>")
+            if dv.formula2:
+                parts.append(f"<formula2>{_xml_escape(str(dv.formula2))}</formula2>")
+            parts.append("</dataValidation>")
+        parts.append("</dataValidations>")
 
     # Page margins
     parts.append(

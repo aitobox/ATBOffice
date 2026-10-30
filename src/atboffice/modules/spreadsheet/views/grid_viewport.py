@@ -21,6 +21,9 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QAbstractScrollArea, QMenu, QWidget
 
 from atboffice.modules.spreadsheet.calc.references import col_name
+from atboffice.modules.spreadsheet.models.conditional_format import (
+    evaluate_cf_for_cell,
+)
 from atboffice.modules.spreadsheet.models.selection_model import (
     SelectionModel,
     SelectionRange,
@@ -113,6 +116,7 @@ class GridViewport(QAbstractScrollArea):
         self._fill_preview_range: SelectionRange | None = None
         self._fill_start_src: SelectionRange | None = None
         self._fill_ctrl_pressed: bool = False
+        self._dv_dropdown_rect: QRect | None = None
 
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
@@ -460,12 +464,15 @@ class GridViewport(QAbstractScrollArea):
                     continue
 
                 cell_rect = QRect(col_x, row_y, col_w, row_h)
+                cf_res = evaluate_cf_for_cell(self.model, r, c)
+                bg_col = cf_res.bg_color if (cf_res and cf_res.bg_color) else cell.bg_color
+
                 # Background fill & patterns
-                if cell.bg_color or cell.pattern:
+                if bg_col or cell.pattern:
                     painter.save()
                     painter.setClipRect(cell_rect)
-                    if cell.bg_color:
-                        painter.fillRect(cell_rect, QColor(cell.bg_color))
+                    if bg_col:
+                        painter.fillRect(cell_rect, QColor(bg_col))
                     if cell.pattern:
                         from atboffice.modules.spreadsheet.dialogs.pattern_defs import (
                             create_pattern_brush,
@@ -474,9 +481,20 @@ class GridViewport(QAbstractScrollArea):
                         brush = create_pattern_brush(
                             cell.pattern,
                             cell.pattern_color or "#000000",
-                            cell.bg_color or "#FFFFFF",
+                            bg_col or "#FFFFFF",
                         )
                         painter.fillRect(cell_rect, brush)
+                    painter.restore()
+
+                # Data bar overlay
+                if cf_res and cf_res.data_bar:
+                    painter.save()
+                    painter.setClipRect(cell_rect)
+                    bar_frac = max(0.0, min(1.0, float(cf_res.data_bar.get("frac", 0.0))))
+                    bar_color = QColor(str(cf_res.data_bar.get("color", "#638EC6")))
+                    bar_w = int((col_w - 2) * bar_frac)
+                    if bar_w > 0:
+                        painter.fillRect(QRect(col_x + 1, row_y + 1, bar_w, row_h - 2), bar_color)
                     painter.restore()
 
                 # Cell borders
@@ -579,14 +597,17 @@ class GridViewport(QAbstractScrollArea):
 
                 # Font & color
                 font = QFont(cell.font_family, cell.font_size)
-                font.setBold(cell.bold)
-                font.setItalic(cell.italic)
+                is_bold = cf_res.bold if (cf_res and cf_res.bold is not None) else cell.bold
+                is_italic = cf_res.italic if (cf_res and cf_res.italic is not None) else cell.italic
+                font.setBold(is_bold)
+                font.setItalic(is_italic)
                 font.setUnderline(cell.underline)
                 painter.setFont(font)
 
+                text_col_str = cf_res.fg_color if (cf_res and cf_res.fg_color) else cell.fg_color
                 text_color = (
-                    QColor(cell.fg_color)
-                    if cell.fg_color
+                    QColor(text_col_str)
+                    if text_col_str
                     else Qt.GlobalColor.black
                 )
                 painter.setPen(text_color)
@@ -648,6 +669,30 @@ class GridViewport(QAbstractScrollArea):
             )
             painter.fillRect(fx - 1, fy - 1, 7, 7, Qt.GlobalColor.white)
             painter.fillRect(fx, fy, 5, 5, self.COLOR_FILL_HANDLE)
+
+            # Dropdown arrow indicator if active cell has list validation
+            active_dv = self.model.get_validation_at(ar, ac)
+            if (
+                active_dv is not None
+                and active_dv.type == "list"
+                and active_dv.show_dropdown
+            ):
+                btn_w = 16
+                btn_h = ah - 2
+                btn_x = ax + aw - btn_w - 1
+                btn_y = ay + 1
+                self._dv_dropdown_rect = QRect(btn_x, btn_y, btn_w, btn_h)
+                painter.fillRect(self._dv_dropdown_rect, QColor(236, 233, 216))
+                painter.setPen(QPen(QColor(158, 182, 206), 1))
+                painter.drawRect(self._dv_dropdown_rect)
+                painter.setPen(QPen(Qt.GlobalColor.black, 1))
+                mx = btn_x + btn_w // 2
+                my = btn_y + btn_h // 2
+                painter.drawLine(mx - 3, my - 1, mx + 3, my - 1)
+                painter.drawLine(mx - 2, my, mx + 2, my)
+                painter.drawLine(mx - 1, my + 1, mx + 1, my + 1)
+            else:
+                self._dv_dropdown_rect = None
         painter.restore()
 
         # 5.5 Draw Reference Highlights (if in formula editing / point mode)
@@ -888,6 +933,15 @@ class GridViewport(QAbstractScrollArea):
 
         x = event.position().x()
         y = event.position().y()
+
+        # Check click on List Validation dropdown arrow button
+        if (
+            self._dv_dropdown_rect is not None
+            and self._dv_dropdown_rect.contains(int(x), int(y))
+        ):
+            self._open_dv_dropdown()
+            return
+
         hit = self.hit_test(int(x), int(y))
         modifiers = event.modifiers()
 
@@ -1094,6 +1148,12 @@ class GridViewport(QAbstractScrollArea):
                 self.editor_controller.begin_edit(r, c)
                 return
 
+        # Alt+Down to open List Validation dropdown
+        if key == Qt.Key.Key_Down and (modifiers & Qt.KeyboardModifier.AltModifier):
+            if self._dv_dropdown_rect is not None:
+                self._open_dv_dropdown()
+                return
+
         # Delete / Backspace to clear selection
         if key in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
             if (
@@ -1164,6 +1224,37 @@ class GridViewport(QAbstractScrollArea):
             return
 
         super().keyPressEvent(event)
+
+    def _open_dv_dropdown(self) -> None:
+        """Open the List Data Validation dropdown popup for the active cell."""
+        ar, ac = self.selection.active_cell
+        dv = self.model.get_validation_at(ar, ac)
+        if dv is None or dv.type != "list":
+            return
+        from atboffice.modules.spreadsheet.models.validation import get_list_items
+
+        items = get_list_items(self.model, dv, ar, ac)
+        if not items:
+            return
+
+        menu = QMenu(self)
+        for item in items:
+            action = menu.addAction(str(item))
+
+            def on_triggered(checked: bool = False, val=item) -> None:
+                self.model.set_cell_value(ar, ac, val)
+                if (
+                    self.editor_controller is not None
+                    and self.editor_controller.formula_bar is not None
+                ):
+                    self.editor_controller.formula_bar.set_cell_value(val)
+                self.viewport().update()
+
+            action.triggered.connect(on_triggered)
+
+        if self._dv_dropdown_rect is not None:
+            pt = self.viewport().mapToGlobal(self._dv_dropdown_rect.bottomLeft())
+            menu.exec(pt)
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         """Right-click context menu offering cell formatting and clipboard operations."""

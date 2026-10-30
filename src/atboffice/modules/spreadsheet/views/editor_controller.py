@@ -368,6 +368,53 @@ class EditorController(QObject):
                 except ValueError:
                     parsed_val = text
 
+        # Validate candidate value against active data validation rule
+        candidate_val = val if text.startswith("=") else parsed_val
+        from atboffice.modules.spreadsheet.models.validation import (
+            AlertStyle,
+            validate_cell_value,
+        )
+
+        is_valid, dv = validate_cell_value(self.model, r, c, candidate_val)
+        if not is_valid and dv is not None and dv.show_error_alert:
+            from PySide6.QtWidgets import QMessageBox
+
+            from atboffice.modules.spreadsheet.dialogs.data_validation_dialog import (
+                ValidationAlertDialog,
+            )
+
+            dlg = ValidationAlertDialog(
+                parent=self.viewport,
+                style=dv.error_style,
+                title=dv.error_title or safe_tr("输入值无效"),
+                message=dv.error_message or safe_tr("您输入的值不在所允许的有效性范围内。"),
+            )
+            res = dlg.exec()
+            if dv.error_style == AlertStyle.STOP.value:
+                self.in_cell_editor.selectAll()
+                self.in_cell_editor.setFocus()
+                return False
+            elif dv.error_style == AlertStyle.WARNING.value:
+                if res != QMessageBox.StandardButton.Yes:
+                    self.in_cell_editor.selectAll()
+                    self.in_cell_editor.setFocus()
+                    return False
+            elif dv.error_style == AlertStyle.INFORMATION.value:
+                if res != QMessageBox.StandardButton.Ok:
+                    self.in_cell_editor.selectAll()
+                    self.in_cell_editor.setFocus()
+                    return False
+
+        if text.startswith("="):
+            cell = self.model.get_cell(r, c)
+            if cell is None:
+                cell = CellData(value=val, formula=formula_body)
+                self.model.set_cell(r, c, cell)
+            else:
+                cell.formula = formula_body
+                if val is not None:
+                    cell.value = val
+        else:
             cell = self.model.get_cell(r, c)
             if cell is None:
                 cell = CellData(value=parsed_val, formula=None)
