@@ -38,6 +38,7 @@ from atboffice.modules.writer.layout.pagination import (
     paginate_document,
 )
 from atboffice.modules.writer.layout.portions import (
+    Portion,
     PortionType,
     measure_text_width,
 )
@@ -722,7 +723,9 @@ class WriterCanvasView(QAbstractScrollArea):
                                     p1 = QPointF(cur_x, baseline)
                                     p2 = QPointF(cur_x + po_w, baseline)
                                     if leader == "dot":
-                                        pen_l = QPen(QColor(100, 100, 100), 0.75, Qt.PenStyle.DotLine)
+                                        pen_l = QPen(
+                                            QColor(100, 100, 100), 0.75, Qt.PenStyle.DotLine
+                                        )
                                         painter.setPen(pen_l)
                                         painter.drawLine(p1, p2)
                                     elif leader == "hyphen":

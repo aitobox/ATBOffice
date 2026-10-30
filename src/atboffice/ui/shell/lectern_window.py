@@ -12,7 +12,6 @@ from PySide6.QtWidgets import QMessageBox, QWidget
 
 from atboffice.core.action_registry import ActionRegistry
 from atboffice.core.i18n import safe_tr as core_safe_tr
-from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.view import PresentationView
 from atboffice.modules.presentation.views.slide_canvas import SlideScene
 from atboffice.ui.components.toolbar import OfficeToolBar

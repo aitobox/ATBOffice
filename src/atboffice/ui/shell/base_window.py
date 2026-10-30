@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QCloseEvent
-from PySide6.QtPrintSupport import QPrintDialog, QPrintPreviewDialog, QPrinter
+from PySide6.QtPrintSupport import QPrintDialog, QPrinter, QPrintPreviewDialog
 from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QWidget
 
 from atboffice.core.i18n import get_i18n_manager
@@ -290,7 +290,7 @@ class BaseOfficeWindow(QMainWindow):
                 try:
                     self.render_to_printer(printer)
                     return True
-                except Exception as exc:
+                except Exception:
                     return False
             dialog = QPrintDialog(printer, self)
             dialog.setWindowTitle(safe_tr("打印 — {name}").format(name=self.app_name))

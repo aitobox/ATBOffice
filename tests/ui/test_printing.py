@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
-import pytest
 from PySide6.QtGui import QPainter
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QApplication
