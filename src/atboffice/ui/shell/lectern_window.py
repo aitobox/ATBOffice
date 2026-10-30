@@ -60,6 +60,10 @@ class LecternWindow(BaseOfficeWindow):
 
         if hasattr(ws, "scene") and ws.scene is not None:
             ws.scene.selectionChanged.connect(self._on_scene_selection_changed)
+            if hasattr(ws.scene, "shapeCreated"):
+                ws.scene.shapeCreated.connect(self._on_shape_created)
+            if hasattr(ws.scene, "toolChanged"):
+                ws.scene.toolChanged.connect(self._update_drawing_tool_actions)
 
         if hasattr(ws, "left_pane") and ws.left_pane is not None:
             ws.left_pane.currentChanged.connect(self._on_left_pane_tab_changed)
@@ -89,8 +93,310 @@ class LecternWindow(BaseOfficeWindow):
         self.action_registry.set_handler("underline", self._toggle_underline)
         self.action_registry.set_handler("new_slide", self.add_new_slide)
         self.action_registry.set_handler("newSlide", self.add_new_slide)
+
+        # Slideshow
         self.action_registry.set_handler("start_slideshow", self.start_slideshow)
+        self.action_registry.set_handler("start_slideshow_current", self.start_slideshow_current)
+
+        # View mode switching
+        self.action_registry.set_handler("viewNormal", lambda: self.set_view_mode("normal"))
+        self.action_registry.set_handler("viewSorter", lambda: self.set_view_mode("sorter"))
+        self.action_registry.set_handler("viewMaster", lambda: self.set_view_mode("master"))
         self.action_registry.set_handler("closeMaster", lambda: self.set_view_mode("normal"))
+
+        # Drawing tools
+        self.action_registry.set_handler(
+            "drawLine", lambda: self.set_drawing_tool({"kind": "line", "geom": "line"})
+        )
+        self.action_registry.set_handler(
+            "drawArrow", lambda: self.set_drawing_tool({"kind": "line", "geom": "rightArrow"})
+        )
+        self.action_registry.set_handler(
+            "drawRect", lambda: self.set_drawing_tool({"kind": "shape", "geom": "rect"})
+        )
+        self.action_registry.set_handler(
+            "drawOval", lambda: self.set_drawing_tool({"kind": "shape", "geom": "ellipse"})
+        )
+        self.action_registry.set_handler(
+            "textBox", lambda: self.set_drawing_tool({"kind": "text", "geom": "rect"})
+        )
+        self.action_registry.set_handler("selectObjects", lambda: self.set_drawing_tool(None))
+
+        # Shape z-order
+        self.action_registry.set_handler("bringFront", self._on_bring_to_front)
+        self.action_registry.set_handler("sendBack", self._on_send_to_back)
+        self.action_registry.set_handler("bringForward", self._on_bring_forward)
+        self.action_registry.set_handler("sendBackward", self._on_send_backward)
+
+        # Shape grouping
+        self.action_registry.set_handler("group", self._on_group_shapes)
+        self.action_registry.set_handler("ungroup", self._on_ungroup_shapes)
+
+        # Shape alignment & distribution
+        self.action_registry.set_handler("alignLeft", lambda: self._align_shapes("L"))
+        self.action_registry.set_handler("alignCenter", lambda: self._align_shapes("C"))
+        self.action_registry.set_handler("alignRight", lambda: self._align_shapes("R"))
+        self.action_registry.set_handler("alignTop", lambda: self._align_shapes("T"))
+        self.action_registry.set_handler("alignMiddle", lambda: self._align_shapes("M"))
+        self.action_registry.set_handler("alignBottom", lambda: self._align_shapes("B"))
+        self.action_registry.set_handler("distributeH", lambda: self._distribute_shapes("h"))
+        self.action_registry.set_handler("distributeV", lambda: self._distribute_shapes("v"))
+
+        # SmartArt / IntelliArt diagram actions
+        self.action_registry.set_handler(
+            "diagramAddShape", lambda: self._on_diagram_add_shape("after")
+        )
+        self.action_registry.set_handler(
+            "diagramAddAfter", lambda: self._on_diagram_add_shape("after")
+        )
+        self.action_registry.set_handler(
+            "diagramAddBefore", lambda: self._on_diagram_add_shape("before")
+        )
+        self.action_registry.set_handler(
+            "diagramAddAbove", lambda: self._on_diagram_add_shape("above")
+        )
+        self.action_registry.set_handler(
+            "diagramAddBelow", lambda: self._on_diagram_add_shape("below")
+        )
+        self.action_registry.set_handler("diagramPromote", self._on_diagram_promote)
+        self.action_registry.set_handler("diagramDemote", self._on_diagram_demote)
+        self.action_registry.set_handler("diagramMoveUp", lambda: self._on_diagram_move("up"))
+        self.action_registry.set_handler("diagramMoveDown", lambda: self._on_diagram_move("down"))
+        self.action_registry.set_handler("diagramReset", self._on_diagram_reset)
+        self.action_registry.set_handler("diagramToShapes", self._on_diagram_to_shapes)
+
+    def set_drawing_tool(self, tool: dict[str, Any] | None) -> None:
+        """Activate drawing tool on canvas and update drawing toolbar check states."""
+        ws = self.presentation_view.workspace
+        if hasattr(ws, "canvas_view") and ws.canvas_view is not None:
+            ws.canvas_view.set_drawing_tool(tool)
+        self._update_drawing_tool_actions(tool)
+
+    def _update_drawing_tool_actions(self, active_tool: dict[str, Any] | None = None) -> None:
+        """Update toggle check states for drawing tool actions."""
+        kind = active_tool.get("kind") if active_tool else None
+        geom = active_tool.get("geom") if active_tool else None
+
+        tools_map = {
+            "drawLine": kind == "line" and geom == "line",
+            "drawArrow": kind == "line" and geom in ("rightArrow", "arrow"),
+            "drawRect": kind == "shape" and geom == "rect",
+            "drawOval": kind == "shape" and geom in ("ellipse", "oval"),
+            "textBox": kind == "text",
+            "selectObjects": active_tool is None,
+        }
+
+        for aid, is_active in tools_map.items():
+            act = self.action_registry.get_action(aid)
+            if act and act.isCheckable():
+                act.blockSignals(True)
+                act.setChecked(is_active)
+                act.blockSignals(False)
+
+    def _on_shape_created(self, shape: Any) -> None:
+        """Mark presentation dirty and refresh contextual toolbars when a new shape is created."""
+        self.set_modified(True)
+        self._on_scene_selection_changed()
+
+    def _on_bring_to_front(self) -> None:
+        ws = self.presentation_view.workspace
+        if hasattr(ws, "scene") and ws.scene is not None:
+            ws.scene.bring_to_front()
+            self.set_modified(True)
+
+    def _on_send_to_back(self) -> None:
+        ws = self.presentation_view.workspace
+        if hasattr(ws, "scene") and ws.scene is not None:
+            ws.scene.send_to_back()
+            self.set_modified(True)
+
+    def _on_bring_forward(self) -> None:
+        ws = self.presentation_view.workspace
+        if hasattr(ws, "scene") and ws.scene is not None:
+            ws.scene.bring_forward()
+            self.set_modified(True)
+
+    def _on_send_backward(self) -> None:
+        ws = self.presentation_view.workspace
+        if hasattr(ws, "scene") and ws.scene is not None:
+            ws.scene.send_backward()
+            self.set_modified(True)
+
+    def _on_group_shapes(self) -> None:
+        ws = self.presentation_view.workspace
+        if hasattr(ws, "scene") and ws.scene is not None:
+            new_grp = ws.scene.group_selected()
+            if new_grp:
+                self.set_modified(True)
+
+    def _on_ungroup_shapes(self) -> None:
+        ws = self.presentation_view.workspace
+        if hasattr(ws, "scene") and ws.scene is not None:
+            ws.scene.ungroup_selected()
+            self.set_modified(True)
+
+    def _align_shapes(self, mode: str) -> None:
+        ws = self.presentation_view.workspace
+        if hasattr(ws, "scene") and ws.scene is not None:
+            ws.scene.align_shapes(mode)
+            self.set_modified(True)
+
+    def _distribute_shapes(self, axis: str) -> None:
+        ws = self.presentation_view.workspace
+        if hasattr(ws, "scene") and ws.scene is not None:
+            ws.scene.distribute_shapes(axis)
+            self.set_modified(True)
+
+    def _get_active_diagram_shape(self) -> Any | None:
+        ws = self.presentation_view.workspace
+        if not hasattr(ws, "scene") or ws.scene is None:
+            return None
+        for item in ws.scene.selectedItems():
+            shape = getattr(item, "shape", None)
+            if shape and (getattr(shape, "is_diagram", False) or getattr(shape, "sa", None)):
+                return shape
+            parent = item.parentItem() if hasattr(item, "parentItem") else None
+            p_shape = getattr(parent, "shape", None) if parent else None
+            if p_shape and (getattr(p_shape, "is_diagram", False) or getattr(p_shape, "sa", None)):
+                return p_shape
+        if hasattr(ws, "current_slide") and ws.current_slide:
+            for sh in ws.current_slide.shapes:
+                if getattr(sh, "is_diagram", False) or getattr(sh, "sa", None):
+                    return sh
+        return None
+
+    def _on_diagram_add_shape(self, pos: str = "after") -> None:
+        diag = self._get_active_diagram_shape()
+        if not diag or not diag.sa:
+            return
+        from atboffice.modules.presentation.smartart.engine import SmartArtEngine, relayout
+        from atboffice.modules.presentation.smartart.item import SmartArtItem, outline
+
+        eng = SmartArtEngine()
+        raw_items = diag.sa.get("items", [])
+        items = [
+            SmartArtItem.from_dict(it) if isinstance(it, dict) else it for it in raw_items
+        ]
+        flat_tree = outline(items)
+        target_id = flat_tree[-1]["item"].id if flat_tree else ""
+
+        if pos == "after":
+            eng.add_after(items, target_id, safe_tr("新项目"))
+        elif pos == "before":
+            eng.add_before(items, target_id, safe_tr("新项目"))
+        elif pos == "above":
+            eng.add_above(items, target_id, safe_tr("新项目"))
+        elif pos == "below":
+            eng.add_below(items, target_id, safe_tr("新项目"))
+
+        diag.sa["items"] = items
+        relayout(diag)
+        ws = self.presentation_view.workspace
+        if hasattr(ws, "scene") and ws.scene and hasattr(ws, "current_slide"):
+            ws.scene.load_slide(ws.current_slide)
+        self.set_modified(True)
+
+    def _on_diagram_promote(self) -> None:
+        diag = self._get_active_diagram_shape()
+        if not diag or not diag.sa:
+            return
+        from atboffice.modules.presentation.smartart.engine import SmartArtEngine, relayout
+        from atboffice.modules.presentation.smartart.item import SmartArtItem, outline
+
+        eng = SmartArtEngine()
+        raw_items = diag.sa.get("items", [])
+        items = [
+            SmartArtItem.from_dict(it) if isinstance(it, dict) else it for it in raw_items
+        ]
+        flat_tree = outline(items)
+        if not flat_tree:
+            return
+        target_id = flat_tree[-1]["item"].id
+        if eng.promote(items, target_id):
+            diag.sa["items"] = items
+            relayout(diag)
+            ws = self.presentation_view.workspace
+            if hasattr(ws, "scene") and ws.scene and hasattr(ws, "current_slide"):
+                ws.scene.load_slide(ws.current_slide)
+            self.set_modified(True)
+
+    def _on_diagram_demote(self) -> None:
+        diag = self._get_active_diagram_shape()
+        if not diag or not diag.sa:
+            return
+        from atboffice.modules.presentation.smartart.engine import SmartArtEngine, relayout
+        from atboffice.modules.presentation.smartart.item import SmartArtItem, outline
+
+        eng = SmartArtEngine()
+        raw_items = diag.sa.get("items", [])
+        items = [
+            SmartArtItem.from_dict(it) if isinstance(it, dict) else it for it in raw_items
+        ]
+        flat_tree = outline(items)
+        if not flat_tree:
+            return
+        target_id = flat_tree[-1]["item"].id
+        if eng.demote(items, target_id):
+            diag.sa["items"] = items
+            relayout(diag)
+            ws = self.presentation_view.workspace
+            if hasattr(ws, "scene") and ws.scene and hasattr(ws, "current_slide"):
+                ws.scene.load_slide(ws.current_slide)
+            self.set_modified(True)
+
+    def _on_diagram_move(self, direction: str = "up") -> None:
+        diag = self._get_active_diagram_shape()
+        if not diag or not diag.sa:
+            return
+        from atboffice.modules.presentation.smartart.engine import SmartArtEngine, relayout
+        from atboffice.modules.presentation.smartart.item import SmartArtItem, outline
+
+        eng = SmartArtEngine()
+        raw_items = diag.sa.get("items", [])
+        items = [
+            SmartArtItem.from_dict(it) if isinstance(it, dict) else it for it in raw_items
+        ]
+        flat_tree = outline(items)
+        if not flat_tree:
+            return
+        target_id = flat_tree[-1]["item"].id
+        if direction == "up":
+            changed = eng.move_up(items, target_id)
+        else:
+            changed = eng.move_down(items, target_id)
+        if changed:
+            diag.sa["items"] = items
+            relayout(diag)
+            ws = self.presentation_view.workspace
+            if hasattr(ws, "scene") and ws.scene and hasattr(ws, "current_slide"):
+                ws.scene.load_slide(ws.current_slide)
+            self.set_modified(True)
+
+    def _on_diagram_to_shapes(self) -> None:
+        diag = self._get_active_diagram_shape()
+        if not diag or not diag.sa:
+            return
+        diag.sa = None
+        diag.name = safe_tr("已解散关系图")
+        ws = self.presentation_view.workspace
+        if hasattr(ws, "scene") and ws.scene and hasattr(ws, "current_slide"):
+            ws.scene.load_slide(ws.current_slide)
+        self.set_modified(True)
+
+    def _on_diagram_reset(self) -> None:
+        diag = self._get_active_diagram_shape()
+        if not diag or not diag.sa:
+            return
+        from atboffice.modules.presentation.smartart.engine import relayout
+        from atboffice.modules.presentation.smartart.palettes import DEFAULT_COLORS, DEFAULT_STYLE
+
+        diag.sa["colors"] = DEFAULT_COLORS
+        diag.sa["style"] = DEFAULT_STYLE
+        relayout(diag)
+        ws = self.presentation_view.workspace
+        if hasattr(ws, "scene") and ws.scene and hasattr(ws, "current_slide"):
+            ws.scene.load_slide(ws.current_slide)
+        self.set_modified(True)
 
     def _toggle_bold(self) -> None:
         """Toggle bold formatting for active selection."""
@@ -122,13 +428,19 @@ class LecternWindow(BaseOfficeWindow):
         for item in selected_items:
             shape = getattr(item, "shape", None)
             stype = getattr(shape, "type", "") if shape else ""
-            if stype in ("table",):
+            if stype in ("table",) or (shape and getattr(shape, "tbl", None)):
                 is_table = True
-            elif stype in ("image", "picture"):
+            elif stype in ("image", "picture") or (shape and getattr(shape, "media_item", None)):
                 is_picture = True
-            elif stype in ("diagram", "smartart"):
+            elif (
+                stype in ("diagram", "smartart")
+                or (shape and getattr(shape, "is_diagram", False))
+                or (shape and getattr(shape, "sa", None))
+            ):
                 is_diagram = True
-            elif stype in ("wordart",):
+            elif stype in ("wordart",) or (
+                shape and getattr(shape, "name", "").startswith("WordArt")
+            ):
                 is_wordart = True
 
         self.update_context_toolbars(
@@ -296,6 +608,15 @@ class LecternWindow(BaseOfficeWindow):
     def set_view_mode(self, mode: str) -> None:
         """Switch workspace view mode ('normal', 'sorter', or 'master')."""
         self.presentation_view.set_view_mode(mode)
+        act_normal = self.action_registry.get_action("viewNormal")
+        if act_normal:
+            act_normal.setChecked(mode == "normal")
+        act_sorter = self.action_registry.get_action("viewSorter")
+        if act_sorter:
+            act_sorter.setChecked(mode == "sorter")
+        act_master = self.action_registry.get_action("viewMaster")
+        if act_master:
+            act_master.setChecked(mode == "master")
         if hasattr(self, "act_view_normal") and self.act_view_normal:
             self.act_view_normal.setChecked(mode == "normal")
         if hasattr(self, "act_view_sorter") and self.act_view_sorter:
