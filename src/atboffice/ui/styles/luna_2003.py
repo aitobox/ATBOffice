@@ -63,6 +63,56 @@ LUNA_SILVER_STATUS_BG: Final = "#E2E2EC"
 LUNA_SILVER_STATUS_SEP: Final = "#A0A0B0"
 LUNA_SILVER_STATUS_SEP_HI: Final = "#FFFFFF"
 
+# --- Luna Olive Green Color Tokens ---
+LUNA_OLIVE_DOCK_TOP: Final = "#D1DAC6"
+LUNA_OLIVE_DOCK_BOTTOM: Final = "#BDC8B1"
+LUNA_OLIVE_TB_A: Final = "#F0F4E8"
+LUNA_OLIVE_TB_B: Final = "#E0E8D0"
+LUNA_OLIVE_TB_C: Final = "#B8C8A0"
+LUNA_OLIVE_TB_BORDER: Final = "#4E6838"
+LUNA_OLIVE_TB_EDGE: Final = "#7A9660"
+LUNA_OLIVE_GRIP: Final = "#3E562B"
+LUNA_OLIVE_GRIP_HI: Final = "#FFFFFF"
+LUNA_OLIVE_HOT_A: Final = "#FFF4CC"
+LUNA_OLIVE_HOT_B: Final = "#FFD091"
+LUNA_OLIVE_HOT_BORDER: Final = "#335A22"
+LUNA_OLIVE_PRESS_A: Final = "#FE803E"
+LUNA_OLIVE_PRESS_B: Final = "#FFDF9A"
+LUNA_OLIVE_PRESS_BORDER: Final = "#6B4210"
+LUNA_OLIVE_CHK_A: Final = "#E6F0D8"
+LUNA_OLIVE_CHK_B: Final = "#C8DCB0"
+LUNA_OLIVE_MENU_BORDER: Final = "#335A22"
+LUNA_OLIVE_MENU_HOT: Final = "#FFEEC2"
+LUNA_OLIVE_MENU_FACE: Final = "#FCFCF9"
+LUNA_OLIVE_STATUS_BG: Final = "#CED7C2"
+LUNA_OLIVE_STATUS_SEP: Final = "#8A9E74"
+LUNA_OLIVE_STATUS_SEP_HI: Final = "#E7EFE0"
+
+# --- Windows Classic Color Tokens ---
+CLASSIC_DOCK_TOP: Final = "#ECE9D8"
+CLASSIC_DOCK_BOTTOM: Final = "#ECE9D8"
+CLASSIC_TB_A: Final = "#ECE9D8"
+CLASSIC_TB_B: Final = "#ECE9D8"
+CLASSIC_TB_C: Final = "#D4D0C8"
+CLASSIC_TB_BORDER: Final = "#808080"
+CLASSIC_TB_EDGE: Final = "#FFFFFF"
+CLASSIC_GRIP: Final = "#808080"
+CLASSIC_GRIP_HI: Final = "#FFFFFF"
+CLASSIC_HOT_A: Final = "#F5F4EE"
+CLASSIC_HOT_B: Final = "#E0DFD8"
+CLASSIC_HOT_BORDER: Final = "#0A246A"
+CLASSIC_PRESS_A: Final = "#D4D0C8"
+CLASSIC_PRESS_B: Final = "#D4D0C8"
+CLASSIC_PRESS_BORDER: Final = "#808080"
+CLASSIC_CHK_A: Final = "#FFFFFF"
+CLASSIC_CHK_B: Final = "#DFDED8"
+CLASSIC_MENU_BORDER: Final = "#808080"
+CLASSIC_MENU_HOT: Final = "#316AC5"
+CLASSIC_MENU_FACE: Final = "#FFFFFF"
+CLASSIC_STATUS_BG: Final = "#ECE9D8"
+CLASSIC_STATUS_SEP: Final = "#9A9A9A"
+CLASSIC_STATUS_SEP_HI: Final = "#FFFFFF"
+
 
 def format_mnemonic(text: str, is_macos: bool | None = None) -> str:
     """Format mnemonic accelerators across platforms.
@@ -84,35 +134,92 @@ def format_mnemonic(text: str, is_macos: bool | None = None) -> str:
 
 
 def get_luna_stylesheet(theme: str = "blue") -> str:
-    """Generate complete Qt Style Sheet (QSS) for Office 2003 Luna themes."""
-    is_silver = theme.lower() == "silver"
-
-    tb_a = LUNA_SILVER_TB_A if is_silver else LUNA_BLUE_TB_A
-    tb_b = LUNA_SILVER_TB_B if is_silver else LUNA_BLUE_TB_B
-    tb_c = LUNA_SILVER_TB_C if is_silver else LUNA_BLUE_TB_C
-    tb_border = LUNA_SILVER_TB_BORDER if is_silver else LUNA_BLUE_TB_BORDER
-    tb_edge = LUNA_SILVER_TB_EDGE if is_silver else LUNA_BLUE_TB_EDGE
-
-    dock_top = LUNA_SILVER_DOCK_TOP if is_silver else LUNA_BLUE_DOCK_TOP
-    dock_bottom = LUNA_SILVER_DOCK_BOTTOM if is_silver else LUNA_BLUE_DOCK_BOTTOM
-
-    hot_a = LUNA_SILVER_HOT_A if is_silver else LUNA_BLUE_HOT_A
-    hot_b = LUNA_SILVER_HOT_B if is_silver else LUNA_BLUE_HOT_B
-    hot_border = LUNA_SILVER_HOT_BORDER if is_silver else LUNA_BLUE_HOT_BORDER
-
-    press_a = LUNA_SILVER_PRESS_A if is_silver else LUNA_BLUE_PRESS_A
-    press_b = LUNA_SILVER_PRESS_B if is_silver else LUNA_BLUE_PRESS_B
-    press_border = LUNA_SILVER_PRESS_BORDER if is_silver else LUNA_BLUE_PRESS_BORDER
-
-    chk_a = LUNA_SILVER_CHK_A if is_silver else LUNA_BLUE_CHK_A
-    chk_b = LUNA_SILVER_CHK_B if is_silver else LUNA_BLUE_CHK_B
-
-    menu_border = LUNA_SILVER_MENU_BORDER if is_silver else LUNA_BLUE_MENU_BORDER
-    menu_hot = LUNA_SILVER_MENU_HOT if is_silver else LUNA_BLUE_MENU_HOT
-    menu_face = LUNA_SILVER_MENU_FACE if is_silver else LUNA_BLUE_MENU_FACE
-
-    status_bg = LUNA_SILVER_STATUS_BG if is_silver else LUNA_BLUE_STATUS_BG
-    status_sep = LUNA_SILVER_STATUS_SEP if is_silver else LUNA_BLUE_STATUS_SEP
+    """Generate complete Qt Style Sheet (QSS) for Office 2003 Luna and Classic themes."""
+    t = theme.lower().strip()
+    if t == "silver":
+        tb_a = LUNA_SILVER_TB_A
+        tb_b = LUNA_SILVER_TB_B
+        tb_c = LUNA_SILVER_TB_C
+        tb_border = LUNA_SILVER_TB_BORDER
+        tb_edge = LUNA_SILVER_TB_EDGE
+        dock_top = LUNA_SILVER_DOCK_TOP
+        dock_bottom = LUNA_SILVER_DOCK_BOTTOM
+        hot_a = LUNA_SILVER_HOT_A
+        hot_b = LUNA_SILVER_HOT_B
+        hot_border = LUNA_SILVER_HOT_BORDER
+        press_a = LUNA_SILVER_PRESS_A
+        press_b = LUNA_SILVER_PRESS_B
+        press_border = LUNA_SILVER_PRESS_BORDER
+        chk_a = LUNA_SILVER_CHK_A
+        chk_b = LUNA_SILVER_CHK_B
+        menu_border = LUNA_SILVER_MENU_BORDER
+        menu_hot = LUNA_SILVER_MENU_HOT
+        menu_face = LUNA_SILVER_MENU_FACE
+        status_bg = LUNA_SILVER_STATUS_BG
+        status_sep = LUNA_SILVER_STATUS_SEP
+    elif t == "olive":
+        tb_a = LUNA_OLIVE_TB_A
+        tb_b = LUNA_OLIVE_TB_B
+        tb_c = LUNA_OLIVE_TB_C
+        tb_border = LUNA_OLIVE_TB_BORDER
+        tb_edge = LUNA_OLIVE_TB_EDGE
+        dock_top = LUNA_OLIVE_DOCK_TOP
+        dock_bottom = LUNA_OLIVE_DOCK_BOTTOM
+        hot_a = LUNA_OLIVE_HOT_A
+        hot_b = LUNA_OLIVE_HOT_B
+        hot_border = LUNA_OLIVE_HOT_BORDER
+        press_a = LUNA_OLIVE_PRESS_A
+        press_b = LUNA_OLIVE_PRESS_B
+        press_border = LUNA_OLIVE_PRESS_BORDER
+        chk_a = LUNA_OLIVE_CHK_A
+        chk_b = LUNA_OLIVE_CHK_B
+        menu_border = LUNA_OLIVE_MENU_BORDER
+        menu_hot = LUNA_OLIVE_MENU_HOT
+        menu_face = LUNA_OLIVE_MENU_FACE
+        status_bg = LUNA_OLIVE_STATUS_BG
+        status_sep = LUNA_OLIVE_STATUS_SEP
+    elif t == "classic":
+        tb_a = CLASSIC_TB_A
+        tb_b = CLASSIC_TB_B
+        tb_c = CLASSIC_TB_C
+        tb_border = CLASSIC_TB_BORDER
+        tb_edge = CLASSIC_TB_EDGE
+        dock_top = CLASSIC_DOCK_TOP
+        dock_bottom = CLASSIC_DOCK_BOTTOM
+        hot_a = CLASSIC_HOT_A
+        hot_b = CLASSIC_HOT_B
+        hot_border = CLASSIC_HOT_BORDER
+        press_a = CLASSIC_PRESS_A
+        press_b = CLASSIC_PRESS_B
+        press_border = CLASSIC_PRESS_BORDER
+        chk_a = CLASSIC_CHK_A
+        chk_b = CLASSIC_CHK_B
+        menu_border = CLASSIC_MENU_BORDER
+        menu_hot = CLASSIC_MENU_HOT
+        menu_face = CLASSIC_MENU_FACE
+        status_bg = CLASSIC_STATUS_BG
+        status_sep = CLASSIC_STATUS_SEP
+    else:  # default "blue"
+        tb_a = LUNA_BLUE_TB_A
+        tb_b = LUNA_BLUE_TB_B
+        tb_c = LUNA_BLUE_TB_C
+        tb_border = LUNA_BLUE_TB_BORDER
+        tb_edge = LUNA_BLUE_TB_EDGE
+        dock_top = LUNA_BLUE_DOCK_TOP
+        dock_bottom = LUNA_BLUE_DOCK_BOTTOM
+        hot_a = LUNA_BLUE_HOT_A
+        hot_b = LUNA_BLUE_HOT_B
+        hot_border = LUNA_BLUE_HOT_BORDER
+        press_a = LUNA_BLUE_PRESS_A
+        press_b = LUNA_BLUE_PRESS_B
+        press_border = LUNA_BLUE_PRESS_BORDER
+        chk_a = LUNA_BLUE_CHK_A
+        chk_b = LUNA_BLUE_CHK_B
+        menu_border = LUNA_BLUE_MENU_BORDER
+        menu_hot = LUNA_BLUE_MENU_HOT
+        menu_face = LUNA_BLUE_MENU_FACE
+        status_bg = LUNA_BLUE_STATUS_BG
+        status_sep = LUNA_BLUE_STATUS_SEP
 
     return f"""
     /* Main Window and Docking area */
@@ -215,14 +322,76 @@ def get_luna_stylesheet(theme: str = "blue") -> str:
 
 
 def apply_luna_theme(widget: QWidget, theme: str = "blue") -> None:
-    """Apply the Luna Blue or Luna Silver theme to the given widget and its palette."""
-    qss = get_luna_stylesheet(theme)
+    """Apply the Luna Blue, Silver, Olive Green, or Windows Classic theme to widget."""
+    t = theme.lower().strip()
+    qss = get_luna_stylesheet(t)
     widget.setStyleSheet(qss)
 
     palette = widget.palette()
-    is_silver = theme.lower() == "silver"
+    if t == "silver":
+        bg_hex = LUNA_SILVER_DOCK_TOP
+    elif t == "olive":
+        bg_hex = LUNA_OLIVE_DOCK_TOP
+    elif t == "classic":
+        bg_hex = CLASSIC_DOCK_TOP
+    else:
+        bg_hex = LUNA_BLUE_DOCK_TOP
 
-    bg_color = QColor(LUNA_SILVER_DOCK_TOP if is_silver else LUNA_BLUE_DOCK_TOP)
+    bg_color = QColor(bg_hex)
     palette.setColor(QPalette.ColorRole.Window, bg_color)
     palette.setColor(QPalette.ColorRole.WindowText, QColor("#000000"))
     widget.setPalette(palette)
+
+
+THEMES: list[tuple[str, str, str]] = [
+    ("blue", "Luna 2003 蓝色", "经典 Windows XP 湛蓝风格，搭配淡蓝渐变工具栏与深蓝命令菜单"),
+    ("silver", "Luna 2003 银色", "沉稳金属拉丝质感，精致灰白高光与银灰立体底衬"),
+    ("olive", "Luna 2003 橄榄绿", "经典温润自然橄榄绿，雅致柔和的护眼复古质感"),
+    ("classic", "Windows 经典", "经典 Windows 2000 / 98 工业灰与 3D 浮雕按键风格"),
+]
+
+
+def apply_theme_globally(theme: str) -> None:
+    """Apply theme globally across QApplication, active windows, and save setting."""
+    from PySide6.QtWidgets import QApplication
+
+    from atboffice.core.settings import get_app_settings
+
+    theme_key = theme.lower().strip()
+    if theme_key not in ("blue", "silver", "olive", "classic"):
+        theme_key = "blue"
+
+    import os
+    app = QApplication.instance()
+    qss = get_luna_stylesheet(theme_key)
+    if app is not None and app.styleSheet() != qss:
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            app.setStyleSheet(qss)
+
+    try:
+        get_app_settings().set_value("theme/active_theme", theme_key)
+    except Exception:
+        pass
+
+    try:
+        from atboffice.core.window_manager import WindowManager
+        wm = WindowManager.get_instance()
+        all_wins = set(wm.active_windows)
+        if wm.start_center is not None:
+            all_wins.add(wm.start_center)
+        if app is not None:
+            for w in app.topLevelWidgets():
+                if hasattr(w, "set_theme") and callable(w.set_theme):
+                    all_wins.add(w)
+
+        for win in all_wins:
+            try:
+                if hasattr(win, "set_theme"):
+                    win.set_theme(theme_key)
+                else:
+                    apply_luna_theme(win, theme_key)
+            except Exception:
+                pass
+    except Exception:
+        pass
+

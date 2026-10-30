@@ -338,9 +338,9 @@ def test_start_center_settings_and_about(qtbot):
     win = StartCenterWindow()
     qtbot.addWidget(win)
 
-    with patch.object(QMessageBox, "information") as mock_info:
+    with patch.object(win, "show_options_dialog") as mock_opts:
         win.btn_settings.click()
-        mock_info.assert_called_once()
+        mock_opts.assert_called_once()
 
     with patch.object(win, "show_about") as mock_about:
         win.btn_about.click()

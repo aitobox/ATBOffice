@@ -16,6 +16,7 @@ from PySide6.QtGui import (
     QMouseEvent,
 )
 from PySide6.QtWidgets import (
+    QDialog,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -733,12 +734,9 @@ class StartCenterWindow(BaseOfficeWindow):
         wm.open_file_auto(path)
 
     def _on_settings_clicked(self) -> None:
-        """Display settings summary dialog."""
-        QMessageBox.information(
-            self,
-            safe_tr("设置"),
-            safe_tr("ATBOffice 配置与首选项均已处于最佳状态。"),
-        )
+        """Open the multi-tab Options preference dialog."""
+        if self.show_options_dialog() == QDialog.DialogCode.Accepted:
+            self.refresh_recent_files()
 
     # -------------------------------------------------------------------------
     # Drag and Drop Implementation

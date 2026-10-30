@@ -66,22 +66,38 @@ class BaseOfficeWindow(QMainWindow):
         self.setWindowTitle(title)
 
     def apply_theme(self, theme_name: str) -> None:
-        """Apply Luna 2003 theme (blue or silver) to window and its children."""
+        """Apply theme (blue, silver, olive, or classic) to window and its children."""
         self.current_theme = theme_name
         apply_luna_theme(self, theme_name)
 
     def set_theme(self, theme: str) -> None:
-        """Switch active Office 2003 Luna theme ('blue' or 'silver')."""
+        """Switch active Office 2003 theme ('blue', 'silver', 'olive', or 'classic')."""
         self.current_theme = theme.lower()
         self.apply_theme(self.current_theme)
 
         if hasattr(self, "menu_bar") and hasattr(self.menu_bar, "action_map"):
-            if "theme_luna_blue" in self.menu_bar.action_map:
-                self.menu_bar.action_map["theme_luna_blue"].setChecked(self.current_theme == "blue")
-            if "theme_luna_silver" in self.menu_bar.action_map:
-                self.menu_bar.action_map["theme_luna_silver"].setChecked(
-                    self.current_theme == "silver"
-                )
+            for act_name, t_val in [
+                ("theme_luna_blue", "blue"),
+                ("theme_luna_silver", "silver"),
+                ("theme_luna_olive", "olive"),
+                ("theme_classic", "classic"),
+            ]:
+                if act_name in self.menu_bar.action_map:
+                    self.menu_bar.action_map[act_name].setChecked(self.current_theme == t_val)
+
+    def show_options_dialog(self) -> int:
+        """Open the multi-tab Options preference dialog."""
+        from atboffice.ui.dialogs.options_dialog import OptionsDialog
+
+        dlg = OptionsDialog(self)
+        return dlg.exec()
+
+    def show_theme_dialog(self) -> int:
+        """Open the Theme selector dialog."""
+        from atboffice.ui.dialogs.theme_dialog import ThemeDialog
+
+        dlg = ThemeDialog(self)
+        return dlg.exec()
 
     def new_file(self) -> bool:
         """Create a new blank document, prompting to save changes if modified."""

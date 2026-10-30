@@ -398,19 +398,35 @@ class MainWindow(QMainWindow):
         self.toolbar_formatting.addWidget(self.btn_fill_color)
 
     def set_theme(self, theme: str) -> None:
-        """Switch active Office 2003 Luna theme ('blue' or 'silver')."""
+        """Switch active Office 2003 theme ('blue', 'silver', 'olive', 'classic')."""
         self.current_theme = theme.lower()
         apply_luna_theme(self, self.current_theme)
 
-        if hasattr(self, "menu_bar"):
-            if "theme_luna_blue" in self.menu_bar.action_map:
-                self.menu_bar.action_map["theme_luna_blue"].setChecked(
-                    self.current_theme == "blue"
-                )
-            if "theme_luna_silver" in self.menu_bar.action_map:
-                self.menu_bar.action_map["theme_luna_silver"].setChecked(
-                    self.current_theme == "silver"
-                )
+        if hasattr(self, "menu_bar") and hasattr(self.menu_bar, "action_map"):
+            for act_name, t_val in [
+                ("theme_luna_blue", "blue"),
+                ("theme_luna_silver", "silver"),
+                ("theme_luna_olive", "olive"),
+                ("theme_classic", "classic"),
+            ]:
+                if act_name in self.menu_bar.action_map:
+                    self.menu_bar.action_map[act_name].setChecked(
+                        self.current_theme == t_val
+                    )
+
+    def show_options_dialog(self) -> None:
+        """Open the multi-tab Options preference dialog."""
+        from atboffice.ui.dialogs.options_dialog import OptionsDialog
+
+        dlg = OptionsDialog(self)
+        dlg.exec()
+
+    def show_theme_dialog(self) -> None:
+        """Open the Theme selector dialog."""
+        from atboffice.ui.dialogs.theme_dialog import ThemeDialog
+
+        dlg = ThemeDialog(self)
+        dlg.exec()
 
     def _get_selected_cell_range(self) -> tuple[int, int, int, int]:
         sel = self.spreadsheet_view.selection
