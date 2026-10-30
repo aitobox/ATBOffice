@@ -5,14 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMessageBox, QWidget
 
 from atboffice.core.action_registry import ActionRegistry
+from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.view import PresentationView
 from atboffice.ui.components.toolbar import OfficeToolBar
-from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.ui.shell.base_window import BaseOfficeWindow
 from atboffice.ui.shell.lectern_toolbars import (
     build_lectern_toolbars,

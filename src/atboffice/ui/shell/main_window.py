@@ -5,14 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QTabWidget
 
+from atboffice.core.i18n import get_i18n_manager
+from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.modules.presentation.view import PresentationView
 from atboffice.modules.spreadsheet.view import SpreadsheetView
 from atboffice.modules.writer.view import WriterView
-from atboffice.core.i18n import get_i18n_manager, safe_tr as core_safe_tr
 from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.status_bar import StatusBar
 from atboffice.ui.components.toolbar import OfficeToolBar

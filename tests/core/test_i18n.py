@@ -4,18 +4,16 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+
 import pytest
-from PySide6.QtCore import QCoreApplication
 
 from atboffice.core.i18n import (
     TranslationCatalog,
-    I18nManager,
     get_i18n_manager,
     load_locale,
+    normalize_locale_name,
     safe_tr,
     tr,
-    get_available_locales,
-    normalize_locale_name,
 )
 
 
@@ -30,7 +28,8 @@ def reset_locale():
 
 def test_locale_files_exist_and_valid_json():
     """Verify all 7 locale JSON files exist in resources/locale and are valid."""
-    locales_dir = Path(__file__).resolve().parent.parent.parent / "src" / "atboffice" / "resources" / "locale"
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    locales_dir = repo_root / "src" / "atboffice" / "resources" / "locale"
     assert locales_dir.exists(), f"Directory {locales_dir} does not exist"
 
     expected = ["zh-CN", "zh-Hant", "en", "ja", "ko", "fr", "de"]

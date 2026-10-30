@@ -7,7 +7,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from PySide6.QtCore import QCoreApplication, QSize, Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import (
     QDragEnterEvent,
     QDragMoveEvent,

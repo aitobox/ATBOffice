@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QObject, Signal
@@ -52,7 +52,12 @@ def normalize_locale_name(locale_name: str | None) -> str:
         return "zh-Hant"
 
     # Simplified Chinese variants
-    if tag == "zh" or tag in ("zh-cn", "zh-sg", "zh-hans") or tag.startswith("zh-hans") or tag.startswith("zh-cn"):
+    if (
+        tag == "zh"
+        or tag in ("zh-cn", "zh-sg", "zh-hans")
+        or tag.startswith("zh-hans")
+        or tag.startswith("zh-cn")
+    ):
         return "zh-CN"
 
     # Base language codes
@@ -70,7 +75,7 @@ def plain_key(key: str) -> str:
 
 
 def clean_amp(s: str) -> str:
-    """Strip ampersand accelerators from European menu items (e.g. '&Save' -> 'Save', '&&' -> '&')."""
+    """Strip ampersand accelerators (e.g. '&Save' -> 'Save', '&&' -> '&')."""
     return re.sub(r"(?<!&)&(?!&)", "", s).replace("&&", "&")
 
 
@@ -100,7 +105,7 @@ class TranslationCatalog:
             return
 
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 data = json.load(f)
             if isinstance(data, dict):
                 self._raw_dict = data

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QCoreApplication, Signal
+from PySide6.QtCore import Signal
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QWidget
 
-from atboffice.core.i18n import get_i18n_manager, safe_tr as core_safe_tr
+from atboffice.core.i18n import get_i18n_manager
+from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.ui.styles.luna_2003 import apply_luna_theme
 
 
