@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt
@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QComboBox, QFileDialog, QMessageBox, QWidget
 from atboffice.core.action_registry import ActionRegistry
 from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.core.search import SearchController, SpreadsheetSearchAdapter
-from atboffice.modules.spreadsheet.calc.references import cell_name, col_name
+from atboffice.modules.spreadsheet.calc.references import cell_name
 from atboffice.modules.spreadsheet.models.filter_model import sort_sheet_range
 from atboffice.modules.spreadsheet.models.sheet_model import BorderStyle, CellData
 from atboffice.modules.spreadsheet.view import SpreadsheetView
@@ -129,11 +129,19 @@ class LedgerWindow(BaseOfficeWindow):
         self.action_registry.set_handler("help", self.show_about)
 
         # Formatting toolbar actions
-        self.action_registry.set_handler("alignLeft", lambda: self.set_horizontal_alignment("left"))
-        self.action_registry.set_handler("alignCenter", lambda: self.set_horizontal_alignment("center"))
-        self.action_registry.set_handler("alignRight", lambda: self.set_horizontal_alignment("right"))
+        self.action_registry.set_handler(
+            "alignLeft", lambda: self.set_horizontal_alignment("left")
+        )
+        self.action_registry.set_handler(
+            "alignCenter", lambda: self.set_horizontal_alignment("center")
+        )
+        self.action_registry.set_handler(
+            "alignRight", lambda: self.set_horizontal_alignment("right")
+        )
         self.action_registry.set_handler("mergeCenter", self.toggle_merge_and_center)
-        self.action_registry.set_handler("currencyStyle", lambda: self.apply_number_format("$#,##0.00"))
+        self.action_registry.set_handler(
+            "currencyStyle", lambda: self.apply_number_format("$#,##0.00")
+        )
         self.action_registry.set_handler("percentStyle", lambda: self.apply_number_format("0%"))
         self.action_registry.set_handler("commaStyle", lambda: self.apply_number_format("#,##0.00"))
         self.action_registry.set_handler("incDecimal", lambda: self.change_decimal_places(1))
@@ -143,10 +151,16 @@ class LedgerWindow(BaseOfficeWindow):
         self.action_registry.set_handler("bordersApply", lambda: self.apply_border_preset("all"))
 
         # Borders toolbar actions
-        self.action_registry.set_handler("bordersPalette", lambda: self.apply_border_preset("outline"))
+        self.action_registry.set_handler(
+            "bordersPalette", lambda: self.apply_border_preset("outline")
+        )
         self.action_registry.set_handler("borderNone", lambda: self.apply_border_preset("none"))
-        self.action_registry.set_handler("borderOutline", lambda: self.apply_border_preset("outline"))
-        self.action_registry.set_handler("borderThickOutline", lambda: self.apply_border_preset("thickOutline"))
+        self.action_registry.set_handler(
+            "borderOutline", lambda: self.apply_border_preset("outline")
+        )
+        self.action_registry.set_handler(
+            "borderThickOutline", lambda: self.apply_border_preset("thickOutline")
+        )
         self.action_registry.set_handler("eraseBorder", lambda: self.apply_border_preset("none"))
 
         # Auditing & Reviewing toolbar actions
