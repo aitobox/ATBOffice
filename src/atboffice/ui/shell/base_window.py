@@ -236,6 +236,9 @@ class BaseOfficeWindow(QMainWindow):
 
     def save_file(self, file_path: str | Path | None = None) -> bool:
         """Save the active document to its existing path or prompt Save As."""
+        if isinstance(file_path, bool):
+            file_path = None
+
         if file_path is None and self.current_file_path is None:
             return self.save_file_as()
 
