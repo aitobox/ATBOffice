@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 from pathlib import Path
-from typing import Any
 
 from atboffice.core.settings import AppSettings
 
@@ -119,7 +117,8 @@ class SpellEngine:
         self.cache.clear()
 
         # Locate dictionary file in resources/dict
-        dict_path = Path(__file__).resolve().parent.parent.parent / "resources" / "dict" / f"{lang}.words"
+        dict_dir = Path(__file__).resolve().parent.parent.parent / "resources" / "dict"
+        dict_path = dict_dir / f"{lang}.words"
         if not dict_path.exists():
             # Try alternate path relative to repo
             dict_path = Path("src/atboffice/resources/dict") / f"{lang}.words"
@@ -127,7 +126,7 @@ class SpellEngine:
         if dict_path.exists():
             try:
                 prev = ""
-                with open(dict_path, "r", encoding="utf-8") as f:
+                with open(dict_path, encoding="utf-8") as f:
                     for line in f:
                         line = line.strip()
                         if not line:

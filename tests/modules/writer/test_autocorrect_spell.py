@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from PySide6.QtCore import QPoint, QPointF, QRectF, Qt
+from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import (
-    QContextMenuEvent,
-    QGuiApplication,
     QImage,
     QKeyEvent,
     QPainter,
@@ -25,7 +23,7 @@ from atboffice.modules.writer.models.document import (
 )
 from atboffice.modules.writer.spell import SpellEngine
 from atboffice.modules.writer.views.canvas_view import WriterCanvasView
-from atboffice.modules.writer.views.caret_controller import CaretController, DocPos
+from atboffice.modules.writer.views.caret_controller import DocPos
 
 
 @pytest.fixture(scope="session")
@@ -242,7 +240,11 @@ def test_acceptance_criterion_4_hide_wavy_line_when_option_disabled(qapp):
     AppSettings.get_instance().set_value("spelling/check_as_you_type", False)
 
     drawn_lines = []
-    canvas._draw_wavy_line = lambda painter, x1, x2, y, color: drawn_lines.append((x1, x2, y, color))
+
+    def _record_line(painter, x1, x2, y, color):
+        drawn_lines.append((x1, x2, y, color))
+
+    canvas._draw_wavy_line = _record_line
 
     img = QImage(800, 600, QImage.Format.Format_ARGB32)
     painter = QPainter(img)

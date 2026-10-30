@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
-    QGridLayout,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -24,7 +21,6 @@ from PySide6.QtWidgets import (
 from atboffice.modules.writer.autocorrect import AutoCorrectEngine
 from atboffice.modules.writer.models.document import (
     Document,
-    Paragraph,
     all_paragraphs,
     ptext,
 )

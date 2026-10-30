@@ -1178,6 +1178,8 @@ class WriterCanvasView(QAbstractScrollArea):
 
     def open_spelling_dialog(self) -> None:
         """Open Spelling and Grammar check modal dialog (F7)."""
+        from atboffice.modules.writer.dialogs.spelling_dialog import SpellingGrammarDialog
+
         dlg = SpellingGrammarDialog(self.doc, controller=self.controller, parent=self)
         dlg.exec()
         self.viewport().update()
@@ -1212,11 +1214,11 @@ class WriterCanvasView(QAbstractScrollArea):
                     bold_font = act.font()
                     bold_font.setBold(True)
                     act.setFont(bold_font)
-                    act.triggered.connect(
-                        lambda checked=False, target_sugg=sugg, para=p, s=word_start, e=word_end: self._replace_word_in_para(
-                            para, s, e, target_sugg
-                        )
-                    )
+
+                    def _make_handler(target_sugg: str, para: Paragraph, s: int, e: int):
+                        return lambda: self._replace_word_in_para(para, s, e, target_sugg)
+
+                    act.triggered.connect(_make_handler(sugg, p, word_start, word_end))
             else:
                 act_no_sugg = menu.addAction(safe_tr("(无拼写建议)"))
                 act_no_sugg.setEnabled(False)

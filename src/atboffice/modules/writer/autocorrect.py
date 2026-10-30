@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from typing import Any
 
 from atboffice.core.settings import AppSettings
 
@@ -143,7 +142,7 @@ def restore_case(target: str, original: str) -> str:
 
 
 class AutoCorrectEngine:
-    """AutoCorrect engine managing character transforms, symbol replacements, and list conversions."""
+    """AutoCorrect engine managing character transforms, symbol replacements, and lists."""
 
     def __init__(self, settings: AppSettings | None = None) -> None:
         self.settings = settings or AppSettings.get_instance()
@@ -171,7 +170,7 @@ class AutoCorrectEngine:
             return "”"
 
         if ch == "'":
-            # Opening single quote if preceded by whitespace or open punctuation, unless preceded by a letter/number (apostrophe)
+            # Opening quote if preceded by whitespace/open punctuation, unless preceded by letter
             if not prev_char or prev_char in " \t\r\n([{—–/-«„‚":
                 return "‘"
             return "’"
