@@ -89,6 +89,13 @@ class RecentFilesManager:
         self._entries: list[RecentItem] = []
         self.load()
 
+    def set_max_items(self, count: int) -> None:
+        """Update maximum retention capacity and truncate entries if needed."""
+        self.max_items = max(1, count)
+        if len(self._entries) > self.max_items:
+            self._entries = self._entries[: self.max_items]
+            self.save()
+
     def get_entries(self) -> list[RecentItem]:
         """Return a copy of the list of recent document records (newest first)."""
         return list(self._entries)

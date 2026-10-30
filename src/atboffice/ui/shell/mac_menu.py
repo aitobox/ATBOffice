@@ -235,6 +235,14 @@ class MacMenuBar(QMenuBar):
         self._reg_act(
             menu_theme, "theme_luna_silver", "theme_luna_silver", checkable=True, checked=False
         )
+        self._reg_act(
+            menu_theme, "theme_luna_olive", "theme_luna_olive", checkable=True, checked=False
+        )
+        self._reg_act(
+            menu_theme, "theme_classic", "theme_classic", checkable=True, checked=False
+        )
+        menu_theme.addSeparator()
+        self._reg_act(menu_theme, "theme_selector", "theme_selector")
 
         # 4. Insert Menu
         menu_insert = self.addMenu("")
@@ -375,12 +383,12 @@ class MacMenuBar(QMenuBar):
 
         def connect_if(action_key: str, attr_name: str) -> None:
             if action_key in self.action_map and hasattr(window, attr_name):
-                slot = getattr(window, attr_name)
-                if callable(slot):
-                    try:
-                        self.action_map[action_key].triggered.connect(lambda *args, s=slot: s())
-                    except Exception:
-                        pass
+                try:
+                    self.action_map[action_key].triggered.connect(
+                        lambda *args, w=window, a=attr_name: getattr(w, a)()
+                    )
+                except Exception:
+                    pass
 
         connect_if("file_new", "new_file")
         connect_if("file_open", "open_file_dialog")
@@ -406,14 +414,31 @@ class MacMenuBar(QMenuBar):
         connect_if("view_zoom_out", "zoom_out")
         connect_if("view_zoom_reset", "zoom_reset")
 
-        if "theme_luna_blue" in self.action_map and hasattr(window, "set_theme"):
-            self.action_map["theme_luna_blue"].triggered.connect(
-                lambda: window.set_theme("blue")
-            )
-        if "theme_luna_silver" in self.action_map and hasattr(window, "set_theme"):
-            self.action_map["theme_luna_silver"].triggered.connect(
-                lambda: window.set_theme("silver")
-            )
+        if hasattr(window, "set_theme"):
+            if "theme_luna_blue" in self.action_map:
+                self.action_map["theme_luna_blue"].triggered.connect(
+                    lambda: window.set_theme("blue")
+                )
+            if "theme_luna_silver" in self.action_map:
+                self.action_map["theme_luna_silver"].triggered.connect(
+                    lambda: window.set_theme("silver")
+                )
+            if "theme_luna_olive" in self.action_map:
+                self.action_map["theme_luna_olive"].triggered.connect(
+                    lambda: window.set_theme("olive")
+                )
+            if "theme_classic" in self.action_map:
+                self.action_map["theme_classic"].triggered.connect(
+                    lambda: window.set_theme("classic")
+                )
+
+        if hasattr(window, "show_theme_dialog"):
+            if "theme_selector" in self.action_map:
+                self.action_map["theme_selector"].triggered.connect(
+                    lambda *args, w=window: getattr(w, "show_theme_dialog")()
+                )
+
+        connect_if("tools_options", "show_options_dialog")
 
         connect_if("window_minimize", "showMinimized")
         connect_if("window_zoom", "toggle_maximized")
@@ -532,6 +557,18 @@ class MacMenuBar(QMenuBar):
             "theme_luna_silver": (
                 safe_tr("Office 2003 典雅银"),
                 safe_tr("切换为经典 Luna 银色视觉风格"),
+            ),
+            "theme_luna_olive": (
+                safe_tr("Office 2003 橄榄绿"),
+                safe_tr("切换为经典 Luna 橄榄绿视觉风格"),
+            ),
+            "theme_classic": (
+                safe_tr("Windows 经典"),
+                safe_tr("切换为经典 Windows 灰阶视觉风格"),
+            ),
+            "theme_selector": (
+                safe_tr("主题选择器…"),
+                safe_tr("打开外观主题卡片预览与实时切换对话框"),
             ),
             # Insert
             "insert_page_break": (

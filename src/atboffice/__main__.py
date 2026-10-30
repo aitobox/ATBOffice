@@ -95,6 +95,9 @@ def main(argv: list[str] | None = None, exec_app: bool = True) -> int:
     """
     raw_argv = argv if argv is not None else sys.argv
     app = create_application(raw_argv)
+    from atboffice.core.settings import get_app_settings
+
+    get_app_settings().apply_startup_settings()
     win_mgr = WindowManager.get_instance()
 
     # Determine arguments to pass to parse_cli_args
@@ -130,7 +133,13 @@ def main(argv: list[str] | None = None, exec_app: bool = True) -> int:
     elif action == "file" and path:
         window = win_mgr.open_file_auto(path)
     else:
-        window = win_mgr.show_start_center()
+        start_beh = get_app_settings().get_value(
+            "general/start_behavior", "start_center"
+        )
+        if start_beh == "new_doc":
+            window = win_mgr.open_quire()
+        else:
+            window = win_mgr.show_start_center()
 
     app.register_main_window(window)
 
