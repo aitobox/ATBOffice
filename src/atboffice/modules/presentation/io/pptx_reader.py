@@ -1864,13 +1864,38 @@ class PptxReader:
             strike=strike,
         )
 
-    def _parse_transition(self, trans_elem: ET.Element) -> Transition:
+    def _parse_transition(self, trans_elem: ET.Element | None) -> Transition:
         """Parse slide transition timing and type."""
+        if trans_elem is None:
+            return Transition()
+
         trans_type = "none"
+        dir_val = None
+        orient_val = None
+        spokes_val = None
+        thru_blk = False
+
+        KNOWN_TRANSITIONS = (
+            "fade", "wipe", "push", "split", "cover", "pull", "wheel", "zoom",
+            "blinds", "checker", "comb", "cut", "dissolve", "newsflash",
+            "plus", "randomBar", "circle", "diamond", "strips", "wedge", "random"
+        )
+
         for child in trans_elem:
             tag = _local_tag(child.tag)
-            if tag in ("fade", "wipe", "push", "split", "cover", "pull", "wheel", "zoom"):
+            if tag in KNOWN_TRANSITIONS:
                 trans_type = tag
+                dir_val = _get_attr(child, "dir")
+                orient_val = _get_attr(child, "orient")
+                sp_attr = _get_attr(child, "spokes")
+                if sp_attr:
+                    try:
+                        spokes_val = int(sp_attr)
+                    except ValueError:
+                        pass
+                thru_attr = _get_attr(child, "thruBlk")
+                if thru_attr in ("1", "true"):
+                    thru_blk = True
                 break
 
         speed = _get_attr(trans_elem, "spd", "fast") or "fast"
@@ -1883,6 +1908,10 @@ class PptxReader:
             speed=speed,
             click=adv_click,
             after=after,
+            dir=dir_val,
+            orient=orient_val,
+            spokes=spokes_val,
+            thruBlk=thru_blk,
         )
 
     def _extract_notes(self, slide_path: str, rel_map: dict[str, Any]) -> str:

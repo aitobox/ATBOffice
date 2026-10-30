@@ -737,6 +737,7 @@ class LecternTaskPane(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.panes: dict[str, QWidget] = {}
+        self.pane_titles: dict[str, str] = {}
         self.current_pane_id: str = ""
         self._history: list[str] = []
         self._history_index: int = -1
@@ -792,6 +793,7 @@ class LecternTaskPane(QWidget):
 
     def register_pane(self, pane_id: str, title: str, widget: QWidget) -> None:
         self.panes[pane_id] = widget
+        self.pane_titles[pane_id] = title
         self.stack.addWidget(widget)
 
         action = self.menu.addAction(title)
@@ -812,11 +814,8 @@ class LecternTaskPane(QWidget):
         widget = self.panes[pane_id]
         self.stack.setCurrentWidget(widget)
 
-        titles = {
-            "layout": safe_tr("幻灯片版式"),
-            "design": safe_tr("幻灯片设计"),
-        }
-        self.title_button.setText(titles.get(pane_id, safe_tr("任务窗格")))
+        title = self.pane_titles.get(pane_id, safe_tr("任务窗格"))
+        self.title_button.setText(title)
         self.show()
         self._update_nav_buttons()
 
@@ -826,11 +825,8 @@ class LecternTaskPane(QWidget):
             pane_id = self._history[self._history_index]
             self.current_pane_id = pane_id
             self.stack.setCurrentWidget(self.panes[pane_id])
-            titles = {
-                "layout": safe_tr("幻灯片版式"),
-                "design": safe_tr("幻灯片设计"),
-            }
-            self.title_button.setText(titles.get(pane_id, safe_tr("任务窗格")))
+            title = self.pane_titles.get(pane_id, safe_tr("任务窗格"))
+            self.title_button.setText(title)
             self._update_nav_buttons()
 
     def go_forward(self) -> None:
@@ -839,11 +835,8 @@ class LecternTaskPane(QWidget):
             pane_id = self._history[self._history_index]
             self.current_pane_id = pane_id
             self.stack.setCurrentWidget(self.panes[pane_id])
-            titles = {
-                "layout": safe_tr("幻灯片版式"),
-                "design": safe_tr("幻灯片设计"),
-            }
-            self.title_button.setText(titles.get(pane_id, safe_tr("任务窗格")))
+            title = self.pane_titles.get(pane_id, safe_tr("任务窗格"))
+            self.title_button.setText(title)
             self._update_nav_buttons()
 
     def close_pane(self) -> None:
@@ -966,6 +959,24 @@ class LecternWorkspace(QWidget):
         self.design_pane.design_applied.connect(self.apply_design)
         self.task_pane.register_pane("design", safe_tr("幻灯片设计"), self.design_pane)
 
+        from atboffice.modules.presentation.views.transition_pane import SlideTransitionPane
+
+        self.transition_pane = SlideTransitionPane(self.task_pane)
+        self.transition_pane.set_presentation(self.presentation)
+        self.transition_pane.set_slide(current_slide)
+        self.transition_pane.transitionChanged.connect(self._on_transition_changed)
+        self.transition_pane.applyToAllRequested.connect(self._on_apply_transition_to_all)
+        self.transition_pane.slideshowRequested.connect(lambda: self.start_slideshow(from_current=True))
+        self.task_pane.register_pane("transition", safe_tr("幻灯片切换"), self.transition_pane)
+
+        from atboffice.modules.presentation.views.animation_pane import AnimationPane
+
+        self.animation_pane = AnimationPane(self.task_pane)
+        self.animation_pane.set_slide(current_slide)
+        self.animation_pane.shapeSelectionRequested.connect(self._on_anim_shape_selection_requested)
+        self.animation_pane.slideshowRequested.connect(lambda: self.start_slideshow(from_current=True))
+        self.task_pane.register_pane("customAnim", safe_tr("自定义动画"), self.animation_pane)
+
         from atboffice.modules.presentation.smartart.text_pane import SmartArtTextPane
 
         self.smartart_pane = SmartArtTextPane(self.task_pane)
@@ -998,6 +1009,9 @@ class LecternWorkspace(QWidget):
         self.scene.presentation = presentation
         self.scene.slide_width = presentation.w
         self.scene.slide_height = presentation.h
+
+        if hasattr(self, "transition_pane"):
+            self.transition_pane.set_presentation(presentation)
 
         self._refresh_thumbnails()
         self.outline_editor.reload(presentation)
@@ -1134,8 +1148,21 @@ class LecternWorkspace(QWidget):
             self.scene.load_slide(cur)
             self.notes_pane.set_plain_text(cur.notes, emit_signal=False)
             self.canvas_view.zoom_fit()
+            if hasattr(self, "transition_pane"):
+                self.transition_pane.set_slide(cur)
+            if hasattr(self, "animation_pane"):
+                sel_ids = [
+                    it.shape.id
+                    for it in self.scene.selectedItems()
+                    if isinstance(getattr(it, "shape", None), Shape)
+                ]
+                self.animation_pane.set_slide(cur, sel_ids)
         else:
             self.notes_pane.set_plain_text("", emit_signal=False)
+            if hasattr(self, "transition_pane"):
+                self.transition_pane.set_slide(None)
+            if hasattr(self, "animation_pane"):
+                self.animation_pane.set_slide(None)
 
     def _on_thumbnail_clicked(self, row: int) -> None:
         if self._view_mode == "master":
@@ -1250,12 +1277,32 @@ class LecternWorkspace(QWidget):
 
     def _on_canvas_selection_changed(self) -> None:
         items = self.scene.selectedItems()
+        sel_shape_ids = []
         for it in items:
             sh = getattr(it, "shape", None)
-            if sh and sh.is_diagram:
-                self.task_pane.show_pane("smartart")
-                self.smartart_pane.set_diagram(sh)
-                return
+            if isinstance(sh, Shape):
+                sel_shape_ids.append(sh.id)
+                if sh.is_diagram:
+                    self.task_pane.show_pane("smartart")
+                    self.smartart_pane.set_diagram(sh)
+                    return
+        if hasattr(self, "animation_pane") and sel_shape_ids:
+            self.animation_pane.set_selected_shapes(sel_shape_ids)
+
+    def _on_anim_shape_selection_requested(self, shape_id: str) -> None:
+        """Select graphics item corresponding to shape_id when animation item is clicked."""
+        for it in self.scene.items():
+            sh = getattr(it, "shape", None)
+            if isinstance(sh, Shape) and sh.id == shape_id:
+                it.setSelected(True)
+                self.canvas_view.ensureVisible(it)
+                break
+
+    def _on_transition_changed(self, trans: object) -> None:
+        self._refresh_current_thumbnail()
+
+    def _on_apply_transition_to_all(self, trans: object) -> None:
+        self._refresh_thumbnails()
 
     def insert_smartart(
         self,
@@ -1318,3 +1365,7 @@ class LecternWorkspace(QWidget):
             self.sorter_view.retranslate_ui()
         if hasattr(self, "smartart_pane"):
             self.smartart_pane.retranslate_ui()
+        if hasattr(self, "transition_pane"):
+            self.transition_pane.retranslate_ui()
+        if hasattr(self, "animation_pane"):
+            self.animation_pane.retranslate_ui()

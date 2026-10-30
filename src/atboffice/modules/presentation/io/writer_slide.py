@@ -18,6 +18,59 @@ from atboffice.modules.presentation.models.slide import Slide, Transition
 from atboffice.vfs.order import enforce_schema_order
 
 
+ENTR_TO_PID = {
+    "appear": 1,
+    "flyIn": 2,
+    "blinds": 3,
+    "box": 4,
+    "checkerboard": 5,
+    "circle": 6,
+    "diamond": 8,
+    "dissolve": 9,
+    "fade": 10,
+    "peekIn": 12,
+    "plus": 13,
+    "randomBars": 14,
+    "split": 16,
+    "strips": 18,
+    "wedge": 20,
+    "wheel": 21,
+    "wipe": 22,
+    "zoom": 23,
+    "ascend": 42,
+    "descend": 47,
+    "spinner": 49,
+    "expand": 55,
+}
+
+EXIT_TO_PID = {
+    "disappear": 1,
+    "flyOut": 2,
+    "descend": 47,
+    "fade": 10,
+    "zoom": 23,
+}
+
+EMPH_TO_PID = {
+    "growShrink": 6,
+    "spin": 8,
+    "transparency": 9,
+    "teeter": 32,
+    "blink": 35,
+}
+
+DIR_TO_SUB = {
+    "b": 1,
+    "l": 2,
+    "r": 4,
+    "t": 8,
+    "rb": 5,
+    "rt": 9,
+    "lb": 6,
+    "lt": 10,
+}
+
+
 def transition_to_xml(trans: Transition | None) -> str:
     """Generate transition element (<p:transition>)."""
     if not trans or (trans.type == "none" and trans.click and trans.after is None):
@@ -34,27 +87,47 @@ def transition_to_xml(trans: Transition | None) -> str:
     if t_type in ("fade", "circle", "diamond", "dissolve", "newsflash", "plus", "wedge"):
         child = f"<p:{t_type}/>"
     elif t_type in ("wipe", "push", "cover", "pull"):
-        child = f'<p:{t_type} dir="l"/>'
+        d = trans.dir or "l"
+        child = f'<p:{t_type} dir="{d}"/>'
     elif t_type in ("blinds", "checker", "randomBar", "comb"):
-        child = f'<p:{t_type} dir="horz"/>'
+        d = trans.dir or "horz"
+        child = f'<p:{t_type} dir="{d}"/>'
     elif t_type == "split":
-        child = '<p:split orient="horz" dir="out"/>'
+        o = trans.orient or "horz"
+        d = trans.dir or "out"
+        child = f'<p:split orient="{o}" dir="{d}"/>'
     elif t_type == "wheel":
-        child = '<p:wheel spokes="4"/>'
+        spokes = trans.spokes or 4
+        child = f'<p:wheel spokes="{spokes}"/>'
     elif t_type == "zoom":
-        child = '<p:zoom dir="in"/>'
+        d = trans.dir or "in"
+        child = f'<p:zoom dir="{d}"/>'
+    elif t_type == "cut":
+        thru = ' thruBlk="1"' if trans.thruBlk else ""
+        child = f"<p:cut{thru}/>"
+    elif t_type == "strips":
+        d = trans.dir or "ld"
+        child = f'<p:strips dir="{d}"/>'
+    elif t_type == "random":
+        child = "<p:random/>"
+    else:
+        child = f"<p:{t_type}/>"
 
     return f"<p:transition {' '.join(attrs)}>{child}</p:transition>"
 
 
 def timing_to_xml(slide: Slide, resolved_ids: dict[str, str]) -> str:
-    """Generate PresentationML <p:timing> node for media playback."""
+    """Generate PresentationML <p:timing> node for media playback and animations."""
     media_shapes = [sh for sh in slide.shapes if sh.media_item]
-    if not media_shapes:
+    animations = getattr(slide, "animations", []) or []
+
+    if not media_shapes and not animations:
         return ""
 
-    media_nodes = []
+    nodes = []
     c_tn_id = 3
+
+    # 1. Media nodes
     for sh in media_shapes:
         sh_id = resolved_ids.get(sh.id, "2")
         pb = sh.media_item.playback if sh.media_item else None
@@ -62,7 +135,7 @@ def timing_to_xml(slide: Slide, resolved_ids: dict[str, str]) -> str:
         show_when_stopped = "0" if (pb and pb.hide_while_not_playing) else "1"
         repeat_attr = ' repeatCount="indefinite"' if (pb and pb.loop) else ""
 
-        media_nodes.append(
+        nodes.append(
             f'<p:cMediaNode vol="{vol}" showWhenStopped="{show_when_stopped}">'
             f'<p:cTn id="{c_tn_id}" fill="hold"{repeat_attr}>'
             f'<p:stCondLst><p:cond delay="0"/></p:stCondLst>'
@@ -72,7 +145,34 @@ def timing_to_xml(slide: Slide, resolved_ids: dict[str, str]) -> str:
         )
         c_tn_id += 1
 
-    children_xml = "".join(media_nodes)
+    # 2. Animation nodes
+    for a in animations:
+        sh_id = resolved_ids.get(a.sid, a.sid)
+        if a.cls == "entr":
+            pid = ENTR_TO_PID.get(a.eff, 10)
+        elif a.cls == "exit":
+            pid = EXIT_TO_PID.get(a.eff, ENTR_TO_PID.get(a.eff, 10))
+        elif a.cls == "emph":
+            pid = EMPH_TO_PID.get(a.eff, 6)
+        else:
+            pid = 10
+
+        sub = DIR_TO_SUB.get(a.dir, 0)
+        node_type = "clickEffect" if a.start == "click" else ("afterEffect" if a.start == "after" else "withEffect")
+        dur = a.dur if a.dur is not None else 500
+        delay = a.delay or 0
+
+        para_xml = f'<p:pRg st="{a.para}"/>' if a.para is not None else ""
+
+        nodes.append(
+            f'<p:cTn id="{c_tn_id}" presetClass="{a.cls}" presetID="{pid}" presetSubtype="{sub}" nodeType="{node_type}" dur="{dur}">'
+            f'<p:stCondLst><p:cond delay="{delay}"/></p:stCondLst>'
+            f'<p:tgtEl><p:spTgt spid="{sh_id}">{para_xml}</p:spTgt></p:tgtEl>'
+            f'</p:cTn>'
+        )
+        c_tn_id += 1
+
+    children_xml = "".join(nodes)
     return (
         "<p:timing><p:tnLst><p:par>"
         '<p:cTn id="1" dur="indefinite" restart="never" nodeType="tmRoot">'

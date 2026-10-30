@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QComboBox,
+    QDoubleSpinBox,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -68,6 +69,7 @@ class AnimationPane(QWidget):
     animationReordered = Signal(int, int)  # old_idx, new_idx
     playRequested = Signal(str)  # anim_id (or "" for entire slide)
     slideshowRequested = Signal()
+    shapeSelectionRequested = Signal(str)  # shape_id
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -145,11 +147,27 @@ class AnimationPane(QWidget):
         row_speed.addWidget(self.combo_speed, stretch=2)
         modify_layout.addLayout(row_speed)
 
+        # Delay Row
+        row_delay = QHBoxLayout()
+        self.lbl_delay = QLabel(self)
+        row_delay.addWidget(self.lbl_delay, stretch=1)
+        self.spin_delay = QDoubleSpinBox(self)
+        self.spin_delay.setRange(0.0, 60.0)
+        self.spin_delay.setSingleStep(0.5)
+        self.spin_delay.setDecimals(1)
+        self.spin_delay.setValue(0.0)
+        self.spin_delay.valueChanged.connect(self._on_delay_changed)
+        row_delay.addWidget(self.spin_delay, stretch=2)
+        modify_layout.addLayout(row_delay)
+
         main_layout.addWidget(self.grp_modify)
 
         # Animation Sequence List
         self.list_anims = QListWidget(self)
         self.list_anims.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.list_anims.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.list_anims.setDefaultDropAction(Qt.DropAction.MoveAction)
+        self.list_anims.model().rowsMoved.connect(self._on_rows_moved)
         self.list_anims.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.list_anims.customContextMenuRequested.connect(self._on_context_menu)
         self.list_anims.currentRowChanged.connect(self._on_list_row_changed)
@@ -208,6 +226,8 @@ class AnimationPane(QWidget):
         self.lbl_start.setText(safe_tr("Start:"))
         self.lbl_dir.setText(safe_tr("Direction:"))
         self.lbl_speed.setText(safe_tr("Speed:"))
+        self.lbl_delay.setText(safe_tr("Delay:"))
+        self.spin_delay.setSuffix(" " + safe_tr("s"))
         self.lbl_reorder.setText(safe_tr("Re-Order"))
         self.btn_play.setText("▶ " + safe_tr("Play"))
         self.btn_slideshow.setText(safe_tr("Slide Show"))
@@ -276,6 +296,22 @@ class AnimationPane(QWidget):
         self.slide = slide
         self.selected_shape_ids = list(selected_shape_ids or [])
         self._refresh_list()
+
+    def set_selected_shapes(self, shape_ids: list[str] | None = None) -> None:
+        """Update selected shape context and highlight matching animation item."""
+        self.selected_shape_ids = list(shape_ids or [])
+        if not self.selected_shape_ids or not self.slide:
+            return
+        target_sid = self.selected_shape_ids[0]
+        for row in range(self.list_anims.count()):
+            it = self.list_anims.item(row)
+            if not it:
+                continue
+            aid = it.data(Qt.ItemDataRole.UserRole)
+            for a in self.slide.animations:
+                if a.id == aid and a.sid == target_sid:
+                    self.list_anims.setCurrentRow(row)
+                    return
 
     def select_animation(self, anim_id: str | None) -> None:
         """Select an animation item in the sequence list."""
@@ -366,6 +402,8 @@ class AnimationPane(QWidget):
             self.btn_remove.setEnabled(False)
             self.btn_move_up.setEnabled(False)
             self.btn_move_down.setEnabled(False)
+            self.spin_delay.setEnabled(False)
+            self.spin_delay.setValue(0.0)
             self._updating_ui = False
             return
 
@@ -410,6 +448,10 @@ class AnimationPane(QWidget):
                 best_diff = diff
                 best_idx = i
         self.combo_speed.setCurrentIndex(best_idx)
+
+        # Delay
+        self.spin_delay.setEnabled(True)
+        self.spin_delay.setValue(anim.delay / 1000.0 if anim.delay else 0.0)
 
         self._updating_ui = False
 
@@ -510,6 +552,28 @@ class AnimationPane(QWidget):
             if self.chk_auto_preview.isChecked():
                 self.playRequested.emit(anim.id)
 
+    def _on_delay_changed(self, val: float) -> None:
+        if self._updating_ui:
+            return
+        anim = self._get_selected_animation()
+        if not anim:
+            return
+        ms = int(round(val * 1000))
+        if anim.delay != ms:
+            anim.delay = ms
+            self.animationModified.emit(anim.id, "delay", ms)
+
+    def _on_rows_moved(self, parent: object, start: int, end: int, destination: object, row: int) -> None:
+        if self._updating_ui or not self.slide:
+            return
+        new_order_ids = [
+            self.list_anims.item(i).data(Qt.ItemDataRole.UserRole)
+            for i in range(self.list_anims.count())
+        ]
+        id_to_anim = {a.id: a for a in self.slide.animations}
+        self.slide.animations = [id_to_anim[aid] for aid in new_order_ids if aid in id_to_anim]
+        self.animationReordered.emit(start, row)
+
     def _on_list_row_changed(self, row: int) -> None:
         if self._updating_ui or row < 0:
             return
@@ -517,7 +581,10 @@ class AnimationPane(QWidget):
         if it:
             anim_id = it.data(Qt.ItemDataRole.UserRole)
             self._selected_anim_id = anim_id
-            self._update_property_controls(self._get_selected_animation())
+            anim = self._get_selected_animation()
+            self._update_property_controls(anim)
+            if anim and anim.sid:
+                self.shapeSelectionRequested.emit(anim.sid)
 
     def _on_item_double_clicked(self, item: QListWidgetItem) -> None:
         if item:
