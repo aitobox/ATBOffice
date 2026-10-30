@@ -77,6 +77,7 @@ class LecternWindow(BaseOfficeWindow):
             self.update_window_title()
 
         self.set_modified(False)
+        self.menu_bar.retranslate_ui()
 
     def _bind_action_handlers(self) -> None:
         """Bind window callbacks to core action IDs in ActionRegistry."""

@@ -87,6 +87,7 @@ class QuireWindow(BaseOfficeWindow):
 
         self.set_modified(False)
         self._sync_toolbar_states()
+        self.menu_bar.retranslate_ui()
 
     def _bind_action_handlers(self) -> None:
         """Bind window callbacks to core action IDs in ActionRegistry."""
