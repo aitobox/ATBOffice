@@ -235,6 +235,33 @@ class SheetDataModel:
         self.merges: list[tuple[int, int, int, int]] = []
         self.auto_filter: Any | None = None
         self.drawings: list[Any] = []
+        self.conditional_formats: list[Any] = []
+        self.data_validations: list[Any] = []
+
+    def add_conditional_format(self, cf: Any) -> None:
+        """Add a conditional format to the sheet."""
+        self.conditional_formats.append(cf)
+
+    def clear_conditional_formats(self) -> None:
+        """Clear all conditional formatting rules."""
+        self.conditional_formats.clear()
+
+    def add_data_validation(self, dv: Any) -> None:
+        """Add a data validation rule to the sheet."""
+        self.data_validations.append(dv)
+
+    def clear_data_validations(self) -> None:
+        """Clear all data validation rules."""
+        self.data_validations.clear()
+
+    def get_validation_at(self, r: int, c: int) -> Any | None:
+        """Find the matching DataValidation rule for cell (r, c) if any."""
+        for dv in reversed(self.data_validations):
+            ranges = getattr(dv, "ranges", [])
+            for r1, c1, r2, c2 in ranges:
+                if r1 <= r <= r2 and c1 <= c <= c2:
+                    return dv
+        return None
 
     def add_merge(self, r1: int, c1: int, r2: int, c2: int) -> None:
         """Add a merged cell region (r1, c1, r2, c2)."""

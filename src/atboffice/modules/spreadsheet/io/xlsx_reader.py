@@ -13,12 +13,20 @@ from atboffice.modules.spreadsheet.calc.references import (
     parse_cell,
     parse_range,
 )
+from atboffice.modules.spreadsheet.models.conditional_format import (
+    CFRule,
+    ColorScaleRule,
+    ConditionalFormat,
+    DataBarRule,
+    CFVO,
+)
 from atboffice.modules.spreadsheet.models.sheet_model import (
     BorderStyle,
     CellData,
     FormatDelta,
     SheetDataModel,
 )
+from atboffice.modules.spreadsheet.models.validation import DataValidation
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 from atboffice.modules.spreadsheet.views.object_layer import (
     AnchorType,
@@ -216,18 +224,40 @@ def _parse_border_side(side_el: ET.Element | None) -> BorderStyle | None:
     return BorderStyle(style=style, color=col)
 
 
+class StyleBundle(list):
+    """List of FormatDelta objects with attached dxfs."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.dxfs: list[dict[str, Any]] = []
+
+
+def _norm_hex(col: str | None) -> str | None:
+    """Normalize color hex to standard #RRGGBB."""
+    if not col:
+        return None
+    c = col.replace("#", "").upper()
+    if len(c) == 8 and c.startswith("FF"):
+        return f"#{c[2:]}"
+    if len(c) == 6:
+        return f"#{c}"
+    return f"#{c}"
+
+
 def _parse_styles(zip_file: zipfile.ZipFile, styles_path: str) -> list[FormatDelta]:
     """Parse xl/styles.xml into a list of FormatDelta objects indexed by xfId."""
-    deltas: list[FormatDelta] = []
+    deltas = StyleBundle()
     try:
         content = zip_file.read(styles_path)
     except KeyError:
-        return [FormatDelta()]
+        deltas.append(FormatDelta())
+        return deltas
 
     try:
         root = ET.fromstring(content)
     except ET.ParseError:
-        return [FormatDelta()]
+        deltas.append(FormatDelta())
+        return deltas
 
     # 1. Number formats
     num_fmts: dict[int, str] = dict(BUILTIN_NUMFMTS)
@@ -409,6 +439,33 @@ def _parse_styles(zip_file: zipfile.ZipFile, styles_path: str) -> list[FormatDel
 
             deltas.append(delta)
 
+    # 6. Differential formats (<dxfs>)
+    dxfs_el = _find_child(root, "dxfs")
+    if dxfs_el is not None:
+        for dxf_el in _find_children(dxfs_el, "dxf"):
+            d_info: dict[str, Any] = {}
+            f_el = _find_child(dxf_el, "font")
+            if f_el is not None:
+                b_el = _find_child(f_el, "b")
+                if b_el is not None:
+                    val = _attr(b_el, "val")
+                    d_info["bold"] = val is None or val in ("1", "true")
+                i_el = _find_child(f_el, "i")
+                if i_el is not None:
+                    val = _attr(i_el, "val")
+                    d_info["italic"] = val is None or val in ("1", "true")
+                c_el = _find_child(f_el, "color")
+                if c_el is not None:
+                    d_info["fg_color"] = _parse_color(c_el)
+            fill_el = _find_child(dxf_el, "fill")
+            if fill_el is not None:
+                pf = _find_child(fill_el, "patternFill")
+                if pf is not None:
+                    fg = _parse_color(_find_child(pf, "fgColor"))
+                    bg = _parse_color(_find_child(pf, "bgColor"))
+                    d_info["bg_color"] = fg or bg
+            deltas.dxfs.append(d_info)
+
     if not deltas:
         deltas.append(FormatDelta())
 
@@ -587,7 +644,145 @@ def _parse_worksheet(
                 if rg:
                     sheet.add_merge(rg["r1"], rg["c1"], rg["r2"], rg["c2"])
 
-    # 4. Floating drawings
+    # 4. Conditional Formatting (<conditionalFormatting>)
+    dxfs = getattr(style_deltas, "dxfs", [])
+    for cf_el in _find_children(root, "conditionalFormatting"):
+        sqref = _attr(cf_el, "sqref", "") or ""
+        ranges: list[tuple[int, int, int, int]] = []
+        for part in sqref.split():
+            rg = parse_range(part)
+            if rg:
+                ranges.append((rg["r1"], rg["c1"], rg["r2"], rg["c2"]))
+        rules: list[CFRule] = []
+        for r_el in _find_children(cf_el, "cfRule"):
+            rtype = _attr(r_el, "type", "cellIs")
+            op = _attr(r_el, "operator")
+            priority = 1
+            try:
+                priority = int(_attr(r_el, "priority", "1"))
+            except ValueError:
+                pass
+            stop_if_true = _attr(r_el, "stopIfTrue") in ("1", "true")
+            text_val = _attr(r_el, "text")
+            formulas = [
+                f.text.strip()
+                for f in _find_children(r_el, "formula")
+                if f.text is not None
+            ]
+
+            # Formatting from dxf
+            bg_col = None
+            fg_col = None
+            bold_val = None
+            italic_val = None
+            dxf_id_str = _attr(r_el, "dxfId")
+            if dxf_id_str is not None:
+                try:
+                    dxf_id = int(dxf_id_str)
+                    if 0 <= dxf_id < len(dxfs):
+                        dinfo = dxfs[dxf_id]
+                        bg_col = _norm_hex(dinfo.get("bg_color"))
+                        fg_col = _norm_hex(dinfo.get("fg_color"))
+                        bold_val = dinfo.get("bold")
+                        italic_val = dinfo.get("italic")
+                except ValueError:
+                    pass
+
+            # Color scale
+            scale_rule = None
+            cs_el = _find_child(r_el, "colorScale")
+            if cs_el is not None:
+                cfvos = []
+                for vo_el in _find_children(cs_el, "cfvo"):
+                    cfvos.append(
+                        CFVO(type=_attr(vo_el, "type", "min"), val=_attr(vo_el, "val"))
+                    )
+                colors = []
+                for col_el in _find_children(cs_el, "color"):
+                    c_val = _parse_color(col_el)
+                    colors.append(_norm_hex(c_val) or "#FFFFFF")
+                scale_rule = ColorScaleRule(cfvos=cfvos, colors=colors)
+
+            # Data bar
+            bar_rule = None
+            db_el = _find_child(r_el, "dataBar")
+            if db_el is not None:
+                cfvos = []
+                for vo_el in _find_children(db_el, "cfvo"):
+                    cfvos.append(
+                        CFVO(type=_attr(vo_el, "type", "min"), val=_attr(vo_el, "val"))
+                    )
+                c_val = _parse_color(_find_child(db_el, "color"))
+                color_hex = _norm_hex(c_val) or "#638EC6"
+                bar_rule = DataBarRule(cfvos=cfvos, color=color_hex)
+
+            rule = CFRule(
+                type=rtype,
+                operator=op,
+                formula=formulas,
+                text=text_val,
+                priority=priority,
+                stop_if_true=stop_if_true,
+                bg_color=bg_col,
+                fg_color=fg_col,
+                bold=bold_val,
+                italic=italic_val,
+                color_scale=scale_rule,
+                data_bar=bar_rule,
+            )
+            rules.append(rule)
+
+        cf = ConditionalFormat(sqref=sqref, ranges=ranges, rules=rules)
+        sheet.add_conditional_format(cf)
+
+    # 5. Data Validations (<dataValidations>)
+    dvs_el = _find_child(root, "dataValidations")
+    if dvs_el is not None:
+        for dv_el in _find_children(dvs_el, "dataValidation"):
+            v_type = _attr(dv_el, "type", "any")
+            op = _attr(dv_el, "operator", "between")
+            allow_blank = _attr(dv_el, "allowBlank") not in ("0", "false")
+            show_dropdown = _attr(dv_el, "showDropDown") not in ("0", "false")
+            show_input_msg = _attr(dv_el, "showInputMessage") in ("1", "true")
+            show_err_alert = _attr(dv_el, "showErrorMessage") not in ("0", "false")
+            err_style = _attr(dv_el, "errorStyle", "stop")
+            prompt_title = _unescape_xml_text(_attr(dv_el, "promptTitle", ""))
+            prompt = _unescape_xml_text(_attr(dv_el, "prompt", ""))
+            err_title = _unescape_xml_text(_attr(dv_el, "errorTitle", ""))
+            err_msg = _unescape_xml_text(_attr(dv_el, "error", ""))
+            sqref = _attr(dv_el, "sqref", "") or ""
+
+            f1_el = _find_child(dv_el, "formula1")
+            f2_el = _find_child(dv_el, "formula2")
+            f1 = f1_el.text.strip() if f1_el is not None and f1_el.text else None
+            f2 = f2_el.text.strip() if f2_el is not None and f2_el.text else None
+
+            ranges = []
+            for part in sqref.split():
+                rg = parse_range(part)
+                if rg:
+                    ranges.append((rg["r1"], rg["c1"], rg["r2"], rg["c2"]))
+
+            dv = DataValidation(
+                type=v_type,
+                operator=op,
+                allow_blank=allow_blank,
+                show_dropdown=show_dropdown,
+                show_input_message=show_input_msg,
+                input_title=prompt_title,
+                input_message=prompt,
+                show_error_alert=show_err_alert,
+                error_style=err_style,
+                error_title=err_title,
+                error_message=err_msg,
+                formula1=f1,
+                formula2=f2,
+                sqref=sqref,
+                ranges=ranges,
+            )
+            sheet.add_data_validation(dv)
+
+    # 6. Floating drawings
     _parse_worksheet_drawings(zip_file, sheet_path, sheet)
 
 
