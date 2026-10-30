@@ -1,13 +1,10 @@
 """Unit and integration tests for MacMenuBar 9-menu Office 2003 system and ActionRegistry sync."""
 
-from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
-from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QApplication, QMainWindow
 
-from atboffice.core.action_registry import ActionRegistry, ActionSpec
+from atboffice.core.action_registry import ActionRegistry
 from atboffice.ui.shell.mac_menu import MacMenuBar, setup_mac_menu
 
 
