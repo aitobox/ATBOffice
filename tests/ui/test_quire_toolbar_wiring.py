@@ -196,7 +196,8 @@ def test_quire_window_caret_sync_and_table_context(qtbot) -> None:
 
     # After inserting table, caret is placed inside table
     # Move caret to cell paragraph to trigger sync
-    cell_p = win.writer_view.canvas_view.get_current_table_context()["tbl"].rows[0].cells[0].blocks[0]
+    ctx = win.writer_view.canvas_view.get_current_table_context()
+    cell_p = ctx["tbl"].rows[0].cells[0].blocks[0]
     win.writer_view.canvas_view.caret_moved.emit(cell_p.id, 0)
 
     # Tables toolbar should now be automatically visible

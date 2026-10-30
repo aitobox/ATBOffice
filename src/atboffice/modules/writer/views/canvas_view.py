@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 import copy
 import math
+from collections.abc import Callable
 from typing import Any
 
 from PySide6.QtCore import (
@@ -64,10 +64,7 @@ from atboffice.modules.writer.models.properties import (
 from atboffice.modules.writer.models.revision import (
     accept_all_revisions,
     accept_revision,
-    delete_all_comments,
-    delete_comment,
     insert_comment,
-    is_tracking,
     list_revisions,
     reject_all_revisions,
     reject_revision,

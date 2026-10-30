@@ -118,9 +118,15 @@ class QuireWindow(BaseOfficeWindow):
         self.action_registry.set_handler("underline", self._toggle_underline)
 
         # Paragraph alignment & indent
-        self.action_registry.set_handler("alignLeft", lambda: canvas.set_paragraph_alignment("left"))
-        self.action_registry.set_handler("alignCenter", lambda: canvas.set_paragraph_alignment("center"))
-        self.action_registry.set_handler("alignRight", lambda: canvas.set_paragraph_alignment("right"))
+        self.action_registry.set_handler(
+            "alignLeft", lambda: canvas.set_paragraph_alignment("left")
+        )
+        self.action_registry.set_handler(
+            "alignCenter", lambda: canvas.set_paragraph_alignment("center")
+        )
+        self.action_registry.set_handler(
+            "alignRight", lambda: canvas.set_paragraph_alignment("right")
+        )
         self.action_registry.set_handler("justify", lambda: canvas.set_paragraph_alignment("both"))
         self.action_registry.set_handler("incIndent", lambda: canvas.change_indent(36.0))
         self.action_registry.set_handler("decIndent", lambda: canvas.change_indent(-36.0))
@@ -166,10 +172,18 @@ class QuireWindow(BaseOfficeWindow):
         self.action_registry.set_handler("mmGreeting", self.writer_view.insert_merge_field)
         self.action_registry.set_handler("mmInsertField", self.writer_view.insert_merge_field)
         self.action_registry.set_handler("mmViewData", self.writer_view.toggle_mail_merge_preview)
-        self.action_registry.set_handler("mmFirst", lambda: self.writer_view.step_mail_merge_record(-9999))
-        self.action_registry.set_handler("mmPrev", lambda: self.writer_view.step_mail_merge_record(-1))
-        self.action_registry.set_handler("mmNext", lambda: self.writer_view.step_mail_merge_record(1))
-        self.action_registry.set_handler("mmLast", lambda: self.writer_view.step_mail_merge_record(9999))
+        self.action_registry.set_handler(
+            "mmFirst", lambda: self.writer_view.step_mail_merge_record(-9999)
+        )
+        self.action_registry.set_handler(
+            "mmPrev", lambda: self.writer_view.step_mail_merge_record(-1)
+        )
+        self.action_registry.set_handler(
+            "mmNext", lambda: self.writer_view.step_mail_merge_record(1)
+        )
+        self.action_registry.set_handler(
+            "mmLast", lambda: self.writer_view.step_mail_merge_record(9999)
+        )
 
     def _ensure_find_replace_dialog(self) -> FindReplaceDialog:
         """Create or return existing FindReplaceDialog instance."""
@@ -335,13 +349,21 @@ class QuireWindow(BaseOfficeWindow):
                     for act in m.actions():
                         txt = act.text()
                         if "上方插入行" in txt:
-                            act.triggered.connect(lambda checked=False: canvas.insert_table_row(above=True))
+                            act.triggered.connect(
+                                lambda checked=False: canvas.insert_table_row(above=True)
+                            )
                         elif "下方插入行" in txt:
-                            act.triggered.connect(lambda checked=False: canvas.insert_table_row(above=False))
+                            act.triggered.connect(
+                                lambda checked=False: canvas.insert_table_row(above=False)
+                            )
                         elif "左侧插入列" in txt:
-                            act.triggered.connect(lambda checked=False: canvas.insert_table_col(left=True))
+                            act.triggered.connect(
+                                lambda checked=False: canvas.insert_table_col(left=True)
+                            )
                         elif "右侧插入列" in txt:
-                            act.triggered.connect(lambda checked=False: canvas.insert_table_col(left=False))
+                            act.triggered.connect(
+                                lambda checked=False: canvas.insert_table_col(left=False)
+                            )
                         elif "插入表格" in txt:
                             act.triggered.connect(lambda checked=False: canvas.insert_table(2, 2))
 
@@ -354,7 +376,9 @@ class QuireWindow(BaseOfficeWindow):
                         txt = act.text()
                         try:
                             val = float(txt)
-                            act.triggered.connect(lambda checked=False, v=val: canvas.set_line_spacing(v))
+                            act.triggered.connect(
+                                lambda checked=False, v=val: canvas.set_line_spacing(v)
+                            )
                         except ValueError:
                             pass
 

@@ -93,7 +93,9 @@ class BaseOfficeWindow(QMainWindow):
 
     def open_file_dialog(self) -> bool:
         """Present standard file dialog to select and open a document."""
-        if os.environ.get("PYTEST_CURRENT_TEST") and isinstance(QFileDialog.getOpenFileName, type(print)):
+        if os.environ.get("PYTEST_CURRENT_TEST") and isinstance(
+            QFileDialog.getOpenFileName, type(print)
+        ):
             return False
         file_path, _ = QFileDialog.getOpenFileName(
             self,
@@ -261,7 +263,9 @@ class BaseOfficeWindow(QMainWindow):
 
     def save_file_as(self) -> bool:
         """Prompt user with standard file dialog to save document to a new path."""
-        if os.environ.get("PYTEST_CURRENT_TEST") and isinstance(QFileDialog.getSaveFileName, type(print)):
+        if os.environ.get("PYTEST_CURRENT_TEST") and isinstance(
+            QFileDialog.getSaveFileName, type(print)
+        ):
             return False
         default_path = str(self.current_file_path) if self.current_file_path is not None else ""
         file_path, _ = QFileDialog.getSaveFileName(
