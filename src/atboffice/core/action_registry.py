@@ -11,12 +11,14 @@ from PySide6.QtCore import QCoreApplication, QObject, Signal
 from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtWidgets import QWidget
 
+from atboffice.core.i18n import safe_tr as core_safe_tr
+
 logger = logging.getLogger(__name__)
 
 
 def safe_tr(text: str) -> str:
     """Translate UI text safely for action registry."""
-    return QCoreApplication.translate("ActionRegistry", text)
+    return core_safe_tr(text)
 
 
 @dataclass

@@ -12,6 +12,7 @@ from atboffice.core.action_registry import ActionRegistry
 from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.view import PresentationView
 from atboffice.ui.components.toolbar import OfficeToolBar
+from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.ui.shell.base_window import BaseOfficeWindow
 from atboffice.ui.shell.lectern_toolbars import (
     build_lectern_toolbars,
@@ -22,7 +23,7 @@ from atboffice.ui.shell.mac_menu import MacMenuBar, setup_mac_menu
 
 def safe_tr(text: str) -> str:
     """Translate UI text safely for LecternWindow."""
-    return QCoreApplication.translate("LecternWindow", text)
+    return core_safe_tr(text)
 
 
 class LecternWindow(BaseOfficeWindow):

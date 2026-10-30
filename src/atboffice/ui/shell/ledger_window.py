@@ -12,6 +12,7 @@ from atboffice.core.action_registry import ActionRegistry
 from atboffice.core.search import SearchController, SpreadsheetSearchAdapter
 from atboffice.modules.spreadsheet.view import SpreadsheetView
 from atboffice.ui.components.color_picker import ColorPickerButton
+from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.ui.components.status_bar import StatusBar
 from atboffice.ui.components.toolbar import OfficeToolBar
 from atboffice.ui.dialogs.find_replace_dialog import FindReplaceDialog
@@ -25,7 +26,7 @@ from atboffice.ui.shell.mac_menu import MacMenuBar, setup_mac_menu
 
 def safe_tr(text: str) -> str:
     """Translate UI text safely for LedgerWindow."""
-    return QCoreApplication.translate("LedgerWindow", text)
+    return core_safe_tr(text)
 
 
 class LedgerWindow(BaseOfficeWindow):

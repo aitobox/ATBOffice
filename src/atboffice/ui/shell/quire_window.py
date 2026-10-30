@@ -12,6 +12,7 @@ from atboffice.core.action_registry import ActionRegistry
 from atboffice.core.search import SearchController, WriterSearchAdapter
 from atboffice.modules.writer.view import WriterView
 from atboffice.ui.components.color_picker import ColorPickerButton
+from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.ui.components.toolbar import OfficeToolBar
 from atboffice.ui.dialogs.find_replace_dialog import FindReplaceDialog
 from atboffice.ui.shell.base_window import BaseOfficeWindow
@@ -24,7 +25,7 @@ from atboffice.ui.shell.quire_toolbars import (
 
 def safe_tr(text: str) -> str:
     """Translate UI text safely for QuireWindow."""
-    return QCoreApplication.translate("QuireWindow", text)
+    return core_safe_tr(text)
 
 
 class QuireWindow(BaseOfficeWindow):
