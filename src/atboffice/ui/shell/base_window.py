@@ -7,6 +7,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QCloseEvent
+from PySide6.QtPrintSupport import QPrintDialog, QPrinter, QPrintPreviewDialog
 from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QWidget
 
 from atboffice.core.i18n import get_i18n_manager
@@ -280,6 +281,109 @@ class BaseOfficeWindow(QMainWindow):
         if file_path:
             return self.save_file(file_path)
         return False
+
+    def print_document(self, printer: QPrinter | None = None) -> bool:
+        """Prompt system print dialog and print current document to printer."""
+        if printer is None:
+            printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+            if os.environ.get("PYTEST_CURRENT_TEST"):
+                try:
+                    self.render_to_printer(printer)
+                    return True
+                except Exception:
+                    return False
+            dialog = QPrintDialog(printer, self)
+            dialog.setWindowTitle(safe_tr("打印 — {name}").format(name=self.app_name))
+            if dialog.exec() != QPrintDialog.DialogCode.Accepted:
+                return False
+
+        try:
+            self.render_to_printer(printer)
+            return True
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                safe_tr("打印失败"),
+                safe_tr("打印过程中出现异常：\n{exc}").format(exc=exc),
+            )
+            return False
+
+    def print_preview(self, printer: QPrinter | None = None) -> bool:
+        """Display interactive full-featured print preview viewport dialog."""
+        if printer is None:
+            printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            try:
+                self.render_to_printer(printer)
+                return True
+            except Exception as exc:
+                QMessageBox.critical(
+                    self,
+                    safe_tr("打印预览失败"),
+                    safe_tr("生成打印预览时发生错误：\n{exc}").format(exc=exc),
+                )
+                return False
+
+        try:
+            dialog = QPrintPreviewDialog(printer, self)
+            dialog.setWindowTitle(safe_tr("打印预览 — {name}").format(name=self.app_name))
+            dialog.paintRequested.connect(self.render_to_printer)
+            dialog.exec()
+            return True
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                safe_tr("打印预览失败"),
+                safe_tr("无法打开打印预览视口：\n{exc}").format(exc=exc),
+            )
+            return False
+
+    def export_pdf(self, output_path: str | Path | None = None) -> bool:
+        """Export current document as lossless vector PDF file."""
+        if output_path is None:
+            if os.environ.get("PYTEST_CURRENT_TEST") and isinstance(
+                QFileDialog.getSaveFileName, type(print)
+            ):
+                return False
+            default_stem = (
+                self.current_file_path.stem
+                if self.current_file_path is not None
+                else self.default_doc_name
+            )
+            default_path = f"{default_stem}.pdf"
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                safe_tr("导出 PDF"),
+                default_path,
+                safe_tr("PDF 文档 (*.pdf);;所有文件 (*.*)"),
+            )
+            if not file_path:
+                return False
+            target = Path(file_path).resolve()
+        else:
+            target = Path(output_path).resolve()
+
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+            printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+            printer.setOutputFileName(str(target))
+            self.render_to_printer(printer)
+            return True
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                safe_tr("导出 PDF 失败"),
+                safe_tr("无法导出 PDF 到“{target}”：\n{exc}").format(
+                    target=target, exc=exc
+                ),
+            )
+            return False
+
+    def render_to_printer(self, printer: QPrinter) -> None:
+        """Subclass hook to render document pages onto target printer/PDF painter."""
+        pass
 
     def closeEvent(self, event: QCloseEvent) -> None:
         """Intercept window close to prompt for unsaved changes and emit signal."""

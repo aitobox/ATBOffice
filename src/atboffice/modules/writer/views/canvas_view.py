@@ -38,6 +38,7 @@ from atboffice.modules.writer.layout.pagination import (
     paginate_document,
 )
 from atboffice.modules.writer.layout.portions import (
+    Portion,
     PortionType,
     measure_text_width,
 )
@@ -581,6 +582,193 @@ class WriterCanvasView(QAbstractScrollArea):
                                 paint_math(painter, po.data, x_px, baseline_px, self._zoom)
 
                             cur_x += po_w
+
+    def render_page_to_painter(
+        self,
+        painter: QPainter,
+        page: Page,
+        origin_x: float = 0.0,
+        origin_y: float = 0.0,
+    ) -> None:
+        """Render page contents in vector points directly onto a QPainter target (e.g. QPrinter)."""
+
+        def _setup_font_and_pen(
+            po: Portion, default_size: float = 12.0, default_color: str = "#000000"
+        ) -> tuple[QFont, QPen]:
+            family = getattr(po, "font_family", None) or "Times New Roman"
+            sz = getattr(po, "font_size", None) or default_size
+            f = QFont(family)
+            f.setPointSizeF(sz)
+            is_bold = bool(
+                getattr(po, "bold", False)
+                or (isinstance(getattr(po, "data", None), dict) and po.data.get("bold"))
+            )
+            is_italic = bool(
+                getattr(po, "italic", False)
+                or (isinstance(getattr(po, "data", None), dict) and po.data.get("italic"))
+            )
+            f.setBold(is_bold)
+            f.setItalic(is_italic)
+            col = getattr(po, "color", None) or default_color
+            return f, QPen(QColor(col))
+
+        # 1. Render Header if present
+        if page.header:
+            header_top = origin_y + page.header.y
+            for frag in page.header.fragments:
+                for line in frag.lines:
+                    line_y = header_top + line.top
+                    cur_x = origin_x + page.body_left + line.indent_left
+                    for po in line.portions:
+                        po_w = po.width
+                        if po.type == PortionType.TEXT and po.text:
+                            font, pen = _setup_font_and_pen(po, 10.0, "#666666")
+                            painter.setFont(font)
+                            painter.setPen(pen)
+                            baseline = line_y + line.baseline
+                            painter.drawText(QPointF(cur_x, baseline), po.text)
+                        elif po.type == PortionType.GRAPHIC and isinstance(po.data, OfficeMathItem):
+                            paint_math(painter, po.data, cur_x, line_y + line.baseline, 1.0)
+                        cur_x += po_w
+
+        # 2. Render Page Regions and Paragraphs/Tables
+        for reg in page.regions:
+            for col in reg.columns:
+                for frag in col.fragments:
+                    if frag.table_layout is not None:
+                        tl = frag.table_layout
+                        frag_x = origin_x + page.body_left + col.left
+                        frag_y = origin_y + page.body_top + col.top + frag.top
+
+                        for rl in tl.rows:
+                            for cl in rl.cells:
+                                cell_x = frag_x + cl.x
+                                cell_y = frag_y + cl.y
+                                cell_rect = QRectF(cell_x, cell_y, cl.width, cl.height)
+
+                                # Shading
+                                fill_val = getattr(cl.shd, "fill", "auto")
+                                if fill_val and fill_val not in ("auto", "clear", "none"):
+                                    hex_fill = (
+                                        fill_val if fill_val.startswith("#") else f"#{fill_val}"
+                                    )
+                                    painter.fillRect(cell_rect, QColor(hex_fill))
+
+                                # Border
+                                painter.setPen(QPen(QColor(120, 120, 120), 0.75))
+                                painter.drawRect(cell_rect)
+
+                                # Cell text content
+                                cell_inner_x = frag_x + cl.x + 5.4
+                                cell_inner_y = frag_y + cl.y + cl.content_offset_y
+                                for playout in cl.paragraphs_layout:
+                                    for line in playout.lines:
+                                        line_y = cell_inner_y + line.top
+                                        cur_x = cell_inner_x + line.indent_left
+                                        for po in line.portions:
+                                            po_w = po.width
+                                            if po.type == PortionType.TEXT and po.text:
+                                                font, pen = _setup_font_and_pen(po, 12.0, "#000000")
+                                                painter.setFont(font)
+                                                painter.setPen(pen)
+                                                baseline = line_y + line.baseline
+                                                painter.drawText(QPointF(cur_x, baseline), po.text)
+                                            elif po.type == PortionType.GRAPHIC and isinstance(
+                                                po.data, OfficeMathItem
+                                            ):
+                                                paint_math(
+                                                    painter,
+                                                    po.data,
+                                                    cur_x,
+                                                    line_y + line.baseline,
+                                                    1.0,
+                                                )
+                                            cur_x += po_w
+                        continue
+
+                    frag_top = origin_y + page.body_top + col.top + frag.top
+                    for line in frag.lines:
+                        line_y = frag_top + line.top
+                        cur_x = origin_x + page.body_left + col.left + line.indent_left
+
+                        for po in line.portions:
+                            po_w = po.width
+                            if po.type == PortionType.TEXT and po.text:
+                                font, pen = _setup_font_and_pen(po, 12.0, "#000000")
+                                painter.setFont(font)
+                                painter.setPen(pen)
+                                baseline = line_y + line.baseline
+                                painter.drawText(QPointF(cur_x, baseline), po.text)
+
+                                if getattr(po, "underline", False):
+                                    pen_u = QPen(pen.color(), 0.75)
+                                    painter.setPen(pen_u)
+                                    painter.drawLine(
+                                        QPointF(cur_x, baseline + 1.5),
+                                        QPointF(cur_x + po_w, baseline + 1.5),
+                                    )
+                                if getattr(po, "strikethrough", False):
+                                    pen_s = QPen(pen.color(), 0.75)
+                                    painter.setPen(pen_s)
+                                    mid_y = line_y + line.baseline - (po.font_size or 12.0) * 0.3
+                                    painter.drawLine(
+                                        QPointF(cur_x, mid_y),
+                                        QPointF(cur_x + po_w, mid_y),
+                                    )
+                            elif po.type == PortionType.TAB and po_w > 0:
+                                tab_data = getattr(po, "data", None)
+                                leader = getattr(tab_data, "leader", "none") if tab_data else "none"
+                                if leader and leader != "none":
+                                    baseline = line_y + line.baseline
+                                    p1 = QPointF(cur_x, baseline)
+                                    p2 = QPointF(cur_x + po_w, baseline)
+                                    if leader == "dot":
+                                        pen_l = QPen(
+                                            QColor(100, 100, 100), 0.75, Qt.PenStyle.DotLine
+                                        )
+                                        painter.setPen(pen_l)
+                                        painter.drawLine(p1, p2)
+                                    elif leader == "hyphen":
+                                        pen_l = QPen(
+                                            QColor(100, 100, 100), 0.75, Qt.PenStyle.DashLine
+                                        )
+                                        painter.setPen(pen_l)
+                                        painter.drawLine(p1, p2)
+                                    elif leader == "underscore":
+                                        pen_l = QPen(
+                                            QColor(100, 100, 100), 0.75, Qt.PenStyle.SolidLine
+                                        )
+                                        painter.setPen(pen_l)
+                                        painter.drawLine(
+                                            QPointF(cur_x, baseline + 1.5),
+                                            QPointF(cur_x + po_w, baseline + 1.5),
+                                        )
+
+                            elif po.type == PortionType.GRAPHIC and isinstance(
+                                po.data, OfficeMathItem
+                            ):
+                                paint_math(painter, po.data, cur_x, line_y + line.baseline, 1.0)
+
+                            cur_x += po_w
+
+        # 3. Render Footer if present
+        if page.footer:
+            footer_top = origin_y + page.footer.y
+            for frag in page.footer.fragments:
+                for line in frag.lines:
+                    line_y = footer_top + line.top
+                    cur_x = origin_x + page.body_left + line.indent_left
+                    for po in line.portions:
+                        po_w = po.width
+                        if po.type == PortionType.TEXT and po.text:
+                            font, pen = _setup_font_and_pen(po, 10.0, "#666666")
+                            painter.setFont(font)
+                            painter.setPen(pen)
+                            baseline = line_y + line.baseline
+                            painter.drawText(QPointF(cur_x, baseline), po.text)
+                        elif po.type == PortionType.GRAPHIC and isinstance(po.data, OfficeMathItem):
+                            paint_math(painter, po.data, cur_x, line_y + line.baseline, 1.0)
+                        cur_x += po_w
 
     def _paint_selection(
         self, painter: QPainter, page_idx: int, page_rect: QRectF, page: Page
