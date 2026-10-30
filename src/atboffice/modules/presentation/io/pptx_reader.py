@@ -65,9 +65,7 @@ REL_MEDIA = "http://schemas.microsoft.com/office/2007/relationships/media"
 REL_COMMENT_AUTHORS = (
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/commentAuthors"
 )
-REL_COMMENTS = (
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
-)
+REL_COMMENTS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
 REL_AUTHORS_MODERN = "http://schemas.microsoft.com/office/2018/10/relationships/authors"
 REL_COMMENTS_MODERN = "http://schemas.microsoft.com/office/2018/10/relationships/comments"
 NS_P188 = "http://schemas.microsoft.com/office/powerpoint/2018/8/main"
@@ -537,7 +535,7 @@ class PptxReader:
                         pass
 
                 show_when_stopped = _get_attr(node, "showWhenStopped", "1")
-                hide_while_not_playing = (show_when_stopped == "0")
+                hide_while_not_playing = show_when_stopped == "0"
 
                 loop = False
                 c_tn = _get_child(node, "cTn")
@@ -811,9 +809,7 @@ class PptxReader:
             m_rel = rel_map[media_rel_id]
             resolved_m = _resolve_path(slide_path, m_rel.target)
             media_bytes = (
-                self.package.read_part(resolved_m)
-                if self.package.has_part(resolved_m)
-                else None
+                self.package.read_part(resolved_m) if self.package.has_part(resolved_m) else None
             )
             if media_bytes:
                 self.media_map[resolved_m] = media_bytes
@@ -1022,9 +1018,7 @@ class PptxReader:
 
         return (x, y, w, h, rot)
 
-    def _parse_geometry(
-        self, sp_pr: ET.Element | None
-    ) -> tuple[str, dict[str, Any] | None]:
+    def _parse_geometry(self, sp_pr: ET.Element | None) -> tuple[str, dict[str, Any] | None]:
         """Parse preset geometry name or DrawingML a:custGeom custom path."""
         if sp_pr is None:
             return "rect", None
@@ -1091,12 +1085,17 @@ class PptxReader:
                 elif tag == "lnTo" and pts:
                     cmds.append(["L", pts[0][0], pts[0][1]])
                 elif tag == "cubicBezTo" and len(pts) >= 3:
-                    cmds.append([
-                        "C",
-                        pts[0][0], pts[0][1],
-                        pts[1][0], pts[1][1],
-                        pts[2][0], pts[2][1],
-                    ])
+                    cmds.append(
+                        [
+                            "C",
+                            pts[0][0],
+                            pts[0][1],
+                            pts[1][0],
+                            pts[1][1],
+                            pts[2][0],
+                            pts[2][1],
+                        ]
+                    )
                 elif tag == "quadBezTo" and len(pts) >= 2:
                     cmds.append(["Q", pts[0][0], pts[0][1], pts[1][0], pts[1][1]])
                 elif tag == "arcTo":
@@ -1109,13 +1108,15 @@ class PptxReader:
                     cmds.append(["Z"])
 
             if cmds:
-                paths.append({
-                    "w": pw_pt,
-                    "h": ph_pt,
-                    "cmds": cmds,
-                    "fill": _get_attr(p_elem, "fill", "norm"),
-                    "stroke": _get_attr(p_elem, "stroke", "1") not in ("0", "false"),
-                })
+                paths.append(
+                    {
+                        "w": pw_pt,
+                        "h": ph_pt,
+                        "cmds": cmds,
+                        "fill": _get_attr(p_elem, "fill", "norm"),
+                        "stroke": _get_attr(p_elem, "stroke", "1") not in ("0", "false"),
+                    }
+                )
 
         if paths:
             return {"paths": paths}
@@ -1864,13 +1865,56 @@ class PptxReader:
             strike=strike,
         )
 
-    def _parse_transition(self, trans_elem: ET.Element) -> Transition:
+    def _parse_transition(self, trans_elem: ET.Element | None) -> Transition:
         """Parse slide transition timing and type."""
+        if trans_elem is None:
+            return Transition()
+
         trans_type = "none"
+        dir_val = None
+        orient_val = None
+        spokes_val = None
+        thru_blk = False
+
+        KNOWN_TRANSITIONS = (
+            "fade",
+            "wipe",
+            "push",
+            "split",
+            "cover",
+            "pull",
+            "wheel",
+            "zoom",
+            "blinds",
+            "checker",
+            "comb",
+            "cut",
+            "dissolve",
+            "newsflash",
+            "plus",
+            "randomBar",
+            "circle",
+            "diamond",
+            "strips",
+            "wedge",
+            "random",
+        )
+
         for child in trans_elem:
             tag = _local_tag(child.tag)
-            if tag in ("fade", "wipe", "push", "split", "cover", "pull", "wheel", "zoom"):
+            if tag in KNOWN_TRANSITIONS:
                 trans_type = tag
+                dir_val = _get_attr(child, "dir")
+                orient_val = _get_attr(child, "orient")
+                sp_attr = _get_attr(child, "spokes")
+                if sp_attr:
+                    try:
+                        spokes_val = int(sp_attr)
+                    except ValueError:
+                        pass
+                thru_attr = _get_attr(child, "thruBlk")
+                if thru_attr in ("1", "true"):
+                    thru_blk = True
                 break
 
         speed = _get_attr(trans_elem, "spd", "fast") or "fast"
@@ -1883,6 +1927,10 @@ class PptxReader:
             speed=speed,
             click=adv_click,
             after=after,
+            dir=dir_val,
+            orient=orient_val,
+            spokes=spokes_val,
+            thruBlk=thru_blk,
         )
 
     def _extract_notes(self, slide_path: str, rel_map: dict[str, Any]) -> str:
@@ -2015,9 +2063,7 @@ class PptxReader:
 
                     cm_id = _get_attr(elem, "id", "") or f"cm_{len(slide.comments) + 1}"
                     author_id = _get_attr(elem, "authorId", "0") or "0"
-                    created = _get_attr(
-                        elem, "created", _get_attr(elem, "dt", "") or ""
-                    ) or ""
+                    created = _get_attr(elem, "created", _get_attr(elem, "dt", "") or "") or ""
                     idx = int(_get_attr(elem, "idx", "1") or "1")
                     status = _get_attr(elem, "status", "active") or "active"
 
@@ -2073,9 +2119,7 @@ class PptxReader:
                             rep_auth = _get_attr(rep, "authorId", author_id) or author_id
                             rep_created = _get_attr(rep, "created", created) or created
                             rep_text_parts: list[str] = [
-                                t.text
-                                for t in rep.iter()
-                                if _local_tag(t.tag) == "t" and t.text
+                                t.text for t in rep.iter() if _local_tag(t.tag) == "t" and t.text
                             ]
                             replies.append(
                                 CommentReply(
