@@ -6,7 +6,9 @@ import re
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QComboBox, QFileDialog, QMessageBox, QWidget
 
 from atboffice.core.action_registry import ActionRegistry
@@ -14,7 +16,12 @@ from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.core.search import SearchController, SpreadsheetSearchAdapter
 from atboffice.modules.spreadsheet.calc.references import cell_name
 from atboffice.modules.spreadsheet.models.filter_model import sort_sheet_range
-from atboffice.modules.spreadsheet.models.sheet_model import BorderStyle, CellData
+from atboffice.modules.spreadsheet.models.sheet_model import (
+    BorderStyle,
+    CellData,
+    SheetDataModel,
+    SheetGeometry,
+)
 from atboffice.modules.spreadsheet.view import SpreadsheetView
 from atboffice.modules.spreadsheet.views.object_layer import (
     AnchorType,
@@ -1055,9 +1062,201 @@ class LedgerWindow(BaseOfficeWindow):
 
     def print_workbook(self) -> None:
         """Print current workbook sheets."""
+        self.print_document()
 
-    def print_preview(self) -> None:
+    def print_preview(self, printer: QPrinter | None = None) -> bool:
         """Open print preview window."""
+        return super().print_preview(printer)
+
+    def render_to_printer(
+        self,
+        printer: QPrinter,
+        repeat_header_rows: int = 1,
+        show_gridlines: bool = True,
+    ) -> None:
+        """Render spreadsheet active sheet with pagination, repeating headers, and gridlines."""
+        sheet: SheetDataModel = self.spreadsheet_view.model
+        geom: SheetGeometry = sheet.geometry
+
+        # Find used bounds
+        if not sheet.cells:
+            min_r, max_r = 0, 9
+            min_c, max_c = 0, 4
+        else:
+            rows = [r for r, c in sheet.cells.keys()]
+            cols = [c for r, c in sheet.cells.keys()]
+            min_r = min(rows) if rows else 0
+            max_r = max(rows) if rows else 0
+            min_c = min(cols) if cols else 0
+            max_c = max(cols) if cols else 0
+
+        # Margins & page geometry in points
+        margin_left = 36.0  # 0.5 inch
+        margin_right = 36.0
+        margin_top = 45.0  # 0.625 inch
+        margin_bottom = 45.0
+        header_height = 20.0
+        footer_height = 20.0
+
+        dpi = printer.resolution()
+        scale = dpi / 72.0
+        page_rect = printer.pageRect(QPrinter.Unit.Point)
+        paper_w = page_rect.width()
+        paper_h = page_rect.height()
+        avail_w = paper_w - margin_left - margin_right
+        avail_h = paper_h - margin_top - margin_bottom - header_height - footer_height
+
+        # Calculate col spans [start_c, end_c]
+        col_spans: list[tuple[int, int]] = []
+        cur_w = 0.0
+        start_c = min_c
+        for c in range(min_c, max_c + 1):
+            cw = float(geom.col_size(c))
+            if cur_w > 0 and (cur_w + cw) > avail_w:
+                col_spans.append((start_c, c - 1))
+                start_c = c
+                cur_w = cw
+            else:
+                cur_w += cw
+        col_spans.append((start_c, max_c))
+
+        # Title rows height (repeating rows)
+        title_rows = min(repeat_header_rows, max_r - min_r + 1)
+        title_h = sum(float(geom.row_size(min_r + r)) for r in range(title_rows))
+
+        # Calculate row spans [start_r, end_r, has_title_at_top]
+        row_spans: list[tuple[int, int, bool]] = []
+        cur_h = 0.0
+        start_r = min_r
+        first_page = True
+        for r in range(min_r, max_r + 1):
+            rh = float(geom.row_size(r))
+            room = avail_h if first_page else (avail_h - title_h)
+            if cur_h > 0 and (cur_h + rh) > room:
+                row_spans.append((start_r, r - 1, not first_page and title_rows > 0))
+                start_r = r
+                cur_h = rh
+                first_page = False
+            else:
+                cur_h += rh
+        row_spans.append((start_r, max_r, not first_page and title_rows > 0))
+
+        # Build pages list (down then over)
+        pages: list[tuple[int, int, int, int, bool]] = []
+        for _cs_idx, (c1, c2) in enumerate(col_spans):
+            for _rs_idx, (r1, r2, has_repeat) in enumerate(row_spans):
+                pages.append((r1, r2, c1, c2, has_repeat))
+
+        total_pages = len(pages)
+        painter = QPainter(printer)
+        painter.scale(scale, scale)
+
+        for p_idx, (r1, r2, c1, c2, has_repeat) in enumerate(pages):
+            if p_idx > 0:
+                printer.newPage()
+
+            page_num = p_idx + 1
+
+            # 1. Header (Sheet name on left)
+            painter.setFont(QFont("Arial", 9))
+            painter.setPen(QPen(QColor(100, 100, 100)))
+            painter.drawText(
+                QRectF(margin_left, margin_top - header_height, avail_w / 2, header_height),
+                int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
+                sheet.name,
+            )
+
+            # 2. Grid contents
+            draw_y = margin_top
+
+            def _draw_rows(row_start: int, row_end: int, base_y: float) -> float:
+                y = base_y
+                for r in range(row_start, row_end + 1):
+                    rh = float(geom.row_size(r))
+                    x = margin_left
+                    for c in range(c1, c2 + 1):
+                        cw = float(geom.col_size(c))
+                        cell_rect = QRectF(x, y, cw, rh)
+
+                        cell = sheet.get_cell(r, c)
+                        if cell:
+                            if cell.bg_color:
+                                painter.fillRect(cell_rect, QColor(cell.bg_color))
+
+                            if cell.border_top and cell.border_top.style != "none":
+                                painter.setPen(
+                                    QPen(QColor(cell.border_top.color or "#000000"), 1.0)
+                                )
+                                painter.drawLine(QPointF(x, y), QPointF(x + cw, y))
+                            if cell.border_bottom and cell.border_bottom.style != "none":
+                                painter.setPen(
+                                    QPen(QColor(cell.border_bottom.color or "#000000"), 1.0)
+                                )
+                                painter.drawLine(QPointF(x, y + rh), QPointF(x + cw, y + rh))
+                            if cell.border_left and cell.border_left.style != "none":
+                                painter.setPen(
+                                    QPen(QColor(cell.border_left.color or "#000000"), 1.0)
+                                )
+                                painter.drawLine(QPointF(x, y), QPointF(x, y + rh))
+                            if cell.border_right and cell.border_right.style != "none":
+                                painter.setPen(
+                                    QPen(QColor(cell.border_right.color or "#000000"), 1.0)
+                                )
+                                painter.drawLine(QPointF(x + cw, y), QPointF(x + cw, y + rh))
+
+                            val_text = sheet.get_formatted_text(r, c)
+                            if val_text:
+                                f = QFont(cell.font_family or "Arial", cell.font_size or 10)
+                                f.setBold(cell.bold)
+                                f.setItalic(cell.italic)
+                                painter.setFont(f)
+                                painter.setPen(QPen(QColor(cell.fg_color or "#000000")))
+
+                                align_flag = Qt.AlignmentFlag.AlignVCenter
+                                if cell.align_h == "center":
+                                    align_flag |= Qt.AlignmentFlag.AlignHCenter
+                                elif cell.align_h == "right" or isinstance(
+                                    cell.value, (int, float)
+                                ):
+                                    align_flag |= Qt.AlignmentFlag.AlignRight
+                                else:
+                                    align_flag |= Qt.AlignmentFlag.AlignLeft
+
+                                text_padding_rect = QRectF(x + 3.0, y, cw - 6.0, rh)
+                                painter.drawText(text_padding_rect, int(align_flag), val_text)
+
+                        if show_gridlines:
+                            painter.setPen(QPen(QColor(215, 215, 215), 0.5))
+                            painter.drawRect(cell_rect)
+
+                        x += cw
+                    y += rh
+                return y
+
+            if has_repeat:
+                draw_y = _draw_rows(min_r, min_r + title_rows - 1, draw_y)
+
+            draw_y = _draw_rows(r1, r2, draw_y)
+
+            # 3. Footer (Page numbers at bottom center)
+            footer_rect = QRectF(
+                margin_left,
+                paper_h - margin_bottom,
+                avail_w,
+                footer_height,
+            )
+            painter.setFont(QFont("Arial", 9))
+            painter.setPen(QPen(QColor(100, 100, 100)))
+            footer_text = safe_tr("第 {page} 页，共 {total} 页").format(
+                page=page_num, total=total_pages
+            )
+            painter.drawText(
+                footer_rect,
+                int(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter),
+                footer_text,
+            )
+
+        painter.end()
 
     def check_spelling(self) -> None:
         """Perform spelling check on worksheet contents."""

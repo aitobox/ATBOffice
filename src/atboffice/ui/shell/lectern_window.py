@@ -5,13 +5,16 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QMessageBox, QWidget
 
 from atboffice.core.action_registry import ActionRegistry
 from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.view import PresentationView
+from atboffice.modules.presentation.views.slide_canvas import SlideScene
 from atboffice.ui.components.toolbar import OfficeToolBar
 from atboffice.ui.shell.base_window import BaseOfficeWindow
 from atboffice.ui.shell.lectern_toolbars import (
@@ -84,6 +87,8 @@ class LecternWindow(BaseOfficeWindow):
         self.action_registry.set_handler("new", self.new_file)
         self.action_registry.set_handler("open", self.open_file_dialog)
         self.action_registry.set_handler("save", self.save_file)
+        self.action_registry.set_handler("print", self.print_document)
+        self.action_registry.set_handler("printPreview", self.print_preview)
         self.action_registry.set_handler("cut", self.cut)
         self.action_registry.set_handler("copy", self.copy)
         self.action_registry.set_handler("paste", self.paste)
@@ -593,8 +598,7 @@ class LecternWindow(BaseOfficeWindow):
 
     def add_new_slide(self) -> None:
         """Create and append a blank slide to the active presentation."""
-        new_slide = Slide()
-        self.presentation_view.presentation.add_slide(new_slide)
+        new_slide = self.presentation_view.presentation.add_slide()
         self.presentation_view.load_slide(new_slide)
         self.set_modified(True)
 
@@ -625,6 +629,151 @@ class LecternWindow(BaseOfficeWindow):
         if hasattr(self, "act_view_master") and self.act_view_master:
             self.act_view_master.setChecked(mode == "master")
         self.update_context_toolbars({"view_mode": mode})
+
+    def render_to_printer(
+        self,
+        printer: QPrinter,
+        mode: str = "slides",
+        grayscale: bool = False,
+    ) -> None:
+        """Render presentation slides in vector fidelity (slide mode or 3-slide handout mode)."""
+        pres = self.presentation_view.presentation
+        slides = pres.slides
+        if not slides:
+            return
+
+        dpi = printer.resolution()
+        scale = dpi / 72.0
+        page_rect = printer.pageRect(QPrinter.Unit.Point)
+        paper_w = page_rect.width()
+        paper_h = page_rect.height()
+
+        painter = QPainter(printer)
+        painter.scale(scale, scale)
+
+        if mode == "handouts":
+            # 3 slides per page with note lines on the right
+            slides_per_page = 3
+            margin_left = 36.0
+            margin_right = 36.0
+            margin_top = 40.0
+            margin_bottom = 40.0
+            gap_y = 24.0
+
+            avail_w = paper_w - margin_left - margin_right
+            avail_h = paper_h - margin_top - margin_bottom
+
+            thumb_h = (avail_h - (slides_per_page - 1) * gap_y) / slides_per_page
+            thumb_w = thumb_h * (16.0 / 9.0)
+            notes_x = margin_left + thumb_w + 24.0
+            notes_w = paper_w - margin_right - notes_x
+
+            total_pages = (len(slides) + slides_per_page - 1) // slides_per_page
+
+            for p_idx in range(total_pages):
+                if p_idx > 0:
+                    printer.newPage()
+
+                # Header
+                painter.setFont(QFont("Arial", 9))
+                painter.setPen(QPen(QColor(120, 120, 120)))
+                doc_title = (
+                    self.current_file_path.stem
+                    if self.current_file_path
+                    else self.default_doc_name
+                )
+                painter.drawText(
+                    QRectF(margin_left, 18.0, avail_w, 20.0),
+                    int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
+                    safe_tr("演示文稿讲义 — {title}").format(title=doc_title),
+                )
+
+                # Render up to 3 slides on this page
+                start_s = p_idx * slides_per_page
+                page_slides = slides[start_s : start_s + slides_per_page]
+
+                for s_sub_idx, slide in enumerate(page_slides):
+                    slide_idx = start_s + s_sub_idx
+                    y = margin_top + s_sub_idx * (thumb_h + gap_y)
+                    thumb_rect = QRectF(margin_left, y, thumb_w, thumb_h)
+
+                    # 1. Fill slide background & border
+                    painter.fillRect(thumb_rect, QColor("#FFFFFF"))
+                    painter.setPen(QPen(QColor(180, 180, 180), 0.75))
+                    painter.drawRect(thumb_rect)
+
+                    # 2. Render slide vector scene
+                    scene = SlideScene(slide=slide, slide_width=960.0, slide_height=540.0)
+                    scene.render(painter, thumb_rect, QRectF(0, 0, 960.0, 540.0))
+
+                    # 3. Slide index caption
+                    painter.setFont(QFont("Arial", 8))
+                    painter.setPen(QPen(QColor(120, 120, 120)))
+                    painter.drawText(
+                        QRectF(margin_left, y + thumb_h + 2.0, thumb_w, 14.0),
+                        int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
+                        safe_tr("幻灯片 {num}").format(num=slide_idx + 1),
+                    )
+
+                    # 4. Note lines on the right (3 horizontal ruled lines)
+                    line_gap = thumb_h / 4.0
+                    painter.setPen(QPen(QColor(200, 200, 200), 0.75, Qt.PenStyle.SolidLine))
+                    for line_i in range(1, 4):
+                        ly = y + line_i * line_gap
+                        painter.drawLine(QPointF(notes_x, ly), QPointF(notes_x + notes_w, ly))
+
+                # Footer: Page number
+                painter.setFont(QFont("Arial", 9))
+                painter.setPen(QPen(QColor(120, 120, 120)))
+                footer_rect = QRectF(margin_left, paper_h - 28.0, avail_w, 20.0)
+                painter.drawText(
+                    footer_rect,
+                    int(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter),
+                    safe_tr("第 {page} 页，共 {total} 页").format(
+                        page=p_idx + 1, total=total_pages
+                    ),
+                )
+
+        else:
+            # Standard Slides Mode: 1 slide per page
+            total_slides = len(slides)
+            margin = 36.0
+            avail_w = paper_w - margin * 2.0
+            avail_h = paper_h - margin * 2.0 - 24.0
+
+            scale_fit = min(avail_w / 960.0, avail_h / 540.0)
+            target_w = 960.0 * scale_fit
+            target_h = 540.0 * scale_fit
+            target_x = margin + (avail_w - target_w) / 2.0
+            target_y = margin + (avail_h - target_h) / 2.0
+            target_rect = QRectF(target_x, target_y, target_w, target_h)
+
+            for s_idx, slide in enumerate(slides):
+                if s_idx > 0:
+                    printer.newPage()
+
+                # Slide background and border
+                painter.fillRect(target_rect, QColor("#FFFFFF"))
+                painter.setPen(QPen(QColor(160, 160, 160), 0.75))
+                painter.drawRect(target_rect)
+
+                # Render vector slide scene
+                scene = SlideScene(slide=slide, slide_width=960.0, slide_height=540.0)
+                scene.render(painter, target_rect, QRectF(0, 0, 960.0, 540.0))
+
+                # Footer caption: Slide X of Y
+                caption_rect = QRectF(margin, paper_h - 32.0, avail_w, 20.0)
+                painter.setFont(QFont("Arial", 9))
+                painter.setPen(QPen(QColor(120, 120, 120)))
+                painter.drawText(
+                    caption_rect,
+                    int(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter),
+                    safe_tr("幻灯片 {num} / {total}").format(
+                        num=s_idx + 1, total=total_slides
+                    ),
+                )
+
+        painter.end()
 
     def show_about(self) -> None:
         """Show about dialog for ATBOffice Lectern."""

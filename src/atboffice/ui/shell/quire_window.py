@@ -6,11 +6,14 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QPainter
+from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QComboBox, QMessageBox, QToolButton, QWidget
 
 from atboffice.core.action_registry import ActionRegistry
 from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.core.search import SearchController, WriterSearchAdapter
+from atboffice.modules.writer.layout.pagination import paginate_document
 from atboffice.modules.writer.models.document import ilen
 from atboffice.modules.writer.models.revision import is_tracking
 from atboffice.modules.writer.view import WriterView
@@ -97,6 +100,8 @@ class QuireWindow(BaseOfficeWindow):
         self.action_registry.set_handler("new", self.new_file)
         self.action_registry.set_handler("open", self.open_file_dialog)
         self.action_registry.set_handler("save", self.save_file)
+        self.action_registry.set_handler("print", self.print_document)
+        self.action_registry.set_handler("printPreview", self.print_preview)
         self.action_registry.set_handler("cut", self.cut)
         self.action_registry.set_handler("copy", self.copy)
         self.action_registry.set_handler("paste", self.paste)
@@ -591,6 +596,27 @@ class QuireWindow(BaseOfficeWindow):
     def zoom_reset(self) -> None:
         """Reset document zoom level to 100%."""
         self.writer_view.canvas_view.set_zoom(1.0)
+
+    def render_to_printer(self, printer: QPrinter) -> None:
+        """Render paginated Quire document in full vector fidelity onto target printer."""
+        canvas = self.writer_view.canvas_view
+        if not canvas.pagination or not canvas.pagination.pages:
+            canvas.pagination = paginate_document(canvas.doc)
+
+        pages = canvas.pagination.pages
+        if not pages:
+            return
+
+        painter = QPainter(printer)
+        scale = printer.resolution() / 72.0
+        painter.scale(scale, scale)
+
+        for p_idx, page in enumerate(pages):
+            if p_idx > 0:
+                printer.newPage()
+            canvas.render_page_to_painter(painter, page)
+
+        painter.end()
 
     def show_about(self) -> None:
         """Show about dialog for ATBOffice Quire."""
