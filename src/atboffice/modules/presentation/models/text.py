@@ -279,6 +279,11 @@ class TextBody:
         tb.set_plain_text(text)
         return tb
 
+    @classmethod
+    def from_text(cls, text: str, anchor: str = "t", wrap: bool = True) -> TextBody:
+        """Alias for from_plain_text."""
+        return cls.from_plain_text(text, anchor=anchor, wrap=wrap)
+
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
             "anchor": self.anchor,

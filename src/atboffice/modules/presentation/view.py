@@ -25,7 +25,7 @@ class PresentationView(QWidget):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self.presentation = presentation or Presentation()
+        self.presentation = presentation or Presentation.create_new()
         self.current_slide_index = 0
 
         layout = QVBoxLayout(self)

@@ -336,6 +336,15 @@ class LecternToolBarCluster:
         # Register aliases for standard action IDs
         self._reg_act("new_slide", "新幻灯片(&M)", "插入新幻灯片 (Ctrl+M)", "Ctrl+M")
         self._reg_act("start_slideshow", "放映幻灯片(&S)", "从首页开始放映 (F5)", "F5")
+        self._reg_act(
+            "start_slideshow_current",
+            "从当前开始放映(&C)",
+            "从当前幻灯片开始放映 (Shift+F5)",
+            "Shift+F5",
+        )
+        self._reg_act("viewNormal", "普通视图(&N)", "切换为普通视图")
+        self._reg_act("viewSorter", "幻灯片浏览(&D)", "切换为幻灯片浏览视图")
+        self._reg_act("viewMaster", "幻灯片母版(&M)", "切换为幻灯片母版视图")
 
         return tb
 
@@ -401,18 +410,24 @@ class LecternToolBarCluster:
     def _build_diagram_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("关系图"), self.window)
 
-        self._add_split(
-            tb,
+        add_menu = QMenu(tb)
+        act_add_after = self._reg_act("diagramAddAfter", "在后面添加形状(&A)", "在所选元素后添加形状")
+        act_add_before = self._reg_act("diagramAddBefore", "在前面添加形状(&B)", "在所选元素前添加形状")
+        act_add_above = self._reg_act("diagramAddAbove", "在上方添加形状(&O)", "在所选元素上方添加形状")
+        act_add_below = self._reg_act("diagramAddBelow", "在下方添加形状(&E)", "在所选元素下方添加形状")
+        add_menu.addAction(act_add_after)
+        add_menu.addAction(act_add_before)
+        add_menu.addAction(act_add_above)
+        add_menu.addAction(act_add_below)
+
+        act_main = self._reg_act(
             "diagramAddShape",
             "添加形状(&A)",
             "在所选关系图元素周围添加新形状",
-            [
-                "在后面添加形状(&A)",
-                "在前面添加形状(&B)",
-                "在上方添加形状(&O)",
-                "在下方添加形状(&E)",
-            ],
+            is_split=True,
         )
+        tb.add_split_action(act_main, add_menu)
+
         self._add(tb, "diagramPromote", "升级(&P)", "提升所选图示元素层级")
         self._add(tb, "diagramDemote", "降级(&D)", "降低所选图示元素层级")
         self._add(tb, "diagramMoveUp", "上移(&U)", "在同层级中向前移动")
@@ -574,24 +589,56 @@ class LecternToolBarCluster:
     def _build_drawing_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("绘图"), self.window)
 
-        self._add_drop(
-            tb,
-            "绘图(&R)",
-            [
-                "置于顶层(&F)",
-                "置于底层(&B)",
-                "上移一层(&U)",
-                "下移一层(&D)",
-                "-",
-                "组合(&G)",
-                "取消组合(&U)",
-                "重新组合(&R)",
-                "-",
-                "微移(&N)",
-                "对齐或分布(&A)",
-                "旋转或翻转(&T)",
-            ],
+        draw_menu = QMenu(tb)
+        act_front = self._reg_act("bringFront", "置于顶层(&F)", "将选定对象置于顶层")
+        act_back = self._reg_act("sendBack", "置于底层(&B)", "将选定对象置于底层")
+        act_forward = self._reg_act("bringForward", "上移一层(&U)", "将选定对象向前移动一层")
+        act_backward = self._reg_act("sendBackward", "下移一层(&D)", "将选定对象向后移动一层")
+        draw_menu.addAction(act_front)
+        draw_menu.addAction(act_back)
+        draw_menu.addAction(act_forward)
+        draw_menu.addAction(act_backward)
+        draw_menu.addSeparator()
+
+        act_grp = self._reg_act(
+            "group",
+            "组合(&G)",
+            "将多个选定对象组合为一个整体 (Ctrl+G)",
+            "Ctrl+G",
         )
+        act_ungrp = self._reg_act(
+            "ungroup",
+            "取消组合(&U)",
+            "解散选定组合对象 (Ctrl+Shift+G)",
+            "Ctrl+Shift+G",
+        )
+        act_regrp = self._reg_act("regroup", "重新组合(&R)", "重新组合最近解散的对象")
+        draw_menu.addAction(act_grp)
+        draw_menu.addAction(act_ungrp)
+        draw_menu.addAction(act_regrp)
+        draw_menu.addSeparator()
+
+        align_sub = draw_menu.addMenu(safe_tr("对齐或分布(&A)"))
+        act_al = self._reg_act("alignLeft", "左对齐(&L)", "将选定对象靠左对齐")
+        act_ac = self._reg_act("alignCenter", "水平居中(&C)", "将选定对象水平居中")
+        act_ar = self._reg_act("alignRight", "右对齐(&R)", "将选定对象靠右对齐")
+        align_sub.addAction(act_al)
+        align_sub.addAction(act_ac)
+        align_sub.addAction(act_ar)
+        align_sub.addSeparator()
+        act_at = self._reg_act("alignTop", "顶端对齐(&T)", "将选定对象顶端对齐")
+        act_am = self._reg_act("alignMiddle", "垂直居中(&M)", "将选定对象垂直居中")
+        act_ab = self._reg_act("alignBottom", "底端对齐(&B)", "将选定对象底端对齐")
+        align_sub.addAction(act_at)
+        align_sub.addAction(act_am)
+        align_sub.addAction(act_ab)
+        align_sub.addSeparator()
+        act_dh = self._reg_act("distributeH", "横向分布(&H)", "将选定对象水平等间距分布")
+        act_dv = self._reg_act("distributeV", "纵向分布(&V)", "将选定对象垂直等间距分布")
+        align_sub.addAction(act_dh)
+        align_sub.addAction(act_dv)
+
+        tb.add_drop_button(safe_tr("绘图(&R)"), None, draw_menu)
         self._add(tb, "selectObjects", "选择对象(&S)", "框选画布中的图形对象", checkable=True)
 
         tb.add_office_separator()
@@ -602,11 +649,11 @@ class LecternToolBarCluster:
             ["线条", "连接符", "基本形状", "箭头总汇", "流程图", "星与旗帜", "标注"],
         )
 
-        self._add(tb, "drawLine", "线条(&L)", "自由绘制直线段")
-        self._add(tb, "drawArrow", "箭头(&A)", "绘制单向箭头线")
-        self._add(tb, "drawRect", "矩形(&R)", "绘制矩形几何图形")
-        self._add(tb, "drawOval", "椭圆(&O)", "绘制椭圆或正圆形")
-        self._add(tb, "textBox", "文本框(&T)", "在幻灯片中绘制横向文本框")
+        self._add(tb, "drawLine", "线条(&L)", "自由绘制直线段", checkable=True)
+        self._add(tb, "drawArrow", "箭头(&A)", "绘制单向箭头线", checkable=True)
+        self._add(tb, "drawRect", "矩形(&R)", "绘制矩形几何图形", checkable=True)
+        self._add(tb, "drawOval", "椭圆(&O)", "绘制椭圆或正圆形", checkable=True)
+        self._add(tb, "textBox", "文本框(&T)", "在幻灯片中绘制横向文本框", checkable=True)
         self._add(tb, "draw_insertWordArt", "插入艺术字(&W)...", "插入艺术字")
         self._add(tb, "draw_insertDiagram", "插入图示(&D)...", "插入组织结构图或循环图")
         self._add(tb, "insertClipArt", "剪贴画(&C)...", "从剪贴画库中插入素材")

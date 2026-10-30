@@ -23,8 +23,9 @@ from PySide6.QtWidgets import (
 )
 
 from atboffice.modules.presentation.models.comment import Comment
-from atboffice.modules.presentation.models.shape import Shape
+from atboffice.modules.presentation.models.shape import Fill, Line, Shape
 from atboffice.modules.presentation.models.slide import Slide
+from atboffice.modules.presentation.models.text import TextBody
 from atboffice.modules.presentation.views.comment_overlay import (
     CommentCardWidget,
     CommentMarkerItem,
@@ -49,6 +50,8 @@ class SlideScene(QGraphicsScene):
 
     selectionChangedCustom = Signal()
     commentClicked = Signal(object)
+    shapeCreated = Signal(object)
+    toolChanged = Signal(object)
 
     def __init__(
         self,
@@ -63,6 +66,10 @@ class SlideScene(QGraphicsScene):
         self.slide_height = float(slide_height)
         self.presentation = presentation
         self.slide: Slide = slide or Slide(id=f"sl_{uuid.uuid4().hex[:8]}")
+
+        self.current_tool: dict[str, Any] | None = None
+        self._is_drawing_shape: bool = False
+        self._draw_start_pos: QPointF | None = None
 
         self.guide_controller = SmartGuideController(snap_threshold=6.0)
         self._items_by_id: dict[str, ShapeGraphicsItem] = {}
@@ -187,9 +194,129 @@ class SlideScene(QGraphicsScene):
         painter.drawRect(slide_rect)
 
     # ------------------------------------------------------------------
+    # Drawing Tool & Shape Creation
+    # ------------------------------------------------------------------
+    def set_drawing_tool(self, tool: dict[str, Any] | None) -> None:
+        """Activate or cancel drawing tool mode."""
+        self.current_tool = tool
+        self._is_drawing_shape = False
+        self._draw_start_pos = None
+        for v in self.views():
+            if hasattr(v, "update_tool_cursor"):
+                v.update_tool_cursor()
+        self.toolChanged.emit(tool)
+
+    def _create_shape_from_tool(self, tool: dict[str, Any], p0: QPointF, p1: QPointF) -> Shape:
+        x0, y0 = p0.x(), p0.y()
+        x1, y1 = p1.x(), p1.y()
+        x = min(x0, x1)
+        y = min(y0, y1)
+        w = abs(x1 - x0)
+        h = abs(y1 - y0)
+        kind = tool.get("kind", "shape")
+        geom = tool.get("geom", "rect")
+
+        shape_id = f"sh_{uuid.uuid4().hex[:8]}"
+
+        if kind == "text":
+            w = max(w, 100.0)
+            h = max(h, 28.8)
+            new_sh = Shape(
+                id=shape_id,
+                type="text",
+                geom="rect",
+                name="TextBox",
+                x=round(x, 2),
+                y=round(y, 2),
+                w=round(w, 2),
+                h=round(h, 2),
+                fill=Fill.none(),
+                line=Line.none(),
+                text=TextBody.from_text(safe_tr("单击此处添加文本")),
+            )
+        elif kind == "line":
+            if geom == "rightArrow" or tool.get("arrows") == "end":
+                w = max(w, 60.0)
+                h = max(h, 24.0)
+                new_sh = Shape(
+                    id=shape_id,
+                    type="shape",
+                    geom="rightArrow",
+                    name="Arrow",
+                    x=round(x, 2),
+                    y=round(y, 2),
+                    w=round(w, 2),
+                    h=round(h, 2),
+                    fill=Fill.solid("#4B9CD3"),
+                    line=Line(color="#2E6B9E", width=1.0),
+                )
+            else:
+                w = max(w, 60.0)
+                h = max(h, 2.0)
+                new_sh = Shape(
+                    id=shape_id,
+                    type="line",
+                    geom="line",
+                    name="Line",
+                    x=round(x, 2),
+                    y=round(y, 2),
+                    w=round(w, 2),
+                    h=round(h, 2),
+                    fill=Fill.none(),
+                    line=Line(color="#000000", width=1.5),
+                )
+        elif geom in ("ellipse", "oval"):
+            w = max(w, 60.0)
+            h = max(h, 60.0)
+            new_sh = Shape(
+                id=shape_id,
+                type="shape",
+                geom="ellipse",
+                name="Oval",
+                x=round(x, 2),
+                y=round(y, 2),
+                w=round(w, 2),
+                h=round(h, 2),
+                fill=Fill.solid("#5B9BD5"),
+                line=Line(color="#41719C", width=1.0),
+            )
+        else:
+            w = max(w, 60.0)
+            h = max(h, 60.0)
+            new_sh = Shape(
+                id=shape_id,
+                type="shape",
+                geom=geom,
+                name="Rectangle",
+                x=round(x, 2),
+                y=round(y, 2),
+                w=round(w, 2),
+                h=round(h, 2),
+                fill=Fill.solid("#5B9BD5"),
+                line=Line(color="#41719C", width=1.0),
+            )
+
+        self.slide.shapes.append(new_sh)
+        item = ShapeGraphicsItem(new_sh)
+        item.setZValue(float(len(self.slide.shapes) - 1))
+        self.addItem(item)
+        self._items_by_id[new_sh.id] = item
+        item.setSelected(True)
+        self.shapeCreated.emit(new_sh)
+        self.update()
+        return new_sh
+
+    # ------------------------------------------------------------------
     # Mouse events & Smart Guide magnetic snapping
     # ------------------------------------------------------------------
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> None:
+        if self.current_tool and event.button() == Qt.MouseButton.LeftButton:
+            self.clearSelection()
+            self._is_drawing_shape = True
+            self._draw_start_pos = event.scenePos()
+            event.accept()
+            return
+
         item = self.itemAt(event.scenePos(), self.views()[0].transform() if self.views() else None)
         # Commit any active text editor if clicked outside
         for it in list(self._items_by_id.values()):
@@ -202,6 +329,10 @@ class SlideScene(QGraphicsScene):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent) -> None:
+        if self._is_drawing_shape:
+            event.accept()
+            return
+
         super().mouseMoveEvent(event)
 
         is_dragging = (
@@ -241,6 +372,22 @@ class SlideScene(QGraphicsScene):
             self.guide_controller.render_guides(self)
 
     def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent) -> None:
+        if (
+            self._is_drawing_shape
+            and self._draw_start_pos
+            and event.button() == Qt.MouseButton.LeftButton
+        ):
+            self._is_drawing_shape = False
+            p0 = self._draw_start_pos
+            p1 = event.scenePos()
+            self._draw_start_pos = None
+
+            tool = self.current_tool or {}
+            self._create_shape_from_tool(tool, p0, p1)
+            self.set_drawing_tool(None)
+            event.accept()
+            return
+
         super().mouseReleaseEvent(event)
         self._is_dragging_item = False
         self._dragged_item = None
@@ -467,6 +614,19 @@ class SlideCanvasView(QGraphicsView):
         )
         self.retranslate_ui()
 
+    def update_tool_cursor(self) -> None:
+        """Update viewport cursor according to active scene drawing tool."""
+        if self._scene and getattr(self._scene, "current_tool", None):
+            self.viewport().setCursor(Qt.CursorShape.CrossCursor)
+        else:
+            self.viewport().setCursor(Qt.CursorShape.ArrowCursor)
+
+    def set_drawing_tool(self, tool: dict[str, Any] | None) -> None:
+        """Forward drawing tool selection to scene and update viewport cursor."""
+        if self._scene:
+            self._scene.set_drawing_tool(tool)
+        self.update_tool_cursor()
+
     def set_zoom(self, zoom: float) -> None:
         """Set zoom scale (clamped between 0.1 and 4.0)."""
         clamped = max(0.1, min(zoom, 4.0))
@@ -589,6 +749,11 @@ class SlideCanvasView(QGraphicsView):
     # Keyboard & Wheel events
     # ------------------------------------------------------------------
     def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() == Qt.Key.Key_Escape:
+            if self._scene and getattr(self._scene, "current_tool", None):
+                self._scene.set_drawing_tool(None)
+                event.accept()
+                return
         ctrl_held = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
         if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
             self._scene.delete_selected()
