@@ -52,6 +52,7 @@ class ActionRegistry(QObject):
         super().__init__(parent)
         self._actions: dict[str, QAction] = {}
         self._specs: dict[str, ActionSpec] = {}
+        self._handlers: dict[str, Callable[[], Any]] = {}
 
     def register_action(
         self,
@@ -59,6 +60,9 @@ class ActionRegistry(QObject):
         parent: QWidget | None = None,
     ) -> QAction:
         """Register an action spec and return a shared QAction instance."""
+        if spec.id in self._handlers and spec.handler is None:
+            spec.handler = self._handlers[spec.id]
+
         if spec.id in self._actions:
             action = self._actions[spec.id]
             self._specs[spec.id] = spec
@@ -148,6 +152,7 @@ class ActionRegistry(QObject):
 
     def set_handler(self, action_id: str, handler: Callable[[], Any]) -> None:
         """Dynamically attach or replace the callback handler for an action."""
+        self._handlers[action_id] = handler
         spec = self._specs.get(action_id)
         if spec is not None:
             spec.handler = handler
