@@ -7,7 +7,6 @@ from unittest.mock import patch
 
 import pytest
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication
 
 from atboffice.core.i18n import get_i18n_manager, load_locale
 from atboffice.core.settings import DEFAULT_SETTINGS, AppSettings, get_app_settings
@@ -18,8 +17,6 @@ from atboffice.ui.shell.base_window import BaseOfficeWindow
 from atboffice.ui.shell.mac_menu import MacMenuBar
 from atboffice.ui.shell.start_center import StartCenterWindow
 from atboffice.ui.styles.luna_2003 import (
-    THEMES,
-    apply_luna_theme,
     apply_theme_globally,
     get_luna_stylesheet,
 )

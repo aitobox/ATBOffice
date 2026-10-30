@@ -354,6 +354,7 @@ THEMES: list[tuple[str, str, str]] = [
 def apply_theme_globally(theme: str) -> None:
     """Apply theme globally across QApplication, active windows, and save setting."""
     from PySide6.QtWidgets import QApplication
+
     from atboffice.core.settings import get_app_settings
 
     theme_key = theme.lower().strip()
