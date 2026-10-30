@@ -50,7 +50,6 @@ class QuireWindow(BaseOfficeWindow):
 
         # 2. Action Registry command bus
         self.action_registry = ActionRegistry(self)
-        self._bind_action_handlers()
 
         # Search Controller & Adapter
         self.search_controller = SearchController(self)
@@ -67,6 +66,7 @@ class QuireWindow(BaseOfficeWindow):
 
         # 4. Setup Office 2003 Luna toolbars
         self._setup_toolbars()
+        self._bind_action_handlers()
 
         # 5. Connect document modifications and caret/selection to listeners
         self.writer_view.canvas_view.controller.document_modified.connect(
@@ -223,16 +223,6 @@ class QuireWindow(BaseOfficeWindow):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.touch(exist_ok=True)
         return True
-
-    def save_file(self, file_path: str | Path | None = None) -> bool:
-        """Save active document, defaulting to temp location if running in test environment."""
-        import os
-        import tempfile
-
-        if file_path is None and self.current_file_path is None and os.environ.get("PYTEST_CURRENT_TEST"):
-            temp_path = Path(tempfile.gettempdir()) / "test_doc.quire"
-            return super().save_file(temp_path)
-        return super().save_file(file_path)
 
     def _setup_toolbars(self) -> None:
         """Initialize Word 2003 Luna 10 toolbars cluster."""
