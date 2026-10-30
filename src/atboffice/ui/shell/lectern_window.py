@@ -232,7 +232,7 @@ class LecternWindow(BaseOfficeWindow):
     def _on_ungroup_shapes(self) -> None:
         ws = self.presentation_view.workspace
         if hasattr(ws, "scene") and ws.scene is not None:
-            unpacked = ws.scene.ungroup_selected()
+            ws.scene.ungroup_selected()
             self.set_modified(True)
 
     def _align_shapes(self, mode: str) -> None:

@@ -411,10 +411,18 @@ class LecternToolBarCluster:
         tb = OfficeToolBar(safe_tr("关系图"), self.window)
 
         add_menu = QMenu(tb)
-        act_add_after = self._reg_act("diagramAddAfter", "在后面添加形状(&A)", "在所选元素后添加形状")
-        act_add_before = self._reg_act("diagramAddBefore", "在前面添加形状(&B)", "在所选元素前添加形状")
-        act_add_above = self._reg_act("diagramAddAbove", "在上方添加形状(&O)", "在所选元素上方添加形状")
-        act_add_below = self._reg_act("diagramAddBelow", "在下方添加形状(&E)", "在所选元素下方添加形状")
+        act_add_after = self._reg_act(
+            "diagramAddAfter", "在后面添加形状(&A)", "在所选元素后添加形状"
+        )
+        act_add_before = self._reg_act(
+            "diagramAddBefore", "在前面添加形状(&B)", "在所选元素前添加形状"
+        )
+        act_add_above = self._reg_act(
+            "diagramAddAbove", "在上方添加形状(&O)", "在所选元素上方添加形状"
+        )
+        act_add_below = self._reg_act(
+            "diagramAddBelow", "在下方添加形状(&E)", "在所选元素下方添加形状"
+        )
         add_menu.addAction(act_add_after)
         add_menu.addAction(act_add_before)
         add_menu.addAction(act_add_above)
