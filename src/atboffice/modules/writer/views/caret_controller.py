@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from PySide6.QtCore import QObject, QPointF, Qt, QTimer, Signal
 from PySide6.QtGui import QKeyEvent
 
+from atboffice.modules.writer.autocorrect import AutoCorrectEngine
 from atboffice.modules.writer.layout.pagination import (
     ColumnFrame,
     PageFragment,
@@ -30,6 +31,10 @@ from atboffice.modules.writer.models.document import (
     plen,
     ptext,
     reindex,
+)
+from atboffice.modules.writer.models.properties import (
+    NumberingRef,
+    ParagraphProperties,
 )
 
 
@@ -222,6 +227,7 @@ class CaretController(QObject):
         # Visual state
         self.caret_visible: bool = True
         self.preferred_x: float | None = None
+        self.autocorrect: AutoCorrectEngine = AutoCorrectEngine()
 
         # Blinking timer (500 ms)
         self._blink_timer = QTimer(self)
@@ -710,6 +716,30 @@ class CaretController(QObject):
     # Editing Operations
     # -----------------------------------------------------------------------
 
+    def get_selected_text(self) -> str:
+        """Return the plain text contained within the current selection."""
+        if self.selection.is_collapsed:
+            return ""
+        start, end = self.selection.ordered_range(self.doc)
+        p_start = self._paragraph_by_id(start.para_id)
+        p_end = self._paragraph_by_id(end.para_id)
+        if not p_start or not p_end:
+            return ""
+        if start.para_id == end.para_id:
+            return ptext(p_start)[start.offset : end.offset]
+        from atboffice.modules.writer.models.document import paras_between
+        paras = paras_between(self.doc, p_start, p_end)
+        parts = []
+        for i, p in enumerate(paras):
+            pt = ptext(p)
+            if i == 0:
+                parts.append(pt[start.offset :])
+            elif i == len(paras) - 1:
+                parts.append(pt[: end.offset])
+            else:
+                parts.append(pt)
+        return "\n".join(parts)
+
     def delete_selection(self) -> bool:
         """Delete active selection range if non-collapsed."""
         if self.selection.is_collapsed:
@@ -767,9 +797,31 @@ class CaretController(QObject):
             p = first_p
             self.pos = DocPos(p.id, 0)
 
+        # Apply Smart Quotes for single character quote insertions
+        if len(text) == 1 and text in ('"', "'"):
+            prev_ch = ""
+            if self.pos.offset > 0:
+                full_t = ptext(p)
+                if self.pos.offset - 1 < len(full_t):
+                    prev_ch = full_t[self.pos.offset - 1]
+            text = self.autocorrect.smart_char(text, prev_ch)
+
         insert_text_in_paragraph(p, self.pos.offset, text)
         self.pos = DocPos(p.id, self.pos.offset + len(text))
         self.selection = Selection(self.pos, self.pos)
+
+        # Apply AutoCorrect as-you-type substitutions (symbols, typos, fractions, dashes)
+        full_text = ptext(p)
+        text_before = full_text[: self.pos.offset]
+        match = self.autocorrect.process_typing(text_before, text)
+        if match is not None:
+            rep_start, rep_end, replacement = match
+            delete_range_in_paragraph(p, rep_start, rep_end)
+            insert_text_in_paragraph(p, rep_start, replacement)
+            new_offset = rep_start + len(replacement)
+            self.pos = DocPos(p.id, new_offset)
+            self.selection = Selection(self.pos, self.pos)
+
         self.preferred_x = None
         self.repaginate_and_refresh()
 
@@ -855,6 +907,18 @@ class CaretController(QObject):
         p = self._paragraph_by_id(self.pos.para_id)
         if not p:
             return
+
+        # Check for AutoFormat lists on Enter (e.g. "1. Hello" or "* Hello")
+        para_raw = ptext(p)
+        list_match = self.autocorrect.process_enter(para_raw)
+        if list_match is not None:
+            kind, stripped_text = list_match
+            if p.p_pr is None:
+                p.p_pr = ParagraphProperties()
+            num_target = "1" if kind == "bullet" else "2"
+            p.p_pr.num = NumberingRef(id=num_target, lvl=0)
+            p.runs = [TextItem(stripped_text, copy.deepcopy(p.r_pr))] if stripped_text else []
+            self.pos = DocPos(p.id, len(stripped_text))
 
         p2 = split_paragraph(p, self.pos.offset)
 

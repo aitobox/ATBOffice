@@ -29,6 +29,16 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "locale/language": "zh-CN",
     # Theme
     "theme/active_theme": "blue",  # "blue", "silver", "olive", "classic"
+    # Proofing & AutoCorrect
+    "spelling/check_as_you_type": True,
+    "spelling/check_grammar_as_you_type": True,
+    "spelling/ignore_uppercase": True,
+    "spelling/ignore_numbers": True,
+    "autocorrect/smart_quotes": True,
+    "autocorrect/replace_text_as_you_type": True,
+    "autocorrect/dashes": True,
+    "autocorrect/fractions": True,
+    "autocorrect/auto_lists": True,
 }
 
 

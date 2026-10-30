@@ -18,16 +18,21 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QColor,
+    QContextMenuEvent,
     QFont,
+    QFontMetricsF,
+    QGuiApplication,
     QKeyEvent,
     QMouseEvent,
     QPainter,
+    QPainterPath,
     QPaintEvent,
     QPen,
     QResizeEvent,
 )
 from PySide6.QtWidgets import (
     QAbstractScrollArea,
+    QMenu,
     QWidget,
 )
 
@@ -81,10 +86,13 @@ from atboffice.modules.writer.models.table import (
     split_cells,
     table_map,
 )
+from atboffice.modules.writer.spell import SpellEngine
 from atboffice.modules.writer.views.caret_controller import (
     CaretController,
     DocPos,
     Selection,
+    delete_range_in_paragraph,
+    insert_text_in_paragraph,
 )
 
 
@@ -123,6 +131,7 @@ class WriterCanvasView(QAbstractScrollArea):
 
         self.pagination: PaginationResult = paginate_document(self.doc)
         self.controller = CaretController(self.doc, self.pagination, self)
+        self.spell_engine: SpellEngine = SpellEngine.get_instance()
 
         # Zoom settings: 50% to 400%
         self._zoom: float = 1.0
@@ -454,6 +463,34 @@ class WriterCanvasView(QAbstractScrollArea):
         )
         painter.fillRect(primary_shadow, COLOR_SHADOW_DARK)
 
+    def _draw_wavy_line(
+        self,
+        painter: QPainter,
+        x1: float,
+        x2: float,
+        y: float,
+        color: QColor = QColor(255, 0, 0),
+    ) -> None:
+        """Draw classic Word 2003 red wavy underline beneath misspelled text."""
+        if x2 <= x1:
+            return
+        path = QPainterPath()
+        path.moveTo(x1, y)
+        step = 2.0
+        curr_x = x1
+        up = True
+        while curr_x < x2:
+            next_x = min(curr_x + step, x2)
+            target_y = y - 1.2 if up else y + 1.2
+            path.lineTo(next_x, target_y)
+            curr_x = next_x
+            up = not up
+
+        old_pen = painter.pen()
+        painter.setPen(QPen(color, 1.0))
+        painter.drawPath(path)
+        painter.setPen(old_pen)
+
     def _paint_page_content(self, painter: QPainter, page_rect: QRectF, page: Page) -> None:
         """Render lines, formatted portions, and table structures on a single page."""
         for reg in page.regions:
@@ -506,6 +543,34 @@ class WriterCanvasView(QAbstractScrollArea):
                                                 painter.drawText(
                                                     QPointF(x_px, baseline_px), po.text
                                                 )
+                                                if (
+                                                    self.spell_engine.is_enabled(
+                                                        "spelling/check_as_you_type", True
+                                                    )
+                                                    and po.text
+                                                ):
+                                                    fm = QFontMetricsF(font)
+                                                    for (
+                                                        w,
+                                                        w_start,
+                                                        w_end,
+                                                    ) in self.spell_engine.tokenize_words(
+                                                        po.text
+                                                    ):
+                                                        if not self.spell_engine.is_valid_word(w):
+                                                            w_x1 = x_px + fm.horizontalAdvance(
+                                                                po.text[:w_start]
+                                                            )
+                                                            w_x2 = x_px + fm.horizontalAdvance(
+                                                                po.text[:w_end]
+                                                            )
+                                                            self._draw_wavy_line(
+                                                                painter,
+                                                                w_x1,
+                                                                w_x2,
+                                                                baseline_px + 2.5,
+                                                                QColor(255, 0, 0),
+                                                            )
                                             elif po.type == PortionType.GRAPHIC and isinstance(
                                                 po.data, OfficeMathItem
                                             ):
@@ -545,6 +610,32 @@ class WriterCanvasView(QAbstractScrollArea):
                                     QPointF(x_px, baseline_px),
                                     po.text,
                                 )
+                                if (
+                                    self.spell_engine.is_enabled(
+                                        "spelling/check_as_you_type", True
+                                    )
+                                    and po.text
+                                ):
+                                    fm = QFontMetricsF(font)
+                                    for (
+                                        w,
+                                        w_start,
+                                        w_end,
+                                    ) in self.spell_engine.tokenize_words(po.text):
+                                        if not self.spell_engine.is_valid_word(w):
+                                            w_x1 = x_px + fm.horizontalAdvance(
+                                                po.text[:w_start]
+                                            )
+                                            w_x2 = x_px + fm.horizontalAdvance(
+                                                po.text[:w_end]
+                                            )
+                                            self._draw_wavy_line(
+                                                painter,
+                                                w_x1,
+                                                w_x2,
+                                                baseline_px + 2.5,
+                                                QColor(255, 0, 0),
+                                            )
                             elif po.type == PortionType.TAB and po_w > 0:
                                 tab_data = getattr(po, "data", None)
                                 leader = getattr(tab_data, "leader", "none") if tab_data else "none"
@@ -1072,13 +1163,137 @@ class WriterCanvasView(QAbstractScrollArea):
             self.viewport().update()
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
-        """Dispatch keyboard events to CaretController."""
+        """Dispatch keyboard events to CaretController or trigger F7 spelling dialog."""
+        if event.key() == Qt.Key.Key_F7:
+            self.open_spelling_dialog()
+            event.accept()
+            return
+
         if self.controller.handle_key_event(event):
             event.accept()
             self.scroll_to_caret()
             self.viewport().update()
         else:
             super().keyPressEvent(event)
+
+    def open_spelling_dialog(self) -> None:
+        """Open Spelling and Grammar check modal dialog (F7)."""
+        from atboffice.modules.writer.dialogs.spelling_dialog import SpellingGrammarDialog
+
+        dlg = SpellingGrammarDialog(self.doc, controller=self.controller, parent=self)
+        dlg.exec()
+        self.viewport().update()
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+        """Display right-click context menu with spelling corrections or standard actions."""
+        pos_pt = self._event_pos(event)
+        page_idx, pt_doc = self.viewport_to_doc_coords(pos_pt)
+        pos = self.controller.canvas_to_pos(page_idx, pt_doc)
+
+        menu = QMenu(self)
+        p = self.controller._paragraph_by_id(pos.para_id)
+        misspelled_word = None
+        word_start = 0
+        word_end = 0
+
+        if p:
+            pt = ptext(p)
+            for w, s, e in self.spell_engine.tokenize_words(pt):
+                if s <= pos.offset <= e:
+                    if not self.spell_engine.is_valid_word(w):
+                        misspelled_word = w
+                        word_start = s
+                        word_end = e
+                    break
+
+        if misspelled_word and p is not None:
+            suggestions = self.spell_engine.suggest(misspelled_word, max_suggestions=5)
+            if suggestions:
+                for sugg in suggestions:
+                    act = menu.addAction(sugg)
+                    bold_font = act.font()
+                    bold_font.setBold(True)
+                    act.setFont(bold_font)
+
+                    def _make_handler(target_sugg: str, para: Paragraph, s: int, e: int):
+                        return lambda: self._replace_word_in_para(para, s, e, target_sugg)
+
+                    act.triggered.connect(_make_handler(sugg, p, word_start, word_end))
+            else:
+                act_no_sugg = menu.addAction(safe_tr("(无拼写建议)"))
+                act_no_sugg.setEnabled(False)
+
+            menu.addSeparator()
+
+            act_ignore = menu.addAction(safe_tr("全部忽略(&I)"))
+            act_ignore.triggered.connect(
+                lambda checked=False, w=misspelled_word: self._ignore_word_all(w)
+            )
+
+            act_add = menu.addAction(safe_tr("添加到词典(&A)"))
+            act_add.triggered.connect(
+                lambda checked=False, w=misspelled_word: self._add_word_to_dict(w)
+            )
+
+            menu.addSeparator()
+
+        # Standard editing actions
+        act_cut = menu.addAction(safe_tr("剪切(&T)"))
+        act_cut.setEnabled(not self.controller.selection.is_collapsed)
+        act_cut.triggered.connect(self.cut_selection)
+
+        act_copy = menu.addAction(safe_tr("复制(&C)"))
+        act_copy.setEnabled(not self.controller.selection.is_collapsed)
+        act_copy.triggered.connect(self.copy_selection)
+
+        act_paste = menu.addAction(safe_tr("粘贴(&P)"))
+        act_paste.triggered.connect(self.paste_from_clipboard)
+
+        menu.addSeparator()
+        act_select_all = menu.addAction(safe_tr("全选(&A)"))
+        act_select_all.triggered.connect(self.controller.select_all)
+
+        menu.exec(event.globalPos())
+
+    def _replace_word_in_para(self, p: Paragraph, start: int, end: int, replacement: str) -> None:
+        """Replace text span in paragraph and refresh canvas."""
+        delete_range_in_paragraph(p, start, end)
+        insert_text_in_paragraph(p, start, replacement)
+        self.controller.pos = DocPos(p.id, start + len(replacement))
+        self.controller.selection = Selection(self.controller.pos, self.controller.pos)
+        self.controller.repaginate_and_refresh()
+        self.viewport().update()
+
+    def _ignore_word_all(self, word: str) -> None:
+        """Ignore word in session and repaint."""
+        self.spell_engine.ignore_all(word)
+        self.viewport().update()
+
+    def _add_word_to_dict(self, word: str) -> None:
+        """Add word to custom dictionary and repaint."""
+        self.spell_engine.add_to_custom_dict(word)
+        self.viewport().update()
+
+    def copy_selection(self) -> None:
+        """Copy selected text to system clipboard."""
+        text = self.controller.get_selected_text()
+        if text:
+            cb = QGuiApplication.clipboard()
+            if cb:
+                cb.setText(text)
+
+    def cut_selection(self) -> None:
+        """Cut selected text to system clipboard."""
+        self.copy_selection()
+        self.controller.delete_selection()
+
+    def paste_from_clipboard(self) -> None:
+        """Paste plain text from system clipboard."""
+        cb = QGuiApplication.clipboard()
+        if cb:
+            text = cb.text()
+            if text:
+                self.controller.insert_text(text)
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         """Update scroll ranges and repaginate/repaint upon resize."""

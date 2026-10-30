@@ -125,6 +125,10 @@ class WriterView(QWidget):
         self.review_pane.retranslate_ui()
         self.review_toolbar.retranslate_ui()
 
+    def open_spelling_dialog(self) -> None:
+        """Open Spelling and Grammar check modal dialog (F7)."""
+        self.canvas_view.open_spelling_dialog()
+
     def open_mail_merge_wizard(self) -> None:
         """Open the Word 2003 classic Mail Merge Wizard."""
         from atboffice.modules.writer.dialogs.mailmerge_wizard import MailMergeWizardDialog
