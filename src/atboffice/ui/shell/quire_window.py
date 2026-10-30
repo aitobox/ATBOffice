@@ -5,10 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMessageBox, QWidget
 
 from atboffice.core.action_registry import ActionRegistry
+from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.core.search import SearchController, WriterSearchAdapter
 from atboffice.modules.writer.view import WriterView
 from atboffice.ui.components.color_picker import ColorPickerButton
@@ -24,7 +25,7 @@ from atboffice.ui.shell.quire_toolbars import (
 
 def safe_tr(text: str) -> str:
     """Translate UI text safely for QuireWindow."""
-    return QCoreApplication.translate("QuireWindow", text)
+    return core_safe_tr(text)
 
 
 class QuireWindow(BaseOfficeWindow):

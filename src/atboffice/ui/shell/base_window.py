@@ -4,16 +4,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QCoreApplication, Signal
+from PySide6.QtCore import Signal
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QWidget
 
+from atboffice.core.i18n import get_i18n_manager
+from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.ui.styles.luna_2003 import apply_luna_theme
 
 
 def safe_tr(text: str) -> str:
     """Translate UI text safely for BaseOfficeWindow."""
-    return QCoreApplication.translate("BaseOfficeWindow", text)
+    return core_safe_tr(text)
 
 
 class BaseOfficeWindow(QMainWindow):
@@ -33,6 +35,14 @@ class BaseOfficeWindow(QMainWindow):
 
         self.update_window_title()
         self.apply_theme(self.current_theme)
+        try:
+            get_i18n_manager().locale_changed.connect(self._on_locale_changed)
+        except Exception:
+            pass
+
+    def _on_locale_changed(self, _locale: str) -> None:
+        """Handle dynamic language change and trigger retranslate_ui."""
+        self.retranslate_ui()
 
     @property
     def is_modified(self) -> bool:

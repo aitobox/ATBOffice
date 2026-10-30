@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QMenu, QMenuBar
+
+from atboffice.core.i18n import safe_tr as core_safe_tr
 
 if TYPE_CHECKING:
     from PySide6.QtWidgets import QMainWindow
@@ -14,7 +15,7 @@ if TYPE_CHECKING:
 
 def safe_tr(text: str) -> str:
     """Translate UI text safely for macOS menu bar."""
-    return QCoreApplication.translate("MacMenuBar", text)
+    return core_safe_tr(text)
 
 
 class MacMenuBar(QMenuBar):

@@ -7,7 +7,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from PySide6.QtCore import QCoreApplication, QSize, Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import (
     QDragEnterEvent,
     QDragMoveEvent,
@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.core.recent_files import RecentItem
 from atboffice.ui.shell.base_window import BaseOfficeWindow
 from atboffice.ui.shell.mac_menu import MacMenuBar, setup_mac_menu
@@ -39,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 def safe_tr(text: str) -> str:
     """Translate UI text safely for StartCenterWindow."""
-    return QCoreApplication.translate("StartCenterWindow", text)
+    return core_safe_tr(text)
 
 
 class RecentItemWidget(QWidget):

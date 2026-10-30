@@ -19,7 +19,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QComboBox,
@@ -28,13 +27,14 @@ from PySide6.QtWidgets import (
 )
 
 from atboffice.core.action_registry import ActionRegistry, ActionSpec
+from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.toolbar import OfficeToolBar
 
 
 def safe_tr(text: str) -> str:
     """Translate UI text safely for Lectern toolbars."""
-    return QCoreApplication.translate("LecternToolbars", text)
+    return core_safe_tr(text)
 
 
 class LecternToolBarCluster:

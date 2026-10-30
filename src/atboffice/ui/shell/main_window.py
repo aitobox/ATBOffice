@@ -5,10 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QTabWidget
 
+from atboffice.core.i18n import get_i18n_manager
+from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.modules.presentation.view import PresentationView
 from atboffice.modules.spreadsheet.view import SpreadsheetView
 from atboffice.modules.writer.view import WriterView
@@ -21,7 +22,7 @@ from atboffice.ui.styles.luna_2003 import apply_luna_theme
 
 def safe_tr(text: str) -> str:
     """Translate UI text safely for MainWindow."""
-    return QCoreApplication.translate("MainWindow", text)
+    return core_safe_tr(text)
 
 
 class MainWindow(QMainWindow):
@@ -34,6 +35,10 @@ class MainWindow(QMainWindow):
 
         self.resize(1100, 720)
         self._update_window_title()
+        try:
+            get_i18n_manager().locale_changed.connect(self._on_locale_changed)
+        except Exception:
+            pass
 
         # Core Office modules tab widget
         self.tabs = QTabWidget(self)
@@ -474,6 +479,10 @@ class MainWindow(QMainWindow):
                 cell.bg_color = bg
                 model.set_cell(r, c, cell)
         self.spreadsheet_view.viewport.update()
+
+    def _on_locale_changed(self, _locale: str) -> None:
+        """Handle locale switch."""
+        self.retranslate_ui()
 
     def retranslate_ui(self) -> None:
         """Retranslate all UI strings in the main window."""
