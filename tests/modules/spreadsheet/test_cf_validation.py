@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import pytest
-
 from atboffice.modules.spreadsheet.models.conditional_format import (
+    CFVO,
     CFOp,
     CFRule,
     CFRuleType,
-    CFVO,
     ColorScaleRule,
     ConditionalFormat,
     DataBarRule,
@@ -341,14 +339,13 @@ def test_xlsx_roundtrip_cf_and_validation(tmp_path) -> None:
     from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
     from atboffice.modules.spreadsheet.io.xlsx_writer import write_xlsx
     from atboffice.modules.spreadsheet.models import (
+        CFVO,
         AlertStyle,
         CFOp,
         CFRule,
         CFRuleType,
-        CFVO,
         ColorScaleRule,
         ConditionalFormat,
-        DataBarRule,
         DataValidation,
         SheetDataModel,
         ValidationOp,

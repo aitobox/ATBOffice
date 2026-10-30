@@ -1,10 +1,10 @@
 """Spreadsheet data, selection, and workbook models."""
 
 from atboffice.modules.spreadsheet.models.conditional_format import (
+    CFVO,
     CFOp,
     CFRule,
     CFRuleType,
-    CFVO,
     CFVOType,
     ColorScaleRule,
     ConditionalFormat,

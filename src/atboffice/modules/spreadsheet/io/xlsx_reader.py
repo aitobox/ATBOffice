@@ -7,18 +7,18 @@ import re
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
-from typing import BinaryIO
+from typing import Any, BinaryIO
 
 from atboffice.modules.spreadsheet.calc.references import (
     parse_cell,
     parse_range,
 )
 from atboffice.modules.spreadsheet.models.conditional_format import (
+    CFVO,
     CFRule,
     ColorScaleRule,
     ConditionalFormat,
     DataBarRule,
-    CFVO,
 )
 from atboffice.modules.spreadsheet.models.sheet_model import (
     BorderStyle,

@@ -377,10 +377,11 @@ class EditorController(QObject):
 
         is_valid, dv = validate_cell_value(self.model, r, c, candidate_val)
         if not is_valid and dv is not None and dv.show_error_alert:
+            from PySide6.QtWidgets import QMessageBox
+
             from atboffice.modules.spreadsheet.dialogs.data_validation_dialog import (
                 ValidationAlertDialog,
             )
-            from PySide6.QtWidgets import QMessageBox
 
             dlg = ValidationAlertDialog(
                 parent=self.viewport,

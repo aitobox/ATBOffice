@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import Enum
 import math
+from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
 
 
-class CFRuleType(str, Enum):
+class CFRuleType(StrEnum):
     """Conditional formatting rule types matching OpenXML / Excel standards."""
 
     CELL_IS = "cellIs"
@@ -28,7 +28,7 @@ class CFRuleType(str, Enum):
     ABOVE_AVERAGE = "aboveAverage"
 
 
-class CFOp(str, Enum):
+class CFOp(StrEnum):
     """Comparison operators for cellIs conditional formatting rules."""
 
     BETWEEN = "between"
@@ -41,7 +41,7 @@ class CFOp(str, Enum):
     LESS_THAN_OR_EQUAL = "lessThanOrEqual"
 
 
-class CFVOType(str, Enum):
+class CFVOType(StrEnum):
     """Conditional formatting value object (CFVO) types."""
 
     MIN = "min"
@@ -305,7 +305,10 @@ def evaluate_cf_for_cell(sheet: SheetDataModel, r: int, c: int) -> CFResult | No
 
     for cf, rule in candidates:
         # 1. Color Scale Rule
-        if (rule.type == CFRuleType.COLOR_SCALE.value or rule.color_scale is not None) and rule.color_scale:
+        is_cs = (
+            rule.type == CFRuleType.COLOR_SCALE.value or rule.color_scale is not None
+        ) and rule.color_scale
+        if is_cs:
             if val is not None:
                 try:
                     num_val = float(val)

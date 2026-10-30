@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
-import math
-import re
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from atboffice.modules.spreadsheet.calc.references import parse_range
@@ -14,7 +12,7 @@ if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
 
 
-class ValidationType(str, Enum):
+class ValidationType(StrEnum):
     """Permitted data validation criteria types."""
 
     ANY = "any"
@@ -27,7 +25,7 @@ class ValidationType(str, Enum):
     CUSTOM = "custom"
 
 
-class ValidationOp(str, Enum):
+class ValidationOp(StrEnum):
     """Comparison operators for data validation."""
 
     BETWEEN = "between"
@@ -40,7 +38,7 @@ class ValidationOp(str, Enum):
     LESS_THAN_OR_EQUAL = "lessThanOrEqual"
 
 
-class AlertStyle(str, Enum):
+class AlertStyle(StrEnum):
     """Visual style and severity of the validation error dialog."""
 
     STOP = "stop"

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QCoreApplication, Qt
 from PySide6.QtGui import QColor
@@ -28,7 +28,7 @@ from atboffice.modules.spreadsheet.models.conditional_format import (
 )
 
 if TYPE_CHECKING:
-    from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
+    pass
 
 
 def safe_tr(text: str) -> str:

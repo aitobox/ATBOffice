@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -30,7 +30,7 @@ from atboffice.modules.spreadsheet.models.validation import (
 )
 
 if TYPE_CHECKING:
-    from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
+    pass
 
 
 def safe_tr(text: str) -> str:
@@ -93,8 +93,12 @@ class DataValidationDialog(QDialog):
         self.combo_op.addItem(safe_tr("not equal to"), ValidationOp.NOT_EQUAL.value)
         self.combo_op.addItem(safe_tr("greater than"), ValidationOp.GREATER_THAN.value)
         self.combo_op.addItem(safe_tr("less than"), ValidationOp.LESS_THAN.value)
-        self.combo_op.addItem(safe_tr("greater than or equal to"), ValidationOp.GREATER_THAN_OR_EQUAL.value)
-        self.combo_op.addItem(safe_tr("less than or equal to"), ValidationOp.LESS_THAN_OR_EQUAL.value)
+        self.combo_op.addItem(
+            safe_tr("greater than or equal to"), ValidationOp.GREATER_THAN_OR_EQUAL.value
+        )
+        self.combo_op.addItem(
+            safe_tr("less than or equal to"), ValidationOp.LESS_THAN_OR_EQUAL.value
+        )
         self.lbl_data = QLabel(safe_tr("Data:"))
         form_allow.addRow(self.lbl_data, self.combo_op)
 
@@ -226,7 +230,11 @@ class DataValidationDialog(QDialog):
 
     def _on_op_changed(self) -> None:
         val_type = self.combo_allow.currentData()
-        if val_type in (ValidationType.ANY.value, ValidationType.LIST.value, ValidationType.CUSTOM.value):
+        if val_type in (
+            ValidationType.ANY.value,
+            ValidationType.LIST.value,
+            ValidationType.CUSTOM.value,
+        ):
             return
         op = self.combo_op.currentData()
         is_between = op in (ValidationOp.BETWEEN.value, ValidationOp.NOT_BETWEEN.value)
@@ -247,7 +255,16 @@ class DataValidationDialog(QDialog):
 
     def get_data_validation(self) -> DataValidation:
         val_type = self.combo_allow.currentData()
-        op = self.combo_op.currentData() if val_type not in (ValidationType.ANY.value, ValidationType.LIST.value, ValidationType.CUSTOM.value) else ValidationOp.BETWEEN.value
+        op = (
+            self.combo_op.currentData()
+            if val_type
+            not in (
+                ValidationType.ANY.value,
+                ValidationType.LIST.value,
+                ValidationType.CUSTOM.value,
+            )
+            else ValidationOp.BETWEEN.value
+        )
         f1 = self.edit_min.text().strip() or None
         f2 = self.edit_max.text().strip() or None
 

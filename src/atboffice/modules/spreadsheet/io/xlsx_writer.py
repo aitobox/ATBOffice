@@ -524,7 +524,8 @@ class StyleManager:
                     c_hex = _color_hex(d["bg_color"])
                     if c_hex:
                         parts.append(
-                            f'<fill><patternFill patternType="solid"><fgColor rgb="{c_hex}"/></patternFill></fill>'
+                            '<fill><patternFill patternType="solid">'
+                            f'<fgColor rgb="{c_hex}"/></patternFill></fill>'
                         )
                 parts.append("</dxf>")
             parts.append("</dxfs>")
@@ -719,7 +720,8 @@ def _serialize_worksheet(
                 db = rule.data_bar
                 parts.append(
                     f'<cfRule type="dataBar" priority="{rule.priority}">'
-                    f'<dataBar minLength="{int(db.min_len * 100)}" maxLength="{int(db.max_len * 100)}">'
+                    f'<dataBar minLength="{int(db.min_len * 100)}" '
+                    f'maxLength="{int(db.max_len * 100)}">'
                 )
                 for cfvo in db.cfvos:
                     v_attr = f' val="{cfvo.val}"' if cfvo.val is not None else ""
