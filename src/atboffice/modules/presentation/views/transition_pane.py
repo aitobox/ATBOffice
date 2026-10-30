@@ -32,7 +32,6 @@ from atboffice.modules.presentation.models.slide import Slide, Transition
 from atboffice.modules.presentation.slideshow.transitions import (
     TRANSITION_CATALOGUE,
     TransitionEffect,
-    get_transition_name,
     safe_tr,
 )
 

@@ -17,7 +17,6 @@ from atboffice.modules.presentation.models.designs import DesignTemplate
 from atboffice.modules.presentation.models.slide import Slide, Transition
 from atboffice.vfs.order import enforce_schema_order
 
-
 ENTR_TO_PID = {
     "appear": 1,
     "flyIn": 2,
@@ -139,9 +138,9 @@ def timing_to_xml(slide: Slide, resolved_ids: dict[str, str]) -> str:
             f'<p:cMediaNode vol="{vol}" showWhenStopped="{show_when_stopped}">'
             f'<p:cTn id="{c_tn_id}" fill="hold"{repeat_attr}>'
             f'<p:stCondLst><p:cond delay="0"/></p:stCondLst>'
-            f'</p:cTn>'
+            f"</p:cTn>"
             f'<p:tgtEl><p:spTgt spid="{sh_id}"/></p:tgtEl>'
-            f'</p:cMediaNode>'
+            f"</p:cMediaNode>"
         )
         c_tn_id += 1
 
@@ -158,17 +157,25 @@ def timing_to_xml(slide: Slide, resolved_ids: dict[str, str]) -> str:
             pid = 10
 
         sub = DIR_TO_SUB.get(a.dir, 0)
-        node_type = "clickEffect" if a.start == "click" else ("afterEffect" if a.start == "after" else "withEffect")
+        node_type = (
+            "clickEffect"
+            if a.start == "click"
+            else ("afterEffect" if a.start == "after" else "withEffect")
+        )
         dur = a.dur if a.dur is not None else 500
         delay = a.delay or 0
 
         para_xml = f'<p:pRg st="{a.para}"/>' if a.para is not None else ""
 
+        ctn_attrs = (
+            f'id="{c_tn_id}" presetClass="{a.cls}" presetID="{pid}" '
+            f'presetSubtype="{sub}" nodeType="{node_type}" dur="{dur}"'
+        )
         nodes.append(
-            f'<p:cTn id="{c_tn_id}" presetClass="{a.cls}" presetID="{pid}" presetSubtype="{sub}" nodeType="{node_type}" dur="{dur}">'
+            f"<p:cTn {ctn_attrs}>"
             f'<p:stCondLst><p:cond delay="{delay}"/></p:stCondLst>'
             f'<p:tgtEl><p:spTgt spid="{sh_id}">{para_xml}</p:spTgt></p:tgtEl>'
-            f'</p:cTn>'
+            f"</p:cTn>"
         )
         c_tn_id += 1
 

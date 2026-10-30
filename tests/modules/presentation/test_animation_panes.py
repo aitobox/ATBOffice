@@ -1,24 +1,21 @@
-"""Unit and integration tests for SlideTransitionPane, AnimationPane, workspace integration and PPTX roundtrip."""
+"""Unit and integration tests for presentation task panes and PPTX roundtrip."""
 
-import copy
+import xml.etree.ElementTree as ET
+
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
 
+from atboffice.modules.presentation.io.pptx_reader import PptxReader
+from atboffice.modules.presentation.io.writer_slide import slide_to_xml
 from atboffice.modules.presentation.models.presentation import Presentation
 from atboffice.modules.presentation.models.shape import Shape
 from atboffice.modules.presentation.models.slide import Animation, Slide, Transition
 from atboffice.modules.presentation.slideshow.transitions import (
     TRANSITION_CATALOGUE,
-    list_transitions,
 )
 from atboffice.modules.presentation.views.animation_pane import AnimationPane
 from atboffice.modules.presentation.views.transition_pane import SlideTransitionPane
 from atboffice.modules.presentation.views.workspace import LecternWorkspace
-from atboffice.modules.presentation.io.writer_slide import slide_to_xml
-from atboffice.modules.presentation.io.pptx_reader import PptxReader
-import xml.etree.ElementTree as ET
-
 
 # ==============================================================================
 # 1. SlideTransitionPane Unit Tests
@@ -195,7 +192,7 @@ def test_animation_pane_effects_and_timing(qtbot):
 
 
 def test_animation_pane_shape_bidirectional_sync(qtbot):
-    """Verify selecting a shape highlights its animation, and selecting an animation signals shape selection."""
+    """Verify bidirectional selection sync between shape item and animation item."""
     pane = AnimationPane()
     qtbot.addWidget(pane)
 
@@ -272,7 +269,7 @@ def test_workspace_task_pane_transitions_and_animations(qtbot):
 
 
 def test_pptx_transition_and_animation_xml_roundtrip():
-    """Verify transitions and shape animations serialize to PresentationML XML and deserialize cleanly."""
+    """Verify transitions and shape animations serialize and deserialize cleanly."""
     slide = Slide(id="s1")
     sh = Shape(id="sh1", name="Diagram")
     slide.shapes.append(sh)
@@ -312,7 +309,9 @@ def test_pptx_transition_and_animation_xml_roundtrip():
     # Parse back using PptxReader helpers
     root = ET.fromstring(xml_str)
     reader = PptxReader.__new__(PptxReader)
-    parsed_trans = reader._parse_transition(root.find("{http://schemas.openxmlformats.org/presentationml/2006/main}transition"))
+    parsed_trans = reader._parse_transition(
+        root.find("{http://schemas.openxmlformats.org/presentationml/2006/main}transition")
+    )
     assert parsed_trans.type == "comb"
     assert parsed_trans.dir == "vert"
     assert parsed_trans.speed == "med"

@@ -563,7 +563,9 @@ class AnimationPane(QWidget):
             anim.delay = ms
             self.animationModified.emit(anim.id, "delay", ms)
 
-    def _on_rows_moved(self, parent: object, start: int, end: int, destination: object, row: int) -> None:
+    def _on_rows_moved(
+        self, parent: object, start: int, end: int, destination: object, row: int
+    ) -> None:
         if self._updating_ui or not self.slide:
             return
         new_order_ids = [

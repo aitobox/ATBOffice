@@ -966,7 +966,9 @@ class LecternWorkspace(QWidget):
         self.transition_pane.set_slide(current_slide)
         self.transition_pane.transitionChanged.connect(self._on_transition_changed)
         self.transition_pane.applyToAllRequested.connect(self._on_apply_transition_to_all)
-        self.transition_pane.slideshowRequested.connect(lambda: self.start_slideshow(from_current=True))
+        self.transition_pane.slideshowRequested.connect(
+            lambda: self.start_slideshow(from_current=True)
+        )
         self.task_pane.register_pane("transition", safe_tr("幻灯片切换"), self.transition_pane)
 
         from atboffice.modules.presentation.views.animation_pane import AnimationPane
@@ -974,7 +976,9 @@ class LecternWorkspace(QWidget):
         self.animation_pane = AnimationPane(self.task_pane)
         self.animation_pane.set_slide(current_slide)
         self.animation_pane.shapeSelectionRequested.connect(self._on_anim_shape_selection_requested)
-        self.animation_pane.slideshowRequested.connect(lambda: self.start_slideshow(from_current=True))
+        self.animation_pane.slideshowRequested.connect(
+            lambda: self.start_slideshow(from_current=True)
+        )
         self.task_pane.register_pane("customAnim", safe_tr("自定义动画"), self.animation_pane)
 
         from atboffice.modules.presentation.smartart.text_pane import SmartArtTextPane
@@ -1225,9 +1229,7 @@ class LecternWorkspace(QWidget):
         design = self.presentation.get_design_for_slide(
             self.current_slide if self.presentation.slides else None
         )
-        self.master_slide = build_master_slide(
-            self.presentation, design, master_kind=master_kind
-        )
+        self.master_slide = build_master_slide(self.presentation, design, master_kind=master_kind)
         self.scene.load_slide(self.master_slide)
         self.canvas_view.zoom_fit()
         self._refresh_master_thumbnails()
