@@ -109,6 +109,7 @@ class QuireWindow(BaseOfficeWindow):
         self.action_registry.set_handler("redo", self.redo)
         self.action_registry.set_handler("find", self.open_find_dialog)
         self.action_registry.set_handler("replace", self.open_replace_dialog)
+        self.action_registry.set_handler("spelling", self.writer_view.open_spelling_dialog)
 
         # Zoom & view
         self.action_registry.set_handler("zoom_in", self.zoom_in)
