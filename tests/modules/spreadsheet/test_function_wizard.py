@@ -2,20 +2,13 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
 import pytest
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QDialog, QLineEdit
+from PySide6.QtWidgets import QApplication, QDialog
 
-from atboffice.modules.spreadsheet.calc.context import EvalContext
 from atboffice.modules.spreadsheet.calc.fn_info import (
-    ALL_FUNCTIONS_CATALOG,
-    FunctionInfo,
     get_function_info,
 )
 from atboffice.modules.spreadsheet.dialogs.function_wizard import (
-    ARG_HELP_DATA,
     DEFAULT_MRU,
     STANDARD_CATEGORIES,
     FunctionArgumentsDialog,
@@ -25,7 +18,6 @@ from atboffice.modules.spreadsheet.dialogs.function_wizard import (
     safe_tr,
 )
 from atboffice.modules.spreadsheet.models.selection_model import SelectionModel
-from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 from atboffice.modules.spreadsheet.views.editor_controller import EditorController
 from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport
@@ -77,7 +69,9 @@ def test_catalog_service_mru(monkeypatch):
         def setValue(self, key, val):
             fake_store[key] = val
 
-    monkeypatch.setattr("atboffice.modules.spreadsheet.dialogs.function_wizard.QSettings", FakeSettings)
+    monkeypatch.setattr(
+        "atboffice.modules.spreadsheet.dialogs.function_wizard.QSettings", FakeSettings
+    )
 
     # Initial fallback
     mru = FunctionCatalogService.get_mru_list()
@@ -258,8 +252,8 @@ def test_function_arguments_dialog_repeating_expansion(qapp):
 
     # Simulate focus on last argument edit
     last_edit = dlg.arg_rows[-1][1]
-    from PySide6.QtGui import QFocusEvent
     from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QFocusEvent
 
     focus_ev = QFocusEvent(QEvent.Type.FocusIn)
     dlg.eventFilter(last_edit, focus_ev)

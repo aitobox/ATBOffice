@@ -12,7 +12,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QCoreApplication, QSettings, Qt, Signal
-from PySide6.QtGui import QFont, QKeySequence
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -26,8 +26,6 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
-    QSplitter,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -113,7 +111,10 @@ ARG_HELP_DATA: dict[str, str] = {
     "table_array": "为要在其中检索数据的数据表。可以是单元格区域引用或区域名称。",
     "col_index_num": "为 table_array 中待返回匹配值的列序号。第一列为 1。",
     "row_index_num": "为 table_array 中待返回匹配值的行序号。第一行为 1。",
-    "range_lookup": "为逻辑值：指明是要寻找精确匹配还是近似匹配。TRUE 或省略表示近似匹配；FALSE 表示精确匹配。",
+    "range_lookup": (
+        "为逻辑值：指明是要寻找精确匹配还是近似匹配。"
+        "TRUE 或省略表示近似匹配；FALSE 表示精确匹配。"
+    ),
     "range": "为需要计算或评估的单元格区域。",
     "criteria": "为定义哪些单元格将被计入的条件，可以是数字、表达式或文本。",
     "sum_range": "为实际求和的单元格。如果省略，则计算 range 中的单元格。",
@@ -254,9 +255,7 @@ class InsertFunctionDialog(QDialog):
         search_row = QHBoxLayout()
         search_row.setSpacing(6)
         self.edit_search = QLineEdit(self)
-        self.edit_search.setPlaceholderText(
-            safe_tr("键入需要执行操作的简短描述，然后单击“转到”")
-        )
+        self.edit_search.setPlaceholderText(safe_tr("键入需要执行操作的简短描述，然后单击“转到”"))
         self.edit_search.returnPressed.connect(self._on_search_clicked)
         search_row.addWidget(self.edit_search)
 
@@ -348,7 +347,7 @@ class InsertFunctionDialog(QDialog):
 
         target_row = 0
         for i, name in enumerate(names):
-            item = QListWidgetItem(name, self.list_functions)
+            QListWidgetItem(name, self.list_functions)
             if select_fn and name == select_fn:
                 target_row = i
 
@@ -428,7 +427,7 @@ class InsertFunctionDialog(QDialog):
 
 
 class FunctionArgumentsDialog(QDialog):
-    """Step 2 dialog: Dedicated parameter input, argument hints, dynamic repeating args, live preview."""
+    """Step 2 dialog: Dedicated parameter input, argument hints, live preview."""
 
     formula_confirmed = Signal(str)
 
@@ -487,7 +486,9 @@ class FunctionArgumentsDialog(QDialog):
         self.args_container = QWidget(self.scroll_area)
         self.args_layout = QFormLayout(self.args_container)
         self.args_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
-        self.args_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.args_layout.setLabelAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
         self.args_layout.setContentsMargins(8, 8, 8, 8)
         self.args_layout.setSpacing(6)
         self.scroll_area.setWidget(self.args_container)
@@ -510,7 +511,9 @@ class FunctionArgumentsDialog(QDialog):
         self.help_frame = QFrame(self)
         self.help_frame.setFrameShape(QFrame.Shape.StyledPanel)
         self.help_frame.setFrameShadow(QFrame.Shadow.Sunken)
-        self.help_frame.setStyleSheet("background-color: #fafafa; border-radius: 3px; padding: 4px;")
+        self.help_frame.setStyleSheet(
+            "background-color: #fafafa; border-radius: 3px; padding: 4px;"
+        )
         help_layout = QVBoxLayout(self.help_frame)
         help_layout.setContentsMargins(8, 8, 8, 8)
         help_layout.setSpacing(4)
@@ -702,9 +705,7 @@ class FunctionArgumentsDialog(QDialog):
             res = evaluate(call_str, ctx=ctx, workbook=self.workbook)
             res_str = str(res)
             self.lbl_result_val.setText(res_str)
-            self.lbl_formula_result_summary.setText(
-                safe_tr("公式结果 = {0}").format(res_str)
-            )
+            self.lbl_formula_result_summary.setText(safe_tr("公式结果 = {0}").format(res_str))
         except Exception:
             self.lbl_result_val.setText(safe_tr("(等待有效参数)"))
             self.lbl_formula_result_summary.setText(safe_tr("公式结果 = "))
@@ -762,7 +763,9 @@ def launch_function_wizard(
         if editor_controller.is_active:
             current_text = editor_controller.in_cell_editor.text()
             # If current text ends with fx name, replace it; otherwise insert
-            m = re.search(r"(?:_xlfn\.)?" + re.escape(chosen_fn) + r"\($", current_text, re.IGNORECASE)
+            m = re.search(
+                r"(?:_xlfn\.)?" + re.escape(chosen_fn) + r"\($", current_text, re.IGNORECASE
+            )
             if m:
                 before = current_text[: m.start()]
                 after = current_text[m.end() :]
