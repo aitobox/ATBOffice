@@ -251,13 +251,21 @@ class QuireWindow(BaseOfficeWindow):
             self, self.action_registry
         )
 
-        # Bottom toolbar: Drawing
-        self.addToolBar(Qt.ToolBarArea.BottomToolBarArea, self.toolbars["drawing"])
+        # Row 1: Standard toolbar
+        if "standard" in self.toolbars:
+            self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.toolbars["standard"])
 
-        # Top toolbars in standard display order
+        # Row 2: Formatting toolbar
+        self.addToolBarBreak(Qt.ToolBarArea.TopToolBarArea)
+        if "formatting" in self.toolbars:
+            self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.toolbars["formatting"])
+
+        # Row 3: Drawing toolbar and contextual toolbars
+        self.addToolBarBreak(Qt.ToolBarArea.TopToolBarArea)
+        if "drawing" in self.toolbars:
+            self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.toolbars["drawing"])
+
         for name in [
-            "standard",
-            "formatting",
             "tables",
             "reviewing",
             "outlining",
