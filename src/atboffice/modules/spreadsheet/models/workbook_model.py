@@ -47,6 +47,7 @@ class WorkbookModel(QObject):
         super().__init__(parent)
         self._sheets: list[SheetDataModel] = []
         self._active_sheet_index: int = 0
+        self.extra: dict[str, Any] = {}
 
         if sheets:
             for s in sheets:

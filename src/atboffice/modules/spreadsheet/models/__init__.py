@@ -12,6 +12,16 @@ from atboffice.modules.spreadsheet.models.conditional_format import (
     evaluate_cf_for_cell,
     mix_colors,
 )
+from atboffice.modules.spreadsheet.models.pivot_model import (
+    PivotCache,
+    PivotCacheSource,
+    PivotConfig,
+    PivotContainer,
+    PivotTable,
+    build_pivot_table,
+    read_pivots_from_zip,
+    write_pivots_to_package,
+)
 from atboffice.modules.spreadsheet.models.selection_model import (
     SelectionModel,
     SelectionRange,
@@ -46,6 +56,11 @@ __all__ = [
     "ConditionalFormat",
     "DataBarRule",
     "DataValidation",
+    "PivotCache",
+    "PivotCacheSource",
+    "PivotConfig",
+    "PivotContainer",
+    "PivotTable",
     "SelectionModel",
     "SelectionRange",
     "SheetDataModel",

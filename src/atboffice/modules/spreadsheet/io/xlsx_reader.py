@@ -26,6 +26,7 @@ from atboffice.modules.spreadsheet.models.sheet_model import (
     FormatDelta,
     SheetDataModel,
 )
+from atboffice.modules.spreadsheet.models.pivot_model import read_pivots_from_zip
 from atboffice.modules.spreadsheet.models.validation import DataValidation
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 from atboffice.modules.spreadsheet.views.object_layer import (
@@ -1176,5 +1177,10 @@ def read_xlsx(
         # Set active sheet index
         if 0 <= active_tab_idx < len(wb):
             wb.set_active_sheet_index(active_tab_idx)
+
+        # 6. Parse and preserve Pivot Tables & Pivot Caches if present
+        pivots = read_pivots_from_zip(z, wb)
+        if pivots is not None:
+            wb.extra["pivots"] = pivots
 
     return wb

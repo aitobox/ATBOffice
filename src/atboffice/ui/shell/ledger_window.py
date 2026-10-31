@@ -191,6 +191,8 @@ class LedgerWindow(BaseOfficeWindow):
         # List & Chart actions
         self.action_registry.set_handler("totalRow", self.toggle_total_row)
         self.action_registry.set_handler("formatObject", self.format_selected_object)
+        self.action_registry.set_handler("data_pivottable", self.open_pivot_wizard)
+        self.action_registry.set_handler("pivotTable", self.open_pivot_wizard)
 
         # Drawing toolbar actions
         self.action_registry.set_handler("insertShape", lambda: self.insert_shape("rect"))
@@ -1209,6 +1211,35 @@ class LedgerWindow(BaseOfficeWindow):
             else:
                 sheet.add_data_validation(dv)
             self.spreadsheet_view.grid.viewport().update()
+
+    def open_pivot_wizard(self) -> None:
+        """Launch the PivotTable and PivotChart report wizard dialog."""
+        from atboffice.modules.spreadsheet.dialogs.pivot_dialog import (
+            PivotTableWizardDialog,
+        )
+
+        sheet = self.spreadsheet_view.model
+        sel = self.spreadsheet_view.selection
+        pr = sel.primary_range
+
+        if pr.min_r == pr.max_r and pr.min_c == pr.max_c:
+            used_r2 = max(sheet.max_row, pr.min_r)
+            used_c2 = max(sheet.max_col, pr.min_c)
+            init_range = (0, 0, max(1, used_r2), max(1, used_c2))
+        else:
+            init_range = (pr.min_r, pr.min_c, pr.max_r, pr.max_c)
+
+        dlg = PivotTableWizardDialog(
+            workbook=self.workbook,
+            initial_sheet_name=sheet.name,
+            initial_range=init_range,
+            parent=self,
+        )
+        if dlg.exec():
+            self.spreadsheet_view.grid.viewport().update()
+            self.statusBar().showMessage(
+                safe_tr("数据透视表报表已成功生成。"), 4000
+            )
 
     def circle_invalid(self) -> None:
         """Circle invalid data in worksheet according to validation rules."""

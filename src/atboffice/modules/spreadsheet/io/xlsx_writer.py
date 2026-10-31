@@ -9,6 +9,7 @@ from typing import Any, BinaryIO
 
 from atboffice.modules.spreadsheet.calc.references import cell_name
 from atboffice.modules.spreadsheet.io.xlsx_reader import BUILTIN_NUMFMTS
+from atboffice.modules.spreadsheet.models.pivot_model import write_pivots_to_package
 from atboffice.modules.spreadsheet.models.sheet_model import (
     BorderStyle,
     CellData,
@@ -68,6 +69,12 @@ REL_DRAWING = (
 )
 REL_IMAGE = (
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+)
+REL_PIVOT_TABLE = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable"
+)
+REL_PIVOT_CACHE = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition"
 )
 
 RE_UNSAFE_XML = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
@@ -954,12 +961,22 @@ def _serialize_workbook(workbook: WorkbookModel, sheet_rids: list[str]) -> bytes
             f'<sheet name="{_xml_escape(sheet.name)}" sheetId="{idx + 1}" r:id="{rid}"/>'
         )
     parts.append("</sheets>")
+
+    pivots = workbook.extra.get("pivots")
+    if pivots:
+        pc_elems = []
+        for c in pivots.caches:
+            if not c.drop and c.rel_id:
+                pc_elems.append(f'<pivotCache cacheId="{c.cache_id}" r:id="{c.rel_id}"/>')
+        if pc_elems:
+            parts.append(f'<pivotCaches>{"".join(pc_elems)}</pivotCaches>')
+
     parts.append('<calcPr calcId="124519" fullCalcOnLoad="1"/>')
     parts.append("</workbook>")
     return "".join(parts).encode("utf-8")
 
 
-def _serialize_workbook_rels(sheet_count: int) -> bytes:
+def _serialize_workbook_rels(sheet_count: int, workbook: WorkbookModel | None = None) -> bytes:
     """Serialize xl/_rels/workbook.xml.rels."""
     parts = [
         XML_HEADER,
@@ -983,6 +1000,15 @@ def _serialize_workbook_rels(sheet_count: int) -> bytes:
         f'<Relationship Id="{sst_rid}" Type="{REL_SHARED_STRINGS}" '
         f'Target="sharedStrings.xml"/>'
     )
+
+    if workbook and (pivots := workbook.extra.get("pivots")):
+        for c in pivots.caches:
+            if not c.drop and c.rel_id:
+                tgt = c.part_name.replace("xl/", "")
+                parts.append(
+                    f'<Relationship Id="{c.rel_id}" Type="{REL_PIVOT_CACHE}" Target="{tgt}"/>'
+                )
+
     parts.append("</Relationships>")
     return "".join(parts).encode("utf-8")
 
@@ -1133,6 +1159,8 @@ def write_xlsx(
         part_name = f"xl/worksheets/sheet{i}.xml"
         pkg_writer.add_part(part_name, ws_bytes, CT_WORKSHEET)
 
+        sheet_rels: list[str] = []
+
         if has_drawings:
             drawing_count += 1
             drawing_part = f"xl/drawings/drawing{drawing_count}.xml"
@@ -1177,14 +1205,27 @@ def write_xlsx(
                     CT_RELATIONSHIPS,
                 )
 
-            # Add sheet rels
-            rel_sheet = (
+            # Add sheet rel
+            sheet_rels.append(
                 f'<Relationship Id="{drawing_rid}" Type="{REL_DRAWING}" '
                 f'Target="../drawings/drawing{drawing_count}.xml"/>'
             )
+
+        # Check pivot tables attached to this sheet
+        pivots: Any = workbook.extra.get("pivots")
+        if pivots:
+            for t in getattr(pivots, "tables", []):
+                if not t.drop and t.sheet_name.lower() == sheet.name.lower():
+                    t_rid = t.rel_id or f"rIdPivot{t.cache_id}"
+                    t_target = t.part_name.replace("xl/", "../")
+                    sheet_rels.append(
+                        f'<Relationship Id="{t_rid}" Type="{REL_PIVOT_TABLE}" Target="{t_target}"/>'
+                    )
+
+        if sheet_rels:
             sheet_rels_xml = (
                 f'{XML_HEADER}<Relationships xmlns="{NS_PKG_REL}">'
-                f"{rel_sheet}"
+                f'{"".join(sheet_rels)}'
                 f"</Relationships>"
             ).encode()
             pkg_writer.add_part(
@@ -1206,10 +1247,14 @@ def write_xlsx(
     wb_bytes = _serialize_workbook(workbook, sheet_rids)
     pkg_writer.add_part("xl/workbook.xml", wb_bytes, CT_WORKBOOK)
 
-    wb_rels_bytes = _serialize_workbook_rels(sheet_count)
+    wb_rels_bytes = _serialize_workbook_rels(sheet_count, workbook=workbook)
     pkg_writer.add_part(
         "xl/_rels/workbook.xml.rels", wb_rels_bytes, CT_RELATIONSHIPS
     )
+
+    # 4b. Write pivot parts (lossless carry or modified)
+    if pivots:
+        write_pivots_to_package(pkg_writer, workbook, pivots)
 
     # 5. Core package plumbing (if not already carried or needed)
     if not source_pkg or not source_pkg.has_part("xl/theme/theme1.xml"):
