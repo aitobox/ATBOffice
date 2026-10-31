@@ -17,6 +17,7 @@ from atboffice.modules.spreadsheet.models.selection_model import (
     SelectionRange,
 )
 from atboffice.modules.spreadsheet.models.sheet_model import (
+    CellComment,
     CellData,
     SheetDataModel,
     SheetGeometry,
@@ -39,6 +40,7 @@ __all__ = [
     "CFRuleType",
     "CFVO",
     "CFVOType",
+    "CellComment",
     "CellData",
     "ColorScaleRule",
     "ConditionalFormat",

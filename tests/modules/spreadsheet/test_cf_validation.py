@@ -563,5 +563,147 @@ def test_grid_viewport_rendering_with_cf(qtbot) -> None:
     assert grid._dv_dropdown_rect is not None
 
 
+def test_sheet_model_comments() -> None:
+    sheet = SheetDataModel(name="CommentSheet")
+    assert not sheet.has_comment(0, 0)
+    assert sheet.get_comment(0, 0) is None
+
+    # Set comment
+    cm = sheet.set_comment(0, 0, "Initial comment", "Author1", visible=False)
+    assert sheet.has_comment(0, 0)
+    assert cm.text == "Initial comment"
+    assert cm.author == "Author1"
+    assert not cm.visible
+
+    # Get comment
+    retrieved = sheet.get_comment(0, 0)
+    assert retrieved is not None
+    assert retrieved.text == "Initial comment"
+
+    # Delete comment
+    assert sheet.delete_comment(0, 0) is True
+    assert not sheet.has_comment(0, 0)
+    assert sheet.delete_comment(0, 0) is False
+
+
+def test_comment_dialog(qtbot) -> None:
+    from atboffice.modules.spreadsheet.dialogs import CommentDialog
+
+    dlg = CommentDialog(
+        existing_text="Existing note",
+        author="Alice",
+        cell_ref="B2",
+    )
+    qtbot.addWidget(dlg)
+
+    assert dlg.get_text() == "Existing note"
+    assert dlg.get_author() == "Alice"
+
+    dlg.edit_text.setPlainText("Modified note text")
+    assert dlg.get_text() == "Modified note text"
+
+    dlg.retranslate_ui()
+    assert "B2" in dlg.windowTitle()
+
+
+def test_circle_invalid_and_clear_circles(qtbot) -> None:
+    from atboffice.modules.spreadsheet.models import (
+        DataValidation,
+        ValidationOp,
+        ValidationType,
+    )
+    from atboffice.ui.shell.ledger_window import LedgerWindow
+
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    sheet = win.spreadsheet_view.model
+
+    # Validation: Whole number between 10 and 20 on A1:A3
+    dv = DataValidation(
+        type=ValidationType.WHOLE.value,
+        operator=ValidationOp.BETWEEN.value,
+        formula1="10",
+        formula2="20",
+        sqref="A1:A3",
+        ranges=[(0, 0, 2, 0)],
+    )
+    sheet.add_data_validation(dv)
+
+    sheet.set_cell(0, 0, CellData(value=15))  # Valid
+    sheet.set_cell(1, 0, CellData(value=5))   # Invalid (< 10)
+    sheet.set_cell(2, 0, CellData(value=25))  # Invalid (> 20)
+
+    # Trigger circle invalid
+    win.circle_invalid()
+    assert (1, 0) in sheet.invalid_circles
+    assert (2, 0) in sheet.invalid_circles
+    assert (0, 0) not in sheet.invalid_circles
+
+    # Clear circles
+    win.clear_circles()
+    assert len(sheet.invalid_circles) == 0
+
+
+def test_comment_actions_in_ledger_window(qtbot) -> None:
+    from atboffice.ui.shell.ledger_window import LedgerWindow
+
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    sheet = win.spreadsheet_view.model
+    sel = win.spreadsheet_view.selection
+    sel.select_cell(1, 1)  # B2
+
+    # Add comment programmatically to test toggles
+    sheet.set_comment(1, 1, "Test comment on B2", "Tester", visible=False)
+
+    # Show / hide comment
+    win.show_hide_comment()
+    assert sheet.get_comment(1, 1).visible is True
+
+    win.show_hide_comment()
+    assert sheet.get_comment(1, 1).visible is False
+
+    # Toggle show all comments
+    assert sheet.show_all_comments is False
+    win.toggle_show_all_comments()
+    assert sheet.show_all_comments is True
+
+    # Delete comment
+    win.delete_comment()
+    assert sheet.get_comment(1, 1) is None
+
+
+def test_grid_viewport_rendering_with_circles_and_comments(qtbot) -> None:
+    from atboffice.modules.spreadsheet.models import SheetDataModel
+    from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport
+
+    sheet = SheetDataModel(name="RenderCommentsSheet")
+    sheet.set_cell(0, 0, CellData(value="Cell A1"))
+    sheet.set_cell(1, 1, CellData(value="Cell B2"))
+
+    # Add comment with visible callout
+    sheet.set_comment(0, 0, "A1 Comment", "Author", visible=True)
+    # Add comment with hidden callout (corner triangle only)
+    sheet.set_comment(1, 1, "B2 Comment", "Author", visible=False)
+
+    # Add invalid circle
+    sheet.invalid_circles = [(0, 0), (1, 1)]
+
+    grid = GridViewport(model=sheet)
+    qtbot.addWidget(grid)
+    grid.resize(500, 400)
+    grid.show()
+
+    from PySide6.QtCore import QCoreApplication
+    QCoreApplication.processEvents()
+
+    # Verify viewport renders without errors
+    grid.viewport().update()
+    QCoreApplication.processEvents()
+
+
+
 
 

@@ -18,6 +18,15 @@ class BorderStyle:
 
 
 @dataclass
+class CellComment:
+    """Cell comment/annotation."""
+
+    text: str
+    author: str = ""
+    visible: bool = False
+
+
+@dataclass
 class CellData:
     """Cell storage representation."""
 
@@ -237,6 +246,37 @@ class SheetDataModel:
         self.drawings: list[Any] = []
         self.conditional_formats: list[Any] = []
         self.data_validations: list[Any] = []
+        self.comments: dict[tuple[int, int], CellComment] = {}
+        self.invalid_circles: list[tuple[int, int]] = []
+        self.show_all_comments: bool = False
+
+    def set_comment(
+        self,
+        r: int,
+        c: int,
+        text: str,
+        author: str = "",
+        visible: bool = False,
+    ) -> CellComment:
+        """Set or update comment on cell (r, c)."""
+        cm = CellComment(text=text, author=author, visible=visible)
+        self.comments[(r, c)] = cm
+        return cm
+
+    def get_comment(self, r: int, c: int) -> CellComment | None:
+        """Get comment at cell (r, c) if any."""
+        return self.comments.get((r, c))
+
+    def delete_comment(self, r: int, c: int) -> bool:
+        """Remove comment from cell (r, c). Return True if existed and deleted."""
+        if (r, c) in self.comments:
+            del self.comments[(r, c)]
+            return True
+        return False
+
+    def has_comment(self, r: int, c: int) -> bool:
+        """Check if cell (r, c) has a comment."""
+        return (r, c) in self.comments
 
     def add_conditional_format(self, cf: Any) -> None:
         """Add a conditional format to the sheet."""

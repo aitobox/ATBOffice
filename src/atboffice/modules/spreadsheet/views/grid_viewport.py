@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Final
 
-from PySide6.QtCore import QCoreApplication, QPoint, QRect, Qt, Signal
+from PySide6.QtCore import QCoreApplication, QPoint, QRect, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -18,7 +18,7 @@ from PySide6.QtGui import (
     QPaintEvent,
     QPen,
 )
-from PySide6.QtWidgets import QAbstractScrollArea, QMenu, QWidget
+from PySide6.QtWidgets import QAbstractScrollArea, QMenu, QToolTip, QWidget
 
 from atboffice.modules.spreadsheet.calc.references import col_name
 from atboffice.modules.spreadsheet.models.conditional_format import (
@@ -795,6 +795,126 @@ class GridViewport(QAbstractScrollArea):
 
                 painter.restore()
 
+        # 5.7 Draw Invalid Data Validation Circles (red ellipses)
+        circles = getattr(self.model, "invalid_circles", [])
+        if circles:
+            painter.save()
+            painter.setClipRect(cell_clip)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            circle_pen = QPen(QColor(255, 0, 0), 1.5)
+            painter.setPen(circle_pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+
+            for cr, cc in circles:
+                if cr < start_row or cr > end_row or cc < start_col or cc > end_col:
+                    continue
+                cx = (
+                    self.row_header_width
+                    + self.geometry_mapper.col_pos(cc)
+                    - scroll_x
+                )
+                cy = (
+                    self.col_header_height
+                    + self.geometry_mapper.row_pos(cr)
+                    - scroll_y
+                )
+                cw = self.geometry_mapper.col_size(cc)
+                ch = self.geometry_mapper.row_size(cr)
+                if cw <= 0 or ch <= 0:
+                    continue
+                painter.drawEllipse(QRectF(cx - 3, cy - 2, cw + 6, ch + 4))
+            painter.restore()
+
+        # 5.8 Draw Comment Red Triangle Indicators
+        comments = getattr(self.model, "comments", {})
+        if comments:
+            painter.save()
+            painter.setClipRect(cell_clip)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(QColor(255, 0, 0)))
+            s = 6
+            for cr, cc in comments.keys():
+                if cr < start_row or cr > end_row or cc < start_col or cc > end_col:
+                    continue
+                cx = (
+                    self.row_header_width
+                    + self.geometry_mapper.col_pos(cc)
+                    - scroll_x
+                )
+                cy = (
+                    self.col_header_height
+                    + self.geometry_mapper.row_pos(cr)
+                    - scroll_y
+                )
+                cw = self.geometry_mapper.col_size(cc)
+                ch = self.geometry_mapper.row_size(cr)
+                if cw <= 0 or ch <= 0:
+                    continue
+                right = cx + cw
+                poly = [
+                    QPoint(right - s, cy),
+                    QPoint(right, cy),
+                    QPoint(right, cy + s),
+                ]
+                painter.drawPolygon(poly)
+            painter.restore()
+
+        # 5.9 Draw Visible Comments Callouts
+        show_all = getattr(self.model, "show_all_comments", False)
+        if comments:
+            painter.save()
+            painter.setClipRect(cell_clip)
+            for (cr, cc), cm in comments.items():
+                if not (cm.visible or show_all):
+                    continue
+                if cr < start_row or cr > end_row or cc < start_col or cc > end_col:
+                    continue
+                cx = (
+                    self.row_header_width
+                    + self.geometry_mapper.col_pos(cc)
+                    - scroll_x
+                )
+                cy = (
+                    self.col_header_height
+                    + self.geometry_mapper.row_pos(cr)
+                    - scroll_y
+                )
+                cw = self.geometry_mapper.col_size(cc)
+                ch = self.geometry_mapper.row_size(cr)
+                if cw <= 0 or ch <= 0:
+                    continue
+
+                bx = cx + cw + 12
+                by = max(self.col_header_height + 2, cy - 6)
+                bw = 140
+                bh = 65
+
+                # Connecting line from cell top-right to note top-left
+                painter.setPen(QPen(QColor(0, 0, 0), 1))
+                painter.drawLine(cx + cw, cy, bx, by + 6)
+
+                # Yellow note box
+                painter.fillRect(bx, by, bw, bh, QColor(255, 255, 225))
+                painter.setPen(QPen(QColor(128, 128, 128), 1))
+                painter.drawRect(bx, by, bw, bh)
+
+                # Text inside note
+                painter.setPen(QPen(QColor(0, 0, 0), 1))
+                note_font = QFont(self.font())
+                note_font.setPointSize(8)
+                painter.setFont(note_font)
+                text_rect = QRect(bx + 4, by + 4, bw - 8, bh - 8)
+                display_text = f"{cm.author}:\n{cm.text}" if cm.author else cm.text
+                painter.drawText(
+                    text_rect,
+                    Qt.AlignmentFlag.AlignTop
+                    | Qt.AlignmentFlag.AlignLeft
+                    | Qt.TextFlag.TextWordWrap,
+                    display_text,
+                )
+            painter.restore()
+
         # 6. Draw Fixed Headers (Column Headers, Row Headers, Corner)
         self._paint_headers(
             painter, start_row, end_row, start_col, end_col, scroll_x, scroll_y, vw, vh
@@ -1027,6 +1147,27 @@ class GridViewport(QAbstractScrollArea):
                 self.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
             else:
                 self.viewport().setCursor(Qt.CursorShape.ArrowCursor)
+
+            # Check comment tooltip hover
+            if hit.row is not None and hit.col is not None:
+                cm = (
+                    self.model.get_comment(hit.row, hit.col)
+                    if hasattr(self.model, "get_comment")
+                    else None
+                )
+                if cm:
+                    tip_text = (
+                        f"{cm.author}:\n{cm.text}" if cm.author else cm.text
+                    )
+                    QToolTip.showText(
+                        event.globalPosition().toPoint(),
+                        tip_text,
+                        self.viewport(),
+                    )
+                else:
+                    QToolTip.hideText()
+            else:
+                QToolTip.hideText()
             return
 
         # Handle active drag

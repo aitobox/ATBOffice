@@ -1012,24 +1012,180 @@ class LedgerWindow(BaseOfficeWindow):
 
     def insert_comment(self) -> None:
         """Insert or edit comment for the active cell."""
+        sheet = self.spreadsheet_view.model
+        sel = self.spreadsheet_view.selection
+        r, c = sel.active_cell
+        cm = sheet.get_comment(r, c)
+        from atboffice.modules.spreadsheet.calc.references import to_a1
+
+        cell_ref = to_a1(r, c)
+        from atboffice.modules.spreadsheet.dialogs.comment_dialog import (
+            CommentDialog,
+        )
+
+        existing_text = cm.text if cm else ""
+        author = cm.author if (cm and cm.author) else "Ledger User"
+
+        dlg = CommentDialog(
+            existing_text=existing_text,
+            author=author,
+            cell_ref=cell_ref,
+            parent=self,
+        )
+        if dlg.exec():
+            new_text = dlg.get_text()
+            new_author = dlg.get_author()
+            if new_text:
+                sheet.set_comment(
+                    r,
+                    c,
+                    text=new_text,
+                    author=new_author,
+                    visible=cm.visible if cm else False,
+                )
+            else:
+                sheet.delete_comment(r, c)
+            self.spreadsheet_view.grid.viewport().update()
 
     def show_hide_comment(self) -> None:
         """Toggle visibility of comment for the active cell."""
+        sheet = self.spreadsheet_view.model
+        sel = self.spreadsheet_view.selection
+        r, c = sel.active_cell
+        cm = sheet.get_comment(r, c)
+        if cm:
+            cm.visible = not cm.visible
+            self.spreadsheet_view.grid.viewport().update()
+        else:
+            self.statusBar().showMessage(safe_tr("当前单元格没有批注。"), 3000)
 
     def delete_comment(self) -> None:
         """Delete comment on the active cell."""
+        sheet = self.spreadsheet_view.model
+        sel = self.spreadsheet_view.selection
+        r, c = sel.active_cell
+        deleted = sheet.delete_comment(r, c)
+        if deleted:
+            self.spreadsheet_view.grid.viewport().update()
+            self.statusBar().showMessage(safe_tr("已删除单元格批注。"), 3000)
+        else:
+            self.statusBar().showMessage(safe_tr("当前单元格没有批注。"), 3000)
 
     def toggle_show_all_comments(self) -> None:
         """Toggle visibility of all worksheet comments."""
+        sheet = self.spreadsheet_view.model
+        sheet.show_all_comments = not getattr(sheet, "show_all_comments", False)
+        self.spreadsheet_view.grid.viewport().update()
+        msg = (
+            safe_tr("已显示所有批注。")
+            if sheet.show_all_comments
+            else safe_tr("已隐藏所有批注。")
+        )
+        self.statusBar().showMessage(msg, 3000)
 
     def data_validation(self) -> None:
         """Open data validation rule configuration dialog."""
+        sheet = self.spreadsheet_view.model
+        sel = self.spreadsheet_view.selection
+        ar, ac = sel.active_cell
+        existing_dv = sheet.get_validation_at(ar, ac)
+        pr = sel.primary_range
+        from atboffice.modules.spreadsheet.calc.references import to_a1
+
+        if pr.min_r == pr.max_r and pr.min_c == pr.max_c:
+            sqref = to_a1(pr.min_r, pr.min_c)
+        else:
+            sqref = f"{to_a1(pr.min_r, pr.min_c)}:{to_a1(pr.max_r, pr.max_c)}"
+        ranges = [(rg.min_r, rg.min_c, rg.max_r, rg.max_c) for rg in sel.ranges]
+
+        from atboffice.modules.spreadsheet.dialogs.data_validation_dialog import (
+            DataValidationDialog,
+        )
+
+        dlg = DataValidationDialog(
+            existing_dv=existing_dv,
+            sqref=sqref,
+            ranges=ranges,
+            parent=self,
+        )
+        if dlg.exec():
+            from atboffice.modules.spreadsheet.models.validation import (
+                ValidationType,
+            )
+
+            dv = dlg.get_data_validation()
+            if dv.type in (ValidationType.ANY.value, "none"):
+                new_dvs = []
+                for existing in sheet.data_validations:
+                    rem_ranges = [
+                        rng for rng in existing.ranges if rng not in ranges
+                    ]
+                    if rem_ranges:
+                        existing.ranges = rem_ranges
+                        new_dvs.append(existing)
+                sheet.data_validations = new_dvs
+            else:
+                sheet.add_data_validation(dv)
+            self.spreadsheet_view.grid.viewport().update()
 
     def circle_invalid(self) -> None:
         """Circle invalid data in worksheet according to validation rules."""
+        sheet = self.spreadsheet_view.model
+        if not sheet.data_validations:
+            self.statusBar().showMessage(safe_tr("当前工作表没有数据有效性规则。"), 3000)
+            return
+
+        from atboffice.modules.spreadsheet.models.validation import (
+            validate_cell_value,
+        )
+
+        invalid_cells: list[tuple[int, int]] = []
+        more = False
+
+        checked_cells: set[tuple[int, int]] = set()
+        for dv in sheet.data_validations:
+            for r1, c1, r2, c2 in dv.ranges:
+                for r in range(r1, r2 + 1):
+                    for c in range(c1, c2 + 1):
+                        checked_cells.add((r, c))
+
+        for r, c in checked_cells:
+            val = sheet.get_cell_value(r, c)
+            if val is None or val == "":
+                continue
+            is_valid, _ = validate_cell_value(sheet, r, c, val)
+            if not is_valid:
+                if len(invalid_cells) < 255:
+                    invalid_cells.append((r, c))
+                else:
+                    more = True
+                    break
+
+        sheet.invalid_circles = invalid_cells
+        self.spreadsheet_view.grid.viewport().update()
+
+        if more:
+            QMessageBox.warning(
+                self,
+                safe_tr("数据有效性"),
+                safe_tr("此工作表包含超过 255 个无效单元格，仅圈释前 255 个。"),
+            )
+        elif not invalid_cells:
+            self.statusBar().showMessage(safe_tr("当前工作表中没有无效数据。"), 3000)
+        else:
+            self.statusBar().showMessage(
+                safe_tr("已圈释 {count} 个无效数据单元格。").format(
+                    count=len(invalid_cells)
+                ),
+                3000,
+            )
 
     def clear_circles(self) -> None:
         """Clear all invalid data validation circles."""
+        sheet = self.spreadsheet_view.model
+        sheet.invalid_circles = []
+        self.spreadsheet_view.grid.viewport().update()
+        self.statusBar().showMessage(safe_tr("已清除所有无效数据圈释。"), 3000)
 
     def watch_window(self) -> None:
         """Open watch window for inspecting formula values."""
