@@ -138,9 +138,7 @@ class LedgerWindow(BaseOfficeWindow):
         self.action_registry.set_handler("help", self.show_about)
 
         # Formatting toolbar actions
-        self.action_registry.set_handler(
-            "alignLeft", lambda: self.set_horizontal_alignment("left")
-        )
+        self.action_registry.set_handler("alignLeft", lambda: self.set_horizontal_alignment("left"))
         self.action_registry.set_handler(
             "alignCenter", lambda: self.set_horizontal_alignment("center")
         )
@@ -191,6 +189,8 @@ class LedgerWindow(BaseOfficeWindow):
         # List & Chart actions
         self.action_registry.set_handler("totalRow", self.toggle_total_row)
         self.action_registry.set_handler("formatObject", self.format_selected_object)
+        self.action_registry.set_handler("data_pivottable", self.open_pivot_wizard)
+        self.action_registry.set_handler("pivotTable", self.open_pivot_wizard)
 
         # Drawing toolbar actions
         self.action_registry.set_handler("insertShape", lambda: self.insert_shape("rect"))
@@ -469,9 +469,9 @@ class LedgerWindow(BaseOfficeWindow):
             is_center = False
             is_right = isinstance(cell.value, (int, float))
         else:
-            is_left = (align_h == "left")
-            is_center = (align_h == "center")
-            is_right = (align_h == "right")
+            is_left = align_h == "left"
+            is_center = align_h == "center"
+            is_right = align_h == "right"
 
         act_left = self.action_registry.get_action("alignLeft")
         if act_left:
@@ -1159,9 +1159,7 @@ class LedgerWindow(BaseOfficeWindow):
         sheet.show_all_comments = not getattr(sheet, "show_all_comments", False)
         self.spreadsheet_view.grid.viewport().update()
         msg = (
-            safe_tr("已显示所有批注。")
-            if sheet.show_all_comments
-            else safe_tr("已隐藏所有批注。")
+            safe_tr("已显示所有批注。") if sheet.show_all_comments else safe_tr("已隐藏所有批注。")
         )
         self.statusBar().showMessage(msg, 3000)
 
@@ -1199,9 +1197,7 @@ class LedgerWindow(BaseOfficeWindow):
             if dv.type in (ValidationType.ANY.value, "none"):
                 new_dvs = []
                 for existing in sheet.data_validations:
-                    rem_ranges = [
-                        rng for rng in existing.ranges if rng not in ranges
-                    ]
+                    rem_ranges = [rng for rng in existing.ranges if rng not in ranges]
                     if rem_ranges:
                         existing.ranges = rem_ranges
                         new_dvs.append(existing)
@@ -1209,6 +1205,33 @@ class LedgerWindow(BaseOfficeWindow):
             else:
                 sheet.add_data_validation(dv)
             self.spreadsheet_view.grid.viewport().update()
+
+    def open_pivot_wizard(self) -> None:
+        """Launch the PivotTable and PivotChart report wizard dialog."""
+        from atboffice.modules.spreadsheet.dialogs.pivot_dialog import (
+            PivotTableWizardDialog,
+        )
+
+        sheet = self.spreadsheet_view.model
+        sel = self.spreadsheet_view.selection
+        pr = sel.primary_range
+
+        if pr.min_r == pr.max_r and pr.min_c == pr.max_c:
+            used_r2 = max(sheet.max_row, pr.min_r)
+            used_c2 = max(sheet.max_col, pr.min_c)
+            init_range = (0, 0, max(1, used_r2), max(1, used_c2))
+        else:
+            init_range = (pr.min_r, pr.min_c, pr.max_r, pr.max_c)
+
+        dlg = PivotTableWizardDialog(
+            workbook=self.workbook,
+            initial_sheet_name=sheet.name,
+            initial_range=init_range,
+            parent=self,
+        )
+        if dlg.exec():
+            self.spreadsheet_view.grid.viewport().update()
+            self.statusBar().showMessage(safe_tr("数据透视表报表已成功生成。"), 4000)
 
     def circle_invalid(self) -> None:
         """Circle invalid data in worksheet according to validation rules."""
@@ -1256,9 +1279,7 @@ class LedgerWindow(BaseOfficeWindow):
             self.statusBar().showMessage(safe_tr("当前工作表中没有无效数据。"), 3000)
         else:
             self.statusBar().showMessage(
-                safe_tr("已圈释 {count} 个无效数据单元格。").format(
-                    count=len(invalid_cells)
-                ),
+                safe_tr("已圈释 {count} 个无效数据单元格。").format(count=len(invalid_cells)),
                 3000,
             )
 
@@ -1290,9 +1311,11 @@ class LedgerWindow(BaseOfficeWindow):
             self._watch_window.navigate_requested.connect(self._on_watch_navigate)
             self._watch_window.add_watch_requested.connect(self._on_watch_add_current)
             self.spreadsheet_view.editor_controller.cell_committed.connect(
-                lambda *_: self._watch_window.refresh_watches()
-                if self._watch_window and self._watch_window.isVisible()
-                else None
+                lambda *_: (
+                    self._watch_window.refresh_watches()
+                    if self._watch_window and self._watch_window.isVisible()
+                    else None
+                )
             )
 
         self._watch_window.refresh_watches()

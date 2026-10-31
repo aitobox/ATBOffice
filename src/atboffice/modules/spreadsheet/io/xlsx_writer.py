@@ -9,6 +9,7 @@ from typing import Any, BinaryIO
 
 from atboffice.modules.spreadsheet.calc.references import cell_name
 from atboffice.modules.spreadsheet.io.xlsx_reader import BUILTIN_NUMFMTS
+from atboffice.modules.spreadsheet.models.pivot_model import write_pivots_to_package
 from atboffice.modules.spreadsheet.models.sheet_model import (
     BorderStyle,
     CellData,
@@ -33,9 +34,7 @@ NS_VT = "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"
 CT_WORKBOOK = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
 CT_WORKSHEET = "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"
 CT_STYLES = "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"
-CT_SHARED_STRINGS = (
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"
-)
+CT_SHARED_STRINGS = "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"
 CT_THEME = "application/vnd.openxmlformats-officedocument.theme+xml"
 CT_CORE_PROPS = "application/vnd.openxmlformats-package.core-properties+xml"
 CT_APP_PROPS = "application/vnd.openxmlformats-officedocument.extended-properties+xml"
@@ -45,29 +44,23 @@ CT_DRAWING = "application/vnd.openxmlformats-officedocument.drawing+xml"
 REL_OFFICE_DOC = (
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
 )
-REL_WORKSHEET = (
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"
-)
-REL_STYLES = (
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles"
-)
+REL_WORKSHEET = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"
+REL_STYLES = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles"
 REL_SHARED_STRINGS = (
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings"
 )
-REL_THEME = (
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"
-)
+REL_THEME = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"
 REL_CORE_PROPS = (
     "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties"
 )
 REL_APP_PROPS = (
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties"
 )
-REL_DRAWING = (
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing"
-)
-REL_IMAGE = (
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+REL_DRAWING = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing"
+REL_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+REL_PIVOT_TABLE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable"
+REL_PIVOT_CACHE = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition"
 )
 
 RE_UNSAFE_XML = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
@@ -94,9 +87,7 @@ def _text_element(s: str, tag: str = "t") -> str:
     """Format a text node preserving whitespace if necessary."""
     clean = _clean_text(str(s))
     escaped = _xml_escape(clean)
-    if clean and (
-        clean[0].isspace() or clean[-1].isspace() or "\n" in clean or "\r" in clean
-    ):
+    if clean and (clean[0].isspace() or clean[-1].isspace() or "\n" in clean or "\r" in clean):
         return f'<{tag} xml:space="preserve">{escaped}</{tag}>'
     return f"<{tag}>{escaped}</{tag}>"
 
@@ -171,7 +162,7 @@ class StyleManager:
         self.fills.append('<fill><patternFill patternType="gray125"/></fill>')
 
         # Border 0: empty
-        self.borders.append('<border><left/><right/><top/><bottom/><diagonal/></border>')
+        self.borders.append("<border><left/><right/><top/><bottom/><diagonal/></border>")
 
         # CellXfs
         self.cell_xfs: list[dict[str, Any]] = []
@@ -234,9 +225,7 @@ class StyleManager:
         self.font_map[key] = idx
         return idx
 
-    def _get_or_add_fill(
-        self, bg_color: str | None, pattern: str | None = None
-    ) -> int:
+    def _get_or_add_fill(self, bg_color: str | None, pattern: str | None = None) -> int:
         if not bg_color and (not pattern or pattern == "none"):
             return 0
         c_hex = _color_hex(bg_color)
@@ -322,10 +311,7 @@ class StyleManager:
         )
         has_fill = bool(cell.bg_color or (cell.pattern and cell.pattern != "none"))
         has_border = bool(
-            cell.border_top
-            or cell.border_bottom
-            or cell.border_left
-            or cell.border_right
+            cell.border_top or cell.border_bottom or cell.border_left or cell.border_right
         )
         has_num_fmt = bool(cell.format_code and cell.format_code != "General")
         has_align = bool(
@@ -353,9 +339,7 @@ class StyleManager:
             if has_font
             else 0
         )
-        fill_id = (
-            self._get_or_add_fill(cell.bg_color, cell.pattern) if has_fill else 0
-        )
+        fill_id = self._get_or_add_fill(cell.bg_color, cell.pattern) if has_fill else 0
         border_id = (
             self._get_or_add_border(
                 cell.border_top,
@@ -366,9 +350,7 @@ class StyleManager:
             if has_border
             else 0
         )
-        num_fmt_id = (
-            self._get_or_add_num_fmt(cell.format_code) if has_num_fmt else 0
-        )
+        num_fmt_id = self._get_or_add_num_fmt(cell.format_code) if has_num_fmt else 0
 
         align_key = None
         if has_align:
@@ -422,9 +404,7 @@ class StyleManager:
         if self.num_fmts:
             parts.append(f'<numFmts count="{len(self.num_fmts)}">')
             for fid, code in self.num_fmts:
-                parts.append(
-                    f'<numFmt numFmtId="{fid}" formatCode="{_xml_escape(code)}"/>'
-                )
+                parts.append(f'<numFmt numFmtId="{fid}" formatCode="{_xml_escape(code)}"/>')
             parts.append("</numFmts>")
 
         # 2. fonts
@@ -487,18 +467,14 @@ class StyleManager:
 
             if align_attrs:
                 attrs.append('applyAlignment="1"')
-                parts.append(
-                    f'<xf {" ".join(attrs)}><alignment {" ".join(align_attrs)}/></xf>'
-                )
+                parts.append(f"<xf {' '.join(attrs)}><alignment {' '.join(align_attrs)}/></xf>")
             else:
-                parts.append(f'<xf {" ".join(attrs)}/>')
+                parts.append(f"<xf {' '.join(attrs)}/>")
         parts.append("</cellXfs>")
 
         # 7. cellStyles
         parts.append(
-            '<cellStyles count="1">'
-            '<cellStyle name="Normal" xfId="0" builtinId="0"/>'
-            "</cellStyles>"
+            '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
         )
 
         # 8. dxfs
@@ -567,15 +543,14 @@ def _serialize_worksheet(
         XML_HEADER,
         f'<worksheet xmlns="{NS_MAIN}" xmlns:r="{NS_R}">',
         f'<dimension ref="{dim_ref}"/>',
-        f"<sheetViews><sheetView workbookViewId=\"0\"{tab_sel_attr}/></sheetViews>",
+        f'<sheetViews><sheetView workbookViewId="0"{tab_sel_attr}/></sheetViews>',
         '<sheetFormatPr defaultRowHeight="20"/>',
     ]
 
     # Columns (<cols>)
     if sheet.geometry.custom_col_widths or sheet.geometry.hidden_cols:
         col_indices = sorted(
-            set(sheet.geometry.custom_col_widths.keys())
-            | set(sheet.geometry.hidden_cols)
+            set(sheet.geometry.custom_col_widths.keys()) | set(sheet.geometry.hidden_cols)
         )
         if col_indices:
             parts.append("<cols>")
@@ -583,12 +558,9 @@ def _serialize_worksheet(
                 w_px = sheet.geometry.col_size(c)
                 w_str = f"{(w_px + 0.1) / 8.0:.2f}"
                 c_1 = c + 1
-                hidden_attr = (
-                    ' hidden="1"' if c in sheet.geometry.hidden_cols else ""
-                )
+                hidden_attr = ' hidden="1"' if c in sheet.geometry.hidden_cols else ""
                 parts.append(
-                    f'<col min="{c_1}" max="{c_1}" width="{w_str}" '
-                    f'customWidth="1"{hidden_attr}/>'
+                    f'<col min="{c_1}" max="{c_1}" width="{w_str}" customWidth="1"{hidden_attr}/>'
                 )
             parts.append("</cols>")
 
@@ -625,10 +597,10 @@ def _serialize_worksheet(
             row_attrs.append('hidden="1"')
 
         if not c_list:
-            parts.append(f'<row {" ".join(row_attrs)}/>')
+            parts.append(f"<row {' '.join(row_attrs)}/>")
             continue
 
-        parts.append(f'<row {" ".join(row_attrs)}>')
+        parts.append(f"<row {' '.join(row_attrs)}>")
         for c, cell in c_list:
             c_ref = cell_name(r, c)
             s_idx = style_manager.get_style_index(cell)
@@ -662,9 +634,7 @@ def _serialize_worksheet(
                         f'<c r="{c_ref}"{s_attr} t="b"><v>{1 if cell.value else 0}</v></c>'
                     )
                 elif isinstance(cell.value, (int, float)):
-                    parts.append(
-                        f'<c r="{c_ref}"{s_attr}><v>{cell.value}</v></c>'
-                    )
+                    parts.append(f'<c r="{c_ref}"{s_attr}><v>{cell.value}</v></c>')
                 elif isinstance(cell.value, str):
                     if cell.value.startswith("#") and cell.value in (
                         "#NULL!",
@@ -675,19 +645,13 @@ def _serialize_worksheet(
                         "#NUM!",
                         "#N/A",
                     ):
-                        parts.append(
-                            f'<c r="{c_ref}"{s_attr} t="e"><v>{cell.value}</v></c>'
-                        )
+                        parts.append(f'<c r="{c_ref}"{s_attr} t="e"><v>{cell.value}</v></c>')
                     else:
                         sst_id = sst_manager.add(cell.value)
-                        parts.append(
-                            f'<c r="{c_ref}"{s_attr} t="s"><v>{sst_id}</v></c>'
-                        )
+                        parts.append(f'<c r="{c_ref}"{s_attr} t="s"><v>{sst_id}</v></c>')
                 else:
                     sst_id = sst_manager.add(str(cell.value))
-                    parts.append(
-                        f'<c r="{c_ref}"{s_attr} t="s"><v>{sst_id}</v></c>'
-                    )
+                    parts.append(f'<c r="{c_ref}"{s_attr} t="s"><v>{sst_id}</v></c>')
 
         parts.append("</row>")
 
@@ -747,7 +711,7 @@ def _serialize_worksheet(
                     r_attrs.append('stopIfTrue="1"')
                 if rule.text:
                     r_attrs.append(f'text="{_xml_escape(rule.text)}"')
-                parts.append(f'<cfRule {" ".join(r_attrs)}>')
+                parts.append(f"<cfRule {' '.join(r_attrs)}>")
                 for f in rule.formula:
                     parts.append(f"<formula>{_xml_escape(str(f))}</formula>")
                 parts.append("</cfRule>")
@@ -781,7 +745,7 @@ def _serialize_worksheet(
                 dv_attrs.append(f'error="{_xml_escape(dv.error_message)}"')
             if dv.sqref:
                 dv_attrs.append(f'sqref="{dv.sqref}"')
-            parts.append(f'<dataValidation {" ".join(dv_attrs)}>')
+            parts.append(f"<dataValidation {' '.join(dv_attrs)}>")
             if dv.formula1:
                 parts.append(f"<formula1>{_xml_escape(str(dv.formula1))}</formula1>")
             if dv.formula2:
@@ -791,8 +755,7 @@ def _serialize_worksheet(
 
     # Page margins
     parts.append(
-        '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" '
-        'header="0.3" footer="0.3"/>'
+        '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>'
     )
     if drawing_rid:
         parts.append(f'<drawing r:id="{drawing_rid}"/>')
@@ -833,9 +796,7 @@ def _serialize_drawings(
         t_row_off = obj.to_point.row_off * 9525
 
         anchor_type_val = (
-            obj.anchor_type.value
-            if hasattr(obj.anchor_type, "value")
-            else str(obj.anchor_type)
+            obj.anchor_type.value if hasattr(obj.anchor_type, "value") else str(obj.anchor_type)
         )
 
         parts.append(
@@ -870,17 +831,13 @@ def _serialize_drawings(
             is_tb = "1" if obj.kind == "textbox" else "0"
 
             # Fill
-            fill_clean = (
-                obj.fill_color.lstrip("#").upper() if obj.fill_color else "4F81BD"
-            )
+            fill_clean = obj.fill_color.lstrip("#").upper() if obj.fill_color else "4F81BD"
             if len(fill_clean) > 6:
                 fill_clean = fill_clean[:6]
             fill_xml = f'<a:solidFill><a:srgbClr val="{fill_clean}"/></a:solidFill>'
 
             # Line
-            line_clean = (
-                obj.line_color.lstrip("#").upper() if obj.line_color else "385D8A"
-            )
+            line_clean = obj.line_color.lstrip("#").upper() if obj.line_color else "385D8A"
             if len(line_clean) > 6:
                 line_clean = line_clean[:6]
             lw_emu = int(max(0.5, getattr(obj, "line_width", 1.0)) * 12700)
@@ -893,9 +850,7 @@ def _serialize_drawings(
             # Text body
             tx_body = ""
             if getattr(obj, "text", "") or obj.kind == "textbox":
-                txt_clean = (
-                    getattr(obj, "text_color", "#000000").lstrip("#").upper()
-                )
+                txt_clean = getattr(obj, "text_color", "#000000").lstrip("#").upper()
                 if len(txt_clean) > 6:
                     txt_clean = txt_clean[:6]
                 p_items = []
@@ -914,7 +869,7 @@ def _serialize_drawings(
                     f"<xdr:txBody>"
                     f'<a:bodyPr vertOverflow="clip" horzOverflow="clip"/>'
                     f"<a:lstStyle/>"
-                    f'{"".join(p_items)}'
+                    f"{''.join(p_items)}"
                     f"</xdr:txBody>"
                 )
 
@@ -950,16 +905,24 @@ def _serialize_workbook(workbook: WorkbookModel, sheet_rids: list[str]) -> bytes
         "<sheets>",
     ]
     for idx, (sheet, rid) in enumerate(zip(workbook.sheets, sheet_rids)):
-        parts.append(
-            f'<sheet name="{_xml_escape(sheet.name)}" sheetId="{idx + 1}" r:id="{rid}"/>'
-        )
+        parts.append(f'<sheet name="{_xml_escape(sheet.name)}" sheetId="{idx + 1}" r:id="{rid}"/>')
     parts.append("</sheets>")
+
+    pivots = workbook.extra.get("pivots")
+    if pivots:
+        pc_elems = []
+        for c in pivots.caches:
+            if not c.drop and c.rel_id:
+                pc_elems.append(f'<pivotCache cacheId="{c.cache_id}" r:id="{c.rel_id}"/>')
+        if pc_elems:
+            parts.append(f"<pivotCaches>{''.join(pc_elems)}</pivotCaches>")
+
     parts.append('<calcPr calcId="124519" fullCalcOnLoad="1"/>')
     parts.append("</workbook>")
     return "".join(parts).encode("utf-8")
 
 
-def _serialize_workbook_rels(sheet_count: int) -> bytes:
+def _serialize_workbook_rels(sheet_count: int, workbook: WorkbookModel | None = None) -> bytes:
     """Serialize xl/_rels/workbook.xml.rels."""
     parts = [
         XML_HEADER,
@@ -967,22 +930,25 @@ def _serialize_workbook_rels(sheet_count: int) -> bytes:
     ]
     for i in range(1, sheet_count + 1):
         parts.append(
-            f'<Relationship Id="rId{i}" Type="{REL_WORKSHEET}" '
-            f'Target="worksheets/sheet{i}.xml"/>'
+            f'<Relationship Id="rId{i}" Type="{REL_WORKSHEET}" Target="worksheets/sheet{i}.xml"/>'
         )
     styles_rid = f"rId{sheet_count + 1}"
-    parts.append(
-        f'<Relationship Id="{styles_rid}" Type="{REL_STYLES}" Target="styles.xml"/>'
-    )
+    parts.append(f'<Relationship Id="{styles_rid}" Type="{REL_STYLES}" Target="styles.xml"/>')
     theme_rid = f"rId{sheet_count + 2}"
-    parts.append(
-        f'<Relationship Id="{theme_rid}" Type="{REL_THEME}" Target="theme/theme1.xml"/>'
-    )
+    parts.append(f'<Relationship Id="{theme_rid}" Type="{REL_THEME}" Target="theme/theme1.xml"/>')
     sst_rid = f"rId{sheet_count + 3}"
     parts.append(
-        f'<Relationship Id="{sst_rid}" Type="{REL_SHARED_STRINGS}" '
-        f'Target="sharedStrings.xml"/>'
+        f'<Relationship Id="{sst_rid}" Type="{REL_SHARED_STRINGS}" Target="sharedStrings.xml"/>'
     )
+
+    if workbook and (pivots := workbook.extra.get("pivots")):
+        for c in pivots.caches:
+            if not c.drop and c.rel_id:
+                tgt = c.part_name.replace("xl/", "")
+                parts.append(
+                    f'<Relationship Id="{c.rel_id}" Type="{REL_PIVOT_CACHE}" Target="{tgt}"/>'
+                )
+
     parts.append("</Relationships>")
     return "".join(parts).encode("utf-8")
 
@@ -1001,9 +967,7 @@ def _serialize_root_rels() -> bytes:
 
 def _serialize_core_props() -> bytes:
     """Serialize docProps/core.xml."""
-    now_iso = (
-        datetime.now(UTC).isoformat().replace("+00:00", "Z")
-    )
+    now_iso = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     return (
         f"{XML_HEADER}"
         f'<cp:coreProperties xmlns:cp="{NS_CORE}" xmlns:dc="{NS_DC}" '
@@ -1045,7 +1009,7 @@ def _serialize_theme() -> bytes:
     return (
         f"{XML_HEADER}"
         f'<a:theme xmlns:a="{NS_A}" name="Office Theme">\n'
-        f'  <a:themeElements>\n'
+        f"  <a:themeElements>\n"
         f'    <a:clrScheme name="Office">\n'
         f'      <a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1>\n'
         f'      <a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>\n'
@@ -1059,30 +1023,30 @@ def _serialize_theme() -> bytes:
         f'      <a:accent6><a:srgbClr val="F79646"/></a:accent6>\n'
         f'      <a:hlink><a:srgbClr val="0000FF"/></a:hlink>\n'
         f'      <a:folHlink><a:srgbClr val="800080"/></a:folHlink>\n'
-        f'    </a:clrScheme>\n'
+        f"    </a:clrScheme>\n"
         f'    <a:fontScheme name="Office">\n'
-        f'      <a:majorFont>\n'
+        f"      <a:majorFont>\n"
         f'        <a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/>\n'
-        f'      </a:majorFont>\n'
-        f'      <a:minorFont>\n'
+        f"      </a:majorFont>\n"
+        f"      <a:minorFont>\n"
         f'        <a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/>\n'
-        f'      </a:minorFont>\n'
-        f'    </a:fontScheme>\n'
+        f"      </a:minorFont>\n"
+        f"    </a:fontScheme>\n"
         f'    <a:fmtScheme name="Office">\n'
-        f'      <a:fillStyleLst>\n'
+        f"      <a:fillStyleLst>\n"
         f'        <a:solidFill><a:schemeClr val="phClr"/></a:solidFill>\n'
-        f'      </a:fillStyleLst>\n'
-        f'      <a:lnStyleLst>\n'
+        f"      </a:fillStyleLst>\n"
+        f"      <a:lnStyleLst>\n"
         f'        <a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>\n'
-        f'      </a:lnStyleLst>\n'
-        f'      <a:effectStyleLst>\n'
-        f'        <a:effectStyle><a:effectLst/></a:effectStyle>\n'
-        f'      </a:effectStyleLst>\n'
-        f'      <a:bgFillStyleLst>\n'
+        f"      </a:lnStyleLst>\n"
+        f"      <a:effectStyleLst>\n"
+        f"        <a:effectStyle><a:effectLst/></a:effectStyle>\n"
+        f"      </a:effectStyleLst>\n"
+        f"      <a:bgFillStyleLst>\n"
         f'        <a:solidFill><a:schemeClr val="phClr"/></a:solidFill>\n'
-        f'      </a:bgFillStyleLst>\n'
-        f'    </a:fmtScheme>\n'
-        f'  </a:themeElements>\n'
+        f"      </a:bgFillStyleLst>\n"
+        f"    </a:fmtScheme>\n"
+        f"  </a:themeElements>\n"
         f"</a:theme>"
     ).encode()
 
@@ -1133,6 +1097,8 @@ def write_xlsx(
         part_name = f"xl/worksheets/sheet{i}.xml"
         pkg_writer.add_part(part_name, ws_bytes, CT_WORKSHEET)
 
+        sheet_rels: list[str] = []
+
         if has_drawings:
             drawing_count += 1
             drawing_part = f"xl/drawings/drawing{drawing_count}.xml"
@@ -1168,7 +1134,7 @@ def write_xlsx(
             if drawing_rels:
                 drawing_rels_xml = (
                     f'{XML_HEADER}<Relationships xmlns="{NS_PKG_REL}">'
-                    f'{"".join(drawing_rels)}'
+                    f"{''.join(drawing_rels)}"
                     f"</Relationships>"
                 ).encode()
                 pkg_writer.add_part(
@@ -1177,14 +1143,27 @@ def write_xlsx(
                     CT_RELATIONSHIPS,
                 )
 
-            # Add sheet rels
-            rel_sheet = (
+            # Add sheet rel
+            sheet_rels.append(
                 f'<Relationship Id="{drawing_rid}" Type="{REL_DRAWING}" '
                 f'Target="../drawings/drawing{drawing_count}.xml"/>'
             )
+
+        # Check pivot tables attached to this sheet
+        pivots: Any = workbook.extra.get("pivots")
+        if pivots:
+            for t in getattr(pivots, "tables", []):
+                if not t.drop and t.sheet_name.lower() == sheet.name.lower():
+                    t_rid = t.rel_id or f"rIdPivot{t.cache_id}"
+                    t_target = t.part_name.replace("xl/", "../")
+                    sheet_rels.append(
+                        f'<Relationship Id="{t_rid}" Type="{REL_PIVOT_TABLE}" Target="{t_target}"/>'
+                    )
+
+        if sheet_rels:
             sheet_rels_xml = (
                 f'{XML_HEADER}<Relationships xmlns="{NS_PKG_REL}">'
-                f"{rel_sheet}"
+                f"{''.join(sheet_rels)}"
                 f"</Relationships>"
             ).encode()
             pkg_writer.add_part(
@@ -1206,25 +1185,23 @@ def write_xlsx(
     wb_bytes = _serialize_workbook(workbook, sheet_rids)
     pkg_writer.add_part("xl/workbook.xml", wb_bytes, CT_WORKBOOK)
 
-    wb_rels_bytes = _serialize_workbook_rels(sheet_count)
-    pkg_writer.add_part(
-        "xl/_rels/workbook.xml.rels", wb_rels_bytes, CT_RELATIONSHIPS
-    )
+    wb_rels_bytes = _serialize_workbook_rels(sheet_count, workbook=workbook)
+    pkg_writer.add_part("xl/_rels/workbook.xml.rels", wb_rels_bytes, CT_RELATIONSHIPS)
+
+    # 4b. Write pivot parts (lossless carry or modified)
+    if pivots:
+        write_pivots_to_package(pkg_writer, workbook, pivots)
 
     # 5. Core package plumbing (if not already carried or needed)
     if not source_pkg or not source_pkg.has_part("xl/theme/theme1.xml"):
         pkg_writer.add_part("xl/theme/theme1.xml", _serialize_theme(), CT_THEME)
 
     if not source_pkg or not source_pkg.has_part("docProps/core.xml"):
-        pkg_writer.add_part(
-            "docProps/core.xml", _serialize_core_props(), CT_CORE_PROPS
-        )
+        pkg_writer.add_part("docProps/core.xml", _serialize_core_props(), CT_CORE_PROPS)
 
     sheet_names = [s.name for s in workbook.sheets]
     if not source_pkg or not source_pkg.has_part("docProps/app.xml"):
-        pkg_writer.add_part(
-            "docProps/app.xml", _serialize_app_props(sheet_names), CT_APP_PROPS
-        )
+        pkg_writer.add_part("docProps/app.xml", _serialize_app_props(sheet_names), CT_APP_PROPS)
 
     if not source_pkg or not source_pkg.has_part("_rels/.rels"):
         pkg_writer.add_part("_rels/.rels", _serialize_root_rels(), CT_RELATIONSHIPS)
