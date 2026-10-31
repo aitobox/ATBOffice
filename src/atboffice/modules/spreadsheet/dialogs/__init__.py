@@ -4,6 +4,7 @@ from atboffice.modules.spreadsheet.dialogs.comment_dialog import CommentDialog
 from atboffice.modules.spreadsheet.dialogs.conditional_format_dialog import (
     ConditionalFormatDialog,
 )
+from atboffice.modules.spreadsheet.dialogs.custom_filter import CustomFilterDialog
 from atboffice.modules.spreadsheet.dialogs.data_validation_dialog import (
     DataValidationDialog,
     ValidationAlertDialog,
@@ -20,6 +21,7 @@ from atboffice.modules.spreadsheet.dialogs.sort_dialog import SortDialog
 __all__ = [
     "CommentDialog",
     "ConditionalFormatDialog",
+    "CustomFilterDialog",
     "DataValidationDialog",
     "FormatCellsDialog",
     "FunctionArgumentsDialog",

@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from atboffice.modules.spreadsheet.calc.references import col_name
+from atboffice.modules.spreadsheet.dialogs.custom_filter import CustomFilterDialog
 from atboffice.modules.spreadsheet.models.filter_model import (
     AutoFilter,
     ColumnFilter,
@@ -84,119 +85,6 @@ class Top10FilterDialog(QDialog):
         count = self.spin_count.value()
         is_percent = bool(self.combo_kind.currentData())
         return (is_top, count, is_percent)
-
-
-class CustomFilterDialog(QDialog):
-    """Excel 2003 classic Custom AutoFilter dialog."""
-
-    OPERATORS = [
-        ("equal", "equals"),
-        ("notEqual", "does not equal"),
-        ("greaterThan", "is greater than"),
-        ("greaterThanOrEqual", "is greater than or equal to"),
-        ("lessThan", "is less than"),
-        ("lessThanOrEqual", "is less than or equal to"),
-        ("begins", "begins with"),
-        ("notBegins", "does not begin with"),
-        ("ends", "ends with"),
-        ("notEnds", "does not end with"),
-        ("contains", "contains"),
-        ("notContains", "does not contain"),
-    ]
-
-    def __init__(
-        self,
-        column_header: str,
-        unique_values: list[str],
-        parent: QWidget | None = None,
-    ) -> None:
-        super().__init__(parent)
-        self.column_header = column_header
-        self.unique_values = unique_values
-
-        self.setWindowTitle(safe_tr("Custom AutoFilter"))
-        self.setMinimumWidth(440)
-
-        layout = QVBoxLayout(self)
-
-        self.label_title = QLabel(safe_tr("Show rows where:"), self)
-        layout.addWidget(self.label_title)
-
-        self.label_col = QLabel(f"<b>{self.column_header}</b>", self)
-        layout.addWidget(self.label_col)
-
-        # Condition 1
-        cond1_layout = QHBoxLayout()
-        self.op1 = QComboBox(self)
-        for code, label in self.OPERATORS:
-            self.op1.addItem(safe_tr(label), code)
-        self.val1 = QComboBox(self)
-        self.val1.setEditable(True)
-        self.val1.addItems(self.unique_values[:100])
-        cond1_layout.addWidget(self.op1, stretch=1)
-        cond1_layout.addWidget(self.val1, stretch=1)
-        layout.addLayout(cond1_layout)
-
-        # And / Or radios
-        radio_layout = QHBoxLayout()
-        radio_layout.setContentsMargins(40, 5, 0, 5)
-        self.radio_and = QRadioButton(safe_tr("&And"), self)
-        self.radio_or = QRadioButton(safe_tr("&Or"), self)
-        self.radio_and.setChecked(True)
-        btn_group = QButtonGroup(self)
-        btn_group.addButton(self.radio_and)
-        btn_group.addButton(self.radio_or)
-        radio_layout.addWidget(self.radio_and)
-        radio_layout.addWidget(self.radio_or)
-        radio_layout.addStretch()
-        layout.addLayout(radio_layout)
-
-        # Condition 2
-        cond2_layout = QHBoxLayout()
-        self.op2 = QComboBox(self)
-        self.op2.addItem("", "")
-        for code, label in self.OPERATORS:
-            self.op2.addItem(safe_tr(label), code)
-        self.val2 = QComboBox(self)
-        self.val2.setEditable(True)
-        self.val2.addItems(self.unique_values[:100])
-        cond2_layout.addWidget(self.op2, stretch=1)
-        cond2_layout.addWidget(self.val2, stretch=1)
-        layout.addLayout(cond2_layout)
-
-        # Wildcard Hint
-        hint = safe_tr(
-            "Use ? to represent any single character\nUse * to represent any series of characters"
-        )
-        self.label_hint = QLabel(hint, self)
-        self.label_hint.setStyleSheet("color: #666; font-size: 11px;")
-        layout.addWidget(self.label_hint)
-
-        self.buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok
-            | QDialogButtonBox.StandardButton.Cancel,
-            self,
-        )
-        self.buttons.accepted.connect(self.accept)
-        self.buttons.rejected.connect(self.reject)
-        layout.addWidget(self.buttons)
-
-    def get_custom_criteria(self) -> tuple[list[tuple[str, str]], bool]:
-        """Return ([(op, val_pattern), ...], is_and)."""
-        criteria: list[tuple[str, str]] = []
-
-        code1 = self.op1.currentData()
-        v1 = self.val1.currentText()
-        if code1 and v1:
-            criteria.append((code1, v1))
-
-        code2 = self.op2.currentData()
-        v2 = self.val2.currentText()
-        if code2 and v2:
-            criteria.append((code2, v2))
-
-        is_and = self.radio_and.isChecked()
-        return criteria, is_and
 
 
 class FilterDropdown(QWidget):
@@ -437,9 +325,15 @@ class FilterDropdown(QWidget):
         if not header_text.strip():
             header_text = col_name(self.col)
 
+        current_crit = self.af.cols.get(self.col_offset)
+        initial_conds = current_crit.custom_list if current_crit else None
+        initial_and = current_crit.custom_and if current_crit else True
+
         dlg = CustomFilterDialog(
             column_header=header_text,
             unique_values=self.unique_values,
+            initial_conditions=initial_conds,
+            initial_and=initial_and,
             parent=self.parentWidget(),
         )
         if dlg.exec() == QDialog.DialogCode.Accepted:
@@ -450,6 +344,8 @@ class FilterDropdown(QWidget):
                     custom_and=is_and,
                 )
                 self.filter_applied.emit(crit)
+            elif current_crit and current_crit.custom_list:
+                self.filter_cleared.emit()
         self.close()
 
     def _on_apply_checked(self) -> None:
