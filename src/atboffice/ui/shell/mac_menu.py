@@ -281,10 +281,12 @@ class MacMenuBar(QMenuBar):
 
         menu_picture = menu_insert.addMenu(safe_tr("图片(&P)"))
         self.menu_map["insert_picture_menu"] = menu_picture
+        self._reg_act(menu_picture, "insert_clipart", "insert_clipart")
         self._reg_act(menu_picture, "insert_picture", "insert_picture")
         self._reg_act(menu_picture, "insert_wordart", "insert_wordart")
         self._reg_act(menu_picture, "insert_shape", "insert_shape")
 
+        self._reg_act(menu_insert, "insert_clipart", "insert_clipart")
         self._reg_act(menu_insert, "insert_picture", "insert_picture")
         self._reg_act(menu_insert, "insert_wordart", "insert_wordart")
         self._reg_act(menu_insert, "insert_shape", "insert_shape")
@@ -395,6 +397,9 @@ class MacMenuBar(QMenuBar):
         self._reg_act(
             menu_help, "help", "help_contents", shortcut=QKeySequence.StandardKey.HelpContents
         )
+        self._reg_act(menu_help, "help_assistant", "help_assistant")
+        self._reg_act(menu_help, "check_updates", "check_updates")
+        menu_help.addSeparator()
         self._reg_act(menu_help, "about", "help_about")
 
     def _bind_window_slots(self, window: QMainWindow | None) -> None:
@@ -466,6 +471,7 @@ class MacMenuBar(QMenuBar):
         connect_if("goalSeek", "open_goal_seek")
         connect_if("data_pivottable", "open_pivot_wizard")
         connect_if("insert_function", "open_function_wizard")
+        connect_if("insert_clipart", "open_clipart_dialog")
         connect_if("insert_picture", "insert_picture")
         connect_if("insert_wordart", "open_wordart_gallery")
 
@@ -474,6 +480,8 @@ class MacMenuBar(QMenuBar):
         connect_if("window_bring_all", "raise_")
 
         connect_if("help_contents", "show_help")
+        connect_if("help_assistant", "toggle_assistant")
+        connect_if("check_updates", "check_for_updates")
         connect_if("help_about", "show_about")
 
     def retranslate_ui(self) -> None:
@@ -622,6 +630,10 @@ class MacMenuBar(QMenuBar):
             "insert_picture": (
                 safe_tr("图片来自文件…"),
                 safe_tr("从本地磁盘导入图像至画布"),
+            ),
+            "insert_clipart": (
+                safe_tr("剪贴画(&C)..."),
+                safe_tr("从内置矢量图库选择并插入剪贴画"),
             ),
             "insert_wordart": (
                 safe_tr("艺术字(&W)..."),
@@ -825,6 +837,14 @@ class MacMenuBar(QMenuBar):
             # Help
             "help_contents": (safe_tr("ATBOffice 帮助"), safe_tr("打开用户帮助文档")),
             "help": (safe_tr("ATBOffice 帮助"), safe_tr("打开用户帮助文档")),
+            "help_assistant": (
+                safe_tr("Office 伴侣助手(&O)..."),
+                safe_tr("显示或隐藏 Scout 桌面伴侣助手"),
+            ),
+            "check_updates": (
+                safe_tr("检查软件更新(&U)..."),
+                safe_tr("检查 ATBOffice 最新版本与更新日志"),
+            ),
             "help_about": (safe_tr("关于 ATBOffice"), safe_tr("查看应用程序版本信息")),
             "about": (safe_tr("关于 ATBOffice"), safe_tr("查看应用程序版本信息")),
         }
