@@ -251,6 +251,24 @@ class BaseOfficeWindow(QMainWindow):
 
         prompt_insert_wordart(self)
 
+    def open_clipart_dialog(self) -> None:
+        """Open Clipart Gallery dialog and insert selected clipart into document/canvas."""
+        from atboffice.modules.common.clipart_dialog import prompt_insert_clipart
+
+        prompt_insert_clipart(self)
+
+    def toggle_assistant(self) -> None:
+        """Toggle global Scout desktop companion assistant visibility."""
+        from atboffice.modules.common.assistant_scout import toggle_assistant
+
+        toggle_assistant()
+
+    def check_for_updates(self) -> None:
+        """Check for ATBOffice updates."""
+        from atboffice.core.updater import check_for_updates
+
+        check_for_updates(parent=self, manual=True)
+
     @property
     def default_doc_name(self) -> str:
         """Default document name when no file is currently associated."""
