@@ -105,6 +105,7 @@ class AnimationPane(QWidget):
         self.btn_add_effect.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.menu_add_effect = QMenu(self)
         self.btn_add_effect.setMenu(self.menu_add_effect)
+        self.btn_add_effect.clicked.connect(self.btn_add_effect.showMenu)
         btn_bar.addWidget(self.btn_add_effect, stretch=3)
 
         self.btn_remove = QPushButton(self)
@@ -244,6 +245,7 @@ class AnimationPane(QWidget):
     def _rebuild_menus(self) -> None:
         """Populate the 4 categories of Add Effect cascading menus."""
         self.menu_add_effect.clear()
+        self._category_menus: list[QMenu] = []
 
         # Category icons and colors
         categories = [
@@ -254,7 +256,10 @@ class AnimationPane(QWidget):
         ]
 
         for cls_key, cls_label, col_hex, effects in categories:
-            sub = self.menu_add_effect.addMenu(_make_star_icon(col_hex), safe_tr(cls_label))
+            sub = QMenu(safe_tr(cls_label), self.menu_add_effect)
+            sub.setIcon(_make_star_icon(col_hex))
+            self.menu_add_effect.addMenu(sub)
+            self._category_menus.append(sub)
             for eff_def in effects:
                 act = sub.addAction(safe_tr(eff_def.name))
                 act.setData((cls_key, eff_def.key))

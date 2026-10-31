@@ -263,6 +263,7 @@ class ParagraphDialog(QDialog):
         # Bottom Buttons
         btn_layout = QHBoxLayout()
         self.btn_tabs = QPushButton(safe_tr("制表位(&T)..."), self)
+        self.btn_tabs.clicked.connect(self._on_tabs_clicked)
         btn_layout.addWidget(self.btn_tabs)
         btn_layout.addStretch()
 
@@ -286,8 +287,12 @@ class ParagraphDialog(QDialog):
         self.combo_line_spacing.currentIndexChanged.connect(self._on_line_spacing_changed)
 
         for spin in [
-            self.spin_indent_left, self.spin_indent_right, self.spin_indent_by,
-            self.spin_space_before, self.spin_space_after, self.spin_line_spacing_at
+            self.spin_indent_left,
+            self.spin_indent_right,
+            self.spin_indent_by,
+            self.spin_space_before,
+            self.spin_space_after,
+            self.spin_line_spacing_at,
         ]:
             spin.valueChanged.connect(self._trigger_preview)
 
@@ -361,6 +366,15 @@ class ParagraphDialog(QDialog):
         self.check_page_break_before.setChecked(bool(self.props.page_break_before))
 
         self._trigger_preview()
+
+    def _on_tabs_clicked(self) -> None:
+        """Launch classic Tabs dialog and synchronize tab stops."""
+        from atboffice.modules.writer.dialogs.tabs_dialog import TabsDialog
+
+        dlg = TabsDialog(parent=self, tabs=self.props.tabs)
+        if dlg.exec():
+            self.props.tabs = dlg.get_tabs()
+            self._trigger_preview()
 
     def get_properties(self) -> ParagraphProperties:
         """Construct updated ParagraphProperties from dialog controls."""

@@ -3,6 +3,7 @@
 from atboffice.modules.writer.dialogs.borders_shading import BordersShadingDialog
 from atboffice.modules.writer.dialogs.bullets_numbering import BulletsNumberingDialog
 from atboffice.modules.writer.dialogs.columns_dialog import ColumnsDialog
+from atboffice.modules.writer.dialogs.customize_list_dialog import CustomizeListDialog
 from atboffice.modules.writer.dialogs.font_dialog import FontDialog
 from atboffice.modules.writer.dialogs.insert_table import InsertTableDialog
 from atboffice.modules.writer.dialogs.mailmerge_wizard import (
@@ -21,6 +22,7 @@ __all__ = [
     "BordersShadingDialog",
     "BulletsNumberingDialog",
     "ColumnsDialog",
+    "CustomizeListDialog",
     "FontDialog",
     "InsertMergeFieldDialog",
     "InsertTableDialog",
