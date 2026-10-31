@@ -19,6 +19,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.presentation.models.slide import Slide, Transition
+from atboffice.modules.presentation.views.background_renderer import paint_fill_rect
 from atboffice.modules.presentation.views.geometry_helper import create_shape_path
 
 if TYPE_CHECKING:
@@ -251,10 +252,15 @@ def render_slide_to_image(
         sx = float(width) / w
         sy = float(height) / h
 
-        # 1. Background fill from design template
+        # 1. Background fill from slide or design template
         design = presentation.get_design_for_slide(slide)
-        bg_hex = design.colors.lt1 if design else "#FFFFFF"
-        painter.fillRect(0, 0, width, height, QColor(bg_hex))
+        slide_rect = QRectF(0.0, 0.0, float(width), float(height))
+        fill_to_paint = (
+            slide.bg
+            if (slide and slide.bg)
+            else (design.bg if (design and hasattr(design, "bg")) else None)
+        )
+        paint_fill_rect(painter, slide_rect, fill_to_paint, design)
 
         # 2. Draw slide shapes
         for sh in slide.shapes:

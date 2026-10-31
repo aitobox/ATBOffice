@@ -1,5 +1,9 @@
 """Presentation dialogs package."""
 
+from atboffice.modules.presentation.dialogs.background_dlg import (
+    BackgroundDialog,
+    FillEffectsDialog,
+)
 from atboffice.modules.presentation.dialogs.datasheet_dialog import (
     DatasheetDialog,
 )
@@ -24,6 +28,8 @@ from atboffice.modules.presentation.dialogs.slide_layout import (
 )
 
 __all__ = [
+    "BackgroundDialog",
+    "FillEffectsDialog",
     "DatasheetDialog",
     "FormatShapeDialog",
     "SetupShowDialog",

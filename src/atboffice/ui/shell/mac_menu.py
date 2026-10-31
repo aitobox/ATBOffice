@@ -300,6 +300,8 @@ class MacMenuBar(QMenuBar):
         self._reg_act(menu_format, "format_borders", "format_borders")
         self._reg_act(menu_format, "format_tabs", "format_tabs")
         self._reg_act(menu_format, "stylesPane", "format_styles")
+        menu_format.addSeparator()
+        self._reg_act(menu_format, "background", "format_background")
 
         # 6. Tools Menu
         menu_tools = self.addMenu("")
@@ -414,6 +416,8 @@ class MacMenuBar(QMenuBar):
         connect_if("edit_find", "open_find_dialog")
         connect_if("edit_replace", "open_replace_dialog")
         connect_if("edit_format_cells", "format_cells")
+        connect_if("background", "open_background_dialog")
+        connect_if("format_background", "open_background_dialog")
 
         connect_if("view_fullscreen", "toggle_fullscreen")
         connect_if("view_zoom_in", "zoom_in")
@@ -646,6 +650,14 @@ class MacMenuBar(QMenuBar):
             "stylesPane": (
                 safe_tr("样式和格式…"),
                 safe_tr("打开样式面板应用正文或标题层级样式"),
+            ),
+            "background": (
+                safe_tr("背景(&K)..."),
+                safe_tr("设置幻灯片背景格式与填充效果"),
+            ),
+            "format_background": (
+                safe_tr("背景(&K)..."),
+                safe_tr("设置幻灯片背景格式与填充效果"),
             ),
             # Tools
             "tools_spelling": (
