@@ -35,12 +35,13 @@ def test_ledger_8_toolbars_exist(qtbot) -> None:
         assert tb.windowTitle(), f"Toolbar {key} must have a non-empty window title"
 
 
-def test_drawing_toolbar_docked_at_bottom(qtbot) -> None:
+def test_drawing_toolbar_docked_at_top(qtbot) -> None:
     win = LedgerWindow()
     qtbot.addWidget(win)
 
     drawing_tb = win.toolbars["drawing"]
-    assert win.toolBarArea(drawing_tb) == Qt.ToolBarArea.BottomToolBarArea
+    assert win.toolBarArea(drawing_tb) == Qt.ToolBarArea.TopToolBarArea
+    assert win.toolBarArea(drawing_tb) != Qt.ToolBarArea.BottomToolBarArea
 
 
 def test_action_registry_binding(qtbot) -> None:
