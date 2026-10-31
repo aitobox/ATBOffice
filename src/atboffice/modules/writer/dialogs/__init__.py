@@ -16,6 +16,12 @@ from atboffice.modules.writer.dialogs.page_setup import PageSetupDialog
 from atboffice.modules.writer.dialogs.paragraph_dialog import ParagraphDialog
 from atboffice.modules.writer.dialogs.table_properties import TablePropertiesDialog
 from atboffice.modules.writer.dialogs.tabs_dialog import TabsDialog
+from atboffice.modules.writer.dialogs.word_count_dlg import (
+    WordCountDialog,
+    WordCountStats,
+    calculate_document_statistics,
+    count_text_statistics,
+)
 
 __all__ = [
     "AddressListDialog",
@@ -32,4 +38,8 @@ __all__ = [
     "ParagraphDialog",
     "TablePropertiesDialog",
     "TabsDialog",
+    "WordCountDialog",
+    "WordCountStats",
+    "calculate_document_statistics",
+    "count_text_statistics",
 ]
