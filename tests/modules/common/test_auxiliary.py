@@ -1,4 +1,4 @@
-"""Unit tests for auxiliary components: Clipart Gallery, Scout Desktop Assistant, and Release Updater."""
+"""Unit tests for auxiliary components: Clipart, Scout Assistant, and Release Updater."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import json
 from unittest.mock import MagicMock, patch
 from urllib.error import URLError
 
-import pytest
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QPixmap
 
@@ -31,7 +30,6 @@ from atboffice.modules.common.clipart_dialog import (
     render_clipart_pixmap,
     search_clipart,
 )
-
 
 # ============================================================================
 # 1. Clipart Gallery Tests
@@ -259,8 +257,8 @@ def test_update_dialog_ui(qapp):
 
 def test_menu_and_base_window_integration(qapp):
     """Verify mac_menu actions and base_window slots integration."""
-    from atboffice.ui.shell.mac_menu import MacMenuBar
     from atboffice.ui.shell.base_window import BaseOfficeWindow
+    from atboffice.ui.shell.mac_menu import MacMenuBar
 
     menu_bar = MacMenuBar()
     assert "insert_clipart" in menu_bar.action_map

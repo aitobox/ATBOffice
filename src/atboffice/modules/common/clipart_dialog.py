@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
-from typing import Any
+from enum import StrEnum
 
 from PySide6.QtCore import QByteArray, QSize, Qt
 from PySide6.QtGui import QIcon, QPainter, QPixmap
@@ -34,7 +33,7 @@ def safe_tr(text: str) -> str:
     return text
 
 
-class ClipartCategory(str, Enum):
+class ClipartCategory(StrEnum):
     """Clipart classification categories."""
 
     BUSINESS = "business"
@@ -77,8 +76,10 @@ CLIPART_DATABASE: list[ClipartItem] = [
         category=ClipartCategory.TECHNOLOGY,
         keywords="idea light bulb think innovation creative 思考 创意 灵感 发明",
         svg_body=(
-            f'<path d="M32 6c-11 0-19 8-19 18 0 7 4 11 7 15 2 3 3 5 3 8h18c0-3 1-5 3-8 3-4 7-8 7-15 0-10-8-18-19-18z" fill="#ffe259" {_O}/>'
-            '<path d="M24 22a9 9 0 0 1 8-8" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/>'
+            f'<path d="M32 6c-11 0-19 8-19 18 0 7 4 11 7 15 2 3 3 5 3 8h18c0-3 1-5'
+            f' 3-8 3-4 7-8 7-15 0-10-8-18-19-18z" fill="#ffe259" {_O}/>'
+            '<path d="M24 22a9 9 0 0 1 8-8" fill="none" stroke="#fff"'
+            ' stroke-width="3" stroke-linecap="round"/>'
             f'<rect x="23" y="47" width="18" height="5" fill="#b9c2cc" {_O}/>'
             f'<rect x="24" y="52" width="16" height="4" fill="#9aa3ad" {_O}/>'
             f'<path d="M28 56h8l-2 4h-4z" fill="#555" {_O}/>'
@@ -92,8 +93,10 @@ CLIPART_DATABASE: list[ClipartItem] = [
         keywords="globe world international earth global 全球 世界 国际 地球",
         svg_body=(
             f'<circle cx="32" cy="32" r="25" fill="#5aa9e6" {_O}/>'
-            f'<path d="M18 18c6 2 6 8 12 8s4 8 10 6 6 6 4 10-8 2-10 8-8 4-10-2 2-8-4-10-8-2-6-8 0-10 4-12z" fill="#6cc04a" {_O}/>'
-            '<path d="M7 32h50M32 7c-9 8-9 42 0 50M32 7c9 8 9 42 0 50" fill="none" stroke="#1e4f80" stroke-width="1.3" opacity=".6"/>'
+            f'<path d="M18 18c6 2 6 8 12 8s4 8 10 6 6 6 4 10-8 2-10 8-8 4-10-2'
+            f' 2-8-4-10-8-2-6-8 0-10 4-12z" fill="#6cc04a" {_O}/>'
+            '<path d="M7 32h50M32 7c-9 8-9 42 0 50M32 7c9 8 9 42 0 50" fill="none"'
+            ' stroke="#1e4f80" stroke-width="1.3" opacity=".6"/>'
         ),
     ),
     ClipartItem(
@@ -132,9 +135,13 @@ CLIPART_DATABASE: list[ClipartItem] = [
         category=ClipartCategory.TECHNOLOGY,
         keywords="gears process settings engineering machine work 配置 机制 运转 工程",
         svg_body=(
-            f'<g {_O} fill="#9aa7b8"><path d="M26 10l4 0 1 5 4 2 4-3 3 3-3 4 2 4 5 1v4l-5 1-2 4 3 4-3 3-4-3-4 2-1 5h-4l-1-5-4-2-4 3-3-3 3-4-2-4-5-1v-4l5-1 2-4-3-4 3-3 4 3 4-2z"/></g>'
+            f'<g {_O} fill="#9aa7b8"><path d="M26 10l4 0 1 5 4 2 4-3 3 3-3 4 2 4 5'
+            f' 1v4l-5 1-2 4 3 4-3 3-4-3-4 2-1 5h-4l-1-5-4-2-4 3-3-3'
+            f' 3-4-2-4-5-1v-4l5-1 2-4-3-4 3-3 4 3 4-2z"/></g>'
             f'<circle cx="28" cy="27" r="6" fill="#fff" {_O}/>'
-            f'<g {_O} fill="#e8a33d"><path d="M46 36h3l1 3 3 1 2-2 2 2-2 2 1 3 3 1v3l-3 1-1 3 2 2-2 2-2-2-3 1-1 3h-3l-1-3-3-1-2 2-2-2 2-2-1-3-3-1v-3l3-1 1-3-2-2 2-2 2 2 3-1z"/></g>'
+            f'<g {_O} fill="#e8a33d"><path d="M46 36h3l1 3 3 1 2-2 2 2-2 2 1 3 3'
+            f' 1v3l-3 1-1 3 2 2-2 2-2-2-3 1-1 3h-3l-1-3-3-1-2 2-2-2'
+            f' 2-2-1-3-3-1v-3l3-1 1-3-2-2 2-2 2 2 3-1z"/></g>'
             f'<circle cx="47.5" cy="47.5" r="3.5" fill="#fff" {_O}/>'
         ),
     ),
@@ -150,8 +157,10 @@ CLIPART_DATABASE: list[ClipartItem] = [
             f'<rect x="24" y="30" width="8" height="22" fill="#5b9bd5" {_O}/>'
             f'<rect x="36" y="22" width="8" height="30" fill="#5b9bd5" {_O}/>'
             f'<rect x="48" y="14" width="6" height="38" fill="#5b9bd5" {_O}/>'
-            '<path d="M10 34l12-8 10 2 18-16" fill="none" stroke="#e74c3c" stroke-width="3" stroke-linecap="round"/>'
-            '<path d="M45 10l7 1-1 7" fill="none" stroke="#e74c3c" stroke-width="3" stroke-linecap="round"/>'
+            '<path d="M10 34l12-8 10 2 18-16" fill="none" stroke="#e74c3c"'
+            ' stroke-width="3" stroke-linecap="round"/>'
+            '<path d="M45 10l7 1-1 7" fill="none" stroke="#e74c3c"'
+            ' stroke-width="3" stroke-linecap="round"/>'
         ),
     ),
     ClipartItem(
@@ -164,7 +173,10 @@ CLIPART_DATABASE: list[ClipartItem] = [
             f'<rect x="8" y="12" width="48" height="44" rx="3" fill="#fff" {_O}/>'
             f'<path d="M8 15a3 3 0 0 1 3-3h42a3 3 0 0 1 3 3v9H8z" fill="#d64541" {_O}/>'
             '<path d="M20 6v10M44 6v10" stroke="#222" stroke-width="3" stroke-linecap="round"/>'
-            '<g fill="#9aa7b8"><rect x="14" y="30" width="7" height="6"/><rect x="25" y="30" width="7" height="6"/><rect x="36" y="30" width="7" height="6"/><rect x="14" y="41" width="7" height="6"/><rect x="25" y="41" width="7" height="6"/></g>'
+            '<g fill="#9aa7b8"><rect x="14" y="30" width="7" height="6"/><rect'
+            ' x="25" y="30" width="7" height="6"/><rect x="36" y="30" width="7"'
+            ' height="6"/><rect x="14" y="41" width="7" height="6"/><rect x="25"'
+            ' y="41" width="7" height="6"/></g>'
             '<rect x="36" y="41" width="7" height="6" fill="#d64541"/>'
         ),
     ),
@@ -176,9 +188,11 @@ CLIPART_DATABASE: list[ClipartItem] = [
         keywords="search magnifier research find investigate 查找 探索 搜索 观察",
         svg_body=(
             f'<circle cx="26" cy="26" r="17" fill="#cfe9ff" {_O}/>'
-            '<path d="M18 20a10 10 0 0 1 8-6" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/>'
+            '<path d="M18 20a10 10 0 0 1 8-6" fill="none" stroke="#fff"'
+            ' stroke-width="3" stroke-linecap="round"/>'
             '<path d="M38 38l16 16" stroke="#6d4421" stroke-width="8" stroke-linecap="round"/>'
-            '<path d="M38 38l16 16" stroke="#222" stroke-width="10" stroke-linecap="round" opacity=".15"/>'
+            '<path d="M38 38l16 16" stroke="#222" stroke-width="10"'
+            ' stroke-linecap="round" opacity=".15"/>'
         ),
     ),
     ClipartItem(
@@ -203,7 +217,8 @@ CLIPART_DATABASE: list[ClipartItem] = [
         category=ClipartCategory.NATURE,
         keywords="house home real estate property building 住宅 建筑 房产 家园",
         svg_body=(
-            '<path d="M8 30L32 8l24 22" fill="none" stroke="#222" stroke-width="3" stroke-linejoin="round"/>'
+            '<path d="M8 30L32 8l24 22" fill="none" stroke="#222" stroke-width="3"'
+            ' stroke-linejoin="round"/>'
             f'<path d="M14 26v30h36V26L32 10z" fill="#f4e3c1" {_O}/>'
             f'<path d="M6 31L32 7l26 24-4 3L32 14 10 34z" fill="#c0392b" {_O}/>'
             f'<rect x="27" y="38" width="10" height="18" fill="#8b5a2b" {_O}/>'
@@ -232,8 +247,10 @@ CLIPART_DATABASE: list[ClipartItem] = [
         category=ClipartCategory.TECHNOLOGY,
         keywords="telephone phone call contact support 客服 热线 呼叫 通讯",
         svg_body=(
-            f'<path d="M14 8c-4 2-7 6-6 11 3 15 17 31 33 35 5 1 9-2 11-6l-9-8-6 4c-7-3-12-9-15-15l4-6z" fill="#e74c3c" {_O}/>'
-            '<path d="M15 12c-2 1-3 3-3 5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>'
+            f'<path d="M14 8c-4 2-7 6-6 11 3 15 17 31 33 35 5 1 9-2 11-6l-9-8-6'
+            f' 4c-7-3-12-9-15-15l4-6z" fill="#e74c3c" {_O}/>'
+            '<path d="M15 12c-2 1-3 3-3 5" fill="none" stroke="#fff"'
+            ' stroke-width="2" stroke-linecap="round"/>'
         ),
     ),
     ClipartItem(
@@ -267,7 +284,8 @@ CLIPART_DATABASE: list[ClipartItem] = [
         keywords="check done complete approved yes ok 确认 成功 完成 通过",
         svg_body=(
             f'<circle cx="32" cy="32" r="26" fill="#3fae49" {_O}/>'
-            '<path d="M19 33l9 9 18-20" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>'
+            '<path d="M19 33l9 9 18-20" fill="none" stroke="#fff" stroke-width="7"'
+            ' stroke-linecap="round" stroke-linejoin="round"/>'
         ),
     ),
     ClipartItem(
@@ -279,8 +297,11 @@ CLIPART_DATABASE: list[ClipartItem] = [
         svg_body=(
             f'<circle cx="32" cy="32" r="26" fill="#fff" {_O}/>'
             '<circle cx="32" cy="32" r="22" fill="none" stroke="#4a7bc8" stroke-width="3"/>'
-            '<path d="M32 16v16l10 7" fill="none" stroke="#222" stroke-width="3" stroke-linecap="round"/>'
-            '<g fill="#222"><circle cx="32" cy="12" r="1.5"/><circle cx="52" cy="32" r="1.5"/><circle cx="32" cy="52" r="1.5"/><circle cx="12" cy="32" r="1.5"/></g>'
+            '<path d="M32 16v16l10 7" fill="none" stroke="#222" stroke-width="3"'
+            ' stroke-linecap="round"/>'
+            '<g fill="#222"><circle cx="32" cy="12" r="1.5"/><circle cx="52"'
+            ' cy="32" r="1.5"/><circle cx="32" cy="52" r="1.5"/><circle cx="12"'
+            ' cy="32" r="1.5"/></g>'
         ),
     ),
     ClipartItem(
@@ -290,7 +311,8 @@ CLIPART_DATABASE: list[ClipartItem] = [
         category=ClipartCategory.SYMBOLS,
         keywords="puzzle solution fit strategy problem piece 解决 契合 模块 策略 方案",
         svg_body=(
-            f'<path d="M10 18h12c-2-8 12-8 10 0h12v12c8-2 8 12 0 10v12H32c2 8-12 8-10 0H10V40c-8 2-8-12 0-10z" fill="#9b59b6" {_O}/>'
+            f'<path d="M10 18h12c-2-8 12-8 10 0h12v12c8-2 8 12 0 10v12H32c2 8-12'
+            f' 8-10 0H10V40c-8 2-8-12 0-10z" fill="#9b59b6" {_O}/>'
             '<path d="M14 22h6" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>'
         ),
     ),
@@ -316,10 +338,12 @@ CLIPART_DATABASE: list[ClipartItem] = [
         category=ClipartCategory.BUSINESS,
         keywords="money finance budget dollar coins cost revenue 资产 资金 收益 成本 美元",
         svg_body=(
-            f'<path d="M20 22c-6 8-10 16-10 22 0 10 10 14 22 14s22-4 22-14c0-6-4-14-10-22z" fill="#6cb04a" {_O}/>'
+            f'<path d="M20 22c-6 8-10 16-10 22 0 10 10 14 22 14s22-4'
+            f' 22-14c0-6-4-14-10-22z" fill="#6cb04a" {_O}/>'
             f'<path d="M22 14h20l-4 8H26z" fill="#5a9a3d" {_O}/>'
             f'<path d="M24 14c-2-6 4-8 8-4 4-4 10-2 8 4" fill="none" {_O}/>'
-            '<text x="32" y="48" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="18" fill="#fff">$</text>'
+            '<text x="32" y="48" text-anchor="middle" font-family="Arial"'
+            ' font-weight="bold" font-size="18" fill="#fff">$</text>'
         ),
     ),
     ClipartItem(
@@ -330,7 +354,8 @@ CLIPART_DATABASE: list[ClipartItem] = [
         keywords="flag milestone goal finish achievement 里程碑 标杆 目标 胜出",
         svg_body=(
             '<path d="M14 6v54" stroke="#6d4421" stroke-width="4" stroke-linecap="round"/>'
-            f'<path d="M16 8c10-4 18 4 28 0s12 0 12 0v24s-4-4-12 0-18-4-28 0z" fill="#2e86c1" {_O}/>'
+            f'<path d="M16 8c10-4 18 4 28 0s12 0 12 0v24s-4-4-12 0-18-4-28 0z"'
+            f' fill="#2e86c1" {_O}/>'
             '<path d="M16 8h10v6H16zM36 14h10v6H36zM26 20h10v6H26z" fill="#fff" opacity=".85"/>'
         ),
     ),
@@ -343,8 +368,11 @@ CLIPART_DATABASE: list[ClipartItem] = [
         svg_body=(
             f'<path d="M8 12c8-2 16-2 24 4v40c-8-6-16-6-24-4z" fill="#fff" {_O}/>'
             f'<path d="M56 12c-8-2-16-2-24 4v40c8-6 16-6 24-4z" fill="#fff" {_O}/>'
-            '<path d="M12 22c5-1 10 0 15 2M12 29c5-1 10 0 15 2M37 24c5-2 10-3 15-2M37 31c5-2 10-3 15-2" stroke="#9aa7b8" stroke-width="1.6" fill="none"/>'
-            '<path d="M6 14v42c9-2 18-2 26 3 8-5 17-5 26-3V14" fill="none" stroke="#c0392b" stroke-width="3"/>'
+            '<path d="M12 22c5-1 10 0 15 2M12 29c5-1 10 0 15 2M37 24c5-2 10-3'
+            ' 15-2M37 31c5-2 10-3 15-2" stroke="#9aa7b8" stroke-width="1.6"'
+            ' fill="none"/>'
+            '<path d="M6 14v42c9-2 18-2 26 3 8-5 17-5 26-3V14" fill="none"'
+            ' stroke="#c0392b" stroke-width="3"/>'
         ),
     ),
     ClipartItem(
@@ -355,8 +383,10 @@ CLIPART_DATABASE: list[ClipartItem] = [
         keywords="leaf environment green nature sustainability eco 环保 绿色 生态 植物 自然",
         svg_body=(
             f'<path d="M10 54C8 30 22 10 54 8c2 28-12 46-40 46z" fill="#6cc04a" {_O}/>'
-            '<path d="M12 52C24 40 34 30 46 18" fill="none" stroke="#2f7a1f" stroke-width="2.5" stroke-linecap="round"/>'
-            '<path d="M24 40l-2-10M32 32l-1-9M38 26l6 1M30 36l8 2" stroke="#2f7a1f" stroke-width="1.6"/>'
+            '<path d="M12 52C24 40 34 30 46 18" fill="none" stroke="#2f7a1f"'
+            ' stroke-width="2.5" stroke-linecap="round"/>'
+            '<path d="M24 40l-2-10M32 32l-1-9M38 26l6 1M30 36l8 2"'
+            ' stroke="#2f7a1f" stroke-width="1.6"/>'
         ),
     ),
     ClipartItem(
@@ -366,8 +396,10 @@ CLIPART_DATABASE: list[ClipartItem] = [
         category=ClipartCategory.TECHNOLOGY,
         keywords="cloud weather computing storage online 云计算 存储 网络 服务",
         svg_body=(
-            f'<path d="M18 48c-8 0-12-5-12-11s5-11 11-11c2-9 9-14 17-14 9 0 16 7 16 15 6 0 10 5 10 10 0 7-5 11-11 11z" fill="#eaf4ff" {_O}/>'
-            '<path d="M16 32c1-3 3-4 6-5" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>'
+            f'<path d="M18 48c-8 0-12-5-12-11s5-11 11-11c2-9 9-14 17-14 9 0 16 7 16'
+            f' 15 6 0 10 5 10 10 0 7-5 11-11 11z" fill="#eaf4ff" {_O}/>'
+            '<path d="M16 32c1-3 3-4 6-5" fill="none" stroke="#fff"'
+            ' stroke-width="2.5" stroke-linecap="round"/>'
         ),
     ),
     ClipartItem(
@@ -432,7 +464,7 @@ def render_clipart_pixmap(item: ClipartItem, size: int = 128) -> QPixmap:
 
 
 class ClipartDialog(QDialog):
-    """Clipart gallery dialog offering category filtering, keyword search, and double-click insert."""
+    """Clipart gallery dialog offering category filtering and search."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)

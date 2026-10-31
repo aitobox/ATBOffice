@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import urllib.request
 from dataclasses import dataclass
-from typing import Any
 from urllib.error import HTTPError, URLError
 
 from packaging import version

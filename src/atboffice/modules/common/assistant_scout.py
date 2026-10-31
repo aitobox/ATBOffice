@@ -10,9 +10,8 @@ import datetime
 import math
 from typing import Any
 
-from PySide6.QtCore import QPoint, QRect, QRectF, QSize, Qt, QTimer
+from PySide6.QtCore import QPoint, QRectF, Qt, QTimer
 from PySide6.QtGui import (
-    QAction,
     QBrush,
     QColor,
     QCursor,
@@ -25,7 +24,6 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QApplication,
-    QGraphicsDropShadowEffect,
     QHBoxLayout,
     QLabel,
     QMenu,
@@ -242,7 +240,8 @@ class ScoutWidget(QWidget):
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self._drag_start_pos = event.globalPosition().toPoint()
-            self._drag_mouse_offset = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            offset = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            self._drag_mouse_offset = offset
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
