@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Pure Python 16x16 Luna Vector Icons Engine for ATBOffice.
 
 Ports all original 16x16 vector icons from .vibeoffice/public/common/icons.js (Luna palette)
@@ -8,7 +9,8 @@ from __future__ import annotations
 
 import re
 from typing import Final
-from PySide6.QtCore import QByteArray, QSize, Qt
+
+from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 

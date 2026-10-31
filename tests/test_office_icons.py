@@ -4,6 +4,7 @@ import pytest
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import QApplication
 
+
 # Ensure QApplication instance exists for GUI/pixmap operations
 @pytest.fixture(scope="session", autouse=True)
 def qapp():
@@ -68,7 +69,7 @@ def test_get_office_pixmap():
 
 
 def test_get_office_icon_all():
-    from atboffice.ui.icons import list_office_icons, get_office_icon
+    from atboffice.ui.icons import get_office_icon, list_office_icons
 
     icons = list_office_icons()
     assert len(icons) >= 120
@@ -95,7 +96,7 @@ def test_get_office_icon_swatch():
 
 
 def test_icon_caching_and_clear():
-    from atboffice.ui.icons import get_office_icon, clear_icon_cache
+    from atboffice.ui.icons import clear_icon_cache, get_office_icon
 
     clear_icon_cache()
     icon1 = get_office_icon("undo", size=16)
