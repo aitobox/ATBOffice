@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Final
 
-from PySide6.QtCore import QCoreApplication, QPoint, QRect, Qt, Signal
+from PySide6.QtCore import QCoreApplication, QPoint, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import (
     QColorDialog,
@@ -17,6 +17,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from atboffice.ui.icons import get_office_icon
 
 
 def safe_tr(text: str) -> str:
@@ -222,6 +224,15 @@ class ColorPickerButton(QToolButton):
         self.mode = mode
         self._current_color = default_color.upper()
         self.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        self.setIconSize(QSize(16, 16))
+        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+
+        icon_key = (
+            "fontColor"
+            if mode == "font"
+            else ("highlight" if mode == "highlight" else "fillColor")
+        )
+        self.setIcon(get_office_icon(icon_key))
 
         self.popup = ColorPickerPopup(mode=self.mode, parent=self)
         self.popup.color_selected.connect(self._on_color_picked)

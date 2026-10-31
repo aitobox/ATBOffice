@@ -105,6 +105,7 @@ class OfficeToolBar(QToolBar):
         self.setMovable(True)
         self.setFloatable(True)
         self.setIconSize(QSize(16, 16))
+        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
 
         # Dotted grip handle at the front
         self.grip_handle = DottedGrip(self)

@@ -40,6 +40,7 @@ class OfficeSplitButton(QToolButton):
         super().__init__(parent)
         self.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.setIconSize(QSize(16, 16))
 
         if action:
             self.setDefaultAction(action)
@@ -125,6 +126,14 @@ class OfficeDropDownButton(QToolButton):
         super().__init__(parent)
         self.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.setIconSize(QSize(16, 16))
+
+        if text and not icon:
+            self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        elif icon and not text:
+            self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        elif icon and text:
+            self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
 
         if text:
             formatted = format_mnemonic(text)
