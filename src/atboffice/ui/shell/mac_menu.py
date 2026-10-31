@@ -275,7 +275,14 @@ class MacMenuBar(QMenuBar):
         )
         menu_insert.addSeparator()
 
+        menu_picture = menu_insert.addMenu(safe_tr("图片(&P)"))
+        self.menu_map["insert_picture_menu"] = menu_picture
+        self._reg_act(menu_picture, "insert_picture", "insert_picture")
+        self._reg_act(menu_picture, "insert_wordart", "insert_wordart")
+        self._reg_act(menu_picture, "insert_shape", "insert_shape")
+
         self._reg_act(menu_insert, "insert_picture", "insert_picture")
+        self._reg_act(menu_insert, "insert_wordart", "insert_wordart")
         self._reg_act(menu_insert, "insert_shape", "insert_shape")
         menu_insert.addSeparator()
 
@@ -451,6 +458,7 @@ class MacMenuBar(QMenuBar):
         connect_if("tools_options", "show_options_dialog")
         connect_if("insert_function", "open_function_wizard")
         connect_if("insert_picture", "insert_picture")
+        connect_if("insert_wordart", "open_wordart_gallery")
 
         connect_if("window_minimize", "showMinimized")
         connect_if("window_zoom", "toggle_maximized")
@@ -474,6 +482,8 @@ class MacMenuBar(QMenuBar):
             self.menu_map["theme"].setTitle(safe_tr("主题"))
         if "insert" in self.menu_map:
             self.menu_map["insert"].setTitle(safe_tr("插入"))
+        if "insert_picture_menu" in self.menu_map:
+            self.menu_map["insert_picture_menu"].setTitle(safe_tr("图片(&P)"))
         if "format" in self.menu_map:
             self.menu_map["format"].setTitle(safe_tr("格式"))
         if "tools" in self.menu_map:
@@ -603,6 +613,10 @@ class MacMenuBar(QMenuBar):
             "insert_picture": (
                 safe_tr("图片来自文件…"),
                 safe_tr("从本地磁盘导入图像至画布"),
+            ),
+            "insert_wordart": (
+                safe_tr("艺术字(&W)..."),
+                safe_tr("选择样式并插入艺术字 (WordArt)"),
             ),
             "insert_shape": (
                 safe_tr("自选图形"),

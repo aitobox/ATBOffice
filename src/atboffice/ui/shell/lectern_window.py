@@ -174,6 +174,13 @@ class LecternWindow(BaseOfficeWindow):
         self.action_registry.set_handler("background", self.open_background_dialog)
         self.action_registry.set_handler("format_background", self.open_background_dialog)
 
+        # WordArt
+        self.action_registry.set_handler("insertWordArt", self.open_wordart_gallery)
+        self.action_registry.set_handler("draw_insertWordArt", self.open_wordart_gallery)
+        self.action_registry.set_handler("wa_insert", self.open_wordart_gallery)
+        self.action_registry.set_handler("wordartGallery", self.open_wordart_gallery)
+        self.action_registry.set_handler("wordartEdit", self.open_wordart_gallery)
+
     def open_background_dialog(self) -> None:
         """Open the slide background formatting dialog."""
         from atboffice.modules.presentation.dialogs.background_dlg import BackgroundDialog
