@@ -108,7 +108,7 @@ macOS Native Menu Bar Integration,common_ui,must,yes,yes,"Complete Office 2003 9
 Universal Find and Replace Modal Dialog,common_ui,must,yes,yes,find_replace_dialog.py with tabbed interface
 Office SplitButton and DropDownButton Widgets,common_ui,must,yes,yes,toolbar_buttons.py custom Qt tool buttons with menus
 WMF and EMF Windows Metafile Player,common_ui,should,yes,no,metafile.js parser and vector renderer not ported to Python
-WordArt Gallery Dialog and 3D Text Deformations,common_ui,should,yes,no,wordartGallery dialog and bezier curved text shaping missing
+WordArt Gallery Dialog and 3D Text Deformations,common_ui,should,yes,yes,30 preset WordArt styles and 10 parametric bezier warp deformations implemented
 ClipArt Vector Graphic Library Dialog,common_ui,could,yes,no,clipart.js built-in clip art gallery dialog missing
 Office Assistant Scout Character Widget,common_ui,could,yes,no,scout.js animated puppy assistant not ported
 Application Preferences and Options Dialog,common_ui,should,yes,yes,Comprehensive multi-tab Tools -> Options dialog with settings persistence (PR #148)

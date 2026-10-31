@@ -196,6 +196,8 @@ class LedgerWindow(BaseOfficeWindow):
         self.action_registry.set_handler("insertShape", lambda: self.insert_shape("rect"))
         self.action_registry.set_handler("insertTextBox", self.insert_textbox)
         self.action_registry.set_handler("insertPicture", self.insert_picture)
+        self.action_registry.set_handler("insertWordArt", self.open_wordart_gallery)
+        self.action_registry.set_handler("wordartGallery", self.open_wordart_gallery)
 
     def _ensure_find_replace_dialog(self) -> FindReplaceDialog:
         """Create or return existing FindReplaceDialog instance."""

@@ -191,6 +191,10 @@ class QuireWindow(BaseOfficeWindow):
         self.action_registry.set_handler(
             "mmLast", lambda: self.writer_view.step_mail_merge_record(9999)
         )
+        self.action_registry.set_handler("insertWordArt", self.open_wordart_gallery)
+        self.action_registry.set_handler("wa_insert", self.open_wordart_gallery)
+        self.action_registry.set_handler("wordartGallery", self.open_wordart_gallery)
+        self.action_registry.set_handler("wordartEdit", self.open_wordart_gallery)
 
     def _ensure_find_replace_dialog(self) -> FindReplaceDialog:
         """Create or return existing FindReplaceDialog instance."""

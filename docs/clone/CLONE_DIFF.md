@@ -388,9 +388,9 @@ The GUI 1:1 parity defects, 14 feature gaps, and code health issues are organize
   - Implement text bezier deformation paths (Circle, Arc Up, Wave, Chevron, Deflate).
   - Insert generated deformed vector paths into Quire, Ledger, and Lectern object layers.
 - **Acceptance Criteria**:
-  - [ ] WordArt dialog opens from Insert -> Picture -> WordArt.
-  - [ ] Text renders with selected 3D gradient/outline and curve deformation.
-  - [ ] Features matrix updated (`common_ui: WordArt Gallery Dialog and 3D Text Deformations` -> `clone: yes`).
+  - [x] WordArt dialog opens from Insert -> Picture -> WordArt.
+  - [x] Text renders with selected 3D gradient/outline and curve deformation.
+  - [x] Features matrix updated (`common_ui: WordArt Gallery Dialog and 3D Text Deformations` -> `clone: yes`).
 
 ---
 

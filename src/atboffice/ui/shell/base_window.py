@@ -245,6 +245,12 @@ class BaseOfficeWindow(QMainWindow):
             ),
         )
 
+    def open_wordart_gallery(self) -> None:
+        """Open WordArt Gallery dialog and insert selected WordArt into document/canvas."""
+        from atboffice.modules.common.wordart_gallery import prompt_insert_wordart
+
+        prompt_insert_wordart(self)
+
     @property
     def default_doc_name(self) -> str:
         """Default document name when no file is currently associated."""
