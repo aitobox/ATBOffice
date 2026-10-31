@@ -228,6 +228,11 @@ class LedgerWindow(BaseOfficeWindow):
         self.update_context_toolbars({})
 
     @property
+    def sheet_tab_bar(self) -> Any:
+        """Access the bottom SheetTabBar embedded in SpreadsheetView."""
+        return getattr(self.spreadsheet_view, "sheet_tab_bar", None)
+
+    @property
     def default_doc_name(self) -> str:
         """Default document name for Ledger workbooks."""
         return safe_tr("未命名工作簿")
@@ -261,13 +266,19 @@ class LedgerWindow(BaseOfficeWindow):
         """Initialize Excel 2003 Luna 8 toolbars cluster."""
         self.toolbars: dict[str, OfficeToolBar] = build_ledger_toolbars(self, self.action_registry)
 
-        # Bottom toolbar: Drawing
-        self.addToolBar(Qt.ToolBarArea.BottomToolBarArea, self.toolbars["drawing"])
+        # Row 1: Standard toolbar
+        if "standard" in self.toolbars:
+            self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.toolbars["standard"])
 
-        # Top toolbars in standard display order
+        # Row 2: Formatting toolbar
+        self.addToolBarBreak(Qt.ToolBarArea.TopToolBarArea)
+        if "formatting" in self.toolbars:
+            self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.toolbars["formatting"])
+
+        # Row 3: Drawing and other contextual toolbars
+        self.addToolBarBreak(Qt.ToolBarArea.TopToolBarArea)
         for name in [
-            "standard",
-            "formatting",
+            "drawing",
             "borders",
             "auditing",
             "reviewing",

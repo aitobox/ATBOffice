@@ -496,13 +496,19 @@ class LecternWindow(BaseOfficeWindow):
         """Initialize PowerPoint 2003 Luna 10 toolbars cluster."""
         self.toolbars: dict[str, OfficeToolBar] = build_lectern_toolbars(self, self.action_registry)
 
-        # Bottom toolbar: Drawing
-        self.addToolBar(Qt.ToolBarArea.BottomToolBarArea, self.toolbars["drawing"])
+        # Row 1: Standard toolbar
+        if "standard" in self.toolbars:
+            self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.toolbars["standard"])
 
-        # Top toolbars in standard display order
+        # Row 2: Formatting toolbar
+        self.addToolBarBreak(Qt.ToolBarArea.TopToolBarArea)
+        if "formatting" in self.toolbars:
+            self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.toolbars["formatting"])
+
+        # Row 3: Drawing and presentation toolbars
+        self.addToolBarBreak(Qt.ToolBarArea.TopToolBarArea)
         for name in [
-            "standard",
-            "formatting",
+            "drawing",
             "outlining",
             "sorter",
             "master",
