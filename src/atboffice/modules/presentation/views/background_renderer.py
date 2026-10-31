@@ -1,7 +1,7 @@
 """High-performance presentation background rendering engine for Lectern.
 
-Supports painting solid, gradient, pattern (54 Office presets), procedural textures (18 classics),
-and custom picture backgrounds onto arbitrary QPainter targets (SlideCanvas, SlideshowView, thumbnails).
+Supports painting solid, gradient, pattern (54 Office presets), procedural textures
+(18 classics), and custom picture backgrounds onto arbitrary QPainter targets.
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 import os
 import random
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import (
@@ -25,9 +25,7 @@ from PySide6.QtGui import (
 
 from atboffice.modules.presentation.models.shape import Fill
 from atboffice.modules.spreadsheet.dialogs.pattern_defs import (
-    PATTERNS,
     create_pattern_brush,
-    create_pattern_pixmap,
 )
 
 if TYPE_CHECKING:
@@ -40,21 +38,63 @@ GRAD_PRESETS: list[tuple[str, list[tuple[float, str]]]] = [
     ("晚霞", [(0.0, "#000000"), (0.5, "#000040"), (1.0, "#FF8C00")]),
     ("夜幕", [(0.0, "#000000"), (0.6, "#0A128C"), (1.0, "#181CC7")]),
     ("黎明", [(0.0, "#5E9EFF"), (0.4, "#85C2FF"), (0.7, "#C4D6EB"), (1.0, "#FFEBFA")]),
-    ("地平线", [(0.0, "#DCEBF5"), (0.4, "#83A7C3"), (0.5, "#768FB9"), (0.6, "#83A7C3"), (1.0, "#FFFFFF")]),
+    (
+        "地平线",
+        [(0.0, "#DCEBF5"), (0.4, "#83A7C3"), (0.5, "#768FB9"), (0.6, "#83A7C3"), (1.0, "#FFFFFF")],
+    ),
     ("沙漠", [(0.0, "#9C3500"), (0.3, "#E8A15C"), (0.6, "#FFDF9C"), (1.0, "#FFFFFF")]),
     ("海洋", [(0.0, "#03D4A8"), (0.5, "#21D6E0"), (1.0, "#0087E6")]),
     ("平静水面", [(0.0, "#CCCCFF"), (0.5, "#99CCFF"), (1.0, "#CCCCFF")]),
     ("火焰", [(0.0, "#FFF200"), (0.45, "#FF7A00"), (0.7, "#FF0300"), (1.0, "#4D0808")]),
     ("薄雾", [(0.0, "#8488C4"), (0.5, "#D4DEFF"), (1.0, "#96AB94")]),
     ("青苔", [(0.0, "#DDEBCF"), (0.5, "#9CB86E"), (1.0, "#156B13")]),
-    ("孔雀", [(0.0, "#3399FF"), (0.2, "#00CCCC"), (0.5, "#9999FF"), (0.8, "#2E6792"), (1.0, "#3333CC")]),
-    ("麦浪", [(0.0, "#FBEAC7"), (0.2, "#FEE7F2"), (0.5, "#FAC77D"), (0.8, "#FBA97D"), (1.0, "#FBD49C")]),
+    (
+        "孔雀",
+        [(0.0, "#3399FF"), (0.2, "#00CCCC"), (0.5, "#9999FF"), (0.8, "#2E6792"), (1.0, "#3333CC")],
+    ),
+    (
+        "麦浪",
+        [(0.0, "#FBEAC7"), (0.2, "#FEE7F2"), (0.5, "#FAC77D"), (0.8, "#FBA97D"), (1.0, "#FBD49C")],
+    ),
     ("羊皮纸", [(0.0, "#FFEFD1"), (0.65, "#F0EBD5"), (1.0, "#D1C39F")]),
     ("红木", [(0.0, "#D6B19C"), (0.3, "#D49E6C"), (0.7, "#A65528"), (1.0, "#663012")]),
-    ("彩虹", [(0.0, "#A603AB"), (0.2, "#0819FB"), (0.4, "#1A8D48"), (0.6, "#FFFF00"), (0.8, "#EE3F17"), (1.0, "#E81766")]),
-    ("金色", [(0.0, "#E6DCAC"), (0.15, "#E6D78A"), (0.4, "#C7AC4C"), (0.6, "#E6D78A"), (1.0, "#E6DCAC")]),
-    ("黄铜", [(0.0, "#825600"), (0.15, "#FFA800"), (0.35, "#825600"), (0.55, "#FFA800"), (0.8, "#825600"), (1.0, "#FFA800")]),
-    ("铬黄", [(0.0, "#FFFFFF"), (0.2, "#000000"), (0.4, "#FFFFFF"), (0.6, "#000000"), (0.8, "#FFFFFF"), (1.0, "#000000")]),
+    (
+        "彩虹",
+        [
+            (0.0, "#A603AB"),
+            (0.2, "#0819FB"),
+            (0.4, "#1A8D48"),
+            (0.6, "#FFFF00"),
+            (0.8, "#EE3F17"),
+            (1.0, "#E81766"),
+        ],
+    ),
+    (
+        "金色",
+        [(0.0, "#E6DCAC"), (0.15, "#E6D78A"), (0.4, "#C7AC4C"), (0.6, "#E6D78A"), (1.0, "#E6DCAC")],
+    ),
+    (
+        "黄铜",
+        [
+            (0.0, "#825600"),
+            (0.15, "#FFA800"),
+            (0.35, "#825600"),
+            (0.55, "#FFA800"),
+            (0.8, "#825600"),
+            (1.0, "#FFA800"),
+        ],
+    ),
+    (
+        "铬黄",
+        [
+            (0.0, "#FFFFFF"),
+            (0.2, "#000000"),
+            (0.4, "#FFFFFF"),
+            (0.6, "#000000"),
+            (0.8, "#FFFFFF"),
+            (1.0, "#000000"),
+        ],
+    ),
     ("银白", [(0.0, "#FFFFFF"), (0.3, "#E6E6E6"), (0.6, "#7D8496"), (1.0, "#FFFFFF")]),
     ("蓝宝石", [(0.0, "#000082"), (0.5, "#0047FF"), (1.0, "#000082")]),
 ]
@@ -205,7 +245,10 @@ def get_procedural_texture(name: str) -> QPixmap:
         p = QPainter(img)
         for _ in range(50):
             c = QColor(138, 106, 62, 70) if rng.random() > 0.5 else QColor(214, 184, 138, 70)
-            p.fillRect(int(rng.random() * s), int(rng.random() * s), int(rng.random() * 20 + 2), 1, c)
+            rx = int(rng.random() * s)
+            ry = int(rng.random() * s)
+            rw = int(rng.random() * 20 + 2)
+            p.fillRect(rx, ry, rw, 1, c)
         p.end()
 
     elif norm_name == "报纸":
@@ -218,9 +261,16 @@ def get_procedural_texture(name: str) -> QPixmap:
     elif norm_name == "再生纸":
         fill_noise("#DCD3C0", 20)
         p = QPainter(img)
-        colors = [QColor(122, 107, 85, 120), QColor(164, 152, 132, 120), QColor(94, 84, 68, 120)]
+        colors = [
+            QColor(122, 107, 85, 120),
+            QColor(164, 152, 132, 120),
+            QColor(94, 84, 68, 120),
+        ]
         for i in range(100):
-            p.fillRect(int(rng.random() * s), int(rng.random() * s), int(rng.random() * 3 + 1), 1, colors[i % 3])
+            rx = int(rng.random() * s)
+            ry = int(rng.random() * s)
+            rw = int(rng.random() * 3 + 1)
+            p.fillRect(rx, ry, rw, 1, colors[i % 3])
         p.end()
 
     elif norm_name == "羊皮纸":
@@ -235,7 +285,10 @@ def get_procedural_texture(name: str) -> QPixmap:
             for x in range(s):
                 orig = img.pixelColor(x, y)
                 n = int((rng.random() - 0.5) * 16)
-                img.setPixelColor(x, y, QColor(max(0, min(255, orig.red() + n)), max(0, min(255, orig.green() + n)), max(0, min(255, orig.blue() + n))))
+                r_val = max(0, min(255, orig.red() + n))
+                g_val = max(0, min(255, orig.green() + n))
+                b_val = max(0, min(255, orig.blue() + n))
+                img.setPixelColor(x, y, QColor(r_val, g_val, b_val))
 
     elif norm_name == "花岗岩":
         fill_noise("#9A9A9A", 50)
@@ -382,7 +435,9 @@ def paint_fill_rect(
         if design and hasattr(design, "bg") and design.bg and design.bg.type != "none":
             paint_fill_rect(painter, rect, design.bg, design=None)
         else:
-            default_color = design.colors.lt1 if (design and hasattr(design, "colors")) else "#FFFFFF"
+            default_color = (
+                design.colors.lt1 if (design and hasattr(design, "colors")) else "#FFFFFF"
+            )
             painter.fillRect(rect, QColor(default_color))
         return
 
@@ -417,7 +472,10 @@ def paint_fill_rect(
             elif abs(ang - 0.0) < 0.1:  # Vertical: top to bottom
                 p1 = QPointF(rect.left(), rect.top())
                 p2 = QPointF(rect.left(), rect.bottom())
-            elif abs(ang - 315.0) < 0.1 or abs(ang - 45.0) < 0.1 and fill.path == "dup":  # Diagonal up
+            elif (
+                abs(ang - 315.0) < 0.1
+                or (abs(ang - 45.0) < 0.1 and getattr(fill, "path", "") == "dup")
+            ):  # Diagonal up
                 p1 = QPointF(rect.left(), rect.bottom())
                 p2 = QPointF(rect.right(), rect.top())
             elif abs(ang - 45.0) < 0.1 or abs(ang - 135.0) < 0.1:  # Diagonal down

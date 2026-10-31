@@ -17,9 +17,8 @@ import copy
 import os
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QCoreApplication, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (
-    QAction,
     QColor,
     QIcon,
     QPainter,
@@ -57,11 +56,10 @@ from atboffice.modules.presentation.views.background_renderer import (
     TEXTURE_NAMES,
     get_procedural_texture,
     paint_fill_rect,
-    resolve_fill_color,
 )
 from atboffice.modules.spreadsheet.dialogs.pattern_defs import (
-    PATTERNS,
     PATTERN_NAMES,
+    PATTERNS,
     create_pattern_pixmap,
 )
 
@@ -115,8 +113,9 @@ class ColorSwatchButton(QPushButton):
     def _update_appearance(self) -> None:
         c = self._color if self._color.startswith("#") else "#3366CC"
         self.setStyleSheet(
-            f"QPushButton {{ background-color: {c}; border: 1.5px solid #777777; border-radius: 2px; }} "
-            f"QPushButton:hover {{ border: 1.5px solid #000000; }}"
+            f"QPushButton {{ background-color: {c}; border: 1.5px solid #777777; "
+            "border-radius: 2px; } "
+            "QPushButton:hover { border: 1.5px solid #000000; }"
         )
 
 
@@ -405,7 +404,15 @@ class FillEffectsDialog(QDialog):
         self.radio_horz.setChecked(True)
 
         self.shading_group = QButtonGroup(self.grp_shading)
-        for i, rb in enumerate([self.radio_horz, self.radio_vert, self.radio_dup, self.radio_ddn, self.radio_corner, self.radio_center]):
+        shading_buttons = [
+            self.radio_horz,
+            self.radio_vert,
+            self.radio_dup,
+            self.radio_ddn,
+            self.radio_corner,
+            self.radio_center,
+        ]
+        for i, rb in enumerate(shading_buttons):
             self.shading_group.addButton(rb, i)
             shading_vbox.addWidget(rb)
         self.shading_group.idClicked.connect(self._on_shading_style_changed)
@@ -510,15 +517,31 @@ class FillEffectsDialog(QDialog):
             ]
 
         # Apply variant transformations matching Office 2003
-        if variant_idx == 1 or variant_idx == 3:
-            stops = [{"p": round(1.0 - s["p"], 2), "c": s["c"], "a": s["a"]} for s in reversed(stops)]
+        if variant_idx in (1, 3):
+            stops = [
+                {"p": round(1.0 - s["p"], 2), "c": s["c"], "a": s["a"]}
+                for s in reversed(stops)
+            ]
         if variant_idx >= 2:
             # Symmetrical reflected gradient
-            half1 = [{"p": round(s["p"] / 2.0, 2), "c": s["c"], "a": s["a"]} for s in stops]
-            half2 = [{"p": round(1.0 - s["p"] / 2.0, 2), "c": s["c"], "a": s["a"]} for s in reversed(stops[1:])]
+            half1 = [
+                {"p": round(s["p"] / 2.0, 2), "c": s["c"], "a": s["a"]}
+                for s in stops
+            ]
+            half2 = [
+                {"p": round(1.0 - s["p"] / 2.0, 2), "c": s["c"], "a": s["a"]}
+                for s in reversed(stops[1:])
+            ]
             stops = half1 + half2
 
-        ang_map = {"horz": 90.0, "vert": 0.0, "dup": 315.0, "ddn": 45.0, "corner": 0.0, "center": 0.0}
+        ang_map = {
+            "horz": 90.0,
+            "vert": 0.0,
+            "dup": 315.0,
+            "ddn": 45.0,
+            "corner": 0.0,
+            "center": 0.0,
+        }
         path = "circle" if style == "center" else ("rect" if style == "corner" else "lin")
         return Fill.gradient(stops=stops, angle=ang_map.get(style, 90.0), path=path)
 

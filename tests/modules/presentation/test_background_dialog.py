@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import pytest
 from PySide6.QtCore import QRectF
 from PySide6.QtGui import QColor, QImage, QPainter
@@ -18,8 +17,6 @@ from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.slideshow.transitions import render_slide_to_image
 from atboffice.modules.presentation.views.background_renderer import (
     GRAD_PRESETS,
-    TEXTURE_NAMES,
-    get_procedural_texture,
     paint_fill_rect,
 )
 from atboffice.modules.presentation.views.slide_canvas import SlideScene
