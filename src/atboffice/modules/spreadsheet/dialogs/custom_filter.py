@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
@@ -132,8 +132,7 @@ class CustomFilterDialog(QDialog):
 
         # OK / Cancel buttons
         self.buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok
-            | QDialogButtonBox.StandardButton.Cancel,
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
             self,
         )
         self.buttons.accepted.connect(self.accept)

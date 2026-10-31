@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QCoreApplication, Qt, Signal
 from PySide6.QtWidgets import (
-    QButtonGroup,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -16,7 +15,6 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPushButton,
-    QRadioButton,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -71,8 +69,7 @@ class Top10FilterDialog(QDialog):
         layout.addLayout(h_layout)
 
         self.buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok
-            | QDialogButtonBox.StandardButton.Cancel,
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
             self,
         )
         self.buttons.accepted.connect(self.accept)
@@ -206,14 +203,8 @@ class FilterDropdown(QWidget):
         for val_str in self.unique_values:
             item = QListWidgetItem(val_str)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            checked = (
-                True
-                if cur_val_set is None
-                else (val_str.lower() in cur_val_set)
-            )
-            item.setCheckState(
-                Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
-            )
+            checked = True if cur_val_set is None else (val_str.lower() in cur_val_set)
+            item.setCheckState(Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
             self.list_widget.addItem(item)
             self.value_items.append((item, val_str))
 
@@ -221,9 +212,7 @@ class FilterDropdown(QWidget):
         self.blank_item: QListWidgetItem | None = None
         if self.has_blanks:
             self.blank_item = QListWidgetItem(safe_tr("(Blanks)"))
-            self.blank_item.setFlags(
-                self.blank_item.flags() | Qt.ItemFlag.ItemIsUserCheckable
-            )
+            self.blank_item.setFlags(self.blank_item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             checked = True if cur_val_set is None else bool(current_crit and current_crit.blank)
             self.blank_item.setCheckState(
                 Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
@@ -280,8 +269,7 @@ class FilterDropdown(QWidget):
         else:
             # Check if all are checked
             all_checked = all(
-                v_item.checkState() == Qt.CheckState.Checked
-                for v_item, _ in self.value_items
+                v_item.checkState() == Qt.CheckState.Checked for v_item, _ in self.value_items
             )
             if self.blank_item is not None:
                 all_checked = all_checked and (
@@ -361,8 +349,7 @@ class FilterDropdown(QWidget):
             if v_item.checkState() == Qt.CheckState.Checked
         }
         blank_selected = bool(
-            self.blank_item is not None
-            and self.blank_item.checkState() == Qt.CheckState.Checked
+            self.blank_item is not None and self.blank_item.checkState() == Qt.CheckState.Checked
         )
 
         crit = ColumnFilter(

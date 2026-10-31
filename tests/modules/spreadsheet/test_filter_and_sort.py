@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.spreadsheet.dialogs.custom_filter import CustomFilterDialog
@@ -14,6 +13,8 @@ from atboffice.modules.spreadsheet.models.filter_model import (
     clear_auto_filter,
     excel_sort_cmp,
     sort_sheet_range,
+)
+from atboffice.modules.spreadsheet.models.filter_model import (
     test_custom_condition as eval_custom_cond,
 )
 from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetDataModel
@@ -75,10 +76,7 @@ def test_sort_sheet_range():
         has_header=True,
     )
 
-    result = [
-        (model.get_cell_value(r, 0), model.get_cell_value(r, 1))
-        for r in range(1, 5)
-    ]
+    result = [(model.get_cell_value(r, 0), model.get_cell_value(r, 1)) for r in range(1, 5)]
     assert result == [
         ("Alice", 95),
         ("Bob", 85),
