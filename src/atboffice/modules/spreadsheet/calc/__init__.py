@@ -1,5 +1,9 @@
 """Ledger spreadsheet formula calculation and parsing subpackage."""
 
+from atboffice.modules.spreadsheet.calc.audit_tracer import (
+    AuditArrow,
+    AuditTracer,
+)
 from atboffice.modules.spreadsheet.calc.coercion import (
     build_criteria_matcher,
     date_to_serial,
@@ -200,4 +204,7 @@ __all__ = [
     "register_function",
     "evaluate",
     "evaluate_ast",
+    # Audit Tracer
+    "AuditArrow",
+    "AuditTracer",
 ]
