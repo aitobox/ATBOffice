@@ -1,9 +1,9 @@
 """Unit and integration tests for WordArt gallery and curved text deformations."""
 
 import math
-import pytest
-from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPainterPath
+
+from PySide6.QtCore import QRectF, Qt
+from PySide6.QtGui import QImage, QPainter, QPainterPath
 
 from atboffice.modules.common.wordart_gallery import (
     WA_STYLES,

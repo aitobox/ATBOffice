@@ -21,7 +21,6 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QApplication,
-    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -31,7 +30,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QPlainTextEdit,
     QPushButton,
-    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -89,42 +87,63 @@ def _build_30_styles() -> list[WordArtStyle]:
     """Build the exact 30 WordArt styles defined in Office 2003 / VibeOffice."""
     # (fill_type, fill_colors, angle, line_col, line_w, shadow_tuple, warp, font)
     # shadow_tuple: (color, alpha, dx, dy, blur) or None
+    s0 = ("#000000", 0.35, 3.0, 3.0, 0.0)
+    s1 = ("#000000", 0.60, 4.0, 4.0, 2.0)
+
     raw_defs = [
         # Row 1 (0..5)
         ("solid", ["#000000"], 90.0, None, 1.0, None, "textPlain", "Arial Black"),
         ("solid", ["#FFFFFF"], 90.0, "#000000", 1.0, None, "textPlain", "Impact"),
         ("gradient", ["#3366FF", "#99CCFF"], 90.0, None, 1.0, None, "textPlain", "Arial"),
-        ("solid", ["#C0C0C0"], 90.0, "#404040", 1.0, ("#000000", 0.35, 3.0, 3.0, 0.0), "textPlain", "Times New Roman"),
+        ("solid", ["#C0C0C0"], 90.0, "#404040", 1.0, s0, "textPlain", "Times New Roman"),
         ("gradient", ["#FF6600", "#FFCC00"], 90.0, "#993300", 1.0, None, "textArchUp", "Georgia"),
-        ("solid", ["#3366CC"], 90.0, None, 1.0, ("#000000", 0.35, 3.0, 3.0, 0.0), "textWave1", "Trebuchet MS"),
+        ("solid", ["#3366CC"], 90.0, None, 1.0, s0, "textWave1", "Trebuchet MS"),
         # Row 2 (6..11)
-        ("gradient", ["#FFFFFF", "#808080"], 90.0, "#000000", 1.0, ("#000000", 0.35, 3.0, 3.0, 0.0), "textPlain", "Arial Black"),
+        (
+            "gradient",
+            ["#FFFFFF", "#808080"],
+            90.0,
+            "#000000",
+            1.0,
+            s0,
+            "textPlain",
+            "Arial Black",
+        ),
         ("solid", ["#CC0000"], 90.0, "#660000", 1.0, None, "textSlantUp", "Impact"),
-        ("gradient", ["#00CC99", "#006666"], 90.0, None, 1.0, ("#000000", 0.35, 3.0, 3.0, 0.0), "textPlain", "Arial"),
-        ("solid", ["#FFFF00"], 90.0, "#FF6600", 1.5, ("#000000", 0.35, 3.0, 3.0, 0.0), "textPlain", "Times New Roman"),
+        ("gradient", ["#00CC99", "#006666"], 90.0, None, 1.0, s0, "textPlain", "Arial"),
+        ("solid", ["#FFFF00"], 90.0, "#FF6600", 1.5, s0, "textPlain", "Times New Roman"),
         ("gradient", ["#CC99FF", "#660099"], 90.0, None, 1.0, None, "textArchDown", "Georgia"),
         ("solid", ["#006600"], 90.0, "#003300", 1.0, None, "textTriangle", "Trebuchet MS"),
         # Row 3 (12..17)
-        ("gradient", ["#FFCC00", "#CC6600"], 0.0, "#663300", 1.0, ("#000000", 0.35, 3.0, 3.0, 0.0), "textPlain", "Arial Black"),
-        ("solid", ["#000080"], 90.0, None, 1.0, ("#000000", 0.35, 3.0, 3.0, 0.0), "textChevron", "Impact"),
+        (
+            "gradient",
+            ["#FFCC00", "#CC6600"],
+            0.0,
+            "#663300",
+            1.0,
+            s0,
+            "textPlain",
+            "Arial Black",
+        ),
+        ("solid", ["#000080"], 90.0, None, 1.0, s0, "textChevron", "Impact"),
         ("gradient", ["#E6E6E6", "#333333"], 90.0, "#000000", 1.0, None, "textPlain", "Arial"),
-        ("solid", ["#FF99CC"], 90.0, "#CC0066", 1.0, ("#000000", 0.35, 3.0, 3.0, 0.0), "textWave1", "Times New Roman"),
-        ("gradient", ["#66CCFF", "#003399"], 0.0, None, 1.0, ("#000000", 0.35, 3.0, 3.0, 0.0), "textCanUp", "Georgia"),
+        ("solid", ["#FF99CC"], 90.0, "#CC0066", 1.0, s0, "textWave1", "Times New Roman"),
+        ("gradient", ["#66CCFF", "#003399"], 0.0, None, 1.0, s0, "textCanUp", "Georgia"),
         ("solid", ["#996633"], 90.0, "#663300", 1.0, None, "textSlantDown", "Trebuchet MS"),
         # Row 4 (18..23)
-        ("gradient", ["#FFFF99", "#FF9900"], 90.0, "#996600", 1.0, ("#000000", 0.35, 3.0, 3.0, 0.0), "textArchUp", "Arial Black"),
+        ("gradient", ["#FFFF99", "#FF9900"], 90.0, "#996600", 1.0, s0, "textArchUp", "Arial Black"),
         ("solid", ["#00CCFF"], 90.0, "#006699", 1.0, None, "textPlain", "Impact"),
-        ("gradient", ["#FF0000", "#660000"], 90.0, None, 1.0, ("#000000", 0.35, 3.0, 3.0, 0.0), "textPlain", "Arial"),
-        ("solid", ["#808080"], 90.0, None, 1.0, ("#000000", 0.60, 4.0, 4.0, 2.0), "textPlain", "Times New Roman"),
+        ("gradient", ["#FF0000", "#660000"], 90.0, None, 1.0, s0, "textPlain", "Arial"),
+        ("solid", ["#808080"], 90.0, None, 1.0, s1, "textPlain", "Times New Roman"),
         ("gradient", ["#99FF99", "#009900"], 90.0, "#006600", 1.0, None, "textCircle", "Georgia"),
-        ("solid", ["#FF6600"], 90.0, None, 1.0, ("#000000", 0.35, 3.0, 3.0, 0.0), "textTriangle", "Trebuchet MS"),
+        ("solid", ["#FF6600"], 90.0, None, 1.0, s0, "textTriangle", "Trebuchet MS"),
         # Row 5 (24..29)
-        ("gradient", ["#000000", "#808080"], 90.0, None, 1.0, ("#000000", 0.35, 3.0, 3.0, 0.0), "textPlain", "Arial Black"),
-        ("solid", ["#FFFFFF"], 90.0, "#3366CC", 1.5, ("#000000", 0.35, 3.0, 3.0, 0.0), "textArchUp", "Impact"),
+        ("gradient", ["#000000", "#808080"], 90.0, None, 1.0, s0, "textPlain", "Arial Black"),
+        ("solid", ["#FFFFFF"], 90.0, "#3366CC", 1.5, s0, "textArchUp", "Impact"),
         ("gradient", ["#CC66FF", "#3399FF"], 0.0, None, 1.0, None, "textWave1", "Arial"),
-        ("solid", ["#003366"], 90.0, "#99CCFF", 1.0, ("#000000", 0.35, 3.0, 3.0, 0.0), "textSlantUp", "Times New Roman"),
+        ("solid", ["#003366"], 90.0, "#99CCFF", 1.0, s0, "textSlantUp", "Times New Roman"),
         ("gradient", ["#FFCCCC", "#FF3366"], 90.0, "#990033", 1.0, None, "textChevron", "Georgia"),
-        ("solid", ["#669900"], 90.0, None, 1.0, ("#000000", 0.35, 3.0, 3.0, 0.0), "textCanUp", "Trebuchet MS"),
+        ("solid", ["#669900"], 90.0, None, 1.0, s0, "textCanUp", "Trebuchet MS"),
     ]
 
     styles: list[WordArtStyle] = []
@@ -582,7 +601,8 @@ class WordArtTextDialog(QDialog):
         self.lbl_size = QLabel(self)
         self.size_combo = QComboBox(self)
         sizes = [
-            "12", "14", "16", "18", "20", "24", "28", "32", "36", "40", "44", "48", "54", "60", "66", "72", "80", "96"
+            "12", "14", "16", "18", "20", "24", "28", "32", "36",
+            "40", "44", "48", "54", "60", "66", "72", "80", "96",
         ]
         self.size_combo.addItems(sizes)
         s_idx = self.size_combo.findText(str(self._initial_size))
