@@ -1201,6 +1201,21 @@ class LedgerWindow(BaseOfficeWindow):
 
     def open_function_wizard(self) -> None:
         """Open formula function wizard dialog."""
+        from atboffice.modules.spreadsheet.dialogs.function_wizard import (
+            launch_function_wizard,
+        )
+
+        active_sheet = getattr(self.spreadsheet_view, "model", None)
+        active_sel = getattr(self.spreadsheet_view, "selection", None)
+        r, c = active_sel.active_cell if active_sel else (0, 0)
+        launch_function_wizard(
+            parent=self,
+            workbook=getattr(self.spreadsheet_view, "workbook", None),
+            sheet=active_sheet,
+            active_r=r,
+            active_c=c,
+            editor_controller=getattr(self.spreadsheet_view, "editor_controller", None),
+        )
 
     def insert_picture(self) -> None:
         """Insert image from disk file into floating object layer."""
