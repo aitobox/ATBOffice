@@ -10,19 +10,14 @@ Replicates and extends .vibeoffice/public/ledger/js/pivots.js and dialogs2.js:
 
 from __future__ import annotations
 
-import io
-import re
 import xml.etree.ElementTree as ET
 import zipfile
 from dataclasses import dataclass, field
 from typing import Any
 
 from atboffice.modules.spreadsheet.calc.references import (
-    abs_range_name,
     col_name,
-    parse_cell,
     parse_range,
-    quote_sheet,
     range_name,
 )
 from atboffice.modules.spreadsheet.models.sheet_model import (
@@ -38,9 +33,7 @@ NS_SPREADSHEETML = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 NS_RELATIONSHIPS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 NS_PKG_REL = "http://schemas.openxmlformats.org/package/2006/relationships"
 
-REL_PIVOT_TABLE = (
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable"
-)
+REL_PIVOT_TABLE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable"
 REL_PIVOT_CACHE = (
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition"
 )
@@ -48,9 +41,7 @@ REL_PIVOT_RECORDS = (
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheRecords"
 )
 
-CT_PIVOT_TABLE = (
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotTable+xml"
-)
+CT_PIVOT_TABLE = "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotTable+xml"
 CT_PIVOT_CACHE_DEF = (
     "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheDefinition+xml"
 )
@@ -172,9 +163,7 @@ class PivotContainer:
                 if src.sheet_name.lower() == sheet_name.lower():
                     cache.drop = "The pivot source was deleted."
 
-    def notify_lines_shifted(
-        self, sheet_name: str, axis: str, at: int, n: int
-    ) -> None:
+    def notify_lines_shifted(self, sheet_name: str, axis: str, at: int, n: int) -> None:
         """Shift table location refs and source ranges when rows/cols inserted/deleted."""
         # axis: 'r' for rows, 'c' for columns
         for cache in self.caches:
@@ -271,9 +260,7 @@ class PivotContainer:
 # ==============================================================================
 
 
-def read_pivots_from_zip(
-    z: zipfile.ZipFile, workbook: WorkbookModel
-) -> PivotContainer | None:
+def read_pivots_from_zip(z: zipfile.ZipFile, workbook: WorkbookModel) -> PivotContainer | None:
     """Discover, parse, and store PivotCache and PivotTable definitions from an XLSX zip archive."""
     caches: list[PivotCache] = []
     tables: list[PivotTable] = []
@@ -387,7 +374,9 @@ def read_pivots_from_zip(
                 # Check cache definition rels for records part
                 c_dir = part_target.rsplit("/", 1)[0] if "/" in part_target else ""
                 c_file = part_target.rsplit("/", 1)[-1]
-                c_rels_part = f"{c_dir}/_rels/{c_file}.rels" if c_dir else f"_rels/{part_target}.rels"
+                c_rels_part = (
+                    f"{c_dir}/_rels/{c_file}.rels" if c_dir else f"_rels/{part_target}.rels"
+                )
                 if c_rels_part in z.namelist():
                     try:
                         c_rels_root = ET.fromstring(z.read(c_rels_part))
@@ -417,7 +406,6 @@ def read_pivots_from_zip(
 
     # 2. Discover pivotTable definitions in worksheets
     for sheet_idx, sheet in enumerate(workbook.sheets, start=1):
-        ws_part = f"xl/worksheets/sheet{sheet_idx}.xml"
         ws_dir = "xl/worksheets"
         ws_rels_part = f"{ws_dir}/_rels/sheet{sheet_idx}.xml.rels"
 
@@ -521,23 +509,15 @@ def write_pivots_to_package(
                             ws_src_el.attrib["ref"] = range_name(
                                 {"r1": r1, "c1": c1, "r2": r2, "c2": c2}
                             )
-                modified_bytes = ET.tostring(
-                    root, encoding="utf-8", xml_declaration=True
-                )
-                pkg_writer.add_part(
-                    cache.part_name, modified_bytes, CT_PIVOT_CACHE_DEF
-                )
+                modified_bytes = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+                pkg_writer.add_part(cache.part_name, modified_bytes, CT_PIVOT_CACHE_DEF)
             except Exception:
-                pkg_writer.add_part(
-                    cache.part_name, cache.raw_bytes, CT_PIVOT_CACHE_DEF
-                )
+                pkg_writer.add_part(cache.part_name, cache.raw_bytes, CT_PIVOT_CACHE_DEF)
         elif cache.raw_bytes:
             pkg_writer.add_part(cache.part_name, cache.raw_bytes, CT_PIVOT_CACHE_DEF)
 
         if cache.records_part and cache.records_raw_bytes:
-            pkg_writer.add_part(
-                cache.records_part, cache.records_raw_bytes, CT_PIVOT_CACHE_RECORDS
-            )
+            pkg_writer.add_part(cache.records_part, cache.records_raw_bytes, CT_PIVOT_CACHE_RECORDS)
 
     for table in pivots.tables:
         if table.drop:

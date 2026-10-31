@@ -98,14 +98,14 @@ The implementation addresses two key requirements:
 @dataclass
 class PivotConfig:
     source_sheet: str
-    source_range: tuple[int, int, int, int] # (r1, c1, r2, c2)
+    source_range: tuple[int, int, int, int]  # (r1, c1, r2, c2)
     row_field_col: int
     col_field_col: int | None
     data_field_col: int
-    agg_func: str # "sum", "count", "average", "max", "min", "countNums"
+    agg_func: str  # "sum", "count", "average", "max", "min", "countNums"
     page_field_col: int | None = None
     page_filter_val: str | None = None
-    target_sheet: str = "new" # "new" or existing sheet name
+    target_sheet: str = "new"  # "new" or existing sheet name
     target_cell: tuple[int, int] = (0, 0)
 ```
 

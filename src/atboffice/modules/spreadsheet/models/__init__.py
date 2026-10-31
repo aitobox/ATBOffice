@@ -68,9 +68,12 @@ __all__ = [
     "ValidationOp",
     "ValidationType",
     "WorkbookModel",
+    "build_pivot_table",
     "evaluate_cf_for_cell",
     "get_list_items",
     "get_validation_for_cell",
     "mix_colors",
+    "read_pivots_from_zip",
     "validate_cell_value",
+    "write_pivots_to_package",
 ]

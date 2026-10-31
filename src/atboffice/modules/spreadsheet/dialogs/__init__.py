@@ -29,4 +29,3 @@ __all__ = [
     "ValidationAlertDialog",
     "launch_function_wizard",
 ]
-

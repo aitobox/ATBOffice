@@ -20,13 +20,13 @@ from atboffice.modules.spreadsheet.models.conditional_format import (
     ConditionalFormat,
     DataBarRule,
 )
+from atboffice.modules.spreadsheet.models.pivot_model import read_pivots_from_zip
 from atboffice.modules.spreadsheet.models.sheet_model import (
     BorderStyle,
     CellData,
     FormatDelta,
     SheetDataModel,
 )
-from atboffice.modules.spreadsheet.models.pivot_model import read_pivots_from_zip
 from atboffice.modules.spreadsheet.models.validation import DataValidation
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 from atboffice.modules.spreadsheet.views.object_layer import (
@@ -666,9 +666,7 @@ def _parse_worksheet(
             stop_if_true = _attr(r_el, "stopIfTrue") in ("1", "true")
             text_val = _attr(r_el, "text")
             formulas = [
-                f.text.strip()
-                for f in _find_children(r_el, "formula")
-                if f.text is not None
+                f.text.strip() for f in _find_children(r_el, "formula") if f.text is not None
             ]
 
             # Formatting from dxf
@@ -695,9 +693,7 @@ def _parse_worksheet(
             if cs_el is not None:
                 cfvos = []
                 for vo_el in _find_children(cs_el, "cfvo"):
-                    cfvos.append(
-                        CFVO(type=_attr(vo_el, "type", "min"), val=_attr(vo_el, "val"))
-                    )
+                    cfvos.append(CFVO(type=_attr(vo_el, "type", "min"), val=_attr(vo_el, "val")))
                 colors = []
                 for col_el in _find_children(cs_el, "color"):
                     c_val = _parse_color(col_el)
@@ -710,9 +706,7 @@ def _parse_worksheet(
             if db_el is not None:
                 cfvos = []
                 for vo_el in _find_children(db_el, "cfvo"):
-                    cfvos.append(
-                        CFVO(type=_attr(vo_el, "type", "min"), val=_attr(vo_el, "val"))
-                    )
+                    cfvos.append(CFVO(type=_attr(vo_el, "type", "min"), val=_attr(vo_el, "val")))
                 c_val = _parse_color(_find_child(db_el, "color"))
                 color_hex = _norm_hex(c_val) or "#638EC6"
                 bar_rule = DataBarRule(cfvos=cfvos, color=color_hex)

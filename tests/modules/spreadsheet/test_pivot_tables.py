@@ -3,8 +3,8 @@
 import io
 import xml.etree.ElementTree as ET
 import zipfile
-import pytest
 
+import pytest
 from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.spreadsheet.dialogs.pivot_dialog import (
@@ -13,18 +13,12 @@ from atboffice.modules.spreadsheet.dialogs.pivot_dialog import (
 from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
 from atboffice.modules.spreadsheet.io.xlsx_writer import write_xlsx
 from atboffice.modules.spreadsheet.models.pivot_model import (
-    PivotCache,
-    PivotCacheSource,
     PivotConfig,
     PivotContainer,
-    PivotTable,
     build_pivot_table,
-    read_pivots_from_zip,
-    write_pivots_to_package,
 )
 from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
-from atboffice.vfs.opc import PackageWriter, SourcePackage
 
 
 @pytest.fixture(scope="session")
@@ -166,78 +160,108 @@ def test_pivot_calculation_count_average_and_filters():
 
 
 def test_pivot_ooxml_roundtrip_lossless():
-    """Verify that an XLSX package with pivotTable and pivotCache definitions is read and preserved."""
+    """Verify that an XLSX package with pivotTable and pivotCache is read and preserved."""
     # Construct a minimal XLSX package with pivotCache and pivotTable in memory
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr(
-            "[Content_Types].xml",
+        types_xml = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n'
-            '  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n'
+            '  <Default Extension="rels" '
+            'ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n'
             '  <Default Extension="xml" ContentType="application/xml"/>\n'
-            '  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>\n'
-            '  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>\n'
-            '  <Override PartName="/xl/pivotCaches/pivotCacheDefinition1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheDefinition+xml"/>\n'
-            '  <Override PartName="/xl/pivotCaches/pivotCacheRecords1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheRecords+xml"/>\n'
-            '  <Override PartName="/xl/pivotTables/pivotTable1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotTable+xml"/>\n'
-            "</Types>",
+            '  <Override PartName="/xl/workbook.xml" '
+            'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>\n'
+            '  <Override PartName="/xl/worksheets/sheet1.xml" '
+            'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>\n'
+            '  <Override PartName="/xl/pivotCaches/pivotCacheDefinition1.xml" '
+            'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheDefinition+xml"/>\n'
+            '  <Override PartName="/xl/pivotCaches/pivotCacheRecords1.xml" '
+            'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheRecords+xml"/>\n'
+            '  <Override PartName="/xl/pivotTables/pivotTable1.xml" '
+            'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotTable+xml"/>\n'
+            "</Types>"
         )
-        z.writestr(
-            "_rels/.rels",
+        z.writestr("[Content_Types].xml", types_xml)
+        rel_office = (
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
+        )
+        root_rels = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
-            '  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>\n'
-            "</Relationships>",
+            f'  <Relationship Id="rId1" Type="{rel_office}" Target="xl/workbook.xml"/>\n'
+            "</Relationships>"
         )
-        z.writestr(
-            "xl/workbook.xml",
+        z.writestr("_rels/.rels", root_rels)
+        wb_xml = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
-            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">\n'
+            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+            'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">\n'
             '  <sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets>\n'
             '  <pivotCaches><pivotCache cacheId="1" r:id="rIdCache1"/></pivotCaches>\n'
-            "</workbook>",
+            "</workbook>"
         )
-        z.writestr(
-            "xl/_rels/workbook.xml.rels",
+        z.writestr("xl/workbook.xml", wb_xml)
+        rel_cache = (
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition"
+        )
+        rel_ws = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"
+        wb_rels = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
-            '  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>\n'
-            '  <Relationship Id="rIdCache1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition" Target="pivotCaches/pivotCacheDefinition1.xml"/>\n'
-            "</Relationships>",
+            f'  <Relationship Id="rId1" Type="{rel_ws}" Target="worksheets/sheet1.xml"/>\n'
+            f'  <Relationship Id="rIdCache1" Type="{rel_cache}" '
+            'Target="pivotCaches/pivotCacheDefinition1.xml"/>\n'
+            "</Relationships>"
         )
-        z.writestr(
-            "xl/worksheets/sheet1.xml",
+        z.writestr("xl/_rels/workbook.xml.rels", wb_rels)
+        ws_xml = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\n'
             "  <sheetData>\n"
             '    <row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row>\n'
             '    <row r="2"><c r="A2"><v>10</v></c><c r="B2"><v>20</v></c></row>\n'
             "  </sheetData>\n"
-            "</worksheet>",
+            "</worksheet>"
         )
-        z.writestr(
-            "xl/worksheets/_rels/sheet1.xml.rels",
+        z.writestr("xl/worksheets/sheet1.xml", ws_xml)
+        rel_pt = (
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable"
+        )
+        ws_rels = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
-            '  <Relationship Id="rIdPivot1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable" Target="../pivotTables/pivotTable1.xml"/>\n'
-            "</Relationships>",
+            f'  <Relationship Id="rIdPivot1" Type="{rel_pt}" '
+            'Target="../pivotTables/pivotTable1.xml"/>\n'
+            "</Relationships>"
         )
+        z.writestr("xl/worksheets/_rels/sheet1.xml.rels", ws_rels)
         # Mock definition parts
         cache_xml = (
             b'<?xml version="1.0" encoding="UTF-8"?>\n'
-            b'<pivotCacheDefinition xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" recordCount="1">\n'
-            b'  <cacheSource type="worksheet"><worksheetSource ref="A1:B2" sheet="Sheet1"/></cacheSource>\n'
-            b'  <cacheFields count="2"><cacheField name="ColA"/><cacheField name="ColB"/></cacheFields>\n'
-            b'</pivotCacheDefinition>'
+            b'<pivotCacheDefinition '
+            b'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" recordCount="1">\n'
+            b'  <cacheSource type="worksheet">'
+            b'<worksheetSource ref="A1:B2" sheet="Sheet1"/></cacheSource>\n'
+            b'  <cacheFields count="2">\n'
+            b'    <cacheField name="ColA"/><cacheField name="ColB"/>\n'
+            b'  </cacheFields>\n'
+            b"</pivotCacheDefinition>"
         )
-        records_xml = b'<?xml version="1.0" encoding="UTF-8"?><pivotCacheRecords xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"/>'
+        records_xml = (
+            b'<?xml version="1.0" encoding="UTF-8"?>'
+            b'<pivotCacheRecords '
+            b'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"/>'
+        )
         table_xml = (
             b'<?xml version="1.0" encoding="UTF-8"?>\n'
-            b'<pivotTableDefinition xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" name="PivotTable1" cacheId="1">\n'
+            b'<pivotTableDefinition '
+            b'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+            b'name="PivotTable1" cacheId="1">\n'
             b'  <location ref="C1:E5" firstHeaderRow="1" firstDataRow="2" firstDataCol="1"/>\n'
-            b'  <pivotFields count="2"><pivotField axis="axisRow"/><pivotField dataField="1"/></pivotFields>\n'
-            b'</pivotTableDefinition>'
+            b'  <pivotFields count="2"><pivotField axis="axisRow"/>'
+            b'<pivotField dataField="1"/></pivotFields>\n'
+            b"</pivotTableDefinition>"
         )
         z.writestr("xl/pivotCaches/pivotCacheDefinition1.xml", cache_xml)
         z.writestr("xl/pivotCaches/pivotCacheRecords1.xml", records_xml)
@@ -286,40 +310,88 @@ def test_pivot_cache_refresh_on_edit():
     """Verify editing a cell inside source range sets refreshOnLoad='1'."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr(
-            "[Content_Types].xml",
+        types_xml = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n'
-            '  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n'
+            '  <Default Extension="rels" '
+            'ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n'
             '  <Default Extension="xml" ContentType="application/xml"/>\n'
-            '  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>\n'
-            '  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>\n'
-            '  <Override PartName="/xl/pivotCaches/pivotCacheDefinition1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheDefinition+xml"/>\n'
-            '  <Override PartName="/xl/pivotTables/pivotTable1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotTable+xml"/>\n'
-            "</Types>",
+            '  <Override PartName="/xl/workbook.xml" '
+            'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>\n'
+            '  <Override PartName="/xl/worksheets/sheet1.xml" '
+            'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>\n'
+            '  <Override PartName="/xl/pivotCaches/pivotCacheDefinition1.xml" '
+            'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheDefinition+xml"/>\n'
+            '  <Override PartName="/xl/pivotTables/pivotTable1.xml" '
+            'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotTable+xml"/>\n'
+            "</Types>"
         )
-        z.writestr(
-            "_rels/.rels",
-            '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
+        z.writestr("[Content_Types].xml", types_xml)
+        rel_office = (
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
         )
-        z.writestr(
-            "xl/workbook.xml",
-            '<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets><pivotCaches><pivotCache cacheId="1" r:id="rIdCache1"/></pivotCaches></workbook>',
+        root_rels = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+            f'  <Relationship Id="rId1" Type="{rel_office}" Target="xl/workbook.xml"/>\n'
+            "</Relationships>"
         )
-        z.writestr(
-            "xl/_rels/workbook.xml.rels",
-            '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rIdCache1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition" Target="pivotCaches/pivotCacheDefinition1.xml"/></Relationships>',
+        z.writestr("_rels/.rels", root_rels)
+        wb_xml = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+            'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">\n'
+            '  <sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets>\n'
+            '  <pivotCaches><pivotCache cacheId="1" r:id="rIdCache1"/></pivotCaches>\n'
+            "</workbook>"
         )
-        z.writestr(
-            "xl/worksheets/sheet1.xml",
-            '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData></worksheet>',
+        z.writestr("xl/workbook.xml", wb_xml)
+        rel_cache = (
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition"
         )
-        z.writestr(
-            "xl/worksheets/_rels/sheet1.xml.rels",
-            '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdPivot1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable" Target="../pivotTables/pivotTable1.xml"/></Relationships>',
+        rel_ws = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"
+        wb_rels = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+            f'  <Relationship Id="rId1" Type="{rel_ws}" Target="worksheets/sheet1.xml"/>\n'
+            f'  <Relationship Id="rIdCache1" Type="{rel_cache}" '
+            'Target="pivotCaches/pivotCacheDefinition1.xml"/>\n'
+            "</Relationships>"
         )
-        cache_xml = b'<?xml version="1.0" encoding="UTF-8"?><pivotCacheDefinition xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cacheSource type="worksheet"><worksheetSource ref="A1:B2" sheet="Sheet1"/></cacheSource></pivotCacheDefinition>'
-        table_xml = b'<?xml version="1.0" encoding="UTF-8"?><pivotTableDefinition xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" name="PivotTable1" cacheId="1"><location ref="C1:E5"/></pivotTableDefinition>'
+        z.writestr("xl/_rels/workbook.xml.rels", wb_rels)
+        ws_xml = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\n'
+            '  <sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData>\n'
+            "</worksheet>"
+        )
+        z.writestr("xl/worksheets/sheet1.xml", ws_xml)
+        rel_pt = (
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable"
+        )
+        ws_rels = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+            f'  <Relationship Id="rIdPivot1" Type="{rel_pt}" '
+            'Target="../pivotTables/pivotTable1.xml"/>\n'
+            "</Relationships>"
+        )
+        z.writestr("xl/worksheets/_rels/sheet1.xml.rels", ws_rels)
+        cache_xml = (
+            b'<?xml version="1.0" encoding="UTF-8"?>\n'
+            b'<pivotCacheDefinition xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\n'
+            b'  <cacheSource type="worksheet">'
+            b'<worksheetSource ref="A1:B2" sheet="Sheet1"/></cacheSource>\n'
+            b"</pivotCacheDefinition>"
+        )
+        table_xml = (
+            b'<?xml version="1.0" encoding="UTF-8"?>\n'
+            b'<pivotTableDefinition '
+            b'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+            b'name="PivotTable1" cacheId="1">\n'
+            b'  <location ref="C1:E5"/>\n'
+            b"</pivotTableDefinition>"
+        )
         z.writestr("xl/pivotCaches/pivotCacheDefinition1.xml", cache_xml)
         z.writestr("xl/pivotTables/pivotTable1.xml", table_xml)
 

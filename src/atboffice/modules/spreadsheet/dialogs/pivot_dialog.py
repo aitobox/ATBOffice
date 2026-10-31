@@ -6,7 +6,7 @@ aggregation selection, destination choice, and interactive generation.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
@@ -27,7 +27,6 @@ from PySide6.QtWidgets import (
 from atboffice.modules.spreadsheet.calc.references import (
     abs_range_name,
     col_name,
-    parse_cell,
     parse_range,
     quote_sheet,
 )
@@ -91,7 +90,8 @@ class PivotTableWizardDialog(QDialog):
         self.lbl_range = QLabel(self)
         range_layout.addWidget(self.lbl_range)
 
-        default_ref = f"{quote_sheet(self.sheet_name)}!{abs_range_name({'r1': self.r1, 'c1': self.c1, 'r2': self.r2, 'c2': self.c2})}"
+        range_box = {"r1": self.r1, "c1": self.c1, "r2": self.r2, "c2": self.c2}
+        default_ref = f"{quote_sheet(self.sheet_name)}!{abs_range_name(range_box)}"
         self.edit_range = QLineEdit(default_ref, self)
         self.edit_range.editingFinished.connect(self._on_range_edited)
         range_layout.addWidget(self.edit_range)
@@ -164,9 +164,7 @@ class PivotTableWizardDialog(QDialog):
         main_layout.addWidget(self.lbl_hint)
 
         # 5. Buttons
-        self.button_box = QDialogButtonBox(
-            QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self
-        )
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
         self.btn_finish = self.button_box.button(QDialogButtonBox.Ok)
         self.btn_cancel = self.button_box.button(QDialogButtonBox.Cancel)
         self.button_box.accepted.connect(self._on_finish)
@@ -183,17 +181,11 @@ class PivotTableWizardDialog(QDialog):
         self.lbl_data.setText(safe_tr("数据字段(&D):"))
         self.lbl_fn.setText(safe_tr("汇总方式(&S):"))
         self.lbl_page.setText(safe_tr("页字段(&P):"))
-        self.group_location.setTitle(
-            safe_tr("选择放置数据透视表的位置")
-        )
+        self.group_location.setTitle(safe_tr("选择放置数据透视表的位置"))
         self.radio_new_sheet.setText(safe_tr("新工作表(&N)"))
-        self.radio_existing_sheet.setText(
-            safe_tr("现有工作表 (位于当前单元格)(&E)")
-        )
+        self.radio_existing_sheet.setText(safe_tr("现有工作表 (位于当前单元格)(&E)"))
         self.lbl_hint.setText(
-            safe_tr(
-                "Ledger 将生成格式化的交叉汇总报表；源数据变动后可重新生成。"
-            )
+            safe_tr("Ledger 将生成格式化的交叉汇总报表；源数据变动后可重新生成。")
         )
         if self.btn_finish:
             self.btn_finish.setText(safe_tr("完成(&F)"))
@@ -247,9 +239,7 @@ class PivotTableWizardDialog(QDialog):
         numeric_col: int | None = None
         for col_idx in range(self.c1, self.c2 + 1):
             val = src_sheet.get_cell_value(self.r1, col_idx)
-            header_text = (
-                str(val) if val is not None and str(val).strip() else col_name(col_idx)
-            )
+            header_text = str(val) if val is not None and str(val).strip() else col_name(col_idx)
 
             self.combo_row.addItem(header_text, col_idx)
             self.combo_col.addItem(header_text, col_idx)
@@ -281,13 +271,11 @@ class PivotTableWizardDialog(QDialog):
     def _on_finish(self) -> None:
         """Validate selections and generate PivotTable."""
         if not self._parse_range_input() or self.r2 <= self.r1:
-            QMessageBox.warning(
-                self,
-                safe_tr("数据透视表向导"),
-                safe_tr(
-                    "The PivotTable field name is not valid. To create a PivotTable report, you must use data that is organized as a list with labeled columns."
-                ),
+            err_msg = safe_tr(
+                "The PivotTable field name is not valid. To create a PivotTable report, "
+                "you must use data that is organized as a list with labeled columns."
             )
+            QMessageBox.warning(self, safe_tr("数据透视表向导"), err_msg)
             return
 
         row_col = self.combo_row.currentData()
@@ -323,9 +311,7 @@ class PivotTableWizardDialog(QDialog):
         )
 
         try:
-            self.created_sheet, self.result_bbox = build_pivot_table(
-                self.workbook, cfg
-            )
+            self.created_sheet, self.result_bbox = build_pivot_table(self.workbook, cfg)
             self.accept()
         except Exception as exc:
             QMessageBox.critical(

@@ -83,9 +83,7 @@ class WorkbookModel(QObject):
     def set_active_sheet_index(self, index: int) -> None:
         """Set the active worksheet by its 0-based index."""
         if index < 0 or index >= len(self._sheets):
-            raise IndexError(
-                f"Worksheet index {index} out of range [0, {len(self._sheets) - 1}]."
-            )
+            raise IndexError(f"Worksheet index {index} out of range [0, {len(self._sheets) - 1}].")
         if index != self._active_sheet_index:
             self._active_sheet_index = index
             self.active_sheet_changed.emit(self._active_sheet_index)
@@ -133,9 +131,7 @@ class WorkbookModel(QObject):
             if current_index is not None and idx == current_index:
                 continue
             if s.name.lower() == target:
-                raise ValueError(
-                    f"A worksheet named '{s.name}' already exists in the workbook."
-                )
+                raise ValueError(f"A worksheet named '{s.name}' already exists in the workbook.")
 
     def add_sheet(
         self,
