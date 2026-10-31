@@ -267,6 +267,12 @@ class MacMenuBar(QMenuBar):
             shortcut=QKeySequence("Alt+Shift+D"),
         )
         self._reg_act(menu_insert, "insert_symbol", "insert_symbol")
+        self._reg_act(
+            menu_insert,
+            "insert_function",
+            "insert_function",
+            shortcut=QKeySequence("Shift+F3"),
+        )
         menu_insert.addSeparator()
 
         self._reg_act(menu_insert, "insert_picture", "insert_picture")
@@ -439,6 +445,8 @@ class MacMenuBar(QMenuBar):
                 )
 
         connect_if("tools_options", "show_options_dialog")
+        connect_if("insert_function", "open_function_wizard")
+        connect_if("insert_picture", "insert_picture")
 
         connect_if("window_minimize", "showMinimized")
         connect_if("window_zoom", "toggle_maximized")
@@ -584,6 +592,10 @@ class MacMenuBar(QMenuBar):
                 safe_tr("插入系统当前格式化日期和时间"),
             ),
             "insert_symbol": (safe_tr("特殊符号…"), safe_tr("插入特殊符号或常用字符")),
+            "insert_function": (
+                safe_tr("函数(&F)..."),
+                safe_tr("搜索并插入公式计算函数 (Shift+F3)"),
+            ),
             "insert_picture": (
                 safe_tr("图片来自文件…"),
                 safe_tr("从本地磁盘导入图像至画布"),

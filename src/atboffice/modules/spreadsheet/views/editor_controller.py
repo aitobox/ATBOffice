@@ -617,16 +617,41 @@ class EditorController(QObject):
     def _on_cell_double_clicked(self, r: int, c: int) -> None:
         self.begin_edit(r, c, mode=EditorMode.EDIT)
 
-    def _on_fx_clicked(self) -> None:
+    def insert_text(self, text: str) -> None:
+        """Insert text into the active editor at current cursor position or begin edit."""
         if not self.is_active:
             r, c = self.selection.active_cell
-            self.begin_edit(r, c, mode=EditorMode.POINT, initial_text="=")
-        else:
-            text = self.in_cell_editor.text()
-            if not text.startswith("="):
-                self._sync_text("=" + text)
-                self.mode = EditorMode.POINT
-                self.mode_changed.emit("point")
+            prefix = "" if text.startswith("=") else "="
+            self.begin_edit(r, c, initial_text=prefix + text)
+            return
+        cur_text = self.in_cell_editor.text()
+        pos = self.in_cell_editor.cursorPosition()
+        new_text = cur_text[:pos] + text + cur_text[pos:]
+        self._sync_text(new_text, pos + len(text))
+
+    def _on_fx_clicked(self) -> None:
+        from atboffice.modules.spreadsheet.dialogs.function_wizard import (
+            launch_function_wizard,
+        )
+
+        r, c = self.selection.active_cell
+        parent_widget = self.viewport.window() if self.viewport else None
+        default_fn = None
+        if self.is_active:
+            cur_text = self.in_cell_editor.text()
+            m = re.search(r"([A-Z][A-Z0-9\.]*)\($", cur_text, re.IGNORECASE)
+            if m:
+                default_fn = m.group(1).upper()
+
+        launch_function_wizard(
+            parent=parent_widget,
+            workbook=getattr(self.model, "workbook", None),
+            sheet=self.model,
+            active_r=r,
+            active_c=c,
+            editor_controller=self,
+            default_fn=default_fn,
+        )
 
     def _on_selection_changed(self, r: int, c: int) -> None:
         if not self.is_active:
