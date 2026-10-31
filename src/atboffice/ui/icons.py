@@ -389,9 +389,123 @@ def _resolve_swatch(body: str, swatch_color: str | None = None) -> str:
     return _SWATCH_RE.sub(swatch_color, body)
 
 
+ICON_ALIASES: Final[dict[str, str]] = {
+    # Quire aliases
+    "sendMail": "mail",
+    "printPreview": "preview",
+    "spelling": "spell",
+    "tb_tables": "tablesBorders",
+    "insertExcel": "excel",
+    "tb_drawing": "drawing",
+    "viewReading": "read",
+    "borderBtn": "bordersAll",
+    "tableBorderBtn": "bordersAll",
+    "drawTable": "table",
+    "textDirection": "textDir",
+    "acceptChange": "accept",
+    "rejectChange": "reject",
+    "olFirstLine": "firstLine",
+    "olFormatting": "showFormatting",
+    "updateTOC": "updateTOC",
+    "gotoTOC": "gotoTOC",
+    "hfPageNum": "pageNum",
+    "hfNumPages": "numPages",
+    "hfFormatPageNum": "formatPageNum",
+    "hfDate": "date",
+    "hfTime": "time",
+    "hfShowText": "showDocText",
+    "hfLinkPrev": "linkPrev",
+    "hfSwitch": "hfSwitch",
+    "hfPrev": "showPrev",
+    "hfNext": "showNext",
+    "hfClose": "close",
+    "selectObjects": "select",
+    "insertWordArt": "wordart",
+    "insertDiagram": "diagram",
+    "insertClipArt": "clipart",
+    "insertPicture": "picture",
+    "mmMainDoc": "mmMain",
+    "mmOpenSource": "open",
+    "mmRecipients": "mmRecipients",
+    "mmAddress": "mmAddress",
+    "mmGreeting": "mmGreeting",
+    "mmInsertField": "mmField",
+    "mmViewData": "mmView",
+    "mmFirst": "first",
+    "mmPrev": "back",
+    "mmNext": "forward",
+    "mmLast": "last",
+    "mmMergeNew": "mmMergeNew",
+    "mmMergePrint": "mmMergePrint",
+    "pic_insert": "picture",
+    "picMoreContrast": "moreContrast",
+    "picLessContrast": "lessContrast",
+    "picMoreBright": "moreBright",
+    "picLessBright": "lessBright",
+    "picCrop": "crop",
+    "picRotate": "rotateL",
+    "formatObject": "formatPicture",
+    "picReset": "resetPicture",
+    "wa_insert": "wordart",
+    "wordartEdit": "editText",
+    "wordartGallery": "waGallery",
+    "wa_format": "formatPicture",
+    # Ledger aliases
+    "newBook": "new",
+    "printQuick": "print",
+    "formatPainter": "painter",
+    "bordersApply": "bordersAll",
+    "borderNone": "bordersNone",
+    "borderOutline": "bordersOut",
+    "currencyStyle": "currency",
+    "percentStyle": "percent",
+    "commaStyle": "comma",
+    "tracePrecedents": "tracePrec",
+    "traceDependents": "traceDep",
+    "showHideComment": "comment",
+    "deleteComment": "delete",
+    "watchWindow": "watch",
+    "evaluateFormula": "evaluate",
+    "insertTextBox": "textbox",
+    "insertShape": "rect",
+    "fillColorApply": "fillColor",
+    "fontColorApply": "fontColor",
+    "totalRow": "autoSum",
+    "convertToRange": "normalGrid",
+    # Lectern aliases
+    "insertChart": "chart",
+    "insertTable": "table",
+    "viewGray": "grayscale",
+    "moveParaUp": "moveUp",
+    "moveParaDown": "moveDown",
+    "summarySlide": "summary",
+    "speakerNotes": "notesView",
+    "transitionPane": "transition",
+    "insertTitleMaster": "master",
+    "deleteTitleMaster": "delete",
+    "closeMaster": "close",
+    "rotateLeft": "rotateL",
+    "picTransparent": "transparentColor",
+    "cellTop": "alignTop",
+    "cellMiddle": "alignMiddle",
+    "cellBottom": "alignBottom",
+    "splitCell": "splitCells",
+    "waSameHeight": "sameHeight",
+    "waVertical": "vertText",
+    "diagramAddShape": "addShape",
+    "diagramPromote": "promote",
+    "diagramDemote": "demote",
+    "diagramMoveUp": "moveUp",
+    "diagramMoveDown": "moveDown",
+    "diagramTextPane": "taskpane",
+    "diagramReset": "resetGraphic",
+    "diagramToShapes": "toShapes",
+}
+
+
 def has_office_icon(name: str) -> bool:
     """Check if an icon key exists in the icon catalog."""
-    return name in ICON_TEMPLATES
+    return name in ICON_TEMPLATES or name in ICON_ALIASES
 
 
 def list_office_icons() -> list[str]:
@@ -416,7 +530,8 @@ def clear_icon_cache() -> None:
 
 def get_office_svg(name: str, size: int = 16, swatch_color: str | None = None) -> str:
     """Generate full SVG XML string for the specified icon key."""
-    body = ICON_TEMPLATES.get(name)
+    resolved_name = ICON_ALIASES.get(name, name)
+    body = ICON_TEMPLATES.get(resolved_name)
     if body is None:
         return ""
     resolved = _resolve_swatch(body, swatch_color)
@@ -432,17 +547,18 @@ def get_office_pixmap(
     swatch_color: str | None = None,
 ) -> QPixmap:
     """Render an icon key to an antialiased QPixmap with transparent background."""
-    cache_key = (name, size, swatch_color)
+    resolved_name = ICON_ALIASES.get(name, name)
+    cache_key = (resolved_name, size, swatch_color)
     if cache_key in _PIXMAP_CACHE:
         return _PIXMAP_CACHE[cache_key]
 
-    body = ICON_TEMPLATES.get(name)
+    body = ICON_TEMPLATES.get(resolved_name)
     if body is None:
         empty = QPixmap()
         _PIXMAP_CACHE[cache_key] = empty
         return empty
 
-    svg_xml = get_office_svg(name, size=size, swatch_color=swatch_color)
+    svg_xml = get_office_svg(resolved_name, size=size, swatch_color=swatch_color)
     renderer = QSvgRenderer(QByteArray(svg_xml.encode("utf-8")))
     if not renderer.isValid():
         empty = QPixmap()
@@ -467,22 +583,23 @@ def get_office_icon(
     swatch_color: str | None = None,
 ) -> QIcon:
     """Retrieve a QIcon for the specified icon key with caching and multiresolution support."""
-    cache_key = (name, size, swatch_color)
+    resolved_name = ICON_ALIASES.get(name, name)
+    cache_key = (resolved_name, size, swatch_color)
     if cache_key in _ICON_CACHE:
         return _ICON_CACHE[cache_key]
 
-    if name not in ICON_TEMPLATES:
+    if resolved_name not in ICON_TEMPLATES:
         empty = QIcon()
         _ICON_CACHE[cache_key] = empty
         return empty
 
     icon = QIcon()
-    primary_pix = get_office_pixmap(name, size=size, swatch_color=swatch_color)
+    primary_pix = get_office_pixmap(resolved_name, size=size, swatch_color=swatch_color)
     icon.addPixmap(primary_pix)
 
     if size == 16:
         for s in (24, 32):
-            extra_pix = get_office_pixmap(name, size=s, swatch_color=swatch_color)
+            extra_pix = get_office_pixmap(resolved_name, size=s, swatch_color=swatch_color)
             icon.addPixmap(extra_pix)
 
     _ICON_CACHE[cache_key] = icon

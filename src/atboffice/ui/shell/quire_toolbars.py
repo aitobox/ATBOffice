@@ -17,9 +17,9 @@ the original application:
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Final
 
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QComboBox,
     QMainWindow,
@@ -30,11 +30,32 @@ from atboffice.core.action_registry import ActionRegistry, ActionSpec
 from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.toolbar import OfficeToolBar
+from atboffice.ui.icons import get_office_icon, has_office_icon
 
 
 def safe_tr(text: str) -> str:
     """Translate UI text safely for Quire toolbars."""
     return core_safe_tr(text)
+
+
+_QUIRE_DROP_ICONS: Final[dict[str, str]] = {
+    "插入表格": "table",
+    "分栏": "columns",
+    "行距": "lineSpacing",
+    "线型": "lineStyle",
+    "粗细": "lineStyle",
+    "边框颜色": "lineColor",
+    "底纹颜色": "fillColor",
+    "插入": "table",
+    "对齐": "alignTop",
+    "文字环绕": "textWrap",
+    "颜色": "colorPic",
+    "线条样式": "lineStyle",
+    "艺术字形状": "waShape",
+    "虚线线型": "dashStyle",
+    "箭头样式": "arrowStyle",
+    "阴影样式": "shadowStyle",
+}
 
 
 class QuireToolBarCluster:
@@ -70,10 +91,20 @@ class QuireToolBarCluster:
         is_split: bool = False,
         is_drop: bool = False,
         handler: Callable[[], Any] | None = None,
+        icon: QIcon | str | None = None,
     ) -> QAction:
+        resolved_icon = None
+        if isinstance(icon, QIcon):
+            resolved_icon = icon
+        elif isinstance(icon, str) and has_office_icon(icon):
+            resolved_icon = get_office_icon(icon)
+        elif has_office_icon(aid):
+            resolved_icon = get_office_icon(aid)
+
         spec = ActionSpec(
             id=aid,
             label=safe_tr(label),
+            icon=resolved_icon,
             tip=safe_tr(tip) if tip else "",
             shortcut=shortcut,
             checkable=checkable,
@@ -96,6 +127,7 @@ class QuireToolBarCluster:
         is_split: bool = False,
         is_drop: bool = False,
         handler: Callable[[], Any] | None = None,
+        icon: QIcon | str | None = None,
     ) -> QAction:
         act = self._reg_act(
             aid=aid,
@@ -107,6 +139,7 @@ class QuireToolBarCluster:
             is_split=is_split,
             is_drop=is_drop,
             handler=handler,
+            icon=icon,
         )
         tb.addAction(act)
         return act
@@ -116,11 +149,30 @@ class QuireToolBarCluster:
         tb: OfficeToolBar,
         label: str,
         items: list[str],
+        icon: QIcon | str | None = None,
     ) -> None:
         menu = QMenu(tb)
         for item in items:
-            menu.addAction(safe_tr(item))
-        tb.add_drop_button(safe_tr(label), None, menu)
+            if item == "-":
+                menu.addSeparator()
+            else:
+                menu.addAction(safe_tr(item))
+
+        resolved_icon = None
+        if isinstance(icon, QIcon):
+            resolved_icon = icon
+        elif isinstance(icon, str) and has_office_icon(icon):
+            resolved_icon = get_office_icon(icon)
+        elif not icon:
+            drop_key = _QUIRE_DROP_ICONS.get(label)
+            if drop_key and has_office_icon(drop_key):
+                resolved_icon = get_office_icon(drop_key)
+
+        keep_text = "绘图" in label or "自选图形" in label
+        btn_text = safe_tr(label) if not resolved_icon or keep_text else ""
+        btn = tb.add_drop_button(btn_text, resolved_icon, menu)
+        if resolved_icon and not btn_text:
+            btn.setToolTip(safe_tr(label))
 
     def _add_split(
         self,
@@ -130,6 +182,7 @@ class QuireToolBarCluster:
         tip: str,
         items: list[str],
         shortcut: Any = None,
+        icon: QIcon | str | None = None,
     ) -> None:
         act = self._reg_act(
             aid=aid,
@@ -137,10 +190,14 @@ class QuireToolBarCluster:
             tip=tip,
             shortcut=shortcut,
             is_split=True,
+            icon=icon,
         )
         menu = QMenu(tb)
         for item in items:
-            menu.addAction(safe_tr(item))
+            if item == "-":
+                menu.addSeparator()
+            else:
+                menu.addAction(safe_tr(item))
         tb.add_split_action(act, menu)
 
     def _build_standard_toolbar(self) -> OfficeToolBar:

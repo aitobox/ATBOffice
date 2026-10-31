@@ -17,9 +17,9 @@ the original application:
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Final
 
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QComboBox,
     QMainWindow,
@@ -30,11 +30,44 @@ from atboffice.core.action_registry import ActionRegistry, ActionSpec
 from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.toolbar import OfficeToolBar
+from atboffice.ui.icons import get_office_icon, has_office_icon
 
 
 def safe_tr(text: str) -> str:
     """Translate UI text safely for Lectern toolbars."""
     return core_safe_tr(text)
+
+
+_LECTERN_DROP_ICONS: Final[dict[str, str]] = {
+    "Border Style": "dashStyle",
+    "边框样式": "dashStyle",
+    "Border Width": "lineStyle",
+    "边框粗细": "lineStyle",
+    "Border Color": "lineColor",
+    "边框颜色": "lineColor",
+    "Borders": "bordersAll",
+    "边框": "bordersAll",
+    "Fill Color": "fillColor",
+    "填充颜色": "fillColor",
+    "LettersArt Shape": "waShape",
+    "艺术字形状": "waShape",
+    "LettersArt Alignment": "alignCenter",
+    "艺术字对齐": "alignCenter",
+    "LettersArt Character Spacing": "charSpacing",
+    "艺术字字符间距": "charSpacing",
+    "Change Layout": "layout",
+    "更改版式": "layout",
+    "Change Colors": "colorPic",
+    "更改颜色": "colorPic",
+    "IntelliArt Styles": "themes",
+    "样式": "themes",
+    "线型": "lineStyle",
+    "虚线线型": "dashStyle",
+    "箭头样式": "arrowStyle",
+    "阴影样式": "shadowStyle",
+    "颜色": "colorPic",
+    "线条样式": "lineStyle",
+}
 
 
 class LecternToolBarCluster:
@@ -70,10 +103,20 @@ class LecternToolBarCluster:
         is_split: bool = False,
         is_drop: bool = False,
         handler: Callable[[], Any] | None = None,
+        icon: QIcon | str | None = None,
     ) -> QAction:
+        resolved_icon = None
+        if isinstance(icon, QIcon):
+            resolved_icon = icon
+        elif isinstance(icon, str) and has_office_icon(icon):
+            resolved_icon = get_office_icon(icon)
+        elif has_office_icon(aid):
+            resolved_icon = get_office_icon(aid)
+
         spec = ActionSpec(
             id=aid,
             label=safe_tr(label),
+            icon=resolved_icon,
             tip=safe_tr(tip) if tip else "",
             shortcut=shortcut,
             checkable=checkable,
@@ -96,6 +139,7 @@ class LecternToolBarCluster:
         is_split: bool = False,
         is_drop: bool = False,
         handler: Callable[[], Any] | None = None,
+        icon: QIcon | str | None = None,
     ) -> QAction:
         act = self._reg_act(
             aid=aid,
@@ -107,6 +151,7 @@ class LecternToolBarCluster:
             is_split=is_split,
             is_drop=is_drop,
             handler=handler,
+            icon=icon,
         )
         tb.addAction(act)
         return act
@@ -116,6 +161,7 @@ class LecternToolBarCluster:
         tb: OfficeToolBar,
         label: str,
         items: list[str],
+        icon: QIcon | str | None = None,
     ) -> None:
         menu = QMenu(tb)
         for item in items:
@@ -123,7 +169,22 @@ class LecternToolBarCluster:
                 menu.addSeparator()
             else:
                 menu.addAction(safe_tr(item))
-        tb.add_drop_button(safe_tr(label), None, menu)
+
+        resolved_icon = None
+        if isinstance(icon, QIcon):
+            resolved_icon = icon
+        elif isinstance(icon, str) and has_office_icon(icon):
+            resolved_icon = get_office_icon(icon)
+        elif not icon:
+            drop_key = _LECTERN_DROP_ICONS.get(label)
+            if drop_key and has_office_icon(drop_key):
+                resolved_icon = get_office_icon(drop_key)
+
+        keep_text = "绘图" in label or "自选图形" in label or "Table" in label
+        btn_text = safe_tr(label) if not resolved_icon or keep_text else ""
+        btn = tb.add_drop_button(btn_text, resolved_icon, menu)
+        if resolved_icon and not btn_text:
+            btn.setToolTip(safe_tr(label))
 
     def _add_split(
         self,
@@ -133,6 +194,7 @@ class LecternToolBarCluster:
         tip: str,
         items: list[str],
         shortcut: Any = None,
+        icon: QIcon | str | None = None,
     ) -> None:
         act = self._reg_act(
             aid=aid,
@@ -140,6 +202,7 @@ class LecternToolBarCluster:
             tip=tip,
             shortcut=shortcut,
             is_split=True,
+            icon=icon,
         )
         menu = QMenu(tb)
         for item in items:
