@@ -91,6 +91,8 @@ def cmd_rank_issues(args):
 
     # 2. Filter backlog (skip in-pr and skip parent epics)
     filtered = []
+    open_issue_numbers = {i.get("number") for i in issues if i.get("number")}
+
     for issue in issues:
         raw_labels = issue.get("labels") or []
         label_names = [
@@ -104,6 +106,17 @@ def cmd_rank_issues(args):
         if "epic" in label_names and not issue.get("title", "").startswith("[Ledger]"):
             continue
         filtered.append(issue)
+
+    import re
+
+    def has_unresolved_deps(issue):
+        body = issue.get("body") or ""
+        m = re.search(r"Depends On\**:\s*([^\n]+)", body, re.IGNORECASE)
+        if m:
+            deps = [int(x) for x in re.findall(r"#(\d+)", m.group(1))]
+            if any(d in open_issue_numbers for d in deps):
+                return True
+        return False
 
     def sort_key(issue):
         raw_labels = issue.get("labels") or []
@@ -119,8 +132,9 @@ def cmd_rank_issues(args):
         else:
             pri = 2
         is_bug = 0 if bug_label in labels else 1
+        is_blocked = 1 if has_unresolved_deps(issue) else 0
         num = issue.get("number") if issue.get("number") is not None else sys.maxsize
-        return (pri, is_bug, num)
+        return (is_blocked, pri, is_bug, num)
 
     ranked = sorted(filtered, key=sort_key)
     print(json.dumps(ranked, indent=2, ensure_ascii=False))
