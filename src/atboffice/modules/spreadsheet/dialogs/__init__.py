@@ -15,6 +15,10 @@ from atboffice.modules.spreadsheet.dialogs.function_wizard import (
     InsertFunctionDialog,
     launch_function_wizard,
 )
+from atboffice.modules.spreadsheet.dialogs.goal_seek_dlg import (
+    GoalSeekDialog,
+    GoalSeekStatusDialog,
+)
 from atboffice.modules.spreadsheet.dialogs.pivot_dialog import PivotTableWizardDialog
 from atboffice.modules.spreadsheet.dialogs.sort_dialog import SortDialog
 
@@ -25,6 +29,8 @@ __all__ = [
     "DataValidationDialog",
     "FormatCellsDialog",
     "FunctionArgumentsDialog",
+    "GoalSeekDialog",
+    "GoalSeekStatusDialog",
     "InsertFunctionDialog",
     "PivotTableWizardDialog",
     "SortDialog",

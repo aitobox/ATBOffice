@@ -95,6 +95,10 @@ class MacMenuBar(QMenuBar):
             self.action_map["edit_format_cells"].setVisible(is_ledger)
         if "format_cells" in self.action_map:
             self.action_map["format_cells"].setVisible(is_ledger)
+        if "tools_goal_seek" in self.action_map:
+            self.action_map["tools_goal_seek"].setVisible(is_ledger)
+        if "goalSeek" in self.action_map:
+            self.action_map["goalSeek"].setVisible(is_ledger)
         if self.sep_format_cells is not None:
             self.sep_format_cells.setVisible(is_ledger)
 
@@ -320,6 +324,8 @@ class MacMenuBar(QMenuBar):
         self._reg_act(menu_tools, "tools_word_count", "tools_word_count")
         self._reg_act(menu_tools, "tools_language", "tools_language")
         menu_tools.addSeparator()
+        self._reg_act(menu_tools, "tools_goal_seek", "tools_goal_seek")
+        menu_tools.addSeparator()
 
         self._reg_act(menu_tools, "tools_options", "tools_options")
 
@@ -456,6 +462,9 @@ class MacMenuBar(QMenuBar):
                 )
 
         connect_if("tools_options", "show_options_dialog")
+        connect_if("tools_goal_seek", "open_goal_seek")
+        connect_if("goalSeek", "open_goal_seek")
+        connect_if("data_pivottable", "open_pivot_wizard")
         connect_if("insert_function", "open_function_wizard")
         connect_if("insert_picture", "insert_picture")
         connect_if("insert_wordart", "open_wordart_gallery")
@@ -693,6 +702,14 @@ class MacMenuBar(QMenuBar):
             "tools_options": (
                 safe_tr("选项…"),
                 safe_tr("设置全局偏好、自动保存周期与外观主题"),
+            ),
+            "tools_goal_seek": (
+                safe_tr("单变量求解(&G)..."),
+                safe_tr("通过调整输入单元格使公式达到目标值"),
+            ),
+            "goalSeek": (
+                safe_tr("单变量求解(&G)..."),
+                safe_tr("通过调整输入单元格使公式达到目标值"),
             ),
             # Table (Quire)
             "table_draw": (safe_tr("绘制表格"), safe_tr("使用画笔自由绘制表格线网格")),

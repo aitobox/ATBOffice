@@ -181,6 +181,8 @@ class LedgerWindow(BaseOfficeWindow):
         self.action_registry.set_handler("clearCircles", self.clear_circles)
         self.action_registry.set_handler("watchWindow", self.watch_window)
         self.action_registry.set_handler("evaluateFormula", self.evaluate_formula)
+        self.action_registry.set_handler("goalSeek", self.open_goal_seek)
+        self.action_registry.set_handler("tools_goal_seek", self.open_goal_seek)
         self.action_registry.set_handler("rev_insertComment", self.insert_comment)
         self.action_registry.set_handler("showHideComment", self.show_hide_comment)
         self.action_registry.set_handler("deleteComment", self.delete_comment)
@@ -1375,6 +1377,25 @@ class LedgerWindow(BaseOfficeWindow):
             parent=self,
         )
         dlg.exec()
+
+    def open_goal_seek(self) -> None:
+        """Open Excel 2003 classic Goal Seek (单变量求解) dialog."""
+        from atboffice.modules.spreadsheet.dialogs.goal_seek_dlg import GoalSeekDialog
+
+        sheet = getattr(self.spreadsheet_view, "model", None)
+        sel = getattr(self.spreadsheet_view, "selection", None)
+        r, c = sel.active_cell if sel else (0, 0)
+        workbook = getattr(self.spreadsheet_view, "workbook", None)
+
+        dlg = GoalSeekDialog(
+            workbook=workbook,
+            current_sheet=sheet,
+            initial_r=r,
+            initial_c=c,
+            parent=self,
+        )
+        if dlg.exec():
+            self.spreadsheet_view.grid.viewport().update()
 
     def toggle_total_row(self) -> None:
         """Toggle table total calculation summary row."""
