@@ -76,6 +76,7 @@ class LedgerWindow(BaseOfficeWindow):
         )
         self.search_controller.set_adapter(self.search_adapter)
         self._find_replace_dialog: FindReplaceDialog | None = None
+        self._watch_window: Any | None = None
 
         # 3. Setup native macOS menu bar
         self.menu_bar: MacMenuBar = setup_mac_menu(self)
@@ -994,21 +995,102 @@ class LedgerWindow(BaseOfficeWindow):
         )
 
     def trace_error(self) -> None:
-        """Check worksheet for formula calculation errors."""
-        QMessageBox.information(
-            self,
-            safe_tr("错误检查"),
-            safe_tr("工作表中未发现公式错误。"),
-        )
+        """Check worksheet for formula calculation errors and trace error source."""
+        sheet = self.spreadsheet_view.model
+        sel = self.spreadsheet_view.selection
+        r, c = sel.active_cell
+        cell = sheet.get_cell(r, c)
+        is_cell_err = False
+        if cell:
+            v = str(cell.value) if cell.value is not None else ""
+            if v.startswith("#"):
+                is_cell_err = True
+
+        if not is_cell_err:
+            QMessageBox.information(
+                self,
+                safe_tr("错误检查"),
+                safe_tr("活动单元格不包含错误值。"),
+            )
+            return
+
+        from atboffice.modules.spreadsheet.calc.audit_tracer import AuditTracer
+
+        workbook = getattr(self.spreadsheet_view, "workbook", None)
+        arrows = AuditTracer.trace_error(workbook, sheet.name, r, c)
+        if not arrows:
+            QMessageBox.information(
+                self,
+                safe_tr("错误检查"),
+                safe_tr("未找到导致该错误的单元格引用。"),
+            )
+            return
+
+        existing = getattr(sheet, "audit_arrows", [])
+        sheet.audit_arrows = existing + arrows
+        self.spreadsheet_view.grid.viewport().update()
+        self.statusBar().showMessage(safe_tr("已追踪公式错误源。"), 3000)
 
     def trace_precedents(self) -> None:
         """Trace precedent cells for the active formula."""
+        sheet = self.spreadsheet_view.model
+        sel = self.spreadsheet_view.selection
+        r, c = sel.active_cell
+        cell = sheet.get_cell(r, c)
+        if cell is None or not cell.formula:
+            QMessageBox.information(
+                self,
+                safe_tr("追踪前驱"),
+                safe_tr("活动单元格不包含引用其他单元格的有效公式。"),
+            )
+            return
+
+        from atboffice.modules.spreadsheet.calc.audit_tracer import AuditTracer
+
+        workbook = getattr(self.spreadsheet_view, "workbook", None)
+        arrows = AuditTracer.trace_precedents(workbook, sheet.name, r, c)
+        if not arrows:
+            QMessageBox.information(
+                self,
+                safe_tr("追踪前驱"),
+                safe_tr("活动单元格公式不包含任何单元格或区域引用。"),
+            )
+            return
+
+        existing = getattr(sheet, "audit_arrows", [])
+        sheet.audit_arrows = existing + arrows
+        self.spreadsheet_view.grid.viewport().update()
+        self.statusBar().showMessage(safe_tr("已追踪公式前驱引用箭头。"), 3000)
 
     def trace_dependents(self) -> None:
         """Trace dependent cells referencing the active cell."""
+        sheet = self.spreadsheet_view.model
+        sel = self.spreadsheet_view.selection
+        r, c = sel.active_cell
+        workbook = getattr(self.spreadsheet_view, "workbook", None)
+
+        from atboffice.modules.spreadsheet.calc.audit_tracer import AuditTracer
+
+        arrows = AuditTracer.trace_dependents(workbook, sheet.name, r, c)
+        if not arrows:
+            QMessageBox.information(
+                self,
+                safe_tr("追踪从属"),
+                safe_tr("未找到引用当前单元格的公式。"),
+            )
+            return
+
+        existing = getattr(sheet, "audit_arrows", [])
+        sheet.audit_arrows = existing + arrows
+        self.spreadsheet_view.grid.viewport().update()
+        self.statusBar().showMessage(safe_tr("已追踪公式从属引用箭头。"), 3000)
 
     def remove_arrows(self) -> None:
         """Remove all audit tracer arrows from worksheet."""
+        sheet = self.spreadsheet_view.model
+        sheet.audit_arrows = []
+        self.spreadsheet_view.grid.viewport().update()
+        self.statusBar().showMessage(safe_tr("已移去所有公式审核箭头。"), 3000)
 
     def insert_comment(self) -> None:
         """Insert or edit comment for the active cell."""
@@ -1188,10 +1270,86 @@ class LedgerWindow(BaseOfficeWindow):
         self.statusBar().showMessage(safe_tr("已清除所有无效数据圈释。"), 3000)
 
     def watch_window(self) -> None:
-        """Open watch window for inspecting formula values."""
+        """Open or activate watch window for inspecting formula values."""
+        if self._watch_window is None:
+            from atboffice.modules.spreadsheet.dialogs.watch_window_dialog import (
+                WatchWindowDialog,
+            )
+
+            workbook = getattr(self.spreadsheet_view, "workbook", None)
+            book_name = (
+                self.current_file_path.name
+                if getattr(self, "current_file_path", None)
+                else getattr(self, "default_doc_name", "Book1")
+            )
+            self._watch_window = WatchWindowDialog(
+                workbook=workbook,
+                book_name=book_name,
+                parent=self,
+            )
+            self._watch_window.navigate_requested.connect(self._on_watch_navigate)
+            self._watch_window.add_watch_requested.connect(self._on_watch_add_current)
+            self.spreadsheet_view.editor_controller.cell_committed.connect(
+                lambda *_: self._watch_window.refresh_watches()
+                if self._watch_window and self._watch_window.isVisible()
+                else None
+            )
+
+        self._watch_window.refresh_watches()
+        self._watch_window.show()
+        self._watch_window.raise_()
+        self._watch_window.activateWindow()
+        self.statusBar().showMessage(safe_tr("已打开公式监视窗口。"), 3000)
+
+    def _on_watch_navigate(self, sheet_name: str, r: int, c: int) -> None:
+        """Navigate to sheet and cell selected in Watch Window."""
+        wb = getattr(self.spreadsheet_view, "workbook", None)
+        if wb:
+            for idx, s in enumerate(wb.sheets):
+                if s.name == sheet_name:
+                    if wb.active_sheet_index != idx:
+                        wb.set_active_sheet_index(idx)
+                    break
+        self.spreadsheet_view.selection.set_active_cell(r, c)
+        self.spreadsheet_view.grid.reveal(r, c)
+        self.spreadsheet_view.grid.viewport().update()
+
+    def _on_watch_add_current(self) -> None:
+        """Add current active cell to Watch Window."""
+        if not self._watch_window:
+            return
+        sheet = self.spreadsheet_view.model
+        sel = self.spreadsheet_view.selection
+        r, c = sel.active_cell
+        self._watch_window.add_watch(sheet.name, r, c)
 
     def evaluate_formula(self) -> None:
         """Step-by-step formula evaluation dialog."""
+        sheet = self.spreadsheet_view.model
+        sel = self.spreadsheet_view.selection
+        r, c = sel.active_cell
+        cell = sheet.get_cell(r, c)
+        if cell is None or not cell.formula:
+            QMessageBox.information(
+                self,
+                safe_tr("公式求值"),
+                safe_tr("活动单元格不包含公式。"),
+            )
+            return
+
+        from atboffice.modules.spreadsheet.dialogs.evaluate_formula_dialog import (
+            EvaluateFormulaDialog,
+        )
+
+        workbook = getattr(self.spreadsheet_view, "workbook", None)
+        dlg = EvaluateFormulaDialog(
+            workbook=workbook,
+            sheet=sheet,
+            r=r,
+            c=c,
+            parent=self,
+        )
+        dlg.exec()
 
     def toggle_total_row(self) -> None:
         """Toggle table total calculation summary row."""

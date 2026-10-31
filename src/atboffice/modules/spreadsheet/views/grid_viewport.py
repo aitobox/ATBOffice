@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from enum import Enum, auto
+import math
 from typing import TYPE_CHECKING, Any, Final
 
-from PySide6.QtCore import QCoreApplication, QPoint, QRect, QRectF, Qt, Signal
+from PySide6.QtCore import QCoreApplication, QPoint, QPointF, QRect, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -17,6 +18,7 @@ from PySide6.QtGui import (
     QPainter,
     QPaintEvent,
     QPen,
+    QPolygonF,
 )
 from PySide6.QtWidgets import QAbstractScrollArea, QMenu, QToolTip, QWidget
 
@@ -915,10 +917,155 @@ class GridViewport(QAbstractScrollArea):
                 )
             painter.restore()
 
+        # 5.10 Draw Audit Tracer Arrows
+        self._paint_audit_arrows(painter, cell_clip, scroll_x, scroll_y)
+
         # 6. Draw Fixed Headers (Column Headers, Row Headers, Corner)
         self._paint_headers(
             painter, start_row, end_row, start_col, end_col, scroll_x, scroll_y, vw, vh
         )
+
+    def _paint_audit_arrows(
+        self,
+        painter: QPainter,
+        clip_rect: QRect,
+        scroll_x: int,
+        scroll_y: int,
+    ) -> None:
+        """Render formula auditing tracer arrows connecting precedents and dependents."""
+        arrows = getattr(self.model, "audit_arrows", [])
+        if not arrows:
+            return
+
+        painter.save()
+        painter.setClipRect(clip_rect)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+        cur_sheet = getattr(self.model, "name", "Sheet1")
+
+        def cell_center(r: int, c: int) -> QPointF:
+            cx = (
+                self.row_header_width
+                + self.geometry_mapper.col_pos(c)
+                - scroll_x
+            )
+            cy = (
+                self.col_header_height
+                + self.geometry_mapper.row_pos(r)
+                - scroll_y
+            )
+            cw = self.geometry_mapper.col_size(c)
+            ch = self.geometry_mapper.row_size(r)
+            return QPointF(cx + cw / 2.0, cy + ch / 2.0)
+
+        def draw_arrow_head(p_from: QPointF, p_to: QPointF, color: QColor) -> None:
+            angle = math.atan2(p_to.y() - p_from.y(), p_to.x() - p_from.x())
+            arrow_len = 8.0
+            arrow_angle = math.pi / 6.0
+            p1 = QPointF(
+                p_to.x() - arrow_len * math.cos(angle - arrow_angle),
+                p_to.y() - arrow_len * math.sin(angle - arrow_angle),
+            )
+            p2 = QPointF(
+                p_to.x() - arrow_len * math.cos(angle + arrow_angle),
+                p_to.y() - arrow_len * math.sin(angle + arrow_angle),
+            )
+            poly = QPolygonF([p_to, p1, p2])
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(color))
+            painter.drawPolygon(poly)
+
+        for a in arrows:
+            col = QColor(255, 0, 0) if a.is_error else QColor(0, 0, 255)
+            pen = QPen(col, 1.5)
+
+            # Case 1: Intra-sheet: both on current sheet
+            if a.from_sheet == cur_sheet and a.to_sheet == cur_sheet:
+                p_to = cell_center(a.to_r, a.to_c)
+                p_from = cell_center(a.from_r1, a.from_c1)
+
+                if a.is_range:
+                    r_min = min(a.from_r1, a.from_r2)
+                    r_max = max(a.from_r1, a.from_r2)
+                    c_min = min(a.from_c1, a.from_c2)
+                    c_max = max(a.from_c1, a.from_c2)
+                    x1 = self.row_header_width + self.geometry_mapper.col_pos(c_min) - scroll_x
+                    y1 = self.col_header_height + self.geometry_mapper.row_pos(r_min) - scroll_y
+                    x2 = (
+                        self.row_header_width
+                        + self.geometry_mapper.col_pos(c_max)
+                        + self.geometry_mapper.col_size(c_max)
+                        - scroll_x
+                    )
+                    y2 = (
+                        self.col_header_height
+                        + self.geometry_mapper.row_pos(r_max)
+                        + self.geometry_mapper.row_size(r_max)
+                        - scroll_y
+                    )
+                    painter.setPen(pen)
+                    painter.setBrush(Qt.BrushStyle.NoBrush)
+                    painter.drawRect(QRectF(x1, y1, x2 - x1, y2 - y1))
+
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QBrush(col))
+                painter.drawEllipse(p_from, 3.0, 3.0)
+
+                painter.setPen(pen)
+                painter.drawLine(p_from, p_to)
+                draw_arrow_head(p_from, p_to, col)
+
+            # Case 2: Cross-sheet incoming: from another sheet into current sheet
+            elif a.to_sheet == cur_sheet and a.from_sheet != cur_sheet:
+                p_to = cell_center(a.to_r, a.to_c)
+                p_origin = QPointF(p_to.x() - 40.0, p_to.y() - 30.0)
+
+                dash_pen = QPen(QColor(0, 0, 0), 1.2, Qt.PenStyle.DashLine)
+                painter.setPen(dash_pen)
+                painter.drawLine(p_origin, p_to)
+                draw_arrow_head(p_origin, p_to, QColor(0, 0, 0))
+
+                sheet_rect = QRectF(p_to.x() - 52.0, p_to.y() - 40.0, 14.0, 11.0)
+                painter.setPen(QPen(QColor(0, 0, 0), 1.0))
+                painter.setBrush(QBrush(QColor(255, 255, 255)))
+                painter.drawRect(sheet_rect)
+                painter.drawLine(
+                    QPointF(sheet_rect.left() + 2, sheet_rect.top() + 3),
+                    QPointF(sheet_rect.right() - 2, sheet_rect.top() + 3),
+                )
+                painter.drawLine(
+                    QPointF(sheet_rect.left() + 2, sheet_rect.top() + 6),
+                    QPointF(sheet_rect.right() - 2, sheet_rect.top() + 6),
+                )
+
+            # Case 3: Cross-sheet outgoing: from current sheet to another sheet
+            elif a.from_sheet == cur_sheet and a.to_sheet != cur_sheet:
+                p_from = cell_center(a.from_r1, a.from_c1)
+                p_dest = QPointF(p_from.x() + 40.0, p_from.y() + 30.0)
+
+                dash_pen = QPen(QColor(0, 0, 0), 1.2, Qt.PenStyle.DashLine)
+                painter.setPen(dash_pen)
+                painter.drawLine(p_from, p_dest)
+                draw_arrow_head(p_from, p_dest, QColor(0, 0, 0))
+
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QBrush(col))
+                painter.drawEllipse(p_from, 3.0, 3.0)
+
+                sheet_rect = QRectF(p_dest.x() + 2.0, p_dest.y() - 5.0, 14.0, 11.0)
+                painter.setPen(QPen(QColor(0, 0, 0), 1.0))
+                painter.setBrush(QBrush(QColor(255, 255, 255)))
+                painter.drawRect(sheet_rect)
+                painter.drawLine(
+                    QPointF(sheet_rect.left() + 2, sheet_rect.top() + 3),
+                    QPointF(sheet_rect.right() - 2, sheet_rect.top() + 3),
+                )
+                painter.drawLine(
+                    QPointF(sheet_rect.left() + 2, sheet_rect.top() + 6),
+                    QPointF(sheet_rect.right() - 2, sheet_rect.top() + 6),
+                )
+
+        painter.restore()
 
     def _paint_headers(
         self,
