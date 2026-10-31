@@ -170,7 +170,9 @@ class GoalSeekDialog(QDialog):
         # 3. Parse changing cell
         raw_changing = self.edit_changing_cell.text().strip()
         try:
-            ch_sheet, ch_r, ch_c = parse_cell_reference(raw_changing, default_sheet=default_sheet_name)
+            ch_sheet, ch_r, ch_c = parse_cell_reference(
+                raw_changing, default_sheet=default_sheet_name
+            )
         except ValueError:
             QMessageBox.warning(
                 self,

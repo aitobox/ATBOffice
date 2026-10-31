@@ -12,7 +12,6 @@ from atboffice.modules.spreadsheet.calc.dag import DependencyGraph
 from atboffice.modules.spreadsheet.calc.references import cell_name, col_index
 
 if TYPE_CHECKING:
-    from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetDataModel
     from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 
 RE_CELL_REF = re.compile(
@@ -267,7 +266,8 @@ def solve_goal_seek(
 
     # Compute current value reached with solution
     final_res = evaluate_target(final_x)
-    reached_current_value = params.goal_value + (final_res if not math.isnan(final_res) else final_err)
+    residual = final_res if not math.isnan(final_res) else final_err
+    reached_current_value = params.goal_value + residual
 
     # 6. Always restore model to start_val
     changing_cell.value = start_val

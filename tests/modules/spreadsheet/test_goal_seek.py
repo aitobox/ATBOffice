@@ -15,7 +15,7 @@ from atboffice.modules.spreadsheet.dialogs.goal_seek_dlg import (
     GoalSeekDialog,
     GoalSeekStatusDialog,
 )
-from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetDataModel
+from atboffice.modules.spreadsheet.models.sheet_model import CellData
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 
 
@@ -291,6 +291,7 @@ class TestGoalSeekDialogs:
 
     def test_mac_menu_integration(self, qapp):
         from PySide6.QtWidgets import QMainWindow
+
         from atboffice.ui.shell.mac_menu import MacMenuBar
 
         win = QMainWindow()
