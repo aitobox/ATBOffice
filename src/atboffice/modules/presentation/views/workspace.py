@@ -776,6 +776,7 @@ class LecternTaskPane(QWidget):
 
         self.menu = QMenu(self.title_button)
         self.title_button.setMenu(self.menu)
+        self.title_button.clicked.connect(self.title_button.showMenu)
 
         self.btn_close = QToolButton(header)
         self.btn_close.setText("×")

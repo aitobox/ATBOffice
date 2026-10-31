@@ -181,6 +181,7 @@ class BulletsNumberingDialog(QDialog):
 
         self._active_kind = "bullet"
         self._selected_indices = {"bullet": 1, "number": 1, "outline": 1}
+        self._customized_result: dict[str, Any] | None = None
 
         # --- Tab 1: 项目符号 (Bulleted) ---
         self.tab_bullets = QWidget()
@@ -248,6 +249,7 @@ class BulletsNumberingDialog(QDialog):
         self.btn_reset = QPushButton(safe_tr("重新设置(&R)"), self)
         self.btn_reset.clicked.connect(self._on_reset_clicked)
         self.btn_customize = QPushButton(safe_tr("自定义(&Z)..."), self)
+        self.btn_customize.clicked.connect(self._on_customize_clicked)
         btn_layout.addWidget(self.btn_reset)
         btn_layout.addWidget(self.btn_customize)
         btn_layout.addStretch()
@@ -282,6 +284,15 @@ class BulletsNumberingDialog(QDialog):
     def _on_reset_clicked(self) -> None:
         self.select_item(self._active_kind, 0)
 
+    def _on_customize_clicked(self) -> None:
+        """Launch classic list customization wizard/dialog."""
+        from atboffice.modules.writer.dialogs.customize_list_dialog import CustomizeListDialog
+
+        dlg = CustomizeListDialog(kind=self._active_kind, initial_level=0, parent=self)
+        if dlg.exec():
+            self._customized_result = dlg.get_customized_level()
+            self.accept()
+
     def select_item(self, tab_kind: str, idx: int) -> None:
         """Select a preset item in the designated tab."""
         self._selected_indices[tab_kind] = idx
@@ -296,6 +307,12 @@ class BulletsNumberingDialog(QDialog):
 
     def get_result(self) -> dict[str, Any]:
         """Construct result dict from current active tab and selection."""
+        if self._customized_result is not None:
+            res = dict(self._customized_result)
+            res["kind"] = self._active_kind
+            res["customized"] = True
+            return res
+
         cur_tab = self.tab_widget.currentIndex()
         kind_name = ["bullet", "number", "outline"][cur_tab] if cur_tab in (0, 1, 2) else "bullet"
         idx = self._selected_indices.get(kind_name, 0)

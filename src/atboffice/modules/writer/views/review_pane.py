@@ -43,6 +43,7 @@ from atboffice.modules.writer.models.revision import (
 # ---------------------------------------------------------------------------
 _TRANSLATIONS: dict[str, dict[str, str]] = {
     "zh": {
+        "Reviewing": "审阅",
         "Reviewing Pane": "审阅窗格",
         "Close Reviewing Pane": "关闭审阅窗格",
         "Track Changes": "修订",
@@ -66,10 +67,10 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "Next change or comment": "定位到下一个修订或批注",
         "Accept": "接受",
         "Accept Change": "接受修订",
-        "Accept All Changes": "接受文档中的所有修订",
+        "Accept All Changes": "接受对文档所做的所有修订",
         "Reject": "拒绝",
         "Reject Change": "拒绝修订",
-        "Reject All Changes": "拒绝文档中的所有修订",
+        "Reject All Changes": "拒绝对文档所做的所有修订",
         "New Comment": "新建批注",
         "Insert a comment at selection": "在选区插入新批注",
         "Delete": "删除",
@@ -149,6 +150,7 @@ class ReviewToolbar(QToolBar):
     # Action Signals
     track_changes_toggled = Signal(bool)
     display_mode_changed = Signal(str)
+    markup_filter_changed = Signal(bool, bool, bool)
     previous_requested = Signal()
     next_requested = Signal()
     accept_change_requested = Signal()
@@ -198,12 +200,15 @@ class ReviewToolbar(QToolBar):
         self.act_show_comments = self.menu_show.addAction("Comments")
         self.act_show_comments.setCheckable(True)
         self.act_show_comments.setChecked(True)
+        self.act_show_comments.toggled.connect(self._emit_filter_changed)
         self.act_show_ins_del = self.menu_show.addAction("Insertions and Deletions")
         self.act_show_ins_del.setCheckable(True)
         self.act_show_ins_del.setChecked(True)
+        self.act_show_ins_del.toggled.connect(self._emit_filter_changed)
         self.act_show_formatting = self.menu_show.addAction("Formatting")
         self.act_show_formatting.setCheckable(True)
         self.act_show_formatting.setChecked(True)
+        self.act_show_formatting.toggled.connect(self._emit_filter_changed)
         self.btn_show.setMenu(self.menu_show)
         self.addWidget(self.btn_show)
 
@@ -270,6 +275,14 @@ class ReviewToolbar(QToolBar):
         self.act_pane.setCheckable(True)
         self.act_pane.toggled.connect(self.review_pane_toggled.emit)
         self.addAction(self.act_pane)
+
+    def _emit_filter_changed(self) -> None:
+        """Emit markup filter changed with comments, ins_del, formatting flags."""
+        self.markup_filter_changed.emit(
+            self.act_show_comments.isChecked(),
+            self.act_show_ins_del.isChecked(),
+            self.act_show_formatting.isChecked(),
+        )
 
     def set_tracking_state(self, tracking: bool) -> None:
         """Update toggle button checked state without re-emitting signal."""
@@ -401,6 +414,9 @@ class ReviewPane(QWidget):
         self.doc = doc
         self.setObjectName("ReviewPane")
         self.setMinimumWidth(260)
+        self._filter_comments: bool = True
+        self._filter_ins_del: bool = True
+        self._filter_formatting: bool = True
 
         self._build_ui()
         self.retranslate_ui()
@@ -454,6 +470,15 @@ class ReviewPane(QWidget):
         self.list_widget.itemDoubleClicked.connect(self._on_item_double_clicked)
         main_layout.addWidget(self.list_widget)
 
+    def set_markup_filter(
+        self, show_comments: bool, show_ins_del: bool, show_formatting: bool
+    ) -> None:
+        """Update visible markup categories and refresh review list."""
+        self._filter_comments = show_comments
+        self._filter_ins_del = show_ins_del
+        self._filter_formatting = show_formatting
+        self.refresh_items()
+
     def set_document(self, doc: Document) -> None:
         """Set the active document and refresh."""
         self.doc = doc
@@ -487,11 +512,17 @@ class ReviewPane(QWidget):
         revs = list_revisions(self.doc)
         if selected_author:
             revs = [r for r in revs if r.stamp.author == selected_author]
+        if not self._filter_ins_del:
+            revs = [r for r in revs if r.type not in ("ins", "del", "mins", "mdel")]
+        if not self._filter_formatting:
+            revs = [r for r in revs if r.type not in ("chg", "pchg")]
 
         # Collect comments
         cmts = list(self.doc.comments.values())
         if selected_author:
             cmts = [c for c in cmts if getattr(c, "author", "") == selected_author]
+        if not self._filter_comments:
+            cmts = []
 
         # Summary label
         self.lbl_summary.setText(

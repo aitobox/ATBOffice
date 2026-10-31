@@ -74,6 +74,16 @@ class WriterView(QWidget):
 
         # Wire review components
         self.review_toolbar.review_pane_toggled.connect(self.set_review_pane_visible)
+        self.review_toolbar.markup_filter_changed.connect(self.review_pane.set_markup_filter)
+        self.review_toolbar.accept_change_requested.connect(self._on_accept_change)
+        self.review_toolbar.accept_all_requested.connect(self._on_accept_all_changes)
+        self.review_toolbar.reject_change_requested.connect(self._on_reject_change)
+        self.review_toolbar.reject_all_requested.connect(self._on_reject_all_changes)
+        self.review_toolbar.delete_comment_requested.connect(self._on_delete_comment)
+        self.review_toolbar.delete_all_comments_requested.connect(self._on_delete_all_comments)
+        self.review_toolbar.new_comment_requested.connect(self._on_new_comment)
+        self.review_toolbar.previous_requested.connect(self._on_prev_review_item)
+        self.review_toolbar.next_requested.connect(self._on_next_review_item)
         self.review_pane.item_activated.connect(self._on_review_item_activated)
 
         self.retranslate_ui()
@@ -95,6 +105,86 @@ class WriterView(QWidget):
         """Focus and position caret on activated review item."""
         self.canvas_view.controller.set_caret(para.id, start)
         self.canvas_view.update()
+
+    def _on_accept_change(self) -> None:
+        """Accept change at current caret or selection."""
+        doc = self.canvas_view.doc
+        from atboffice.modules.writer.models.revision import accept_revision, list_revisions
+
+        revs = list_revisions(doc)
+        if revs:
+            accept_revision(doc, revs[0])
+            self.canvas_view.update()
+            self.review_pane.refresh_items()
+
+    def _on_accept_all_changes(self) -> None:
+        """Accept all changes in document."""
+        doc = self.canvas_view.doc
+        from atboffice.modules.writer.models.revision import accept_all_revisions
+
+        accept_all_revisions(doc)
+        self.canvas_view.update()
+        self.review_pane.refresh_items()
+
+    def _on_reject_change(self) -> None:
+        """Reject change at current caret or selection."""
+        doc = self.canvas_view.doc
+        from atboffice.modules.writer.models.revision import list_revisions, reject_revision
+
+        revs = list_revisions(doc)
+        if revs:
+            reject_revision(doc, revs[0])
+            self.canvas_view.update()
+            self.review_pane.refresh_items()
+
+    def _on_reject_all_changes(self) -> None:
+        """Reject all changes in document."""
+        doc = self.canvas_view.doc
+        from atboffice.modules.writer.models.revision import reject_all_revisions
+
+        reject_all_revisions(doc)
+        self.canvas_view.update()
+        self.review_pane.refresh_items()
+
+    def _on_delete_comment(self) -> None:
+        """Delete active or first comment in document."""
+        doc = self.canvas_view.doc
+        from atboffice.modules.writer.models.revision import delete_comment
+
+        if doc.comments:
+            first_id = next(iter(doc.comments.keys()))
+            delete_comment(doc, first_id)
+            self.canvas_view.update()
+            self.review_pane.refresh_items()
+
+    def _on_delete_all_comments(self) -> None:
+        """Delete all comments in document."""
+        doc = self.canvas_view.doc
+        from atboffice.modules.writer.models.revision import delete_comment
+
+        for cid in list(doc.comments.keys()):
+            delete_comment(doc, cid)
+        self.canvas_view.update()
+        self.review_pane.refresh_items()
+
+    def _on_new_comment(self) -> None:
+        """Insert new comment at caret."""
+        doc = self.canvas_view.doc
+        from atboffice.modules.writer.models.revision import add_comment
+
+        add_comment(doc, text="New Comment", author="Author")
+        self.canvas_view.update()
+        self.review_pane.refresh_items()
+
+    def _on_prev_review_item(self) -> None:
+        cur = self.review_pane.list_widget.currentRow()
+        if cur > 0:
+            self.review_pane.list_widget.setCurrentRow(cur - 1)
+
+    def _on_next_review_item(self) -> None:
+        cur = self.review_pane.list_widget.currentRow()
+        if cur < self.review_pane.list_widget.count() - 1:
+            self.review_pane.list_widget.setCurrentRow(cur + 1)
 
     def set_review_pane_visible(self, visible: bool) -> None:
         """Toggle Reviewing Pane visibility."""

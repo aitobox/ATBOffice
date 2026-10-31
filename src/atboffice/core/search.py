@@ -98,26 +98,29 @@ class SearchAdapter(ABC):
     @abstractmethod
     def find_all(self, options: SearchOptions) -> list[SearchMatch]:
         """Find all occurrences matching the search options."""
+        raise NotImplementedError
 
     @abstractmethod
     def find_next(
         self, options: SearchOptions, start_from: SearchMatch | None = None
     ) -> SearchMatch | None:
         """Find the next occurrence after or before start_from."""
+        raise NotImplementedError
 
     @abstractmethod
-    def replace_one(
-        self, options: SearchOptions, match: SearchMatch
-    ) -> SearchMatch | None:
+    def replace_one(self, options: SearchOptions, match: SearchMatch) -> SearchMatch | None:
         """Replace the specified match and return the next match if any."""
+        raise NotImplementedError
 
     @abstractmethod
     def replace_all(self, options: SearchOptions) -> int:
         """Replace all occurrences matching options and return the count."""
+        raise NotImplementedError
 
     @abstractmethod
     def focus_match(self, match: SearchMatch) -> None:
         """Position viewport and cursor/selection on the given match."""
+        raise NotImplementedError
 
 
 class WriterSearchAdapter(SearchAdapter):
@@ -201,9 +204,7 @@ class WriterSearchAdapter(SearchAdapter):
             elif hasattr(self.writer_view, "update"):
                 self.writer_view.update()
 
-    def replace_one(
-        self, options: SearchOptions, match: SearchMatch
-    ) -> SearchMatch | None:
+    def replace_one(self, options: SearchOptions, match: SearchMatch) -> SearchMatch | None:
         paras = {p.id: p for p in self._get_paragraphs()}
         p = paras.get(match.target_id)
         if p is None:
@@ -247,9 +248,7 @@ class WriterSearchAdapter(SearchAdapter):
                 delete_range_in_paragraph(p, m.start(), m.end())
                 # Handle regex groups if use_regex
                 rep_text = (
-                    m.expand(options.replace_text)
-                    if options.use_regex
-                    else options.replace_text
+                    m.expand(options.replace_text) if options.use_regex else options.replace_text
                 )
                 insert_text_in_paragraph(p, m.start(), rep_text)
 
@@ -334,9 +333,7 @@ class SpreadsheetSearchAdapter(SearchAdapter):
                 self.spreadsheet_view.grid.reveal(r, c)
                 self.spreadsheet_view.grid.viewport().update()
 
-    def replace_one(
-        self, options: SearchOptions, match: SearchMatch
-    ) -> SearchMatch | None:
+    def replace_one(self, options: SearchOptions, match: SearchMatch) -> SearchMatch | None:
         r, c = match.target_id
         val = self.model.get_cell_value(r, c)
         if val is None:

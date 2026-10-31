@@ -168,40 +168,72 @@ class BaseOfficeWindow(QMainWindow):
             self.showMaximized()
 
     def undo(self) -> None:
-        """Undo last action placeholder."""
-        pass
+        """Undo last action, dispatching to focused widget or active document."""
+        fw = self.focusWidget()
+        if fw and hasattr(fw, "undo"):
+            fw.undo()
+        elif hasattr(self, "centralWidget") and hasattr(self.centralWidget(), "undo"):
+            self.centralWidget().undo()
 
     def redo(self) -> None:
-        """Redo last action placeholder."""
-        pass
+        """Redo last undone action, dispatching to focused widget or active document."""
+        fw = self.focusWidget()
+        if fw and hasattr(fw, "redo"):
+            fw.redo()
+        elif hasattr(self, "centralWidget") and hasattr(self.centralWidget(), "redo"):
+            self.centralWidget().redo()
 
     def cut(self) -> None:
-        """Cut selection placeholder."""
-        pass
+        """Cut selection to clipboard, dispatching to focused widget or active document."""
+        fw = self.focusWidget()
+        if fw and hasattr(fw, "cut"):
+            fw.cut()
+        elif hasattr(self, "centralWidget") and hasattr(self.centralWidget(), "cut"):
+            self.centralWidget().cut()
 
     def copy(self) -> None:
-        """Copy selection placeholder."""
-        pass
+        """Copy selection to clipboard, dispatching to focused widget or active document."""
+        fw = self.focusWidget()
+        if fw and hasattr(fw, "copy"):
+            fw.copy()
+        elif hasattr(self, "centralWidget") and hasattr(self.centralWidget(), "copy"):
+            self.centralWidget().copy()
 
     def paste(self) -> None:
-        """Paste selection placeholder."""
-        pass
+        """Paste selection from clipboard, dispatching to focused widget or active document."""
+        fw = self.focusWidget()
+        if fw and hasattr(fw, "paste"):
+            fw.paste()
+        elif hasattr(self, "centralWidget") and hasattr(self.centralWidget(), "paste"):
+            self.centralWidget().paste()
 
     def zoom_in(self) -> None:
-        """Zoom in placeholder."""
-        pass
+        """Increase magnification of the active document view."""
+        cw = self.centralWidget()
+        if cw and hasattr(cw, "zoom_in"):
+            cw.zoom_in()
 
     def zoom_out(self) -> None:
-        """Zoom out placeholder."""
-        pass
+        """Decrease magnification of the active document view."""
+        cw = self.centralWidget()
+        if cw and hasattr(cw, "zoom_out"):
+            cw.zoom_out()
 
     def zoom_reset(self) -> None:
-        """Zoom reset placeholder."""
-        pass
+        """Reset magnification of active document view to 100%."""
+        cw = self.centralWidget()
+        if cw and hasattr(cw, "zoom_reset"):
+            cw.zoom_reset()
 
     def show_help(self) -> None:
-        """Display help documentation placeholder."""
-        pass
+        """Display help documentation dialog for current application."""
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            return
+        QMessageBox.information(
+            self,
+            safe_tr("帮助 — {app_name}").format(app_name=self.app_name),
+            safe_tr("有关 {app_name} 的帮助与快捷键文档。").format(app_name=self.app_name),
+        )
 
     def show_about(self) -> None:
         """Display application about dialog."""
@@ -391,15 +423,19 @@ class BaseOfficeWindow(QMainWindow):
             QMessageBox.critical(
                 self,
                 safe_tr("导出 PDF 失败"),
-                safe_tr("无法导出 PDF 到“{target}”：\n{exc}").format(
-                    target=target, exc=exc
-                ),
+                safe_tr("无法导出 PDF 到“{target}”：\n{exc}").format(target=target, exc=exc),
             )
             return False
 
     def render_to_printer(self, printer: QPrinter) -> None:
-        """Subclass hook to render document pages onto target printer/PDF painter."""
-        pass
+        """Subclass hook to render document pages onto target printer/PDF painter.
+
+        Subclasses (QuireWindow, LedgerWindow, LecternWindow) override this to rasterize
+        their respective document model onto the target QPrinter device.
+        """
+        cw = self.centralWidget()
+        if cw and hasattr(cw, "render_to_printer"):
+            cw.render_to_printer(printer)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         """Intercept window close to prompt for unsaved changes and emit signal."""
