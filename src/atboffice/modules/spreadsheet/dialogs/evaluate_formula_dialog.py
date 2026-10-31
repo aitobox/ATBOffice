@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import copy
 import html
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import QCoreApplication
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QDialog,
@@ -279,10 +278,12 @@ class EvaluateFormulaDialog(QDialog):
     def _render(self) -> None:
         """Render formula text highlighting the current evaluable node."""
         full_text = to_text(self.ast)
+        style = "font-family:Consolas,monospace; font-size:12pt; padding:4px;"
         if self.cur_target is None or is_lit(self.ast):
             # Final result reached
+            escaped_text = html.escape(full_text)
             self.edit_preview.setHtml(
-                f"<div style='font-family:Consolas,monospace; font-size:12pt; padding:4px;'><b>={html.escape(full_text)}</b></div>"
+                f"<div style='{style}'><b>={escaped_text}</b></div>"
             )
             self.btn_evaluate.setText(safe_tr("重新启动(&R)"))
             return
@@ -290,18 +291,19 @@ class EvaluateFormulaDialog(QDialog):
         part_text = to_text(self.cur_target)
         idx = full_text.find(part_text)
         if idx >= 0:
-            prefix = full_text[:idx]
-            suffix = full_text[idx + len(part_text) :]
+            prefix = html.escape(full_text[:idx])
+            mid = html.escape(part_text)
+            suffix = html.escape(full_text[idx + len(part_text) :])
             html_content = (
-                f"<div style='font-family:Consolas,monospace; font-size:12pt; padding:4px;'>"
-                f"={html.escape(prefix)}"
-                f"<u><span style='color:#0000CC; font-weight:bold;'>{html.escape(part_text)}</span></u>"
-                f"{html.escape(suffix)}</div>"
+                f"<div style='{style}'>={prefix}"
+                f"<u><span style='color:#0000CC; font-weight:bold;'>{mid}</span></u>"
+                f"{suffix}</div>"
             )
         else:
+            escaped = html.escape(full_text)
             html_content = (
-                f"<div style='font-family:Consolas,monospace; font-size:12pt; padding:4px;'>"
-                f"<u><span style='color:#0000CC; font-weight:bold;'>={html.escape(full_text)}</span></u></div>"
+                f"<div style='{style}'>"
+                f"<u><span style='color:#0000CC; font-weight:bold;'>={escaped}</span></u></div>"
             )
 
         self.edit_preview.setHtml(html_content)

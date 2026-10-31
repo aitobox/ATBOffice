@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from PySide6.QtGui import QColor, QImage, QPainter
+from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.spreadsheet.calc.audit_tracer import (
@@ -12,11 +12,8 @@ from atboffice.modules.spreadsheet.calc.audit_tracer import (
 )
 from atboffice.modules.spreadsheet.dialogs.evaluate_formula_dialog import (
     EvaluateFormulaDialog,
-    next_evaluable_node,
-    value_to_literal,
 )
 from atboffice.modules.spreadsheet.dialogs.watch_window_dialog import (
-    WatchItem,
     WatchWindowDialog,
 )
 from atboffice.modules.spreadsheet.models.selection_model import SelectionModel

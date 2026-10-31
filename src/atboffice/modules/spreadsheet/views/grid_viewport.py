@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from enum import Enum, auto
 import math
+from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Final
 
 from PySide6.QtCore import QCoreApplication, QPoint, QPointF, QRect, QRectF, Qt, Signal
