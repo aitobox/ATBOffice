@@ -609,7 +609,6 @@ def test_comment_dialog(qtbot) -> None:
 def test_circle_invalid_and_clear_circles(qtbot) -> None:
     from atboffice.modules.spreadsheet.models import (
         DataValidation,
-        SheetDataModel,
         ValidationOp,
         ValidationType,
     )
