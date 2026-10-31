@@ -59,6 +59,7 @@ from atboffice.modules.presentation.models.presentation import Presentation
 from atboffice.modules.presentation.models.shape import Shape
 from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.models.text import Paragraph, TextBody, TextRun
+from atboffice.modules.presentation.views.background_renderer import paint_fill_rect
 from atboffice.modules.presentation.views.slide_canvas import (
     SlideCanvasView,
     SlideScene,
@@ -97,10 +98,15 @@ def render_slide_thumbnail(
         sx = float(width) / w
         sy = float(height) / h
 
-        # 1. Background fill from design
+        # 1. Background fill from slide or design
         design = presentation.get_design_for_slide(slide)
-        bg_color = QColor(design.colors.lt1 if design else "#FFFFFF")
-        painter.fillRect(0, 0, width, height, bg_color)
+        slide_rect = QRectF(0.0, 0.0, float(width), float(height))
+        fill_to_paint = (
+            slide.bg
+            if (slide and slide.bg)
+            else (design.bg if (design and hasattr(design, "bg")) else None)
+        )
+        paint_fill_rect(painter, slide_rect, fill_to_paint, design)
 
         # 2. Draw slide shapes
         for sh in slide.shapes:

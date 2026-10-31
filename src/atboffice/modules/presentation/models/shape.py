@@ -23,6 +23,8 @@ class Fill:
     pattern: str = ""
     fg: str = ""
     bg: str = ""
+    image_path: str = ""
+    tile: bool = False
 
     @classmethod
     def none(cls) -> Fill:
@@ -40,6 +42,10 @@ class Fill:
     def pattern_fill(cls, prst: str, fg: str, bg: str) -> Fill:
         return cls(type="patt", pattern=prst, fg=fg, bg=bg)
 
+    @classmethod
+    def image_fill(cls, image_path: str, tile: bool = False) -> Fill:
+        return cls(type="img", image_path=image_path, tile=tile)
+
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"t": self.type}
         if self.type == "solid":
@@ -54,6 +60,10 @@ class Fill:
             d["prst"] = self.pattern
             d["fg"] = self.fg
             d["bg"] = self.bg
+        elif self.type == "img":
+            d["image_path"] = self.image_path
+            d["media"] = self.image_path
+            d["tile"] = self.tile
         return d
 
     @classmethod
@@ -76,6 +86,12 @@ class Fill:
                 pattern=data.get("prst", ""),
                 fg=data.get("fg", ""),
                 bg=data.get("bg", ""),
+            )
+        if t == "img":
+            return cls(
+                type="img",
+                image_path=str(data.get("image_path", data.get("media", ""))),
+                tile=bool(data.get("tile", False)),
             )
         return cls(
             type="solid",

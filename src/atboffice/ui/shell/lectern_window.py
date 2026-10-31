@@ -170,6 +170,32 @@ class LecternWindow(BaseOfficeWindow):
         self.action_registry.set_handler("diagramReset", self._on_diagram_reset)
         self.action_registry.set_handler("diagramToShapes", self._on_diagram_to_shapes)
 
+        # Background formatting
+        self.action_registry.set_handler("background", self.open_background_dialog)
+        self.action_registry.set_handler("format_background", self.open_background_dialog)
+
+    def open_background_dialog(self) -> None:
+        """Open the slide background formatting dialog."""
+        from atboffice.modules.presentation.dialogs.background_dlg import BackgroundDialog
+
+        if not self.presentation or not self.presentation.slides:
+            return
+        ws = getattr(self.presentation_view, "workspace", None)
+        curr_slide = getattr(ws, "current_slide", None) or self.presentation.slides[0]
+        dlg = BackgroundDialog(curr_slide, self.presentation, self)
+        dlg.backgroundApplied.connect(self._on_background_applied)
+        dlg.exec()
+
+    def _on_background_applied(self, fill: Any, apply_to_all: bool) -> None:
+        """Handle background dialog application."""
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws is not None:
+            if hasattr(ws, "scene") and ws.scene is not None:
+                ws.scene.update()
+            if hasattr(ws, "refresh_thumbnails"):
+                ws.refresh_thumbnails()
+        self.set_modified(True)
+
     def set_drawing_tool(self, tool: dict[str, Any] | None) -> None:
         """Activate drawing tool on canvas and update drawing toolbar check states."""
         ws = self.presentation_view.workspace

@@ -26,6 +26,7 @@ from atboffice.modules.presentation.models.comment import Comment
 from atboffice.modules.presentation.models.shape import Fill, Line, Shape
 from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.models.text import TextBody
+from atboffice.modules.presentation.views.background_renderer import paint_fill_rect
 from atboffice.modules.presentation.views.comment_overlay import (
     CommentCardWidget,
     CommentMarkerItem,
@@ -185,13 +186,32 @@ class SlideScene(QGraphicsScene):
         shadow_rect = slide_rect.translated(4.0, 4.0)
         painter.fillRect(shadow_rect, QColor(0, 0, 0, 40))
 
-        # White slide paper
-        painter.fillRect(slide_rect, QColor("#FFFFFF"))
+        # Slide background fill
+        design = None
+        if self.presentation and hasattr(self.presentation, "get_design_for_slide"):
+            design = self.presentation.get_design_for_slide(self.slide)
+
+        fill_to_paint = self.slide.bg
+        if fill_to_paint is None and design and hasattr(design, "bg"):
+            fill_to_paint = design.bg
+
+        paint_fill_rect(painter, slide_rect, fill_to_paint, design)
 
         # Thin border around slide
         border_pen = QPen(QColor(180, 180, 180), 1.0)
         painter.setPen(border_pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRect(slide_rect)
+
+    def set_slide_background(self, fill: Fill | None, hide_master: bool = False) -> None:
+        """Update the current slide's background and trigger a canvas repaint."""
+        import copy
+
+        self.slide.bg = copy.deepcopy(fill) if fill else None
+        self.slide.hide_master = hide_master
+        self.update()
+        for v in self.views():
+            v.viewport().update()
 
     # ------------------------------------------------------------------
     # Drawing Tool & Shape Creation
@@ -743,7 +763,25 @@ class SlideCanvasView(QGraphicsView):
         act_del = menu.addAction(safe_tr("删除"))
         act_del.triggered.connect(self._scene.delete_selected)
 
+        menu.addSeparator()
+        act_bg = menu.addAction(safe_tr("背景(&K)..."))
+        act_bg.triggered.connect(self._open_background_dialog)
+
         menu.exec(event.globalPos())
+
+    def _open_background_dialog(self) -> None:
+        from atboffice.modules.presentation.dialogs.background_dlg import BackgroundDialog
+
+        pres = getattr(self._scene, "presentation", None)
+        if pres and self._scene.slide:
+            dlg = BackgroundDialog(self._scene.slide, pres, self)
+            dlg.backgroundApplied.connect(self._on_background_applied)
+            dlg.exec()
+
+    def _on_background_applied(self, fill: Any, apply_to_all: bool) -> None:
+        self._scene.update()
+        for v in self._scene.views():
+            v.viewport().update()
 
     # ------------------------------------------------------------------
     # Keyboard & Wheel events

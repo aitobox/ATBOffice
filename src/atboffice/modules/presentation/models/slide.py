@@ -10,7 +10,7 @@ from typing import Any
 from atboffice.modules.presentation.models.comment import Comment
 from atboffice.modules.presentation.models.designs import DesignTemplate
 from atboffice.modules.presentation.models.layouts import layout_frames, make_placeholder
-from atboffice.modules.presentation.models.shape import Shape
+from atboffice.modules.presentation.models.shape import Fill, Shape
 
 
 @dataclass
@@ -165,6 +165,8 @@ class Slide:
     animations: list[Animation] = field(default_factory=list)
     comments: list[Comment] = field(default_factory=list)
     hidden: bool = False
+    bg: Fill | None = None
+    hide_master: bool = False
 
     def add_shape(self, shape: Shape) -> None:
         self.shapes.append(shape)
@@ -209,7 +211,7 @@ class Slide:
         return "\n".join(out)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "id": self.id,
             "layout": self.layout,
             "design": self.design_id,
@@ -220,9 +222,18 @@ class Slide:
             "comments": [c.to_dict() for c in self.comments],
             "hidden": self.hidden,
         }
+        if self.bg is not None:
+            d["bg"] = self.bg.to_dict()
+        if self.hide_master:
+            d["hide_master"] = True
+            d["hideMaster"] = True
+        return d
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Slide:
+        bg_data = data.get("bg")
+        bg_fill = Fill.from_dict(bg_data) if bg_data else None
+        hide_master = bool(data.get("hide_master", data.get("hideMaster", False)))
         return cls(
             id=str(data.get("id", f"sl_{uuid.uuid4().hex[:8]}")),
             layout=str(data.get("layout", "text")),
@@ -233,6 +244,8 @@ class Slide:
             animations=[Animation.from_dict(a) for a in data.get("anims", [])],
             comments=[Comment.from_dict(c) for c in data.get("comments", [])],
             hidden=bool(data.get("hidden", False)),
+            bg=bg_fill,
+            hide_master=hide_master,
         )
 
 
