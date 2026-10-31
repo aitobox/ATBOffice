@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import QGridLayout, QWidget
 
@@ -15,6 +17,9 @@ from atboffice.modules.writer.views.ruler import (
     TabSelectorWidget,
     VerticalRuler,
 )
+
+if TYPE_CHECKING:
+    from atboffice.modules.writer.dialogs.word_count_dlg import WordCountDialog
 
 
 def safe_tr(text: str) -> str:
@@ -218,6 +223,24 @@ class WriterView(QWidget):
     def open_spelling_dialog(self) -> None:
         """Open Spelling and Grammar check modal dialog (F7)."""
         self.canvas_view.open_spelling_dialog()
+
+    def create_word_count_dialog(self) -> WordCountDialog:
+        """Create and return configured WordCountDialog instance."""
+        from atboffice.modules.writer.dialogs.word_count_dlg import WordCountDialog
+
+        selection_text = self.canvas_view.controller.get_selected_text()
+        return WordCountDialog(
+            doc=self.canvas_view.doc,
+            selection_text=selection_text,
+            pagination=getattr(self.canvas_view, "pagination", None),
+            parent=self,
+        )
+
+    def open_word_count_dialog(self) -> WordCountDialog:
+        """Open classic Word 2003 Word Count dialog."""
+        dlg = self.create_word_count_dialog()
+        dlg.exec()
+        return dlg
 
     def open_mail_merge_wizard(self) -> None:
         """Open the Word 2003 classic Mail Merge Wizard."""

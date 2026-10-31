@@ -321,7 +321,7 @@ class MacMenuBar(QMenuBar):
         self._reg_act(
             menu_tools, "spelling", "tools_spelling", shortcut=QKeySequence("F7")
         )
-        self._reg_act(menu_tools, "tools_word_count", "tools_word_count")
+        self._reg_act(menu_tools, "tools_word_count", "wordCount")
         self._reg_act(menu_tools, "tools_language", "tools_language")
         menu_tools.addSeparator()
         self._reg_act(menu_tools, "tools_goal_seek", "tools_goal_seek")
@@ -692,7 +692,11 @@ class MacMenuBar(QMenuBar):
                 safe_tr("运行词典校对并审查拼写错误 (F7)"),
             ),
             "tools_word_count": (
-                safe_tr("字数统计…"),
+                safe_tr("字数统计(&W)..."),
+                safe_tr("统计文档页数、字数、段落数及字符数"),
+            ),
+            "wordCount": (
+                safe_tr("字数统计(&W)..."),
                 safe_tr("统计文档页数、字数、段落数及字符数"),
             ),
             "tools_language": (
