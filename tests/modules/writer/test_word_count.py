@@ -8,12 +8,10 @@
 
 from __future__ import annotations
 
-import pytest
 from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.writer.dialogs.word_count_dlg import (
     WordCountDialog,
-    WordCountStats,
     calculate_document_statistics,
     count_text_statistics,
 )

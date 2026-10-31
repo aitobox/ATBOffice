@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import QGridLayout, QWidget
 
@@ -15,6 +17,9 @@ from atboffice.modules.writer.views.ruler import (
     TabSelectorWidget,
     VerticalRuler,
 )
+
+if TYPE_CHECKING:
+    from atboffice.modules.writer.dialogs.word_count_dlg import WordCountDialog
 
 
 def safe_tr(text: str) -> str:

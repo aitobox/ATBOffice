@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QCoreApplication, Qt
 from PySide6.QtWidgets import (
@@ -24,7 +24,6 @@ from PySide6.QtWidgets import (
 from atboffice.modules.writer.models.document import (
     Document,
     Paragraph,
-    all_paragraphs,
     plain_text,
     reindex,
 )
