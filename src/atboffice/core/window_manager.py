@@ -29,7 +29,7 @@ class WindowManager(QObject):
 
     # Extension routing lookup tables
     QUIRE_EXTENSIONS: frozenset[str] = frozenset(
-        {".docx", ".doc", ".odt", ".rtf", ".txt"}
+        {".docx", ".doc", ".odt", ".rtf", ".txt", ".html", ".htm"}
     )
     LEDGER_EXTENSIONS: frozenset[str] = frozenset(
         {".xlsx", ".xls", ".csv", ".tsv", ".ods"}

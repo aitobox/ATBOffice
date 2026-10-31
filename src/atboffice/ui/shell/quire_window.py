@@ -231,9 +231,10 @@ class QuireWindow(BaseOfficeWindow):
     def get_file_filter(self) -> str:
         """Return file filter pattern for Quire save/open dialogs."""
         return safe_tr(
-            "所有支持的格式 (*.docx *.doc *.odt *.rtf *.txt);;"
+            "所有支持的格式 (*.docx *.doc *.odt *.rtf *.txt *.html *.htm);;"
             "Word 文档 (*.docx);;"
             "Word 97-2003 文档 (*.doc);;"
+            "HTML 网页 (*.html *.htm);;"
             "富文本格式 (*.rtf);;"
             "纯文本文件 (*.txt);;"
             "所有文件 (*.*)"
@@ -242,7 +243,30 @@ class QuireWindow(BaseOfficeWindow):
     def do_save(self, path: Path) -> bool:
         """Serialize Quire document to destination path."""
         path.parent.mkdir(parents=True, exist_ok=True)
+        ext = path.suffix.lower()
+        if ext in {".html", ".htm"}:
+            from atboffice.modules.writer.io.html_io import write_html
+
+            write_html(self.writer_view.canvas_view.doc, path)
+            return True
         path.touch(exist_ok=True)
+        return True
+
+    def open_file(self, file_path: str | Path) -> bool:
+        """Open a file from the specified path, loading document content if supported."""
+        if not super().open_file(file_path):
+            return False
+        path = Path(file_path).resolve()
+        ext = path.suffix.lower()
+        if ext in {".html", ".htm"}:
+            try:
+                from atboffice.modules.writer.io.html_io import read_html
+
+                doc = read_html(path)
+                self.writer_view.canvas_view.doc = doc
+                self.writer_view.canvas_view.update()
+            except Exception:
+                pass
         return True
 
     def _setup_toolbars(self) -> None:

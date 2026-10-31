@@ -147,6 +147,22 @@ class SpacingProperties:
     before_auto: bool = False
     after_auto: bool = False
 
+    @property
+    def space_before(self) -> float:
+        return self.before
+
+    @space_before.setter
+    def space_before(self, val: float) -> None:
+        self.before = float(val)
+
+    @property
+    def space_after(self) -> float:
+        return self.after
+
+    @space_after.setter
+    def space_after(self, val: float) -> None:
+        self.after = float(val)
+
 
 @dataclass
 class TabStop:
@@ -192,6 +208,39 @@ class ParagraphProperties:
     num: NumberingRef | None = None
     chg: RevisionStamp | None = None
 
+    @property
+    def style_id(self) -> str:
+        return self.style
+
+    @style_id.setter
+    def style_id(self, val: str) -> None:
+        self.style = str(val or "Normal")
+
+    @property
+    def num_id(self) -> str | None:
+        return self.num.id if self.num else None
+
+    @num_id.setter
+    def num_id(self, val: Any) -> None:
+        if val is None:
+            self.num = None
+        else:
+            if self.num is None:
+                self.num = NumberingRef(id=str(val), lvl=0)
+            else:
+                self.num.id = str(val)
+
+    @property
+    def num_level(self) -> int:
+        return self.num.lvl if self.num else 0
+
+    @num_level.setter
+    def num_level(self, val: int) -> None:
+        if self.num is not None:
+            self.num.lvl = int(val)
+        else:
+            self.num = NumberingRef(id="0", lvl=int(val))
+
 
 @dataclass
 class RunProperties:
@@ -223,6 +272,54 @@ class RunProperties:
     del_rev: RevisionStamp | None = None
     chg: RevisionStamp | None = None
 
+    @property
+    def bold(self) -> bool:
+        return self.b
+
+    @bold.setter
+    def bold(self, val: bool) -> None:
+        self.b = bool(val)
+
+    @property
+    def italic(self) -> bool:
+        return self.i
+
+    @italic.setter
+    def italic(self, val: bool) -> None:
+        self.i = bool(val)
+
+    @property
+    def underline(self) -> str:
+        return self.u
+
+    @underline.setter
+    def underline(self, val: str | None) -> None:
+        self.u = str(val or "none")
+
+    @property
+    def vert_align(self) -> str:
+        return self.vert
+
+    @vert_align.setter
+    def vert_align(self, val: str | None) -> None:
+        self.vert = str(val or "baseline")
+
+    @property
+    def font_family(self) -> str:
+        return self.font
+
+    @font_family.setter
+    def font_family(self, val: str) -> None:
+        self.font = str(val or "Times New Roman")
+
+    @property
+    def font_size(self) -> float:
+        return self.sz
+
+    @font_size.setter
+    def font_size(self, val: float) -> None:
+        self.sz = float(val)
+
 
 @dataclass
 class BorderProperties:
@@ -240,6 +337,14 @@ class ShadingProperties:
     val: str = "clear"
     color: str = "auto"
     fill: str = "auto"
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return getattr(self, key, default)
+
+    def __getitem__(self, key: str) -> Any:
+        if hasattr(self, key):
+            return getattr(self, key)
+        raise KeyError(key)
 
 
 @dataclass
@@ -278,3 +383,11 @@ class CellProperties:
     borders: dict[str, BorderProperties] = field(default_factory=dict)
     shd: ShadingProperties = field(default_factory=ShadingProperties)
     tc_mar: dict[str, float] = field(default_factory=dict)
+
+    @property
+    def span(self) -> int:
+        return self.grid_span
+
+    @span.setter
+    def span(self, val: int) -> None:
+        self.grid_span = int(val)

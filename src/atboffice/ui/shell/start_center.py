@@ -650,9 +650,9 @@ class StartCenterWindow(BaseOfficeWindow):
     def _on_open_file_clicked(self) -> None:
         """Prompt user to choose an office file and open via WindowManager."""
         file_filters = safe_tr(
-            "所有支持的格式 (*.docx *.doc *.odt *.rtf *.txt *.xlsx *.xls *.csv *.tsv "
+            "所有支持的格式 (*.docx *.doc *.odt *.rtf *.txt *.html *.htm *.xlsx *.xls *.csv *.tsv "
             "*.ods *.pptx *.ppt *.odp);;"
-            "文本文档 (*.docx *.doc *.odt *.rtf *.txt);;"
+            "文本文档 (*.docx *.doc *.odt *.rtf *.txt *.html *.htm);;"
             "电子表格 (*.xlsx *.xls *.csv *.tsv *.ods);;"
             "演示文稿 (*.pptx *.ppt *.odp);;"
             "所有文件 (*.*)"
