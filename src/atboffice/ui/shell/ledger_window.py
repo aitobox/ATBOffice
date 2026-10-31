@@ -228,6 +228,11 @@ class LedgerWindow(BaseOfficeWindow):
         self.update_context_toolbars({})
 
     @property
+    def sheet_tab_bar(self) -> Any:
+        """Access the bottom SheetTabBar embedded in SpreadsheetView."""
+        return getattr(self.spreadsheet_view, "sheet_tab_bar", None)
+
+    @property
     def default_doc_name(self) -> str:
         """Default document name for Ledger workbooks."""
         return safe_tr("未命名工作簿")
