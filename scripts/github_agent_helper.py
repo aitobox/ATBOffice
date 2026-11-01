@@ -82,7 +82,7 @@ def cmd_rank_issues(args):
         active = in_progress[0]
         msg = (
             f"SERIAL_GUARD_BLOCKED: Issue #{active.get('number')} "
-            f"(\"{active.get('title')}\") is already in-progress. "
+            f'("{active.get("title")}") is already in-progress. '
             "Exiting to maintain serial execution."
         )
         print(msg, file=sys.stderr)
