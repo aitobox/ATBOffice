@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QComboBox
 from atboffice.core.i18n import load_locale
 from atboffice.modules.spreadsheet.models.selection_model import SelectionRange
 from atboffice.modules.spreadsheet.models.sheet_model import CellData
+from atboffice.modules.spreadsheet.views.object_layer import FloatingObject
 from atboffice.ui.shell.ledger_window import LedgerWindow
 
 
@@ -566,4 +567,425 @@ def test_toolbar_dropdown_retranslate_ui(qtbot) -> None:
     # Restore zh-CN
     load_locale("zh-CN")
     win.retranslate_ui()
+
+
+def test_format_painter_workflow_and_undo_redo(qtbot) -> None:
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    model = win.spreadsheet_view.model
+    # Set source cell (0, 0) with bold, red text, yellow background, and specific border
+    src = CellData(
+        value="Header",
+        bold=True,
+        italic=True,
+        fg_color="#FF0000",
+        bg_color="#FFFF00",
+    )
+    model.set_cell(0, 0, src)
+
+    # Set target cell (1, 1) with existing value and formula
+    target = CellData(value=100, formula="=50*2", bold=False, italic=False)
+    model.set_cell(1, 1, target)
+
+    # Select source cell and trigger format painter
+    win.spreadsheet_view.selection.select_cell(0, 0)
+    assert win.action_registry.has_action("formatPainter")
+    act_fp = win.action_registry.get_action("formatPainter")
+    assert not act_fp.isChecked()
+
+    win.action_registry.trigger_action("formatPainter")
+    assert act_fp.isChecked()
+    assert getattr(win, "_format_painter_active", False)
+
+    # Apply to target cell (1, 1)
+    win.apply_format_painter_to_range(1, 1, 1, 1)
+
+    # Verify target cell received styles while preserving value and formula
+    c_target = model.get_cell(1, 1)
+    assert c_target.value == 100
+    assert c_target.formula == "=50*2"
+    assert c_target.bold is True
+    assert c_target.italic is True
+    assert c_target.fg_color == "#FF0000"
+    assert c_target.bg_color == "#FFFF00"
+
+    # Single-click format painter should auto-deactivate after application
+    assert not act_fp.isChecked()
+    assert not getattr(win, "_format_painter_active", False)
+
+    # Test undo
+    win.undo()
+    c_target_undone = model.get_cell(1, 1)
+    assert c_target_undone.value == 100
+    assert c_target_undone.formula == "=50*2"
+    assert c_target_undone.bold is False
+    assert c_target_undone.italic is False
+    assert c_target_undone.fg_color is None
+
+    # Test redo
+    win.redo()
+    c_target_redone = model.get_cell(1, 1)
+    assert c_target_redone.value == 100
+    assert c_target_redone.bold is True
+    assert c_target_redone.fg_color == "#FF0000"
+
+
+def test_format_painter_sticky_and_cancel(qtbot) -> None:
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    model = win.spreadsheet_view.model
+    model.set_cell(0, 0, CellData(value="Source", bold=True, fg_color="#008000"))
+    model.set_cell(1, 0, CellData(value="Target1"))
+    model.set_cell(2, 0, CellData(value="Target2"))
+
+    win.spreadsheet_view.selection.select_cell(0, 0)
+    # Double-click sticky mode
+    win.toggle_format_painter(double_click=True)
+    act_fp = win.action_registry.get_action("formatPainter")
+    assert act_fp.isChecked()
+    assert getattr(win, "_format_painter_sticky", False)
+
+    # First application
+    win.apply_format_painter_to_range(1, 0, 1, 0)
+    assert model.get_cell(1, 0).bold is True
+    assert model.get_cell(1, 0).fg_color == "#008000"
+    # Still active because sticky!
+    assert act_fp.isChecked()
+    assert getattr(win, "_format_painter_active", False)
+
+    # Second application
+    win.apply_format_painter_to_range(2, 0, 2, 0)
+    assert model.get_cell(2, 0).bold is True
+    assert model.get_cell(2, 0).fg_color == "#008000"
+    assert act_fp.isChecked()
+
+    # Cancel format painter (e.g. Esc or re-click)
+    win.action_registry.trigger_action("formatPainter")
+    assert not act_fp.isChecked()
+    assert not getattr(win, "_format_painter_active", False)
+
+
+def test_hyperlink_dialog_direct(qtbot) -> None:
+    from atboffice.modules.spreadsheet.dialogs.hyperlink_dialog import HyperlinkDialog
+
+    # Test web URL tab
+    dlg = HyperlinkDialog(
+        existing_text="Google",
+        existing_target="www.google.com",
+        sheets=["Sheet1", "Sheet2"],
+        is_existing=False,
+    )
+    qtbot.addWidget(dlg)
+    data = dlg.get_data()
+    assert not data["is_removed"]
+    assert data["display"] == "Google"
+    assert data["target"] == "http://www.google.com"
+
+    # Test place in document tab
+    dlg_doc = HyperlinkDialog(
+        existing_text="",
+        existing_location="'Sheet2'!B10",
+        sheets=["Sheet1", "Sheet2"],
+        is_existing=True,
+    )
+    qtbot.addWidget(dlg_doc)
+    data_doc = dlg_doc.get_data()
+    assert not data_doc["is_removed"]
+    assert data_doc["location"] == "'Sheet2'!B10"
+    assert data_doc["display"] == "'Sheet2'!B10"
+
+    # Test mail tab
+    dlg_mail = HyperlinkDialog(
+        existing_text="Contact Support",
+        existing_target="mailto:help@example.com?subject=Inquiry",
+        sheets=["Sheet1"],
+        is_existing=True,
+    )
+    qtbot.addWidget(dlg_mail)
+    data_mail = dlg_mail.get_data()
+    assert "mailto:help@example.com" in data_mail["target"]
+    assert "Inquiry" in data_mail["target"]
+
+    # Test remove link
+    dlg_mail._on_remove_clicked()
+    assert dlg_mail.is_removed is True
+    assert dlg_mail.get_data()["is_removed"] is True
+
+    # Test retranslate_ui
+    dlg.retranslate_ui()
+    assert dlg.windowTitle() != ""
+
+
+def test_hyperlink_insert_edit_and_remove(qtbot, monkeypatch) -> None:
+    from atboffice.modules.spreadsheet.dialogs.hyperlink_dialog import HyperlinkDialog
+
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    model = win.spreadsheet_view.model
+    # Cell (0, 0) initially empty
+    win.spreadsheet_view.selection.select_cell(0, 0)
+
+    # Mock dialog execution to return OK with web link
+    def mock_exec_insert(self):
+        self.edit_text.setText("Visit Site")
+        self.edit_addr.setText("https://aitobox.com")
+        self.is_removed = False
+        return 1
+
+    monkeypatch.setattr(HyperlinkDialog, "exec", mock_exec_insert)
+
+    assert win.action_registry.has_action("hyperlink")
+    win.action_registry.trigger_action("hyperlink")
+
+    # Verify cell text, style, and model links
+    c = model.get_cell(0, 0)
+    assert c.value == "Visit Site"
+    assert c.underline is True
+    assert c.fg_color == "#0000FF"
+    assert len(model.links) == 1
+    assert model.links[0]["target"] == "https://aitobox.com"
+
+    # Test edit and remove link
+    def mock_exec_remove(self):
+        self.is_removed = True
+        return 1
+
+    monkeypatch.setattr(HyperlinkDialog, "exec", mock_exec_remove)
+    win.action_registry.trigger_action("hyperlink")
+
+    # Verify link removed and style reverted
+    c = model.get_cell(0, 0)
+    assert len(model.links) == 0
+    assert c.underline is False
+    assert c.fg_color is None
+
+    # Test undo restores link and styling
+    win.undo()
+    assert len(model.links) == 1
+    c_undone = model.get_cell(0, 0)
+    assert c_undone.underline is True
+    assert c_undone.fg_color == "#0000FF"
+
+    # Test redo
+    win.redo()
+    assert len(model.links) == 0
+
+
+def test_hyperlink_cancel_operation(qtbot, monkeypatch) -> None:
+    from atboffice.modules.spreadsheet.dialogs.hyperlink_dialog import HyperlinkDialog
+
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    model = win.spreadsheet_view.model
+    model.set_cell(0, 0, CellData(value="Original", bold=False, underline=False))
+    win.spreadsheet_view.selection.select_cell(0, 0)
+
+    # Mock dialog execution to simulate Cancel (returns 0)
+    def mock_exec_cancel(self):
+        self.edit_text.setText("Changed Text")
+        self.edit_addr.setText("https://cancel.com")
+        return 0
+
+    monkeypatch.setattr(HyperlinkDialog, "exec", mock_exec_cancel)
+    win.action_registry.trigger_action("hyperlink")
+
+    # Verify nothing was altered
+    c = model.get_cell(0, 0)
+    assert c.value == "Original"
+    assert c.underline is False
+    assert len(getattr(model, "links", [])) == 0
+
+
+def test_total_row_toggle_and_undo_redo(qtbot) -> None:
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    model = win.spreadsheet_view.model
+    # Set data in A1:B3
+    # A: Labels, B: Numbers
+    model.set_cell(0, 0, CellData(value="Item1"))
+    model.set_cell(0, 1, CellData(value=10.0))
+    model.set_cell(1, 0, CellData(value="Item2"))
+    model.set_cell(1, 1, CellData(value=20.0))
+    model.set_cell(2, 0, CellData(value="Item3"))
+    model.set_cell(2, 1, CellData(value=30.0))
+
+    win.spreadsheet_view.selection.select_cell(0, 0)
+    act_total = win.action_registry.get_action("totalRow")
+    assert act_total is not None
+    assert not act_total.isChecked()
+
+    # 1. Toggle ON total row
+    win.action_registry.trigger_action("totalRow")
+    assert act_total.isChecked()
+    assert getattr(win, "_total_row_active", False) is True
+
+    # Total row should be at row 3 (index 3)
+    lbl_c = model.get_cell(3, 0)
+    assert lbl_c is not None
+    assert lbl_c.value in ("汇总", "Total", "合计")
+    assert lbl_c.bold is True
+    assert lbl_c.border_top is not None and lbl_c.border_top.style == "thin"
+    assert lbl_c.border_bottom is not None and lbl_c.border_bottom.style == "double"
+
+    tot_c = model.get_cell(3, 1)
+    assert tot_c is not None
+    assert tot_c.value == 60.0
+    assert "SUBTOTAL(109,B1:B3)" in tot_c.formula
+    assert tot_c.bold is True
+    assert tot_c.border_bottom.style == "double"
+
+    # 2. Toggle OFF total row
+    win.action_registry.trigger_action("totalRow")
+    assert not act_total.isChecked()
+    assert getattr(win, "_total_row_active", False) is False
+    assert (3, 0) not in model.cells
+    assert (3, 1) not in model.cells
+
+    # 3. Test Undo restores total row
+    win.undo()
+    assert act_total.isChecked()
+    assert getattr(win, "_total_row_active", False) is True
+    assert model.get_cell(3, 1).value == 60.0
+
+    # 4. Test Redo removes total row again
+    win.redo()
+    assert not act_total.isChecked()
+    assert getattr(win, "_total_row_active", False) is False
+
+
+def test_total_row_empty_sheet_and_convert_to_range(qtbot) -> None:
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    # Empty sheet: toggle total row should safely return without adding cells
+    win.action_registry.trigger_action("totalRow")
+    act_total = win.action_registry.get_action("totalRow")
+    assert not act_total.isChecked()
+    assert getattr(win, "_total_row_active", False) is False
+
+    # Populate data, turn on total row, then convert to range
+    model = win.spreadsheet_view.model
+    model.set_cell(0, 0, CellData(value="A"))
+    model.set_cell(0, 1, CellData(value=5))
+    win.spreadsheet_view.selection.select_cell(0, 0)
+
+    win.action_registry.trigger_action("totalRow")
+    assert act_total.isChecked()
+    assert getattr(win, "_total_row_active", False) is True
+
+    # convertToRange should clear total row and uncheck action
+    win.action_registry.trigger_action("convertToRange")
+    assert not act_total.isChecked()
+    assert getattr(win, "_total_row_active", False) is False
+    assert (1, 0) not in model.cells
+
+
+def test_format_object_context_enablement_and_dialog(qtbot, monkeypatch) -> None:
+    from atboffice.modules.spreadsheet.dialogs.format_object_dialog import (
+        FormatObjectDialog,
+    )
+
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    act_fo = win.action_registry.get_action("formatObject")
+    assert act_fo is not None
+    # Initially no object selected -> must be disabled!
+    assert not act_fo.isEnabled()
+
+    # Add a floating object
+    layer = win.spreadsheet_view.object_layer
+    obj = FloatingObject(
+        name="TestRect",
+        kind="rect",
+        fill_color="#FF0000",
+        line_color="#000000",
+        line_width=1.0,
+        abs_rect=(10, 10, 100, 50),
+    )
+    layer.add_object(obj)
+
+    # Select object -> formatObject should become enabled
+    layer.select_object(obj)
+    assert act_fo.isEnabled()
+
+    # Mock dialog execution to change fill color and width
+    def mock_exec_format(self):
+        self._current_fill_color = "#00FF00"
+        self.spin_width.setValue(150)
+        self._apply_and_accept()
+        return 1
+
+    monkeypatch.setattr(FormatObjectDialog, "exec", mock_exec_format)
+    win.action_registry.trigger_action("formatObject")
+
+    # Verify object updated
+    assert obj.fill_color == "#00FF00"
+    assert obj.abs_rect[2] == 150
+
+    # Deselect object -> formatObject becomes disabled again
+    layer.select_object(None)
+    assert not act_fo.isEnabled()
+
+
+def test_format_object_dialog_direct_and_cancel(qtbot) -> None:
+    from atboffice.modules.spreadsheet.dialogs.format_object_dialog import (
+        FormatObjectDialog,
+    )
+
+    obj = FloatingObject(
+        name="ChartArea",
+        kind="chart",
+        fill_color="#123456",
+        line_color="#654321",
+        line_width=2.5,
+        abs_rect=(0, 0, 200, 100),
+    )
+    dlg = FormatObjectDialog(obj)
+    qtbot.addWidget(dlg)
+
+    assert dlg.windowTitle() in ("设置图表区格式", "Format Chart Area")
+    dlg.retranslate_ui()
+    assert dlg.windowTitle() != ""
+
+    # User modifies values in UI but cancels
+    dlg.spin_width.setValue(300)
+    dlg._current_fill_color = "#ABCDEF"
+    dlg.reject()
+
+    # Verify object remains untouched on cancel
+    assert obj.fill_color == "#123456"
+    assert obj.abs_rect[2] == 200
+
+
+def test_hyperlink_and_format_object_dialog_seven_languages(qtbot) -> None:
+    from atboffice.modules.spreadsheet.dialogs.format_object_dialog import (
+        FormatObjectDialog,
+    )
+    from atboffice.modules.spreadsheet.dialogs.hyperlink_dialog import HyperlinkDialog
+
+    obj = FloatingObject(name="Shape", kind="shape")
+    dlg_fo = FormatObjectDialog(obj)
+    qtbot.addWidget(dlg_fo)
+
+    dlg_hl = HyperlinkDialog(sheets=["Sheet1"], is_existing=True)
+    qtbot.addWidget(dlg_hl)
+
+    for loc in ["zh-CN", "zh-Hant", "en", "ja", "ko", "fr", "de"]:
+        load_locale(loc)
+        dlg_fo.retranslate_ui()
+        dlg_hl.retranslate_ui()
+        assert dlg_fo.windowTitle() != ""
+        assert dlg_hl.windowTitle() != ""
+        assert dlg_hl.tab_widget.tabText(0) != ""
+        assert dlg_fo.tab_widget.tabText(0) != ""
+
+    load_locale("zh-CN")
+
+
 

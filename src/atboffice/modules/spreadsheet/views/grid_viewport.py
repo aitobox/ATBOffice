@@ -191,6 +191,7 @@ class GridViewport(QAbstractScrollArea):
         self._undo_stack: list[dict[str, Any]] = []
         self._redo_stack: list[dict[str, Any]] = []
         self._dv_dropdown_rect: QRect | None = None
+        self._format_painter_window: Any | None = None
 
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
@@ -1555,6 +1556,14 @@ class GridViewport(QAbstractScrollArea):
         )
         self.viewport().update()
 
+    def set_format_painter_armed(self, win: Any) -> None:
+        """Arm or disarm format painter mode."""
+        self._format_painter_window = win
+        if win is not None:
+            self.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
+        else:
+            self.viewport().setCursor(Qt.CursorShape.ArrowCursor)
+
     def cancel_drag(self, why: str = "api") -> None:
         """Cancel an in-progress drag operation and restore pre-drag state."""
         if self._drag_mode == HitZone.NONE and self._drag_snapshot is None:
@@ -2313,6 +2322,12 @@ class GridViewport(QAbstractScrollArea):
             self._move_preview_range = None
             self._move_ctrl_pressed = False
 
+        if getattr(self, "_format_painter_window", None) is not None:
+            pr = self.selection.primary_range
+            self._format_painter_window.apply_format_painter_to_range(
+                pr.min_r, pr.min_c, pr.max_r, pr.max_c
+            )
+
         self._drag_mode = HitZone.NONE
         self._drag_moved = False
         self._drag_start_pos = None
@@ -2320,7 +2335,10 @@ class GridViewport(QAbstractScrollArea):
         self._resize_index = -1
         self._header_drag_anchor = -1
         self._point_anchor = None
-        self.viewport().setCursor(Qt.CursorShape.ArrowCursor)
+        if getattr(self, "_format_painter_window", None) is not None:
+            self.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
+        else:
+            self.viewport().setCursor(Qt.CursorShape.ArrowCursor)
         self.viewport().update()
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
@@ -2380,8 +2398,12 @@ class GridViewport(QAbstractScrollArea):
         modifiers = event.modifiers()
         r, c = self.selection.active_cell
 
-        # Esc cancels active drag
+        # Esc cancels active drag or armed format painter
         if key == Qt.Key.Key_Escape:
+            if getattr(self, "_format_painter_window", None) is not None:
+                self._format_painter_window._cancel_format_painter()
+                event.accept()
+                return
             if self._drag_mode != HitZone.NONE:
                 self.cancel_drag(why="esc")
                 event.accept()
@@ -3350,10 +3372,20 @@ class GridViewport(QAbstractScrollArea):
 
         self.model.cells = {k: v.clone() for k, v in cmd["before_cells"].items()}
         self.model.merges = list(cmd["before_merges"])
+        if hasattr(self.model, "links") and "before_links" in cmd:
+            self.model.links = [
+                dict(lk) if isinstance(lk, dict) else lk for lk in cmd["before_links"]
+            ]
         if hasattr(self.model, "comments") and "before_comments" in cmd:
             self.model.comments = {
                 k: CellComment(**v.__dict__) for k, v in cmd["before_comments"].items()
             }
+        if action == "total_row":
+            win = self.window()
+            if hasattr(win, "_total_row_active"):
+                win._total_row_active = not cmd.get("active", True)
+                if hasattr(win, "action_registry"):
+                    win.action_registry.set_checked("totalRow", win._total_row_active)
         self.selection.restore_snapshot(cmd["before_sel"])
         self.viewport().update()
 
@@ -3379,10 +3411,20 @@ class GridViewport(QAbstractScrollArea):
 
         self.model.cells = {k: v.clone() for k, v in cmd["after_cells"].items()}
         self.model.merges = list(cmd["after_merges"])
+        if hasattr(self.model, "links") and "after_links" in cmd:
+            self.model.links = [
+                dict(lk) if isinstance(lk, dict) else lk for lk in cmd["after_links"]
+            ]
         if hasattr(self.model, "comments") and "after_comments" in cmd:
             self.model.comments = {
                 k: CellComment(**v.__dict__) for k, v in cmd["after_comments"].items()
             }
+        if action == "total_row":
+            win = self.window()
+            if hasattr(win, "_total_row_active"):
+                win._total_row_active = cmd.get("active", True)
+                if hasattr(win, "action_registry"):
+                    win.action_registry.set_checked("totalRow", win._total_row_active)
         self.selection.restore_snapshot(cmd["after_sel"])
         self.viewport().update()
 

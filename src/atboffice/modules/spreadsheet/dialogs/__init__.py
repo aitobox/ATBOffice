@@ -10,6 +10,9 @@ from atboffice.modules.spreadsheet.dialogs.data_validation_dialog import (
     ValidationAlertDialog,
 )
 from atboffice.modules.spreadsheet.dialogs.format_cells import FormatCellsDialog
+from atboffice.modules.spreadsheet.dialogs.format_object_dialog import (
+    FormatObjectDialog,
+)
 from atboffice.modules.spreadsheet.dialogs.function_wizard import (
     FunctionArgumentsDialog,
     InsertFunctionDialog,
@@ -19,6 +22,7 @@ from atboffice.modules.spreadsheet.dialogs.goal_seek_dlg import (
     GoalSeekDialog,
     GoalSeekStatusDialog,
 )
+from atboffice.modules.spreadsheet.dialogs.hyperlink_dialog import HyperlinkDialog
 from atboffice.modules.spreadsheet.dialogs.pivot_dialog import PivotTableWizardDialog
 from atboffice.modules.spreadsheet.dialogs.sort_dialog import SortDialog
 
@@ -28,9 +32,11 @@ __all__ = [
     "CustomFilterDialog",
     "DataValidationDialog",
     "FormatCellsDialog",
+    "FormatObjectDialog",
     "FunctionArgumentsDialog",
     "GoalSeekDialog",
     "GoalSeekStatusDialog",
+    "HyperlinkDialog",
     "InsertFunctionDialog",
     "PivotTableWizardDialog",
     "SortDialog",
