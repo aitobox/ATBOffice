@@ -45,7 +45,8 @@ src/locale/**/*.mo
 .vibeoffice
 
 # macOS Packaging outputs
-build/
+/build/
+!scripts/build/
 *.pkg
 *.dmg
 *.iconset
