@@ -36,7 +36,7 @@ class ChartGraphicsItem(ShapeGraphicsItem):
 
     def set_chart_data(self, data: ChartData) -> None:
         self._chart_data = data
-        self.shape.chart = data.to_dict()
+        self.model.chart = data.to_dict()
         self.update()
         self.geometryChanged.emit()
 
@@ -47,7 +47,7 @@ class ChartGraphicsItem(ShapeGraphicsItem):
         widget: QWidget | None = None,
     ) -> None:
         """Render chart using vector ChartPainter inside shape bounds."""
-        bounds = QRectF(0.0, 0.0, self.shape.w, self.shape.h)
+        bounds = QRectF(0.0, 0.0, self.model.w, self.model.h)
         ChartPainter.paint_chart(painter, self._chart_data, bounds)
 
         # Selection highlight when selected

@@ -116,11 +116,11 @@ class TestShapeGraphicsItemAndHandles:
         assert isinstance(scene, SlideScene)
         item1 = scene.get_shape_item("s1")
         assert item1 is not None
-        assert item1.shape.id == "s1"
+        assert item1.model.id == "s1"
         assert item1.pos().x() == 100.0
         assert item1.pos().y() == 100.0
-        assert item1.shape.w == 200.0
-        assert item1.shape.h == 100.0
+        assert item1.model.w == 200.0
+        assert item1.model.h == 100.0
 
     def test_handle_visibility_on_selection(self, canvas: SlideCanvasView) -> None:
         scene = canvas.scene()
@@ -160,13 +160,13 @@ class TestShapeGraphicsItemAndHandles:
         item.update_handle_drag(
             rot_handle, QPointF(300.0, 150.0), Qt.KeyboardModifier.NoModifier
         )
-        assert item.shape.rot == pytest.approx(90.0, abs=1.0)
+        assert item.model.rot == pytest.approx(90.0, abs=1.0)
 
         # With Shift modifier: snap to 15 deg
         item.update_handle_drag(
             rot_handle, QPointF(300.0, 160.0), Qt.KeyboardModifier.ShiftModifier
         )
-        assert item.shape.rot % 15.0 == pytest.approx(0.0)
+        assert item.model.rot % 15.0 == pytest.approx(0.0)
 
         item.end_handle_drag(rot_handle)
 
@@ -186,8 +186,8 @@ class TestShapeGraphicsItemAndHandles:
         item.update_handle_drag(
             adj_handle, QPointF(140.0, 100.0), Qt.KeyboardModifier.NoModifier
         )
-        assert item.shape.adj is not None
-        assert item.shape.adj["adj"] > 20000
+        assert item.model.adj is not None
+        assert item.model.adj["adj"] > 20000
 
         item.end_handle_drag(adj_handle)
 
@@ -202,30 +202,30 @@ class TestShapeGraphicsItemAndHandles:
             h for h in item._handles if h.handle_type == HandleType.SE
         )
 
-        init_w = item.shape.w
-        init_h = item.shape.h
+        init_w = item.model.w
+        init_h = item.model.h
 
         # Normal resize
         item.begin_handle_drag(se_handle, QPointF(300.0, 200.0))
         item.update_handle_drag(
             se_handle, QPointF(350.0, 220.0), Qt.KeyboardModifier.NoModifier
         )
-        assert item.shape.w > init_w
-        assert item.shape.h > init_h
+        assert item.model.w > init_w
+        assert item.model.h > init_h
         item.end_handle_drag(se_handle)
 
         # Resize with Shift (Aspect ratio preserved)
-        pre_shift_w = item.shape.w
-        pre_shift_h = item.shape.h
+        pre_shift_w = item.model.w
+        pre_shift_h = item.model.h
         expected_aspect = pre_shift_w / pre_shift_h
 
-        item.begin_handle_drag(se_handle, item.mapToScene(QPointF(item.shape.w, item.shape.h)))
+        item.begin_handle_drag(se_handle, item.mapToScene(QPointF(item.model.w, item.model.h)))
         item.update_handle_drag(
             se_handle,
-            item.mapToScene(QPointF(item.shape.w + 50.0, item.shape.h + 80.0)),
+            item.mapToScene(QPointF(item.model.w + 50.0, item.model.h + 80.0)),
             Qt.KeyboardModifier.ShiftModifier,
         )
-        new_aspect = item.shape.w / item.shape.h
+        new_aspect = item.model.w / item.model.h
         assert new_aspect == pytest.approx(expected_aspect, rel=1e-2)
         item.end_handle_drag(se_handle)
 
@@ -321,8 +321,8 @@ class TestAlignmentAndDistribution:
 
         # Align Right
         scene.align_shapes("R")
-        assert (item1.pos().x() + item1.shape.w) == pytest.approx(
-            item2.pos().x() + item2.shape.w
+        assert (item1.pos().x() + item1.model.w) == pytest.approx(
+            item2.pos().x() + item2.model.w
         )
 
     def test_align_to_slide(self, canvas: SlideCanvasView) -> None:
@@ -353,8 +353,8 @@ class TestAlignmentAndDistribution:
         item3.setSelected(True)
 
         scene.distribute_shapes("h")
-        gap1 = item2.pos().x() - (item1.pos().x() + item1.shape.w)
-        gap2 = item3.pos().x() - (item2.pos().x() + item2.shape.w)
+        gap1 = item2.pos().x() - (item1.pos().x() + item1.model.w)
+        gap2 = item3.pos().x() - (item2.pos().x() + item2.model.w)
         assert gap1 == pytest.approx(gap2, abs=1.0)
 
 
@@ -373,8 +373,8 @@ class TestGroupingAndUngrouping:
         # Group
         group_item = scene.group_selected()
         assert group_item is not None
-        assert group_item.shape.type == "group"
-        assert len(group_item.shape.kids) == 2
+        assert group_item.model.type == "group"
+        assert len(group_item.model.kids) == 2
         assert len(scene.slide.shapes) == 2  # group + s3
 
         # Ungroup

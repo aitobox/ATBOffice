@@ -1163,9 +1163,9 @@ class LecternWorkspace(QWidget):
                 self.transition_pane.set_slide(cur)
             if hasattr(self, "animation_pane"):
                 sel_ids = [
-                    it.shape.id
+                    it.model.id
                     for it in self.scene.selectedItems()
-                    if isinstance(getattr(it, "shape", None), Shape)
+                    if isinstance(getattr(it, "model", None), Shape)
                 ]
                 self.animation_pane.set_slide(cur, sel_ids)
         else:
@@ -1288,7 +1288,7 @@ class LecternWorkspace(QWidget):
         items = self.scene.selectedItems()
         sel_shape_ids = []
         for it in items:
-            sh = getattr(it, "shape", None)
+            sh = getattr(it, "model", None)
             if isinstance(sh, Shape):
                 sel_shape_ids.append(sh.id)
                 if sh.is_diagram:
@@ -1301,7 +1301,7 @@ class LecternWorkspace(QWidget):
     def _on_anim_shape_selection_requested(self, shape_id: str) -> None:
         """Select graphics item corresponding to shape_id when animation item is clicked."""
         for it in self.scene.items():
-            sh = getattr(it, "shape", None)
+            sh = getattr(it, "model", None)
             if isinstance(sh, Shape) and sh.id == shape_id:
                 it.setSelected(True)
                 self.canvas_view.ensureVisible(it)

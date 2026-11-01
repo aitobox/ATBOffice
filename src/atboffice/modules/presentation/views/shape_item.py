@@ -173,7 +173,7 @@ class ShapeGraphicsItem(QGraphicsObject):
 
     def __init__(self, shape: Shape, parent: QGraphicsItem | None = None) -> None:
         super().__init__(parent)
-        self.shape = shape
+        self.model = shape
 
         # Initial positioning from model
         self.setPos(shape.x, shape.y)
@@ -205,6 +205,11 @@ class ShapeGraphicsItem(QGraphicsObject):
         self._create_handles()
         self._update_handles_visibility()
 
+    @property
+    def shape_data(self) -> Shape:
+        """Convenience alias for the underlying Shape data model."""
+        return self.model
+
     def _create_handles(self) -> None:
         for h in self._handles:
             h.setParentItem(None)
@@ -227,7 +232,7 @@ class ShapeGraphicsItem(QGraphicsObject):
         self._handles.append(TransformHandleItem(HandleType.ROTATE, self))
 
         # Adjustment handles if available for geometry
-        adj_defs = get_adjustment_handles(self.shape.geom)
+        adj_defs = get_adjustment_handles(self.model.geom)
         for i in range(len(adj_defs)):
             self._handles.append(
                 TransformHandleItem(HandleType.ADJUST, self, adjust_index=i)
@@ -236,9 +241,9 @@ class ShapeGraphicsItem(QGraphicsObject):
         self._position_handles()
 
     def _position_handles(self) -> None:
-        w = max(1.0, self.shape.w)
-        h = max(1.0, self.shape.h)
-        adj = self.shape.adj or {}
+        w = max(1.0, self.model.w)
+        h = max(1.0, self.model.h)
+        adj = self.model.adj or {}
 
         for hd in self._handles:
             ht = hd.handle_type
@@ -261,7 +266,7 @@ class ShapeGraphicsItem(QGraphicsObject):
             elif ht == HandleType.ROTATE:
                 hd.setPos(w / 2.0, -ROT_HANDLE_OFFSET)
             elif ht == HandleType.ADJUST:
-                defs = get_adjustment_handles(self.shape.geom)
+                defs = get_adjustment_handles(self.model.geom)
                 if hd.adjust_index < len(defs):
                     ax, ay = defs[hd.adjust_index].get_pos(w, h, adj)
                     hd.setPos(ax, ay)
@@ -277,13 +282,13 @@ class ShapeGraphicsItem(QGraphicsObject):
         return QRectF(
             -pad,
             -extra_top,
-            self.shape.w + pad * 2.0,
-            self.shape.h + extra_top + pad,
+            self.model.w + pad * 2.0,
+            self.model.h + extra_top + pad,
         )
 
     def shape(self) -> QPainterPath:
         path = QPainterPath()
-        path.addRect(0.0, 0.0, max(1.0, self.shape.w), max(1.0, self.shape.h))
+        path.addRect(0.0, 0.0, max(1.0, self.model.w), max(1.0, self.model.h))
         return path
 
     def paint(
@@ -293,24 +298,24 @@ class ShapeGraphicsItem(QGraphicsObject):
         widget: QWidget | None = None,
     ) -> None:
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        w = max(1.0, self.shape.w)
-        h = max(1.0, self.shape.h)
+        w = max(1.0, self.model.w)
+        h = max(1.0, self.model.h)
 
         # 0. Chart rendering if shape is a chart
-        if self.shape.is_chart:
+        if self.model.is_chart:
             from atboffice.modules.presentation.chart.model import ChartData
             from atboffice.modules.presentation.chart.painter import ChartPainter
 
             c_data = (
-                self.shape.chart
-                if isinstance(self.shape.chart, ChartData)
-                else ChartData.from_dict(self.shape.chart)
+                self.model.chart
+                if isinstance(self.model.chart, ChartData)
+                else ChartData.from_dict(self.model.chart)
             )
             ChartPainter.paint_chart(painter, c_data, QRectF(0.0, 0.0, w, h))
             return
 
         # 0.1 Multimedia / Picture rendering
-        if self.shape.media_item or self.shape.type == "image":
+        if self.model.media_item or self.model.type == "image":
             self._paint_media_or_image(painter, w, h)
             if self.isSelected():
                 sel_pen = QPen(QColor(0, 120, 215, 180), 1.0, Qt.PenStyle.DashLine)
@@ -320,18 +325,18 @@ class ShapeGraphicsItem(QGraphicsObject):
             return
 
         # 1. Shadow effect
-        if self.shape.shadow:
+        if self.model.shadow:
             sh_path = create_shape_path(
-                self.shape.geom, w, h, self.shape.adj, self.shape.custom_path
+                self.model.geom, w, h, self.model.adj, self.model.custom_path
             )
             painter.save()
-            sh_dist = self.shape.shadow.dist
-            sh_ang = math.radians(self.shape.shadow.angle)
+            sh_dist = self.model.shadow.dist
+            sh_ang = math.radians(self.model.shadow.angle)
             dx = math.cos(sh_ang) * sh_dist
             dy = math.sin(sh_ang) * sh_dist
             painter.translate(dx, dy)
-            sh_col = QColor(self.shape.shadow.color)
-            sh_col.setAlphaF(self.shape.shadow.alpha)
+            sh_col = QColor(self.model.shadow.color)
+            sh_col.setAlphaF(self.model.shadow.alpha)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(sh_col))
             painter.drawPath(sh_path)
@@ -339,39 +344,39 @@ class ShapeGraphicsItem(QGraphicsObject):
 
         # 2. Main shape path
         path = create_shape_path(
-            self.shape.geom, w, h, self.shape.adj, self.shape.custom_path
+            self.model.geom, w, h, self.model.adj, self.model.custom_path
         )
 
         # Fill
         fill_brush = QBrush(Qt.BrushStyle.NoBrush)
-        if self.shape.fill.type == "solid":
-            color_str = self.shape.fill.color
+        if self.model.fill.type == "solid":
+            color_str = self.model.fill.color
             c = self._resolve_color(color_str)
-            c.setAlphaF(self.shape.fill.alpha)
+            c.setAlphaF(self.model.fill.alpha)
             fill_brush = QBrush(c)
-        elif self.shape.fill.type == "none":
+        elif self.model.fill.type == "none":
             fill_brush = QBrush(Qt.BrushStyle.NoBrush)
         else:
             fill_brush = QBrush(self._resolve_color("accent1"))
 
         # Outline Pen
-        if self.shape.line.type == "none":
+        if self.model.line.type == "none":
             line_pen = QPen(Qt.PenStyle.NoPen)
         else:
-            lc = self._resolve_color(self.shape.line.color)
+            lc = self._resolve_color(self.model.line.color)
             dash = Qt.PenStyle.SolidLine
-            if self.shape.line.dash == "dash":
+            if self.model.line.dash == "dash":
                 dash = Qt.PenStyle.DashLine
-            elif self.shape.line.dash == "dot":
+            elif self.model.line.dash == "dot":
                 dash = Qt.PenStyle.DotLine
-            line_pen = QPen(lc, max(1.0, self.shape.line.width), dash)
+            line_pen = QPen(lc, max(1.0, self.model.line.width), dash)
 
         painter.setPen(line_pen)
         painter.setBrush(fill_brush)
         painter.drawPath(path)
 
         # 3. Draw inner text if present and not currently being edited
-        if not self.is_editing_text and self.shape.text and self.shape.text.plain_text.strip():
+        if not self.is_editing_text and self.model.text and self.model.text.plain_text.strip():
             self._paint_text(painter, w, h)
 
         # 4. Selection bounding ring
@@ -407,7 +412,7 @@ class ShapeGraphicsItem(QGraphicsObject):
 
     def _paint_text(self, painter: QPainter, w: float, h: float) -> None:
         """Draw multiline text within shape boundaries."""
-        text_body = self.shape.text
+        text_body = self.model.text
         if not text_body or text_body.is_empty():
             return
 
@@ -424,22 +429,22 @@ class ShapeGraphicsItem(QGraphicsObject):
 
     def retranslate_ui(self) -> None:
         """Update tooltips and labels on locale switch."""
-        if self.shape.media_item:
-            media_lbl = safe_tr("视频") if self.shape.media_item.is_video else safe_tr("音频")
+        if self.model.media_item:
+            media_lbl = safe_tr("视频") if self.model.media_item.is_video else safe_tr("音频")
             preview_hint = safe_tr("单击中央徽标预览播放")
-            tip = f"{media_lbl}{safe_tr('多媒体')}: {self.shape.name} ({preview_hint})"
+            tip = f"{media_lbl}{safe_tr('多媒体')}: {self.model.name} ({preview_hint})"
             self.setToolTip(tip)
 
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> None:
         """Handle media preview toggle or propagate standard selection/move."""
         if (
             event.button() == Qt.MouseButton.LeftButton
-            and self.shape.media_item
+            and self.model.media_item
             and not self.is_editing_text
         ):
             pos = event.pos()
-            w = max(1.0, self.shape.w)
-            h = max(1.0, self.shape.h)
+            w = max(1.0, self.model.w)
+            h = max(1.0, self.model.h)
             badge_d = min(50.0, min(w, h) * 0.38)
             cx = w / 2.0
             cy = h / 2.0 - (8.0 if h >= 70.0 else 0.0)
@@ -455,7 +460,7 @@ class ShapeGraphicsItem(QGraphicsObject):
 
     def _paint_media_or_image(self, painter: QPainter, w: float, h: float) -> None:
         """Paint image poster frame or multimedia playback preview overlay."""
-        m_item = self.shape.media_item
+        m_item = self.model.media_item
 
         # 1. Background / Poster frame
         drawn_image = False
@@ -521,12 +526,12 @@ class ShapeGraphicsItem(QGraphicsObject):
         painter.drawArc(QRectF(cx + s * 0.25, cy - s * 0.65, s * 0.7, s * 1.3), -60 * 16, 120 * 16)
 
         # Filename label
-        if h >= 80.0 and self.shape.name:
+        if h >= 80.0 and self.model.name:
             font = QFont("Helvetica", 8)
             painter.setFont(font)
             painter.setPen(QPen(QColor(60, 75, 95)))
             lbl_rect = QRectF(4.0, cy + s * 0.8, w - 8.0, 18.0)
-            painter.drawText(lbl_rect, Qt.AlignmentFlag.AlignCenter, self.shape.name)
+            painter.drawText(lbl_rect, Qt.AlignmentFlag.AlignCenter, self.model.name)
 
         painter.restore()
 
@@ -637,7 +642,7 @@ class ShapeGraphicsItem(QGraphicsObject):
     def mouseDoubleClickEvent(self, event: QGraphicsSceneMouseEvent) -> None:
         """Activate in-place rich text editing or datasheet dialog on left double-click."""
         if event.button() == Qt.MouseButton.LeftButton:
-            if self.shape.is_chart:
+            if self.model.is_chart:
                 event.accept()
                 from PySide6.QtWidgets import QDialog
 
@@ -647,9 +652,9 @@ class ShapeGraphicsItem(QGraphicsObject):
                 )
 
                 c_data = (
-                    self.shape.chart
-                    if isinstance(self.shape.chart, ChartData)
-                    else ChartData.from_dict(self.shape.chart)
+                    self.model.chart
+                    if isinstance(self.model.chart, ChartData)
+                    else ChartData.from_dict(self.model.chart)
                 )
                 parent_view = (
                     self.scene().views()[0]
@@ -658,7 +663,7 @@ class ShapeGraphicsItem(QGraphicsObject):
                 )
                 dlg = DatasheetDialog(chart=c_data, parent=parent_view)
                 if dlg.exec() == QDialog.DialogCode.Accepted:
-                    self.shape.chart = dlg.get_chart_data().to_dict()
+                    self.model.chart = dlg.get_chart_data().to_dict()
                     self.update()
                     self.geometryChanged.emit()
                 return
@@ -676,8 +681,8 @@ class ShapeGraphicsItem(QGraphicsObject):
         if self.is_editing_text and self._text_editor:
             return self._text_editor
 
-        if not self.shape.text:
-            self.shape.text = TextBody.create_empty()
+        if not self.model.text:
+            self.model.text = TextBody.create_empty()
 
         self.is_editing_text = True
         self._update_handles_visibility(False)
@@ -715,8 +720,8 @@ class ShapeGraphicsItem(QGraphicsObject):
         elif change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
             new_pos: QPointF = value
             # Update shape model coordinates
-            self.shape.x = round(new_pos.x(), 2)
-            self.shape.y = round(new_pos.y(), 2)
+            self.model.x = round(new_pos.x(), 2)
+            self.model.y = round(new_pos.y(), 2)
             self.geometryChanged.emit()
         return super().itemChange(change, value)
 
@@ -728,10 +733,10 @@ class ShapeGraphicsItem(QGraphicsObject):
     ) -> None:
         self._drag_start_scene_pos = scene_pos
         self._drag_initial_rect = QRectF(
-            self.shape.x, self.shape.y, self.shape.w, self.shape.h
+            self.model.x, self.model.y, self.model.w, self.model.h
         )
-        self._drag_initial_rot = self.shape.rot
-        self._drag_initial_adj = dict(self.shape.adj or {})
+        self._drag_initial_rot = self.model.rot
+        self._drag_initial_adj = dict(self.model.adj or {})
 
     def update_handle_drag(
         self,
@@ -756,7 +761,7 @@ class ShapeGraphicsItem(QGraphicsObject):
         self, scene_pos: QPointF, modifiers: Qt.KeyboardModifiers
     ) -> None:
         # Calculate center point in scene coords
-        center_local = QPointF(self.shape.w / 2.0, self.shape.h / 2.0)
+        center_local = QPointF(self.model.w / 2.0, self.model.h / 2.0)
         center_scene = self.mapToScene(center_local)
 
         dx = scene_pos.x() - center_scene.x()
@@ -770,22 +775,22 @@ class ShapeGraphicsItem(QGraphicsObject):
             angle = round(angle / 15.0) * 15.0
             angle = (angle % 360.0 + 360.0) % 360.0
 
-        self.shape.rot = round(angle, 1)
-        self.setRotation(self.shape.rot)
+        self.model.rot = round(angle, 1)
+        self.setRotation(self.model.rot)
         self.geometryChanged.emit()
 
     def _do_adjust(self, adjust_index: int, scene_pos: QPointF) -> None:
         local_pos = self.mapFromItem(self, self.mapFromScene(scene_pos))
-        defs = get_adjustment_handles(self.shape.geom)
+        defs = get_adjustment_handles(self.model.geom)
         if adjust_index < len(defs):
             new_adj = defs[adjust_index].calculate_adj(
                 local_pos.x(),
                 local_pos.y(),
-                self.shape.w,
-                self.shape.h,
+                self.model.w,
+                self.model.h,
                 self._drag_initial_adj,
             )
-            self.shape.adj = new_adj
+            self.model.adj = new_adj
             self._position_handles()
             self.prepareGeometryChange()
             self.update()
@@ -866,12 +871,12 @@ class ShapeGraphicsItem(QGraphicsObject):
         new_top_left_scene = self.mapToScene(QPointF(left, top))
 
         self.prepareGeometryChange()
-        self.shape.w = round(new_w, 2)
-        self.shape.h = round(new_h, 2)
-        self.setTransformOriginPoint(self.shape.w / 2.0, self.shape.h / 2.0)
+        self.model.w = round(new_w, 2)
+        self.model.h = round(new_h, 2)
+        self.setTransformOriginPoint(self.model.w / 2.0, self.model.h / 2.0)
         self.setPos(new_top_left_scene)
-        self.shape.x = round(new_top_left_scene.x(), 2)
-        self.shape.y = round(new_top_left_scene.y(), 2)
+        self.model.x = round(new_top_left_scene.x(), 2)
+        self.model.y = round(new_top_left_scene.y(), 2)
 
         self._position_handles()
         self.update()
@@ -880,8 +885,8 @@ class ShapeGraphicsItem(QGraphicsObject):
     def update_from_model(self) -> None:
         """Refresh graphics item state from underlying Shape model."""
         self.prepareGeometryChange()
-        self.setPos(self.shape.x, self.shape.y)
-        self.setRotation(self.shape.rot)
-        self.setTransformOriginPoint(self.shape.w / 2.0, self.shape.h / 2.0)
+        self.setPos(self.model.x, self.model.y)
+        self.setRotation(self.model.rot)
+        self.setTransformOriginPoint(self.model.w / 2.0, self.model.h / 2.0)
         self._position_handles()
         self.update()

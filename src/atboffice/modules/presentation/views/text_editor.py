@@ -181,7 +181,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
 
         super().__init__(parent or shape_item)
         self.shape_item = shape_item
-        self.shape = shape_item.shape
+        self.shape = shape_item.model
         self._is_finishing = False
         self._orig_text_body = copy.deepcopy(self.shape.text) if self.shape.text else None
 

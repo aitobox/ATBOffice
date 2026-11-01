@@ -124,35 +124,35 @@ class TestTransformHandlesAndNudge:
         item.setSelected(True)
 
         se_handle = next(h for h in item._handles if h.handle_type == HandleType.SE)
-        init_w = item.shape.w
-        init_h = item.shape.h
+        init_w = item.model.w
+        init_h = item.model.h
 
         # 1. Normal resize (SE drag down-right)
-        start_pt = item.mapToScene(QPointF(item.shape.w, item.shape.h))
-        drag_pt = item.mapToScene(QPointF(item.shape.w + 60.0, item.shape.h + 40.0))
+        start_pt = item.mapToScene(QPointF(item.model.w, item.model.h))
+        drag_pt = item.mapToScene(QPointF(item.model.w + 60.0, item.model.h + 40.0))
 
         item.begin_handle_drag(se_handle, start_pt)
         item.update_handle_drag(se_handle, drag_pt, Qt.KeyboardModifier.NoModifier)
         item.end_handle_drag(se_handle)
 
-        assert item.shape.w > init_w
-        assert item.shape.h > init_h
-        assert item.shape.w == pytest.approx(init_w + 60.0, abs=1.0)
-        assert item.shape.h == pytest.approx(init_h + 40.0, abs=1.0)
+        assert item.model.w > init_w
+        assert item.model.h > init_h
+        assert item.model.w == pytest.approx(init_w + 60.0, abs=1.0)
+        assert item.model.h == pytest.approx(init_h + 40.0, abs=1.0)
 
         # 2. Aspect ratio locked resize with Shift
-        w_before = item.shape.w
-        h_before = item.shape.h
+        w_before = item.model.w
+        h_before = item.model.h
         aspect_before = w_before / h_before
 
-        start_shift = item.mapToScene(QPointF(item.shape.w, item.shape.h))
-        drag_shift = item.mapToScene(QPointF(item.shape.w + 100.0, item.shape.h + 20.0))
+        start_shift = item.mapToScene(QPointF(item.model.w, item.model.h))
+        drag_shift = item.mapToScene(QPointF(item.model.w + 100.0, item.model.h + 20.0))
 
         item.begin_handle_drag(se_handle, start_shift)
         item.update_handle_drag(se_handle, drag_shift, Qt.KeyboardModifier.ShiftModifier)
         item.end_handle_drag(se_handle)
 
-        aspect_after = item.shape.w / item.shape.h
+        aspect_after = item.model.w / item.model.h
         assert aspect_after == pytest.approx(aspect_before, rel=1e-2)
 
     def test_rotation_handle_drag(self, workspace_view: LecternWorkspace) -> None:
@@ -163,11 +163,11 @@ class TestTransformHandlesAndNudge:
         item.setSelected(True)
 
         rot_handle = next(h for h in item._handles if h.handle_type == HandleType.ROTATE)
-        init_rot = item.shape.rot
+        init_rot = item.model.rot
 
         # Drag rotation handle
-        center = item.mapToScene(QPointF(item.shape.w / 2.0, item.shape.h / 2.0))
-        item.begin_handle_drag(rot_handle, item.mapToScene(QPointF(item.shape.w / 2.0, -25.0)))
+        center = item.mapToScene(QPointF(item.model.w / 2.0, item.model.h / 2.0))
+        item.begin_handle_drag(rot_handle, item.mapToScene(QPointF(item.model.w / 2.0, -25.0)))
         item.update_handle_drag(
             rot_handle,
             QPointF(center.x() + 50.0, center.y() - 50.0),
@@ -175,8 +175,8 @@ class TestTransformHandlesAndNudge:
         )
         item.end_handle_drag(rot_handle)
 
-        assert item.shape.rot != init_rot
-        assert item.rotation() == item.shape.rot
+        assert item.model.rot != init_rot
+        assert item.rotation() == item.model.rot
 
     def test_keyboard_arrow_nudge_and_delete(self, workspace_view: LecternWorkspace) -> None:
         canvas = workspace_view.canvas_view
@@ -239,8 +239,8 @@ class TestInPlaceTextEditing:
         # Commit edit
         editor.commit_and_finish()
         assert item.is_editing_text is False
-        assert item.shape.text is not None
-        assert item.shape.text.plain_text == "Updated In-Place Title Text"
+        assert item.model.text is not None
+        assert item.model.text.plain_text == "Updated In-Place Title Text"
 
     def test_inplace_text_editing_cancel_rollback(self, workspace_view: LecternWorkspace) -> None:
         scene = workspace_view.canvas_view.scene()
@@ -248,7 +248,7 @@ class TestInPlaceTextEditing:
         item = scene.get_shape_item("rect_test")
         assert item is not None
 
-        orig_text = item.shape.text.plain_text if item.shape.text else ""
+        orig_text = item.model.text.plain_text if item.model.text else ""
 
         # Start text editing
         editor = item.start_text_editing()
@@ -259,7 +259,7 @@ class TestInPlaceTextEditing:
         editor.cancel_editing()
         assert item.is_editing_text is False
         # Text rolled back to original
-        assert item.shape.text.plain_text == orig_text
+        assert item.model.text.plain_text == orig_text
 
 
 class TestWorkspaceNavigationAndShortcuts:

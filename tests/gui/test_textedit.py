@@ -102,8 +102,8 @@ class TestTextEditorInteraction:
         editor.commit_and_finish()
 
         assert not item.is_editing_text
-        assert item.shape.text is not None
-        assert "New Lectern Line" in item.shape.text.plain_text
+        assert item.model.text is not None
+        assert "New Lectern Line" in item.model.text.plain_text
 
 
 class TestOutlineIndents:
@@ -196,7 +196,7 @@ class TestFormattingCommands:
         editor.commit_and_finish()
 
         # Check model persistence
-        tb = item.shape.text
+        tb = item.model.text
         assert tb.paragraphs[0].runs[0].bold
         assert tb.paragraphs[0].runs[0].italic
         assert tb.paragraphs[0].runs[0].underline
@@ -245,7 +245,7 @@ class TestFormattingCommands:
         editor.set_bullet_type("char", "•")
         editor.commit_and_finish()
 
-        tb = item.shape.text
+        tb = item.model.text
         assert tb.paragraphs[0].props.get("algn") == "ctr"
         assert tb.paragraphs[0].props.get("bu", {}).get("ch") == "•"
 
@@ -263,15 +263,15 @@ class TestAutoFitIntegration:
 
         # Trigger autofit
         editor.apply_autofit("norm")
-        assert item.shape.text.font_scale < 1.0
-        assert item.shape.text.font_scale >= 0.25
+        assert item.model.text.font_scale < 1.0
+        assert item.model.text.font_scale >= 0.25
 
         editor.commit_and_finish()
-        assert item.shape.text.font_scale < 1.0
+        assert item.model.text.font_scale < 1.0
 
     def test_shape_autofit_mode(self, qtbot, scene_and_view) -> None:
         scene, view, item = scene_and_view
-        item.shape.text.autofit = "shape"
+        item.model.text.autofit = "shape"
 
         editor = item.start_text_editing()
         editor.setPlainText(
@@ -281,7 +281,7 @@ class TestAutoFitIntegration:
         editor.apply_autofit("shape")
 
         # Height should expand to hold all lines
-        assert item.shape.h >= 150.0
+        assert item.model.h >= 150.0
         editor.commit_and_finish()
 
 

@@ -364,8 +364,8 @@ class SlideScene(QGraphicsScene):
             moving_rect = QRectF(
                 self._dragged_item.pos().x(),
                 self._dragged_item.pos().y(),
-                self._dragged_item.shape.w,
-                self._dragged_item.shape.h,
+                self._dragged_item.model.w,
+                self._dragged_item.model.h,
             )
 
             # Target rects from other shapes
@@ -376,8 +376,8 @@ class SlideScene(QGraphicsScene):
                         QRectF(
                             other.pos().x(),
                             other.pos().y(),
-                            other.shape.w,
-                            other.shape.h,
+                            other.model.w,
+                            other.model.h,
                         )
                     )
 
@@ -421,9 +421,9 @@ class SlideScene(QGraphicsScene):
         if not selected:
             return
         for item in selected:
-            if item.shape in self.slide.shapes:
-                self.slide.shapes.remove(item.shape)
-                self.slide.shapes.append(item.shape)
+            if item.model in self.slide.shapes:
+                self.slide.shapes.remove(item.model)
+                self.slide.shapes.append(item.model)
         self._sync_z_values()
 
     def send_to_back(self) -> None:
@@ -431,9 +431,9 @@ class SlideScene(QGraphicsScene):
         if not selected:
             return
         for item in reversed(selected):
-            if item.shape in self.slide.shapes:
-                self.slide.shapes.remove(item.shape)
-                self.slide.shapes.insert(0, item.shape)
+            if item.model in self.slide.shapes:
+                self.slide.shapes.remove(item.model)
+                self.slide.shapes.insert(0, item.model)
         self._sync_z_values()
 
     def bring_forward(self) -> None:
@@ -441,7 +441,7 @@ class SlideScene(QGraphicsScene):
         if not selected:
             return
         for item in reversed(selected):
-            sh = item.shape
+            sh = item.model
             if sh in self.slide.shapes:
                 idx = self.slide.shapes.index(sh)
                 if idx < len(self.slide.shapes) - 1:
@@ -456,7 +456,7 @@ class SlideScene(QGraphicsScene):
         if not selected:
             return
         for item in selected:
-            sh = item.shape
+            sh = item.model
             if sh in self.slide.shapes:
                 idx = self.slide.shapes.index(sh)
                 if idx > 0:
@@ -489,16 +489,16 @@ class SlideScene(QGraphicsScene):
             ref = QRectF(
                 selected[0].pos().x(),
                 selected[0].pos().y(),
-                selected[0].shape.w,
-                selected[0].shape.h,
+                selected[0].model.w,
+                selected[0].model.h,
             )
             for it in selected[1:]:
                 ref = ref.united(
-                    QRectF(it.pos().x(), it.pos().y(), it.shape.w, it.shape.h)
+                    QRectF(it.pos().x(), it.pos().y(), it.model.w, it.model.h)
                 )
 
         for it in selected:
-            rect = QRectF(it.pos().x(), it.pos().y(), it.shape.w, it.shape.h)
+            rect = QRectF(it.pos().x(), it.pos().y(), it.model.w, it.model.h)
             dx = 0.0
             dy = 0.0
             if mode == "L":
@@ -515,8 +515,8 @@ class SlideScene(QGraphicsScene):
                 dy = ref.bottom() - rect.bottom()
 
             it.setPos(it.pos().x() + dx, it.pos().y() + dy)
-            it.shape.x = round(it.pos().x(), 2)
-            it.shape.y = round(it.pos().y(), 2)
+            it.model.x = round(it.pos().x(), 2)
+            it.model.y = round(it.pos().y(), 2)
         self.update()
 
     def distribute_shapes(self, axis: str = "h") -> None:
@@ -527,28 +527,28 @@ class SlideScene(QGraphicsScene):
 
         if axis == "h":
             sorted_items = sorted(selected, key=lambda it: it.pos().x())
-            total_w = sum(it.shape.w for it in sorted_items)
-            last_x = sorted_items[-1].pos().x() + sorted_items[-1].shape.w
+            total_w = sum(it.model.w for it in sorted_items)
+            last_x = sorted_items[-1].pos().x() + sorted_items[-1].model.w
             span_w = last_x - sorted_items[0].pos().x()
             gap = max(0.0, (span_w - total_w) / max(1, len(sorted_items) - 1))
 
             cur_x = sorted_items[0].pos().x()
             for it in sorted_items:
                 it.setPos(cur_x, it.pos().y())
-                it.shape.x = round(cur_x, 2)
-                cur_x += it.shape.w + gap
+                it.model.x = round(cur_x, 2)
+                cur_x += it.model.w + gap
         else:
             sorted_items = sorted(selected, key=lambda it: it.pos().y())
-            total_h = sum(it.shape.h for it in sorted_items)
-            last_y = sorted_items[-1].pos().y() + sorted_items[-1].shape.h
+            total_h = sum(it.model.h for it in sorted_items)
+            last_y = sorted_items[-1].pos().y() + sorted_items[-1].model.h
             span_h = last_y - sorted_items[0].pos().y()
             gap = max(0.0, (span_h - total_h) / max(1, len(sorted_items) - 1))
 
             cur_y = sorted_items[0].pos().y()
             for it in sorted_items:
                 it.setPos(it.pos().x(), cur_y)
-                it.shape.y = round(cur_y, 2)
-                cur_y += it.shape.h + gap
+                it.model.y = round(cur_y, 2)
+                cur_y += it.model.h + gap
         self.update()
 
     # ------------------------------------------------------------------
@@ -565,7 +565,7 @@ class SlideScene(QGraphicsScene):
         for it in selected[1:]:
             union_rect = union_rect.united(it.sceneBoundingRect())
 
-        ordered_shapes = [it.shape for it in selected]
+        ordered_shapes = [it.model for it in selected]
         group_shape = Shape(
             id=f"grp_{uuid.uuid4().hex[:8]}",
             type="group",
@@ -578,7 +578,7 @@ class SlideScene(QGraphicsScene):
         )
 
         for it in selected:
-            self.slide.remove_shape(it.shape.id)
+            self.slide.remove_shape(it.model.id)
         self.slide.add_shape(group_shape)
 
         self.load_slide(self.slide)
@@ -593,9 +593,9 @@ class SlideScene(QGraphicsScene):
         unpacked_items: list[ShapeGraphicsItem] = []
 
         for it in selected:
-            if it.shape.type == "group" and it.shape.kids:
-                self.slide.remove_shape(it.shape.id)
-                for kid in it.shape.kids:
+            if it.model.type == "group" and it.model.kids:
+                self.slide.remove_shape(it.model.id)
+                for kid in it.model.kids:
                     self.slide.add_shape(kid)
 
         self.load_slide(self.slide)
@@ -605,7 +605,7 @@ class SlideScene(QGraphicsScene):
         """Delete selected shapes from the slide."""
         selected = self.selected_shape_items()
         for it in selected:
-            self.slide.remove_shape(it.shape.id)
+            self.slide.remove_shape(it.model.id)
         self.load_slide(self.slide)
 
 
@@ -818,8 +818,8 @@ class SlideCanvasView(QGraphicsView):
 
             for it in self._scene.selected_shape_items():
                 it.setPos(it.pos().x() + dx, it.pos().y() + dy)
-                it.shape.x = round(it.pos().x(), 2)
-                it.shape.y = round(it.pos().y(), 2)
+                it.model.x = round(it.pos().x(), 2)
+                it.model.y = round(it.pos().y(), 2)
             self._scene.update()
             event.accept()
             return
