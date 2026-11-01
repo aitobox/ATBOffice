@@ -3,14 +3,28 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Final
 
-from PySide6.QtCore import QCoreApplication, QPoint, QPointF, QRect, QRectF, Qt, Signal
+from PySide6.QtCore import (
+    QCoreApplication,
+    QEvent,
+    QObject,
+    QPoint,
+    QPointF,
+    QRect,
+    QRectF,
+    Qt,
+    QTimer,
+    Signal,
+)
 from PySide6.QtGui import (
     QBrush,
+    QCloseEvent,
     QColor,
     QContextMenuEvent,
+    QFocusEvent,
     QFont,
     QFontMetrics,
     QKeyEvent,
@@ -83,6 +97,18 @@ class HitResult:
         self.pos = pos
 
 
+@dataclass
+class DragSnapshot:
+    """Snapshot of grid state prior to initiating a drag interaction."""
+
+    zone: HitZone
+    sheet_index: int
+    selection_snapshot: dict[str, Any]
+    resize_index: int = -1
+    resize_orig_size: int = 0
+    fill_start_src: SelectionRange | None = None
+
+
 class GridViewport(QAbstractScrollArea):
     """High-performance virtualized 2D grid viewport for ATBOffice Ledger.
 
@@ -123,6 +149,15 @@ class GridViewport(QAbstractScrollArea):
 
         # Interaction drag state
         self._drag_mode: HitZone = HitZone.NONE
+        self._drag_start_pos: QPoint | None = None
+        self._drag_moved: bool = False
+        self._drag_threshold: int = 3
+        self._drag_snapshot: DragSnapshot | None = None
+        self._last_mouse_pos: QPoint = QPoint(0, 0)
+        self._auto_scroll_timer: QTimer | None = None
+        self._auto_scroll_delta: tuple[int, int] = (0, 0)
+        self._swallow_secondary_button: bool = False
+
         self._resize_index: int = -1
         self._resize_start_pos: int = 0
         self._resize_orig_size: int = 0
@@ -134,6 +169,7 @@ class GridViewport(QAbstractScrollArea):
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.viewport().installEventFilter(self)
 
         self.horizontalScrollBar().valueChanged.connect(self._on_scroll)
         self.verticalScrollBar().valueChanged.connect(self._on_scroll)
@@ -141,10 +177,56 @@ class GridViewport(QAbstractScrollArea):
         self._update_scrollbars()
         self.retranslate_ui()
 
+    @property
+    def is_dragging(self) -> bool:
+        """Whether a mouse drag interaction is actively in progress."""
+        return self._drag_mode != HitZone.NONE
+
+    @property
+    def has_drag_moved(self) -> bool:
+        """Whether the pointer has moved beyond the 3px threshold during drag."""
+        return self._drag_moved
+
+    @property
+    def has_autofill_preview(self) -> bool:
+        """Whether an active autofill preview rectangle is being displayed."""
+        return (
+            self._fill_preview_range is not None
+            and self._fill_preview_range != self._fill_start_src
+        )
+
+    @property
+    def is_auto_scrolling(self) -> bool:
+        """Whether the boundary auto-scroll timer is currently active."""
+        return (
+            self._auto_scroll_timer is not None
+            and self._auto_scroll_timer.isActive()
+        )
+
+    def _get_fill_handle_rect(self) -> QRect | None:
+        """Return the visible QRect for the autofill handle, or None if not applicable."""
+        if len(self.selection.ranges) != 1:
+            return None
+        pr = self.selection.primary_range
+        scroll_x = self.horizontalScrollBar().value()
+        scroll_y = self.verticalScrollBar().value()
+        fx = (
+            self.row_header_width
+            + self.geometry_mapper.col_pos(pr.max_c + 1)
+            - scroll_x
+        )
+        fy = (
+            self.col_header_height
+            + self.geometry_mapper.row_pos(pr.max_r + 1)
+            - scroll_y
+        )
+        return QRect(fx - 4, fy - 4, 9, 9)
+
     def set_model_and_selection(
         self, model: SheetDataModel, selection: SelectionModel
     ) -> None:
         """Switch active SheetDataModel and SelectionModel."""
+        self.cancel_drag(why="api")
         self.model = model
         self.selection = selection
         self.geometry_mapper = model.geometry
@@ -1212,9 +1294,106 @@ class GridViewport(QAbstractScrollArea):
         painter.restore()
 
     # -------------------------------------------------------------------------
-    # Mouse Interaction Subsystem
+    # Mouse Interaction Subsystem & Drag Lifecycle
     # -------------------------------------------------------------------------
+    def _start_auto_scroll(self, dr: int, dc: int) -> None:
+        """Start or update periodic auto-scrolling when dragging near viewport edges."""
+        if dr == 0 and dc == 0:
+            self._stop_auto_scroll()
+            return
+        if self._auto_scroll_timer is None:
+            self._auto_scroll_timer = QTimer(self)
+            self._auto_scroll_timer.setInterval(60)
+            self._auto_scroll_timer.timeout.connect(self._on_auto_scroll_tick)
+        self._auto_scroll_delta = (dr, dc)
+        if not self._auto_scroll_timer.isActive():
+            self._auto_scroll_timer.start()
+
+    def _stop_auto_scroll(self) -> None:
+        """Stop periodic auto-scrolling."""
+        if self._auto_scroll_timer is not None and self._auto_scroll_timer.isActive():
+            self._auto_scroll_timer.stop()
+        self._auto_scroll_delta = (0, 0)
+
+    def _on_auto_scroll_tick(self) -> None:
+        """Handle auto-scroll timer tick: scroll viewport and update drag destination."""
+        dr, dc = self._auto_scroll_delta
+        if (dr == 0 and dc == 0) or self._drag_mode == HitZone.NONE:
+            self._stop_auto_scroll()
+            return
+
+        if dr != 0:
+            vs = self.verticalScrollBar()
+            vs.setValue(vs.value() + dr * 24)
+        if dc != 0:
+            hs = self.horizontalScrollBar()
+            hs.setValue(hs.value() + dc * 64)
+
+        # Update drag destination after scrolling
+        self._process_drag_at(self._last_mouse_pos.x(), self._last_mouse_pos.y())
+        self.viewport().update()
+
+    def cancel_drag(self, why: str = "api") -> None:
+        """Cancel an in-progress drag operation and restore pre-drag state."""
+        if self._drag_mode == HitZone.NONE and self._drag_snapshot is None:
+            return
+
+        self._stop_auto_scroll()
+
+        snap = self._drag_snapshot
+        if snap is not None:
+            if snap.zone in (
+                HitZone.CELL,
+                HitZone.COL_HEADER,
+                HitZone.ROW_HEADER,
+                HitZone.CORNER,
+            ):
+                current_sheet = getattr(self.model, "active_sheet_index", 0)
+                if current_sheet == snap.sheet_index:
+                    self.selection.restore_snapshot(snap.selection_snapshot)
+            elif snap.zone == HitZone.COL_RESIZE:
+                if snap.resize_index >= 0:
+                    self.geometry_mapper.set_col_width(
+                        snap.resize_index, snap.resize_orig_size
+                    )
+                    self._update_scrollbars()
+            elif snap.zone == HitZone.ROW_RESIZE:
+                if snap.resize_index >= 0:
+                    self.geometry_mapper.set_row_height(
+                        snap.resize_index, snap.resize_orig_size
+                    )
+                    self._update_scrollbars()
+            elif snap.zone == HitZone.FILL_HANDLE:
+                self._fill_start_src = None
+                self._fill_preview_range = None
+
+            if (
+                self.editor_controller is not None
+                and self.editor_controller.is_active
+                and hasattr(self.editor_controller, "point_cancel")
+            ):
+                self.editor_controller.point_cancel()
+
+        if why == "button":
+            self._swallow_secondary_button = True
+
+        self._drag_mode = HitZone.NONE
+        self._drag_moved = False
+        self._drag_start_pos = None
+        self._drag_snapshot = None
+        self._resize_index = -1
+        self._point_anchor = None
+        self.viewport().setCursor(Qt.CursorShape.ArrowCursor)
+        self.viewport().update()
+
     def mousePressEvent(self, event: QMouseEvent) -> None:
+        # If already dragging with another button and secondary button pressed, cancel
+        if self._drag_mode != HitZone.NONE:
+            if event.button() != Qt.MouseButton.LeftButton:
+                self.cancel_drag(why="button")
+                event.accept()
+                return
+
         if event.button() == Qt.MouseButton.RightButton:
             # 1. Right click commits active editor first
             if self.editor_controller is not None and self.editor_controller.is_active:
@@ -1268,7 +1447,17 @@ class GridViewport(QAbstractScrollArea):
         hit = self.hit_test(int(x), int(y))
         modifiers = event.modifiers()
 
+        self._drag_start_pos = QPoint(int(x), int(y))
+        self._last_mouse_pos = QPoint(int(x), int(y))
+        self._drag_moved = False
+
         if hit.zone == HitZone.CORNER:
+            self._drag_mode = HitZone.CORNER
+            self._drag_snapshot = DragSnapshot(
+                zone=HitZone.CORNER,
+                sheet_index=getattr(self.model, "active_sheet_index", 0),
+                selection_snapshot=self.selection.snapshot(),
+            )
             self.selection.select_all()
             self.viewport().update()
 
@@ -1277,20 +1466,44 @@ class GridViewport(QAbstractScrollArea):
             self._resize_index = hit.col if hit.col is not None else -1
             self._resize_start_pos = int(x)
             self._resize_orig_size = self.geometry_mapper.col_size(self._resize_index)
+            self._drag_snapshot = DragSnapshot(
+                zone=HitZone.COL_RESIZE,
+                sheet_index=getattr(self.model, "active_sheet_index", 0),
+                selection_snapshot=self.selection.snapshot(),
+                resize_index=self._resize_index,
+                resize_orig_size=self._resize_orig_size,
+            )
 
         elif hit.zone == HitZone.ROW_RESIZE:
             self._drag_mode = HitZone.ROW_RESIZE
             self._resize_index = hit.row if hit.row is not None else -1
             self._resize_start_pos = int(y)
             self._resize_orig_size = self.geometry_mapper.row_size(self._resize_index)
+            self._drag_snapshot = DragSnapshot(
+                zone=HitZone.ROW_RESIZE,
+                sheet_index=getattr(self.model, "active_sheet_index", 0),
+                selection_snapshot=self.selection.snapshot(),
+                resize_index=self._resize_index,
+                resize_orig_size=self._resize_orig_size,
+            )
 
         elif hit.zone == HitZone.COL_HEADER and hit.col is not None:
             self._drag_mode = HitZone.COL_HEADER
+            self._drag_snapshot = DragSnapshot(
+                zone=HitZone.COL_HEADER,
+                sheet_index=getattr(self.model, "active_sheet_index", 0),
+                selection_snapshot=self.selection.snapshot(),
+            )
             self.selection.select_cols(hit.col, hit.col)
             self.viewport().update()
 
         elif hit.zone == HitZone.ROW_HEADER and hit.row is not None:
             self._drag_mode = HitZone.ROW_HEADER
+            self._drag_snapshot = DragSnapshot(
+                zone=HitZone.ROW_HEADER,
+                sheet_index=getattr(self.model, "active_sheet_index", 0),
+                selection_snapshot=self.selection.snapshot(),
+            )
             self.selection.select_rows(hit.row, hit.row)
             self.viewport().update()
 
@@ -1299,6 +1512,12 @@ class GridViewport(QAbstractScrollArea):
             self._fill_start_src = self.selection.primary_range
             self._fill_preview_range = self._fill_start_src
             self._fill_ctrl_pressed = bool(modifiers & Qt.KeyboardModifier.ControlModifier)
+            self._drag_snapshot = DragSnapshot(
+                zone=HitZone.FILL_HANDLE,
+                sheet_index=getattr(self.model, "active_sheet_index", 0),
+                selection_snapshot=self.selection.snapshot(),
+                fill_start_src=self._fill_start_src,
+            )
             self.viewport().update()
 
         elif hit.zone == HitZone.FILTER_BUTTON and hit.col is not None:
@@ -1306,6 +1525,11 @@ class GridViewport(QAbstractScrollArea):
             return
 
         elif hit.zone == HitZone.CELL and hit.row is not None and hit.col is not None:
+            self._drag_snapshot = DragSnapshot(
+                zone=HitZone.CELL,
+                sheet_index=getattr(self.model, "active_sheet_index", 0),
+                selection_snapshot=self.selection.snapshot(),
+            )
             if (
                 self.editor_controller is not None
                 and self.editor_controller.is_active
@@ -1336,6 +1560,7 @@ class GridViewport(QAbstractScrollArea):
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         x = int(event.position().x())
         y = int(event.position().y())
+        self._last_mouse_pos = QPoint(x, y)
 
         # Update cursor when hovering
         if self._drag_mode == HitZone.NONE:
@@ -1373,10 +1598,53 @@ class GridViewport(QAbstractScrollArea):
                 QToolTip.hideText()
             return
 
-        # Handle active drag
+        # 1. Lost capture check: left button not pressed while in drag mode
+        if not (event.buttons() & Qt.MouseButton.LeftButton):
+            self.cancel_drag(why="lost")
+            return
+
+        # 2. Check 3px threshold
+        if not self._drag_moved:
+            if self._drag_start_pos is not None:
+                dx = x - self._drag_start_pos.x()
+                dy = y - self._drag_start_pos.y()
+                if math.hypot(dx, dy) < self._drag_threshold:
+                    return
+                self._drag_moved = True
+
+        # 3. Auto-scroll boundary check
+        vw = self.viewport().width()
+        vh = self.viewport().height()
+        dr = 0
+        dc = 0
+        if y > vh - 2:
+            dr = 1
+        elif y < self.col_header_height:
+            dr = -1
+
+        if x > vw - 2:
+            dc = 1
+        elif x < self.row_header_width:
+            dc = -1
+
+        if dr != 0 or dc != 0:
+            self._start_auto_scroll(dr, dc)
+        else:
+            self._stop_auto_scroll()
+
+        # 4. Process drag move
+        self._process_drag_at(x, y, event.modifiers())
+
+    def _process_drag_at(
+        self,
+        x: int,
+        y: int,
+        modifiers: Qt.KeyboardModifiers = Qt.KeyboardModifier.NoModifier,
+    ) -> None:
+        """Handle active drag update at (x, y)."""
         if self._drag_mode == HitZone.FILL_HANDLE:
             self._fill_ctrl_pressed = bool(
-                event.modifiers() & Qt.KeyboardModifier.ControlModifier
+                modifiers & Qt.KeyboardModifier.ControlModifier
             )
             hit = self.hit_test(x, y)
             if (
@@ -1426,9 +1694,32 @@ class GridViewport(QAbstractScrollArea):
                 self.reveal(hit.row, hit.col)
                 self.viewport().update()
 
+        elif self._drag_mode == HitZone.COL_HEADER:
+            hit = self.hit_test(x, y)
+            if hit.col is not None and self._drag_snapshot is not None:
+                orig_c = self._drag_snapshot.selection_snapshot.get(
+                    "anchor_cell", (0, hit.col)
+                )[1]
+                self.selection.select_cols(orig_c, hit.col)
+                self.viewport().update()
+
+        elif self._drag_mode == HitZone.ROW_HEADER:
+            hit = self.hit_test(x, y)
+            if hit.row is not None and self._drag_snapshot is not None:
+                orig_r = self._drag_snapshot.selection_snapshot.get(
+                    "anchor_cell", (hit.row, 0)
+                )[0]
+                self.selection.select_rows(orig_r, hit.row)
+                self.viewport().update()
+
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        self._stop_auto_scroll()
         if self._drag_mode == HitZone.FILL_HANDLE:
-            if self._fill_start_src is not None and self._fill_preview_range is not None:
+            if (
+                self._drag_moved
+                and self._fill_start_src is not None
+                and self._fill_preview_range is not None
+            ):
                 src = self._fill_start_src
                 dest = self._fill_preview_range
                 ctrl = self._fill_ctrl_pressed or bool(
@@ -1443,10 +1734,13 @@ class GridViewport(QAbstractScrollArea):
                 )
                 self.selection.select_cell(dest.min_r, dest.min_c)
                 self.selection.extend_to(dest.max_r, dest.max_c)
-                self._fill_start_src = None
-                self._fill_preview_range = None
+            self._fill_start_src = None
+            self._fill_preview_range = None
 
         self._drag_mode = HitZone.NONE
+        self._drag_moved = False
+        self._drag_start_pos = None
+        self._drag_snapshot = None
         self._resize_index = -1
         self._point_anchor = None
         self.viewport().setCursor(Qt.CursorShape.ArrowCursor)
@@ -1471,6 +1765,13 @@ class GridViewport(QAbstractScrollArea):
         key = event.key()
         modifiers = event.modifiers()
         r, c = self.selection.active_cell
+
+        # Esc cancels active drag
+        if key == Qt.Key.Key_Escape:
+            if self._drag_mode != HitZone.NONE:
+                self.cancel_drag(why="esc")
+                event.accept()
+                return
 
         # Shift+F10 to trigger shortcut context menu
         if (
@@ -1610,6 +1911,11 @@ class GridViewport(QAbstractScrollArea):
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         """Right-click context menu dispatcher."""
+        if self._swallow_secondary_button:
+            self._swallow_secondary_button = False
+            event.accept()
+            return
+
         # If in-cell editor is active and cannot commit, don't open context menu
         if self.editor_controller is not None and self.editor_controller.is_active:
             if not self.editor_controller.commit():
@@ -1621,6 +1927,24 @@ class GridViewport(QAbstractScrollArea):
             pos=event.pos(),
             reason=event.reason(),
         )
+
+    def focusOutEvent(self, event: QFocusEvent) -> None:
+        """Handle viewport focus loss by cancelling any in-progress drag."""
+        if self._drag_mode != HitZone.NONE:
+            self.cancel_drag(why="blur")
+        super().focusOutEvent(event)
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        """Filter events on child viewport to capture focus loss during drags."""
+        if watched == self.viewport() and event.type() == QEvent.Type.FocusOut:
+            if self._drag_mode != HitZone.NONE:
+                self.cancel_drag(why="blur")
+        return super().eventFilter(watched, event)
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Clean up drag resources, auto-scroll timers, and active state on widget close."""
+        self.cancel_drag(why="close")
+        super().closeEvent(event)
 
     def open_context_menu(
         self,
