@@ -84,11 +84,11 @@
 - **Depends On**: `[TASK-503]`
 - **Blocks**: `[TASK-507]`
 - **Target Files**: `src/atboffice/ui/shell/quire_toolbars.py`、`src/atboffice/ui/shell/ledger_toolbars.py`、`src/atboffice/ui/shell/lectern_toolbars.py`、`src/atboffice/ui/components/toolbar_buttons.py`、`tests/ui/`、`tests/gui/test_window_toolbar_docking.py`
-- **Scope & Specification**: 对照三个原版 app 声明、命令和状态，逐控件登记顺序、图标、提示、菜单、快捷键及上下文；按矩阵修复，保留平台合理差异。
+- **Scope & Specification**: 对照三个原版 app 声明、命令和状态，逐控件登记顺序、图标、提示、菜单、快捷键及上下文；建立三模块工具栏逐控件对照矩阵与截图基线（Issue #192）。
 - **Acceptance Criteria**:
-  - [ ] 三模块默认及上下文工具栏每项有源位置、目标位置、状态和实际动作测试；溢出与窄窗口可操作。
-  - [ ] 七语言切换后文案、菜单和 tooltip 正确刷新；配对截图记录环境、差异及人工复核。
-  - [ ] 相关 `tests/ui/test_*toolbar*.py` 和 `tests/gui/test_window_toolbar_docking.py` 通过；证据回填矩阵。
+  - [x] 三模块默认及上下文工具栏每项有源位置、目标位置、状态和实际动作测试；溢出与窄窗口可操作（已在 `docs/clone/TOOLBAR_BASELINE_MATRIX.md` 建立 Quire 10个/150项、Ledger 8个/65项、Lectern 10个/117项 100% 逐项对照矩阵）。
+  - [x] 七语言切换后文案、菜单和 tooltip 正确刷新；配对截图记录环境、差异及人工复核（已通过 `scripts/capture_atboffice_toolbars.py` 捕获 9 张标准与窄屏原生 GUI 截图并索引至 `docs/clone/evidence/phase5/screenshots/INDEX.md`；`tests/ui/test_toolbar_baseline_parity.py` 覆盖 7 语言动态刷新）。
+  - [x] 相关 `tests/ui/test_*toolbar*.py` 和 `tests/gui/test_window_toolbar_docking.py` 通过；证据回填矩阵。
 
 ### [TASK-505] fix(ledger): 还原网格右键选择及上下文菜单
 - **Parent Epic**: Phase 5: Spreadsheet Interaction
