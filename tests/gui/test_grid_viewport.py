@@ -6,7 +6,6 @@ from PySide6.QtGui import QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.spreadsheet.models.selection_model import (
-    SelectionModel,
     SelectionRange,
 )
 from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetDataModel

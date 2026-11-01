@@ -1507,7 +1507,7 @@ class GridViewport(QAbstractScrollArea):
         self._auto_scroll_delta = (0, 0)
 
     def _on_auto_scroll_tick(self) -> None:
-        """Handle auto-scroll timer tick: scroll viewport skipping hidden rows/cols and update drag."""
+        """Handle auto-scroll timer tick: scroll viewport and update drag."""
         dr, dc = self._auto_scroll_delta
         if (dr == 0 and dc == 0) or self._drag_mode == HitZone.NONE:
             self._stop_auto_scroll()
@@ -1519,7 +1519,10 @@ class GridViewport(QAbstractScrollArea):
             cur_r = self.geometry_mapper.find_row_at(cur_y)
             step = 1 if dr > 0 else -1
             target_r = cur_r + step
-            while 0 <= target_r < self.geometry_mapper.max_rows and self.geometry_mapper.row_size(target_r) == 0:
+            while (
+                0 <= target_r < self.geometry_mapper.max_rows
+                and self.geometry_mapper.row_size(target_r) == 0
+            ):
                 target_r += step
             target_r = max(0, min(self.geometry_mapper.max_rows - 1, target_r))
             new_y = self.geometry_mapper.row_pos(target_r)
@@ -1533,7 +1536,10 @@ class GridViewport(QAbstractScrollArea):
             cur_c = self.geometry_mapper.find_col_at(cur_x)
             step = 1 if dc > 0 else -1
             target_c = cur_c + step
-            while 0 <= target_c < self.geometry_mapper.max_cols and self.geometry_mapper.col_size(target_c) == 0:
+            while (
+                0 <= target_c < self.geometry_mapper.max_cols
+                and self.geometry_mapper.col_size(target_c) == 0
+            ):
                 target_c += step
             target_c = max(0, min(self.geometry_mapper.max_cols - 1, target_c))
             new_x = self.geometry_mapper.col_pos(target_c)
