@@ -239,6 +239,8 @@ class LedgerWindow(BaseOfficeWindow):
         # List & Chart actions
         self.action_registry.set_handler("insertRows", self.insert_rows)
         self.action_registry.set_handler("insertCols", self.insert_columns)
+        self.action_registry.set_handler("deleteRows", self.delete_rows)
+        self.action_registry.set_handler("deleteCols", self.delete_columns)
         self.action_registry.set_handler("sortDlg", lambda: self.quick_sort(desc=False))
         self.action_registry.set_handler("autoFilter", self.toggle_auto_filter)
         self.action_registry.set_handler("convertToRange", self.convert_table_to_range)
@@ -993,6 +995,22 @@ class LedgerWindow(BaseOfficeWindow):
         model.merges = new_merges
         self.spreadsheet_view.grid.viewport().update()
         self.set_modified(True)
+
+    def delete_rows(self) -> None:
+        """Delete rows in current selection, shifting remaining cells up."""
+        if hasattr(self.spreadsheet_view, "grid") and hasattr(
+            self.spreadsheet_view.grid, "delete_selected_rows"
+        ):
+            self.spreadsheet_view.grid.delete_selected_rows()
+            self.set_modified(True)
+
+    def delete_columns(self) -> None:
+        """Delete columns in current selection, shifting remaining cells left."""
+        if hasattr(self.spreadsheet_view, "grid") and hasattr(
+            self.spreadsheet_view.grid, "delete_selected_cols"
+        ):
+            self.spreadsheet_view.grid.delete_selected_cols()
+            self.set_modified(True)
 
     def toggle_auto_filter(self) -> None:
         """Toggle AutoFilter for the active worksheet."""

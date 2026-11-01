@@ -617,6 +617,15 @@ class SpreadsheetObjectLayer(QWidget):
                     self.select_object(None)
                 event.ignore()
                 super().mousePressEvent(event)
+        elif event.button() == Qt.MouseButton.RightButton:
+            hit_obj, _ = self.hit_test(event.pos().x(), event.pos().y())
+            if hit_obj is not None:
+                self.select_object(hit_obj)
+                event.accept()
+                return
+            else:
+                event.ignore()
+                super().mousePressEvent(event)
         else:
             super().mousePressEvent(event)
 
@@ -743,6 +752,9 @@ class SpreadsheetObjectLayer(QWidget):
         hit_obj, _ = self.hit_test(event.pos().x(), event.pos().y())
         if hit_obj is not None:
             self.select_object(hit_obj)
+        else:
+            event.ignore()
+            return
 
         menu = QMenu(self)
 

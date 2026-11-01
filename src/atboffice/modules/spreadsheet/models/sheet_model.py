@@ -68,6 +68,12 @@ class CellData:
     locked: bool = True
     hidden: bool = False
 
+    def clone(self) -> CellData:
+        """Create a shallow clone of this cell data."""
+        import copy
+
+        return copy.copy(self)
+
 
 @dataclass
 class FormatDelta:
@@ -249,6 +255,8 @@ class SheetDataModel:
         self.comments: dict[tuple[int, int], CellComment] = {}
         self.invalid_circles: list[tuple[int, int]] = []
         self.show_all_comments: bool = False
+        self.protection: dict[str, Any] | None = None
+        self.links: list[Any] = []
 
     def set_comment(
         self,
