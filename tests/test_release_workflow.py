@@ -2,7 +2,9 @@
 import fnmatch
 from pathlib import Path
 
-import yaml
+import pytest
+
+yaml = pytest.importorskip("yaml")
 
 
 def test_release_workflow_syntax():
