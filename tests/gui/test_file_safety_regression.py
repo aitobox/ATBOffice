@@ -4,17 +4,15 @@ Protect unsaved data on save failure, overwrite cancel, corrupted file open, and
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from unittest.mock import patch
 
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QMessageBox
 
 from atboffice.ui.shell.base_window import BaseOfficeWindow
-from atboffice.ui.shell.quire_window import QuireWindow
-from atboffice.ui.shell.ledger_window import LedgerWindow
 from atboffice.ui.shell.lectern_window import LecternWindow
+from atboffice.ui.shell.ledger_window import LedgerWindow
+from atboffice.ui.shell.quire_window import QuireWindow
 
 
 def test_atomic_save_preserves_original_file_on_save_error(qtbot, monkeypatch, tmp_path: Path):
@@ -81,8 +79,10 @@ def test_save_permission_error_preserves_dirty_state(qtbot, monkeypatch, tmp_pat
     assert "权限" in text or "Permission" in text or "保存失败" in title
 
 
-def test_overwrite_prompt_cancel_preserves_existing_file_and_state(qtbot, monkeypatch, tmp_path: Path):
-    """When saving to an existing different path, user declining overwrite preserves target and dirty state."""
+def test_overwrite_prompt_cancel_preserves_existing_file_and_state(
+    qtbot, monkeypatch, tmp_path: Path
+):
+    """When saving to an existing path, user declining overwrite preserves target and state."""
     existing_file = tmp_path / "existing_conflict.docx"
     existing_content = "PRECIOUS_EXISTING_DATA_DO_NOT_OVERWRITE"
     existing_file.write_text(existing_content, encoding="utf-8")
@@ -154,7 +154,7 @@ def test_close_event_cancel_aborts_shutdown_cleanly(qtbot, monkeypatch):
 
 
 def test_three_modules_save_and_reopen_roundtrip(qtbot, tmp_path: Path):
-    """Verify Quire (.docx, .html), Ledger (.xlsx, .csv), and Lectern (.pptx) save and reopen roundtrip."""
+    """Verify Quire, Ledger, and Lectern save and reopen roundtrip cleanly."""
     # 1. Quire HTML roundtrip
     quire_html = tmp_path / "quire_test.html"
     win_q = QuireWindow()
