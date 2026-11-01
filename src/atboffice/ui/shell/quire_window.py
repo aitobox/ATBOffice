@@ -259,24 +259,31 @@ class QuireWindow(BaseOfficeWindow):
 
             write_html(self.writer_view.canvas_view.doc, path)
             return True
+        if ext in {".docx", ".docm", ".dotx"}:
+            from atboffice.modules.writer.io.docx_writer import write_docx
+
+            write_docx(self.writer_view.canvas_view.doc, path)
+            return True
         path.touch(exist_ok=True)
         return True
 
-    def open_file(self, file_path: str | Path) -> bool:
-        """Open a file from the specified path, loading document content if supported."""
-        if not super().open_file(file_path):
-            return False
-        path = Path(file_path).resolve()
+    def do_open(self, path: Path) -> bool:
+        """Parse and load Quire document from disk."""
         ext = path.suffix.lower()
         if ext in {".html", ".htm"}:
-            try:
-                from atboffice.modules.writer.io.html_io import read_html
+            from atboffice.modules.writer.io.html_io import read_html
 
-                doc = read_html(path)
-                self.writer_view.canvas_view.doc = doc
-                self.writer_view.canvas_view.update()
-            except Exception:
-                pass
+            doc = read_html(path)
+            self.writer_view.canvas_view.doc = doc
+            self.writer_view.canvas_view.update()
+            return True
+        if ext in {".docx", ".docm", ".dotx"}:
+            from atboffice.modules.writer.io.docx_reader import read_docx
+
+            doc = read_docx(path)
+            self.writer_view.canvas_view.doc = doc
+            self.writer_view.canvas_view.update()
+            return True
         return True
 
     def _setup_toolbars(self) -> None:
