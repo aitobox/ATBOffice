@@ -60,9 +60,9 @@
 - **Target Files**: `src/atboffice/ui/shell/base_window.py`、`src/atboffice/core/`、`tests/gui/`、文件读写测试
 - **Scope & Specification**: 对照原版文件和关闭流程，注入保存失败、覆盖取消、无权限、损坏文件和关闭中回调；按实际调用链修复。
 - **Acceptance Criteria**:
-  - [ ] 取消关闭或保存失败后未保存内容和修改状态保留；原文件内容保持完整。
-  - [ ] 保存成功重开后内容一致；每个故障有自动化回归与执行记录。
-  - [ ] 对应矩阵条目附带验证证据后才可标记 yes。
+  - [x] 取消关闭或保存失败后未保存内容和修改状态保留；原文件内容保持完整（已在 `tests/gui/test_file_safety_regression.py` 自动化验证原子写入与临时文件回滚机制）。
+  - [x] 保存成功重开后内容一致；每个故障有自动化回归与执行记录（已验证 Quire `.docx`/`.html`、Ledger `.xlsx`/`.csv`、Lectern `.pptx` 成功保存并重开往返一致，已验证只读权限拒绝与覆盖取消故障注入）。
+  - [x] 对应矩阵条目附带验证证据后才可标记 yes（`BaseOfficeWindow.save_file` 实现 `confirm_overwrite` 与原子暂存替换；`do_open` 损坏格式拦截保护；关闭事件接入 `drain_event_loop`）。
 
 ### [TASK-503] fix(toolbar): 修复 Ledger 可见动作和下拉菜单
 - **Parent Epic**: Phase 5: Toolbar Parity

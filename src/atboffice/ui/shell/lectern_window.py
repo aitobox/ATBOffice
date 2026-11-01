@@ -519,10 +519,32 @@ class LecternWindow(BaseOfficeWindow):
             "所有文件 (*.*)"
         )
 
+    @property
+    def presentation(self):
+        """Return the bound Presentation model."""
+        return self.presentation_view.presentation
+
     def do_save(self, path: Path) -> bool:
         """Serialize Lectern presentation to destination path."""
         path.parent.mkdir(parents=True, exist_ok=True)
+        ext = path.suffix.lower()
+        if ext in {".pptx", ".ppsx", ".potx"}:
+            from atboffice.modules.presentation.io.pptx_writer import write_pptx
+
+            write_pptx(self.presentation, path)
+            return True
         path.touch(exist_ok=True)
+        return True
+
+    def do_open(self, path: Path) -> bool:
+        """Parse and load Lectern presentation from disk."""
+        ext = path.suffix.lower()
+        if ext in {".pptx", ".ppsx", ".potx"}:
+            from atboffice.modules.presentation.io.pptx_reader import read_pptx
+
+            pres = read_pptx(path)
+            self.presentation_view.load_presentation(pres)
+            return True
         return True
 
     def _setup_toolbars(self) -> None:

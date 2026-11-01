@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -373,3 +374,31 @@ def export_csv(
         lines.append(delimiter.join(row_fields))
 
     return "\r\n".join(lines) + "\r\n"
+
+
+def write_csv(
+    model: SheetDataModel,
+    path: str | Path,
+    delimiter: str = ",",
+    quote: str = '"',
+    encoding: str = "utf-8",
+) -> None:
+    """Convenience helper to export SheetDataModel to a CSV/TSV file."""
+    content = export_csv(model, delimiter=delimiter, quote=quote, encoding=encoding)
+    p = Path(path).resolve()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(content, encoding=encoding)
+
+
+def read_csv(
+    path: str | Path,
+    model: SheetDataModel,
+    delimiter: str = ",",
+    encoding: str | None = None,
+) -> None:
+    """Convenience helper to read a CSV/TSV file into SheetDataModel."""
+    p = Path(path).resolve()
+    raw = p.read_bytes()
+    text, _ = decode_bytes(raw, encoding=encoding)
+    rows = parse_delimited(text, delims=delimiter)
+    populate_sheet(model, rows)

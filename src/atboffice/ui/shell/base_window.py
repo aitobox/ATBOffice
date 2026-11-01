@@ -108,6 +108,14 @@ class BaseOfficeWindow(QMainWindow):
         self.update_window_title()
         return True
 
+    def do_open(self, path: Path) -> bool:
+        """Subclass hook to parse and load document from disk.
+
+        Subclasses should raise an exception or return False if the file is
+        corrupted or incompatible.
+        """
+        return True
+
     def open_file_dialog(self) -> bool:
         """Present standard file dialog to select and open a document."""
         if os.environ.get("PYTEST_CURRENT_TEST") and isinstance(
@@ -138,6 +146,24 @@ class BaseOfficeWindow(QMainWindow):
             )
             return False
 
+        try:
+            if not self.do_open(path):
+                QMessageBox.critical(
+                    self,
+                    safe_tr("打开失败"),
+                    safe_tr("无法打开文件“{path}”：文件已损坏或格式不兼容。").format(path=path),
+                )
+                return False
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                safe_tr("打开失败"),
+                safe_tr("无法打开文件“{path}”：文件已损坏或格式不兼容。\n{exc}").format(
+                    path=path, exc=exc
+                ),
+            )
+            return False
+
         self.current_file_path = path
         self.set_modified(False)
         self.update_window_title()
@@ -146,7 +172,7 @@ class BaseOfficeWindow(QMainWindow):
             from atboffice.core.window_manager import WindowManager
 
             wm = WindowManager.get_instance()
-            app_type = wm.detect_app_type(path)
+            app_type = getattr(self, "app_type", wm.detect_app_type(path))
             wm.recent_files.add_file(path, app_type)
         except Exception:
             pass
@@ -307,8 +333,18 @@ class BaseOfficeWindow(QMainWindow):
         path.touch(exist_ok=True)
         return True
 
-    def save_file(self, file_path: str | Path | None = None) -> bool:
-        """Save the active document to its existing path or prompt Save As."""
+    def save_file(
+        self,
+        file_path: str | Path | None = None,
+        confirm_overwrite: bool = True,
+    ) -> bool:
+        """Save the active document to its existing path or prompt Save As.
+
+        Guarantees atomic saving: Writes to a temporary staging file in the target's
+        directory first, and atomically replaces the target file upon success. If an
+        error occurs or the user declines overwrite, any existing file on disk remains
+        100% intact, and in-memory document state and dirty flags are preserved.
+        """
         if isinstance(file_path, bool):
             file_path = None
 
@@ -319,13 +355,83 @@ class BaseOfficeWindow(QMainWindow):
         if target is None:
             return False
 
-        try:
-            if not self.do_save(target):
+        # 1. Overwrite confirmation if saving to an existing file different from current path
+        if confirm_overwrite and target.exists() and (
+            self.current_file_path is None or target != self.current_file_path
+        ):
+            res = QMessageBox.warning(
+                self,
+                self.app_name,
+                safe_tr("文件“{name}”已存在。\n是否替换现有文件？").format(name=target.name),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if res != QMessageBox.StandardButton.Yes:
                 return False
+
+        # 2. Atomic save staging in target directory
+        staged_temp_path: Path | None = None
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            import uuid
+
+            staging_name = f".~{target.stem}.tmp.{uuid.uuid4().hex[:8]}{target.suffix}"
+            staged_temp_path = target.parent / staging_name
+
+            # Execute serialization to the staging file
+            save_ok = self.do_save(staged_temp_path)
+            if not save_ok:
+                if staged_temp_path.exists():
+                    try:
+                        staged_temp_path.unlink()
+                    except Exception:
+                        pass
+                QMessageBox.critical(
+                    self,
+                    safe_tr("保存失败"),
+                    safe_tr("无法保存文件“{target}”：序列化失败。").format(target=target),
+                )
+                return False
+
+            # Atomically replace target
+            os.replace(staged_temp_path, target)
+            staged_temp_path = None
+
             self.current_file_path = target
             self.set_modified(False)
+            self.update_window_title()
+
+            try:
+                from atboffice.core.window_manager import WindowManager
+
+                wm = WindowManager.get_instance()
+                app_type = getattr(self, "app_type", wm.detect_app_type(target))
+                wm.recent_files.add_file(target, app_type)
+            except Exception:
+                pass
+
             return True
+
+        except PermissionError as exc:
+            if staged_temp_path and staged_temp_path.exists():
+                try:
+                    staged_temp_path.unlink()
+                except Exception:
+                    pass
+            QMessageBox.critical(
+                self,
+                safe_tr("保存失败"),
+                safe_tr("无法保存文件“{target}”：权限不足，无法写入目标目录或文件。\n{exc}").format(
+                    target=target, exc=exc
+                ),
+            )
+            return False
         except Exception as exc:
+            if staged_temp_path and staged_temp_path.exists():
+                try:
+                    staged_temp_path.unlink()
+                except Exception:
+                    pass
             QMessageBox.critical(
                 self,
                 safe_tr("保存失败"),
@@ -466,6 +572,12 @@ class BaseOfficeWindow(QMainWindow):
         if self.maybe_save_prompt():
             event.accept()
             self.window_closed.emit(self)
+            try:
+                from atboffice.core.diagnostics import drain_event_loop
+
+                drain_event_loop(2)
+            except Exception:
+                pass
         else:
             event.ignore()
 

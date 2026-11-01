@@ -129,6 +129,17 @@ class SpreadsheetView(QWidget):
         """Return the bound WorkbookModel."""
         return self._workbook
 
+    @workbook.setter
+    def workbook(self, value: WorkbookModel) -> None:
+        """Bind a new WorkbookModel and reinitialize views."""
+        self._workbook = value
+        self._sheet_selections.clear()
+        if hasattr(self, "sheet_tab_bar") and self.sheet_tab_bar is not None:
+            self.sheet_tab_bar.set_workbook(value)
+        self._workbook.active_sheet_changed.connect(self._on_active_sheet_changed)
+        self._workbook.sheet_removed.connect(self._on_sheet_removed)
+        self._on_active_sheet_changed(self._workbook.active_sheet_index)
+
     @property
     def model(self) -> SheetDataModel:
         """Return the active SheetDataModel for backward compatibility."""

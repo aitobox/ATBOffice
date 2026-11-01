@@ -264,7 +264,48 @@ class LedgerWindow(BaseOfficeWindow):
     def do_save(self, path: Path) -> bool:
         """Serialize Ledger workbook to destination path."""
         path.parent.mkdir(parents=True, exist_ok=True)
+        ext = path.suffix.lower()
+        if ext in {".xlsx", ".xlsm"}:
+            from atboffice.modules.spreadsheet.io.xlsx_writer import write_xlsx
+
+            write_xlsx(self.spreadsheet_view.workbook, path)
+            return True
+        if ext in {".csv", ".tsv"}:
+            from atboffice.modules.spreadsheet.io.csv_io import write_csv
+
+            delimiter = "\t" if ext == ".tsv" else ","
+            write_csv(self.spreadsheet_view.model, path, delimiter=delimiter)
+            return True
+        if ext in {".xml", ".xmlss"}:
+            from atboffice.modules.spreadsheet.io.xmlss_io import write_xmlss
+
+            write_xmlss(self.spreadsheet_view.workbook, path)
+            return True
         path.touch(exist_ok=True)
+        return True
+
+    def do_open(self, path: Path) -> bool:
+        """Parse and load Ledger workbook from disk."""
+        ext = path.suffix.lower()
+        if ext in {".xlsx", ".xlsm"}:
+            from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
+
+            wb = read_xlsx(path)
+            self.spreadsheet_view.workbook = wb
+            return True
+        if ext in {".csv", ".tsv"}:
+            from atboffice.modules.spreadsheet.io.csv_io import read_csv
+
+            delimiter = "\t" if ext == ".tsv" else ","
+            read_csv(path, model=self.spreadsheet_view.model, delimiter=delimiter)
+            self.spreadsheet_view.grid.viewport().update()
+            return True
+        if ext in {".xml", ".xmlss"}:
+            from atboffice.modules.spreadsheet.io.xmlss_io import read_xmlss
+
+            read_xmlss(path, workbook=self.spreadsheet_view.workbook)
+            self.spreadsheet_view.grid.viewport().update()
+            return True
         return True
 
     def _setup_toolbars(self) -> None:
