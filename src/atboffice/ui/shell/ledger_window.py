@@ -126,6 +126,12 @@ class LedgerWindow(BaseOfficeWindow):
 
         # Standard toolbar actions
         self.action_registry.set_handler("autoSum", self.auto_sum)
+        self.action_registry.set_handler("autoSum_sum", lambda: self.auto_sum("SUM"))
+        self.action_registry.set_handler("autoSum_average", lambda: self.auto_sum("AVERAGE"))
+        self.action_registry.set_handler("autoSum_count", lambda: self.auto_sum("COUNT"))
+        self.action_registry.set_handler("autoSum_max", lambda: self.auto_sum("MAX"))
+        self.action_registry.set_handler("autoSum_min", lambda: self.auto_sum("MIN"))
+        self.action_registry.set_handler("autoSum_more", self.open_function_wizard)
         self.action_registry.set_handler("sortAsc", lambda: self.quick_sort(desc=False))
         self.action_registry.set_handler("sortDesc", lambda: self.quick_sort(desc=True))
         self.action_registry.set_handler("tb_drawing", self.toggle_drawing_toolbar)
@@ -156,10 +162,38 @@ class LedgerWindow(BaseOfficeWindow):
         self.action_registry.set_handler("incIndent", lambda: self.change_cell_indent(1))
         self.action_registry.set_handler("decIndent", lambda: self.change_cell_indent(-1))
         self.action_registry.set_handler("bordersApply", lambda: self.apply_border_preset("all"))
+        self.action_registry.set_handler(
+            "border_bottom", lambda: self.apply_border_preset("bottom")
+        )
+        self.action_registry.set_handler("border_top", lambda: self.apply_border_preset("top"))
+        self.action_registry.set_handler("border_left", lambda: self.apply_border_preset("left"))
+        self.action_registry.set_handler("border_right", lambda: self.apply_border_preset("right"))
+        self.action_registry.set_handler("border_none", lambda: self.apply_border_preset("none"))
+        self.action_registry.set_handler("border_all", lambda: self.apply_border_preset("all"))
+        self.action_registry.set_handler(
+            "border_thick_box", lambda: self.apply_border_preset("thickOutline")
+        )
+        self.action_registry.set_handler(
+            "border_bottom_double", lambda: self.apply_border_preset("bottomDouble")
+        )
 
         # Borders toolbar actions
         self.action_registry.set_handler(
             "bordersPalette", lambda: self.apply_border_preset("outline")
+        )
+        self.action_registry.set_handler(
+            "border_pal_none", lambda: self.apply_border_preset("none")
+        )
+        self.action_registry.set_handler(
+            "border_pal_bottom", lambda: self.apply_border_preset("bottom")
+        )
+        self.action_registry.set_handler("border_pal_top", lambda: self.apply_border_preset("top"))
+        self.action_registry.set_handler("border_pal_all", lambda: self.apply_border_preset("all"))
+        self.action_registry.set_handler(
+            "border_pal_outside", lambda: self.apply_border_preset("outline")
+        )
+        self.action_registry.set_handler(
+            "border_pal_thick", lambda: self.apply_border_preset("thickOutline")
         )
         self.action_registry.set_handler("borderNone", lambda: self.apply_border_preset("none"))
         self.action_registry.set_handler(
@@ -169,6 +203,19 @@ class LedgerWindow(BaseOfficeWindow):
             "borderThickOutline", lambda: self.apply_border_preset("thickOutline")
         )
         self.action_registry.set_handler("eraseBorder", lambda: self.apply_border_preset("none"))
+        self.action_registry.set_handler("border_color_auto", lambda: self.apply_border_color(None))
+        self.action_registry.set_handler(
+            "border_color_black", lambda: self.apply_border_color("#000000")
+        )
+        self.action_registry.set_handler(
+            "border_color_red", lambda: self.apply_border_color("#FF0000")
+        )
+        self.action_registry.set_handler(
+            "border_color_blue", lambda: self.apply_border_color("#0000FF")
+        )
+        self.action_registry.set_handler(
+            "border_color_gray", lambda: self.apply_border_color("#808080")
+        )
 
         # Auditing & Reviewing toolbar actions
         self.action_registry.set_handler("traceError", self.trace_error)
@@ -177,6 +224,7 @@ class LedgerWindow(BaseOfficeWindow):
         self.action_registry.set_handler("removeArrows", self.remove_arrows)
         self.action_registry.set_handler("insertComment", self.insert_comment)
         self.action_registry.set_handler("validation", self.data_validation)
+        self.action_registry.set_handler("validation_dlg", self.data_validation)
         self.action_registry.set_handler("circleInvalid", self.circle_invalid)
         self.action_registry.set_handler("clearCircles", self.clear_circles)
         self.action_registry.set_handler("watchWindow", self.watch_window)
@@ -189,12 +237,28 @@ class LedgerWindow(BaseOfficeWindow):
         self.action_registry.set_handler("showComments", self.toggle_show_all_comments)
 
         # List & Chart actions
+        self.action_registry.set_handler("insertRows", self.insert_rows)
+        self.action_registry.set_handler("insertCols", self.insert_columns)
+        self.action_registry.set_handler("sortDlg", lambda: self.quick_sort(desc=False))
+        self.action_registry.set_handler("autoFilter", self.toggle_auto_filter)
+        self.action_registry.set_handler("convertToRange", self.convert_table_to_range)
         self.action_registry.set_handler("totalRow", self.toggle_total_row)
         self.action_registry.set_handler("formatObject", self.format_selected_object)
+        self.action_registry.set_handler("chart_type_column", lambda: self.set_chart_type("column"))
+        self.action_registry.set_handler("chart_type_line", lambda: self.set_chart_type("line"))
+        self.action_registry.set_handler("chart_type_pie", lambda: self.set_chart_type("pie"))
+        self.action_registry.set_handler("chart_type_bar", lambda: self.set_chart_type("bar"))
+        self.action_registry.set_handler("chart_type_area", lambda: self.set_chart_type("area"))
+        self.action_registry.set_handler(
+            "chart_type_scatter", lambda: self.set_chart_type("scatter")
+        )
+        self.action_registry.set_handler("chart_type_radar", lambda: self.set_chart_type("radar"))
         self.action_registry.set_handler("data_pivottable", self.open_pivot_wizard)
         self.action_registry.set_handler("pivotTable", self.open_pivot_wizard)
 
         # Drawing toolbar actions
+        self.action_registry.set_handler("bringToFront", self.bring_to_front)
+        self.action_registry.set_handler("sendToBack", self.send_to_back)
         self.action_registry.set_handler("insertShape", lambda: self.insert_shape("rect"))
         self.action_registry.set_handler("insertTextBox", self.insert_textbox)
         self.action_registry.set_handler("insertPicture", self.insert_picture)
@@ -373,61 +437,6 @@ class LedgerWindow(BaseOfficeWindow):
             draw_fill = draw_tb.findChild(ColorPickerButton, "Ledger_DrawFillColor")
             if draw_fill:
                 draw_fill.color_applied.connect(self._apply_drawing_fill_color)
-
-            for btn in draw_tb.findChildren(QWidget):
-                menu = btn.property("drop_menu")
-                if menu and menu.property("drop_label") == "绘图(&R)":
-                    for action in menu.actions():
-                        txt = action.text()
-                        if "置于顶层" in txt:
-                            action.triggered.connect(self.bring_to_front)
-                        elif "置于底层" in txt:
-                            action.triggered.connect(self.send_to_back)
-
-        # Connect split menus
-        act_autosum = self.action_registry.get_action("autoSum")
-        if act_autosum:
-            split_menu = act_autosum.property("split_menu")
-            if split_menu:
-                for action in split_menu.actions():
-                    txt = action.text()
-                    if "求和" in txt:
-                        action.triggered.connect(lambda: self.auto_sum("SUM"))
-                    elif "平均值" in txt:
-                        action.triggered.connect(lambda: self.auto_sum("AVERAGE"))
-                    elif "计数" in txt:
-                        action.triggered.connect(lambda: self.auto_sum("COUNT"))
-                    elif "最大值" in txt:
-                        action.triggered.connect(lambda: self.auto_sum("MAX"))
-                    elif "最小值" in txt:
-                        action.triggered.connect(lambda: self.auto_sum("MIN"))
-                    elif "更多函数" in txt:
-                        action.triggered.connect(self.open_function_wizard)
-
-        act_borders = self.action_registry.get_action("bordersApply")
-        if act_borders:
-            split_menu = act_borders.property("split_menu")
-            if split_menu:
-                for action in split_menu.actions():
-                    txt = action.text()
-                    if "所有框线" in txt:
-                        action.triggered.connect(lambda: self.apply_border_preset("all"))
-                    elif "无边框" in txt or "无框线" in txt:
-                        action.triggered.connect(lambda: self.apply_border_preset("none"))
-                    elif "粗外侧" in txt:
-                        action.triggered.connect(lambda: self.apply_border_preset("thickOutline"))
-                    elif "外侧框线" in txt:
-                        action.triggered.connect(lambda: self.apply_border_preset("outline"))
-                    elif "下框线" in txt:
-                        action.triggered.connect(lambda: self.apply_border_preset("bottom"))
-                    elif "上框线" in txt:
-                        action.triggered.connect(lambda: self.apply_border_preset("top"))
-                    elif "左框线" in txt:
-                        action.triggered.connect(lambda: self.apply_border_preset("left"))
-                    elif "右框线" in txt:
-                        action.triggered.connect(lambda: self.apply_border_preset("right"))
-                    elif "双下框线" in txt:
-                        action.triggered.connect(lambda: self.apply_border_preset("bottomDouble"))
 
         # Connect object layer selection to context toolbars
         if hasattr(self.spreadsheet_view, "object_layer") and self.spreadsheet_view.object_layer:
@@ -859,13 +868,16 @@ class LedgerWindow(BaseOfficeWindow):
         r1, c1, r2, c2 = self._get_selected_cell_range()
         model = self.spreadsheet_view.model
 
-        thin = BorderStyle(style="thin")
-        thick = BorderStyle(style="medium")
-        double = BorderStyle(style="double")
+        color = getattr(self, "last_border_color", None)
+        thin = BorderStyle(style="thin", color=color)
+        thick = BorderStyle(style="medium", color=color)
+        double = BorderStyle(style="double", color=color)
 
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
                 cell = model.get_cell(r, c)
+                if cell is None:
+                    cell = CellData()
                 if preset == "none":
                     cell.border_top = None
                     cell.border_bottom = None
@@ -885,7 +897,7 @@ class LedgerWindow(BaseOfficeWindow):
                         cell.border_left = thin
                     if c == c2:
                         cell.border_right = thin
-                elif preset == "thickOutline":
+                elif preset in ("thickOutline", "thickBox", "thick_box"):
                     if r == r1:
                         cell.border_top = thick
                     if r == r2:
@@ -900,7 +912,7 @@ class LedgerWindow(BaseOfficeWindow):
                 elif preset == "thickBottom":
                     if r == r2:
                         cell.border_bottom = thick
-                elif preset == "bottomDouble":
+                elif preset in ("bottomDouble", "bottom_double", "doubleBottom"):
                     if r == r2:
                         cell.border_bottom = double
                 elif preset == "top":
@@ -916,6 +928,105 @@ class LedgerWindow(BaseOfficeWindow):
 
         self.spreadsheet_view.grid.viewport().update()
         self.set_modified(True)
+
+    def apply_border_color(self, color: str | None) -> None:
+        """Apply border line color to existing borders of selected cells."""
+        self.last_border_color = color
+        r1, c1, r2, c2 = self._get_selected_cell_range()
+        model = self.spreadsheet_view.model
+        for r in range(r1, r2 + 1):
+            for c in range(c1, c2 + 1):
+                cell = model.get_cell(r, c)
+                if cell:
+                    for side in ("border_top", "border_bottom", "border_left", "border_right"):
+                        b = getattr(cell, side, None)
+                        if b is not None:
+                            setattr(cell, side, BorderStyle(style=b.style, color=color))
+                    model.set_cell(r, c, cell)
+        self.spreadsheet_view.grid.viewport().update()
+        self.set_modified(True)
+
+    def insert_rows(self) -> None:
+        """Insert rows above current selection, shifting cells down."""
+        r1, c1, r2, c2 = self._get_selected_cell_range()
+        count = r2 - r1 + 1
+        model = self.spreadsheet_view.model
+        new_cells: dict[tuple[int, int], CellData] = {}
+        for (r, c), cell in model.cells.items():
+            if r >= r1:
+                new_cells[(r + count, c)] = cell
+            else:
+                new_cells[(r, c)] = cell
+        model.cells = new_cells
+        new_merges: list[tuple[int, int, int, int]] = []
+        for mr1, mc1, mr2, mc2 in model.merges:
+            if mr1 >= r1:
+                new_merges.append((mr1 + count, mc1, mr2 + count, mc2))
+            elif mr2 >= r1:
+                new_merges.append((mr1, mc1, mr2 + count, mc2))
+            else:
+                new_merges.append((mr1, mc1, mr2, mc2))
+        model.merges = new_merges
+        self.spreadsheet_view.grid.viewport().update()
+        self.set_modified(True)
+
+    def insert_columns(self) -> None:
+        """Insert columns to the left of current selection, shifting cells right."""
+        r1, c1, r2, c2 = self._get_selected_cell_range()
+        count = c2 - c1 + 1
+        model = self.spreadsheet_view.model
+        new_cells: dict[tuple[int, int], CellData] = {}
+        for (r, c), cell in model.cells.items():
+            if c >= c1:
+                new_cells[(r, c + count)] = cell
+            else:
+                new_cells[(r, c)] = cell
+        model.cells = new_cells
+        new_merges: list[tuple[int, int, int, int]] = []
+        for mr1, mc1, mr2, mc2 in model.merges:
+            if mc1 >= c1:
+                new_merges.append((mr1, mc1 + count, mr2, mc2 + count))
+            elif mc2 >= c1:
+                new_merges.append((mr1, mc1, mr2, mc2 + count))
+            else:
+                new_merges.append((mr1, mc1, mr2, mc2))
+        model.merges = new_merges
+        self.spreadsheet_view.grid.viewport().update()
+        self.set_modified(True)
+
+    def toggle_auto_filter(self) -> None:
+        """Toggle AutoFilter for the active worksheet."""
+        if hasattr(self.spreadsheet_view, "grid") and hasattr(
+            self.spreadsheet_view.grid, "toggle_auto_filter"
+        ):
+            self.spreadsheet_view.grid.toggle_auto_filter()
+        is_active = getattr(self.spreadsheet_view.model, "auto_filter", None) is not None
+        self.action_registry.set_checked("autoFilter", is_active)
+        self.set_modified(True)
+
+    def convert_table_to_range(self) -> None:
+        """Convert list/table back to normal range, clearing auto filter and total row."""
+        model = self.spreadsheet_view.model
+        if getattr(model, "auto_filter", None) is not None:
+            self.toggle_auto_filter()
+        if hasattr(self, "_total_row_active") and self._total_row_active:
+            self.toggle_total_row()
+        self.action_registry.set_checked("totalRow", False)
+        self.action_registry.set_checked("autoFilter", False)
+        self.set_modified(True)
+
+    def set_chart_type(self, chart_type: str) -> None:
+        """Set the chart type of the selected chart object or create a new chart."""
+        layer = getattr(self.spreadsheet_view, "object_layer", None)
+        sel_obj = getattr(layer, "selected_object", None) if layer else None
+        if sel_obj and getattr(sel_obj, "kind", None) == "chart":
+            setattr(sel_obj, "chart_type", chart_type)
+            layer.update()
+            self.set_modified(True)
+        else:
+            self.chart_wizard()
+            if layer and getattr(layer, "selected_object", None):
+                setattr(layer.selected_object, "chart_type", chart_type)
 
     def toggle_drawing_toolbar(self) -> None:
         """Toggle bottom drawing toolbar visibility."""
@@ -1699,6 +1810,8 @@ class LedgerWindow(BaseOfficeWindow):
     def retranslate_ui(self) -> None:
         """Update localized UI strings when application language changes."""
         super().retranslate_ui()
+        if hasattr(self, "action_registry") and self.action_registry:
+            self.action_registry.retranslate_ui(safe_tr)
         if hasattr(self, "toolbars") and self.toolbars:
             retranslate_ledger_toolbars(self.toolbars, safe_tr)
         if hasattr(self, "btn_font_color") and self.btn_font_color:

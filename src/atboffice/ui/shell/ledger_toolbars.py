@@ -28,6 +28,10 @@ from atboffice.core.action_registry import ActionRegistry, ActionSpec
 from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.toolbar import OfficeToolBar
+from atboffice.ui.components.toolbar_buttons import (
+    OfficeDropDownButton,
+    OfficeSplitButton,
+)
 from atboffice.ui.icons import get_office_icon, has_office_icon
 
 
@@ -39,12 +43,81 @@ def safe_tr(text: str) -> str:
 _LEDGER_DROP_ICONS: Final[dict[str, str]] = {
     "Chart Type": "chart",
     "图表类型": "chart",
+    "图表类型(&T)": "chart",
     "List": "table",
     "列表": "table",
+    "列表(&L)": "table",
     "线型": "lineStyle",
     "粗细": "lineStyle",
+    "线条颜色": "lineColor",
     "边框颜色": "lineColor",
     "底纹颜色": "fillColor",
+}
+
+_LEDGER_DROP_AIDS: Final[dict[str, str]] = {
+    "列表(&L)": "list_menu",
+    "List": "list_menu",
+    "图表类型(&T)": "chart_type_menu",
+    "Chart Type": "chart_type_menu",
+    "绘图(&R)": "draw_menu",
+    "Draw": "draw_menu",
+    "线条颜色": "border_line_color",
+    "Line Color": "border_line_color",
+}
+
+_KNOWN_ITEM_AIDS: Final[dict[str, tuple[str, str, bool, bool]]] = {
+    # Undo / Redo
+    "无操作可撤销": ("undo_empty", "&Can't Undo", False, False),
+    "无操作可重做": ("redo_empty", "&Can't Redo", False, False),
+    # AutoSum
+    "求和(&S)": ("autoSum_sum", "&Sum", True, False),
+    "平均值(&A)": ("autoSum_average", "&Average", True, False),
+    "计数(&C)": ("autoSum_count", "&Count", True, False),
+    "最大值(&M)": ("autoSum_max", "&Max", True, False),
+    "最小值(&I)": ("autoSum_min", "M&in", True, False),
+    "更多函数(&F)...": ("autoSum_more", "More &Functions...", True, False),
+    # Borders formatting
+    "下框线": ("border_bottom", "Bottom Border", True, False),
+    "上框线": ("border_top", "Top Border", True, False),
+    "左框线": ("border_left", "Left Border", True, False),
+    "右框线": ("border_right", "Right Border", True, False),
+    "无边框": ("border_none", "No Border", True, False),
+    "所有框线": ("border_all", "All Borders", True, False),
+    "粗外侧框线": ("border_thick_box", "Thick Box Border", True, False),
+    "双下框线": ("border_bottom_double", "Bottom Double Border", True, False),
+    # Borders toolbar
+    "无框线": ("border_pal_none", "No Border", True, False),
+    "外侧框线": ("border_pal_outside", "Outside Borders", True, False),
+    # Border Line Color
+    "自动": ("border_color_auto", "Automatic", True, False),
+    "黑色": ("border_color_black", "Black", True, False),
+    "红色": ("border_color_red", "Red", True, False),
+    "蓝色": ("border_color_blue", "Blue", True, False),
+    "灰色": ("border_color_gray", "Gray", True, False),
+    # Validation
+    "数据有效性(&V)...": ("validation_dlg", "Va&lidation...", True, False),
+    "圈释无效数据(&C)": ("circleInvalid", "&Circle Invalid Data", True, False),
+    "清除无效数据圈(&L)": ("clearCircles", "C&lear Validation Circles", True, False),
+    # List toolbar
+    "插入行(&R)": ("insertRows", "&Rows", True, False),
+    "插入列(&C)": ("insertCols", "&Columns", True, False),
+    "排序(&S)...": ("sortDlg", "&Sort...", True, False),
+    "自动筛选(&A)": ("autoFilter", "Auto&Filter", True, True),
+    "汇总行(&T)": ("totalRow", "&Total Row", True, True),
+    "转换为区域(&V)": ("convertToRange", "Con&vert to Range", True, False),
+    # Chart toolbar
+    "柱形图(&C)": ("chart_type_column", "Column|chart", True, False),
+    "折线图(&L)": ("chart_type_line", "Line|chart", True, False),
+    "饼图(&P)": ("chart_type_pie", "Pie|chart", True, False),
+    "条形图(&B)": ("chart_type_bar", "Bar|chart", True, False),
+    "面积图(&A)": ("chart_type_area", "Area|chart", True, False),
+    "散点图(&X)": ("chart_type_scatter", "XY (Scatter)", True, False),
+    "雷达图(&R)": ("chart_type_radar", "Radar", True, False),
+    # Drawing toolbar
+    "置于顶层(&F)": ("bringToFront", "&Bring to Front", True, False),
+    "置于底层(&B)": ("sendToBack", "&Send to Back", True, False),
+    "组合(&G)": ("draw_group", "&Group", False, False),
+    "取消组合(&U)": ("draw_ungroup", "&Ungroup", False, False),
 }
 
 
@@ -76,6 +149,7 @@ class LedgerToolBarCluster:
         shortcut: Any = None,
         checkable: bool = False,
         checked: bool = False,
+        enabled: bool = True,
         is_split: bool = False,
         is_drop: bool = False,
         handler: Callable[[], Any] | None = None,
@@ -91,12 +165,13 @@ class LedgerToolBarCluster:
 
         spec = ActionSpec(
             id=aid,
-            label=safe_tr(label),
+            label=label,
             icon=resolved_icon,
-            tip=safe_tr(tip) if tip else "",
+            tip=tip,
             shortcut=shortcut,
             checkable=checkable,
             checked=checked,
+            enabled=enabled,
             is_split=is_split,
             is_drop=is_drop,
             handler=handler,
@@ -112,6 +187,7 @@ class LedgerToolBarCluster:
         shortcut: Any = None,
         checkable: bool = False,
         checked: bool = False,
+        enabled: bool = True,
         is_split: bool = False,
         is_drop: bool = False,
         handler: Callable[[], Any] | None = None,
@@ -124,6 +200,7 @@ class LedgerToolBarCluster:
             shortcut=shortcut,
             checkable=checkable,
             checked=checked,
+            enabled=enabled,
             is_split=is_split,
             is_drop=is_drop,
             handler=handler,
@@ -132,20 +209,96 @@ class LedgerToolBarCluster:
         tb.addAction(act)
         return act
 
+    def _add_menu_item(
+        self,
+        menu: QMenu,
+        item: Any,
+        parent_aid: str | None = None,
+    ) -> QAction | None:
+        if item == "-":
+            menu.addSeparator()
+            return None
+
+        if isinstance(item, QAction):
+            menu.addAction(item)
+            return item
+
+        if isinstance(item, ActionSpec):
+            act = self.action_registry.register_action(item, parent=self.window)
+            menu.addAction(act)
+            return act
+
+        aid: str
+        label: str
+        tip: str = ""
+        enabled: bool = True
+        checkable: bool = False
+        checked: bool = False
+        handler: Callable[[], Any] | None = None
+        icon: QIcon | str | None = None
+
+        if isinstance(item, tuple):
+            aid = item[0]
+            label = item[1]
+            if len(item) > 2:
+                enabled = item[2]
+            if len(item) > 3:
+                checkable = item[3]
+            if len(item) > 4:
+                checked = item[4]
+            if len(item) > 5:
+                handler = item[5]
+            if len(item) > 6:
+                icon = item[6]
+        elif isinstance(item, str):
+            if self.action_registry.has_action(item):
+                act = self.action_registry.get_action(item)
+                if act:
+                    menu.addAction(act)
+                    return act
+            if item in _KNOWN_ITEM_AIDS:
+                aid, label, enabled, checkable = _KNOWN_ITEM_AIDS[item]
+            else:
+                aid = f"{parent_aid}_{item}" if parent_aid else item
+                label = item
+        else:
+            return None
+
+        act = self._reg_act(
+            aid=aid,
+            label=label,
+            tip=tip,
+            enabled=enabled,
+            checkable=checkable,
+            checked=checked,
+            handler=handler,
+            icon=icon,
+        )
+        menu.addAction(act)
+        return act
+
     def _add_drop(
         self,
         tb: OfficeToolBar,
         label: str,
-        items: list[str],
+        items: list[Any],
         icon: QIcon | str | None = None,
-    ) -> None:
+        aid: str | None = None,
+    ) -> OfficeDropDownButton:
         menu = QMenu(tb)
         menu.setProperty("drop_label", label)
+        resolved_aid = aid or _LEDGER_DROP_AIDS.get(label)
+        if resolved_aid:
+            self._reg_act(
+                aid=resolved_aid,
+                label=label,
+                is_drop=True,
+                icon=icon,
+            )
+            menu.setProperty("drop_aid", resolved_aid)
+
         for item in items:
-            if item == "-":
-                menu.addSeparator()
-            else:
-                menu.addAction(safe_tr(item))
+            self._add_menu_item(menu, item, parent_aid=resolved_aid)
 
         resolved_icon = None
         if isinstance(icon, QIcon):
@@ -161,8 +314,11 @@ class LedgerToolBarCluster:
         btn_text = safe_tr(label) if not resolved_icon or keep_text else ""
         btn = tb.add_drop_button(btn_text, resolved_icon, menu)
         btn.setProperty("drop_menu", menu)
+        if resolved_aid:
+            btn.setProperty("drop_aid", resolved_aid)
         if resolved_icon and not btn_text:
             btn.setToolTip(safe_tr(label))
+        return btn
 
     def _add_split(
         self,
@@ -170,10 +326,11 @@ class LedgerToolBarCluster:
         aid: str,
         label: str,
         tip: str,
-        items: list[str],
+        items: list[Any],
         shortcut: Any = None,
         icon: QIcon | str | None = None,
-    ) -> None:
+        handler: Callable[[], Any] | None = None,
+    ) -> OfficeSplitButton:
         act = self._reg_act(
             aid=aid,
             label=label,
@@ -181,16 +338,18 @@ class LedgerToolBarCluster:
             shortcut=shortcut,
             is_split=True,
             icon=icon,
+            handler=handler,
         )
         menu = QMenu(tb)
+        menu.setProperty("split_label", label)
+        menu.setProperty("split_aid", aid)
         for item in items:
-            if item == "-":
-                menu.addSeparator()
-            else:
-                menu.addAction(safe_tr(item))
+            self._add_menu_item(menu, item, parent_aid=aid)
+
         act.setProperty("split_menu", menu)
         btn = tb.add_split_action(act, menu)
         btn.setProperty("split_action", act)
+        return btn
 
     def _build_standard_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("常用"), self.window)
@@ -385,7 +544,14 @@ class LedgerToolBarCluster:
             "bordersPalette",
             "边框(&B)",
             "应用单元格边框预设",
-            ["无框线", "下框线", "上框线", "所有框线", "外侧框线", "粗外侧框线"],
+            [
+                ("border_pal_none", "No Border"),
+                ("border_pal_bottom", "Bottom Border"),
+                ("border_pal_top", "Top Border"),
+                ("border_pal_all", "All Borders"),
+                ("border_pal_outside", "Outside Borders"),
+                ("border_pal_thick", "Thick Box Border"),
+            ],
         )
         self._add(tb, "borderNone", "无框线(&N)", "清除所有选定单元格边框")
         self._add(tb, "borderOutline", "外侧框线(&O)", "绘制外侧边框")
@@ -539,3 +705,5 @@ def retranslate_ledger_toolbars(
         tb = toolbars.get(name)
         if tb is not None:
             tb.setWindowTitle(title)
+            for btn in tb.findChildren(OfficeDropDownButton):
+                btn.retranslate_ui(translate)

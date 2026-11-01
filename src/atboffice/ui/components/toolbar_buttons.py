@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QCoreApplication, QPoint, QSize, Qt
+from collections.abc import Callable
+
+from PySide6.QtCore import QPoint, QSize, Qt
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPaintEvent, QPolygon
 from PySide6.QtWidgets import (
     QMenu,
@@ -12,6 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.ui.styles.luna_2003 import (
     LUNA_BLUE_HOT_BORDER,
     format_mnemonic,
@@ -20,7 +23,7 @@ from atboffice.ui.styles.luna_2003 import (
 
 def safe_tr(text: str) -> str:
     """Translate UI text safely for toolbar buttons."""
-    return QCoreApplication.translate("ToolbarButtons", text)
+    return core_safe_tr(text)
 
 
 class OfficeSplitButton(QToolButton):
@@ -124,6 +127,7 @@ class OfficeDropDownButton(QToolButton):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        self._raw_text = text
         self.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setIconSize(QSize(16, 16))
@@ -145,6 +149,16 @@ class OfficeDropDownButton(QToolButton):
             self.setIcon(icon)
         if menu:
             self.setMenu(menu)
+
+    def retranslate_ui(self, tr_func: Callable[[str], str] | None = None) -> None:
+        """Update localized text and accessibility descriptions."""
+        if self._raw_text:
+            translate = tr_func or safe_tr
+            formatted = format_mnemonic(translate(self._raw_text))
+            self.setText(formatted)
+            self.setToolTip(formatted)
+            self.setStatusTip(formatted)
+            self.setAccessibleName(formatted)
 
     def sizeHint(self) -> QSize:
         hint = super().sizeHint()
