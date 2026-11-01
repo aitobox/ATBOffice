@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402, E501
 """Capture offscreen PySide6 toolbar screenshots for ATBOffice.
 
 Renders high-fidelity PNG screenshots of Quire, Ledger, and Lectern at:
@@ -23,12 +24,11 @@ sys.path.insert(0, str(repo_root / "src"))
 # Force offscreen QPA for headless capture
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import QApplication
 
-from atboffice.ui.shell.quire_window import QuireWindow
-from atboffice.ui.shell.ledger_window import LedgerWindow
 from atboffice.ui.shell.lectern_window import LecternWindow
+from atboffice.ui.shell.ledger_window import LedgerWindow
+from atboffice.ui.shell.quire_window import QuireWindow
 
 
 def capture_window_state(win, width: int, height: int, all_toolbars: bool, out_path: Path):
@@ -66,7 +66,7 @@ def capture_toolbar_dock(win, out_path: Path):
 
 
 def main():
-    app = QApplication.instance() or QApplication(sys.argv)
+    _app = QApplication.instance() or QApplication(sys.argv)
 
     out_dir = repo_root / "docs" / "clone" / "evidence" / "phase5" / "screenshots"
     out_dir.mkdir(parents=True, exist_ok=True)

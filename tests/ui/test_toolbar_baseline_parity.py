@@ -13,14 +13,12 @@ from __future__ import annotations
 
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QToolBar
 
 from atboffice.core.i18n import load_locale
 from atboffice.ui.components.toolbar import DottedGrip, OfficeToolBar, OfficeToolBarSeparator
 from atboffice.ui.shell.lectern_window import LecternWindow
 from atboffice.ui.shell.ledger_window import LedgerWindow
 from atboffice.ui.shell.quire_window import QuireWindow
-
 
 QUIRE_EXPECTED_TOOLBARS = {
     "standard",
@@ -121,17 +119,29 @@ def test_action_registry_contains_core_toolbar_commands(qtbot) -> None:
     """Assert all core commands across all three editors exist in ActionRegistry."""
     quire_win = QuireWindow()
     qtbot.addWidget(quire_win)
-    for aid in ["new", "open", "save", "cut", "copy", "paste", "undo", "redo", "bold", "italic", "underline"]:
+    quire_actions = [
+        "new", "open", "save", "cut", "copy", "paste",
+        "undo", "redo", "bold", "italic", "underline",
+    ]
+    for aid in quire_actions:
         assert quire_win.action_registry.has_action(aid), f"Quire missing action {aid}"
 
     ledger_win = LedgerWindow()
     qtbot.addWidget(ledger_win)
-    for aid in ["file_new", "file_open", "file_save", "edit_cut", "edit_copy", "edit_paste", "edit_undo", "edit_redo"]:
+    ledger_actions = [
+        "file_new", "file_open", "file_save", "edit_cut",
+        "edit_copy", "edit_paste", "edit_undo", "edit_redo",
+    ]
+    for aid in ledger_actions:
         assert ledger_win.action_registry.has_action(aid), f"Ledger missing action {aid}"
 
     lectern_win = LecternWindow()
     qtbot.addWidget(lectern_win)
-    for aid in ["new", "open", "save", "cut", "copy", "paste", "undo", "redo", "bold", "italic"]:
+    lectern_actions = [
+        "new", "open", "save", "cut", "copy",
+        "paste", "undo", "redo", "bold", "italic",
+    ]
+    for aid in lectern_actions:
         assert lectern_win.action_registry.has_action(aid), f"Lectern missing action {aid}"
 
 

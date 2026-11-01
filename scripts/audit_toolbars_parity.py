@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402, E501
 """Audit toolbars parity between .vibeoffice and ATBOffice.
 
 Analyzes all 10 Quire toolbars, 8 Ledger toolbars, and 10 Lectern toolbars
@@ -27,17 +28,16 @@ sys.path.insert(0, str(repo_root / "src"))
 # Force offscreen QPA for headless execution
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication, QToolBar, QToolButton, QComboBox, QMenu, QWidgetAction
-from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QApplication, QComboBox
 
-# Import target windows & components
-from atboffice.ui.shell.quire_window import QuireWindow
-from atboffice.ui.shell.ledger_window import LedgerWindow
-from atboffice.ui.shell.lectern_window import LecternWindow
 from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.toolbar import DottedGrip, OfficeToolBarSeparator
 from atboffice.ui.components.toolbar_buttons import OfficeDropDownButton, OfficeSplitButton
+from atboffice.ui.shell.lectern_window import LecternWindow
+from atboffice.ui.shell.ledger_window import LedgerWindow
 
+# Import target windows & components
+from atboffice.ui.shell.quire_window import QuireWindow
 
 # Reference original toolbar item lists from .vibeoffice JS
 ORIGINAL_QUIRE_TOOLBARS = {
@@ -356,7 +356,7 @@ def generate_markdown(all_results: list[dict]) -> str:
 
 
 def main():
-    app = QApplication.instance() or QApplication(sys.argv)
+    _app = QApplication.instance() or QApplication(sys.argv)
 
     print("Instantiating QuireWindow...")
     quire_win = QuireWindow()
