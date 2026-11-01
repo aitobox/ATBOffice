@@ -16,7 +16,7 @@ DOCX DrawingML and Picture Import,quire_io,must,yes,yes,w:drawing and w:pict anc
 DOCX OpenXML Writer and Serialization,quire_io,must,yes,yes,docx_writer.py generates standard WordprocessingML packages
 Markdown Import and Export,quire_io,should,yes,yes,markdown_io.py with table and formatting conversion
 Rich Text Format (RTF) Import and Export,quire_io,should,yes,yes,rtf_io.py bidirectional conversion
-HTML Document Import and Export,quire_io,should,yes,no,htmlio.js in original is missing in Python port
+HTML Document Import and Export,quire_io,should,yes,yes,"html_io.py HTML DOM parser and semantic HTML exporter with rich formatting (PR #180, fixes #163)"
 Quire Document DOM Tree Models,quire_model,must,yes,yes,"Document, Paragraph, Run, Table, Cell models in writer/models"
 Quire Table Model and Merged Cells,quire_model,must,yes,yes,"Table, Row, Cell with gridSpan and vMerge"
 Fields and Table of Contents (TOC) Model,quire_model,should,yes,yes,field.py and toc.py with page ref and heading outline extraction
@@ -39,7 +39,7 @@ Insert Table Dialog,quire_ui,should,yes,yes,"Insert Table dialog with rows/colum
 Borders and Shading Dialog,quire_ui,should,yes,yes,"Borders and Shading dialog with presets, line styles, colors, and fill patterns (PR #145)"
 Tabs Setup Dialog,quire_ui,should,yes,yes,"Tabs setup dialog with tab stop positions, alignments, and leader styles (PR #145)"
 Columns Formatting Dialog,quire_ui,should,yes,yes,"Columns formatting dialog with presets, custom column count, width/spacing, and line-between option (PR #145)"
-Word Count Dialog,quire_ui,could,yes,no,Word Count statistics dialog missing in writer dialogs
+Word Count Dialog,quire_ui,could,yes,yes,"word_count_dlg.py Word 2003 statistics dialog (pages, words, chars, paragraphs, lines) (PR #181, fixes #164)"
 Quire 10-Toolbar Cluster Assembly,quire_ui,must,yes,yes,quire_toolbars.py builds all 10 Office 2003 toolbars
 Quire Toolbar Action Command Handlers,quire_ui,must,yes,yes,"All 10 Quire toolbars fully wired to canvas text, DOM controllers, and formatting actions (PR #140)"
 AutoCorrect Typing Replacement Engine,quire_ui,should,yes,yes,AutoCorrect engine with 250+ standard typing replacement pairs and user custom pairs (PR #149)
@@ -58,9 +58,9 @@ Autofill Smart Handle Sequence Prediction,ledger_model,must,yes,yes,"views/autof
 AutoFilter and Multi-Column Sorting,ledger_model,must,yes,yes,models/filter_model.py and views/filter_dropdown.py
 Conditional Formatting Engine and Rules,ledger_model,should,yes,yes,"CF engine supporting cell value, formula expression, color scales, data bars, and rules manager (PR #146)"
 Data Validation Engine and Rules,ledger_model,should,yes,yes,"Data validation engine with list dropdowns, number/date ranges, input messages, and alerts (PR #146)"
-Pivot Tables and Summarization,ledger_model,should,yes,no,pivots.js in original not ported to Python
-Slicers for Filtering,ledger_model,could,yes,no,slicers.js not ported to Python
-Goal Seek and Equation Solver,ledger_model,could,yes,no,Goal seek and solver dialogs/algorithms not ported
+Pivot Tables and Summarization,ledger_model,should,yes,yes,"pivot_model.py PivotTableEngine with PivotCache preservation, field list, and aggregation (PR #177, fixes #160)"
+Slicers for Filtering,ledger_model,could,yes,yes,"Sheet slicer shape rendering and filter state preservation across workbook open/save (PR #177, fixes #160)"
+Goal Seek and Equation Solver,ledger_model,could,yes,yes,"goal_seek.py Newton-Raphson numerical iterative solver and GoalSeekDialog (PR #178, fixes #161)"
 Virtualized Grid Viewport and Rendering,ledger_ui,must,yes,yes,"views/grid_viewport.py with cell formatting, selection, headers"
 Freeze Panes and Split Rows/Columns,ledger_ui,must,yes,yes,Frozen panes and split views supported in grid
 In-Place Cell Editor and Formula Bar,ledger_ui,must,yes,yes,views/formula_bar.py and editor_controller.py
@@ -71,9 +71,9 @@ Classic SheetTabBar Bottom Worksheets Bar,ledger_ui,must,yes,yes,"views/sheet_ta
 Ledger 8-Toolbar Cluster Assembly,ledger_ui,must,yes,yes,ledger_toolbars.py builds all 8 toolbars
 Ledger Toolbar Action Command Handlers,ledger_ui,must,yes,yes,"All 8 Ledger toolbars fully wired to cell formatting, formula insertion, auto-sum, sort, and alignment (PR #141)"
 Spreadsheet Page Setup and Print Preview to PDF,ledger_ui,should,yes,yes,"Universal print preview dialog, page setup, and vector PDF export wired to Ledger (PR #144)"
-Insert Function (fx) Browser Dialog,ledger_ui,should,yes,no,Function category and argument assistant dialog missing
-Formula Auditing Visual Trace Arrows,ledger_ui,should,yes,no,Drawing arrows on grid to precedents/dependents not ported
-AutoFilter Custom Filter Dialog,ledger_ui,should,yes,no,Advanced custom filter dialog with comparison operators missing
+Insert Function (fx) Browser Dialog,ledger_ui,should,yes,yes,"function_wizard.py 519-function category browser and argument assistant dialog (PR #174, fixes #157)"
+Formula Auditing Visual Trace Arrows,ledger_ui,should,yes,yes,"audit_tracer.py visual precedent/dependent trace arrows with QPainter on grid_viewport.py (PR #175, fixes #158)"
+AutoFilter Custom Filter Dialog,ledger_ui,should,yes,yes,"custom_filter.py two-condition AND/OR custom comparison filter dialog (PR #176, fixes #159)"
 Pure Python PPTX PresentationML Reader,lectern_io,must,yes,yes,"pptx_reader.py parses master/layout/slide hierarchy, shapes, timing"
 Pure Python PPTX PresentationML Writer,lectern_io,must,yes,yes,pptx_writer.py and writer modules generating PresentationML
 Media Preservation for PPTX,lectern_io,must,yes,yes,"Audio, video, image preservation via OPC carry"
@@ -95,7 +95,7 @@ Set Up Show Configuration Dialog,lectern_ui,must,yes,yes,"dialogs/setup_show.py 
 Slide Layout Selection Dialog,lectern_ui,must,yes,yes,dialogs/slide_layout.py 21 standard slide layouts
 Slide Transition Configuration Dialog,lectern_ui,should,yes,yes,"Interactive slide transition task pane with effects, sounds, and timing controls (PR #147)"
 Custom Animation Task Pane,lectern_ui,should,yes,yes,"Custom animation task pane with effect lists, reordering, timing, and triggers (PR #147)"
-Slide Background Formatting Dialog,lectern_ui,should,yes,no,"Gradient, texture, pattern, picture background dialog missing"
+Slide Background Formatting Dialog,lectern_ui,should,yes,yes,"background_dlg.py solid, gradient, texture, pattern, and picture slide background dialog (PR #182, fixes #165)"
 Lectern 10-Toolbar Cluster Assembly,lectern_ui,must,yes,yes,lectern_toolbars.py builds all 10 toolbars
 Lectern Toolbar Action Command Handlers,lectern_ui,must,yes,yes,"All 10 Lectern toolbars fully wired to slide canvas, shapes, diagram layout, and master views (PR #142)"
 Start Center Document Hub Window,common_ui,must,yes,yes,"start_center.py with open, recent, create, app launch"
@@ -107,10 +107,10 @@ Office 2003 Luna Theme Visual Styling,common_ui,must,yes,yes,"luna_2003.py styli
 macOS Native Menu Bar Integration,common_ui,must,yes,yes,"Complete Office 2003 9-menu system (Insert, Format, Tools, Table, Data, Slide Show) with dynamic switching (PR #143)"
 Universal Find and Replace Modal Dialog,common_ui,must,yes,yes,find_replace_dialog.py with tabbed interface
 Office SplitButton and DropDownButton Widgets,common_ui,must,yes,yes,toolbar_buttons.py custom Qt tool buttons with menus
-WMF and EMF Windows Metafile Player,common_ui,should,yes,no,metafile.js parser and vector renderer not ported to Python
+WMF and EMF Windows Metafile Player,common_ui,should,yes,yes,"metafile_player.py pure Python 16-bit WMF and 32-bit EMF binary parser and QPainter playback (PR #179, fixes #162)"
 WordArt Gallery Dialog and 3D Text Deformations,common_ui,should,yes,yes,30 preset WordArt styles and 10 parametric bezier warp deformations implemented
-ClipArt Vector Graphic Library Dialog,common_ui,could,yes,no,clipart.js built-in clip art gallery dialog missing
-Office Assistant Scout Character Widget,common_ui,could,yes,no,scout.js animated puppy assistant not ported
+ClipArt Vector Graphic Library Dialog,common_ui,could,yes,yes,"clipart_dialog.py categorized vector clipart library browser and insertion dialog (PR #184, fixes #167)"
+Office Assistant Scout Character Widget,common_ui,could,yes,yes,"assistant_scout.py floating cartoon puppy assistant with animations and speech balloons (PR #184, fixes #167)"
 Application Preferences and Options Dialog,common_ui,should,yes,yes,Comprehensive multi-tab Tools -> Options dialog with settings persistence (PR #148)
 Document Printing and Print Preview Subsystem,common_ui,must,yes,yes,"Universal printing controller, QPrintPreviewDialog, and vector PDF export (PR #144)"
-Automatic Updater and Release Check,common_ui,could,yes,no,updater/current.json checking not ported to desktop app
+Automatic Updater and Release Check,common_ui,could,yes,yes,"updater.py asynchronous background GitHub release checker and update notification (PR #184, fixes #167)"
