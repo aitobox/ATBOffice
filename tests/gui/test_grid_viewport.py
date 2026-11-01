@@ -5,6 +5,10 @@ from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import QApplication
 
+from atboffice.modules.spreadsheet.models.selection_model import (
+    SelectionModel,
+    SelectionRange,
+)
 from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetDataModel
 from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport, HitZone
 
@@ -931,4 +935,470 @@ class TestSelectionBorderDragAndDrop:
         # Not moved because sheet is protected
         assert viewport.model.get_cell_value(0, 0) == 999
         assert viewport.model.get_cell_value(1, 1) is None
+
+
+class TestAutoFillInteractionsAndUndoRedo:
+    def test_autofill_drag_down_and_undo_redo(self, viewport: GridViewport) -> None:
+        viewport.model.set_cell(0, 0, CellData(value=10))
+        viewport.model.set_cell(1, 0, CellData(value=20))
+        viewport.selection.select_cell(0, 0)
+        viewport.selection.extend_to(1, 0)  # A1:A2
+
+        handle_rect = viewport._get_fill_handle_rect()
+        assert handle_rect is not None
+        hx, hy = handle_rect.center().x(), handle_rect.center().y()
+
+        # 1. Press on fill handle
+        press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(hx, hy),
+            QPointF(hx, hy),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(press)
+        assert viewport.is_dragging
+        assert viewport._drag_mode == HitZone.FILL_HANDLE
+
+        # 2. Drag down to cell (3, 0) -> A4
+        c3_rect = viewport.cell_rect(3, 0)
+        move = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(c3_rect.center().x(), c3_rect.center().y()),
+            QPointF(c3_rect.center().x(), c3_rect.center().y()),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move)
+        assert viewport.has_drag_moved
+        assert viewport.has_autofill_preview
+        assert viewport._fill_preview_range == SelectionRange(0, 0, 3, 0)
+
+        # 3. Release mouse to commit autofill
+        release = QMouseEvent(
+            QMouseEvent.Type.MouseButtonRelease,
+            QPointF(c3_rect.center().x(), c3_rect.center().y()),
+            QPointF(c3_rect.center().x(), c3_rect.center().y()),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseReleaseEvent(release)
+        assert not viewport.is_dragging
+        assert viewport.model.get_cell_value(2, 0) == 30
+        assert viewport.model.get_cell_value(3, 0) == 40
+        assert viewport.selection.primary_range == SelectionRange(0, 0, 3, 0)
+
+        # 4. Undo restores pre-fill state
+        viewport.undo()
+        assert viewport.model.get_cell_value(0, 0) == 10
+        assert viewport.model.get_cell_value(1, 0) == 20
+        assert viewport.model.get_cell_value(2, 0) is None
+        assert viewport.model.get_cell_value(3, 0) is None
+        assert viewport.selection.primary_range == SelectionRange(0, 0, 1, 0)
+
+        # 5. Redo re-applies fill
+        viewport.redo()
+        assert viewport.model.get_cell_value(2, 0) == 30
+        assert viewport.model.get_cell_value(3, 0) == 40
+
+    def test_autofill_shrink_and_undo_redo(self, viewport: GridViewport) -> None:
+        viewport.model.set_cell(0, 0, CellData(value="Row 1"))
+        viewport.model.set_cell(1, 0, CellData(value="Row 2"))
+        viewport.model.set_cell(2, 0, CellData(value="Row 3"))
+        viewport.selection.select_cell(0, 0)
+        viewport.selection.extend_to(2, 0)  # A1:A3
+
+        handle_rect = viewport._get_fill_handle_rect()
+        assert handle_rect is not None
+        hx, hy = handle_rect.center().x(), handle_rect.center().y()
+
+        # Press on fill handle
+        press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(hx, hy),
+            QPointF(hx, hy),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(press)
+
+        # Shrink upward to row 0
+        c0_rect = viewport.cell_rect(0, 0)
+        move = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(c0_rect.center().x(), c0_rect.center().y()),
+            QPointF(c0_rect.center().x(), c0_rect.center().y()),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move)
+        assert viewport.has_autofill_preview
+        assert viewport._fill_preview_range == SelectionRange(0, 0, 0, 0)
+
+        release = QMouseEvent(
+            QMouseEvent.Type.MouseButtonRelease,
+            QPointF(c0_rect.center().x(), c0_rect.center().y()),
+            QPointF(c0_rect.center().x(), c0_rect.center().y()),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseReleaseEvent(release)
+
+        # Contracted cells are cleared
+        assert viewport.model.get_cell_value(0, 0) == "Row 1"
+        assert viewport.model.get_cell_value(1, 0) is None
+        assert viewport.model.get_cell_value(2, 0) is None
+        assert viewport.selection.primary_range == SelectionRange(0, 0, 0, 0)
+
+        # Undo restores contracted cells
+        viewport.undo()
+        assert viewport.model.get_cell_value(1, 0) == "Row 2"
+        assert viewport.model.get_cell_value(2, 0) == "Row 3"
+
+        # Redo re-clears contracted cells
+        viewport.redo()
+        assert viewport.model.get_cell_value(1, 0) is None
+        assert viewport.model.get_cell_value(2, 0) is None
+
+    def test_autofill_cancel_leaves_cells_untouched(self, viewport: GridViewport) -> None:
+        viewport.model.set_cell(0, 0, CellData(value=100))
+        viewport.selection.select_cell(0, 0)
+
+        handle_rect = viewport._get_fill_handle_rect()
+        assert handle_rect is not None
+        hx, hy = handle_rect.center().x(), handle_rect.center().y()
+
+        press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(hx, hy),
+            QPointF(hx, hy),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(press)
+
+        c2_rect = viewport.cell_rect(2, 0)
+        move = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(c2_rect.center().x(), c2_rect.center().y()),
+            QPointF(c2_rect.center().x(), c2_rect.center().y()),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move)
+
+        # Cancel drag via Escape key
+        esc = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier)
+        viewport.keyPressEvent(esc)
+
+        assert not viewport.is_dragging
+        assert not viewport.has_autofill_preview
+        assert viewport.model.get_cell_value(1, 0) is None
+        assert viewport.model.get_cell_value(2, 0) is None
+
+
+class TestHeaderDragSelectionAdvanced:
+    def test_col_header_drag_multiple_cols(self, viewport: GridViewport) -> None:
+        # Press on col header 1
+        x1 = viewport.row_header_width + viewport.geometry_mapper.col_pos(1) + 10
+        press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(x1, 10),
+            QPointF(x1, 10),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(press)
+        assert viewport.is_dragging
+        assert viewport._drag_mode == HitZone.COL_HEADER
+        assert viewport.selection.primary_range.min_c == 1
+        assert viewport.selection.primary_range.max_c == 1
+
+        # Drag across to col header 3
+        x3 = viewport.row_header_width + viewport.geometry_mapper.col_pos(3) + 10
+        move = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(x3, 10),
+            QPointF(x3, 10),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move)
+        assert viewport.selection.primary_range.min_c == 1
+        assert viewport.selection.primary_range.max_c == 3
+
+        release = QMouseEvent(
+            QMouseEvent.Type.MouseButtonRelease,
+            QPointF(x3, 10),
+            QPointF(x3, 10),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseReleaseEvent(release)
+        assert not viewport.is_dragging
+        assert viewport.selection.primary_range.min_c == 1
+        assert viewport.selection.primary_range.max_c == 3
+
+    def test_col_header_shift_and_ctrl_selection(self, viewport: GridViewport) -> None:
+        # Click col 1
+        x1 = viewport.row_header_width + viewport.geometry_mapper.col_pos(1) + 10
+        press1 = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(x1, 10),
+            QPointF(x1, 10),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(press1)
+        assert viewport.selection.primary_range.min_c == 1
+        assert viewport.selection.primary_range.max_c == 1
+
+        # Shift-click col 3 -> extends 1..3
+        x3 = viewport.row_header_width + viewport.geometry_mapper.col_pos(3) + 10
+        press3 = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(x3, 10),
+            QPointF(x3, 10),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.ShiftModifier,
+        )
+        viewport.mousePressEvent(press3)
+        assert viewport.selection.primary_range.min_c == 1
+        assert viewport.selection.primary_range.max_c == 3
+
+        # Ctrl-click col 5 -> adds col 5 as second range
+        x5 = viewport.row_header_width + viewport.geometry_mapper.col_pos(5) + 10
+        press5 = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(x5, 10),
+            QPointF(x5, 10),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.ControlModifier,
+        )
+        viewport.mousePressEvent(press5)
+        assert len(viewport.selection.ranges) == 2
+        assert viewport.selection.ranges[1].min_c == 5
+        assert viewport.selection.ranges[1].max_c == 5
+
+    def test_row_header_drag_multiple_rows(self, viewport: GridViewport) -> None:
+        y1 = viewport.col_header_height + viewport.geometry_mapper.row_pos(1) + 5
+        press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(10, y1),
+            QPointF(10, y1),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(press)
+        assert viewport.selection.primary_range.min_r == 1
+        assert viewport.selection.primary_range.max_r == 1
+
+        y4 = viewport.col_header_height + viewport.geometry_mapper.row_pos(4) + 5
+        move = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(10, y4),
+            QPointF(10, y4),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move)
+        assert viewport.selection.primary_range.min_r == 1
+        assert viewport.selection.primary_range.max_r == 4
+
+
+class TestColumnRowResizeBatchAndUndoRedo:
+    def test_batch_col_resize_selected_columns(self, viewport: GridViewport) -> None:
+        # Select columns 1..3 (B:D)
+        viewport.selection.select_cols(1, 3)
+        orig_w1 = viewport.geometry_mapper.col_size(1)
+        orig_w2 = viewport.geometry_mapper.col_size(2)
+        orig_w3 = viewport.geometry_mapper.col_size(3)
+
+        # Drag resize border of col 1
+        b_x = viewport.row_header_width + viewport.geometry_mapper.col_pos(2)
+        press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(b_x, 10),
+            QPointF(b_x, 10),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(press)
+        assert viewport.cols_for_resize(1) == [1, 2, 3]
+
+        move = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(b_x + 30, 10),
+            QPointF(b_x + 30, 10),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move)
+
+        release = QMouseEvent(
+            QMouseEvent.Type.MouseButtonRelease,
+            QPointF(b_x + 30, 10),
+            QPointF(b_x + 30, 10),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseReleaseEvent(release)
+
+        # All selected columns resized to orig + 30
+        assert viewport.geometry_mapper.col_size(1) == orig_w1 + 30
+        assert viewport.geometry_mapper.col_size(2) == orig_w2 + 30
+        assert viewport.geometry_mapper.col_size(3) == orig_w3 + 30
+
+        # Undo restores all columns
+        viewport.undo()
+        assert viewport.geometry_mapper.col_size(1) == orig_w1
+        assert viewport.geometry_mapper.col_size(2) == orig_w2
+        assert viewport.geometry_mapper.col_size(3) == orig_w3
+
+        # Redo re-applies resize to all columns
+        viewport.redo()
+        assert viewport.geometry_mapper.col_size(1) == orig_w1 + 30
+        assert viewport.geometry_mapper.col_size(2) == orig_w2 + 30
+        assert viewport.geometry_mapper.col_size(3) == orig_w3 + 30
+
+    def test_row_resize_undo_redo(self, viewport: GridViewport) -> None:
+        orig_h = viewport.geometry_mapper.row_size(0)
+        b_y = viewport.col_header_height + orig_h
+
+        press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(10, b_y),
+            QPointF(10, b_y),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(press)
+
+        move = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(10, b_y + 25),
+            QPointF(10, b_y + 25),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move)
+
+        release = QMouseEvent(
+            QMouseEvent.Type.MouseButtonRelease,
+            QPointF(10, b_y + 25),
+            QPointF(10, b_y + 25),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseReleaseEvent(release)
+        assert viewport.geometry_mapper.row_size(0) == orig_h + 25
+
+        viewport.undo()
+        assert viewport.geometry_mapper.row_size(0) == orig_h
+
+        viewport.redo()
+        assert viewport.geometry_mapper.row_size(0) == orig_h + 25
+
+
+class TestEdgeAutoScrollAndFreezePanes:
+    def test_freeze_panes_properties_and_split(self, viewport: GridViewport) -> None:
+        assert viewport.freeze_rows == 0
+        assert viewport.freeze_cols == 0
+
+        viewport.set_freeze_panes(2, 3)
+        assert viewport.freeze_rows == 2
+        assert viewport.freeze_cols == 3
+
+    def test_edge_scroll_trigger_and_stop(self, viewport: GridViewport) -> None:
+        viewport.selection.select_cell(0, 0)
+        c0 = viewport.cell_rect(0, 0)
+
+        press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(c0.center().x(), c0.center().y()),
+            QPointF(c0.center().x(), c0.center().y()),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(press)
+        assert viewport.is_dragging
+
+        # Move near bottom edge (height - 1)
+        vh = viewport.viewport().height()
+        move_edge = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(c0.center().x(), vh - 1),
+            QPointF(c0.center().x(), vh - 1),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move_edge)
+        assert viewport.is_auto_scrolling
+
+        # Move back inside viewport
+        move_back = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(c0.center().x(), vh // 2),
+            QPointF(c0.center().x(), vh // 2),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move_back)
+        assert not viewport.is_auto_scrolling
+
+        # Release stops everything cleanly
+        release = QMouseEvent(
+            QMouseEvent.Type.MouseButtonRelease,
+            QPointF(c0.center().x(), vh // 2),
+            QPointF(c0.center().x(), vh // 2),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseReleaseEvent(release)
+        assert not viewport.is_dragging
+        assert not viewport.is_auto_scrolling
+
+    def test_edge_scroll_skips_hidden_rows_and_cols(self, viewport: GridViewport) -> None:
+        # Hide rows 1 and 2
+        viewport.geometry_mapper.hidden_rows.add(1)
+        viewport.geometry_mapper.hidden_rows.add(2)
+
+        # Set scroll delta downwards
+        viewport._drag_mode = HitZone.CELL
+        viewport._auto_scroll_delta = (1, 0)
+        viewport.verticalScrollBar().setValue(0)
+
+        # Trigger tick
+        viewport._on_auto_scroll_tick()
+
+        # Should skip rows 1 and 2, jumping directly to row 3 pos
+        r3_pos = viewport.geometry_mapper.row_pos(3)
+        assert viewport.verticalScrollBar().value() == r3_pos
+        viewport._stop_auto_scroll()
 

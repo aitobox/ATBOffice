@@ -257,6 +257,8 @@ class SheetDataModel:
         self.show_all_comments: bool = False
         self.protection: dict[str, Any] | None = None
         self.links: list[Any] = []
+        self.freeze_rows: int = 0
+        self.freeze_cols: int = 0
 
     def set_comment(
         self,
