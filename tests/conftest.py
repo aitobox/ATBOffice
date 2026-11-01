@@ -112,7 +112,7 @@ def cleanup_dirty_windows_fixture() -> Generator[None, None, None]:
     """Fixture to reset dirty state on all windows before teardown closes them."""
     yield
     app = QApplication.instance()
-    if app is not None:
+    if app is not None and hasattr(app, "topLevelWidgets"):
         for top_w in app.topLevelWidgets():
             if hasattr(top_w, "set_modified"):
                 top_w.set_modified(False)
@@ -129,7 +129,7 @@ def pytest_runtest_teardown(item: pytest.Item) -> None:
                 w.set_modified(False)
 
     app = QApplication.instance()
-    if app is not None:
+    if app is not None and hasattr(app, "topLevelWidgets"):
         for top_w in app.topLevelWidgets():
             if hasattr(top_w, "set_modified"):
                 top_w.set_modified(False)

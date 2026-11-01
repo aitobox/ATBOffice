@@ -66,6 +66,9 @@ class ATBApplication(QApplication):
         self._pending_files: list[str] = []
         self._main_window: Any | None = None
 
+        from atboffice.core.diagnostics import drain_event_loop
+        self.aboutToQuit.connect(drain_event_loop)
+
     @property
     def pending_files(self) -> list[str]:
         """Return a copy of the pending file queue."""
