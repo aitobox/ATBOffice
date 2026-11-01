@@ -555,3 +555,369 @@ class TestDragLifecycleAndCancellation:
 
         assert not viewport.is_dragging
 
+
+class TestSelectionBorderDragAndDrop:
+    """Parity tests for Ledger selection border dragging, moving, and copying."""
+
+    def test_border_hit_test(self, viewport: GridViewport) -> None:
+        viewport.selection.select_cell(1, 1)
+        viewport.selection.extend_to(3, 3)  # B2:D4
+
+        pr = viewport.selection.primary_range
+        sx = viewport.horizontalScrollBar().value()
+        sy = viewport.verticalScrollBar().value()
+        x1 = viewport.row_header_width + viewport.geometry_mapper.col_pos(pr.min_c) - sx
+        x2 = viewport.row_header_width + viewport.geometry_mapper.col_pos(pr.max_c + 1) - sx
+        y1 = viewport.col_header_height + viewport.geometry_mapper.row_pos(pr.min_r) - sy
+        y2 = viewport.col_header_height + viewport.geometry_mapper.row_pos(pr.max_r + 1) - sy
+
+        mid_x = (x1 + x2) // 2
+        mid_y = (y1 + y2) // 2
+
+        # Top border
+        hit_top = viewport.hit_test(mid_x, y1)
+        assert hit_top.zone == HitZone.BORDER
+
+        # Bottom border (away from bottom-right fill handle)
+        hit_bottom = viewport.hit_test(x1 + 10, y2)
+        assert hit_bottom.zone == HitZone.BORDER
+
+        # Left border
+        hit_left = viewport.hit_test(x1, mid_y)
+        assert hit_left.zone == HitZone.BORDER
+
+        # Right border
+        hit_right = viewport.hit_test(x2, mid_y)
+        assert hit_right.zone == HitZone.BORDER
+
+        # Fill handle at (x2, y2)
+        hit_fill = viewport.hit_test(x2, y2)
+        assert hit_fill.zone == HitZone.FILL_HANDLE
+
+        # Cell interior
+        hit_interior = viewport.hit_test(mid_x, mid_y)
+        assert hit_interior.zone == HitZone.CELL
+
+        # Cursor update on hover
+        hover_event = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(mid_x, y1),
+            QPointF(mid_x, y1),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(hover_event)
+        assert viewport.viewport().cursor().shape() == Qt.CursorShape.SizeAllCursor
+
+    def test_border_drag_preview_and_esc_cancel(self, viewport: GridViewport) -> None:
+        viewport.selection.select_cell(1, 1)
+        viewport.selection.extend_to(2, 2)  # B2:C3
+
+        pr = viewport.selection.primary_range
+        sx = viewport.horizontalScrollBar().value()
+        sy = viewport.verticalScrollBar().value()
+        x1 = viewport.row_header_width + viewport.geometry_mapper.col_pos(pr.min_c) - sx
+        x2 = viewport.row_header_width + viewport.geometry_mapper.col_pos(pr.max_c + 1) - sx
+        y1 = viewport.col_header_height + viewport.geometry_mapper.row_pos(pr.min_r) - sy
+        grab_x = x1 + 10
+
+        press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(grab_x, y1),
+            QPointF(grab_x, y1),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(press)
+        assert viewport.is_dragging
+        assert viewport._drag_mode == HitZone.BORDER
+
+        # Move > 3px threshold
+        move = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(grab_x + 50, y1 + 50),
+            QPointF(grab_x + 50, y1 + 50),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move)
+        assert viewport.has_drag_moved
+        assert viewport.has_move_preview
+
+        # Esc key cancels drag
+        esc_event = QKeyEvent(
+            QKeyEvent.Type.KeyPress,
+            Qt.Key.Key_Escape,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.keyPressEvent(esc_event)
+        assert not viewport.is_dragging
+        assert not viewport.has_move_preview
+        assert viewport.selection.primary_range == pr
+
+    def test_border_move_empty_destination(self, viewport: GridViewport) -> None:
+        viewport.model.set_cell_value(1, 1, "Hello")
+        viewport.model.set_cell_value(1, 2, 123)
+        viewport.selection.select_cell(1, 1)
+        viewport.selection.extend_to(1, 2)  # B2:C2
+
+        pr = viewport.selection.primary_range
+        sx = viewport.horizontalScrollBar().value()
+        sy = viewport.verticalScrollBar().value()
+        x1 = viewport.row_header_width + viewport.geometry_mapper.col_pos(pr.min_c) - sx
+        x2 = viewport.row_header_width + viewport.geometry_mapper.col_pos(pr.max_c + 1) - sx
+        y1 = viewport.col_header_height + viewport.geometry_mapper.row_pos(pr.min_r) - sy
+        grab_x = x1 + 10
+
+        press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(grab_x, y1),
+            QPointF(grab_x, y1),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(press)
+
+        # Target cell D4 (row 3, col 3)
+        dest_rect = viewport.cell_rect(3, 3)
+        move = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(dest_rect.center().x(), dest_rect.center().y()),
+            QPointF(dest_rect.center().x(), dest_rect.center().y()),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move)
+
+        release = QMouseEvent(
+            QMouseEvent.Type.MouseButtonRelease,
+            QPointF(dest_rect.center().x(), dest_rect.center().y()),
+            QPointF(dest_rect.center().x(), dest_rect.center().y()),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseReleaseEvent(release)
+
+        # Source cells cleared
+        assert viewport.model.get_cell_value(1, 1) is None
+        assert viewport.model.get_cell_value(1, 2) is None
+
+        # Destination cells populated
+        assert viewport.model.get_cell_value(3, 3) == "Hello"
+        assert viewport.model.get_cell_value(3, 4) == 123
+
+        # Selection updated
+        new_pr = viewport.selection.primary_range
+        assert (new_pr.min_r, new_pr.min_c, new_pr.max_r, new_pr.max_c) == (3, 3, 3, 4)
+
+    def test_border_move_overlapping(self, viewport: GridViewport) -> None:
+        viewport.model.set_cell_value(0, 0, 10)
+        viewport.model.set_cell_value(1, 0, 20)
+        viewport.selection.select_cell(0, 0)
+        viewport.selection.extend_to(1, 0)  # A1:A2
+
+        # Move A1:A2 down by 1 row to A2:A3
+        dest = viewport.selection.primary_range
+        viewport.move_range(dest, viewport.selection.primary_range.__class__(1, 0, 2, 0), copy=False)
+
+        assert viewport.model.get_cell_value(0, 0) is None
+        assert viewport.model.get_cell_value(1, 0) == 10
+        assert viewport.model.get_cell_value(2, 0) == 20
+
+    def test_border_copy_ctrl(self, viewport: GridViewport) -> None:
+        viewport.model.set_cell_value(0, 0, 42)
+        viewport.selection.select_cell(0, 0)
+
+        pr = viewport.selection.primary_range
+        sx = viewport.horizontalScrollBar().value()
+        sy = viewport.verticalScrollBar().value()
+        x1 = viewport.row_header_width + viewport.geometry_mapper.col_pos(pr.min_c) - sx
+        y1 = viewport.col_header_height + viewport.geometry_mapper.row_pos(pr.min_r) - sy
+
+        press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(x1, y1),
+            QPointF(x1, y1),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.ControlModifier,
+        )
+        viewport.mousePressEvent(press)
+
+        dest_rect = viewport.cell_rect(0, 1)
+        move = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(dest_rect.center().x(), dest_rect.center().y()),
+            QPointF(dest_rect.center().x(), dest_rect.center().y()),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.ControlModifier,
+        )
+        viewport.mouseMoveEvent(move)
+
+        release = QMouseEvent(
+            QMouseEvent.Type.MouseButtonRelease,
+            QPointF(dest_rect.center().x(), dest_rect.center().y()),
+            QPointF(dest_rect.center().x(), dest_rect.center().y()),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.ControlModifier,
+        )
+        viewport.mouseReleaseEvent(release)
+
+        # Both source and destination retain values in copy mode
+        assert viewport.model.get_cell_value(0, 0) == 42
+        assert viewport.model.get_cell_value(0, 1) == 42
+
+    def test_border_overwrite_confirmation(self, viewport: GridViewport, monkeypatch: pytest.MonkeyPatch) -> None:
+        from PySide6.QtWidgets import QMessageBox
+
+        viewport.model.set_cell_value(0, 0, "Source")
+        viewport.model.set_cell_value(0, 1, "Existing")
+        viewport.selection.select_cell(0, 0)
+
+        # 1. Cancel confirmation -> no change
+        monkeypatch.setattr(QMessageBox, "question", lambda *args, **kwargs: QMessageBox.StandardButton.Cancel)
+
+        dest_rect = viewport.cell_rect(0, 1)
+        pr = viewport.selection.primary_range
+        sx = viewport.horizontalScrollBar().value()
+        sy = viewport.verticalScrollBar().value()
+        x1 = viewport.row_header_width + viewport.geometry_mapper.col_pos(pr.min_c) - sx
+        y1 = viewport.col_header_height + viewport.geometry_mapper.row_pos(pr.min_r) - sy
+
+        press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(x1, y1),
+            QPointF(x1, y1),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(press)
+
+        move = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(dest_rect.center().x(), dest_rect.center().y()),
+            QPointF(dest_rect.center().x(), dest_rect.center().y()),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move)
+
+        release = QMouseEvent(
+            QMouseEvent.Type.MouseButtonRelease,
+            QPointF(dest_rect.center().x(), dest_rect.center().y()),
+            QPointF(dest_rect.center().x(), dest_rect.center().y()),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseReleaseEvent(release)
+
+        assert viewport.model.get_cell_value(0, 0) == "Source"
+        assert viewport.model.get_cell_value(0, 1) == "Existing"
+
+        # 2. Accept confirmation -> overwritten
+        monkeypatch.setattr(QMessageBox, "question", lambda *args, **kwargs: QMessageBox.StandardButton.Ok)
+
+        viewport.mousePressEvent(press)
+        viewport.mouseMoveEvent(move)
+        viewport.mouseReleaseEvent(release)
+
+        assert viewport.model.get_cell_value(0, 0) is None
+        assert viewport.model.get_cell_value(0, 1) == "Source"
+
+    def test_border_move_formulas(self, viewport: GridViewport) -> None:
+        viewport.model.set_cell_value(0, 0, 10)
+        c_b1 = CellData(value=20, formula="=A1*2")
+        viewport.model.set_cell(0, 1, c_b1)
+        c_c1 = CellData(value=15, formula="=A1+5")
+        viewport.model.set_cell(0, 2, c_c1)
+
+        viewport.selection.select_cell(0, 0)
+        viewport.selection.extend_to(0, 1)  # A1:B1
+
+        # Move A1:B1 down to A2:B2 (row 1)
+        src = viewport.selection.primary_range
+        to = src.__class__(1, 0, 1, 1)
+        viewport.move_range(src, to, copy=False)
+
+        # Internal formula in B2 should now point to A2
+        cell_b2 = viewport.model.get_cell(1, 1)
+        assert cell_b2 is not None
+        assert cell_b2.formula is not None
+        assert "A2" in cell_b2.formula
+
+        # External formula in C1 referencing moved A1 should follow to A2
+        cell_c1 = viewport.model.get_cell(0, 2)
+        assert cell_c1 is not None
+        assert cell_c1.formula is not None
+        assert "A2" in cell_c1.formula
+
+    def test_border_move_merged_cells(self, viewport: GridViewport) -> None:
+        viewport.model.set_cell_value(0, 0, "Header")
+        viewport.model.merges.append((0, 0, 0, 1))  # Merge A1:B1
+        viewport.selection.select_cell(0, 0)
+        viewport.selection.extend_to(0, 1)
+
+        src = viewport.selection.primary_range
+        to = src.__class__(2, 2, 2, 3)  # Move to C3:D3
+        viewport.move_range(src, to, copy=False)
+
+        assert (0, 0, 0, 1) not in viewport.model.merges
+        assert (2, 2, 2, 3) in viewport.model.merges
+        assert viewport.model.get_cell_value(2, 2) == "Header"
+
+    def test_border_undo_redo(self, viewport: GridViewport) -> None:
+        viewport.model.set_cell_value(0, 0, "A")
+        viewport.model.set_cell_value(1, 0, "B")
+        viewport.selection.select_cell(0, 0)
+        viewport.selection.extend_to(1, 0)  # A1:A2
+
+        src = viewport.selection.primary_range
+        to = src.__class__(0, 2, 1, 2)  # C1:C2
+        viewport.move_range(src, to, copy=False)
+
+        assert viewport.model.get_cell_value(0, 0) is None
+        assert viewport.model.get_cell_value(1, 0) is None
+        assert viewport.model.get_cell_value(0, 2) == "A"
+        assert viewport.model.get_cell_value(1, 2) == "B"
+
+        # Undo
+        viewport.undo()
+        assert viewport.model.get_cell_value(0, 0) == "A"
+        assert viewport.model.get_cell_value(1, 0) == "B"
+        assert viewport.model.get_cell_value(0, 2) is None
+        assert viewport.model.get_cell_value(1, 2) is None
+
+        # Redo
+        viewport.redo()
+        assert viewport.model.get_cell_value(0, 0) is None
+        assert viewport.model.get_cell_value(1, 0) is None
+        assert viewport.model.get_cell_value(0, 2) == "A"
+        assert viewport.model.get_cell_value(1, 2) == "B"
+
+    def test_border_protection_blocks_move(self, viewport: GridViewport, monkeypatch: pytest.MonkeyPatch) -> None:
+        from PySide6.QtWidgets import QMessageBox
+        monkeypatch.setattr(QMessageBox, "information", lambda *args, **kwargs: None)
+
+        viewport.model.set_cell_value(0, 0, 999)
+        viewport.model.protected = True
+        viewport.selection.select_cell(0, 0)
+
+        src = viewport.selection.primary_range
+        to = src.__class__(1, 1, 1, 1)
+        viewport.move_range(src, to, copy=False)
+
+        # Not moved because sheet is protected
+        assert viewport.model.get_cell_value(0, 0) == 999
+        assert viewport.model.get_cell_value(1, 1) is None
+
