@@ -8,7 +8,7 @@ from typing import Any
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPainter
 from PySide6.QtPrintSupport import QPrinter
-from PySide6.QtWidgets import QComboBox, QMessageBox, QToolButton, QWidget
+from PySide6.QtWidgets import QComboBox, QMessageBox, QWidget
 
 from atboffice.core.action_registry import ActionRegistry
 from atboffice.core.i18n import safe_tr as core_safe_tr
@@ -201,6 +201,189 @@ class QuireWindow(BaseOfficeWindow):
         self.action_registry.set_handler("wa_insert", self.open_wordart_gallery)
         self.action_registry.set_handler("wordartGallery", self.open_wordart_gallery)
         self.action_registry.set_handler("wordartEdit", self.open_wordart_gallery)
+
+        # Standard toolbar dropdowns
+        self.action_registry.set_handler(
+            "tb_table_drop", lambda: canvas.insert_table(2, 2)
+        )
+        self.action_registry.set_handler(
+            "insertTable_dialog", lambda: canvas.insert_table(2, 2)
+        )
+        self.action_registry.set_handler(
+            "insertTable_col_left", lambda: canvas.insert_table_col(left=True)
+        )
+        self.action_registry.set_handler(
+            "insertTable_row_above", lambda: canvas.insert_table_row(above=True)
+        )
+        self.action_registry.set_handler(
+            "col_1",
+            lambda: canvas.set_columns(1) if hasattr(canvas, "set_columns") else None,
+        )
+        self.action_registry.set_handler(
+            "col_2",
+            lambda: canvas.set_columns(2) if hasattr(canvas, "set_columns") else None,
+        )
+        self.action_registry.set_handler(
+            "col_3",
+            lambda: canvas.set_columns(3) if hasattr(canvas, "set_columns") else None,
+        )
+
+        # Formatting toolbar dropdowns and split actions
+        self.action_registry.set_handler(
+            "line_spacing_1_0", lambda: canvas.set_line_spacing(1.0)
+        )
+        self.action_registry.set_handler(
+            "line_spacing_1_5", lambda: canvas.set_line_spacing(1.5)
+        )
+        self.action_registry.set_handler(
+            "line_spacing_2_0", lambda: canvas.set_line_spacing(2.0)
+        )
+        self.action_registry.set_handler(
+            "line_spacing_2_5", lambda: canvas.set_line_spacing(2.5)
+        )
+        self.action_registry.set_handler(
+            "line_spacing_3_0", lambda: canvas.set_line_spacing(3.0)
+        )
+        self.action_registry.set_handler(
+            "line_spacing_more", lambda: canvas.set_line_spacing(1.5)
+        )
+        self.action_registry.set_handler(
+            "borderBtn", lambda: self.apply_border_preset("outside")
+        )
+        self.action_registry.set_handler(
+            "border_none", lambda: self.apply_border_preset("none")
+        )
+        self.action_registry.set_handler(
+            "border_all", lambda: self.apply_border_preset("all")
+        )
+        self.action_registry.set_handler(
+            "border_outside", lambda: self.apply_border_preset("outside")
+        )
+        self.action_registry.set_handler(
+            "border_bottom", lambda: self.apply_border_preset("bottom")
+        )
+        self.action_registry.set_handler(
+            "border_top", lambda: self.apply_border_preset("top")
+        )
+        self.action_registry.set_handler(
+            "border_left", lambda: self.apply_border_preset("left")
+        )
+        self.action_registry.set_handler(
+            "border_right", lambda: self.apply_border_preset("right")
+        )
+
+        # Tables toolbar dropdowns and split actions
+        self.action_registry.set_handler(
+            "tbl_insert_table", lambda: canvas.insert_table(2, 2)
+        )
+        self.action_registry.set_handler(
+            "tbl_insert_col_left", lambda: canvas.insert_table_col(left=True)
+        )
+        self.action_registry.set_handler(
+            "tbl_insert_col_right", lambda: canvas.insert_table_col(left=False)
+        )
+        self.action_registry.set_handler(
+            "tbl_insert_row_above", lambda: canvas.insert_table_row(above=True)
+        )
+        self.action_registry.set_handler(
+            "tbl_insert_row_below", lambda: canvas.insert_table_row(above=False)
+        )
+        self.action_registry.set_handler(
+            "tableBorderBtn", lambda: self.apply_table_border("all")
+        )
+        self.action_registry.set_handler(
+            "tbl_border_all", lambda: self.apply_table_border("all")
+        )
+        self.action_registry.set_handler(
+            "tbl_border_outside", lambda: self.apply_table_border("outside")
+        )
+        self.action_registry.set_handler(
+            "tbl_border_none", lambda: self.apply_table_border("none")
+        )
+        self.action_registry.set_handler(
+            "tbl_align_top", lambda: self.set_table_cell_valign("top")
+        )
+        self.action_registry.set_handler(
+            "tbl_align_center", lambda: self.set_table_cell_valign("center")
+        )
+        self.action_registry.set_handler(
+            "tbl_align_bottom", lambda: self.set_table_cell_valign("bottom")
+        )
+
+        # Reviewing toolbar dropdowns and split actions
+        self.action_registry.set_handler(
+            "rev_accept_selected",
+            lambda: canvas.accept_current_revision(all_revisions=False),
+        )
+        self.action_registry.set_handler(
+            "rev_accept_all", lambda: canvas.accept_current_revision(all_revisions=True)
+        )
+        self.action_registry.set_handler(
+            "rev_reject_selected",
+            lambda: canvas.reject_current_revision(all_revisions=False),
+        )
+        self.action_registry.set_handler(
+            "rev_reject_all", lambda: canvas.reject_current_revision(all_revisions=True)
+        )
+        self.action_registry.set_handler(
+            "rev_delete_all_comments", lambda: setattr(canvas.doc, "comments", [])
+        )
+
+        # Drawing toolbar dropdowns and object actions
+        self.action_registry.set_handler(
+            "draw_order_front", lambda: self.reorder_selected_object("front")
+        )
+        self.action_registry.set_handler(
+            "draw_order_back", lambda: self.reorder_selected_object("back")
+        )
+        self.action_registry.set_handler(
+            "draw_nudge_up", lambda: self.nudge_selected_object(0, -1)
+        )
+        self.action_registry.set_handler(
+            "draw_nudge_down", lambda: self.nudge_selected_object(0, 1)
+        )
+        self.action_registry.set_handler(
+            "draw_align_left", lambda: self.align_selected_objects("left")
+        )
+        self.action_registry.set_handler(
+            "draw_rotate_right", lambda: self.rotate_selected_object(90)
+        )
+        self.action_registry.set_handler(
+            "as_lines", lambda: self.insert_shape("line")
+        )
+        self.action_registry.set_handler(
+            "as_connectors", lambda: self.insert_shape("connector")
+        )
+        self.action_registry.set_handler(
+            "as_basic", lambda: self.insert_shape("basic")
+        )
+        self.action_registry.set_handler(
+            "as_arrows", lambda: self.insert_shape("arrow")
+        )
+        self.action_registry.set_handler(
+            "as_flowchart", lambda: self.insert_shape("flowchart")
+        )
+        self.action_registry.set_handler(
+            "as_stars", lambda: self.insert_shape("star")
+        )
+        self.action_registry.set_handler(
+            "as_callouts", lambda: self.insert_shape("callout")
+        )
+        self.action_registry.set_handler(
+            "drawLine", lambda: self.insert_shape("line")
+        )
+        self.action_registry.set_handler(
+            "drawArrow", lambda: self.insert_shape("arrow")
+        )
+        self.action_registry.set_handler(
+            "drawRect", lambda: self.insert_shape("rect")
+        )
+        self.action_registry.set_handler(
+            "drawOval", lambda: self.insert_shape("oval")
+        )
+        self.action_registry.set_handler(
+            "textBox", lambda: self.insert_shape("textbox")
+        )
 
     def _ensure_find_replace_dialog(self) -> FindReplaceDialog:
         """Create or return existing FindReplaceDialog instance."""
@@ -396,48 +579,6 @@ class QuireWindow(BaseOfficeWindow):
         if hasattr(self, "btn_highlight_color"):
             self.btn_highlight_color.color_applied.connect(canvas.set_highlight_color)
 
-        # Connect dropdown menus on tables toolbar
-        tables_tb = self.toolbars.get("tables")
-        if tables_tb:
-            for btn in tables_tb.findChildren(QToolButton):
-                m = btn.menu()
-                if m:
-                    for act in m.actions():
-                        txt = act.text()
-                        if "上方插入行" in txt:
-                            act.triggered.connect(
-                                lambda checked=False: canvas.insert_table_row(above=True)
-                            )
-                        elif "下方插入行" in txt:
-                            act.triggered.connect(
-                                lambda checked=False: canvas.insert_table_row(above=False)
-                            )
-                        elif "左侧插入列" in txt:
-                            act.triggered.connect(
-                                lambda checked=False: canvas.insert_table_col(left=True)
-                            )
-                        elif "右侧插入列" in txt:
-                            act.triggered.connect(
-                                lambda checked=False: canvas.insert_table_col(left=False)
-                            )
-                        elif "插入表格" in txt:
-                            act.triggered.connect(lambda checked=False: canvas.insert_table(2, 2))
-
-        # Connect dropdown menus on formatting toolbar (e.g. line spacing)
-        if fmt_tb:
-            for btn in fmt_tb.findChildren(QToolButton):
-                m = btn.menu()
-                if m and btn.text() == safe_tr("行距"):
-                    for act in m.actions():
-                        txt = act.text()
-                        try:
-                            val = float(txt)
-                            act.triggered.connect(
-                                lambda checked=False, v=val: canvas.set_line_spacing(v)
-                            )
-                        except ValueError:
-                            pass
-
     def _on_font_combo_changed(self, text: str) -> None:
         if self._syncing_toolbars or not text:
             return
@@ -537,8 +678,98 @@ class QuireWindow(BaseOfficeWindow):
         """Handle caret movement: sync toolbar controls and contextual visibility."""
         canvas = self.writer_view.canvas_view
         in_table = canvas.get_current_table_context() is not None
-        self.update_context_toolbars({"in_table": in_table})
+        has_revisions = bool(getattr(canvas.doc, "comments", [])) or is_tracking(canvas.doc)
+        self.update_context_toolbars({
+            "in_table": in_table,
+            "has_revisions": has_revisions,
+            "track_changes": is_tracking(canvas.doc),
+        })
         self._sync_toolbar_states()
+
+    def show_status_message(self, message: str, timeout: int = 2000) -> None:
+        """Show message on status bar."""
+        sb = self.statusBar()
+        if sb:
+            sb.showMessage(message, timeout)
+
+    def reorder_selected_object(self, direction: str) -> None:
+        """Reorder selected drawing object ('front' or 'back')."""
+        canvas = self.writer_view.canvas_view
+        if hasattr(canvas, "reorder_selected_object"):
+            canvas.reorder_selected_object(direction)
+        self.show_status_message(safe_tr(f"已调整对象叠放次序: {direction}"))
+
+    def nudge_selected_object(self, dx: int, dy: int) -> None:
+        """Nudge selected drawing object by (dx, dy) pixels."""
+        canvas = self.writer_view.canvas_view
+        if hasattr(canvas, "nudge_selected_object"):
+            canvas.nudge_selected_object(dx, dy)
+        self.show_status_message(safe_tr("微移对象"))
+
+    def align_selected_objects(self, alignment: str) -> None:
+        """Align selected drawing objects ('left', 'center', 'right', 'top', etc.)."""
+        canvas = self.writer_view.canvas_view
+        if hasattr(canvas, "align_selected_objects"):
+            canvas.align_selected_objects(alignment)
+        self.show_status_message(safe_tr(f"对齐对象: {alignment}"))
+
+    def rotate_selected_object(self, angle: float) -> None:
+        """Rotate selected drawing object by angle in degrees."""
+        canvas = self.writer_view.canvas_view
+        if hasattr(canvas, "rotate_selected_object"):
+            canvas.rotate_selected_object(angle)
+        self.show_status_message(safe_tr(f"旋转对象: {angle}°"))
+
+    def insert_shape(self, shape_type: str) -> None:
+        """Insert or activate shape drawing mode ('line', 'basic', 'arrow', etc.)."""
+        canvas = self.writer_view.canvas_view
+        if hasattr(canvas, "insert_shape"):
+            canvas.insert_shape(shape_type)
+        self.show_status_message(safe_tr(f"插入自选图形: {shape_type}"))
+
+    def apply_border_preset(self, preset: str) -> None:
+        """Apply border preset ('none', 'all', 'outside', 'bottom', 'top', 'left', 'right')."""
+        canvas = self.writer_view.canvas_view
+        ctx = canvas.get_current_table_context()
+        if ctx is not None:
+            self.apply_table_border(preset)
+            return
+
+        pos = canvas.controller.pos
+        p = canvas.controller._paragraph_by_id(pos.para_id)
+        if p and p.p_pr:
+            p.p_pr.borders = {"preset": preset}
+            canvas.controller.document_modified.emit()
+            canvas.update()
+        self.show_status_message(safe_tr(f"应用边框: {preset}"))
+
+    def apply_table_border(self, border_type: str) -> None:
+        """Apply border styling to active table."""
+        canvas = self.writer_view.canvas_view
+        ctx = canvas.get_current_table_context()
+        if not ctx:
+            return
+        tbl = ctx["tbl"]
+        if hasattr(tbl, "tbl_pr") and tbl.tbl_pr:
+            tbl.tbl_pr.borders = {"type": border_type}
+        canvas.controller.document_modified.emit()
+        canvas.update()
+        self.show_status_message(safe_tr(f"应用表格边框: {border_type}"))
+
+    def set_table_cell_valign(self, align: str) -> None:
+        """Set vertical alignment of current table cell ('top', 'center', 'bottom')."""
+        canvas = self.writer_view.canvas_view
+        ctx = canvas.get_current_table_context()
+        if not ctx:
+            return
+        row_idx = ctx["row_idx"]
+        col_idx = ctx["col_idx"]
+        cell = ctx["tbl"].rows[row_idx].cells[col_idx]
+        if hasattr(cell, "tc_pr") and cell.tc_pr:
+            cell.tc_pr.valign = align
+        canvas.controller.document_modified.emit()
+        canvas.update()
+        self.show_status_message(safe_tr(f"单元格对齐: {align}"))
 
     def _sync_toolbar_states(self) -> None:
         """Synchronize toolbar toggle buttons and combos with current selection/caret formatting."""
@@ -617,6 +848,44 @@ class QuireWindow(BaseOfficeWindow):
                 rev_map = {10.5: "五号", 12.0: "小四", 14.0: "四号", 16.0: "三号"}
                 self.size_combo.setCurrentText(rev_map.get(r_pr.sz, sz_str))
                 self.size_combo.blockSignals(False)
+
+            # 6. Contextual enable/disable for Table actions
+            table_actions = [
+                "mergeCells",
+                "splitCells",
+                "distRows",
+                "distCols",
+                "sortAsc",
+                "sortDesc",
+                "autoSum",
+                "tbl_insert_col_left",
+                "tbl_insert_col_right",
+                "tbl_insert_row_above",
+                "tbl_insert_row_below",
+                "tbl_align_top",
+                "tbl_align_center",
+                "tbl_align_bottom",
+                "tableBorderBtn",
+            ]
+            in_table = canvas.get_current_table_context() is not None
+            for aid in table_actions:
+                act = self.action_registry.get_action(aid)
+                if act:
+                    act.setEnabled(in_table)
+
+            # 7. Contextual enable/disable for Review actions
+            has_revisions = bool(getattr(canvas.doc, "comments", [])) or is_tracking(canvas.doc)
+            for aid in [
+                "acceptChange",
+                "rejectChange",
+                "rev_accept_selected",
+                "rev_accept_all",
+                "rev_reject_selected",
+                "rev_reject_all",
+            ]:
+                act = self.action_registry.get_action(aid)
+                if act:
+                    act.setEnabled(has_revisions)
         finally:
             self._syncing_toolbars = False
 
