@@ -263,14 +263,14 @@ class TestDatasheetDialogAndItem:
         item = ChartGraphicsItem(sh)
 
         assert item.chart_data.kind == "pie"
-        assert item.shape.w == 300.0
-        assert item.shape.h == 200.0
+        assert item.model.w == 300.0
+        assert item.model.h == 200.0
 
         # Change data
         c2 = ChartData.create_sample("line")
         item.set_chart_data(c2)
         assert item.chart_data.kind == "line"
-        assert item.shape.chart["kind"] == "line"
+        assert item.model.chart["kind"] == "line"
 
     def test_chart_preview_widget(self, qtbot):
         c = ChartData.create_sample("doughnut")

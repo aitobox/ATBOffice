@@ -290,11 +290,11 @@ class LecternWindow(BaseOfficeWindow):
         if not hasattr(ws, "scene") or ws.scene is None:
             return None
         for item in ws.scene.selectedItems():
-            shape = getattr(item, "shape", None)
+            shape = getattr(item, "model", None)
             if shape and (getattr(shape, "is_diagram", False) or getattr(shape, "sa", None)):
                 return shape
             parent = item.parentItem() if hasattr(item, "parentItem") else None
-            p_shape = getattr(parent, "shape", None) if parent else None
+            p_shape = getattr(parent, "model", None) if parent else None
             if p_shape and (getattr(p_shape, "is_diagram", False) or getattr(p_shape, "sa", None)):
                 return p_shape
         if hasattr(ws, "current_slide") and ws.current_slide:
@@ -464,7 +464,7 @@ class LecternWindow(BaseOfficeWindow):
         is_wordart = False
 
         for item in selected_items:
-            shape = getattr(item, "shape", None)
+            shape = getattr(item, "model", None)
             stype = getattr(shape, "type", "") if shape else ""
             if stype in ("table",) or (shape and getattr(shape, "tbl", None)):
                 is_table = True
