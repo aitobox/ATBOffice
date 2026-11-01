@@ -410,7 +410,7 @@ class WordArtThumbnailWidget(QWidget):
         self, style: WordArtStyle, is_selected: bool = False, parent: QWidget | None = None
     ) -> None:
         super().__init__(parent)
-        self.style = style
+        self.wordart_style = style
         self.is_selected = is_selected
         self.setFixedSize(70, 48)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -440,16 +440,16 @@ class WordArtThumbnailWidget(QWidget):
 
         # Render WordArt preview
         preview_rect = QRectF(4.0, 4.0, self.width() - 8.0, self.height() - 8.0)
-        render_wordart(painter, "LettersArt", self.style, preview_rect)
+        render_wordart(painter, "LettersArt", self.wordart_style, preview_rect)
 
     def mousePressEvent(self, event: Any) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
-            self.clicked.emit(self.style.id)
+            self.clicked.emit(self.wordart_style.id)
             super().mousePressEvent(event)
 
     def mouseDoubleClickEvent(self, event: Any) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
-            self.double_clicked.emit(self.style.id)
+            self.double_clicked.emit(self.wordart_style.id)
             super().mouseDoubleClickEvent(event)
 
 

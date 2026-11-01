@@ -282,9 +282,17 @@ class GoalSeekStatusDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.workbook = workbook
-        self.result = result
+        self._goal_seek_result = result
 
         self._init_ui()
+
+    @property
+    def goal_seek_result(self) -> GoalSeekResult | None:
+        return self._goal_seek_result
+
+    @goal_seek_result.setter
+    def goal_seek_result(self, val: GoalSeekResult | None) -> None:
+        self._goal_seek_result = val
 
     def _init_ui(self) -> None:
         self.setFixedWidth(320)
@@ -342,23 +350,23 @@ class GoalSeekStatusDialog(QDialog):
 
     def _update_data(self) -> None:
         """Populate numbers and status description from result."""
-        if self.result is None:
+        if self.goal_seek_result is None:
             return
 
-        if self.result.success:
+        if self.goal_seek_result.success:
             msg = safe_tr("目标单元格 {0} 的单变量求解已找到一个解。").format(
-                self.result.target_cell_name
+                self.goal_seek_result.target_cell_name
             )
         else:
             msg = safe_tr("目标单元格 {0} 的单变量求解可能尚未找到解。").format(
-                self.result.target_cell_name
+                self.goal_seek_result.target_cell_name
             )
         self.lbl_status.setText(msg)
 
         # Numeric display
-        self.lbl_target_val.setText(str(self.result.target_value))
+        self.lbl_target_val.setText(str(self.goal_seek_result.target_value))
 
-        curr = self.result.current_value
+        curr = self.goal_seek_result.current_value
         if isinstance(curr, float):
             if curr.is_integer():
                 self.lbl_current_val.setText(str(int(curr)))
@@ -378,31 +386,35 @@ class GoalSeekStatusDialog(QDialog):
 
     def apply_solution(self) -> None:
         """Write the solved value into the changing cell."""
-        if self.workbook is None or self.result is None:
+        if self.workbook is None or self.goal_seek_result is None:
             return
 
-        sh = _get_sheet(self.workbook, self.result.changing_sheet)
+        sh = _get_sheet(self.workbook, self.goal_seek_result.changing_sheet)
         if sh is not None:
-            cell = sh.get_cell(self.result.changing_row, self.result.changing_col)
+            r = self.goal_seek_result.changing_row
+            c = self.goal_seek_result.changing_col
+            cell = sh.get_cell(r, c)
             if cell is None:
                 from atboffice.modules.spreadsheet.models.sheet_model import CellData
 
-                cell = CellData(value=self.result.solution)
-                sh.set_cell(self.result.changing_row, self.result.changing_col, cell)
+                cell = CellData(value=self.goal_seek_result.solution)
+                sh.set_cell(r, c, cell)
             else:
-                cell.value = self.result.solution
+                cell.value = self.goal_seek_result.solution
             self.workbook.recalculate()
 
     def revert_solution(self) -> None:
         """Restore the initial value into the changing cell."""
-        if self.workbook is None or self.result is None:
+        if self.workbook is None or self.goal_seek_result is None:
             return
 
-        sh = _get_sheet(self.workbook, self.result.changing_sheet)
+        sh = _get_sheet(self.workbook, self.goal_seek_result.changing_sheet)
         if sh is not None:
-            cell = sh.get_cell(self.result.changing_row, self.result.changing_col)
+            r = self.goal_seek_result.changing_row
+            c = self.goal_seek_result.changing_col
+            cell = sh.get_cell(r, c)
             if cell is not None:
-                cell.value = self.result.initial_value
+                cell.value = self.goal_seek_result.initial_value
             self.workbook.recalculate()
 
     def _on_ok(self) -> None:

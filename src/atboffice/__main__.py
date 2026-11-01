@@ -35,6 +35,7 @@ def parse_diagnostic_args(args: list[str]) -> tuple[dict[str, Any], list[str]]:
         "crash_log": None,
         "simulate_crash": None,
         "replay_action": None,
+        "replay_iterations": 1,
     }
     remaining: list[str] = []
     i = 0
@@ -62,6 +63,12 @@ def parse_diagnostic_args(args: list[str]) -> tuple[dict[str, Any], list[str]]:
             i += 2
         elif arg.startswith("--replay-action="):
             diag_opts["replay_action"] = arg.split("=", 1)[1]
+            i += 1
+        elif arg == "--replay-iterations" and i + 1 < len(args):
+            diag_opts["replay_iterations"] = int(args[i + 1])
+            i += 2
+        elif arg.startswith("--replay-iterations="):
+            diag_opts["replay_iterations"] = int(arg.split("=", 1)[1])
             i += 1
         else:
             remaining.append(arg)
@@ -237,6 +244,23 @@ def main(argv: list[str] | None = None, exec_app: bool = True) -> int:
                 )
                 app.sendEvent(central, move_ev)
             drain_event_loop(2)
+            window.close()
+        elif action_name == "stress_interaction":
+            iterations = diag_opts.get("replay_iterations") or 100
+            central = window.centralWidget() if hasattr(window, "centralWidget") else None
+            for idx in range(iterations):
+                if central is not None:
+                    x = 50 + (idx % 20) * 10
+                    y = 50 + (idx % 15) * 10
+                    move_ev = QMouseEvent(
+                        QEvent.Type.MouseMove,
+                        QPoint(x, y),
+                        Qt.MouseButton.NoButton,
+                        Qt.MouseButton.NoButton,
+                        Qt.KeyboardModifier.NoModifier,
+                    )
+                    app.sendEvent(central, move_ev)
+                drain_event_loop(1)
             window.close()
         elif action_name == "dialog_lifecycle":
             if hasattr(window, "show_about_dialog"):

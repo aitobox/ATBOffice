@@ -181,9 +181,9 @@ class ShapeTextEditorItem(QGraphicsTextItem):
 
         super().__init__(parent or shape_item)
         self.shape_item = shape_item
-        self.shape = shape_item.model
+        self.model = shape_item.model
         self._is_finishing = False
-        self._orig_text_body = copy.deepcopy(self.shape.text) if self.shape.text else None
+        self._orig_text_body = copy.deepcopy(self.model.text) if self.model.text else None
 
         self.setZValue(200.0)
         self.setTextInteractionFlags(Qt.TextInteractionFlag.TextEditorInteraction)
@@ -193,15 +193,15 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         self._sync_geometry_from_shape()
 
         # Load text model into document
-        self.load_from_text_body(self.shape.text)
+        self.load_from_text_body(self.model.text)
 
         # Connect contents change
         self.document().contentsChanged.connect(self._on_contents_changed)
 
     def _sync_geometry_from_shape(self) -> None:
         """Update editor position and bounds matching shape insets."""
-        w = max(10.0, self.shape.w)
-        insets = self.shape.text.insets if self.shape.text else (7.2, 3.6, 7.2, 3.6)
+        w = max(10.0, self.model.w)
+        insets = self.model.text.insets if self.model.text else (7.2, 3.6, 7.2, 3.6)
         ins_l, ins_t, ins_r, ins_b = insets
 
         avail_w = max(10.0, w - ins_l - ins_r)
@@ -415,7 +415,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
 
     def to_text_body(self) -> TextBody:
         """Convert QTextDocument contents back to an ATBOffice TextBody model."""
-        orig_tb = self.shape.text
+        orig_tb = self.model.text
         anchor = orig_tb.anchor if orig_tb else "t"
         wrap = orig_tb.wrap if orig_tb else True
         autofit = orig_tb.autofit if orig_tb else "none"
@@ -544,7 +544,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         """Set font point size for selected text."""
         if size <= 0:
             return
-        font_scale = self.shape.text.font_scale if self.shape.text else 1.0
+        font_scale = self.model.text.font_scale if self.model.text else 1.0
         new_fmt = QTextCharFormat()
         new_fmt.setFontPointSize(size * font_scale)
         cursor = self.textCursor()
@@ -556,7 +556,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         """Step font size up (+1) or down (-1) through standard size ladder."""
         cursor = self.textCursor()
         cur_sz = cursor.charFormat().fontPointSize() or 18.0
-        font_scale = self.shape.text.font_scale if self.shape.text else 1.0
+        font_scale = self.model.text.font_scale if self.model.text else 1.0
         base_sz = cur_sz / font_scale
 
         if direction > 0:
@@ -635,7 +635,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         cursor = self.textCursor()
         block = cursor.block()
         level = clamp_outline_level(block.userState())
-        font_scale = self.shape.text.font_scale if self.shape.text else 1.0
+        font_scale = self.model.text.font_scale if self.model.text else 1.0
 
         new_fmt = QTextCharFormat()
         new_fmt.setFontFamily("Tahoma")
@@ -671,7 +671,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         end_block = doc.findBlock(end)
 
         cursor.beginEditBlock()
-        font_scale = self.shape.text.font_scale if self.shape.text else 1.0
+        font_scale = self.model.text.font_scale if self.model.text else 1.0
 
         block = start_block
         while block.isValid():
@@ -755,19 +755,19 @@ class ShapeTextEditorItem(QGraphicsTextItem):
     # ------------------------------------------------------------------
     def apply_autofit(self, mode: str | None = None) -> None:
         """Calculate and apply Text AutoFit scaling or shape auto-sizing."""
-        af_mode = mode or (self.shape.text.autofit if self.shape.text else "norm")
-        insets = self.shape.text.insets if self.shape.text else (7.2, 3.6, 7.2, 3.6)
+        af_mode = mode or (self.model.text.autofit if self.model.text else "norm")
+        insets = self.model.text.insets if self.model.text else (7.2, 3.6, 7.2, 3.6)
         ins_l, ins_t, ins_r, ins_b = insets
 
-        avail_h = max(10.0, self.shape.h - ins_t - ins_b)
+        avail_h = max(10.0, self.model.h - ins_t - ins_b)
         need_h = self.document().size().height()
 
         if af_mode == "norm":
-            cur_scale = self.shape.text.font_scale if self.shape.text else 1.0
+            cur_scale = self.model.text.font_scale if self.model.text else 1.0
             new_scale = calculate_autofit_scale(need_h, avail_h, cur_scale)
             if abs(new_scale - cur_scale) > 0.01:
-                if self.shape.text:
-                    self.shape.text.font_scale = new_scale
+                if self.model.text:
+                    self.model.text.font_scale = new_scale
                 # Re-scale document fonts
                 self._rescale_document(new_scale / cur_scale)
         elif af_mode == "shape":
@@ -776,10 +776,10 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                 avail_w,
                 need_h,
                 insets,
-                wrap=self.shape.text.wrap if self.shape.text else True,
+                wrap=self.model.text.wrap if self.model.text else True,
             )
-            self.shape.w = new_w
-            self.shape.h = new_h
+            self.model.w = new_w
+            self.model.h = new_h
             self.shape_item.update()
 
     def _rescale_document(self, ratio: float) -> None:
@@ -825,13 +825,13 @@ class ShapeTextEditorItem(QGraphicsTextItem):
             return
         self._is_finishing = True
         updated_tb = self.to_text_body()
-        self.shape.text = updated_tb
+        self.model.text = updated_tb
 
         # Run AutoFit before closing
         self.apply_autofit()
 
         # Emit completion signal
-        self.editingFinished.emit(self.shape.id, self.shape.text)
+        self.editingFinished.emit(self.model.id, self.model.text)
 
         # Notify parent shape item
         self.shape_item.finish_text_editing()
@@ -842,12 +842,12 @@ class ShapeTextEditorItem(QGraphicsTextItem):
             return
         self._is_finishing = True
         if self._orig_text_body is not None:
-            self.shape.text = self._orig_text_body
+            self.model.text = self._orig_text_body
         self.shape_item.finish_text_editing()
 
     def _on_contents_changed(self) -> None:
         """Handle real-time document typing changes."""
-        if self.shape.text and self.shape.text.autofit == "shape":
+        if self.model.text and self.model.text.autofit == "shape":
             self.apply_autofit("shape")
 
     # ------------------------------------------------------------------
