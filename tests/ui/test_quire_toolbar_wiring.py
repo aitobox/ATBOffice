@@ -257,4 +257,171 @@ def test_quire_window_combos_and_toggles(qtbot) -> None:
     assert win.toolbars["drawing"].isVisible() != initial_drawing_visible
 
 
+def test_quire_toolbar_dropdown_and_split_wiring(qtbot) -> None:
+    """Verify Quire dropdown and split buttons are properly instantiated and wired."""
+    from atboffice.ui.components.toolbar_buttons import (
+        OfficeDropDownButton,
+        OfficeSplitButton,
+    )
+    from atboffice.ui.shell.quire_window import QuireWindow
+
+    win = QuireWindow()
+    qtbot.addWidget(win)
+
+    # 1. Dropdown buttons present across toolbars
+    drop_buttons = win.findChildren(OfficeDropDownButton)
+    assert len(drop_buttons) >= 10
+
+    # 2. Split buttons present across toolbars
+    split_buttons = win.findChildren(OfficeSplitButton)
+    assert len(split_buttons) >= 4
+
+    # 3. Action registry contains wired items from menus
+    expected_actions = [
+        "undo_empty",
+        "redo_empty",
+        "insertTable_dialog",
+        "insertTable_col_left",
+        "insertTable_row_above",
+        "col_1",
+        "col_2",
+        "col_3",
+        "line_spacing_1_0",
+        "line_spacing_1_5",
+        "line_spacing_2_0",
+        "line_spacing_3_0",
+        "border_none",
+        "border_all",
+        "border_outside",
+        "border_bottom",
+        "tbl_insert_table",
+        "tbl_insert_col_left",
+        "tbl_insert_row_above",
+        "tbl_align_top",
+        "tbl_align_center",
+        "tbl_align_bottom",
+        "rev_accept_selected",
+        "rev_accept_all",
+        "rev_reject_selected",
+        "rev_reject_all",
+        "draw_order_front",
+        "draw_order_back",
+        "as_lines",
+        "as_basic",
+        "as_arrows",
+    ]
+    for aid in expected_actions:
+        assert win.action_registry.has_action(aid), f"Missing action {aid} in action_registry"
+
+
+def test_quire_toolbar_actions_trigger_and_state(qtbot) -> None:
+    """Verify triggering dropdown/split actions mutates document/canvas state."""
+    from atboffice.ui.shell.quire_window import QuireWindow
+
+    win = QuireWindow()
+    qtbot.addWidget(win)
+    canvas = win.writer_view.canvas_view
+
+    # 1. Test line spacing trigger
+    win.action_registry.trigger_action("line_spacing_1_5")
+    p = canvas.doc.main.paras[0]
+    assert p.p_pr.sp.line == 1.5
+
+    win.action_registry.trigger_action("line_spacing_2_0")
+    assert p.p_pr.sp.line == 2.0
+
+    # 2. Test border preset on paragraph
+    win.action_registry.trigger_action("border_all")
+    assert p.p_pr.borders == {"preset": "all"}
+
+    win.action_registry.trigger_action("border_none")
+    assert p.p_pr.borders == {"preset": "none"}
+
+    # 3. Test table insertion and table cell alignment via dropdown actions
+    win.action_registry.trigger_action("tbl_insert_table")
+    ctx = canvas.get_current_table_context()
+    assert ctx is not None
+
+    win.action_registry.trigger_action("tbl_align_center")
+    cell = ctx["tbl"].rows[ctx["row_idx"]].cells[ctx["col_idx"]]
+    assert cell.tc_pr.valign == "center"
+
+    # 4. Test column insertion
+    initial_cols = len(ctx["tbl"].grid)
+    win.action_registry.trigger_action("tbl_insert_col_left")
+    assert len(ctx["tbl"].grid) == initial_cols + 1
+
+    # 5. Test autoshapes trigger
+    win.action_registry.trigger_action("as_basic")
+    win.action_registry.trigger_action("draw_order_front")
+
+
+def test_quire_toolbar_context_state_switching(qtbot) -> None:
+    """Verify contextual enable/disable state transitions.
+
+    Tests state changes when entering/leaving tables and revisions.
+    """
+    from atboffice.ui.shell.quire_window import QuireWindow
+
+    win = QuireWindow()
+    qtbot.addWidget(win)
+    win.show()
+    canvas = win.writer_view.canvas_view
+
+    # 1. Outside table: table actions should be disabled
+    act_merge = win.action_registry.get_action("mergeCells")
+    act_split = win.action_registry.get_action("splitCells")
+    act_dist = win.action_registry.get_action("distRows")
+    assert not act_merge.isEnabled()
+    assert not act_split.isEnabled()
+    assert not act_dist.isEnabled()
+
+    # Tables toolbar is hidden outside table
+    assert not win.toolbars["tables"].isVisible()
+
+    # 2. Insert table: table actions become enabled and tables toolbar visible
+    canvas.insert_table(2, 2)
+    ctx = canvas.get_current_table_context()
+    cell_p = ctx["tbl"].rows[0].cells[0].blocks[0]
+    canvas.caret_moved.emit(cell_p.id, 0)
+
+    assert win.toolbars["tables"].isVisible()
+    assert act_merge.isEnabled()
+    assert act_split.isEnabled()
+    assert act_dist.isEnabled()
+
+    # 3. Revisions enable/disable
+    act_accept = win.action_registry.get_action("acceptChange")
+    act_reject = win.action_registry.get_action("rejectChange")
+    assert not act_accept.isEnabled()
+    assert not act_reject.isEnabled()
+
+    # Add a comment / revision
+    canvas.insert_comment(author="Editor", text="Check this")
+    canvas.caret_moved.emit(cell_p.id, 0)
+    assert act_accept.isEnabled()
+    assert act_reject.isEnabled()
+
+
+def test_quire_toolbars_7_language_dynamic_retranslate(qtbot) -> None:
+    """Verify Quire toolbars and dropdowns dynamically retranslate across 7 languages."""
+    from atboffice.core.i18n import load_locale
+    from atboffice.ui.components.toolbar_buttons import OfficeDropDownButton
+    from atboffice.ui.shell.quire_window import QuireWindow
+
+    win = QuireWindow()
+    qtbot.addWidget(win)
+
+    for locale in ["en", "zh_CN", "zh_TW", "ja", "fr", "de", "es"]:
+        load_locale(locale)
+        win.retranslate_ui()
+
+        for name, tb in win.toolbars.items():
+            assert tb.windowTitle(), f"Toolbar {name} has empty title in {locale}"
+            for btn in tb.findChildren(OfficeDropDownButton):
+                tip = btn.toolTip()
+                assert tip, f"Dropdown button in {name} has empty tooltip in {locale}"
+
+
+
 

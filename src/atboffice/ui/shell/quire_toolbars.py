@@ -30,6 +30,10 @@ from atboffice.core.action_registry import ActionRegistry, ActionSpec
 from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.toolbar import OfficeToolBar
+from atboffice.ui.components.toolbar_buttons import (
+    OfficeDropDownButton,
+    OfficeSplitButton,
+)
 from atboffice.ui.icons import get_office_icon, has_office_icon
 
 
@@ -55,6 +59,164 @@ _QUIRE_DROP_ICONS: Final[dict[str, str]] = {
     "虚线线型": "dashStyle",
     "箭头样式": "arrowStyle",
     "阴影样式": "shadowStyle",
+}
+
+_QUIRE_DROP_AIDS: Final[dict[str, str]] = {
+    # Standard
+    "插入表格": "tb_table_drop",
+    "分栏": "columns_menu",
+    # Formatting
+    "行距": "lineSpacing_menu",
+    # Tables
+    "线型": "tbl_dash_style",
+    "粗细": "tbl_line_weight",
+    "边框颜色": "tbl_line_color",
+    "底纹颜色": "tbl_shading_color",
+    "插入": "tbl_insert_menu",
+    "对齐": "tbl_align_menu",
+    # Reviewing
+    "显示以供审阅": "rev_display_mode",
+    "显示": "rev_show_menu",
+    # HeaderFooter
+    "插入自动图文集": "hf_autotext_menu",
+    # Drawing
+    "绘图(&R)": "draw_menu",
+    "自选图形(&U)": "autoshapes_menu",
+    "虚线线型": "draw_dash_style",
+    "箭头样式": "draw_arrow_style",
+    "阴影样式": "draw_shadow_style",
+    # Picture
+    "颜色": "pic_color_mode",
+    "线条样式": "pic_line_style",
+    "文字环绕": "pic_wrap_mode",
+    # WordArt
+    "艺术字形状": "wa_shape_menu",
+}
+
+_QUIRE_KNOWN_ITEM_AIDS: Final[dict[str, tuple[str, str, bool, bool]]] = {
+    # Undo / Redo
+    "无操作可撤销": ("undo_empty", "无操作可撤销", False, False),
+    "无操作可重做": ("redo_empty", "无操作可重做", False, False),
+    # Standard: Table Drop
+    "插入表格(&I)...": ("insertTable_dialog", "插入表格(&I)...", True, False),
+    "插入列在左侧": ("insertTable_col_left", "插入列在左侧", True, False),
+    "插入行在上方": ("insertTable_row_above", "插入行在上方", True, False),
+    # Standard: Columns Drop
+    "一栏": ("col_1", "一栏", True, False),
+    "两栏": ("col_2", "两栏", True, False),
+    "三栏": ("col_3", "三栏", True, False),
+    "偏左": ("col_left", "偏左", True, False),
+    "偏右": ("col_right", "偏右", True, False),
+    # Formatting: Line Spacing Drop
+    "1.0": ("line_spacing_1_0", "1.0", True, False),
+    "1.5": ("line_spacing_1_5", "1.5", True, False),
+    "2.0": ("line_spacing_2_0", "2.0", True, False),
+    "2.5": ("line_spacing_2_5", "2.5", True, False),
+    "3.0": ("line_spacing_3_0", "3.0", True, False),
+    "更多...": ("line_spacing_more", "更多(&M)...", True, False),
+    # Formatting: Border Split
+    "无边框": ("border_none", "无边框", True, False),
+    "全框线": ("border_all", "全框线", True, False),
+    "外侧框线": ("border_outside", "外侧框线", True, False),
+    "下框线": ("border_bottom", "下框线", True, False),
+    "上框线": ("border_top", "上框线", True, False),
+    "左框线": ("border_left", "左框线", True, False),
+    "右框线": ("border_right", "右框线", True, False),
+    # Tables: Line Style Drop
+    "实线": ("tbl_line_single", "实线", True, False),
+    "虚线": ("tbl_line_dash", "虚线", True, False),
+    "点线": ("tbl_line_dot", "点线", True, False),
+    "双线": ("tbl_line_double", "双线", True, False),
+    # Tables: Line Weight Drop
+    "0.5 pt": ("tbl_weight_05", "0.5 pt", True, False),
+    "0.75 pt": ("tbl_weight_075", "0.75 pt", True, False),
+    "1.0 pt": ("tbl_weight_10", "1.0 pt", True, False),
+    "1.5 pt": ("tbl_weight_15", "1.5 pt", True, False),
+    "2.25 pt": ("tbl_weight_225", "2.25 pt", True, False),
+    "3.0 pt": ("tbl_weight_30", "3.0 pt", True, False),
+    # Tables: Line Color Drop
+    "自动": ("tbl_color_auto", "自动", True, False),
+    "黑色": ("tbl_color_black", "黑色", True, False),
+    "蓝色": ("tbl_color_blue", "蓝色", True, False),
+    "红色": ("tbl_color_red", "红色", True, False),
+    # Tables: Shading Color Drop
+    "无填充颜色": ("tbl_shade_none", "无填充颜色", True, False),
+    "浅灰色": ("tbl_shade_gray", "浅灰色", True, False),
+    "黄色": ("tbl_shade_yellow", "黄色", True, False),
+    "浅蓝色": ("tbl_shade_blue", "浅蓝色", True, False),
+    # Tables: Table Border Split
+    "所有框线": ("tbl_border_all", "所有框线", True, False),
+    # Tables: Insert Drop
+    "在左侧插入列": ("tbl_insert_col_left", "在左侧插入列", True, False),
+    "在右侧插入列": ("tbl_insert_col_right", "在右侧插入列", True, False),
+    "在上方插入行": ("tbl_insert_row_above", "在上方插入行", True, False),
+    "在下方插入行": ("tbl_insert_row_below", "在下方插入行", True, False),
+    # Tables: Align Drop
+    "靠上对齐": ("tbl_align_top", "靠上对齐", True, False),
+    "居中对齐": ("tbl_align_center", "居中对齐", True, False),
+    "靠下对齐": ("tbl_align_bottom", "靠下对齐", True, False),
+    # Reviewing: Review Display Drop
+    "显示标记的最终状态": ("rev_final_markup", "显示标记的最终状态", True, False),
+    "最终状态": ("rev_final", "最终状态", True, False),
+    "显示标记的原始状态": ("rev_original_markup", "显示标记的原始状态", True, False),
+    "原始状态": ("rev_original", "原始状态", True, False),
+    # Reviewing: Show Marks Drop
+    "批注": ("rev_show_comments", "批注", True, True),
+    "墨迹": ("rev_show_ink", "墨迹", True, True),
+    "插入和删除": ("rev_show_ins_del", "插入和删除", True, True),
+    "格式": ("rev_show_formatting", "格式", True, True),
+    # Reviewing: Accept / Reject Splits
+    "接受所选修订": ("rev_accept_selected", "接受所选修订", True, False),
+    "接受对文档所做的所有修订": ("rev_accept_all", "接受对文档所做的所有修订", True, False),
+    "拒绝所选修订": ("rev_reject_selected", "拒绝所选修订", True, False),
+    "拒绝对文档所做的所有修订": ("rev_reject_all", "拒绝对文档所做的所有修订", True, False),
+    "删除文档中的所有批注": ("rev_delete_all_comments", "删除文档中的所有批注", True, False),
+    # HeaderFooter: AutoText Drop
+    "-页码-": ("hf_at_page", "-页码-", True, False),
+    "创建人与日期": ("hf_at_author_date", "创建人与日期", True, False),
+    "机密": ("hf_at_confidential", "机密", True, False),
+    "第 X 页 共 Y 页": ("hf_at_page_x_of_y", "第 X 页 共 Y 页", True, False),
+    # Drawing: Draw Menu Drop
+    "置于顶层(&F)": ("draw_order_front", "置于顶层(&F)", True, False),
+    "置于底层(&B)": ("draw_order_back", "置于底层(&B)", True, False),
+    "微移向上": ("draw_nudge_up", "微移向上", True, False),
+    "微移向下": ("draw_nudge_down", "微移向下", True, False),
+    "组合(&G)": ("draw_group", "组合(&G)", False, False),
+    "取消组合(&U)": ("draw_ungroup", "取消组合(&U)", False, False),
+    "叠放次序(&O)": ("draw_order_front", "置于顶层(&F)", True, False),
+    "微移(&N)": ("draw_nudge_up", "微移向上", True, False),
+    "对齐或分布(&A)": ("draw_align_left", "左对齐", True, False),
+    "旋转或翻转(&R)": ("draw_rotate_right", "向右旋转 90°", True, False),
+    # Drawing: AutoShapes Drop
+    "线条": ("as_lines", "线条", True, False),
+    "连接符": ("as_connectors", "连接符", True, False),
+    "基本形状": ("as_basic", "基本形状", True, False),
+    "箭头总汇": ("as_arrows", "箭头总汇", True, False),
+    "流程图": ("as_flowchart", "流程图", True, False),
+    "星与旗帜": ("as_stars", "星与旗帜", True, False),
+    "标注": ("as_callouts", "标注", True, False),
+    # Drawing: Line Style, Dash Style, Arrow Style, Shadow Style
+    "0.75 磅": ("draw_weight_075", "0.75 磅", True, False),
+    "短划线": ("draw_dash_dash", "短划线", True, False),
+    "箭头样式 1": ("draw_arrow_1", "箭头样式 1", True, False),
+    "阴影样式 1": ("draw_shadow_1", "阴影样式 1", True, False),
+    # Picture: Color Drop
+    "自动(&A)": ("pic_color_auto", "自动(&A)", True, False),
+    "灰度(&G)": ("pic_color_gray", "灰度(&G)", True, False),
+    "黑白(&B)": ("pic_color_bw", "黑白(&B)", True, False),
+    "冲蚀(&W)": ("pic_color_wash", "冲蚀(&W)", True, False),
+    # Picture: Wrap Drop
+    "嵌入型": ("wrap_inline", "嵌入型", True, False),
+    "四周型": ("wrap_square", "四周型", True, False),
+    "紧密型": ("wrap_tight", "紧密型", True, False),
+    "衬于文字下方": ("wrap_behind", "衬于文字下方", True, False),
+    "浮于文字上方": ("wrap_front", "浮于文字上方", True, False),
+    # WordArt: Shape Drop
+    "纯文本": ("wa_shape_plain", "纯文本", True, False),
+    "波浪": ("wa_shape_wave", "波浪", True, False),
+    "上凸": ("wa_shape_arch_up", "上凸", True, False),
+    "下凹": ("wa_shape_arch_down", "下凹", True, False),
+    "环形": ("wa_shape_circle", "环形", True, False),
 }
 
 
@@ -88,6 +250,7 @@ class QuireToolBarCluster:
         shortcut: Any = None,
         checkable: bool = False,
         checked: bool = False,
+        enabled: bool = True,
         is_split: bool = False,
         is_drop: bool = False,
         handler: Callable[[], Any] | None = None,
@@ -109,6 +272,7 @@ class QuireToolBarCluster:
             shortcut=shortcut,
             checkable=checkable,
             checked=checked,
+            enabled=enabled,
             is_split=is_split,
             is_drop=is_drop,
             handler=handler,
@@ -124,6 +288,7 @@ class QuireToolBarCluster:
         shortcut: Any = None,
         checkable: bool = False,
         checked: bool = False,
+        enabled: bool = True,
         is_split: bool = False,
         is_drop: bool = False,
         handler: Callable[[], Any] | None = None,
@@ -136,6 +301,7 @@ class QuireToolBarCluster:
             shortcut=shortcut,
             checkable=checkable,
             checked=checked,
+            enabled=enabled,
             is_split=is_split,
             is_drop=is_drop,
             handler=handler,
@@ -144,19 +310,96 @@ class QuireToolBarCluster:
         tb.addAction(act)
         return act
 
+    def _add_menu_item(
+        self,
+        menu: QMenu,
+        item: Any,
+        parent_aid: str | None = None,
+    ) -> QAction | None:
+        if item == "-":
+            menu.addSeparator()
+            return None
+
+        if isinstance(item, QAction):
+            menu.addAction(item)
+            return item
+
+        if isinstance(item, ActionSpec):
+            act = self.action_registry.register_action(item, parent=self.window)
+            menu.addAction(act)
+            return act
+
+        aid: str
+        label: str
+        tip: str = ""
+        enabled: bool = True
+        checkable: bool = False
+        checked: bool = False
+        handler: Callable[[], Any] | None = None
+        icon: QIcon | str | None = None
+
+        if isinstance(item, tuple):
+            aid = item[0]
+            label = item[1]
+            if len(item) > 2:
+                enabled = item[2]
+            if len(item) > 3:
+                checkable = item[3]
+            if len(item) > 4:
+                checked = item[4]
+            if len(item) > 5:
+                handler = item[5]
+            if len(item) > 6:
+                icon = item[6]
+        elif isinstance(item, str):
+            if self.action_registry.has_action(item):
+                act = self.action_registry.get_action(item)
+                if act:
+                    menu.addAction(act)
+                    return act
+            if item in _QUIRE_KNOWN_ITEM_AIDS:
+                aid, label, enabled, checkable = _QUIRE_KNOWN_ITEM_AIDS[item]
+            else:
+                aid = f"{parent_aid}_{item}" if parent_aid else item
+                label = item
+        else:
+            return None
+
+        act = self._reg_act(
+            aid=aid,
+            label=label,
+            tip=tip,
+            enabled=enabled,
+            checkable=checkable,
+            checked=checked,
+            handler=handler,
+            icon=icon,
+        )
+        menu.addAction(act)
+        return act
+
     def _add_drop(
         self,
         tb: OfficeToolBar,
         label: str,
-        items: list[str],
+        items: list[Any],
         icon: QIcon | str | None = None,
-    ) -> None:
+        aid: str | None = None,
+    ) -> OfficeDropDownButton:
         menu = QMenu(tb)
+        menu.setProperty("drop_label", label)
+        resolved_aid = aid or _QUIRE_DROP_AIDS.get(label)
+        if resolved_aid:
+            self._reg_act(
+                aid=resolved_aid,
+                label=label,
+                is_drop=True,
+                icon=icon,
+            )
+            menu.setProperty("drop_aid", resolved_aid)
+
         for item in items:
-            if item == "-":
-                menu.addSeparator()
-            else:
-                menu.addAction(safe_tr(item))
+            self._add_menu_item(menu, item, parent_aid=resolved_aid)
 
         resolved_icon = None
         if isinstance(icon, QIcon):
@@ -173,6 +416,7 @@ class QuireToolBarCluster:
         btn = tb.add_drop_button(btn_text, resolved_icon, menu)
         if resolved_icon and not btn_text:
             btn.setToolTip(safe_tr(label))
+        return btn
 
     def _add_split(
         self,
@@ -180,10 +424,10 @@ class QuireToolBarCluster:
         aid: str,
         label: str,
         tip: str,
-        items: list[str],
+        items: list[Any],
         shortcut: Any = None,
         icon: QIcon | str | None = None,
-    ) -> None:
+    ) -> OfficeSplitButton:
         act = self._reg_act(
             aid=aid,
             label=label,
@@ -193,12 +437,10 @@ class QuireToolBarCluster:
             icon=icon,
         )
         menu = QMenu(tb)
+        menu.setProperty("split_aid", aid)
         for item in items:
-            if item == "-":
-                menu.addSeparator()
-            else:
-                menu.addAction(safe_tr(item))
-        tb.add_split_action(act, menu)
+            self._add_menu_item(menu, item, parent_aid=aid)
+        return tb.add_split_action(act, menu)
 
     def _build_standard_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("常用"), self.window)
@@ -234,7 +476,13 @@ class QuireToolBarCluster:
         self._add(tb, "hyperlink", "插入超链接(&I)...", "插入超链接 (Ctrl+K)", "Ctrl+K")
         self._add(tb, "tb_tables", "表格和边框(&B)", "显示或隐藏表格和边框工具栏")
         self._add_drop(
-            tb, "插入表格", ["插入表格(&I)...", "插入列在左侧", "插入行在上方"]
+            tb,
+            "插入表格",
+            [
+                ("insertTable_dialog", "插入表格(&I)..."),
+                "插入列在左侧",
+                "插入行在上方",
+            ],
         )
         self._add(tb, "insertExcel", "插入 Excel 工作表(&E)", "插入 Microsoft Excel 工作表")
         self._add_drop(tb, "分栏", ["一栏", "两栏", "三栏", "偏左", "偏右"])
@@ -368,7 +616,7 @@ class QuireToolBarCluster:
             tb,
             "插入",
             [
-                "插入表格(&I)...",
+                ("tbl_insert_table", "插入表格(&I)..."),
                 "在左侧插入列",
                 "在右侧插入列",
                 "在上方插入行",
@@ -531,12 +779,14 @@ class QuireToolBarCluster:
             tb,
             "绘图(&R)",
             [
+                "置于顶层(&F)",
+                "置于底层(&B)",
+                "-",
+                "微移向上",
+                "微移向下",
+                "-",
                 "组合(&G)",
                 "取消组合(&U)",
-                "叠放次序(&O)",
-                "微移(&N)",
-                "对齐或分布(&A)",
-                "旋转或翻转(&R)",
             ],
         )
         self._add(tb, "selectObjects", "选择对象(&S)", "选择画布上的图形对象", checkable=True)
@@ -578,10 +828,10 @@ class QuireToolBarCluster:
 
         tb.add_office_separator()
 
-        self._add_drop(tb, "线型", ["0.75 磅"])
-        self._add_drop(tb, "虚线线型", ["短划线"])
-        self._add_drop(tb, "箭头样式", ["箭头样式 1"])
-        self._add_drop(tb, "阴影样式", ["阴影样式 1"])
+        self._add_drop(tb, "线型", ["0.75 磅"], aid="draw_line_style")
+        self._add_drop(tb, "虚线线型", ["短划线"], aid="draw_dash_style")
+        self._add_drop(tb, "箭头样式", ["箭头样式 1"], aid="draw_arrow_style")
+        self._add_drop(tb, "阴影样式", ["阴影样式 1"], aid="draw_shadow_style")
 
         return tb
 
@@ -638,7 +888,7 @@ class QuireToolBarCluster:
 
         self._add(tb, "picCrop", "裁剪(&R)", "激活裁剪控制柄", checkable=True)
         self._add(tb, "picRotate", "向左旋转 90°(&T)", "向左旋转 90 度")
-        self._add_drop(tb, "线条样式", ["0.75 磅"])
+        self._add_drop(tb, "线条样式", ["0.75 磅"], aid="pic_line_style")
 
         tb.add_office_separator()
 
@@ -646,6 +896,7 @@ class QuireToolBarCluster:
             tb,
             "文字环绕",
             ["嵌入型", "四周型", "紧密型", "衬于文字下方", "浮于文字上方"],
+            aid="pic_wrap_mode",
         )
         self._add(tb, "formatObject", "设置对象格式(&O)...", "设置对象格式对话框")
         self._add(tb, "picReset", "重设图片(&P)", "恢复原始尺寸与颜色设置")
@@ -662,7 +913,12 @@ class QuireToolBarCluster:
         self._add_drop(
             tb, "艺术字形状", ["纯文本", "波浪", "上凸", "下凹", "环形"]
         )
-        self._add_drop(tb, "文字环绕", ["嵌入型", "四周型", "紧密型", "浮于文字上方"])
+        self._add_drop(
+            tb,
+            "文字环绕",
+            ["嵌入型", "四周型", "紧密型", "浮于文字上方"],
+            aid="wa_wrap_mode",
+        )
 
         return tb
 
@@ -698,3 +954,5 @@ def retranslate_quire_toolbars(
         tb = toolbars.get(name)
         if tb is not None:
             tb.setWindowTitle(title)
+            for btn in tb.findChildren(OfficeDropDownButton):
+                btn.retranslate_ui(translate)
