@@ -40,7 +40,7 @@ Borders and Shading Dialog,quire_ui,should,yes,yes,"Borders and Shading dialog w
 Tabs Setup Dialog,quire_ui,should,yes,yes,"Tabs setup dialog with tab stop positions, alignments, and leader styles (PR #145)"
 Columns Formatting Dialog,quire_ui,should,yes,yes,"Columns formatting dialog with presets, custom column count, width/spacing, and line-between option (PR #145)"
 Word Count Dialog,quire_ui,could,yes,yes,"word_count_dlg.py Word 2003 statistics dialog (pages, words, chars, paragraphs, lines) (PR #181, fixes #164)"
-Quire 10-Toolbar Cluster Assembly,quire_ui,must,yes,yes,quire_toolbars.py builds all 10 Office 2003 toolbars
+Quire 10-Toolbar Cluster Assembly,quire_ui,must,yes,yes,"quire_toolbars.py builds all 10 Office 2003 toolbars; verified in Phase 5 baseline (fixes #192)"
 Quire Toolbar Action Command Handlers,quire_ui,must,yes,yes,"All 10 Quire toolbars fully wired to canvas text, DOM controllers, and formatting actions (PR #140)"
 AutoCorrect Typing Replacement Engine,quire_ui,should,yes,yes,AutoCorrect engine with 250+ standard typing replacement pairs and user custom pairs (PR #149)
 Spell Checking Engine and Suggestions Dialog,quire_ui,should,yes,yes,"Spell checking engine with morphological analysis, Levenshtein suggestions, and suggestions dialog (PR #149)"
@@ -68,7 +68,7 @@ Classic Format Cells Dialog (6 Tabs),ledger_ui,must,yes,yes,"format_cells.py (nu
 Multi-Column Sort Dialog,ledger_ui,must,yes,yes,sort_dialog.py supporting 3 sort keys and order
 Classic SheetTabBar Bottom Worksheets Bar,ledger_ui,must,yes,yes,"views/sheet_tab_bar.py with tabs, navigation, context menu"
 "Spreadsheet Floating Object Layer (Shapes, Images, Charts)",ledger_ui,must,yes,yes,views/object_layer.py overlay with 8 handles and DrawingML sync
-Ledger 8-Toolbar Cluster Assembly,ledger_ui,must,yes,yes,ledger_toolbars.py builds all 8 toolbars
+Ledger 8-Toolbar Cluster Assembly,ledger_ui,must,yes,yes,"ledger_toolbars.py builds all 8 toolbars; verified in Phase 5 baseline (fixes #192)"
 Ledger Toolbar Action Command Handlers,ledger_ui,must,yes,yes,"All 8 Ledger toolbars fully wired to cell formatting, formula insertion, auto-sum, sort, and alignment (PR #141)"
 Spreadsheet Page Setup and Print Preview to PDF,ledger_ui,should,yes,yes,"Universal print preview dialog, page setup, and vector PDF export wired to Ledger (PR #144)"
 Insert Function (fx) Browser Dialog,ledger_ui,should,yes,yes,"function_wizard.py 519-function category browser and argument assistant dialog (PR #174, fixes #157)"
@@ -96,7 +96,7 @@ Slide Layout Selection Dialog,lectern_ui,must,yes,yes,dialogs/slide_layout.py 21
 Slide Transition Configuration Dialog,lectern_ui,should,yes,yes,"Interactive slide transition task pane with effects, sounds, and timing controls (PR #147)"
 Custom Animation Task Pane,lectern_ui,should,yes,yes,"Custom animation task pane with effect lists, reordering, timing, and triggers (PR #147)"
 Slide Background Formatting Dialog,lectern_ui,should,yes,yes,"background_dlg.py solid, gradient, texture, pattern, and picture slide background dialog (PR #182, fixes #165)"
-Lectern 10-Toolbar Cluster Assembly,lectern_ui,must,yes,yes,lectern_toolbars.py builds all 10 toolbars
+Lectern 10-Toolbar Cluster Assembly,lectern_ui,must,yes,yes,"lectern_toolbars.py builds all 10 toolbars; verified in Phase 5 baseline (fixes #192)"
 Lectern Toolbar Action Command Handlers,lectern_ui,must,yes,yes,"All 10 Lectern toolbars fully wired to slide canvas, shapes, diagram layout, and master views (PR #142)"
 Start Center Document Hub Window,common_ui,must,yes,yes,"start_center.py with open, recent, create, app launch"
 Recent Files Cards with Thumbnail and Removal,common_ui,must,yes,yes,"Recent items list with timestamps, icons, deletion"
