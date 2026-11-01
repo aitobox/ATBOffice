@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import QComboBox
 
+from atboffice.core.i18n import load_locale
 from atboffice.modules.spreadsheet.models.selection_model import SelectionRange
 from atboffice.modules.spreadsheet.models.sheet_model import CellData
 from atboffice.ui.shell.ledger_window import LedgerWindow
@@ -283,3 +284,286 @@ def test_two_way_formatting_state_sync(qtbot) -> None:
         assert font_combo.currentText() == "Arial"
     if size_combo:
         assert size_combo.currentText() == "10"
+
+
+def test_all_dropdown_and_split_actions_registered(qtbot) -> None:
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    expected_actions = [
+        # Undo / Redo split menus
+        "undo",
+        "undo_empty",
+        "redo",
+        "redo_empty",
+        # AutoSum split menu
+        "autoSum",
+        "autoSum_sum",
+        "autoSum_average",
+        "autoSum_count",
+        "autoSum_max",
+        "autoSum_min",
+        "autoSum_more",
+        # Borders formatting split menu
+        "bordersApply",
+        "border_bottom",
+        "border_top",
+        "border_left",
+        "border_right",
+        "border_none",
+        "border_all",
+        "border_thick_box",
+        "border_bottom_double",
+        # Borders toolbar split menu & color
+        "bordersPalette",
+        "border_pal_none",
+        "border_pal_bottom",
+        "border_pal_top",
+        "border_pal_all",
+        "border_pal_outside",
+        "border_pal_thick",
+        "border_line_color",
+        "border_color_auto",
+        "border_color_black",
+        "border_color_red",
+        "border_color_blue",
+        "border_color_gray",
+        # Validation auditing split menu
+        "validation",
+        "validation_dlg",
+        "circleInvalid",
+        "clearCircles",
+        # List toolbar drop menu
+        "list_menu",
+        "insertRows",
+        "insertCols",
+        "sortDlg",
+        "autoFilter",
+        "totalRow",
+        "convertToRange",
+        # Chart toolbar drop menu
+        "chart_type_menu",
+        "chart_type_column",
+        "chart_type_line",
+        "chart_type_pie",
+        "chart_type_bar",
+        "chart_type_area",
+        "chart_type_scatter",
+        "chart_type_radar",
+        # Drawing toolbar drop menu
+        "draw_menu",
+        "bringToFront",
+        "sendToBack",
+        "draw_group",
+        "draw_ungroup",
+    ]
+
+    for aid in expected_actions:
+        assert win.action_registry.has_action(
+            aid
+        ), f"Action '{aid}' must be registered in action_registry"
+
+
+def test_autosum_dropdown_functions(qtbot) -> None:
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    model = win.spreadsheet_view.model
+    # Set numeric values in A1:A3
+    model.set_cell(0, 0, CellData(value=10))
+    model.set_cell(1, 0, CellData(value=20))
+    model.set_cell(2, 0, CellData(value=30))
+
+    # 1. Average
+    win.spreadsheet_view.selection.select_cell(3, 0)
+    win.action_registry.trigger_action("autoSum_average")
+    c = model.get_cell(3, 0)
+    assert c is not None
+    assert c.formula == "AVERAGE(A1:A3)"
+    assert c.value == 20.0
+
+    # 2. Count
+    win.spreadsheet_view.selection.select_cell(3, 0)
+    win.action_registry.trigger_action("autoSum_count")
+    c = model.get_cell(3, 0)
+    assert c is not None
+    assert c.formula == "COUNT(A1:A3)"
+    assert c.value == 3.0
+
+    # 3. Max
+    win.spreadsheet_view.selection.select_cell(3, 0)
+    win.action_registry.trigger_action("autoSum_max")
+    c = model.get_cell(3, 0)
+    assert c is not None
+    assert c.formula == "MAX(A1:A3)"
+    assert c.value == 30.0
+
+    # 4. Min
+    win.spreadsheet_view.selection.select_cell(3, 0)
+    win.action_registry.trigger_action("autoSum_min")
+    c = model.get_cell(3, 0)
+    assert c is not None
+    assert c.formula == "MIN(A1:A3)"
+    assert c.value == 10.0
+
+
+def test_borders_dropdown_wiring(qtbot) -> None:
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    model = win.spreadsheet_view.model
+    model.set_cell(0, 0, CellData(value="BordersTest"))
+    win.spreadsheet_view.selection.select_cell(0, 0)
+
+    # Top border
+    win.action_registry.trigger_action("border_top")
+    c = model.get_cell(0, 0)
+    assert c.border_top is not None
+
+    # Bottom border
+    win.action_registry.trigger_action("border_bottom")
+    c = model.get_cell(0, 0)
+    assert c.border_bottom is not None
+
+    # Double bottom border
+    win.action_registry.trigger_action("border_bottom_double")
+    c = model.get_cell(0, 0)
+    assert c.border_bottom is not None
+    assert c.border_bottom.style == "double"
+
+    # Thick outline
+    win.action_registry.trigger_action("border_thick_box")
+    c = model.get_cell(0, 0)
+    assert c.border_top.style == "medium"
+    assert c.border_bottom.style == "medium"
+
+
+def test_border_line_color_actions(qtbot) -> None:
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    model = win.spreadsheet_view.model
+    model.set_cell(0, 0, CellData(value="ColorBorder"))
+    win.spreadsheet_view.selection.select_cell(0, 0)
+
+    # Apply all borders then change color to Red
+    win.action_registry.trigger_action("bordersApply")
+    win.action_registry.trigger_action("border_color_red")
+    c = model.get_cell(0, 0)
+    assert c.border_top is not None
+    assert c.border_top.color == "#FF0000"
+
+    # Change to Blue
+    win.action_registry.trigger_action("border_color_blue")
+    c = model.get_cell(0, 0)
+    assert c.border_top.color == "#0000FF"
+
+
+def test_list_toolbar_actions(qtbot) -> None:
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    model = win.spreadsheet_view.model
+    model.set_cell(0, 0, CellData(value="Row0"))
+    model.set_cell(1, 0, CellData(value="Row1"))
+    model.set_cell(0, 1, CellData(value="Col1"))
+
+    # 1. Insert row at row 1 -> Row1 moves to row 2
+    win.spreadsheet_view.selection.select_cell(1, 0)
+    win.action_registry.trigger_action("insertRows")
+    assert model.get_cell_value(0, 0) == "Row0"
+    assert model.get_cell_value(2, 0) == "Row1"
+
+    # 2. Insert col at col 1 -> Col1 moves to col 2
+    win.spreadsheet_view.selection.select_cell(0, 1)
+    win.action_registry.trigger_action("insertCols")
+    assert model.get_cell_value(0, 2) == "Col1"
+
+    # 3. Toggle autoFilter
+    assert not win.action_registry.get_action("autoFilter").isChecked()
+    win.action_registry.trigger_action("autoFilter")
+    assert win.action_registry.get_action("autoFilter").isChecked()
+    assert getattr(model, "auto_filter", None) is not None
+
+    # 4. Convert to range clears autoFilter
+    win.action_registry.trigger_action("convertToRange")
+    assert not win.action_registry.get_action("autoFilter").isChecked()
+    assert getattr(model, "auto_filter", None) is None
+
+
+def test_chart_toolbar_type_dropdown(qtbot) -> None:
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    # Trigger chart_type_line
+    win.action_registry.trigger_action("chart_type_line")
+    objs = win.spreadsheet_view.object_layer.objects
+    assert any(getattr(o, "chart_type", "") == "line" for o in objs)
+
+    # Select chart and change to pie
+    win.action_registry.trigger_action("chart_type_pie")
+    assert any(getattr(o, "chart_type", "") == "pie" for o in objs)
+
+
+def test_drawing_z_order_actions(qtbot) -> None:
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    # Insert two shapes
+    win.action_registry.trigger_action("insertTextBox")
+    win.action_registry.trigger_action("insertShape")
+    objs = win.spreadsheet_view.object_layer.objects
+    assert len(objs) >= 2
+
+    # Select the first object and bring to front
+    first_obj = objs[0]
+    win.spreadsheet_view.object_layer.select_object(first_obj)
+    win.action_registry.trigger_action("bringToFront")
+    assert win.spreadsheet_view.object_layer.objects[-1] == first_obj
+
+    # Send to back
+    win.action_registry.trigger_action("sendToBack")
+    assert win.spreadsheet_view.object_layer.objects[0] == first_obj
+
+
+def test_inapplicable_actions_disabled(qtbot) -> None:
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    # Inapplicable items must be disabled
+    act_undo_empty = win.action_registry.get_action("undo_empty")
+    act_redo_empty = win.action_registry.get_action("redo_empty")
+    act_draw_group = win.action_registry.get_action("draw_group")
+    act_draw_ungroup = win.action_registry.get_action("draw_ungroup")
+
+    assert act_undo_empty is not None and not act_undo_empty.isEnabled()
+    assert act_redo_empty is not None and not act_redo_empty.isEnabled()
+    assert act_draw_group is not None and not act_draw_group.isEnabled()
+    assert act_draw_ungroup is not None and not act_draw_ungroup.isEnabled()
+
+
+def test_toolbar_dropdown_retranslate_ui(qtbot) -> None:
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    # Switch to zh-CN
+    load_locale("zh-CN")
+    win.retranslate_ui()
+    act_sum = win.action_registry.get_action("autoSum_sum")
+    assert act_sum is not None
+    assert "求和" in act_sum.text()
+
+    # Switch to en
+    load_locale("en")
+    win.retranslate_ui()
+    assert "Sum" in act_sum.text()
+
+    # Switch to ja
+    load_locale("ja")
+    win.retranslate_ui()
+    assert "合計" in act_sum.text()
+
+    # Restore zh-CN
+    load_locale("zh-CN")
+    win.retranslate_ui()
+

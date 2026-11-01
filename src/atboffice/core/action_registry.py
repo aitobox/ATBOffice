@@ -130,6 +130,16 @@ class ActionRegistry(QObject):
         """Check whether an action with the given ID is registered."""
         return action_id in self._actions
 
+    def is_enabled(self, action_id: str) -> bool:
+        """Return whether the specified action is registered and enabled."""
+        action = self._actions.get(action_id)
+        return action.isEnabled() if action is not None else False
+
+    def is_checked(self, action_id: str) -> bool:
+        """Return whether the specified action is registered and checked."""
+        action = self._actions.get(action_id)
+        return action.isChecked() if action is not None else False
+
     def set_enabled(self, action_id: str, enabled: bool) -> None:
         """Update the enabled state of an action across all UI bindings."""
         action = self._actions.get(action_id)
