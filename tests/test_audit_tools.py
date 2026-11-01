@@ -1,11 +1,17 @@
 """Tests for scripts/source_diff.py and scripts/parity.py audit tooling."""
 
+import sys
 from pathlib import Path
 
 import pytest
 
-from scripts.parity import ParityCalculator
-from scripts.source_diff import SourceDiffAuditor
+# Ensure repository root is on sys.path so scripts can be imported in CI
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.parity import ParityCalculator  # noqa: E402
+from scripts.source_diff import SourceDiffAuditor  # noqa: E402
 
 
 def test_source_diff_auditor_clean():
