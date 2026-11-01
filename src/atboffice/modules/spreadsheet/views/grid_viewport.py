@@ -577,7 +577,10 @@ class GridViewport(QAbstractScrollArea):
             painter.restore()
 
         # 2c. Draw Selection Border Drag Preview Rectangle
-        if self._move_preview_range is not None and self._move_preview_range != self._move_src_range:
+        if (
+            self._move_preview_range is not None
+            and self._move_preview_range != self._move_src_range
+        ):
             painter.save()
             painter.setClipRect(cell_clip)
             pr = self._move_preview_range
@@ -1974,11 +1977,16 @@ class GridViewport(QAbstractScrollArea):
                 + self.geometry_mapper.row_pos(pr.max_r + 1)
                 - sy
             )
-            if abs(y - by1) <= 3:
+            d_top = abs(y - by1)
+            d_bottom = abs(y - by2)
+            d_left = abs(x - bx1)
+            d_right = abs(x - bx2)
+            min_d = min(d_top, d_bottom, d_left, d_right)
+            if min_d == d_top:
                 self.move_to_edge(-1, 0)
-            elif abs(y - by2) <= 3:
+            elif min_d == d_bottom:
                 self.move_to_edge(1, 0)
-            elif abs(x - bx1) <= 3:
+            elif min_d == d_left:
                 self.move_to_edge(0, -1)
             else:
                 self.move_to_edge(0, 1)
@@ -2648,7 +2656,10 @@ class GridViewport(QAbstractScrollArea):
         return False
 
     def move_to_edge(self, dr: int, dc: int) -> None:
-        """Jump selection to data region boundary in direction (dr, dc) (Excel/VibeOffice double-click parity)."""
+        """Jump selection to data region boundary in direction (dr, dc).
+
+        Matches Excel/VibeOffice double-click parity.
+        """
         r, c = self.selection.active_cell
         max_r = self.geometry_mapper.max_rows - 1
         max_c = self.geometry_mapper.max_cols - 1
@@ -2684,7 +2695,10 @@ class GridViewport(QAbstractScrollArea):
         to: SelectionRange,
         copy: bool = False,
     ) -> bool:
-        """Move or copy cell range src to to, handling formulas, merges, comments, confirmation, and undo."""
+        """Move or copy cell range src to to.
+
+        Handles formulas, merges, comments, confirmation, and undo.
+        """
         if self.guard_protect(cell_edit=True):
             return False
 

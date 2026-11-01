@@ -618,7 +618,6 @@ class TestSelectionBorderDragAndDrop:
         sx = viewport.horizontalScrollBar().value()
         sy = viewport.verticalScrollBar().value()
         x1 = viewport.row_header_width + viewport.geometry_mapper.col_pos(pr.min_c) - sx
-        x2 = viewport.row_header_width + viewport.geometry_mapper.col_pos(pr.max_c + 1) - sx
         y1 = viewport.col_header_height + viewport.geometry_mapper.row_pos(pr.min_r) - sy
         grab_x = x1 + 10
 
@@ -668,7 +667,6 @@ class TestSelectionBorderDragAndDrop:
         sx = viewport.horizontalScrollBar().value()
         sy = viewport.verticalScrollBar().value()
         x1 = viewport.row_header_width + viewport.geometry_mapper.col_pos(pr.min_c) - sx
-        x2 = viewport.row_header_width + viewport.geometry_mapper.col_pos(pr.max_c + 1) - sx
         y1 = viewport.col_header_height + viewport.geometry_mapper.row_pos(pr.min_r) - sy
         grab_x = x1 + 10
 
@@ -724,7 +722,8 @@ class TestSelectionBorderDragAndDrop:
 
         # Move A1:A2 down by 1 row to A2:A3
         dest = viewport.selection.primary_range
-        viewport.move_range(dest, viewport.selection.primary_range.__class__(1, 0, 2, 0), copy=False)
+        target = viewport.selection.primary_range.__class__(1, 0, 2, 0)
+        viewport.move_range(dest, target, copy=False)
 
         assert viewport.model.get_cell_value(0, 0) is None
         assert viewport.model.get_cell_value(1, 0) == 10
@@ -775,7 +774,9 @@ class TestSelectionBorderDragAndDrop:
         assert viewport.model.get_cell_value(0, 0) == 42
         assert viewport.model.get_cell_value(0, 1) == 42
 
-    def test_border_overwrite_confirmation(self, viewport: GridViewport, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_border_overwrite_confirmation(
+        self, viewport: GridViewport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         from PySide6.QtWidgets import QMessageBox
 
         viewport.model.set_cell_value(0, 0, "Source")
@@ -783,7 +784,11 @@ class TestSelectionBorderDragAndDrop:
         viewport.selection.select_cell(0, 0)
 
         # 1. Cancel confirmation -> no change
-        monkeypatch.setattr(QMessageBox, "question", lambda *args, **kwargs: QMessageBox.StandardButton.Cancel)
+        monkeypatch.setattr(
+            QMessageBox,
+            "question",
+            lambda *args, **kwargs: QMessageBox.StandardButton.Cancel,
+        )
 
         dest_rect = viewport.cell_rect(0, 1)
         pr = viewport.selection.primary_range
@@ -826,7 +831,11 @@ class TestSelectionBorderDragAndDrop:
         assert viewport.model.get_cell_value(0, 1) == "Existing"
 
         # 2. Accept confirmation -> overwritten
-        monkeypatch.setattr(QMessageBox, "question", lambda *args, **kwargs: QMessageBox.StandardButton.Ok)
+        monkeypatch.setattr(
+            QMessageBox,
+            "question",
+            lambda *args, **kwargs: QMessageBox.StandardButton.Ok,
+        )
 
         viewport.mousePressEvent(press)
         viewport.mouseMoveEvent(move)
@@ -905,7 +914,9 @@ class TestSelectionBorderDragAndDrop:
         assert viewport.model.get_cell_value(0, 2) == "A"
         assert viewport.model.get_cell_value(1, 2) == "B"
 
-    def test_border_protection_blocks_move(self, viewport: GridViewport, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_border_protection_blocks_move(
+        self, viewport: GridViewport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         from PySide6.QtWidgets import QMessageBox
         monkeypatch.setattr(QMessageBox, "information", lambda *args, **kwargs: None)
 
