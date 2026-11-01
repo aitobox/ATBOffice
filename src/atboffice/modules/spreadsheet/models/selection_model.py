@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Final
+from typing import Any, Final
 
 from PySide6.QtCore import QObject, Signal
 
@@ -168,3 +168,28 @@ class SelectionModel(QObject):
     def is_col_selected(self, c: int) -> bool:
         """Check if column c is within any selection range."""
         return any(rg.min_c <= c <= rg.max_c for rg in self._ranges)
+
+    def snapshot(self) -> dict[str, Any]:
+        """Capture a snapshot of the current selection state."""
+        return {
+            "active_cell": self._active_cell,
+            "anchor_cell": self._anchor_cell,
+            "ranges": [
+                SelectionRange(rg.r1, rg.c1, rg.r2, rg.c2)
+                for rg in self._ranges
+            ],
+        }
+
+    def restore_snapshot(self, snap: dict[str, Any]) -> None:
+        """Restore selection state from a previously captured snapshot."""
+        if not snap:
+            return
+        self._active_cell = snap.get("active_cell", (0, 0))
+        self._anchor_cell = snap.get("anchor_cell", (0, 0))
+        raw_ranges = snap.get("ranges", [])
+        self._ranges = [
+            SelectionRange(rg.r1, rg.c1, rg.r2, rg.c2)
+            for rg in raw_ranges
+        ]
+        self.active_cell_changed.emit(self._active_cell[0], self._active_cell[1])
+        self.selection_changed.emit()

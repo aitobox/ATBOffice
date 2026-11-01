@@ -187,3 +187,371 @@ class TestKeyboardNavigation:
         viewport.keyPressEvent(event)
         assert viewport.selection.is_selected(0, 0)
         assert viewport.selection.is_selected(999, 100)
+
+
+class TestDragLifecycleAndCancellation:
+    def test_drag_threshold_3px(self, viewport: GridViewport) -> None:
+        viewport.selection.select_cell(1, 1)
+        r1_rect = viewport.cell_rect(1, 1)
+        start_x = r1_rect.center().x()
+        start_y = r1_rect.center().y()
+
+        # Mouse press
+        press_event = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(start_x, start_y),
+            QPointF(start_x, start_y),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(press_event)
+        assert viewport.is_dragging
+        assert not viewport.has_drag_moved
+
+        # Micro-move 1px: distance < 3px
+        move_1px = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(start_x + 1, start_y + 1),
+            QPointF(start_x + 1, start_y + 1),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move_1px)
+        assert not viewport.has_drag_moved
+        # Selection should still be single cell (1, 1)
+        assert viewport.selection.primary_range.min_r == 1
+        assert viewport.selection.primary_range.max_r == 1
+
+        # Move 10px to cell (2, 2): distance >= 3px
+        r2_rect = viewport.cell_rect(2, 2)
+        move_dest = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(r2_rect.center().x(), r2_rect.center().y()),
+            QPointF(r2_rect.center().x(), r2_rect.center().y()),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move_dest)
+        assert viewport.has_drag_moved
+        assert viewport.selection.primary_range.max_r == 2
+        assert viewport.selection.primary_range.max_c == 2
+
+    def test_drag_cancel_escape(self, viewport: GridViewport) -> None:
+        viewport.selection.select_cell(1, 1)
+        r1_rect = viewport.cell_rect(1, 1)
+        r3_rect = viewport.cell_rect(3, 3)
+
+        press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(r1_rect.center().x(), r1_rect.center().y()),
+            QPointF(r1_rect.center().x(), r1_rect.center().y()),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(press)
+
+        move = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(r3_rect.center().x(), r3_rect.center().y()),
+            QPointF(r3_rect.center().x(), r3_rect.center().y()),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move)
+        assert viewport.selection.primary_range.max_r == 3
+
+        # Press Escape key
+        esc_event = QKeyEvent(
+            QKeyEvent.Type.KeyPress,
+            Qt.Key.Key_Escape,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.keyPressEvent(esc_event)
+
+        assert not viewport.is_dragging
+        # Selection must be restored to (1, 1)
+        pr = viewport.selection.primary_range
+        assert (pr.min_r, pr.min_c, pr.max_r, pr.max_c) == (1, 1, 1, 1)
+
+    def test_drag_cancel_focus_out(self, viewport: GridViewport) -> None:
+        from PySide6.QtGui import QFocusEvent
+
+        viewport.selection.select_cell(1, 1)
+        r1_rect = viewport.cell_rect(1, 1)
+        r3_rect = viewport.cell_rect(3, 3)
+
+        press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(r1_rect.center().x(), r1_rect.center().y()),
+            QPointF(r1_rect.center().x(), r1_rect.center().y()),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(press)
+
+        move = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(r3_rect.center().x(), r3_rect.center().y()),
+            QPointF(r3_rect.center().x(), r3_rect.center().y()),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move)
+        assert viewport.is_dragging
+
+        # Focus out
+        focus_event = QFocusEvent(QFocusEvent.Type.FocusOut)
+        viewport.focusOutEvent(focus_event)
+
+        assert not viewport.is_dragging
+        pr = viewport.selection.primary_range
+        assert (pr.min_r, pr.min_c, pr.max_r, pr.max_c) == (1, 1, 1, 1)
+
+    def test_drag_cancel_second_button(self, viewport: GridViewport) -> None:
+        from PySide6.QtGui import QContextMenuEvent
+
+        viewport.selection.select_cell(1, 1)
+        r1_rect = viewport.cell_rect(1, 1)
+        r3_rect = viewport.cell_rect(3, 3)
+
+        press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(r1_rect.center().x(), r1_rect.center().y()),
+            QPointF(r1_rect.center().x(), r1_rect.center().y()),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(press)
+
+        move = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(r3_rect.center().x(), r3_rect.center().y()),
+            QPointF(r3_rect.center().x(), r3_rect.center().y()),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move)
+
+        # Right click while left dragging
+        right_press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(r3_rect.center().x(), r3_rect.center().y()),
+            QPointF(r3_rect.center().x(), r3_rect.center().y()),
+            Qt.MouseButton.RightButton,
+            Qt.MouseButton.LeftButton | Qt.MouseButton.RightButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(right_press)
+
+        assert not viewport.is_dragging
+        pr = viewport.selection.primary_range
+        assert (pr.min_r, pr.min_c, pr.max_r, pr.max_c) == (1, 1, 1, 1)
+
+        # Context menu event should be swallowed
+        menu_event = QContextMenuEvent(
+            QContextMenuEvent.Reason.Mouse,
+            r3_rect.center(),
+            viewport.viewport().mapToGlobal(r3_rect.center()),
+        )
+        viewport.contextMenuEvent(menu_event)
+        # Should be accepted and swallowed (no crash, flag cleared)
+        assert menu_event.isAccepted()
+
+    def test_drag_cancel_lost_capture(self, viewport: GridViewport) -> None:
+        viewport.selection.select_cell(1, 1)
+        r1_rect = viewport.cell_rect(1, 1)
+        r2_rect = viewport.cell_rect(2, 2)
+
+        press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(r1_rect.center().x(), r1_rect.center().y()),
+            QPointF(r1_rect.center().x(), r1_rect.center().y()),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(press)
+
+        # Move without LeftButton held (lost release/capture)
+        move_lost = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(r2_rect.center().x(), r2_rect.center().y()),
+            QPointF(r2_rect.center().x(), r2_rect.center().y()),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.NoButton,  # No button held
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move_lost)
+
+        assert not viewport.is_dragging
+        pr = viewport.selection.primary_range
+        assert (pr.min_r, pr.min_c, pr.max_r, pr.max_c) == (1, 1, 1, 1)
+
+    def test_drag_cancel_resize(self, viewport: GridViewport) -> None:
+        orig_w = viewport.geometry_mapper.col_size(0)
+        col_end_x = viewport.row_header_width + orig_w
+
+        # Press on col resize boundary
+        press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(col_end_x, 10),
+            QPointF(col_end_x, 10),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(press)
+        assert viewport.is_dragging
+
+        # Move to resize
+        move = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(col_end_x + 50, 10),
+            QPointF(col_end_x + 50, 10),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move)
+        assert viewport.geometry_mapper.col_size(0) == orig_w + 50
+
+        # Press Escape
+        esc_event = QKeyEvent(
+            QKeyEvent.Type.KeyPress,
+            Qt.Key.Key_Escape,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.keyPressEvent(esc_event)
+
+        assert not viewport.is_dragging
+        # Size restored
+        assert viewport.geometry_mapper.col_size(0) == orig_w
+
+    def test_drag_cancel_autofill(self, viewport: GridViewport) -> None:
+        viewport.model.set_cell(1, 1, CellData(value=10))
+        viewport.model.set_cell(2, 1, CellData(value=None))
+        viewport.selection.select_cell(1, 1)
+
+        # Find fill handle pos
+        fh_rect = viewport._get_fill_handle_rect()
+        assert fh_rect is not None
+
+        press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(fh_rect.center().x(), fh_rect.center().y()),
+            QPointF(fh_rect.center().x(), fh_rect.center().y()),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(press)
+        assert viewport.is_dragging
+
+        # Move to row 3
+        r3_rect = viewport.cell_rect(3, 1)
+        move = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(r3_rect.center().x(), r3_rect.center().y()),
+            QPointF(r3_rect.center().x(), r3_rect.center().y()),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move)
+        assert viewport.has_autofill_preview
+
+        # Cancel via Escape
+        esc_event = QKeyEvent(
+            QKeyEvent.Type.KeyPress,
+            Qt.Key.Key_Escape,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.keyPressEvent(esc_event)
+
+        assert not viewport.is_dragging
+        assert not viewport.has_autofill_preview
+        # Cells below must remain uncommitted
+        c2 = viewport.model.get_cell(2, 1)
+        assert c2 is None or c2.value is None
+        c3 = viewport.model.get_cell(3, 1)
+        assert c3 is None or c3.value is None
+
+    def test_drag_autoscroll_timer_cleanup(self, viewport: GridViewport) -> None:
+        viewport.selection.select_cell(1, 1)
+        r1_rect = viewport.cell_rect(1, 1)
+
+        press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(r1_rect.center().x(), r1_rect.center().y()),
+            QPointF(r1_rect.center().x(), r1_rect.center().y()),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(press)
+
+        # Move past bottom edge of viewport
+        vp_h = viewport.viewport().height()
+        move_outside = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(r1_rect.center().x(), vp_h + 50),
+            QPointF(r1_rect.center().x(), vp_h + 50),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(move_outside)
+
+        assert viewport.is_auto_scrolling
+
+        # Release mouse
+        release = QMouseEvent(
+            QMouseEvent.Type.MouseButtonRelease,
+            QPointF(r1_rect.center().x(), vp_h + 50),
+            QPointF(r1_rect.center().x(), vp_h + 50),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseReleaseEvent(release)
+
+        assert not viewport.is_dragging
+        assert not viewport.is_auto_scrolling
+
+    def test_right_click_does_not_drag(self, viewport: GridViewport) -> None:
+        r1_rect = viewport.cell_rect(1, 1)
+
+        right_press = QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress,
+            QPointF(r1_rect.center().x(), r1_rect.center().y()),
+            QPointF(r1_rect.center().x(), r1_rect.center().y()),
+            Qt.MouseButton.RightButton,
+            Qt.MouseButton.RightButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mousePressEvent(right_press)
+
+        assert not viewport.is_dragging
+
+        # Move with right button held
+        right_move = QMouseEvent(
+            QMouseEvent.Type.MouseMove,
+            QPointF(r1_rect.center().x() + 50, r1_rect.center().y() + 50),
+            QPointF(r1_rect.center().x() + 50, r1_rect.center().y() + 50),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.RightButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        viewport.mouseMoveEvent(right_move)
+
+        assert not viewport.is_dragging
+
