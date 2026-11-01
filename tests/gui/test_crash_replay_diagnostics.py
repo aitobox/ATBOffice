@@ -203,3 +203,72 @@ def test_window_close_event_loop_drain() -> None:
     drain_event_loop(max_iterations=3)
     # Deferred delete must be processed without raising exceptions or segfaulting
     assert True
+
+
+def test_qt_virtual_methods_unshadowed() -> None:
+    """Verify Qt virtual methods are not shadowed by model/state instance attributes."""
+    from PySide6.QtCore import QPoint
+    from PySide6.QtGui import QPainterPath
+    from PySide6.QtWidgets import QDialog, QStyle
+
+    from atboffice.modules.common.wordart_gallery import WA_STYLES, WordArtThumbnailWidget
+    from atboffice.modules.presentation.models.presentation import Presentation
+    from atboffice.modules.presentation.models.slide import Shape
+    from atboffice.modules.presentation.models.text import TextBody
+    from atboffice.modules.presentation.slideshow.slideshow_view import SlideShowView
+    from atboffice.modules.presentation.views.shape_item import ShapeGraphicsItem
+    from atboffice.modules.presentation.views.text_editor import ShapeTextEditorItem
+    from atboffice.modules.spreadsheet.calc.goal_seek import GoalSeekResult
+    from atboffice.modules.spreadsheet.dialogs.goal_seek_dlg import GoalSeekStatusDialog
+
+    _app = QApplication.instance() or QApplication(["-platform", "offscreen"])
+
+    # 1. ShapeTextEditorItem.shape() hit-testing
+    sh = Shape(id="s1", type="rect", x=10, y=10, w=100, h=50, text=TextBody.from_plain_text("Test"))
+    item = ShapeGraphicsItem(sh)
+    editor = ShapeTextEditorItem(item)
+    assert callable(editor.shape), "ShapeTextEditorItem.shape must be a callable method"
+    path = editor.shape()
+    assert isinstance(path, QPainterPath)
+
+    # 2. SlideShowView.pos() widget position
+    pres = Presentation()
+    slide_view = SlideShowView(pres)
+    assert callable(slide_view.pos), "SlideShowView.pos must be a callable QWidget method"
+    pos = slide_view.pos()
+    assert isinstance(pos, QPoint)
+
+    # 3. WordArtThumbnailWidget.style() widget style
+    thumbnail = WordArtThumbnailWidget(WA_STYLES[0])
+    assert callable(thumbnail.style), "WordArtThumbnailWidget.style must be a callable method"
+    st = thumbnail.style()
+    assert isinstance(st, QStyle)
+
+    # 4. GoalSeekStatusDialog.result() dialog result code
+    res = GoalSeekResult(
+        success=True,
+        solution=5.0,
+        iterations=1,
+        target_value=10.0,
+        current_value=10.0,
+        error_margin=0.0,
+        initial_value=1.0,
+    )
+    dlg = GoalSeekStatusDialog(result=res)
+    assert callable(dlg.result), "GoalSeekStatusDialog.result must be a callable QDialog method"
+    dlg_res = dlg.result()
+    assert isinstance(dlg_res, (int, QDialog.DialogCode))
+
+
+def test_100_cycle_interaction_replay(replay_runner: SubprocessReplayRunner) -> None:
+    """Run 100 interaction replay cycles in an isolated subprocess with zero crashes or leaks."""
+    result = replay_runner.run(
+        module="lectern",
+        action="stress_interaction",
+        extra_args=["--replay-iterations=100"],
+        timeout=30.0,
+    )
+    assert result.status == "normal_exit", f"100-cycle interaction replay failed: {result.stderr}"
+    assert result.exit_code == 0
+    assert result.duration > 0.0
+

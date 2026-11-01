@@ -76,9 +76,9 @@ class SlideShowView(QWidget):
 
         # Starting position in order
         if 0 <= start_slide_index < len(self.order):
-            self.pos = start_slide_index
+            self.slide_pos = start_slide_index
         else:
-            self.pos = 0
+            self.slide_pos = 0
 
         # Pre-render cache
         self._cache: dict[int, QImage] = {}
@@ -136,8 +136,8 @@ class SlideShowView(QWidget):
 
     @property
     def current_slide_index(self) -> int:
-        if 0 <= self.pos < len(self.order):
-            return self.order[self.pos]
+        if 0 <= self.slide_pos < len(self.order):
+            return self.order[self.slide_pos]
         return 0
 
     @property
@@ -262,7 +262,7 @@ class SlideShowView(QWidget):
             return
 
         # 6. Find next non-hidden slide
-        next_pos = self.pos + 1
+        next_pos = self.slide_pos + 1
         while next_pos < len(self.order):
             s_idx = self.order[next_pos]
             if 0 <= s_idx < len(self.presentation.slides):
@@ -327,7 +327,7 @@ class SlideShowView(QWidget):
             self.update()
             return
 
-        prev_pos = self.pos - 1
+        prev_pos = self.slide_pos - 1
         while prev_pos >= 0:
             s_idx = self.order[prev_pos]
             if 0 <= s_idx < len(self.presentation.slides):
@@ -363,7 +363,7 @@ class SlideShowView(QWidget):
         self._auto_timer.stop()
         self._anim_player.stop()
         old_idx = self.current_slide_index
-        self.pos = new_pos
+        self.slide_pos = new_pos
         new_idx = self.current_slide_index
         self.is_ended = False
 

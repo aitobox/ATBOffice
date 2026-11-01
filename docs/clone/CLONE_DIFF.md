@@ -49,7 +49,7 @@
   - [x] 建立三模块子进程 GUI 重放基线（`tests/gui/test_crash_replay_diagnostics.py`，10 项测试全部通过），支持启动、窗口切换、鼠标悬停、对话框生命周期及排空退出。
   - [x] 实现崩溃与故障遥测诊断（`src/atboffice/core/diagnostics.py`），接入 `faulthandler`、`sys.excepthook`、环境指纹、脱敏堆栈与平台崩溃日志检索。
   - [x] 实现了窗口关闭及应用退出时的事件循环排空（`drain_event_loop`），避免 `deleteLater()` 析构冲突与内存泄漏。
-  - [ ] 随各子议题推进，按堆栈复现并逐一修复实际崩溃（后续由 #190 承接）。
+  - [x] 随各子议题推进，按堆栈复现并逐一修复实际崩溃（#190 修复 `ShapeTextEditorItem.shape`、`SlideShowView.pos`、`WordArtThumbnailWidget.style`、`GoalSeekStatusDialog.result` 四处 Qt 虚方法遮蔽，建立 100 次子进程重放回归）。
 
 ### [TASK-502] fix(files): 验证关闭与保存失败时的数据安全
 - **Parent Epic**: Phase 5: Stability & Parity
