@@ -1,16 +1,16 @@
 """Tests for Ledger GridViewport right-click selection and context menu system."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-from PySide6.QtCore import QPoint, QPointF, Qt
-from PySide6.QtGui import QContextMenuEvent, QKeyEvent, QMouseEvent
+from PySide6.QtCore import QPointF, Qt
+from PySide6.QtGui import QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.spreadsheet.models.selection_model import SelectionRange
 from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetDataModel
 from atboffice.modules.spreadsheet.views.editor_controller import EditorController
-from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport, HitResult, HitZone
+from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport
 
 
 @pytest.fixture

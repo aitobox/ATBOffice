@@ -39,6 +39,7 @@ from atboffice.modules.spreadsheet.models.selection_model import (
     SelectionRange,
 )
 from atboffice.modules.spreadsheet.models.sheet_model import (
+    CellData,
     SheetDataModel,
 )
 from atboffice.modules.spreadsheet.views.autofill import AutoFillEngine
@@ -2364,9 +2365,10 @@ class GridViewport(QAbstractScrollArea):
         from atboffice.modules.spreadsheet.calc.references import cell_name
 
         cname = cell_name(r, c)
-        for l in links:
-            if isinstance(l, dict) and (
-                l.get("ref") == cname or (l.get("r") == r and l.get("c") == c)
+        for link_item in links:
+            if isinstance(link_item, dict) and (
+                link_item.get("ref") == cname
+                or (link_item.get("r") == r and link_item.get("c") == c)
             ):
                 return True
         return False
@@ -2396,15 +2398,16 @@ class GridViewport(QAbstractScrollArea):
 
         cname = cell_name(r, c)
         target = None
-        for l in links:
-            if isinstance(l, dict) and (
-                l.get("ref") == cname or (l.get("r") == r and l.get("c") == c)
+        for link_item in links:
+            if isinstance(link_item, dict) and (
+                link_item.get("ref") == cname
+                or (link_item.get("r") == r and link_item.get("c") == c)
             ):
-                target = l.get("target")
+                target = link_item.get("target")
                 break
         if target:
-            from PySide6.QtGui import QDesktopServices
             from PySide6.QtCore import QUrl
+            from PySide6.QtGui import QDesktopServices
 
             QDesktopServices.openUrl(QUrl(target))
 
@@ -2415,11 +2418,14 @@ class GridViewport(QAbstractScrollArea):
 
         cname = cell_name(r, c)
         self.model.links = [
-            l
-            for l in links
+            link_item
+            for link_item in links
             if not (
-                isinstance(l, dict)
-                and (l.get("ref") == cname or (l.get("r") == r and l.get("c") == c))
+                isinstance(link_item, dict)
+                and (
+                    link_item.get("ref") == cname
+                    or (link_item.get("r") == r and link_item.get("c") == c)
+                )
             )
         ]
         self.viewport().update()
