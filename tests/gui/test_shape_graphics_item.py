@@ -7,9 +7,7 @@ from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QPainterPath
 from PySide6.QtWidgets import (
     QApplication,
-    QGraphicsScene,
     QGraphicsSceneMouseEvent,
-    QGraphicsView,
 )
 
 from atboffice.modules.presentation.models.shape import Fill, Line, Shape
@@ -32,10 +30,12 @@ def sample_shape() -> Shape:
     )
 
 
-def test_shape_graphics_item_shape_method_callable(qapp: QApplication, sample_shape: Shape) -> None:
-    """Verify that ShapeGraphicsItem.shape is a callable QGraphicsItem virtual method, not shadowed by Shape model."""
+def test_shape_graphics_item_shape_method_callable(
+    qapp: QApplication, sample_shape: Shape
+) -> None:
+    """Verify ShapeGraphicsItem.shape is a callable QGraphicsItem virtual method."""
     item = ShapeGraphicsItem(sample_shape)
-    
+
     # 1. Model attribute is preserved
     assert hasattr(item, "model")
     assert item.model is sample_shape
@@ -51,8 +51,10 @@ def test_shape_graphics_item_shape_method_callable(qapp: QApplication, sample_sh
     assert rect.height() == pytest.approx(80.0)
 
 
-def test_slide_scene_mouse_move_over_shape_no_crash(qapp: QApplication, sample_shape: Shape) -> None:
-    """Verify that moving mouse over slide canvas and shape triggers Qt hit-testing without segfault or TypeError."""
+def test_slide_scene_mouse_move_over_shape_no_crash(
+    qapp: QApplication, sample_shape: Shape
+) -> None:
+    """Verify moving mouse over slide canvas does not raise TypeError or segfault."""
     slide = Slide(id="test_slide")
     slide.add_shape(sample_shape)
 
