@@ -20,7 +20,15 @@ from PySide6.QtGui import (
     QPen,
     QPolygonF,
 )
-from PySide6.QtWidgets import QAbstractScrollArea, QMenu, QToolTip, QWidget
+from PySide6.QtWidgets import (
+    QAbstractScrollArea,
+    QApplication,
+    QInputDialog,
+    QMenu,
+    QMessageBox,
+    QToolTip,
+    QWidget,
+)
 
 from atboffice.modules.spreadsheet.calc.references import col_name
 from atboffice.modules.spreadsheet.models.conditional_format import (
@@ -106,6 +114,8 @@ class GridViewport(QAbstractScrollArea):
         self.geometry_mapper = self.model.geometry
         self.editor_controller: EditorController | None = None
         self._point_anchor: tuple[int, int] | None = None
+        self.object_layer: Any | None = None
+        self._internal_clipboard: dict[str, Any] | None = None
 
         self.row_header_width: int = 46
         self.col_header_height: int = 22
@@ -317,6 +327,16 @@ class GridViewport(QAbstractScrollArea):
             self.horizontalScrollBar().setValue(cell_left)
         elif cell_right > scroll_x + vw:
             self.horizontalScrollBar().setValue(cell_right - vw)
+
+    def cell_rect(self, r: int, c: int) -> QRect:
+        """Return the visible QRect coordinates for cell (r, c) within the viewport."""
+        scroll_x = self.horizontalScrollBar().value()
+        scroll_y = self.verticalScrollBar().value()
+        x = self.geometry_mapper.col_pos(c) - scroll_x + self.row_header_width
+        y = self.geometry_mapper.row_pos(r) - scroll_y + self.col_header_height
+        w = self.geometry_mapper.col_size(c)
+        h = self.geometry_mapper.row_size(r)
+        return QRect(x, y, w, h)
 
     # -------------------------------------------------------------------------
     # Painting Subsystem
@@ -1194,6 +1214,41 @@ class GridViewport(QAbstractScrollArea):
     # Mouse Interaction Subsystem
     # -------------------------------------------------------------------------
     def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.RightButton:
+            # 1. Right click commits active editor first
+            if self.editor_controller is not None and self.editor_controller.is_active:
+                if not self.editor_controller.commit():
+                    event.accept()
+                    return
+
+            x = event.position().x()
+            y = event.position().y()
+            hit = self.hit_test(int(x), int(y))
+
+            if hit.zone == HitZone.CELL and hit.row is not None and hit.col is not None:
+                if not self.selection.is_selected(hit.row, hit.col):
+                    self.selection.select_cell(hit.row, hit.col)
+            elif hit.zone == HitZone.COL_HEADER and hit.col is not None:
+                pr = self.selection.primary_range
+                is_whole_cols = (
+                    pr.min_r == 0 and pr.max_r == self.selection.max_rows - 1
+                )
+                if not (is_whole_cols and pr.min_c <= hit.col <= pr.max_c):
+                    self.selection.select_cols(hit.col, hit.col)
+            elif hit.zone == HitZone.ROW_HEADER and hit.row is not None:
+                pr = self.selection.primary_range
+                is_whole_rows = (
+                    pr.min_c == 0 and pr.max_c == self.selection.max_cols - 1
+                )
+                if not (is_whole_rows and pr.min_r <= hit.row <= pr.max_r):
+                    self.selection.select_rows(hit.row, hit.row)
+            elif hit.zone == HitZone.CORNER:
+                self.selection.select_all()
+
+            self.viewport().update()
+            super().mousePressEvent(event)
+            return
+
         if event.button() != Qt.MouseButton.LeftButton:
             super().mousePressEvent(event)
             return
@@ -1416,6 +1471,14 @@ class GridViewport(QAbstractScrollArea):
         modifiers = event.modifiers()
         r, c = self.selection.active_cell
 
+        # Shift+F10 to trigger shortcut context menu
+        if (
+            key == Qt.Key.Key_F10
+            and bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
+        ):
+            self.open_context_menu(reason=QContextMenuEvent.Reason.Keyboard)
+            return
+
         # Ctrl+1 / Cmd+1 to open Format Cells dialog
         if (
             modifiers
@@ -1545,12 +1608,827 @@ class GridViewport(QAbstractScrollArea):
             menu.exec(pt)
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
-        """Right-click context menu offering cell formatting and clipboard operations."""
+        """Right-click context menu dispatcher."""
+        # If in-cell editor is active and cannot commit, don't open context menu
+        if self.editor_controller is not None and self.editor_controller.is_active:
+            if not self.editor_controller.commit():
+                event.accept()
+                return
+
+        self.open_context_menu(
+            global_pos=event.globalPos(),
+            pos=event.pos(),
+            reason=event.reason(),
+        )
+
+    def open_context_menu(
+        self,
+        global_pos: QPoint | None = None,
+        pos: QPoint | None = None,
+        reason: QContextMenuEvent.Reason = QContextMenuEvent.Reason.Mouse,
+    ) -> None:
+        """Open context menu according to hit target (object, header, cell) and reason."""
+        # 1. Object menu if object selected
+        if (
+            self.object_layer is not None
+            and getattr(self.object_layer, "selected_object", None) is not None
+        ):
+            menu = self._build_object_menu(self.object_layer.selected_object)
+            if global_pos is None:
+                global_pos = self.viewport().mapToGlobal(QPoint(100, 100))
+            menu.exec(global_pos)
+            return
+
+        # 2. Keyboard trigger (Shift+F10)
+        if reason == QContextMenuEvent.Reason.Keyboard or pos is None:
+            ar, ac = self.selection.active_cell
+            c_rect = self.cell_rect(ar, ac)
+            global_pos = self.viewport().mapToGlobal(c_rect.center())
+            hit = HitResult(HitZone.CELL, row=ar, col=ac)
+        else:
+            hit = self.hit_test(pos.x(), pos.y())
+
+        # 3. Build appropriate menu based on hit target and selection
+        pr = self.selection.primary_range
+        is_whole_cols = (
+            pr.min_r == 0 and pr.max_r == self.selection.max_rows - 1
+        )
+        is_whole_rows = (
+            pr.min_c == 0 and pr.max_c == self.selection.max_cols - 1
+        )
+
+        if hit.zone == HitZone.COL_HEADER or (
+            is_whole_cols
+            and hit.zone != HitZone.ROW_HEADER
+            and hit.zone != HitZone.CELL
+        ):
+            col = hit.col if hit.col is not None else pr.min_c
+            menu = self._build_col_header_menu(col)
+        elif hit.zone == HitZone.ROW_HEADER or is_whole_rows:
+            row = hit.row if hit.row is not None else pr.min_r
+            menu = self._build_row_header_menu(row)
+        else:
+            r = hit.row if hit.row is not None else pr.min_r
+            c = hit.col if hit.col is not None else pr.min_c
+            menu = self._build_cell_menu(r, c)
+
+        if global_pos is None:
+            local_p = pos if pos is not None else QPoint(0, 0)
+            global_pos = self.viewport().mapToGlobal(local_p)
+
+        menu.exec(global_pos)
+
+    def _build_col_header_menu(self, col: int) -> QMenu:
+        """Build Luna-styled context menu for column headers."""
         menu = QMenu(self)
-        action_fmt = menu.addAction(safe_tr("设置单元格格式(&F)…"))
-        action_fmt.setShortcut("Ctrl+1")
-        action_fmt.triggered.connect(lambda: self.open_format_cells_dialog())
-        menu.exec(event.globalPos())
+        act_cut = menu.addAction(safe_tr("剪切(&T)"))
+        act_cut.setShortcut("Ctrl+X")
+        act_cut.triggered.connect(self.cut)
+
+        act_copy = menu.addAction(safe_tr("复制(&C)"))
+        act_copy.setShortcut("Ctrl+C")
+        act_copy.triggered.connect(self.copy)
+
+        act_paste = menu.addAction(safe_tr("粘贴(&P)"))
+        act_paste.setShortcut("Ctrl+V")
+        act_paste.triggered.connect(self.paste)
+
+        act_ps = menu.addAction(safe_tr("选择性粘贴(&S)…"))
+        act_ps.triggered.connect(self.paste_special)
+
+        menu.addSeparator()
+
+        act_ins = menu.addAction(safe_tr("插入(&I)"))
+        act_ins.triggered.connect(self.insert_selected_cols)
+
+        act_del = menu.addAction(safe_tr("删除(&D)"))
+        act_del.triggered.connect(self.delete_selected_cols)
+
+        act_clear = menu.addAction(safe_tr("清除内容(&N)"))
+        act_clear.setShortcut("Del")
+        act_clear.triggered.connect(self.clear_contents)
+
+        menu.addSeparator()
+
+        act_fmt = menu.addAction(safe_tr("设置单元格格式(&F)…"))
+        act_fmt.setShortcut("Ctrl+1")
+        act_fmt.triggered.connect(lambda: self.open_format_cells_dialog())
+
+        act_cw = menu.addAction(safe_tr("列宽(&C)…"))
+        act_cw.triggered.connect(self.set_col_width_dialog)
+
+        act_hide = menu.addAction(safe_tr("隐藏(&H)"))
+        act_hide.setShortcut("Ctrl+0")
+        act_hide.triggered.connect(self.hide_selected_cols)
+
+        act_unhide = menu.addAction(safe_tr("取消隐藏(&U)"))
+        act_unhide.setShortcut("Ctrl+Shift+)")
+        act_unhide.triggered.connect(self.unhide_selected_cols)
+
+        return menu
+
+    def _build_row_header_menu(self, row: int) -> QMenu:
+        """Build Luna-styled context menu for row headers."""
+        menu = QMenu(self)
+        act_cut = menu.addAction(safe_tr("剪切(&T)"))
+        act_cut.setShortcut("Ctrl+X")
+        act_cut.triggered.connect(self.cut)
+
+        act_copy = menu.addAction(safe_tr("复制(&C)"))
+        act_copy.setShortcut("Ctrl+C")
+        act_copy.triggered.connect(self.copy)
+
+        act_paste = menu.addAction(safe_tr("粘贴(&P)"))
+        act_paste.setShortcut("Ctrl+V")
+        act_paste.triggered.connect(self.paste)
+
+        act_ps = menu.addAction(safe_tr("选择性粘贴(&S)…"))
+        act_ps.triggered.connect(self.paste_special)
+
+        menu.addSeparator()
+
+        act_ins = menu.addAction(safe_tr("插入(&I)"))
+        act_ins.triggered.connect(self.insert_selected_rows)
+
+        act_del = menu.addAction(safe_tr("删除(&D)"))
+        act_del.triggered.connect(self.delete_selected_rows)
+
+        act_clear = menu.addAction(safe_tr("清除内容(&N)"))
+        act_clear.setShortcut("Del")
+        act_clear.triggered.connect(self.clear_contents)
+
+        menu.addSeparator()
+
+        act_fmt = menu.addAction(safe_tr("设置单元格格式(&F)…"))
+        act_fmt.setShortcut("Ctrl+1")
+        act_fmt.triggered.connect(lambda: self.open_format_cells_dialog())
+
+        act_rh = menu.addAction(safe_tr("行高(&R)…"))
+        act_rh.triggered.connect(self.set_row_height_dialog)
+
+        act_hide = menu.addAction(safe_tr("隐藏(&H)"))
+        act_hide.setShortcut("Ctrl+9")
+        act_hide.triggered.connect(self.hide_selected_rows)
+
+        act_unhide = menu.addAction(safe_tr("取消隐藏(&U)"))
+        act_unhide.setShortcut("Ctrl+Shift+(")
+        act_unhide.triggered.connect(self.unhide_selected_rows)
+
+        return menu
+
+    def _build_cell_menu(self, r: int, c: int) -> QMenu:
+        """Build Luna-styled context menu for worksheet cells."""
+        menu = QMenu(self)
+        act_cut = menu.addAction(safe_tr("剪切(&T)"))
+        act_cut.setShortcut("Ctrl+X")
+        act_cut.triggered.connect(self.cut)
+
+        act_copy = menu.addAction(safe_tr("复制(&C)"))
+        act_copy.setShortcut("Ctrl+C")
+        act_copy.triggered.connect(self.copy)
+
+        act_paste = menu.addAction(safe_tr("粘贴(&P)"))
+        act_paste.setShortcut("Ctrl+V")
+        act_paste.triggered.connect(self.paste)
+
+        act_ps = menu.addAction(safe_tr("选择性粘贴(&S)…"))
+        act_ps.triggered.connect(self.paste_special)
+
+        menu.addSeparator()
+
+        act_ins = menu.addAction(safe_tr("插入(&I)…"))
+        act_ins.setShortcut("Ctrl+Shift++")
+        act_ins.triggered.connect(self.insert_cells_dialog)
+
+        act_del = menu.addAction(safe_tr("删除(&D)…"))
+        act_del.setShortcut("Ctrl+-")
+        act_del.triggered.connect(self.delete_cells_dialog)
+
+        act_clear = menu.addAction(safe_tr("清除内容(&N)"))
+        act_clear.setShortcut("Del")
+        act_clear.triggered.connect(self.clear_contents)
+
+        menu.addSeparator()
+
+        # Comment actions
+        cm = self.model.get_comment(r, c)
+        if cm is not None:
+            act_edit_cm = menu.addAction(safe_tr("编辑批注(&M)"))
+            act_edit_cm.setShortcut("Shift+F2")
+            act_edit_cm.triggered.connect(lambda: self.edit_comment(r, c))
+
+            act_del_cm = menu.addAction(safe_tr("删除批注(&M)"))
+            act_del_cm.triggered.connect(lambda: self.delete_comment(r, c))
+
+            act_show_cm = menu.addAction(safe_tr("显示/隐藏批注(&O)"))
+            act_show_cm.triggered.connect(lambda: self.toggle_comment_visibility(r, c))
+        else:
+            act_ins_cm = menu.addAction(safe_tr("插入批注(&M)"))
+            act_ins_cm.setShortcut("Shift+F2")
+            act_ins_cm.triggered.connect(lambda: self.insert_comment(r, c))
+
+        menu.addSeparator()
+
+        act_fmt = menu.addAction(safe_tr("设置单元格格式(&F)…"))
+        act_fmt.setShortcut("Ctrl+1")
+        act_fmt.triggered.connect(lambda: self.open_format_cells_dialog())
+
+        act_pick = menu.addAction(safe_tr("从下拉列表中选择(&K)…"))
+        act_pick.setShortcut("Alt+Down")
+        act_pick.triggered.connect(self.pick_list)
+
+        act_watch = menu.addAction(safe_tr("添加监视(&W)"))
+        act_watch.triggered.connect(lambda: self.add_watch(r, c))
+
+        menu.addSeparator()
+
+        # Hyperlink actions
+        has_link = self._has_hyperlink(r, c)
+        if has_link:
+            act_edit_hl = menu.addAction(safe_tr("编辑超链接(&H)…"))
+            act_edit_hl.triggered.connect(lambda: self.edit_hyperlink(r, c))
+
+            act_open_hl = menu.addAction(safe_tr("打开超链接(&O)"))
+            act_open_hl.triggered.connect(lambda: self.open_hyperlink(r, c))
+
+            act_rem_hl = menu.addAction(safe_tr("删除超链接(&R)"))
+            act_rem_hl.triggered.connect(lambda: self.remove_hyperlink(r, c))
+        else:
+            act_ins_hl = menu.addAction(safe_tr("超链接(&I)…"))
+            act_ins_hl.setShortcut("Ctrl+K")
+            act_ins_hl.triggered.connect(lambda: self.insert_hyperlink(r, c))
+
+        return menu
+
+    def _build_object_menu(self, obj: Any) -> QMenu:
+        """Build context menu for floating objects (shapes, pictures, charts)."""
+        menu = QMenu(self)
+        act_cut = menu.addAction(safe_tr("剪切(&T)"))
+        act_cut.triggered.connect(self.cut)
+
+        act_copy = menu.addAction(safe_tr("复制(&C)"))
+        act_copy.triggered.connect(self.copy)
+
+        act_paste = menu.addAction(safe_tr("粘贴(&P)"))
+        act_paste.triggered.connect(self.paste)
+
+        act_del = menu.addAction(safe_tr("删除(&D)"))
+        act_del.triggered.connect(self.clear_contents)
+
+        menu.addSeparator()
+
+        order_menu = menu.addMenu(safe_tr("叠放次序(&R)"))
+        if self.object_layer is not None:
+            order_menu.addAction(
+                safe_tr("置于顶层(&T)"),
+                lambda: self.object_layer.bring_to_front(obj),
+            )
+            order_menu.addAction(
+                safe_tr("置于底层(&K)"),
+                lambda: self.object_layer.send_to_back(obj),
+            )
+            order_menu.addAction(
+                safe_tr("上移一层(&F)"),
+                lambda: self.object_layer.bring_forward(obj),
+            )
+            order_menu.addAction(
+                safe_tr("下移一层(&B)"),
+                lambda: self.object_layer.send_backward(obj),
+            )
+
+        menu.addSeparator()
+
+        act_fmt = menu.addAction(safe_tr("设置对象格式(&O)…"))
+        act_fmt.triggered.connect(lambda: self.open_format_object_dialog(obj))
+
+        return menu
+
+    # -------------------------------------------------------------------------
+    # Context Menu Actions & Guard Protection
+    # -------------------------------------------------------------------------
+    def guard_protect(
+        self, allow_key: str | None = None, cell_edit: bool = False
+    ) -> bool:
+        """Check worksheet protection and alert if mutation is restricted."""
+        protection = getattr(self.model, "protection", None)
+        if not protection or not protection.get("enabled", False):
+            return False
+
+        attrs = protection.get("attrs", {})
+        if allow_key and attrs.get(allow_key) == "0":
+            return False
+
+        if cell_edit:
+            locked = False
+            for rg in self.selection.ranges:
+                for r in range(rg.min_r, min(rg.max_r + 1, rg.min_r + 500)):
+                    for c in range(rg.min_c, min(rg.max_c + 1, rg.min_c + 100)):
+                        cell = self.model.get_cell(r, c)
+                        if cell is None or getattr(cell, "locked", True):
+                            locked = True
+                            break
+                    if locked:
+                        break
+            if not locked:
+                return False
+
+        QMessageBox.warning(
+            self,
+            safe_tr("工作表受保护"),
+            safe_tr(
+                "您试图更改的单元格或图表受保护，因而是只读的。\n\n"
+                "若要修改受保护的单元格或图表，请先使用“撤消工作表保护”命令（在“工具”菜单的“保护”子菜单中）。"
+            ),
+        )
+        return True
+
+    def cut(self) -> None:
+        """Cut selection to clipboard."""
+        if self.guard_protect(cell_edit=True):
+            return
+        if (
+            self.object_layer is not None
+            and getattr(self.object_layer, "selected_object", None) is not None
+        ):
+            self.object_layer.copy_selected()
+            self.object_layer.delete_selected()
+            return
+
+        self.copy()
+        if self._internal_clipboard is not None:
+            self._internal_clipboard["is_cut"] = True
+
+    def copy(self) -> None:
+        """Copy selection to clipboard."""
+        if (
+            self.object_layer is not None
+            and getattr(self.object_layer, "selected_object", None) is not None
+        ):
+            self.object_layer.copy_selected()
+            return
+
+        pr = self.selection.primary_range
+        lines: list[str] = []
+        for r in range(pr.min_r, pr.max_r + 1):
+            row_vals: list[str] = []
+            for c in range(pr.min_c, pr.max_c + 1):
+                val = self.model.get_cell_value(r, c)
+                row_vals.append("" if val is None else str(val))
+            lines.append("\t".join(row_vals))
+        tsv = "\n".join(lines)
+        QApplication.clipboard().setText(tsv)
+
+        self._internal_clipboard = {
+            "range": pr,
+            "cells": {
+                (r - pr.min_r, c - pr.min_c): (
+                    self.model.get_cell(r, c).clone()
+                    if self.model.get_cell(r, c)
+                    else None
+                )
+                for r in range(pr.min_r, pr.max_r + 1)
+                for c in range(pr.min_c, pr.max_c + 1)
+            },
+            "is_cut": False,
+        }
+
+    def paste(self) -> None:
+        """Paste clipboard content to active cell."""
+        if self.guard_protect(cell_edit=True):
+            return
+        if (
+            self.object_layer is not None
+            and getattr(self.object_layer, "selected_object", None) is not None
+        ):
+            self.object_layer.paste()
+            return
+
+        ar, ac = self.selection.active_cell
+        if self._internal_clipboard:
+            cells_data = self._internal_clipboard.get("cells", {})
+            is_cut = self._internal_clipboard.get("is_cut", False)
+            src_range = self._internal_clipboard.get("range")
+            for (dr, dc), cell_copy in cells_data.items():
+                target_r, target_c = ar + dr, ac + dc
+                if cell_copy is not None:
+                    self.model.set_cell(target_r, target_c, cell_copy.clone())
+                else:
+                    self.model.set_cell(target_r, target_c, CellData())
+            if is_cut and src_range:
+                for r in range(src_range.min_r, src_range.max_r + 1):
+                    for c in range(src_range.min_c, src_range.max_c + 1):
+                        tr = ar + (r - src_range.min_r)
+                        tc = ac + (c - src_range.min_c)
+                        if not (
+                            src_range.min_r <= tr <= src_range.max_r
+                            and src_range.min_c <= tc <= src_range.max_c
+                        ):
+                            self.model.set_cell(r, c, CellData())
+                self._internal_clipboard = None
+        else:
+            text = QApplication.clipboard().text()
+            if text:
+                rows = text.splitlines()
+                for dr, row_str in enumerate(rows):
+                    cols = row_str.split("\t")
+                    for dc, cell_str in enumerate(cols):
+                        val: Any = cell_str
+                        try:
+                            if "." in cell_str:
+                                val = float(cell_str)
+                            else:
+                                val = int(cell_str)
+                        except ValueError:
+                            pass
+                        self.model.set_cell_value(ar + dr, ac + dc, val)
+        self.viewport().update()
+
+    def paste_special(self) -> None:
+        """Paste values / special options from clipboard."""
+        self.paste()
+
+    def clear_contents(self) -> None:
+        """Clear values and formulas in the current selection."""
+        if self.guard_protect(cell_edit=True):
+            return
+        if (
+            self.object_layer is not None
+            and getattr(self.object_layer, "selected_object", None) is not None
+        ):
+            self.object_layer.delete_selected()
+            return
+
+        for rg in self.selection.ranges:
+            for r in range(rg.min_r, rg.max_r + 1):
+                for c in range(rg.min_c, rg.max_c + 1):
+                    cell = self.model.get_cell(r, c)
+                    if cell is not None:
+                        cell.value = None
+                        cell.formula = None
+        self.viewport().update()
+
+    def insert_selected_cols(self) -> None:
+        """Insert columns to the left of the current selection."""
+        if self.guard_protect("insertColumns"):
+            return
+        pr = self.selection.primary_range
+        c1, c2 = pr.min_c, pr.max_c
+        count = c2 - c1 + 1
+        new_cells: dict[tuple[int, int], CellData] = {}
+        for (r, c), cell in self.model.cells.items():
+            if c >= c1:
+                new_cells[(r, c + count)] = cell
+            else:
+                new_cells[(r, c)] = cell
+        self.model.cells = new_cells
+        new_merges: list[tuple[int, int, int, int]] = []
+        for mr1, mc1, mr2, mc2 in self.model.merges:
+            if mc1 >= c1:
+                new_merges.append((mr1, mc1 + count, mr2, mc2 + count))
+            elif mc2 >= c1:
+                new_merges.append((mr1, mc1, mr2, mc2 + count))
+            else:
+                new_merges.append((mr1, mc1, mr2, mc2))
+        self.model.merges = new_merges
+        self.viewport().update()
+
+    def delete_selected_cols(self) -> None:
+        """Delete columns in the current selection."""
+        if self.guard_protect("deleteColumns"):
+            return
+        pr = self.selection.primary_range
+        c1, c2 = pr.min_c, pr.max_c
+        count = c2 - c1 + 1
+        new_cells: dict[tuple[int, int], CellData] = {}
+        for (r, c), cell in self.model.cells.items():
+            if c1 <= c <= c2:
+                continue
+            elif c > c2:
+                new_cells[(r, c - count)] = cell
+            else:
+                new_cells[(r, c)] = cell
+        self.model.cells = new_cells
+        new_merges: list[tuple[int, int, int, int]] = []
+        for mr1, mc1, mr2, mc2 in self.model.merges:
+            if mc1 > c2:
+                new_merges.append((mr1, mc1 - count, mr2, mc2 - count))
+            elif mc2 < c1:
+                new_merges.append((mr1, mc1, mr2, mc2))
+        self.model.merges = new_merges
+        self.viewport().update()
+
+    def insert_selected_rows(self) -> None:
+        """Insert rows above the current selection."""
+        if self.guard_protect("insertRows"):
+            return
+        pr = self.selection.primary_range
+        r1, r2 = pr.min_r, pr.max_r
+        count = r2 - r1 + 1
+        new_cells: dict[tuple[int, int], CellData] = {}
+        for (r, c), cell in self.model.cells.items():
+            if r >= r1:
+                new_cells[(r + count, c)] = cell
+            else:
+                new_cells[(r, c)] = cell
+        self.model.cells = new_cells
+        new_merges: list[tuple[int, int, int, int]] = []
+        for mr1, mc1, mr2, mc2 in self.model.merges:
+            if mr1 >= r1:
+                new_merges.append((mr1 + count, mc1, mr2 + count, mc2))
+            elif mr2 >= r1:
+                new_merges.append((mr1, mc1, mr2 + count, mc2))
+            else:
+                new_merges.append((mr1, mc1, mr2, mc2))
+        self.model.merges = new_merges
+        self.viewport().update()
+
+    def delete_selected_rows(self) -> None:
+        """Delete rows in the current selection."""
+        if self.guard_protect("deleteRows"):
+            return
+        pr = self.selection.primary_range
+        r1, r2 = pr.min_r, pr.max_r
+        count = r2 - r1 + 1
+        new_cells: dict[tuple[int, int], CellData] = {}
+        for (r, c), cell in self.model.cells.items():
+            if r1 <= r <= r2:
+                continue
+            elif r > r2:
+                new_cells[(r - count, c)] = cell
+            else:
+                new_cells[(r, c)] = cell
+        self.model.cells = new_cells
+        new_merges: list[tuple[int, int, int, int]] = []
+        for mr1, mc1, mr2, mc2 in self.model.merges:
+            if mr1 > r2:
+                new_merges.append((mr1 - count, mc1, mr2 - count, mc2))
+            elif mr2 < r1:
+                new_merges.append((mr1, mc1, mr2, mc2))
+        self.model.merges = new_merges
+        self.viewport().update()
+
+    def set_col_width_dialog(self) -> None:
+        """Show dialog to set column width for selected columns."""
+        if self.guard_protect("formatColumns"):
+            return
+        pr = self.selection.primary_range
+        curr = self.geometry_mapper.col_size(pr.min_c)
+        val, ok = QInputDialog.getInt(
+            self,
+            safe_tr("列宽"),
+            safe_tr("列宽(&C):"),
+            curr,
+            0,
+            1000,
+        )
+        if ok:
+            for c in range(pr.min_c, pr.max_c + 1):
+                self.geometry_mapper.set_col_width(c, val)
+            self._update_scrollbars()
+            self.viewport().update()
+
+    def set_row_height_dialog(self) -> None:
+        """Show dialog to set row height for selected rows."""
+        if self.guard_protect("formatRows"):
+            return
+        pr = self.selection.primary_range
+        curr = self.geometry_mapper.row_size(pr.min_r)
+        val, ok = QInputDialog.getInt(
+            self,
+            safe_tr("行高"),
+            safe_tr("行高(&R):"),
+            curr,
+            0,
+            409,
+        )
+        if ok:
+            for r in range(pr.min_r, pr.max_r + 1):
+                self.geometry_mapper.set_row_height(r, val)
+            self._update_scrollbars()
+            self.viewport().update()
+
+    def hide_selected_cols(self) -> None:
+        """Hide columns in current selection."""
+        if self.guard_protect("formatColumns"):
+            return
+        pr = self.selection.primary_range
+        for c in range(pr.min_c, pr.max_c + 1):
+            self.geometry_mapper.hidden_cols.add(c)
+        self._update_scrollbars()
+        self.viewport().update()
+
+    def unhide_selected_cols(self) -> None:
+        """Unhide columns in and around current selection."""
+        if self.guard_protect("formatColumns"):
+            return
+        pr = self.selection.primary_range
+        start = max(0, pr.min_c - 1)
+        end = min(self.selection.max_cols - 1, pr.max_c + 1)
+        for c in range(start, end + 1):
+            self.geometry_mapper.hidden_cols.discard(c)
+        self._update_scrollbars()
+        self.viewport().update()
+
+    def hide_selected_rows(self) -> None:
+        """Hide rows in current selection."""
+        if self.guard_protect("formatRows"):
+            return
+        pr = self.selection.primary_range
+        for r in range(pr.min_r, pr.max_r + 1):
+            self.geometry_mapper.hidden_rows.add(r)
+        self._update_scrollbars()
+        self.viewport().update()
+
+    def unhide_selected_rows(self) -> None:
+        """Unhide rows in and around current selection."""
+        if self.guard_protect("formatRows"):
+            return
+        pr = self.selection.primary_range
+        start = max(0, pr.min_r - 1)
+        end = min(self.selection.max_rows - 1, pr.max_r + 1)
+        for r in range(start, end + 1):
+            self.geometry_mapper.hidden_rows.discard(r)
+        self._update_scrollbars()
+        self.viewport().update()
+
+    def insert_cells_dialog(self) -> None:
+        """Insert cells shifting down in current column span."""
+        if self.guard_protect("insertRows"):
+            return
+        pr = self.selection.primary_range
+        count = pr.max_r - pr.min_r + 1
+        new_cells: dict[tuple[int, int], CellData] = {}
+        for (r, c), cell in self.model.cells.items():
+            if pr.min_c <= c <= pr.max_c and r >= pr.min_r:
+                new_cells[(r + count, c)] = cell
+            else:
+                new_cells[(r, c)] = cell
+        self.model.cells = new_cells
+        self.viewport().update()
+
+    def delete_cells_dialog(self) -> None:
+        """Delete cells shifting up in current column span."""
+        if self.guard_protect("deleteRows"):
+            return
+        pr = self.selection.primary_range
+        count = pr.max_r - pr.min_r + 1
+        new_cells: dict[tuple[int, int], CellData] = {}
+        for (r, c), cell in self.model.cells.items():
+            if pr.min_c <= c <= pr.max_c:
+                if pr.min_r <= r <= pr.max_r:
+                    continue
+                elif r > pr.max_r:
+                    new_cells[(r - count, c)] = cell
+                else:
+                    new_cells[(r, c)] = cell
+            else:
+                new_cells[(r, c)] = cell
+        self.model.cells = new_cells
+        self.viewport().update()
+
+    def insert_comment(self, r: int, c: int) -> None:
+        """Insert a comment on cell (r, c)."""
+        if self.guard_protect(cell_edit=True):
+            return
+        text, ok = QInputDialog.getMultiLineText(
+            self, safe_tr("插入批注"), safe_tr("批注内容:"), ""
+        )
+        if ok and text:
+            self.model.set_comment(r, c, text, visible=True)
+            self.viewport().update()
+
+    def edit_comment(self, r: int, c: int) -> None:
+        """Edit existing comment on cell (r, c)."""
+        if self.guard_protect(cell_edit=True):
+            return
+        cm = self.model.get_comment(r, c)
+        curr = cm.text if cm else ""
+        text, ok = QInputDialog.getMultiLineText(
+            self, safe_tr("编辑批注"), safe_tr("批注内容:"), curr
+        )
+        if ok:
+            self.model.set_comment(r, c, text, visible=True)
+            self.viewport().update()
+
+    def delete_comment(self, r: int, c: int) -> None:
+        """Delete comment on cell (r, c)."""
+        if self.guard_protect(cell_edit=True):
+            return
+        self.model.delete_comment(r, c)
+        self.viewport().update()
+
+    def toggle_comment_visibility(self, r: int, c: int) -> None:
+        """Toggle comment visibility on cell (r, c)."""
+        cm = self.model.get_comment(r, c)
+        if cm:
+            cm.visible = not cm.visible
+            self.viewport().update()
+
+    def pick_list(self) -> None:
+        """Show dropdown validation or distinct column items for active cell."""
+        if self._dv_dropdown_rect is not None:
+            self._open_dv_dropdown()
+            return
+
+        ar, ac = self.selection.active_cell
+        distinct_vals: list[str] = []
+        seen: set[str] = set()
+        for r in range(max(0, ar - 100), min(self.selection.max_rows, ar + 100)):
+            if r == ar:
+                continue
+            v = self.model.get_cell_value(r, ac)
+            if v is not None and str(v).strip() and str(v) not in seen:
+                seen.add(str(v))
+                distinct_vals.append(str(v))
+        distinct_vals.sort()
+        if distinct_vals:
+            menu = QMenu(self)
+            for item in distinct_vals:
+                def on_sel(val=item) -> None:
+                    self.model.set_cell_value(ar, ac, val)
+                    self.viewport().update()
+
+                menu.addAction(item, on_sel)
+            rect = self.cell_rect(ar, ac)
+            menu.exec(self.viewport().mapToGlobal(rect.bottomLeft()))
+
+    def add_watch(self, r: int, c: int) -> None:
+        """Add cell to Watch Window dialog."""
+        win = self.window()
+        if hasattr(win, "show_watch_window"):
+            win.show_watch_window(True)
+
+    def _has_hyperlink(self, r: int, c: int) -> bool:
+        """Check whether cell (r, c) contains a hyperlink."""
+        links = getattr(self.model, "links", [])
+        from atboffice.modules.spreadsheet.calc.references import cell_name
+
+        cname = cell_name(r, c)
+        for l in links:
+            if isinstance(l, dict) and (
+                l.get("ref") == cname or (l.get("r") == r and l.get("c") == c)
+            ):
+                return True
+        return False
+
+    def insert_hyperlink(self, r: int, c: int) -> None:
+        """Insert hyperlink into cell (r, c)."""
+        win = self.window()
+        if hasattr(win, "insert_hyperlink"):
+            win.insert_hyperlink()
+        else:
+            url, ok = QInputDialog.getText(
+                self, safe_tr("插入超链接"), safe_tr("地址(&E):")
+            )
+            if ok and url:
+                links = getattr(self.model, "links", [])
+                links.append({"r": r, "c": c, "target": url})
+                self.viewport().update()
+
+    def edit_hyperlink(self, r: int, c: int) -> None:
+        """Edit hyperlink in cell (r, c)."""
+        self.insert_hyperlink(r, c)
+
+    def open_hyperlink(self, r: int, c: int) -> None:
+        """Open hyperlink in cell (r, c)."""
+        links = getattr(self.model, "links", [])
+        from atboffice.modules.spreadsheet.calc.references import cell_name
+
+        cname = cell_name(r, c)
+        target = None
+        for l in links:
+            if isinstance(l, dict) and (
+                l.get("ref") == cname or (l.get("r") == r and l.get("c") == c)
+            ):
+                target = l.get("target")
+                break
+        if target:
+            from PySide6.QtGui import QDesktopServices
+            from PySide6.QtCore import QUrl
+
+            QDesktopServices.openUrl(QUrl(target))
+
+    def remove_hyperlink(self, r: int, c: int) -> None:
+        """Remove hyperlink from cell (r, c)."""
+        links = getattr(self.model, "links", [])
+        from atboffice.modules.spreadsheet.calc.references import cell_name
+
+        cname = cell_name(r, c)
+        self.model.links = [
+            l
+            for l in links
+            if not (
+                isinstance(l, dict)
+                and (l.get("ref") == cname or (l.get("r") == r and l.get("c") == c))
+            )
+        ]
+        self.viewport().update()
+
+    def open_format_object_dialog(self, obj: Any) -> None:
+        """Open formatting dialog for the selected floating object."""
+        win = self.window()
+        if hasattr(win, "format_object"):
+            win.format_object()
 
     def open_format_cells_dialog(self, initial_tab: int = 0) -> None:
         """Open the classic 6-tab Format Cells dialog for the active selection."""
