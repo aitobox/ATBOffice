@@ -117,6 +117,7 @@ class DragSnapshot:
     selection_snapshot: dict[str, Any]
     resize_index: int = -1
     resize_orig_size: int = 0
+    resize_orig_sizes: dict[int, int] | None = None
     fill_start_src: SelectionRange | None = None
     move_start_src: SelectionRange | None = None
     move_grab_cell: tuple[int, int] | None = None
@@ -174,6 +175,12 @@ class GridViewport(QAbstractScrollArea):
         self._resize_index: int = -1
         self._resize_start_pos: int = 0
         self._resize_orig_size: int = 0
+        self._resize_targets: list[int] = []
+        self._resize_orig_sizes: dict[int, int] = {}
+        self._resize_preview_pos: int | None = None
+        self._resize_preview_size: int = 0
+        self._header_drag_anchor: int = -1
+        self._last_modifiers: Qt.KeyboardModifiers = Qt.KeyboardModifier.NoModifier
         self._fill_preview_range: SelectionRange | None = None
         self._fill_start_src: SelectionRange | None = None
         self._fill_ctrl_pressed: bool = False
@@ -229,6 +236,54 @@ class GridViewport(QAbstractScrollArea):
             self._auto_scroll_timer is not None
             and self._auto_scroll_timer.isActive()
         )
+
+    @property
+    def freeze_rows(self) -> int:
+        """Number of frozen rows pinned at the top of the grid."""
+        return getattr(self.model, "freeze_rows", 0)
+
+    @property
+    def freeze_cols(self) -> int:
+        """Number of frozen columns pinned at the left of the grid."""
+        return getattr(self.model, "freeze_cols", 0)
+
+    def set_freeze_panes(self, rows: int, cols: int) -> None:
+        """Set freeze panes for rows and columns."""
+        if hasattr(self.model, "freeze_rows"):
+            self.model.freeze_rows = max(0, rows)
+            self.model.freeze_cols = max(0, cols)
+        self._update_scrollbars()
+        self.viewport().update()
+
+    def cols_for_resize(self, col: int) -> list[int]:
+        """If col is in a whole-columns selection, return all selected columns; otherwise [col]."""
+        for rg in self.selection.ranges:
+            if (
+                rg.min_r == 0
+                and rg.max_r >= self.geometry_mapper.max_rows - 1
+                and rg.min_c <= col <= rg.max_c
+            ):
+                cols: list[int] = []
+                for x in self.selection.ranges:
+                    if x.min_r == 0 and x.max_r >= self.geometry_mapper.max_rows - 1:
+                        cols.extend(range(x.min_c, x.max_c + 1))
+                return sorted(list(set(cols)))
+        return [col]
+
+    def rows_for_resize(self, row: int) -> list[int]:
+        """If row is in a whole-rows selection, return all selected rows; otherwise [row]."""
+        for rg in self.selection.ranges:
+            if (
+                rg.min_c == 0
+                and rg.max_c >= self.geometry_mapper.max_cols - 1
+                and rg.min_r <= row <= rg.max_r
+            ):
+                rows: list[int] = []
+                for x in self.selection.ranges:
+                    if x.min_c == 0 and x.max_c >= self.geometry_mapper.max_cols - 1:
+                        rows.extend(range(x.min_r, x.max_r + 1))
+                return sorted(list(set(rows)))
+        return [row]
 
     def _get_fill_handle_rect(self) -> QRect | None:
         """Return the visible QRect for the autofill handle, or None if not applicable."""
@@ -1118,10 +1173,51 @@ class GridViewport(QAbstractScrollArea):
         # 5.10 Draw Audit Tracer Arrows
         self._paint_audit_arrows(painter, cell_clip, scroll_x, scroll_y)
 
+        # 5.11 Draw Freeze Panes Split Lines
+        if self.freeze_rows > 0:
+            frozen_y = (
+                self.col_header_height
+                + self.geometry_mapper.row_pos(self.freeze_rows)
+            )
+            painter.save()
+            painter.setPen(QPen(QColor(0, 0, 0), 2))
+            painter.drawLine(self.row_header_width, frozen_y, vw, frozen_y)
+            painter.restore()
+
+        if self.freeze_cols > 0:
+            frozen_x = (
+                self.row_header_width
+                + self.geometry_mapper.col_pos(self.freeze_cols)
+            )
+            painter.save()
+            painter.setPen(QPen(QColor(0, 0, 0), 2))
+            painter.drawLine(frozen_x, self.col_header_height, frozen_x, vh)
+            painter.restore()
+
         # 6. Draw Fixed Headers (Column Headers, Row Headers, Corner)
         self._paint_headers(
             painter, start_row, end_row, start_col, end_col, scroll_x, scroll_y, vw, vh
         )
+
+        # 7. Draw Resize Guide Line (on top of headers and grid)
+        if (
+            self._drag_mode == HitZone.COL_RESIZE
+            and self._resize_preview_pos is not None
+        ):
+            painter.save()
+            guide_pen = QPen(QColor(0, 0, 0), 1, Qt.PenStyle.DashLine)
+            painter.setPen(guide_pen)
+            painter.drawLine(self._resize_preview_pos, 0, self._resize_preview_pos, vh)
+            painter.restore()
+        elif (
+            self._drag_mode == HitZone.ROW_RESIZE
+            and self._resize_preview_pos is not None
+        ):
+            painter.save()
+            guide_pen = QPen(QColor(0, 0, 0), 1, Qt.PenStyle.DashLine)
+            painter.setPen(guide_pen)
+            painter.drawLine(0, self._resize_preview_pos, vw, self._resize_preview_pos)
+            painter.restore()
 
     def _paint_audit_arrows(
         self,
@@ -1411,7 +1507,7 @@ class GridViewport(QAbstractScrollArea):
         self._auto_scroll_delta = (0, 0)
 
     def _on_auto_scroll_tick(self) -> None:
-        """Handle auto-scroll timer tick: scroll viewport and update drag destination."""
+        """Handle auto-scroll timer tick: scroll viewport and update drag."""
         dr, dc = self._auto_scroll_delta
         if (dr == 0 and dc == 0) or self._drag_mode == HitZone.NONE:
             self._stop_auto_scroll()
@@ -1419,13 +1515,44 @@ class GridViewport(QAbstractScrollArea):
 
         if dr != 0:
             vs = self.verticalScrollBar()
-            vs.setValue(vs.value() + dr * 24)
+            cur_y = vs.value()
+            cur_r = self.geometry_mapper.find_row_at(cur_y)
+            step = 1 if dr > 0 else -1
+            target_r = cur_r + step
+            while (
+                0 <= target_r < self.geometry_mapper.max_rows
+                and self.geometry_mapper.row_size(target_r) == 0
+            ):
+                target_r += step
+            target_r = max(0, min(self.geometry_mapper.max_rows - 1, target_r))
+            new_y = self.geometry_mapper.row_pos(target_r)
+            if new_y == cur_y:
+                new_y = max(0, min(vs.maximum(), cur_y + dr * 24))
+            vs.setValue(new_y)
+
         if dc != 0:
             hs = self.horizontalScrollBar()
-            hs.setValue(hs.value() + dc * 64)
+            cur_x = hs.value()
+            cur_c = self.geometry_mapper.find_col_at(cur_x)
+            step = 1 if dc > 0 else -1
+            target_c = cur_c + step
+            while (
+                0 <= target_c < self.geometry_mapper.max_cols
+                and self.geometry_mapper.col_size(target_c) == 0
+            ):
+                target_c += step
+            target_c = max(0, min(self.geometry_mapper.max_cols - 1, target_c))
+            new_x = self.geometry_mapper.col_pos(target_c)
+            if new_x == cur_x:
+                new_x = max(0, min(hs.maximum(), cur_x + dc * 64))
+            hs.setValue(new_x)
 
         # Update drag destination after scrolling
-        self._process_drag_at(self._last_mouse_pos.x(), self._last_mouse_pos.y())
+        self._process_drag_at(
+            self._last_mouse_pos.x(),
+            self._last_mouse_pos.y(),
+            self._last_modifiers,
+        )
         self.viewport().update()
 
     def cancel_drag(self, why: str = "api") -> None:
@@ -1447,20 +1574,33 @@ class GridViewport(QAbstractScrollArea):
                 if current_sheet == snap.sheet_index:
                     self.selection.restore_snapshot(snap.selection_snapshot)
             elif snap.zone == HitZone.COL_RESIZE:
-                if snap.resize_index >= 0:
+                if self._resize_orig_sizes:
+                    for c, sz in self._resize_orig_sizes.items():
+                        self.geometry_mapper.set_col_width(c, sz)
+                elif snap.resize_orig_sizes:
+                    for c, sz in snap.resize_orig_sizes.items():
+                        self.geometry_mapper.set_col_width(c, sz)
+                elif snap.resize_index >= 0:
                     self.geometry_mapper.set_col_width(
                         snap.resize_index, snap.resize_orig_size
                     )
-                    self._update_scrollbars()
+                self._update_scrollbars()
             elif snap.zone == HitZone.ROW_RESIZE:
-                if snap.resize_index >= 0:
+                if self._resize_orig_sizes:
+                    for r, sz in self._resize_orig_sizes.items():
+                        self.geometry_mapper.set_row_height(r, sz)
+                elif snap.resize_orig_sizes:
+                    for r, sz in snap.resize_orig_sizes.items():
+                        self.geometry_mapper.set_row_height(r, sz)
+                elif snap.resize_index >= 0:
                     self.geometry_mapper.set_row_height(
                         snap.resize_index, snap.resize_orig_size
                     )
-                    self._update_scrollbars()
+                self._update_scrollbars()
             elif snap.zone == HitZone.FILL_HANDLE:
                 self._fill_start_src = None
                 self._fill_preview_range = None
+                QToolTip.hideText()
             elif snap.zone == HitZone.BORDER:
                 self._move_src_range = None
                 self._move_grab_cell = None
@@ -1486,6 +1626,12 @@ class GridViewport(QAbstractScrollArea):
         self._drag_start_pos = None
         self._drag_snapshot = None
         self._resize_index = -1
+        self._resize_targets = []
+        self._resize_orig_sizes = {}
+        self._resize_preview_pos = None
+        self._resize_preview_size = 0
+        self._header_drag_anchor = -1
+        QToolTip.hideText()
         self._point_anchor = None
         self.viewport().setCursor(Qt.CursorShape.ArrowCursor)
         self.viewport().update()
@@ -1569,46 +1715,88 @@ class GridViewport(QAbstractScrollArea):
             self._drag_mode = HitZone.COL_RESIZE
             self._resize_index = hit.col if hit.col is not None else -1
             self._resize_start_pos = int(x)
+            cols = self.cols_for_resize(self._resize_index)
+            self._resize_targets = cols
+            self._resize_orig_sizes = {c: self.geometry_mapper.col_size(c) for c in cols}
             self._resize_orig_size = self.geometry_mapper.col_size(self._resize_index)
+            self._resize_preview_size = self._resize_orig_size
+            self._resize_preview_pos = int(x)
             self._drag_snapshot = DragSnapshot(
                 zone=HitZone.COL_RESIZE,
                 sheet_index=getattr(self.model, "active_sheet_index", 0),
                 selection_snapshot=self.selection.snapshot(),
                 resize_index=self._resize_index,
                 resize_orig_size=self._resize_orig_size,
+                resize_orig_sizes=dict(self._resize_orig_sizes),
             )
 
         elif hit.zone == HitZone.ROW_RESIZE:
             self._drag_mode = HitZone.ROW_RESIZE
             self._resize_index = hit.row if hit.row is not None else -1
             self._resize_start_pos = int(y)
+            rows = self.rows_for_resize(self._resize_index)
+            self._resize_targets = rows
+            self._resize_orig_sizes = {r: self.geometry_mapper.row_size(r) for r in rows}
             self._resize_orig_size = self.geometry_mapper.row_size(self._resize_index)
+            self._resize_preview_size = self._resize_orig_size
+            self._resize_preview_pos = int(y)
             self._drag_snapshot = DragSnapshot(
                 zone=HitZone.ROW_RESIZE,
                 sheet_index=getattr(self.model, "active_sheet_index", 0),
                 selection_snapshot=self.selection.snapshot(),
                 resize_index=self._resize_index,
                 resize_orig_size=self._resize_orig_size,
+                resize_orig_sizes=dict(self._resize_orig_sizes),
             )
 
         elif hit.zone == HitZone.COL_HEADER and hit.col is not None:
             self._drag_mode = HitZone.COL_HEADER
+            self._header_drag_anchor = hit.col
             self._drag_snapshot = DragSnapshot(
                 zone=HitZone.COL_HEADER,
                 sheet_index=getattr(self.model, "active_sheet_index", 0),
                 selection_snapshot=self.selection.snapshot(),
             )
-            self.selection.select_cols(hit.col, hit.col)
+            if modifiers & Qt.KeyboardModifier.ShiftModifier:
+                anchor_c = (
+                    self.selection.anchor_cell[1]
+                    if self.selection.anchor_cell is not None
+                    else hit.col
+                )
+                self.selection.select_cols(min(anchor_c, hit.col), max(anchor_c, hit.col))
+            elif modifiers & (
+                Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier
+            ):
+                self.selection.add_range(
+                    SelectionRange(0, hit.col, self.geometry_mapper.max_rows - 1, hit.col)
+                )
+            else:
+                self.selection.select_cols(hit.col, hit.col)
             self.viewport().update()
 
         elif hit.zone == HitZone.ROW_HEADER and hit.row is not None:
             self._drag_mode = HitZone.ROW_HEADER
+            self._header_drag_anchor = hit.row
             self._drag_snapshot = DragSnapshot(
                 zone=HitZone.ROW_HEADER,
                 sheet_index=getattr(self.model, "active_sheet_index", 0),
                 selection_snapshot=self.selection.snapshot(),
             )
-            self.selection.select_rows(hit.row, hit.row)
+            if modifiers & Qt.KeyboardModifier.ShiftModifier:
+                anchor_r = (
+                    self.selection.anchor_cell[0]
+                    if self.selection.anchor_cell is not None
+                    else hit.row
+                )
+                self.selection.select_rows(min(anchor_r, hit.row), max(anchor_r, hit.row))
+            elif modifiers & (
+                Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier
+            ):
+                self.selection.add_range(
+                    SelectionRange(hit.row, 0, hit.row, self.geometry_mapper.max_cols - 1)
+                )
+            else:
+                self.selection.select_rows(hit.row, hit.row)
             self.viewport().update()
 
         elif hit.zone == HitZone.FILL_HANDLE:
@@ -1749,16 +1937,38 @@ class GridViewport(QAbstractScrollArea):
         # 3. Auto-scroll boundary check
         vw = self.viewport().width()
         vh = self.viewport().height()
+
+        fz_r_h = (
+            self.geometry_mapper.row_pos(self.freeze_rows)
+            if self.freeze_rows > 0
+            else 0
+        )
+        fz_c_w = (
+            self.geometry_mapper.col_pos(self.freeze_cols)
+            if self.freeze_cols > 0
+            else 0
+        )
+
+        scroll_top = self.col_header_height + fz_r_h
+        scroll_left = self.row_header_width + fz_c_w
+
+        drag_from = self._drag_start_pos or QPoint(x, y)
+        in_rows = drag_from.y() >= scroll_top
+        in_cols = drag_from.x() >= scroll_left
+
+        curr_sy = self.verticalScrollBar().value()
+        curr_sx = self.horizontalScrollBar().value()
+
         dr = 0
         dc = 0
-        if y > vh - 2:
+        if y > vh - 4:
             dr = 1
-        elif y < self.col_header_height:
+        elif y < scroll_top and in_rows and curr_sy > 0:
             dr = -1
 
-        if x > vw - 2:
+        if x > vw - 4:
             dc = 1
-        elif x < self.row_header_width:
+        elif x < scroll_left and in_cols and curr_sx > 0:
             dc = -1
 
         if dr != 0 or dc != 0:
@@ -1766,6 +1976,7 @@ class GridViewport(QAbstractScrollArea):
         else:
             self._stop_auto_scroll()
 
+        self._last_modifiers = event.modifiers()
         # 4. Process drag move
         self._process_drag_at(x, y, event.modifiers())
 
@@ -1781,30 +1992,76 @@ class GridViewport(QAbstractScrollArea):
                 modifiers & Qt.KeyboardModifier.ControlModifier
             )
             hit = self.hit_test(x, y)
-            if (
-                hit.row is not None
-                and hit.col is not None
-                and self._fill_start_src is not None
-            ):
+            row = hit.row
+            col = hit.col
+            if row is None:
+                sheet_y = max(
+                    0, self.verticalScrollBar().value() + (y - self.col_header_height)
+                )
+                row = self.geometry_mapper.find_row_at(sheet_y)
+            if col is None:
+                sheet_x = max(
+                    0, self.horizontalScrollBar().value() + (x - self.row_header_width)
+                )
+                col = self.geometry_mapper.find_col_at(sheet_x)
+
+            if self._fill_start_src is not None:
                 dest, is_shrink = AutoFillEngine.determine_destination(
-                    self._fill_start_src, hit.row, hit.col
+                    self._fill_start_src, row, col
                 )
                 self._fill_preview_range = dest
-                self.reveal(hit.row, hit.col)
+                tip = range_name(
+                    {
+                        "r1": dest.min_r,
+                        "c1": dest.min_c,
+                        "r2": dest.max_r,
+                        "c2": dest.max_c,
+                    }
+                )
+                QToolTip.showText(
+                    self.viewport().mapToGlobal(QPoint(x + 14, y + 18)),
+                    tip,
+                    self.viewport(),
+                )
+                self.reveal(row, col)
                 self.viewport().update()
 
         elif self._drag_mode == HitZone.COL_RESIZE:
             delta = x - self._resize_start_pos
-            new_w = max(5, self._resize_orig_size + delta)
-            self.geometry_mapper.set_col_width(self._resize_index, new_w)
+            base_w = self._resize_orig_sizes.get(
+                self._resize_index, self._resize_orig_size
+            )
+            new_w = max(0, base_w + delta)
+            self._resize_preview_size = new_w
+            self._resize_preview_pos = x
+            for c in self._resize_targets:
+                self.geometry_mapper.set_col_width(c, new_w)
             self._update_scrollbars()
+            tip = safe_tr("宽度: {0} 像素").format(new_w)
+            QToolTip.showText(
+                self.viewport().mapToGlobal(QPoint(x + 14, 18)),
+                tip,
+                self.viewport(),
+            )
             self.viewport().update()
 
         elif self._drag_mode == HitZone.ROW_RESIZE:
             delta = y - self._resize_start_pos
-            new_h = max(5, self._resize_orig_size + delta)
-            self.geometry_mapper.set_row_height(self._resize_index, new_h)
+            base_h = self._resize_orig_sizes.get(
+                self._resize_index, self._resize_orig_size
+            )
+            new_h = max(0, base_h + delta)
+            self._resize_preview_size = new_h
+            self._resize_preview_pos = y
+            for r in self._resize_targets:
+                self.geometry_mapper.set_row_height(r, new_h)
             self._update_scrollbars()
+            tip = safe_tr("高度: {0} 像素").format(new_h)
+            QToolTip.showText(
+                self.viewport().mapToGlobal(QPoint(14, y + 18)),
+                tip,
+                self.viewport(),
+            )
             self.viewport().update()
 
         elif self._drag_mode == HitZone.CELL:
@@ -1830,21 +2087,49 @@ class GridViewport(QAbstractScrollArea):
 
         elif self._drag_mode == HitZone.COL_HEADER:
             hit = self.hit_test(x, y)
-            if hit.col is not None and self._drag_snapshot is not None:
-                orig_c = self._drag_snapshot.selection_snapshot.get(
-                    "anchor_cell", (0, hit.col)
-                )[1]
-                self.selection.select_cols(orig_c, hit.col)
-                self.viewport().update()
+            target_c = hit.col
+            if target_c is None:
+                sheet_x = max(
+                    0, self.horizontalScrollBar().value() + (x - self.row_header_width)
+                )
+                target_c = self.geometry_mapper.find_col_at(sheet_x)
+            orig_c = (
+                self._header_drag_anchor
+                if self._header_drag_anchor >= 0
+                else (
+                    self._drag_snapshot.selection_snapshot.get(
+                        "anchor_cell", (0, target_c)
+                    )[1]
+                    if self._drag_snapshot is not None
+                    else target_c
+                )
+            )
+            self.selection.select_cols(orig_c, target_c)
+            self.reveal(0, target_c)
+            self.viewport().update()
 
         elif self._drag_mode == HitZone.ROW_HEADER:
             hit = self.hit_test(x, y)
-            if hit.row is not None and self._drag_snapshot is not None:
-                orig_r = self._drag_snapshot.selection_snapshot.get(
-                    "anchor_cell", (hit.row, 0)
-                )[0]
-                self.selection.select_rows(orig_r, hit.row)
-                self.viewport().update()
+            target_r = hit.row
+            if target_r is None:
+                sheet_y = max(
+                    0, self.verticalScrollBar().value() + (y - self.col_header_height)
+                )
+                target_r = self.geometry_mapper.find_row_at(sheet_y)
+            orig_r = (
+                self._header_drag_anchor
+                if self._header_drag_anchor >= 0
+                else (
+                    self._drag_snapshot.selection_snapshot.get(
+                        "anchor_cell", (target_r, 0)
+                    )[0]
+                    if self._drag_snapshot is not None
+                    else target_r
+                )
+            )
+            self.selection.select_rows(orig_r, target_r)
+            self.reveal(target_r, 0)
+            self.viewport().update()
 
         elif self._drag_mode == HitZone.BORDER:
             self._move_ctrl_pressed = bool(
@@ -1893,6 +2178,7 @@ class GridViewport(QAbstractScrollArea):
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         self._stop_auto_scroll()
         if self._drag_mode == HitZone.FILL_HANDLE:
+            QToolTip.hideText()
             if (
                 self._drag_moved
                 and self._fill_start_src is not None
@@ -1903,17 +2189,107 @@ class GridViewport(QAbstractScrollArea):
                 ctrl = self._fill_ctrl_pressed or bool(
                     event.modifiers() & Qt.KeyboardModifier.ControlModifier
                 )
+                single = (src.min_r == src.max_r and src.min_c == src.max_c)
+                fill_mode = (
+                    "linear" if (ctrl and single) else ("copy" if ctrl else "auto")
+                )
+
+                before_cells = {k: v.clone() for k, v in self.model.cells.items()}
+                before_merges = list(self.model.merges)
+                before_comments = (
+                    {
+                        k: CellComment(**v.__dict__)
+                        for k, v in self.model.comments.items()
+                    }
+                    if hasattr(self.model, "comments")
+                    else {}
+                )
+                before_sel = self.selection.snapshot()
+
                 AutoFillEngine.auto_fill(
                     self.model,
                     src,
                     dest,
-                    mode="auto",
+                    mode=fill_mode,
                     ctrl_pressed=ctrl,
                 )
                 self.selection.select_cell(dest.min_r, dest.min_c)
                 self.selection.extend_to(dest.max_r, dest.max_c)
+
+                after_cells = {k: v.clone() for k, v in self.model.cells.items()}
+                after_merges = list(self.model.merges)
+                after_comments = (
+                    {
+                        k: CellComment(**v.__dict__)
+                        for k, v in self.model.comments.items()
+                    }
+                    if hasattr(self.model, "comments")
+                    else {}
+                )
+                after_sel = self.selection.snapshot()
+
+                self._undo_stack.append(
+                    {
+                        "action": "autofill",
+                        "before_cells": before_cells,
+                        "before_merges": before_merges,
+                        "before_comments": before_comments,
+                        "before_sel": before_sel,
+                        "after_cells": after_cells,
+                        "after_merges": after_merges,
+                        "after_comments": after_comments,
+                        "after_sel": after_sel,
+                    }
+                )
+                self._redo_stack.clear()
             self._fill_start_src = None
             self._fill_preview_range = None
+
+        elif self._drag_mode == HitZone.COL_RESIZE:
+            QToolTip.hideText()
+            if self._drag_moved and self._resize_targets:
+                new_w = self._resize_preview_size
+                before_sizes = dict(self._resize_orig_sizes)
+                after_sizes = {c: new_w for c in self._resize_targets}
+                for c in self._resize_targets:
+                    self.geometry_mapper.set_col_width(c, new_w)
+                self._undo_stack.append(
+                    {
+                        "action": "col_resize",
+                        "targets": list(self._resize_targets),
+                        "before_sizes": before_sizes,
+                        "after_sizes": after_sizes,
+                    }
+                )
+                self._redo_stack.clear()
+                self._update_scrollbars()
+            self._resize_targets = []
+            self._resize_orig_sizes = {}
+            self._resize_preview_pos = None
+            self._resize_preview_size = 0
+
+        elif self._drag_mode == HitZone.ROW_RESIZE:
+            QToolTip.hideText()
+            if self._drag_moved and self._resize_targets:
+                new_h = self._resize_preview_size
+                before_sizes = dict(self._resize_orig_sizes)
+                after_sizes = {r: new_h for r in self._resize_targets}
+                for r in self._resize_targets:
+                    self.geometry_mapper.set_row_height(r, new_h)
+                self._undo_stack.append(
+                    {
+                        "action": "row_resize",
+                        "targets": list(self._resize_targets),
+                        "before_sizes": before_sizes,
+                        "after_sizes": after_sizes,
+                    }
+                )
+                self._redo_stack.clear()
+                self._update_scrollbars()
+            self._resize_targets = []
+            self._resize_orig_sizes = {}
+            self._resize_preview_pos = None
+            self._resize_preview_size = 0
 
         elif self._drag_mode == HitZone.BORDER:
             QToolTip.hideText()
@@ -1942,6 +2318,7 @@ class GridViewport(QAbstractScrollArea):
         self._drag_start_pos = None
         self._drag_snapshot = None
         self._resize_index = -1
+        self._header_drag_anchor = -1
         self._point_anchor = None
         self.viewport().setCursor(Qt.CursorShape.ArrowCursor)
         self.viewport().update()
@@ -2957,6 +3334,20 @@ class GridViewport(QAbstractScrollArea):
             return
         cmd = self._undo_stack.pop()
         self._redo_stack.append(cmd)
+        action = cmd.get("action")
+        if action == "col_resize":
+            for c, sz in cmd["before_sizes"].items():
+                self.geometry_mapper.set_col_width(c, sz)
+            self._update_scrollbars()
+            self.viewport().update()
+            return
+        if action == "row_resize":
+            for r, sz in cmd["before_sizes"].items():
+                self.geometry_mapper.set_row_height(r, sz)
+            self._update_scrollbars()
+            self.viewport().update()
+            return
+
         self.model.cells = {k: v.clone() for k, v in cmd["before_cells"].items()}
         self.model.merges = list(cmd["before_merges"])
         if hasattr(self.model, "comments") and "before_comments" in cmd:
@@ -2972,6 +3363,20 @@ class GridViewport(QAbstractScrollArea):
             return
         cmd = self._redo_stack.pop()
         self._undo_stack.append(cmd)
+        action = cmd.get("action")
+        if action == "col_resize":
+            for c, sz in cmd["after_sizes"].items():
+                self.geometry_mapper.set_col_width(c, sz)
+            self._update_scrollbars()
+            self.viewport().update()
+            return
+        if action == "row_resize":
+            for r, sz in cmd["after_sizes"].items():
+                self.geometry_mapper.set_row_height(r, sz)
+            self._update_scrollbars()
+            self.viewport().update()
+            return
+
         self.model.cells = {k: v.clone() for k, v in cmd["after_cells"].items()}
         self.model.merges = list(cmd["after_merges"])
         if hasattr(self.model, "comments") and "after_comments" in cmd:

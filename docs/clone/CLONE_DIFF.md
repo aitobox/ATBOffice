@@ -593,3 +593,22 @@ The GUI 1:1 parity defects, 14 feature gaps, and code health issues are organize
   - [x] Parity score exceeds 98.5%.
   - [x] Parity matrix entries updated to `clone: yes`.
   - [x] Shippability verdict remains **SHIPPABLE / SUPERIOR**.
+
+---
+
+### [TASK-500] fix(spreadsheet): Ledger 填充、行列拖选与边缘滚动 (fixes #200)
+- **Parent Epic**: Phase 5 Ledger Remediation
+- **Labels**: `type: bug`, `priority: high`
+- **Target Files**:
+  - `src/atboffice/modules/spreadsheet/models/sheet_model.py`
+  - `src/atboffice/modules/spreadsheet/views/grid_viewport.py`
+  - `tests/gui/test_grid_viewport.py`
+- **Scope & Specification**:
+  - Implement bidirectional extrapolation, shrink/clearing, status tooltip, and undo/redo for autofill.
+  - Implement column/row header drag selection with Shift/Ctrl modifiers, auto-scroll, and cancel restoration.
+  - Implement column/row resize preview guide lines, status tooltip, batch selection resize (`cols_for_resize`, `rows_for_resize`), and undo/redo support.
+  - Implement edge auto-scroll honoring freeze pane boundaries and skipping hidden rows/columns.
+  - Add freeze panes properties (`freeze_rows`, `freeze_cols`, `set_freeze_panes`) and split line rendering in `GridViewport`.
+- **Acceptance Criteria**:
+  - [x] All 46 tests in `tests/gui/test_grid_viewport.py` pass.
+  - [x] Full test suite (1312 tests) passes 100%.
