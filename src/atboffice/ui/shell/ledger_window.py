@@ -458,6 +458,9 @@ class LedgerWindow(BaseOfficeWindow):
 
         # Apply initial contextual visibility
         self.update_context_toolbars({})
+        act_format_obj = self.action_registry.get_action("formatObject")
+        if act_format_obj:
+            act_format_obj.setEnabled(False)
 
     def set_toolbar_mode(self, name: str, mode: bool | str) -> None:
         """Set toolbar visibility mode: True, False, or 'auto'."""
@@ -558,6 +561,14 @@ class LedgerWindow(BaseOfficeWindow):
                 size_combo.blockSignals(True)
                 size_combo.setCurrentText(str(cell.font_size))
                 size_combo.blockSignals(False)
+
+        act_total = self.action_registry.get_action("totalRow")
+        if act_total:
+            act_total.setChecked(bool(getattr(self, "_total_row_active", False)))
+
+        act_fp = self.action_registry.get_action("formatPainter")
+        if act_fp:
+            act_fp.setChecked(bool(getattr(self, "_format_painter_active", False)))
 
     def _apply_font_family(self, family: str) -> None:
         if not family:
@@ -1124,6 +1135,9 @@ class LedgerWindow(BaseOfficeWindow):
         """Update contextual toolbars when floating object selection changes."""
         is_chart = obj is not None and getattr(obj, "kind", None) == "chart"
         self.update_context_toolbars({"is_chart": is_chart})
+        act_format_obj = self.action_registry.get_action("formatObject")
+        if act_format_obj:
+            act_format_obj.setEnabled(obj is not None)
 
     def _apply_font_color(self, color: str) -> None:
         """Apply font color to selected cells."""
@@ -1569,9 +1583,147 @@ class LedgerWindow(BaseOfficeWindow):
 
     def toggle_total_row(self) -> None:
         """Toggle table total calculation summary row."""
+        model = self.spreadsheet_view.model
+        grid = getattr(self.spreadsheet_view, "grid", None)
+
+        if getattr(self, "_total_row_active", False):
+            # Deactivate total row
+            r_total = getattr(self, "_total_row_r", None)
+            if r_total is not None:
+                before_cells = {k: v.clone() for k, v in model.cells.items()}
+                c1, c2 = getattr(self, "_total_row_cols", (0, 0))
+                for c in range(c1, c2 + 1):
+                    if (r_total, c) in model.cells:
+                        del model.cells[(r_total, c)]
+                after_cells = {k: v.clone() for k, v in model.cells.items()}
+                if grid and hasattr(grid, "_undo_stack"):
+                    grid._undo_stack.append(
+                        {
+                            "action": "total_row",
+                            "before_cells": before_cells,
+                            "after_cells": after_cells,
+                            "before_merges": list(model.merges),
+                            "after_merges": list(model.merges),
+                            "before_sel": grid.selection.snapshot(),
+                            "after_sel": grid.selection.snapshot(),
+                            "active": False,
+                        }
+                    )
+                    grid._redo_stack.clear()
+            self._total_row_active = False
+            self._total_row_r = None
+            self.action_registry.set_checked("totalRow", False)
+            if grid:
+                grid._update_scrollbars()
+                grid.viewport().update()
+            self.set_modified(True)
+            return
+
+        # Determine target data range
+        af = getattr(model, "auto_filter", None)
+        if af is not None:
+            r1, c1, r2, c2 = af.r1, af.c1, af.r2, af.c2
+        else:
+            pr = self.spreadsheet_view.selection.primary_range
+            r1, c1, r2, c2 = pr.min_r, pr.min_c, pr.max_r, pr.max_c
+            if r1 == r2 and c1 == c2:
+                # Expand to bounding box of populated cells
+                min_r, min_c, max_r, max_c = r1, c1, r2, c2
+                has_data = False
+                for (cr, cc), cell in model.cells.items():
+                    if cell.value is not None and str(cell.value) != "":
+                        min_r = min(min_r, cr)
+                        max_r = max(max_r, cr)
+                        min_c = min(min_c, cc)
+                        max_c = max(max_c, cc)
+                        has_data = True
+                if not has_data:
+                    self.action_registry.set_checked("totalRow", False)
+                    return
+                r1, c1, r2, c2 = min_r, min_c, max_r, max_c
+
+        r_total = r2 + 1
+        before_cells = {k: v.clone() for k, v in model.cells.items()}
+
+        lbl_cell = CellData(
+            value=safe_tr("汇总"),
+            bold=True,
+            border_top=BorderStyle(style="thin", color="#000000"),
+            border_bottom=BorderStyle(style="double", color="#000000"),
+        )
+        model.set_cell(r_total, c1, lbl_cell)
+
+        for c in range(c1 + 1, c2 + 1):
+            has_num = False
+            for r in range(r1, r2 + 1):
+                val = model.get_cell_value(r, c)
+                if isinstance(val, (int, float)):
+                    has_num = True
+                    break
+            if has_num or c == c2:
+                rng_str = f"{cell_name(r1, c)}:{cell_name(r2, c)}"
+                total_val = 0.0
+                for r in range(r1, r2 + 1):
+                    v = model.get_cell_value(r, c)
+                    if isinstance(v, (int, float)):
+                        total_val += v
+                tot_cell = CellData(
+                    value=total_val,
+                    formula=f"SUBTOTAL(109,{rng_str})",
+                    bold=True,
+                    border_top=BorderStyle(style="thin", color="#000000"),
+                    border_bottom=BorderStyle(style="double", color="#000000"),
+                )
+                model.set_cell(r_total, c, tot_cell)
+            else:
+                empty_tot = CellData(
+                    bold=True,
+                    border_top=BorderStyle(style="thin", color="#000000"),
+                    border_bottom=BorderStyle(style="double", color="#000000"),
+                )
+                model.set_cell(r_total, c, empty_tot)
+
+        self._total_row_active = True
+        self._total_row_r = r_total
+        self._total_row_cols = (c1, c2)
+        self.action_registry.set_checked("totalRow", True)
+
+        if grid and hasattr(grid, "_undo_stack"):
+            grid._undo_stack.append(
+                {
+                    "action": "total_row",
+                    "before_cells": before_cells,
+                    "after_cells": {k: v.clone() for k, v in model.cells.items()},
+                    "before_merges": list(model.merges),
+                    "after_merges": list(model.merges),
+                    "before_sel": grid.selection.snapshot(),
+                    "after_sel": grid.selection.snapshot(),
+                    "active": True,
+                    "r_total": r_total,
+                    "cols": (c1, c2),
+                }
+            )
+            grid._redo_stack.clear()
+
+        if grid:
+            grid._update_scrollbars()
+            grid.viewport().update()
+        self.set_modified(True)
 
     def format_selected_object(self) -> None:
         """Format properties of selected chart or floating shape."""
+        layer = getattr(self.spreadsheet_view, "object_layer", None)
+        sel_obj = getattr(layer, "selected_object", None) if layer else None
+        if sel_obj is None:
+            return
+        from atboffice.modules.spreadsheet.dialogs.format_object_dialog import (
+            FormatObjectDialog,
+        )
+
+        dlg = FormatObjectDialog(sel_obj, parent=self)
+        if dlg.exec():
+            layer.update()
+            self.set_modified(True)
 
     def open_function_wizard(self) -> None:
         """Open formula function wizard dialog."""
@@ -1614,7 +1766,118 @@ class LedgerWindow(BaseOfficeWindow):
         self.set_modified(True)
 
     def insert_hyperlink(self) -> None:
-        """Open insert hyperlink dialog."""
+        """Open insert or edit hyperlink dialog."""
+        r1, c1, r2, c2 = self._get_selected_cell_range()
+        model = self.spreadsheet_view.model
+        cname = cell_name(r1, c1)
+
+        links = getattr(model, "links", [])
+        existing_link = None
+        for lk in links:
+            if isinstance(lk, dict) and (
+                lk.get("ref") == cname or (lk.get("r") == r1 and lk.get("c") == c1)
+            ):
+                existing_link = lk
+                break
+
+        is_existing = existing_link is not None
+        cur_cell = model.get_cell(r1, c1)
+        if cur_cell is None:
+            cur_cell = CellData()
+        existing_text = (
+            str(cur_cell.value) if cur_cell and cur_cell.value is not None else ""
+        )
+        existing_target = existing_link.get("target", "") if existing_link else ""
+        existing_location = existing_link.get("location", "") if existing_link else ""
+        existing_tooltip = existing_link.get("tooltip", "") if existing_link else ""
+
+        wb = getattr(self.spreadsheet_view, "workbook", None)
+        sheets = (
+            [s.name for s in wb.sheets]
+            if wb and hasattr(wb, "sheets")
+            else [getattr(model, "sheet_name", "Sheet1")]
+        )
+
+        from atboffice.modules.spreadsheet.dialogs.hyperlink_dialog import (
+            HyperlinkDialog,
+        )
+
+        dlg = HyperlinkDialog(
+            existing_text=existing_text,
+            existing_target=existing_target,
+            existing_location=existing_location,
+            existing_tooltip=existing_tooltip,
+            sheets=sheets,
+            is_existing=is_existing,
+            cell_ref=cname,
+            parent=self,
+        )
+        if not dlg.exec():
+            return
+
+        data = dlg.get_data()
+        grid = getattr(self.spreadsheet_view, "grid", None)
+        before_cells = {k: v.clone() for k, v in model.cells.items()}
+        before_links = [dict(lk) if isinstance(lk, dict) else lk for lk in links]
+
+        if data.get("is_removed"):
+            model.links = [
+                lk
+                for lk in links
+                if not (lk.get("ref") == cname or (lk.get("r") == r1 and lk.get("c") == c1))
+            ]
+            if cur_cell and cur_cell.underline and cur_cell.fg_color == "#0000FF":
+                cur_cell.underline = False
+                cur_cell.fg_color = None
+                model.set_cell(r1, c1, cur_cell)
+        else:
+            disp = data.get("display", "")
+            target = data.get("target", "")
+            loc = data.get("location", "")
+            tip = data.get("tooltip", "")
+            new_links = [
+                lk
+                for lk in links
+                if not (lk.get("ref") == cname or (lk.get("r") == r1 and lk.get("c") == c1))
+            ]
+            new_links.append(
+                {
+                    "r": r1,
+                    "c": c1,
+                    "ref": cname,
+                    "target": target,
+                    "location": loc,
+                    "display": disp,
+                    "tooltip": tip,
+                }
+            )
+            model.links = new_links
+            if disp:
+                cur_cell.value = disp
+            cur_cell.underline = True
+            cur_cell.fg_color = "#0000FF"
+            model.set_cell(r1, c1, cur_cell)
+
+        if grid and hasattr(grid, "_undo_stack"):
+            grid._undo_stack.append(
+                {
+                    "action": "hyperlink",
+                    "before_cells": before_cells,
+                    "after_cells": {k: v.clone() for k, v in model.cells.items()},
+                    "before_links": before_links,
+                    "after_links": [
+                        dict(lk) if isinstance(lk, dict) else lk for lk in model.links
+                    ],
+                    "before_merges": list(model.merges),
+                    "after_merges": list(model.merges),
+                    "before_sel": grid.selection.snapshot(),
+                    "after_sel": grid.selection.snapshot(),
+                }
+            )
+            grid._redo_stack.clear()
+
+        self.spreadsheet_view.grid.viewport().update()
+        self.set_modified(True)
 
     def print_workbook(self) -> None:
         """Print current workbook sheets."""
@@ -1822,8 +2085,131 @@ class LedgerWindow(BaseOfficeWindow):
             safe_tr("已完成对整个工作表的拼写检查。"),
         )
 
-    def toggle_format_painter(self) -> None:
+    def toggle_format_painter(self, double_click: bool = False) -> None:
         """Toggle format painter mode."""
+        grid = getattr(self.spreadsheet_view, "grid", None)
+        if not grid:
+            return
+
+        if getattr(self, "_format_painter_active", False):
+            self._cancel_format_painter()
+            return
+
+        r1, c1, r2, c2 = self._get_selected_cell_range()
+        model = self.spreadsheet_view.model
+        src_cell = model.get_cell(r1, c1)
+
+        self._format_painter_active = True
+        self._format_painter_sticky = bool(double_click)
+        self._format_painter_source = src_cell.clone()
+        self.action_registry.set_checked("formatPainter", True)
+
+        grid.set_format_painter_armed(self)
+        self.statusBar().showMessage(safe_tr("请选择要应用格式的目标单元格或区域"), 5000)
+
+    def _cancel_format_painter(self) -> None:
+        """Cancel format painter state without altering any cells."""
+        self._format_painter_active = False
+        self._format_painter_sticky = False
+        self._format_painter_source = None
+        self.action_registry.set_checked("formatPainter", False)
+        grid = getattr(self.spreadsheet_view, "grid", None)
+        if grid:
+            grid.set_format_painter_armed(None)
+        self.statusBar().clearMessage()
+
+    def apply_format_painter_to_range(
+        self, r1: int, c1: int, r2: int, c2: int
+    ) -> None:
+        """Apply captured format painter styles to target range."""
+        if (
+            not getattr(self, "_format_painter_active", False)
+            or not self._format_painter_source
+        ):
+            return
+        model = self.spreadsheet_view.model
+        grid = getattr(self.spreadsheet_view, "grid", None)
+        src = self._format_painter_source
+        before_cells = {k: v.clone() for k, v in model.cells.items()}
+
+        for r in range(r1, r2 + 1):
+            for c in range(c1, c2 + 1):
+                cell = model.get_cell(r, c)
+                cell.bold = src.bold
+                cell.italic = src.italic
+                cell.underline = src.underline
+                cell.underline_style = src.underline_style
+                cell.strike = src.strike
+                cell.vert_align = src.vert_align
+                cell.font_size = src.font_size
+                cell.font_family = src.font_family
+                cell.fg_color = src.fg_color
+                cell.bg_color = src.bg_color
+                cell.align_h = src.align_h
+                cell.align_v = src.align_v
+                cell.indent = src.indent
+                cell.wrap_text = src.wrap_text
+                cell.format_code = src.format_code
+                cell.border_top = (
+                    src.border_top.clone() if src.border_top else None
+                )
+                cell.border_bottom = (
+                    src.border_bottom.clone() if src.border_bottom else None
+                )
+                cell.border_left = (
+                    src.border_left.clone() if src.border_left else None
+                )
+                cell.border_right = (
+                    src.border_right.clone() if src.border_right else None
+                )
+                cell.border_diag_up = (
+                    src.border_diag_up.clone() if src.border_diag_up else None
+                )
+                cell.border_diag_down = (
+                    src.border_diag_down.clone()
+                    if src.border_diag_down
+                    else None
+                )
+                cell.pattern = src.pattern
+                cell.pattern_color = src.pattern_color
+                cell.locked = src.locked
+                cell.hidden = src.hidden
+                model.set_cell(r, c, cell)
+
+        if grid and hasattr(grid, "_undo_stack"):
+            grid._undo_stack.append(
+                {
+                    "action": "format_painter",
+                    "before_cells": before_cells,
+                    "after_cells": {k: v.clone() for k, v in model.cells.items()},
+                    "before_merges": list(model.merges),
+                    "after_merges": list(model.merges),
+                    "before_sel": grid.selection.snapshot(),
+                    "after_sel": grid.selection.snapshot(),
+                }
+            )
+            grid._redo_stack.clear()
+
+        if grid:
+            grid.viewport().update()
+        self.set_modified(True)
+
+        if not getattr(self, "_format_painter_sticky", False):
+            self._cancel_format_painter()
+
+    def undo(self) -> None:
+        """Delegate undo to grid viewport if available."""
+        grid = getattr(self.spreadsheet_view, "grid", None)
+        if grid and hasattr(grid, "undo"):
+            grid.undo()
+            self.set_modified(True)
+
+    def redo(self) -> None:
+        """Delegate redo to grid viewport if available."""
+        grid = getattr(self.spreadsheet_view, "grid", None)
+        if grid and hasattr(grid, "redo"):
+            grid.redo()
+            self.set_modified(True)
 
     def retranslate_ui(self) -> None:
         """Update localized UI strings when application language changes."""

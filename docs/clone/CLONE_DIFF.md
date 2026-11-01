@@ -612,3 +612,29 @@ The GUI 1:1 parity defects, 14 feature gaps, and code health issues are organize
 - **Acceptance Criteria**:
   - [x] All 46 tests in `tests/gui/test_grid_viewport.py` pass.
   - [x] Full test suite (1312 tests) passes 100%.
+
+---
+
+### [TASK-506] fix(spreadsheet): 实现 Ledger 已注册的空工具栏命令 (fixes #194)
+- **Parent Epic**: Phase 5 Ledger Remediation (#188)
+- **Labels**: `type: bug`, `priority: high`, `epic:phase5`
+- **Target Files**:
+  - `src/atboffice/ui/shell/ledger_window.py`
+  - `src/atboffice/modules/spreadsheet/views/grid_viewport.py`
+  - `src/atboffice/modules/spreadsheet/dialogs/hyperlink_dialog.py`
+  - `src/atboffice/modules/spreadsheet/dialogs/format_object_dialog.py`
+  - `src/atboffice/modules/spreadsheet/dialogs/__init__.py`
+  - `src/atboffice/ui/shell/ledger_toolbars.py`
+  - `tests/ui/test_ledger_toolbar_wiring.py`
+  - `docs/clone/CLONE_DIFF.md`
+- **Scope & Specification**:
+  - Implement Format Painter (`formatPainter`): single-click and double-click sticky application to target ranges, style copy while preserving values and formulas, cursor and status indicators, cancel on Escape/toggle off, and atomic undo/redo.
+  - Implement Hyperlink Dialog (`hyperlink`): support Web/File URLs, Place in Document, and Email destinations, display text, and screentip; apply blue underline hyperlink styling and update `model.links`; support Remove Link; ensure cancel makes 0 modifications; integrate with undo/redo.
+  - Implement Total Row (`totalRow`): auto-detect active table, auto-filter, or bounding data range; toggle summary row with "Total" label and SUBTOTAL/SUM formulas with top thin and bottom double borders; integrate with `convert_table_to_range`; provide undo/redo; disable safely when sheet is empty.
+  - Implement Format Object (`formatObject`): dynamically enable/disable based on floating object selection in `SpreadsheetObjectLayer`; launch `FormatObjectDialog` with Colors/Lines, Size, and Properties tabs; cancel leaves object untouched; OK applies modifications and requests repaint.
+  - Implement authentic 7-language localization (`zh-CN`, `zh-Hant`, `en`, `ja`, `ko`, `fr`, `de`) via canonical `safe_tr()` keys and `retranslate_ui()`.
+- **Acceptance Criteria**:
+  - [x] All 28 tests in `tests/ui/test_ledger_toolbar_wiring.py` pass.
+  - [x] Full test suite passes 100%.
+  - [x] Context-based enabling/disabling verified for all 4 commands.
+  - [x] Data modification operations verified for undo/redo and cancel safety.

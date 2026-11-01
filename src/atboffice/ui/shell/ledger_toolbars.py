@@ -369,7 +369,9 @@ class LedgerToolBarCluster:
         self._add(tb, "cut", "剪切(&T)", "剪切 (Ctrl+X)", QKeySequence.StandardKey.Cut)
         self._add(tb, "copy", "复制(&C)", "复制 (Ctrl+C)", QKeySequence.StandardKey.Copy)
         self._add(tb, "paste", "粘贴(&P)", "粘贴 (Ctrl+V)", QKeySequence.StandardKey.Paste)
-        self._add(tb, "formatPainter", "格式刷(&P)", "格式刷 (双击可连续应用)")
+        self._add(
+            tb, "formatPainter", "格式刷(&P)", "格式刷 (双击可连续应用)", checkable=True
+        )
 
         tb.add_office_separator()
 
