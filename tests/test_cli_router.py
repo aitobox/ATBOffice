@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -183,3 +184,38 @@ def test_version_and_help_output(capsys: pytest.CaptureFixture[str]) -> None:
     assert code_help == 0
     captured_help = capsys.readouterr()
     assert "Usage" in captured_help.out
+
+
+def test_parse_cli_args_diagnostic_flags() -> None:
+    """Diagnostic flags are extracted while preserving application subcommand."""
+    from atboffice.__main__ import parse_diagnostic_args
+
+    diag_opts, remaining = parse_diagnostic_args([
+        "--diagnostics",
+        "--crash-log",
+        "/tmp/custom_crash.log",
+        "ledger",
+        "budget.xlsx",
+    ])
+    assert diag_opts["diagnostics"] is True
+    assert diag_opts["crash_log"] == "/tmp/custom_crash.log"
+    assert remaining == ["ledger", "budget.xlsx"]
+
+    action, path = parse_cli_args(remaining)
+    assert action == "ledger"
+    assert path == "budget.xlsx"
+
+
+def test_main_enables_diagnostics(tmp_path: Path) -> None:
+    """Passing --diagnostics enables CrashDiagnostics."""
+    log_file = tmp_path / "cli_diag.log"
+    mock_wm = MagicMock()
+    mock_win = MagicMock()
+    mock_wm.open_quire.return_value = mock_win
+
+    with patch("atboffice.core.window_manager.WindowManager.get_instance", return_value=mock_wm), \
+         patch("atboffice.core.diagnostics.CrashDiagnostics.enable") as mock_enable:
+        code = main(["--diagnostics", "--crash-log", str(log_file), "quire"], exec_app=False)
+        assert code == 0
+        assert mock_enable.called
+

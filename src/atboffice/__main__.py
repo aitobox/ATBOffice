@@ -17,7 +17,56 @@ __all__ = [
     "main_ledger",
     "main_quire",
     "parse_cli_args",
+    "parse_diagnostic_args",
 ]
+
+
+def parse_diagnostic_args(args: list[str]) -> tuple[dict[str, Any], list[str]]:
+    """Extract diagnostic-related flags, leaving core application args intact.
+
+    Args:
+        args: List of command-line arguments.
+
+    Returns:
+        tuple[dict[str, Any], list[str]]: Diagnostic options dict and filtered args.
+    """
+    diag_opts: dict[str, Any] = {
+        "diagnostics": False,
+        "crash_log": None,
+        "simulate_crash": None,
+        "replay_action": None,
+    }
+    remaining: list[str] = []
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == "--diagnostics":
+            diag_opts["diagnostics"] = True
+            i += 1
+        elif arg == "--crash-log" and i + 1 < len(args):
+            diag_opts["crash_log"] = args[i + 1]
+            diag_opts["diagnostics"] = True
+            i += 2
+        elif arg.startswith("--crash-log="):
+            diag_opts["crash_log"] = arg.split("=", 1)[1]
+            diag_opts["diagnostics"] = True
+            i += 1
+        elif arg == "--simulate-crash" and i + 1 < len(args):
+            diag_opts["simulate_crash"] = args[i + 1]
+            i += 2
+        elif arg.startswith("--simulate-crash="):
+            diag_opts["simulate_crash"] = arg.split("=", 1)[1]
+            i += 1
+        elif arg == "--replay-action" and i + 1 < len(args):
+            diag_opts["replay_action"] = args[i + 1]
+            i += 2
+        elif arg.startswith("--replay-action="):
+            diag_opts["replay_action"] = arg.split("=", 1)[1]
+            i += 1
+        else:
+            remaining.append(arg)
+            i += 1
+    return diag_opts, remaining
 
 
 def parse_cli_args(args: list[str]) -> tuple[str, str | None]:
@@ -113,7 +162,23 @@ def main(argv: list[str] | None = None, exec_app: bool = True) -> int:
         else:
             cli_args = raw_argv
 
-    action, path = parse_cli_args(cli_args)
+    diag_opts, filtered_args = parse_diagnostic_args(cli_args)
+    if diag_opts["diagnostics"]:
+        from atboffice.core.diagnostics import CrashDiagnostics
+
+        diagnostics = CrashDiagnostics(diag_opts["crash_log"])
+        diagnostics.enable()
+
+    if diag_opts["simulate_crash"]:
+        crash_type = diag_opts["simulate_crash"]
+        if crash_type == "segfault":
+            import ctypes
+
+            ctypes.string_at(0)
+        elif crash_type == "exception":
+            raise RuntimeError("Simulated unhandled exception for crash diagnostics baseline")
+
+    action, path = parse_cli_args(filtered_args)
 
     if action == "version":
         print(f"ATBOffice {__version__}")
@@ -143,9 +208,57 @@ def main(argv: list[str] | None = None, exec_app: bool = True) -> int:
 
     app.register_main_window(window)
 
+    if diag_opts["replay_action"]:
+        action_name = diag_opts["replay_action"]
+        from PySide6.QtCore import QEvent, QPoint, Qt
+        from PySide6.QtGui import QMouseEvent
+
+        from atboffice.core.diagnostics import drain_event_loop
+
+        drain_event_loop(2)
+        if action_name == "switch_windows":
+            win2 = win_mgr.open_ledger() if action != "ledger" else win_mgr.open_quire()
+            drain_event_loop(2)
+            window.activateWindow()
+            drain_event_loop(2)
+            win2.activateWindow()
+            drain_event_loop(2)
+            win2.close()
+            window.close()
+        elif action_name == "hover_canvas":
+            central = window.centralWidget() if hasattr(window, "centralWidget") else None
+            if central is not None:
+                move_ev = QMouseEvent(
+                    QEvent.Type.MouseMove,
+                    QPoint(50, 50),
+                    Qt.MouseButton.NoButton,
+                    Qt.MouseButton.NoButton,
+                    Qt.KeyboardModifier.NoModifier,
+                )
+                app.sendEvent(central, move_ev)
+            drain_event_loop(2)
+            window.close()
+        elif action_name == "dialog_lifecycle":
+            if hasattr(window, "show_about_dialog"):
+                window.show_about_dialog()
+            drain_event_loop(2)
+            window.close()
+        else:
+            window.close()
+
+        win_mgr.quit_application()
+        drain_event_loop(5)
+        return 0
+
     if not exec_app:
         return 0
-    return app.exec()
+
+    try:
+        return app.exec()
+    finally:
+        from atboffice.core.diagnostics import drain_event_loop
+
+        drain_event_loop()
 
 
 def main_quire(argv: list[str] | None = None, exec_app: bool = True) -> int:
