@@ -44,7 +44,16 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from atboffice.modules.spreadsheet.calc.references import col_name
+from atboffice.modules.spreadsheet.calc.parser import parse, to_text
+from atboffice.modules.spreadsheet.calc.references import (
+    adjust_move,
+    col_name,
+    map_ast,
+    range_name,
+    ref_err,
+    translate,
+)
+from atboffice.modules.spreadsheet.calc.tokens import CellRefNode
 from atboffice.modules.spreadsheet.models.conditional_format import (
     evaluate_cf_for_cell,
 )
@@ -53,6 +62,7 @@ from atboffice.modules.spreadsheet.models.selection_model import (
     SelectionRange,
 )
 from atboffice.modules.spreadsheet.models.sheet_model import (
+    CellComment,
     CellData,
     SheetDataModel,
 )
@@ -79,6 +89,7 @@ class HitZone(Enum):
     ROW_RESIZE = auto()
     FILL_HANDLE = auto()
     FILTER_BUTTON = auto()
+    BORDER = auto()
 
 
 class HitResult:
@@ -107,6 +118,8 @@ class DragSnapshot:
     resize_index: int = -1
     resize_orig_size: int = 0
     fill_start_src: SelectionRange | None = None
+    move_start_src: SelectionRange | None = None
+    move_grab_cell: tuple[int, int] | None = None
 
 
 class GridViewport(QAbstractScrollArea):
@@ -164,6 +177,12 @@ class GridViewport(QAbstractScrollArea):
         self._fill_preview_range: SelectionRange | None = None
         self._fill_start_src: SelectionRange | None = None
         self._fill_ctrl_pressed: bool = False
+        self._move_src_range: SelectionRange | None = None
+        self._move_grab_cell: tuple[int, int] | None = None
+        self._move_preview_range: SelectionRange | None = None
+        self._move_ctrl_pressed: bool = False
+        self._undo_stack: list[dict[str, Any]] = []
+        self._redo_stack: list[dict[str, Any]] = []
         self._dv_dropdown_rect: QRect | None = None
 
         self.setMouseTracking(True)
@@ -193,6 +212,14 @@ class GridViewport(QAbstractScrollArea):
         return (
             self._fill_preview_range is not None
             and self._fill_preview_range != self._fill_start_src
+        )
+
+    @property
+    def has_move_preview(self) -> bool:
+        """Whether an active selection border move/copy preview rectangle is being displayed."""
+        return (
+            self._move_preview_range is not None
+            and self._move_preview_range != self._move_src_range
         )
 
     @property
@@ -297,21 +324,55 @@ class GridViewport(QAbstractScrollArea):
                 return HitResult(HitZone.ROW_RESIZE, row=row - 1, pos=y)
             return HitResult(HitZone.ROW_HEADER, row=row)
 
-        # 4. AutoFill Handle area (active when single selection range)
+        # 4. AutoFill Handle & Selection Border area (active when single selection range)
         if len(self.selection.ranges) == 1:
             pr = self.selection.primary_range
-            fx = (
+            is_editing = (
+                self.editor_controller is not None
+                and self.editor_controller.is_active
+            )
+            is_whole_rows = (
+                pr.min_c == 0 and pr.max_c >= self.geometry_mapper.max_cols - 1
+            )
+            is_whole_cols = (
+                pr.min_r == 0 and pr.max_r >= self.geometry_mapper.max_rows - 1
+            )
+
+            bx1 = (
+                self.row_header_width
+                + self.geometry_mapper.col_pos(pr.min_c)
+                - scroll_x
+            )
+            bx2 = (
                 self.row_header_width
                 + self.geometry_mapper.col_pos(pr.max_c + 1)
                 - scroll_x
             )
-            fy = (
+            by1 = (
+                self.col_header_height
+                + self.geometry_mapper.row_pos(pr.min_r)
+                - scroll_y
+            )
+            by2 = (
                 self.col_header_height
                 + self.geometry_mapper.row_pos(pr.max_r + 1)
                 - scroll_y
             )
-            if abs(x - fx) <= 5 and abs(y - fy) <= 5:
+
+            # AutoFill Handle has priority (+/- 5px at bottom-right)
+            if abs(x - bx2) <= 5 and abs(y - by2) <= 5:
                 return HitResult(HitZone.FILL_HANDLE, row=pr.max_r, col=pr.max_c)
+
+            # Selection Border (+/- 2px along perimeter)
+            if not is_editing and not is_whole_rows and not is_whole_cols:
+                on_v = (abs(x - bx1) <= 2 or abs(x - bx2) <= 2) and (by1 - 2 <= y <= by2 + 2)
+                on_h = (abs(y - by1) <= 2 or abs(y - by2) <= 2) and (bx1 - 2 <= x <= bx2 + 2)
+                if on_v or on_h:
+                    sheet_x = max(0, scroll_x + (x - self.row_header_width))
+                    sheet_y = max(0, scroll_y + (y - self.col_header_height))
+                    hit_r = self.geometry_mapper.find_row_at(sheet_y)
+                    hit_c = self.geometry_mapper.find_col_at(sheet_x)
+                    return HitResult(HitZone.BORDER, row=hit_r, col=hit_c)
 
         # 4.5 AutoFilter Button area
         if getattr(self.model, "auto_filter", None) is not None:
@@ -511,6 +572,40 @@ class GridViewport(QAbstractScrollArea):
             )
             dash_pen = QPen(QColor(128, 128, 128), 2, Qt.PenStyle.DashLine)
             painter.setPen(dash_pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(QRect(px1, py1, px2 - px1, py2 - py1))
+            painter.restore()
+
+        # 2c. Draw Selection Border Drag Preview Rectangle
+        if (
+            self._move_preview_range is not None
+            and self._move_preview_range != self._move_src_range
+        ):
+            painter.save()
+            painter.setClipRect(cell_clip)
+            pr = self._move_preview_range
+            px1 = (
+                self.row_header_width
+                + self.geometry_mapper.col_pos(pr.min_c)
+                - scroll_x
+            )
+            py1 = (
+                self.col_header_height
+                + self.geometry_mapper.row_pos(pr.min_r)
+                - scroll_y
+            )
+            px2 = (
+                self.row_header_width
+                + self.geometry_mapper.col_pos(pr.max_c + 1)
+                - scroll_x
+            )
+            py2 = (
+                self.col_header_height
+                + self.geometry_mapper.row_pos(pr.max_r + 1)
+                - scroll_y
+            )
+            move_pen = QPen(self.COLOR_ACTIVE_BORDER, 2, Qt.PenStyle.DashLine)
+            painter.setPen(move_pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(QRect(px1, py1, px2 - px1, py2 - py1))
             painter.restore()
@@ -1366,6 +1461,15 @@ class GridViewport(QAbstractScrollArea):
             elif snap.zone == HitZone.FILL_HANDLE:
                 self._fill_start_src = None
                 self._fill_preview_range = None
+            elif snap.zone == HitZone.BORDER:
+                self._move_src_range = None
+                self._move_grab_cell = None
+                self._move_preview_range = None
+                self._move_ctrl_pressed = False
+                QToolTip.hideText()
+                current_sheet = getattr(self.model, "active_sheet_index", 0)
+                if current_sheet == snap.sheet_index:
+                    self.selection.restore_snapshot(snap.selection_snapshot)
 
             if (
                 self.editor_controller is not None
@@ -1520,6 +1624,34 @@ class GridViewport(QAbstractScrollArea):
             )
             self.viewport().update()
 
+        elif hit.zone == HitZone.BORDER:
+            if self.editor_controller is not None and self.editor_controller.is_active:
+                if not self.editor_controller.commit():
+                    return
+            self._drag_mode = HitZone.BORDER
+            self._move_src_range = self.selection.primary_range
+            self._move_grab_cell = (
+                hit.row if hit.row is not None else self._move_src_range.min_r,
+                hit.col if hit.col is not None else self._move_src_range.min_c,
+            )
+            self._move_preview_range = self._move_src_range
+            self._move_ctrl_pressed = bool(
+                modifiers
+                & (
+                    Qt.KeyboardModifier.ControlModifier
+                    | Qt.KeyboardModifier.MetaModifier
+                )
+            )
+            self._drag_snapshot = DragSnapshot(
+                zone=HitZone.BORDER,
+                sheet_index=getattr(self.model, "active_sheet_index", 0),
+                selection_snapshot=self.selection.snapshot(),
+                move_start_src=self._move_src_range,
+                move_grab_cell=self._move_grab_cell,
+            )
+            self.viewport().setCursor(Qt.CursorShape.SizeAllCursor)
+            self.viewport().update()
+
         elif hit.zone == HitZone.FILTER_BUTTON and hit.col is not None:
             self._open_filter_dropdown(hit.col)
             return
@@ -1567,6 +1699,8 @@ class GridViewport(QAbstractScrollArea):
             hit = self.hit_test(x, y)
             if hit.zone == HitZone.FILL_HANDLE:
                 self.viewport().setCursor(Qt.CursorShape.CrossCursor)
+            elif hit.zone == HitZone.BORDER:
+                self.viewport().setCursor(Qt.CursorShape.SizeAllCursor)
             elif hit.zone == HitZone.COL_RESIZE:
                 self.viewport().setCursor(Qt.CursorShape.SplitHCursor)
             elif hit.zone == HitZone.ROW_RESIZE:
@@ -1712,6 +1846,50 @@ class GridViewport(QAbstractScrollArea):
                 self.selection.select_rows(orig_r, hit.row)
                 self.viewport().update()
 
+        elif self._drag_mode == HitZone.BORDER:
+            self._move_ctrl_pressed = bool(
+                modifiers
+                & (
+                    Qt.KeyboardModifier.ControlModifier
+                    | Qt.KeyboardModifier.MetaModifier
+                )
+            )
+            sheet_x = max(
+                0, self.horizontalScrollBar().value() + (x - self.row_header_width)
+            )
+            sheet_y = max(
+                0, self.verticalScrollBar().value() + (y - self.col_header_height)
+            )
+            curr_r = self.geometry_mapper.find_row_at(sheet_y)
+            curr_c = self.geometry_mapper.find_col_at(sheet_x)
+
+            if self._move_src_range is not None:
+                grab_r, grab_c = (
+                    self._move_grab_cell
+                    if self._move_grab_cell
+                    else (self._move_src_range.min_r, self._move_src_range.min_c)
+                )
+                dr = curr_r - grab_r
+                dc = curr_c - grab_c
+
+                src = self._move_src_range
+                h = src.max_r - src.min_r
+                w = src.max_c - src.min_c
+                to_r1 = max(0, min(self.geometry_mapper.max_rows - 1 - h, src.min_r + dr))
+                to_c1 = max(0, min(self.geometry_mapper.max_cols - 1 - w, src.min_c + dc))
+                to_r2 = to_r1 + h
+                to_c2 = to_c1 + w
+
+                self._move_preview_range = SelectionRange(to_r1, to_c1, to_r2, to_c2)
+                tip = range_name({"r1": to_r1, "c1": to_c1, "r2": to_r2, "c2": to_c2})
+                QToolTip.showText(
+                    self.viewport().mapToGlobal(QPoint(x + 14, y + 18)),
+                    tip,
+                    self.viewport(),
+                )
+                self.reveal(to_r1, to_c1)
+                self.viewport().update()
+
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         self._stop_auto_scroll()
         if self._drag_mode == HitZone.FILL_HANDLE:
@@ -1737,6 +1915,28 @@ class GridViewport(QAbstractScrollArea):
             self._fill_start_src = None
             self._fill_preview_range = None
 
+        elif self._drag_mode == HitZone.BORDER:
+            QToolTip.hideText()
+            if (
+                self._drag_moved
+                and self._move_src_range is not None
+                and self._move_preview_range is not None
+            ):
+                src = self._move_src_range
+                to = self._move_preview_range
+                ctrl = self._move_ctrl_pressed or bool(
+                    event.modifiers()
+                    & (
+                        Qt.KeyboardModifier.ControlModifier
+                        | Qt.KeyboardModifier.MetaModifier
+                    )
+                )
+                self.move_range(src, to, copy=ctrl)
+            self._move_src_range = None
+            self._move_grab_cell = None
+            self._move_preview_range = None
+            self._move_ctrl_pressed = False
+
         self._drag_mode = HitZone.NONE
         self._drag_moved = False
         self._drag_start_pos = None
@@ -1753,6 +1953,43 @@ class GridViewport(QAbstractScrollArea):
 
         if hit.zone == HitZone.COL_RESIZE and hit.col is not None:
             self.auto_fit_column(hit.col)
+        elif hit.zone == HitZone.BORDER and len(self.selection.ranges) == 1:
+            pr = self.selection.primary_range
+            sx = self.horizontalScrollBar().value()
+            sy = self.verticalScrollBar().value()
+            bx1 = (
+                self.row_header_width
+                + self.geometry_mapper.col_pos(pr.min_c)
+                - sx
+            )
+            bx2 = (
+                self.row_header_width
+                + self.geometry_mapper.col_pos(pr.max_c + 1)
+                - sx
+            )
+            by1 = (
+                self.col_header_height
+                + self.geometry_mapper.row_pos(pr.min_r)
+                - sy
+            )
+            by2 = (
+                self.col_header_height
+                + self.geometry_mapper.row_pos(pr.max_r + 1)
+                - sy
+            )
+            d_top = abs(y - by1)
+            d_bottom = abs(y - by2)
+            d_left = abs(x - bx1)
+            d_right = abs(x - bx2)
+            min_d = min(d_top, d_bottom, d_left, d_right)
+            if min_d == d_top:
+                self.move_to_edge(-1, 0)
+            elif min_d == d_bottom:
+                self.move_to_edge(1, 0)
+            elif min_d == d_left:
+                self.move_to_edge(0, -1)
+            else:
+                self.move_to_edge(0, 1)
         elif hit.zone == HitZone.CELL and hit.row is not None and hit.col is not None:
             self.cell_double_clicked.emit(hit.row, hit.col)
         else:
@@ -2235,6 +2472,17 @@ class GridViewport(QAbstractScrollArea):
         self, allow_key: str | None = None, cell_edit: bool = False
     ) -> bool:
         """Check worksheet protection and alert if mutation is restricted."""
+        if getattr(self.model, "protected", False):
+            QMessageBox.information(
+                self,
+                safe_tr("工作表受保护"),
+                safe_tr(
+                    "您试图更改的单元格位于受保护的工作表中。\n"
+                    "若要修改受保护的单元格，请先撤消工作表保护。"
+                ),
+            )
+            return True
+
         protection = getattr(self.model, "protection", None)
         if not protection or not protection.get("enabled", False):
             return False
@@ -2390,6 +2638,347 @@ class GridViewport(QAbstractScrollArea):
                     if cell is not None:
                         cell.value = None
                         cell.formula = None
+        self.viewport().update()
+
+    def _holds_data(
+        self,
+        to_range: SelectionRange,
+        except_range: SelectionRange | None = None,
+    ) -> bool:
+        """Check if any cell in to_range outside except_range holds a value or formula."""
+        for r in range(to_range.min_r, to_range.max_r + 1):
+            for c in range(to_range.min_c, to_range.max_c + 1):
+                if except_range is not None and except_range.contains(r, c):
+                    continue
+                cell = self.model.get_cell(r, c)
+                if cell is not None and (cell.value is not None or cell.formula is not None):
+                    return True
+        return False
+
+    def move_to_edge(self, dr: int, dc: int) -> None:
+        """Jump selection to data region boundary in direction (dr, dc).
+
+        Matches Excel/VibeOffice double-click parity.
+        """
+        r, c = self.selection.active_cell
+        max_r = self.geometry_mapper.max_rows - 1
+        max_c = self.geometry_mapper.max_cols - 1
+
+        curr_cell = self.model.get_cell(r, c)
+        curr_has_data = curr_cell is not None and (
+            curr_cell.value is not None or curr_cell.formula is not None
+        )
+
+        nr, nc = r, c
+        while 0 <= nr + dr <= max_r and 0 <= nc + dc <= max_c:
+            nxt = self.model.get_cell(nr + dr, nc + dc)
+            nxt_has_data = nxt is not None and (
+                nxt.value is not None or nxt.formula is not None
+            )
+            if curr_has_data and not nxt_has_data:
+                break
+            if not curr_has_data and nxt_has_data:
+                nr += dr
+                nc += dc
+                break
+            nr += dr
+            nc += dc
+
+        self.selection.select_cell(nr, nc)
+        self.reveal(nr, nc)
+        self.cell_selected.emit(nr, nc)
+        self.viewport().update()
+
+    def move_range(
+        self,
+        src: SelectionRange,
+        to: SelectionRange,
+        copy: bool = False,
+    ) -> bool:
+        """Move or copy cell range src to to.
+
+        Handles formulas, merges, comments, confirmation, and undo.
+        """
+        if self.guard_protect(cell_edit=True):
+            return False
+
+        if (
+            src.min_r == to.min_r
+            and src.min_c == to.min_c
+            and src.max_r == to.max_r
+            and src.max_c == to.max_c
+        ):
+            return True
+
+        # Overwrite confirmation check
+        except_rg = None if copy else src
+        if self._holds_data(to, except_rg):
+            ret = QMessageBox.question(
+                self,
+                safe_tr("ATBOffice Ledger"),
+                safe_tr("是否替换目标单元格内容？"),
+                QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel,
+            )
+            if ret != QMessageBox.StandardButton.Ok:
+                return False
+
+        # Snapshot state for undo/redo
+        before_cells = {k: v.clone() for k, v in self.model.cells.items()}
+        before_merges = list(self.model.merges)
+        before_comments = (
+            {k: CellComment(**v.__dict__) for k, v in self.model.comments.items()}
+            if hasattr(self.model, "comments")
+            else {}
+        )
+        before_sel = self.selection.snapshot()
+
+        dr = to.min_r - src.min_r
+        dc = to.min_c - src.min_c
+
+        # Snapshot source cells
+        src_cells: dict[tuple[int, int], CellData | None] = {}
+        for r in range(src.min_r, src.max_r + 1):
+            for c in range(src.min_c, src.max_c + 1):
+                cl = self.model.get_cell(r, c)
+                src_cells[(r - src.min_r, c - src.min_c)] = cl.clone() if cl else None
+
+        # Snapshot source merges
+        src_merges: list[tuple[int, int, int, int]] = [
+            (
+                m[0] - src.min_r,
+                m[1] - src.min_c,
+                m[2] - src.min_r,
+                m[3] - src.min_c,
+            )
+            for m in self.model.merges
+            if (
+                m[0] >= src.min_r
+                and m[2] <= src.max_r
+                and m[1] >= src.min_c
+                and m[3] <= src.max_c
+            )
+        ]
+
+        # Snapshot source comments
+        src_comments: dict[tuple[int, int], Any] = {}
+        if hasattr(self.model, "comments"):
+            for (r, c), cm in self.model.comments.items():
+                if src.min_r <= r <= src.max_r and src.min_c <= c <= src.max_c:
+                    src_comments[(r - src.min_r, c - src.min_c)] = cm
+
+        if copy:
+            # Remove merges overlapping destination
+            self.model.merges = [
+                m
+                for m in self.model.merges
+                if not (
+                    max(m[0], to.min_r) <= min(m[2], to.max_r)
+                    and max(m[1], to.min_c) <= min(m[3], to.max_c)
+                )
+            ]
+            # Write cells to destination with translated formulas
+            for (dr_i, dc_j), cell in src_cells.items():
+                tr = to.min_r + dr_i
+                tc = to.min_c + dc_j
+                if cell is not None:
+                    new_cell = cell.clone()
+                    if new_cell.formula:
+                        new_cell.formula = translate(new_cell.formula, dr, dc)
+                    self.model.set_cell(tr, tc, new_cell)
+                else:
+                    self.model.set_cell(tr, tc, CellData())
+            # Replicate merges
+            for sm in src_merges:
+                self.model.merges.append(
+                    (
+                        to.min_r + sm[0],
+                        to.min_c + sm[1],
+                        to.min_r + sm[2],
+                        to.min_c + sm[3],
+                    )
+                )
+            # Replicate comments
+            if hasattr(self.model, "set_comment"):
+                for (dr_i, dc_j), cm in src_comments.items():
+                    self.model.set_comment(
+                        to.min_r + dr_i,
+                        to.min_c + dc_j,
+                        text=cm.text,
+                        author=cm.author,
+                        visible=cm.visible,
+                    )
+
+        else:
+            # Move
+            sheet_name = getattr(self.model, "sheet_name", "Sheet1")
+            src_dict = {
+                "r1": src.min_r,
+                "c1": src.min_c,
+                "r2": src.max_r,
+                "c2": src.max_c,
+                "sheet": sheet_name,
+            }
+
+            # Update external formulas pointing to moved source or overwritten destination
+            for (r, c), cell in list(self.model.cells.items()):
+                if src.min_r <= r <= src.max_r and src.min_c <= c <= src.max_c:
+                    continue
+                if cell and cell.formula:
+                    try:
+                        ast = parse(cell.formula)
+                        # Check if formula references overwritten cells in destination
+                        def mapper_dest(n):
+                            if isinstance(n, CellRefNode):
+                                if (
+                                    to.min_r <= n.r <= to.max_r
+                                    and to.min_c <= n.c <= to.max_c
+                                    and not (
+                                        src.min_r <= n.r <= src.max_r
+                                        and src.min_c <= n.c <= src.max_c
+                                    )
+                                ):
+                                    return ref_err(n)
+                            return None
+
+                        ast_dest = map_ast(ast, mapper_dest)
+                        if ast_dest is not None:
+                            ast = ast_dest
+
+                        new_ast, ch = adjust_move(
+                            ast, src_dict, dr, dc, home=sheet_name, to_sheet=sheet_name
+                        )
+                        pref = "=" if cell.formula.startswith("=") else ""
+                        cell.formula = pref + to_text(new_ast)
+                    except Exception:
+                        pass
+
+            # Clear source cells that do not overlap destination
+            for r in range(src.min_r, src.max_r + 1):
+                for c in range(src.min_c, src.max_c + 1):
+                    if not (to.min_r <= r <= to.max_r and to.min_c <= c <= to.max_c):
+                        self.model.set_cell(r, c, CellData())
+
+            # Write moved cells to destination
+            for (dr_i, dc_j), cell in src_cells.items():
+                tr = to.min_r + dr_i
+                tc = to.min_c + dc_j
+                if cell is not None:
+                    new_cell = cell.clone()
+                    if new_cell.formula:
+                        try:
+                            ast = parse(new_cell.formula)
+                            new_ast, ch = adjust_move(
+                                ast, src_dict, dr, dc, home=sheet_name, to_sheet=sheet_name
+                            )
+                            pref = "=" if new_cell.formula.startswith("=") else ""
+                            new_cell.formula = pref + to_text(new_ast)
+                        except Exception:
+                            pass
+                    self.model.set_cell(tr, tc, new_cell)
+                else:
+                    self.model.set_cell(tr, tc, CellData())
+
+            # Remove source merges and destination overwritten merges
+            self.model.merges = [
+                m
+                for m in self.model.merges
+                if not (
+                    (
+                        m[0] >= src.min_r
+                        and m[2] <= src.max_r
+                        and m[1] >= src.min_c
+                        and m[3] <= src.max_c
+                    )
+                    or (
+                        max(m[0], to.min_r) <= min(m[2], to.max_r)
+                        and max(m[1], to.min_c) <= min(m[3], to.max_c)
+                    )
+                )
+            ]
+            for sm in src_merges:
+                self.model.merges.append(
+                    (
+                        to.min_r + sm[0],
+                        to.min_c + sm[1],
+                        to.min_r + sm[2],
+                        to.min_c + sm[3],
+                    )
+                )
+
+            # Move comments
+            if hasattr(self.model, "comments"):
+                for r in range(src.min_r, src.max_r + 1):
+                    for c in range(src.min_c, src.max_c + 1):
+                        if (r, c) in self.model.comments:
+                            del self.model.comments[(r, c)]
+                for (dr_i, dc_j), cm in src_comments.items():
+                    self.model.set_comment(
+                        to.min_r + dr_i,
+                        to.min_c + dc_j,
+                        text=cm.text,
+                        author=cm.author,
+                        visible=cm.visible,
+                    )
+
+        # Update selection
+        self.selection.select_cell(to.min_r, to.min_c)
+        self.selection.extend_to(to.max_r, to.max_c)
+
+        # Record in undo stack
+        after_cells = {k: v.clone() for k, v in self.model.cells.items()}
+        after_merges = list(self.model.merges)
+        after_comments = (
+            {k: CellComment(**v.__dict__) for k, v in self.model.comments.items()}
+            if hasattr(self.model, "comments")
+            else {}
+        )
+        after_sel = self.selection.snapshot()
+
+        self._undo_stack.append(
+            {
+                "before_cells": before_cells,
+                "before_merges": before_merges,
+                "before_comments": before_comments,
+                "before_sel": before_sel,
+                "after_cells": after_cells,
+                "after_merges": after_merges,
+                "after_comments": after_comments,
+                "after_sel": after_sel,
+            }
+        )
+        self._redo_stack.clear()
+        self.viewport().update()
+        return True
+
+    def undo(self) -> None:
+        """Undo the last spreadsheet edit operation."""
+        if not self._undo_stack:
+            return
+        cmd = self._undo_stack.pop()
+        self._redo_stack.append(cmd)
+        self.model.cells = {k: v.clone() for k, v in cmd["before_cells"].items()}
+        self.model.merges = list(cmd["before_merges"])
+        if hasattr(self.model, "comments") and "before_comments" in cmd:
+            self.model.comments = {
+                k: CellComment(**v.__dict__) for k, v in cmd["before_comments"].items()
+            }
+        self.selection.restore_snapshot(cmd["before_sel"])
+        self.viewport().update()
+
+    def redo(self) -> None:
+        """Redo the last undone spreadsheet edit operation."""
+        if not self._redo_stack:
+            return
+        cmd = self._redo_stack.pop()
+        self._undo_stack.append(cmd)
+        self.model.cells = {k: v.clone() for k, v in cmd["after_cells"].items()}
+        self.model.merges = list(cmd["after_merges"])
+        if hasattr(self.model, "comments") and "after_comments" in cmd:
+            self.model.comments = {
+                k: CellComment(**v.__dict__) for k, v in cmd["after_comments"].items()
+            }
+        self.selection.restore_snapshot(cmd["after_sel"])
         self.viewport().update()
 
     def insert_selected_cols(self) -> None:
