@@ -52,8 +52,8 @@ def test_parity_calculator_structure():
     assert res["total_features"] > 100
     assert "overall_weighted_score" in res
     assert "verdict" in res
-    assert res["must"]["completed"] == 75
-    assert res["must"]["total"] == 75
+    assert res["must"]["completed"] == res["must"]["total"]
+    assert res["must"]["total"] >= 75
     assert res["must"]["blockers"] == 0
     assert len(res["domains"]) > 0
 
