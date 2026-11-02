@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QDate, QDateTime, Qt
+from PySide6.QtCore import QCoreApplication, QDateTime, Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -25,20 +25,18 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFileDialog,
     QFormLayout,
-    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
     QListWidget,
-    QListWidgetItem,
     QPushButton,
     QRadioButton,
     QSpinBox,
-    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -217,7 +215,10 @@ class CaptionDialog(QDialog):
         inp = QLineEdit(dlg)
         d_layout.addWidget(QLabel(safe_tr("标签:"), dlg))
         d_layout.addWidget(inp)
-        bbox = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel, dlg)
+        bbox = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+            dlg,
+        )
         bbox.accepted.connect(dlg.accept)
         bbox.rejected.connect(dlg.reject)
         d_layout.addWidget(bbox)
@@ -379,7 +380,9 @@ class IndexTablesDialog(QDialog):
         self.spin_toc_levels = QSpinBox(self.tab_toc)
         self.spin_toc_levels.setRange(1, 9)
         self.spin_toc_levels.setValue(3)
-        self.check_toc_hyperlinks = QCheckBox(safe_tr("使用超链接而不使用页码（Web 视图）"), self.tab_toc)
+        self.check_toc_hyperlinks = QCheckBox(
+            safe_tr("使用超链接而不使用页码（Web 视图）"), self.tab_toc
+        )
         self.check_toc_hyperlinks.setChecked(True)
         f_toc.addRow("", self.check_toc_show_pages)
         f_toc.addRow("", self.check_toc_right)
@@ -452,7 +455,11 @@ class IndexTablesDialog(QDialog):
 class BookmarkDialog(QDialog):
     """Bookmark management dialog (书签)."""
 
-    def __init__(self, initial_bookmarks: list[str] | None = None, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        initial_bookmarks: list[str] | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle(safe_tr("书签"))
         self.resize(320, 300)
@@ -538,7 +545,12 @@ class BookmarkDialog(QDialog):
 class HyperlinkDialog(QDialog):
     """Insert Hyperlink dialog with 3 tabs (插入超链接)."""
 
-    def __init__(self, initial_text: str = "", initial_address: str = "", parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        initial_text: str = "",
+        initial_address: str = "",
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle(safe_tr("插入超链接"))
         self.resize(480, 360)
@@ -576,7 +588,7 @@ class HyperlinkDialog(QDialog):
         l_doc = QVBoxLayout(self.tab_doc)
         self.tree_places = QTreeWidget(self.tab_doc)
         self.tree_places.setHeaderHidden(True)
-        top_item = QTreeWidgetItem(self.tree_places, [safe_tr("文档顶端")])
+        QTreeWidgetItem(self.tree_places, [safe_tr("文档顶端")])
         headings_item = QTreeWidgetItem(self.tree_places, [safe_tr("标题")])
         for h in ["Heading 1", "Heading 2", "Heading 3"]:
             QTreeWidgetItem(headings_item, [h])

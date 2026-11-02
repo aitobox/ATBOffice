@@ -48,10 +48,10 @@ from atboffice.modules.writer.dialogs.tools_dialogs import (
     AutoCorrectDialog,
     AutoSummarizeDialog,
     CustomizeDialog,
+    EnvelopesLabelsDialog,
     HyphenationDialog,
     LetterWizardDialog,
     QuireOptionsDialog,
-    EnvelopesLabelsDialog,
 )
 from atboffice.modules.writer.dialogs.word_count_dlg import (
     WordCountDialog,

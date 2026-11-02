@@ -15,7 +15,6 @@ from typing import Any
 
 from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
-    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDialog,

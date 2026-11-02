@@ -16,7 +16,6 @@ from typing import Any
 
 from PySide6.QtCore import QCoreApplication, Qt
 from PySide6.QtWidgets import (
-    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -35,9 +34,9 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QSpinBox,
-    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -132,7 +131,9 @@ class AutoCorrectDialog(QDialog):
         self.chk_quotes = QCheckBox(safe_tr("“直引号”替换为“弯引号”(&Q)"), grp_replace)
         self.chk_fractions = QCheckBox(safe_tr("分数字符 (1/2) 替换为分数 (&F)"), grp_replace)
         self.chk_emphasis = QCheckBox(safe_tr("*加粗* 和 _倾斜_ 替换为实际格式 (&B)"), grp_replace)
-        self.chk_hyperlinks = QCheckBox(safe_tr("Internet 及网络路径替换为超链接 (&I)"), grp_replace)
+        self.chk_hyperlinks = QCheckBox(
+            safe_tr("Internet 及网络路径替换为超链接 (&I)"), grp_replace
+        )
         self.chk_quotes.setChecked(True)
         self.chk_fractions.setChecked(True)
         self.chk_emphasis.setChecked(True)
@@ -355,8 +356,12 @@ class QuireOptionsDialog(QDialog):
         f_sec = QFormLayout(self.tab_sec)
         self.edit_password = QLineEdit(self.tab_sec)
         self.edit_password.setEchoMode(QLineEdit.EchoMode.Password)
-        self.chk_remove_personal = QCheckBox(safe_tr("保存时从文件属性中删除个人信息(&R)"), self.tab_sec)
-        self.chk_warn_tracked = QCheckBox(safe_tr("打印、保存或发送包含修订/批注的文件之前发出警告(&W)"), self.tab_sec)
+        self.chk_remove_personal = QCheckBox(
+            safe_tr("保存时从文件属性中删除个人信息(&R)"), self.tab_sec
+        )
+        self.chk_warn_tracked = QCheckBox(
+            safe_tr("打印、保存或发送包含修订/批注的文件之前发出警告(&W)"), self.tab_sec
+        )
         f_sec.addRow(safe_tr("打开文件时的密码(&P):"), self.edit_password)
         f_sec.addRow("", self.chk_remove_personal)
         f_sec.addRow("", self.chk_warn_tracked)
@@ -384,9 +389,18 @@ class QuireOptionsDialog(QDialog):
         self.tab_track = QWidget(self.tab_widget)
         f_track = QFormLayout(self.tab_track)
         self.combo_ins_color = QComboBox(self.tab_track)
-        self.combo_ins_color.addItems([safe_tr("按作者"), safe_tr("红色"), safe_tr("蓝色"), safe_tr("绿色")])
+        self.combo_ins_color.addItems([
+            safe_tr("按作者"),
+            safe_tr("红色"),
+            safe_tr("蓝色"),
+            safe_tr("绿色"),
+        ])
         self.combo_balloons = QComboBox(self.tab_track)
-        self.combo_balloons.addItems([safe_tr("仅用于批注和格式设置"), safe_tr("始终"), safe_tr("从不")])
+        self.combo_balloons.addItems([
+            safe_tr("仅用于批注和格式设置"),
+            safe_tr("始终"),
+            safe_tr("从不"),
+        ])
         f_track.addRow(safe_tr("插入标记颜色:"), self.combo_ins_color)
         f_track.addRow(safe_tr("使用批注框:"), self.combo_balloons)
         self.tab_widget.addTab(self.tab_track, safe_tr("修订"))
@@ -444,8 +458,16 @@ class QuireOptionsDialog(QDialog):
     def retranslate_ui(self) -> None:
         self.setWindowTitle(safe_tr("选项"))
         labels = [
-            safe_tr("视图"), safe_tr("常规"), safe_tr("编辑"), safe_tr("打印"), safe_tr("保存"),
-            safe_tr("安全性"), safe_tr("拼写和语法"), safe_tr("修订"), safe_tr("用户信息"), safe_tr("兼容性"),
+            safe_tr("视图"),
+            safe_tr("常规"),
+            safe_tr("编辑"),
+            safe_tr("打印"),
+            safe_tr("保存"),
+            safe_tr("安全性"),
+            safe_tr("拼写和语法"),
+            safe_tr("修订"),
+            safe_tr("用户信息"),
+            safe_tr("兼容性"),
         ]
         for i, lab in enumerate(labels):
             self.tab_widget.setTabText(i, lab)
@@ -657,7 +679,11 @@ class LetterWizardDialog(QDialog):
         self.combo_date_format = QComboBox(self.tab_fmt)
         self.combo_date_format.addItems(["yyyy年M月d日", "yyyy-MM-dd", "MMMM d, yyyy"])
         self.combo_style = QComboBox(self.tab_fmt)
-        self.combo_style.addItems([safe_tr("全齐式 (Full block)"), safe_tr("折中式 (Modified block)"), safe_tr("半折中式 (Semi-block)")])
+        self.combo_style.addItems([
+            safe_tr("全齐式 (Full block)"),
+            safe_tr("折中式 (Modified block)"),
+            safe_tr("半折中式 (Semi-block)"),
+        ])
         f_fmt.addRow(self.chk_date, self.combo_date_format)
         f_fmt.addRow(safe_tr("信件样式(&S):"), self.combo_style)
         self.tab_widget.addTab(self.tab_fmt, safe_tr("信件格式"))

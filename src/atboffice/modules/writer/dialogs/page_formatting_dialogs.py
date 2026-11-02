@@ -300,7 +300,9 @@ class WatermarkDialog(QDialog):
             self.combo_font.setCurrentIndex(idx)
 
         self.combo_size = QComboBox(self.grp_text)
-        self.combo_size.addItems(["Auto", "36", "40", "44", "48", "54", "60", "66", "72", "80", "96"])
+        self.combo_size.addItems(
+            ["Auto", "36", "40", "44", "48", "54", "60", "66", "72", "80", "96"]
+        )
 
         self.color_selected = QColor("gray")
         self.btn_color = QPushButton(safe_tr("选择颜色..."), self.grp_text)
@@ -457,7 +459,13 @@ class PageNumbersDialog(QDialog):
         self.grp_format = QGroupBox(safe_tr("数字格式"), self)
         fmt_layout = QFormLayout(self.grp_format)
         self.combo_number_format = QComboBox(self.grp_format)
-        self.combo_number_format.addItems(["1, 2, 3, ...", "a, b, c, ...", "A, B, C, ...", "i, ii, iii, ...", "I, II, III, ..."])
+        self.combo_number_format.addItems([
+            "1, 2, 3, ...",
+            "a, b, c, ...",
+            "A, B, C, ...",
+            "i, ii, iii, ...",
+            "I, II, III, ...",
+        ])
 
         self.radio_continue = QRadioButton(safe_tr("续前节(&C)"), self.grp_format)
         self.radio_start_at = QRadioButton(safe_tr("起始页码(&A):"), self.grp_format)
