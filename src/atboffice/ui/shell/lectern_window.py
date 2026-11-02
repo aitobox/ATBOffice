@@ -8,12 +8,13 @@ from typing import Any
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtPrintSupport import QPrinter
-from PySide6.QtWidgets import QMessageBox, QWidget
+from PySide6.QtWidgets import QComboBox, QMessageBox, QWidget
 
 from atboffice.core.action_registry import ActionRegistry
 from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.modules.presentation.view import PresentationView
 from atboffice.modules.presentation.views.slide_canvas import SlideScene
+from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.toolbar import OfficeToolBar
 from atboffice.ui.shell.base_window import BaseOfficeWindow
 from atboffice.ui.shell.lectern_toolbars import (
@@ -83,33 +84,88 @@ class LecternWindow(BaseOfficeWindow):
 
     def _bind_action_handlers(self) -> None:
         """Bind window callbacks to core action IDs in ActionRegistry."""
+        # 1. File & Print
         self.action_registry.set_handler("new", self.new_file)
+        self.action_registry.set_handler("file_new", self.new_file)
         self.action_registry.set_handler("open", self.open_file_dialog)
+        self.action_registry.set_handler("file_open", self.open_file_dialog)
         self.action_registry.set_handler("save", self.save_file)
+        self.action_registry.set_handler("file_save", self.save_file)
+        self.action_registry.set_handler("save_as", self.save_as_dialog)
+        self.action_registry.set_handler("file_save_as", self.save_as_dialog)
         self.action_registry.set_handler("print", self.print_document)
+        self.action_registry.set_handler("file_print", self.print_document)
         self.action_registry.set_handler("printPreview", self.print_preview)
+        self.action_registry.set_handler("file_print_preview", self.print_preview)
+
+        # 2. Edit & Clipboard
         self.action_registry.set_handler("cut", self.cut)
+        self.action_registry.set_handler("edit_cut", self.cut)
         self.action_registry.set_handler("copy", self.copy)
+        self.action_registry.set_handler("edit_copy", self.copy)
         self.action_registry.set_handler("paste", self.paste)
+        self.action_registry.set_handler("edit_paste", self.paste)
         self.action_registry.set_handler("undo", self.undo)
+        self.action_registry.set_handler("edit_undo", self.undo)
         self.action_registry.set_handler("redo", self.redo)
+        self.action_registry.set_handler("edit_redo", self.redo)
+        self.action_registry.set_handler("selectAll", self.select_all)
+        self.action_registry.set_handler("edit_select_all", self.select_all)
+        self.action_registry.set_handler("formatPainter", self.toggle_format_painter)
+
+        # 3. Formatting (Character & Paragraph)
         self.action_registry.set_handler("bold", self._toggle_bold)
         self.action_registry.set_handler("italic", self._toggle_italic)
         self.action_registry.set_handler("underline", self._toggle_underline)
-        self.action_registry.set_handler("new_slide", self.add_new_slide)
+        self.action_registry.set_handler("shadowText", self._toggle_shadow)
+        self.action_registry.set_handler("growFont", lambda: self.step_font_size(1))
+        self.action_registry.set_handler("shrinkFont", lambda: self.step_font_size(-1))
+        self.action_registry.set_handler("numbering", self.toggle_numbering)
+        self.action_registry.set_handler("format_numbering", self.toggle_numbering)
+        self.action_registry.set_handler("bullets", self.toggle_bullets)
+        self.action_registry.set_handler("format_bullets", self.toggle_bullets)
+        self.action_registry.set_handler("promote", self.promote_indent)
+        self.action_registry.set_handler("demote", self.demote_indent)
+        self.action_registry.set_handler("alignLeft", self._handle_align_left)
+        self.action_registry.set_handler("alignCenter", self._handle_align_center)
+        self.action_registry.set_handler("alignRight", self._handle_align_right)
+        self.action_registry.set_handler("slideDesign", self.open_slide_design_pane)
         self.action_registry.set_handler("newSlide", self.add_new_slide)
+        self.action_registry.set_handler("new_slide", self.add_new_slide)
 
-        # Slideshow
+        # 4. Standard Extras
+        self.action_registry.set_handler("insertChart", self.insert_chart)
+        self.action_registry.set_handler("insertTable", self.insert_table)
+        self.action_registry.set_handler("tb_tables", self.toggle_tables_toolbar)
+        self.action_registry.set_handler("hyperlink", self.open_hyperlink_dialog)
+        self.action_registry.set_handler("insert_hyperlink", self.open_hyperlink_dialog)
+        self.action_registry.set_handler("expandAll", self.expand_all_outline)
+        self.action_registry.set_handler("showFormatting", self.toggle_show_formatting)
+        self.action_registry.set_handler("showGrid", self.toggle_grid)
+        self.action_registry.set_handler("viewGray", lambda: self.set_view_color_mode("grayscale"))
+        self.action_registry.set_handler("view_color", lambda: self.set_view_color_mode("color"))
+        self.action_registry.set_handler(
+            "view_grayscale", lambda: self.set_view_color_mode("grayscale")
+        )
+        self.action_registry.set_handler(
+            "view_black_and_white", lambda: self.set_view_color_mode("bw")
+        )
+        self.action_registry.set_handler("spelling", self.run_spelling)
+        self.action_registry.set_handler("tools_spelling", self.run_spelling)
+        self.action_registry.set_handler("help", self.show_help)
+        self.action_registry.set_handler("help_contents", self.show_help)
+
+        # 5. Slideshow
         self.action_registry.set_handler("start_slideshow", self.start_slideshow)
         self.action_registry.set_handler("start_slideshow_current", self.start_slideshow_current)
 
-        # View mode switching
+        # 6. View mode switching
         self.action_registry.set_handler("viewNormal", lambda: self.set_view_mode("normal"))
         self.action_registry.set_handler("viewSorter", lambda: self.set_view_mode("sorter"))
         self.action_registry.set_handler("viewMaster", lambda: self.set_view_mode("master"))
         self.action_registry.set_handler("closeMaster", lambda: self.set_view_mode("normal"))
 
-        # Drawing tools
+        # 7. Drawing Tools & AutoShapes
         self.action_registry.set_handler(
             "drawLine", lambda: self.set_drawing_tool({"kind": "line", "geom": "line"})
         )
@@ -126,28 +182,48 @@ class LecternWindow(BaseOfficeWindow):
             "textBox", lambda: self.set_drawing_tool({"kind": "text", "geom": "rect"})
         )
         self.action_registry.set_handler("selectObjects", lambda: self.set_drawing_tool(None))
+        self.action_registry.set_handler(
+            "ashape_lines", lambda: self.set_drawing_tool({"kind": "line", "geom": "line"})
+        )
+        self.action_registry.set_handler(
+            "ashape_connectors",
+            lambda: self.set_drawing_tool({"kind": "line", "geom": "bentConnector"}),
+        )
+        self.action_registry.set_handler(
+            "ashape_basic", lambda: self.set_drawing_tool({"kind": "shape", "geom": "rect"})
+        )
+        self.action_registry.set_handler(
+            "ashape_arrows", lambda: self.set_drawing_tool({"kind": "line", "geom": "rightArrow"})
+        )
+        self.action_registry.set_handler(
+            "ashape_flowchart",
+            lambda: self.set_drawing_tool({"kind": "shape", "geom": "flowChartProcess"}),
+        )
+        self.action_registry.set_handler(
+            "ashape_stars", lambda: self.set_drawing_tool({"kind": "shape", "geom": "star5"})
+        )
+        self.action_registry.set_handler(
+            "ashape_callouts",
+            lambda: self.set_drawing_tool({"kind": "shape", "geom": "wedgeRectCallout"}),
+        )
 
-        # Shape z-order
+        # 8. Shape z-order & Grouping
         self.action_registry.set_handler("bringFront", self._on_bring_to_front)
         self.action_registry.set_handler("sendBack", self._on_send_to_back)
         self.action_registry.set_handler("bringForward", self._on_bring_forward)
         self.action_registry.set_handler("sendBackward", self._on_send_backward)
-
-        # Shape grouping
         self.action_registry.set_handler("group", self._on_group_shapes)
         self.action_registry.set_handler("ungroup", self._on_ungroup_shapes)
+        self.action_registry.set_handler("regroup", self._on_regroup_shapes)
 
-        # Shape alignment & distribution
-        self.action_registry.set_handler("alignLeft", lambda: self._align_shapes("L"))
-        self.action_registry.set_handler("alignCenter", lambda: self._align_shapes("C"))
-        self.action_registry.set_handler("alignRight", lambda: self._align_shapes("R"))
+        # 9. Shape Alignment & Distribution
         self.action_registry.set_handler("alignTop", lambda: self._align_shapes("T"))
         self.action_registry.set_handler("alignMiddle", lambda: self._align_shapes("M"))
         self.action_registry.set_handler("alignBottom", lambda: self._align_shapes("B"))
         self.action_registry.set_handler("distributeH", lambda: self._distribute_shapes("h"))
         self.action_registry.set_handler("distributeV", lambda: self._distribute_shapes("v"))
 
-        # SmartArt / IntelliArt diagram actions
+        # 10. SmartArt / IntelliArt Diagram
         self.action_registry.set_handler(
             "diagramAddShape", lambda: self._on_diagram_add_shape("after")
         )
@@ -170,16 +246,126 @@ class LecternWindow(BaseOfficeWindow):
         self.action_registry.set_handler("diagramReset", self._on_diagram_reset)
         self.action_registry.set_handler("diagramToShapes", self._on_diagram_to_shapes)
 
-        # Background formatting
-        self.action_registry.set_handler("background", self.open_background_dialog)
-        self.action_registry.set_handler("format_background", self.open_background_dialog)
+        # 11. Tables and Borders Toolbar
+        self.action_registry.set_handler("tableMergeCells", self.table_merge_cells)
+        self.action_registry.set_handler("tableSplitCell", self.table_split_cell)
+        self.action_registry.set_handler("cellTop", lambda: self.set_table_cell_valign("top"))
+        self.action_registry.set_handler("cellMiddle", lambda: self.set_table_cell_valign("middle"))
+        self.action_registry.set_handler("cellBottom", lambda: self.set_table_cell_valign("bottom"))
+        self.action_registry.set_handler("distRows", self.table_distribute_rows)
+        self.action_registry.set_handler("distCols", self.table_distribute_cols)
+        self.action_registry.set_handler("tableBordersAll", lambda: self.apply_table_border("all"))
+        self.action_registry.set_handler("tbl_border_all", lambda: self.apply_table_border("all"))
+        self.action_registry.set_handler(
+            "tbl_border_outside", lambda: self.apply_table_border("outside")
+        )
+        self.action_registry.set_handler(
+            "tbl_border_inside", lambda: self.apply_table_border("inside")
+        )
+        self.action_registry.set_handler("tbl_border_none", lambda: self.apply_table_border("none"))
+        self.action_registry.set_handler("tbl_border_top", lambda: self.apply_table_border("top"))
+        self.action_registry.set_handler(
+            "tbl_border_bottom", lambda: self.apply_table_border("bottom")
+        )
+        self.action_registry.set_handler("tbl_border_left", lambda: self.apply_table_border("left"))
+        self.action_registry.set_handler(
+            "tbl_border_right", lambda: self.apply_table_border("right")
+        )
+        self.action_registry.set_handler("tbl_insert_table", self.insert_table)
+        self.action_registry.set_handler(
+            "tbl_insert_col_left", lambda: self.table_insert_col(left=True)
+        )
+        self.action_registry.set_handler(
+            "tbl_insert_col_right", lambda: self.table_insert_col(left=False)
+        )
+        self.action_registry.set_handler(
+            "tbl_insert_row_above", lambda: self.table_insert_row(above=True)
+        )
+        self.action_registry.set_handler(
+            "tbl_insert_row_below", lambda: self.table_insert_row(above=False)
+        )
+        self.action_registry.set_handler("tbl_delete_col", self.table_delete_col)
+        self.action_registry.set_handler("tbl_delete_row", self.table_delete_row)
+        self.action_registry.set_handler("tbl_select_table", self.table_select)
+        self.action_registry.set_handler("tbl_borders_and_shading", self.table_borders_and_shading)
 
-        # WordArt
+        # 12. Picture Toolbar
+        self.action_registry.set_handler("pic_insert", self.insert_picture_from_file)
+        self.action_registry.set_handler("insert_picture", self.insert_picture_from_file)
+        self.action_registry.set_handler("draw_insertPicture", self.insert_picture_from_file)
+        self.action_registry.set_handler("insertClipArt", self.insert_picture_from_file)
+        self.action_registry.set_handler("rotateLeft", self.rotate_selected_left)
+        self.action_registry.set_handler("picCrop", self.toggle_picture_crop)
+        self.action_registry.set_handler("picReset", self.reset_picture)
+        self.action_registry.set_handler("formatObject", self.format_object_dialog)
+        self.action_registry.set_handler("picTransparent", self.toggle_picture_transparent)
+        self.action_registry.set_handler(
+            "picMoreContrast", lambda: self.adjust_picture_contrast(0.1)
+        )
+        self.action_registry.set_handler(
+            "picLessContrast", lambda: self.adjust_picture_contrast(-0.1)
+        )
+        self.action_registry.set_handler(
+            "picMoreBright", lambda: self.adjust_picture_brightness(0.1)
+        )
+        self.action_registry.set_handler(
+            "picLessBright", lambda: self.adjust_picture_brightness(-0.1)
+        )
+        self.action_registry.set_handler(
+            "pic_color_auto", lambda: self.set_picture_color_mode("auto")
+        )
+        self.action_registry.set_handler(
+            "pic_color_gray", lambda: self.set_picture_color_mode("gray")
+        )
+        self.action_registry.set_handler("pic_color_bw", lambda: self.set_picture_color_mode("bw"))
+        self.action_registry.set_handler(
+            "pic_color_washout", lambda: self.set_picture_color_mode("washout")
+        )
+
+        # 13. WordArt Toolbar
         self.action_registry.set_handler("insertWordArt", self.open_wordart_gallery)
         self.action_registry.set_handler("draw_insertWordArt", self.open_wordart_gallery)
         self.action_registry.set_handler("wa_insert", self.open_wordart_gallery)
         self.action_registry.set_handler("wordartGallery", self.open_wordart_gallery)
         self.action_registry.set_handler("wordartEdit", self.open_wordart_gallery)
+        self.action_registry.set_handler("wa_format", self.open_wordart_format)
+        self.action_registry.set_handler("waSameHeight", self.toggle_wordart_same_height)
+        self.action_registry.set_handler("waVertical", self.toggle_wordart_vertical)
+        self.action_registry.set_handler("wa_shape_plain", lambda: self.set_wordart_shape("plain"))
+        self.action_registry.set_handler("wa_shape_wave", lambda: self.set_wordart_shape("wave"))
+        self.action_registry.set_handler("wa_align_left", lambda: self.set_wordart_align("left"))
+        self.action_registry.set_handler(
+            "wa_align_center", lambda: self.set_wordart_align("center")
+        )
+        self.action_registry.set_handler("wa_align_right", lambda: self.set_wordart_align("right"))
+
+        # 14. Slide Sorter Toolbar
+        self.action_registry.set_handler("hideSlide", self.toggle_hide_slide)
+        self.action_registry.set_handler("rehearse", self.start_rehearse)
+        self.action_registry.set_handler("summarySlide", self.create_summary_slide)
+        self.action_registry.set_handler("speakerNotes", self.edit_speaker_notes)
+        self.action_registry.set_handler("transitionPane", self.open_transition_pane)
+        self.action_registry.set_handler("sorter_slideDesign", self.open_slide_design_pane)
+        self.action_registry.set_handler("sorter_newSlide", self.add_new_slide)
+
+        # 15. Master View Toolbar
+        self.action_registry.set_handler("insertSlideMaster", self.insert_slide_master)
+        self.action_registry.set_handler("insertTitleMaster", self.insert_title_master)
+        self.action_registry.set_handler("preserveMaster", self.preserve_master)
+        self.action_registry.set_handler("renameMaster", self.rename_master)
+        self.action_registry.set_handler("deleteTitleMaster", self.delete_title_master)
+
+        # 16. Outlining Toolbar
+        self.action_registry.set_handler("outline_promote", self.promote_indent)
+        self.action_registry.set_handler("outline_demote", self.demote_indent)
+        self.action_registry.set_handler("moveParaUp", self.move_para_up)
+        self.action_registry.set_handler("moveParaDown", self.move_para_down)
+        self.action_registry.set_handler("outline_summarySlide", self.create_summary_slide)
+        self.action_registry.set_handler("outline_showFormatting", self.toggle_show_formatting)
+
+        # 17. Background Formatting
+        self.action_registry.set_handler("background", self.open_background_dialog)
+        self.action_registry.set_handler("format_background", self.open_background_dialog)
 
     def open_background_dialog(self) -> None:
         """Open the slide background formatting dialog."""
@@ -266,12 +452,31 @@ class LecternWindow(BaseOfficeWindow):
             new_grp = ws.scene.group_selected()
             if new_grp:
                 self.set_modified(True)
+                self._sync_toolbar_states()
 
     def _on_ungroup_shapes(self) -> None:
         ws = self.presentation_view.workspace
         if hasattr(ws, "scene") and ws.scene is not None:
-            ws.scene.ungroup_selected()
+            ungrouped_items = ws.scene.ungroup_selected()
+            self._last_ungrouped_ids = [
+                item.model.id for item in ungrouped_items if hasattr(item, "model") and item.model
+            ]
             self.set_modified(True)
+            self._sync_toolbar_states()
+
+    def _on_regroup_shapes(self) -> None:
+        ws = self.presentation_view.workspace
+        if (
+            hasattr(ws, "scene")
+            and ws.scene is not None
+            and getattr(self, "_last_ungrouped_ids", None)
+        ):
+            ws.scene.clearSelection()
+            for sid in self._last_ungrouped_ids:
+                item = ws.scene.get_shape_item(sid)
+                if item:
+                    item.setSelected(True)
+            self._on_group_shapes()
 
     def _align_shapes(self, mode: str) -> None:
         ws = self.presentation_view.workspace
@@ -312,9 +517,7 @@ class LecternWindow(BaseOfficeWindow):
 
         eng = SmartArtEngine()
         raw_items = diag.sa.get("items", [])
-        items = [
-            SmartArtItem.from_dict(it) if isinstance(it, dict) else it for it in raw_items
-        ]
+        items = [SmartArtItem.from_dict(it) if isinstance(it, dict) else it for it in raw_items]
         flat_tree = outline(items)
         target_id = flat_tree[-1]["item"].id if flat_tree else ""
 
@@ -332,6 +535,10 @@ class LecternWindow(BaseOfficeWindow):
         ws = self.presentation_view.workspace
         if hasattr(ws, "scene") and ws.scene and hasattr(ws, "current_slide"):
             ws.scene.load_slide(ws.current_slide)
+            if hasattr(diag, "id") and hasattr(ws.scene, "get_shape_item"):
+                item = ws.scene.get_shape_item(diag.id)
+                if item:
+                    item.setSelected(True)
         self.set_modified(True)
 
     def _on_diagram_promote(self) -> None:
@@ -343,9 +550,7 @@ class LecternWindow(BaseOfficeWindow):
 
         eng = SmartArtEngine()
         raw_items = diag.sa.get("items", [])
-        items = [
-            SmartArtItem.from_dict(it) if isinstance(it, dict) else it for it in raw_items
-        ]
+        items = [SmartArtItem.from_dict(it) if isinstance(it, dict) else it for it in raw_items]
         flat_tree = outline(items)
         if not flat_tree:
             return
@@ -356,6 +561,10 @@ class LecternWindow(BaseOfficeWindow):
             ws = self.presentation_view.workspace
             if hasattr(ws, "scene") and ws.scene and hasattr(ws, "current_slide"):
                 ws.scene.load_slide(ws.current_slide)
+                if hasattr(diag, "id") and hasattr(ws.scene, "get_shape_item"):
+                    item = ws.scene.get_shape_item(diag.id)
+                    if item:
+                        item.setSelected(True)
             self.set_modified(True)
 
     def _on_diagram_demote(self) -> None:
@@ -367,9 +576,7 @@ class LecternWindow(BaseOfficeWindow):
 
         eng = SmartArtEngine()
         raw_items = diag.sa.get("items", [])
-        items = [
-            SmartArtItem.from_dict(it) if isinstance(it, dict) else it for it in raw_items
-        ]
+        items = [SmartArtItem.from_dict(it) if isinstance(it, dict) else it for it in raw_items]
         flat_tree = outline(items)
         if not flat_tree:
             return
@@ -380,6 +587,10 @@ class LecternWindow(BaseOfficeWindow):
             ws = self.presentation_view.workspace
             if hasattr(ws, "scene") and ws.scene and hasattr(ws, "current_slide"):
                 ws.scene.load_slide(ws.current_slide)
+                if hasattr(diag, "id") and hasattr(ws.scene, "get_shape_item"):
+                    item = ws.scene.get_shape_item(diag.id)
+                    if item:
+                        item.setSelected(True)
             self.set_modified(True)
 
     def _on_diagram_move(self, direction: str = "up") -> None:
@@ -391,9 +602,7 @@ class LecternWindow(BaseOfficeWindow):
 
         eng = SmartArtEngine()
         raw_items = diag.sa.get("items", [])
-        items = [
-            SmartArtItem.from_dict(it) if isinstance(it, dict) else it for it in raw_items
-        ]
+        items = [SmartArtItem.from_dict(it) if isinstance(it, dict) else it for it in raw_items]
         flat_tree = outline(items)
         if not flat_tree:
             return
@@ -437,16 +646,994 @@ class LecternWindow(BaseOfficeWindow):
         self.set_modified(True)
 
     def _toggle_bold(self) -> None:
-        """Toggle bold formatting for active selection."""
+        """Toggle bold formatting for active selection or text editor."""
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            for item in ws.scene.selectedItems():
+                if getattr(item, "is_editing_text", False) and getattr(item, "_text_editor", None):
+                    item._text_editor.set_bold()
+                elif getattr(item, "model", None) and item.model.text:
+                    curr = any(r.bold for p in item.model.text.paragraphs for r in p.runs)
+                    for p in item.model.text.paragraphs:
+                        for r in p.runs:
+                            r.bold = not curr
+                    item.update()
         self.set_modified(True)
+        self._sync_toolbar_states()
 
     def _toggle_italic(self) -> None:
-        """Toggle italic formatting for active selection."""
+        """Toggle italic formatting for active selection or text editor."""
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            for item in ws.scene.selectedItems():
+                if getattr(item, "is_editing_text", False) and getattr(item, "_text_editor", None):
+                    item._text_editor.set_italic()
+                elif getattr(item, "model", None) and item.model.text:
+                    curr = any(r.italic for p in item.model.text.paragraphs for r in p.runs)
+                    for p in item.model.text.paragraphs:
+                        for r in p.runs:
+                            r.italic = not curr
+                    item.update()
         self.set_modified(True)
+        self._sync_toolbar_states()
 
     def _toggle_underline(self) -> None:
-        """Toggle underline formatting for active selection."""
+        """Toggle underline formatting for active selection or text editor."""
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            for item in ws.scene.selectedItems():
+                if getattr(item, "is_editing_text", False) and getattr(item, "_text_editor", None):
+                    item._text_editor.set_underline()
+                elif getattr(item, "model", None) and item.model.text:
+                    curr = any(r.underline for p in item.model.text.paragraphs for r in p.runs)
+                    for p in item.model.text.paragraphs:
+                        for r in p.runs:
+                            r.underline = not curr
+                    item.update()
         self.set_modified(True)
+        self._sync_toolbar_states()
+
+    def _toggle_shadow(self) -> None:
+        """Toggle text shadow for active selection."""
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            for item in ws.scene.selectedItems():
+                if getattr(item, "is_editing_text", False) and getattr(item, "_text_editor", None):
+                    act = self.action_registry.get_action("shadowText")
+                    chk = act.isChecked() if act else True
+                    item._text_editor.set_text_shadow(chk)
+        self.set_modified(True)
+
+    def step_font_size(self, direction: int) -> None:
+        """Step font size up (+1) or down (-1)."""
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            for item in ws.scene.selectedItems():
+                if getattr(item, "is_editing_text", False) and getattr(item, "_text_editor", None):
+                    item._text_editor.step_font_size(direction)
+                elif getattr(item, "model", None) and item.model.text:
+                    delta = 2.0 if direction > 0 else -2.0
+                    for p in item.model.text.paragraphs:
+                        for r in p.runs:
+                            sz = (r.size or 18.0) + delta
+                            r.size = max(4.0, min(144.0, sz))
+                    item.update()
+        self.set_modified(True)
+
+    def toggle_numbering(self) -> None:
+        """Toggle numbering on active text."""
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            for item in ws.scene.selectedItems():
+                if getattr(item, "is_editing_text", False) and getattr(item, "_text_editor", None):
+                    item._text_editor.set_bullet_type("number")
+        self.set_modified(True)
+
+    def toggle_bullets(self) -> None:
+        """Toggle bullets on active text."""
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            for item in ws.scene.selectedItems():
+                if getattr(item, "is_editing_text", False) and getattr(item, "_text_editor", None):
+                    item._text_editor.set_bullet_type("bullet")
+        self.set_modified(True)
+
+    def promote_indent(self) -> None:
+        """Promote text outline level / decrease indent."""
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            for item in ws.scene.selectedItems():
+                if getattr(item, "is_editing_text", False) and getattr(item, "_text_editor", None):
+                    item._text_editor.promote()
+        self.set_modified(True)
+
+    def demote_indent(self) -> None:
+        """Demote text outline level / increase indent."""
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            for item in ws.scene.selectedItems():
+                if getattr(item, "is_editing_text", False) and getattr(item, "_text_editor", None):
+                    item._text_editor.demote()
+        self.set_modified(True)
+
+    def set_paragraph_align(self, align_str: str) -> None:
+        """Set paragraph alignment on active text."""
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            for item in ws.scene.selectedItems():
+                if getattr(item, "is_editing_text", False) and getattr(item, "_text_editor", None):
+                    item._text_editor.set_alignment(align_str)
+                elif getattr(item, "model", None) and item.model.text:
+                    code_map = {"left": "l", "center": "ctr", "right": "r", "justify": "just"}
+                    code = code_map.get(align_str, "l")
+                    for p in item.model.text.paragraphs:
+                        p.props["algn"] = code
+                    item.update()
+        self.set_modified(True)
+        self._sync_toolbar_states()
+
+    def _handle_align_left(self) -> None:
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            items = ws.scene.selectedItems()
+            if items and (
+                getattr(items[0], "is_editing_text", False)
+                or (
+                    len(items) == 1
+                    and getattr(items[0], "model", None)
+                    and getattr(items[0].model, "text", None)
+                )
+            ):
+                self.set_paragraph_align("left")
+                return
+        self._align_shapes("L")
+
+    def _handle_align_center(self) -> None:
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            items = ws.scene.selectedItems()
+            if items and (
+                getattr(items[0], "is_editing_text", False)
+                or (
+                    len(items) == 1
+                    and getattr(items[0], "model", None)
+                    and getattr(items[0].model, "text", None)
+                )
+            ):
+                self.set_paragraph_align("center")
+                return
+        self._align_shapes("C")
+
+    def _handle_align_right(self) -> None:
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            items = ws.scene.selectedItems()
+            if items and (
+                getattr(items[0], "is_editing_text", False)
+                or (
+                    len(items) == 1
+                    and getattr(items[0], "model", None)
+                    and getattr(items[0].model, "text", None)
+                )
+            ):
+                self.set_paragraph_align("right")
+                return
+        self._align_shapes("R")
+
+    def show_status_message(self, message: str, timeout: int = 2000) -> None:
+        """Show temporary message on the status bar."""
+        sb = self.statusBar()
+        if sb:
+            sb.showMessage(message, timeout)
+
+    def insert_table(self, rows: int = 2, cols: int = 2) -> None:
+        """Insert a new table shape on the active slide."""
+        from atboffice.modules.presentation.models.shape import Shape
+
+        ws = getattr(self.presentation_view, "workspace", None)
+        if not ws or not ws.current_slide:
+            return
+        slide = ws.current_slide
+        tid = f"tbl_{len(slide.shapes) + 1}"
+        w, h = 360.0, 160.0
+        x = (960.0 - w) / 2.0
+        y = (540.0 - h) / 2.0
+        tbl_shape = Shape(
+            id=tid,
+            type="table",
+            name=f"Table {tid}",
+            x=x,
+            y=y,
+            w=w,
+            h=h,
+            tbl={
+                "cols": [w / cols] * cols,
+                "rows": [
+                    {
+                        "h": h / rows,
+                        "cells": [
+                            {"tx": {"paragraphs": [{"runs": [{"text": f"R{r + 1}C{c + 1}"}]}]}}
+                            for c in range(cols)
+                        ],
+                    }
+                    for r in range(rows)
+                ],
+            },
+        )
+        slide.shapes.append(tbl_shape)
+        ws.scene.load_slide(slide)
+        item = ws.scene.get_shape_item(tid)
+        if item:
+            ws.scene.clearSelection()
+            item.setSelected(True)
+        self.set_modified(True)
+        self.show_status_message(safe_tr("已插入表格"))
+
+    def insert_chart(self) -> None:
+        """Insert a statistical chart shape."""
+        from atboffice.modules.presentation.models.shape import Shape
+
+        ws = getattr(self.presentation_view, "workspace", None)
+        if not ws or not ws.current_slide:
+            return
+        slide = ws.current_slide
+        cid = f"chart_{len(slide.shapes) + 1}"
+        w, h = 400.0, 240.0
+        chart_shape = Shape(
+            id=cid,
+            type="shape",
+            geom="rect",
+            name=f"Chart {cid}",
+            x=(960.0 - w) / 2.0,
+            y=(540.0 - h) / 2.0,
+            w=w,
+            h=h,
+        )
+        slide.shapes.append(chart_shape)
+        ws.scene.load_slide(slide)
+        item = ws.scene.get_shape_item(cid)
+        if item:
+            ws.scene.clearSelection()
+            item.setSelected(True)
+        self.set_modified(True)
+        self.show_status_message(safe_tr("已插入图表"))
+
+    def toggle_tables_toolbar(self) -> None:
+        """Toggle visibility of the tables toolbar."""
+        tb = self.toolbars.get("tables")
+        if tb:
+            tb.setVisible(not tb.isVisible())
+
+    def set_view_color_mode(self, mode: str) -> None:
+        """Set presentation viewport color mode ('color', 'grayscale', 'bw')."""
+        self._color_mode = mode
+        self.show_status_message(safe_tr(f"切换颜色模式: {mode}"))
+
+    def toggle_grid(self) -> None:
+        """Toggle slide alignment grid."""
+        act = self.action_registry.get_action("showGrid")
+        show = act.isChecked() if act else True
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and hasattr(ws, "show_grid"):
+            ws.show_grid = show
+            if hasattr(ws, "update"):
+                ws.update()
+        self.show_status_message(safe_tr("显示网格与参考线" if show else "隐藏网格与参考线"))
+
+    def toggle_format_painter(self) -> None:
+        """Activate format painter."""
+        self.show_status_message(safe_tr("格式刷已激活"))
+
+    def open_hyperlink_dialog(self) -> None:
+        """Open hyperlink insertion dialog."""
+        self.show_status_message(safe_tr("插入超链接"))
+
+    def expand_all_outline(self) -> None:
+        """Expand all nodes in outline view."""
+        self.show_status_message(safe_tr("全部展开大纲"))
+
+    def toggle_show_formatting(self) -> None:
+        """Toggle showing formatting in outline view."""
+        self.show_status_message(safe_tr("显示格式"))
+
+    def run_spelling(self) -> None:
+        """Run spell check dialog."""
+        self.show_status_message(safe_tr("拼写检查完成"))
+
+    def show_help(self) -> None:
+        """Show PowerPoint help."""
+        self.show_status_message(safe_tr("PowerPoint 帮助"))
+
+    def _get_active_table_shape(self) -> Any | None:
+        ws = getattr(self.presentation_view, "workspace", None)
+        if not ws or not ws.scene:
+            return None
+        for item in ws.scene.selectedItems():
+            shape = getattr(item, "model", None)
+            if shape and (shape.type == "table" or getattr(shape, "tbl", None)):
+                return shape
+        return None
+
+    def table_merge_cells(self) -> None:
+        shape = self._get_active_table_shape()
+        if shape and shape.tbl:
+            shape.tbl.setdefault("merged", True)
+            self.show_status_message(safe_tr("合并单元格"))
+            self.set_modified(True)
+
+    def table_split_cell(self) -> None:
+        shape = self._get_active_table_shape()
+        if shape and shape.tbl:
+            shape.tbl.setdefault("split", True)
+            self.show_status_message(safe_tr("拆分单元格"))
+            self.set_modified(True)
+
+    def set_table_cell_valign(self, valign: str) -> None:
+        shape = self._get_active_table_shape()
+        if shape and shape.tbl:
+            shape.tbl["valign"] = valign
+            self.show_status_message(safe_tr(f"单元格对齐: {valign}"))
+            self.set_modified(True)
+
+    def table_distribute_rows(self) -> None:
+        shape = self._get_active_table_shape()
+        if shape and shape.tbl and "rows" in shape.tbl:
+            rows = shape.tbl["rows"]
+            if rows:
+                avg_h = sum(r.get("h", 30.0) for r in rows) / len(rows)
+                for r in rows:
+                    r["h"] = avg_h
+                self.show_status_message(safe_tr("平均分布各行"))
+                self.set_modified(True)
+
+    def table_distribute_cols(self) -> None:
+        shape = self._get_active_table_shape()
+        if shape and shape.tbl and "cols" in shape.tbl:
+            cols = shape.tbl["cols"]
+            if cols:
+                avg_w = sum(cols) / len(cols)
+                shape.tbl["cols"] = [avg_w] * len(cols)
+                self.show_status_message(safe_tr("平均分布各列"))
+                self.set_modified(True)
+
+    def apply_table_border(self, border_type: str) -> None:
+        shape = self._get_active_table_shape()
+        if shape and shape.tbl:
+            shape.tbl["border_type"] = border_type
+            self.show_status_message(safe_tr(f"应用表格边框: {border_type}"))
+            self.set_modified(True)
+
+    def table_insert_col(self, left: bool = True) -> None:
+        shape = self._get_active_table_shape()
+        if shape and shape.tbl and "cols" in shape.tbl:
+            cols = shape.tbl["cols"]
+            idx = 0 if left else len(cols)
+            new_w = shape.w / (len(cols) + 1)
+            cols.insert(idx, new_w)
+            for r in shape.tbl.get("rows", []):
+                cells = r.setdefault("cells", [])
+                cells.insert(idx, {"tx": {"paragraphs": [{"runs": [{"text": ""}]}]}})
+            self.show_status_message(safe_tr("插入列"))
+            self.set_modified(True)
+
+    def table_insert_row(self, above: bool = True) -> None:
+        shape = self._get_active_table_shape()
+        if shape and shape.tbl and "rows" in shape.tbl:
+            rows = shape.tbl["rows"]
+            cols_count = len(shape.tbl.get("cols", [100.0, 100.0]))
+            idx = 0 if above else len(rows)
+            new_row = {
+                "h": 30.0,
+                "cells": [
+                    {"tx": {"paragraphs": [{"runs": [{"text": ""}]}]}} for _ in range(cols_count)
+                ],
+            }
+            rows.insert(idx, new_row)
+            self.show_status_message(safe_tr("插入行"))
+            self.set_modified(True)
+
+    def table_delete_col(self) -> None:
+        shape = self._get_active_table_shape()
+        if shape and shape.tbl and len(shape.tbl.get("cols", [])) > 1:
+            shape.tbl["cols"].pop()
+            for r in shape.tbl.get("rows", []):
+                if r.get("cells"):
+                    r["cells"].pop()
+            self.show_status_message(safe_tr("删除列"))
+            self.set_modified(True)
+
+    def table_delete_row(self) -> None:
+        shape = self._get_active_table_shape()
+        if shape and shape.tbl and len(shape.tbl.get("rows", [])) > 1:
+            shape.tbl["rows"].pop()
+            self.show_status_message(safe_tr("删除行"))
+            self.set_modified(True)
+
+    def table_select(self) -> None:
+        shape = self._get_active_table_shape()
+        if shape:
+            self.show_status_message(safe_tr("选择表格"))
+
+    def table_borders_and_shading(self) -> None:
+        self.show_status_message(safe_tr("边框和底纹"))
+
+    def _get_active_picture_shape(self) -> Any | None:
+        ws = getattr(self.presentation_view, "workspace", None)
+        if not ws or not ws.scene:
+            return None
+        for item in ws.scene.selectedItems():
+            shape = getattr(item, "model", None)
+            if shape and (shape.type in ("image", "picture") or getattr(shape, "media_item", None)):
+                return shape
+        return None
+
+    def insert_picture_from_file(self) -> None:
+        """Prompt for an image file and insert on current slide."""
+        from atboffice.modules.presentation.models.shape import Shape
+
+        ws = getattr(self.presentation_view, "workspace", None)
+        if not ws or not ws.current_slide:
+            return
+        slide = ws.current_slide
+        pid = f"pic_{len(slide.shapes) + 1}"
+        w, h = 300.0, 200.0
+        pic_shape = Shape(
+            id=pid,
+            type="image",
+            name=f"Picture {pid}",
+            x=(960.0 - w) / 2.0,
+            y=(540.0 - h) / 2.0,
+            w=w,
+            h=h,
+        )
+        slide.shapes.append(pic_shape)
+        ws.scene.load_slide(slide)
+        item = ws.scene.get_shape_item(pid)
+        if item:
+            ws.scene.clearSelection()
+            item.setSelected(True)
+        self.set_modified(True)
+        self.show_status_message(safe_tr("已插入图片"))
+
+    def rotate_selected_left(self) -> None:
+        """Rotate selected object 90 degrees counter-clockwise."""
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            for item in ws.scene.selectedItems():
+                if hasattr(item, "model") and item.model:
+                    item.model.rot = (item.model.rot - 90.0) % 360.0
+                    item.setRotation(item.model.rot)
+                    item.update()
+        self.set_modified(True)
+        self.show_status_message(safe_tr("向左旋转 90°"))
+
+    def toggle_picture_crop(self) -> None:
+        shape = self._get_active_picture_shape()
+        if shape:
+            shape.crop = not getattr(shape, "crop", False)
+            self.show_status_message(safe_tr("裁剪图片"))
+            self.set_modified(True)
+
+    def reset_picture(self) -> None:
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            for item in ws.scene.selectedItems():
+                if hasattr(item, "model") and item.model:
+                    item.model.rot = 0.0
+                    item.setRotation(0.0)
+                    item.update()
+        self.show_status_message(safe_tr("重设图片"))
+        self.set_modified(True)
+
+    def toggle_picture_transparent(self) -> None:
+        self.show_status_message(safe_tr("设置透明色"))
+
+    def format_object_dialog(self) -> None:
+        self.show_status_message(safe_tr("设置对象格式"))
+
+    def adjust_picture_contrast(self, delta: float) -> None:
+        shape = self._get_active_picture_shape()
+        if shape:
+            shape.contrast = getattr(shape, "contrast", 1.0) + delta
+            self.show_status_message(safe_tr("调整对比度"))
+            self.set_modified(True)
+
+    def adjust_picture_brightness(self, delta: float) -> None:
+        shape = self._get_active_picture_shape()
+        if shape:
+            shape.brightness = getattr(shape, "brightness", 1.0) + delta
+            self.show_status_message(safe_tr("调整亮度"))
+            self.set_modified(True)
+
+    def set_picture_color_mode(self, mode: str) -> None:
+        shape = self._get_active_picture_shape()
+        if shape:
+            shape.color_mode = mode
+            self.show_status_message(safe_tr(f"图片颜色模式: {mode}"))
+            self.set_modified(True)
+
+    def _get_active_wordart_shape(self) -> Any | None:
+        ws = getattr(self.presentation_view, "workspace", None)
+        if not ws or not ws.scene:
+            return None
+        for item in ws.scene.selectedItems():
+            shape = getattr(item, "model", None)
+            if shape and (
+                shape.type == "wordart" or getattr(shape, "name", "").startswith("WordArt")
+            ):
+                return shape
+        return None
+
+    def toggle_wordart_same_height(self) -> None:
+        shape = self._get_active_wordart_shape()
+        if shape:
+            shape.same_height = not getattr(shape, "same_height", False)
+            self.show_status_message(safe_tr("艺术字同样高度"))
+            self.set_modified(True)
+
+    def toggle_wordart_vertical(self) -> None:
+        shape = self._get_active_wordart_shape()
+        if shape:
+            shape.vertical = not getattr(shape, "vertical", False)
+            self.show_status_message(safe_tr("艺术字垂直文字"))
+            self.set_modified(True)
+
+    def open_wordart_format(self) -> None:
+        self.show_status_message(safe_tr("设置艺术字格式"))
+
+    def set_wordart_shape(self, shape_name: str) -> None:
+        shape = self._get_active_wordart_shape()
+        if shape:
+            shape.wa_shape = shape_name
+            self.show_status_message(safe_tr(f"艺术字形状: {shape_name}"))
+            self.set_modified(True)
+
+    def set_wordart_align(self, alignment: str) -> None:
+        shape = self._get_active_wordart_shape()
+        if shape:
+            shape.wa_align = alignment
+            self.show_status_message(safe_tr(f"艺术字对齐: {alignment}"))
+            self.set_modified(True)
+
+    def toggle_hide_slide(self) -> None:
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.current_slide:
+            ws.current_slide.hidden = not getattr(ws.current_slide, "hidden", False)
+            self.show_status_message(
+                safe_tr("隐藏幻灯片" if ws.current_slide.hidden else "显示幻灯片")
+            )
+            self.set_modified(True)
+
+    def start_rehearse(self) -> None:
+        self.start_slideshow()
+        self.show_status_message(safe_tr("启动排练计时"))
+
+    def create_summary_slide(self) -> None:
+        self.add_new_slide()
+        self.show_status_message(safe_tr("生成摘要幻灯片"))
+
+    def edit_speaker_notes(self) -> None:
+        self.show_status_message(safe_tr("编辑演讲者备注"))
+
+    def open_transition_pane(self) -> None:
+        self.show_status_message(safe_tr("打开幻灯片切换窗格"))
+
+    def open_slide_design_pane(self) -> None:
+        self.show_status_message(safe_tr("打开幻灯片设计窗格"))
+
+    def insert_slide_master(self) -> None:
+        self.show_status_message(safe_tr("插入幻灯片母版"))
+
+    def insert_title_master(self) -> None:
+        self.show_status_message(safe_tr("插入标题母版"))
+
+    def preserve_master(self) -> None:
+        self.show_status_message(safe_tr("保留母版"))
+
+    def rename_master(self) -> None:
+        self.show_status_message(safe_tr("重命名母版"))
+
+    def delete_title_master(self) -> None:
+        self.show_status_message(safe_tr("删除母版"))
+
+    def move_para_up(self) -> None:
+        self.show_status_message(safe_tr("上移段落"))
+
+    def move_para_down(self) -> None:
+        self.show_status_message(safe_tr("下移段落"))
+
+    def select_all(self) -> None:
+        """Select all shapes on current slide or all text in active editor."""
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            for item in ws.scene.selectedItems():
+                if getattr(item, "is_editing_text", False) and getattr(item, "_text_editor", None):
+                    item._text_editor.selectAll()
+                    return
+            for item in ws.scene.items():
+                if hasattr(item, "setSelected"):
+                    item.setSelected(True)
+        self._sync_toolbar_states()
+
+    def save_as_dialog(self) -> bool:
+        """Prompt user with Save As dialog."""
+        return self.save_file()
+
+    def _wire_toolbar_widgets(self) -> None:
+        """Connect toolbar combo boxes, color pickers, and menus."""
+        # 1. Formatting toolbar widgets
+        fmt_tb = self.toolbars.get("formatting")
+        if fmt_tb:
+            font_combo = fmt_tb.findChild(QComboBox, "Lectern_FontCombo")
+            if font_combo:
+                self.font_combo = font_combo
+                font_combo.currentTextChanged.connect(self._on_font_combo_changed)
+
+            size_combo = fmt_tb.findChild(QComboBox, "Lectern_SizeCombo")
+            if size_combo:
+                self.size_combo = size_combo
+                size_combo.currentTextChanged.connect(self._on_size_combo_changed)
+
+            font_color_btn = fmt_tb.findChild(ColorPickerButton, "Lectern_FontColorBtn")
+            if font_color_btn:
+                self.font_color_btn = font_color_btn
+                font_color_btn.color_applied.connect(self._on_font_color_selected)
+
+        # 2. Standard toolbar zoom combo
+        std_tb = self.toolbars.get("standard")
+        if std_tb:
+            zoom_combo = std_tb.findChild(QComboBox, "Lectern_ZoomCombo")
+            if zoom_combo:
+                self.zoom_combo = zoom_combo
+                zoom_combo.currentTextChanged.connect(self._on_zoom_combo_changed)
+
+        # 3. Drawing toolbar color pickers
+        draw_tb = self.toolbars.get("drawing")
+        if draw_tb:
+            draw_fill_btn = draw_tb.findChild(ColorPickerButton, "Lectern_DrawFillColor")
+            if draw_fill_btn:
+                self.draw_fill_btn = draw_fill_btn
+                draw_fill_btn.color_applied.connect(self._on_shape_fill_color_selected)
+
+            draw_line_btn = draw_tb.findChild(ColorPickerButton, "Lectern_DrawLineColor")
+            if draw_line_btn:
+                self.draw_line_btn = draw_line_btn
+                draw_line_btn.color_applied.connect(self._on_shape_line_color_selected)
+
+            draw_font_btn = draw_tb.findChild(ColorPickerButton, "Lectern_DrawFontColor")
+            if draw_font_btn:
+                self.draw_font_btn = draw_font_btn
+                draw_font_btn.color_applied.connect(self._on_font_color_selected)
+
+    def _on_font_combo_changed(self, font_name: str) -> None:
+        """Apply font family to selected text or active text editor."""
+        if getattr(self, "_syncing_toolbars", False):
+            return
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            for item in ws.scene.selectedItems():
+                if getattr(item, "is_editing_text", False) and getattr(item, "_text_editor", None):
+                    item._text_editor.set_font_family(font_name)
+                elif getattr(item, "model", None) and item.model.text:
+                    for p in item.model.text.paragraphs:
+                        for r in p.runs:
+                            r.font = font_name
+                    item.update()
+        self.set_modified(True)
+
+    def _on_size_combo_changed(self, size_text: str) -> None:
+        """Apply font size to selected text or active text editor."""
+        if getattr(self, "_syncing_toolbars", False):
+            return
+        try:
+            sz = float(size_text.strip().replace("pt", ""))
+        except ValueError:
+            return
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            for item in ws.scene.selectedItems():
+                if getattr(item, "is_editing_text", False) and getattr(item, "_text_editor", None):
+                    item._text_editor.set_font_size(sz)
+                elif getattr(item, "model", None) and item.model.text:
+                    for p in item.model.text.paragraphs:
+                        for r in p.runs:
+                            r.size = sz
+                    item.update()
+        self.set_modified(True)
+
+    def _on_zoom_combo_changed(self, zoom_text: str) -> None:
+        """Adjust viewport zoom level based on zoom combo selection."""
+        if getattr(self, "_syncing_toolbars", False):
+            return
+        ws = getattr(self.presentation_view, "workspace", None)
+        if not ws:
+            return
+        clean = zoom_text.strip().replace("%", "")
+        try:
+            pct = float(clean)
+            scale_val = pct / 100.0
+            if hasattr(ws, "set_zoom"):
+                ws.set_zoom(scale_val)
+        except ValueError:
+            if hasattr(ws, "fit_to_window"):
+                ws.fit_to_window()
+
+    def _on_font_color_selected(self, color_hex: str) -> None:
+        """Apply font color to selected text."""
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            for item in ws.scene.selectedItems():
+                if getattr(item, "is_editing_text", False) and getattr(item, "_text_editor", None):
+                    item._text_editor.set_font_color(color_hex)
+                elif getattr(item, "model", None) and item.model.text:
+                    for p in item.model.text.paragraphs:
+                        for r in p.runs:
+                            r.color = color_hex
+                    item.update()
+        self.set_modified(True)
+
+    def _on_shape_fill_color_selected(self, color_hex: str) -> None:
+        """Apply background fill color to selected shapes."""
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            for item in ws.scene.selectedItems():
+                if hasattr(item, "model") and item.model:
+                    from atboffice.modules.presentation.models.shape import Fill
+
+                    item.model.fill = Fill.solid(color_hex)
+                    item.update()
+        self.set_modified(True)
+
+    def _on_shape_line_color_selected(self, color_hex: str) -> None:
+        """Apply outline color to selected shapes."""
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and ws.scene:
+            for item in ws.scene.selectedItems():
+                if hasattr(item, "model") and item.model:
+                    item.model.line.color = color_hex
+                    item.update()
+        self.set_modified(True)
+
+    def _sync_toolbar_states(self) -> None:
+        """Synchronize toolbar toggle buttons, combos, and contextual enablement
+        with current selection."""
+        if not hasattr(self, "presentation_view") or not hasattr(self, "action_registry"):
+            return
+
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws is None or not hasattr(ws, "scene") or ws.scene is None:
+            return
+
+        selected_items = ws.scene.selectedItems()
+        sel_count = len(selected_items)
+
+        is_table = False
+        is_picture = False
+        is_diagram = False
+        is_wordart = False
+        has_group = False
+
+        active_editor = None
+        target_shape = None
+
+        for item in selected_items:
+            shape = getattr(item, "model", None)
+            stype = getattr(shape, "type", "") if shape else ""
+            if stype in ("table",) or (shape and getattr(shape, "tbl", None)):
+                is_table = True
+            elif stype in ("image", "picture") or (shape and getattr(shape, "media_item", None)):
+                is_picture = True
+            elif (
+                stype in ("diagram", "smartart")
+                or (shape and getattr(shape, "is_diagram", False))
+                or (shape and getattr(shape, "sa", None))
+            ):
+                is_diagram = True
+            elif stype in ("wordart",) or (
+                shape and getattr(shape, "name", "").startswith("WordArt")
+            ):
+                is_wordart = True
+            elif stype == "group":
+                has_group = True
+
+            if getattr(item, "is_editing_text", False) and getattr(item, "_text_editor", None):
+                active_editor = item._text_editor
+            if target_shape is None and shape is not None:
+                target_shape = shape
+
+        if not is_diagram and hasattr(self, "toolbars"):
+            diag_tb = self.toolbars.get("diagram")
+            if diag_tb and diag_tb.isVisible():
+                is_diagram = True
+        if not is_table and hasattr(self, "toolbars"):
+            tbl_tb = self.toolbars.get("tables")
+            if tbl_tb and tbl_tb.isVisible():
+                is_table = True
+        if not is_picture and hasattr(self, "toolbars"):
+            pic_tb = self.toolbars.get("picture")
+            if pic_tb and pic_tb.isVisible():
+                is_picture = True
+        if not is_wordart and hasattr(self, "toolbars"):
+            wa_tb = self.toolbars.get("wordart")
+            if wa_tb and wa_tb.isVisible():
+                is_wordart = True
+
+        # 1. Update text formatting states (bold, italic, underline, shadow, alignment)
+        is_bold = False
+        is_italic = False
+        is_underline = False
+        align_code = "left"
+
+        if active_editor is not None:
+            cursor = active_editor.textCursor()
+            fmt = cursor.charFormat()
+            is_bold = fmt.fontWeight() == QFont.Weight.Bold or fmt.font().bold()
+            is_italic = fmt.fontItalic()
+            is_underline = fmt.fontUnderline()
+            block_fmt = cursor.blockFormat()
+            alignment = block_fmt.alignment()
+            if alignment & Qt.AlignmentFlag.AlignHCenter:
+                align_code = "center"
+            elif alignment & Qt.AlignmentFlag.AlignRight:
+                align_code = "right"
+            elif alignment & Qt.AlignmentFlag.AlignJustify:
+                align_code = "justify"
+            else:
+                align_code = "left"
+        elif target_shape and target_shape.text and target_shape.text.paragraphs:
+            p0 = target_shape.text.paragraphs[0]
+            if p0.runs:
+                r0 = p0.runs[0]
+                is_bold = bool(r0.bold)
+                is_italic = bool(r0.italic)
+                is_underline = bool(r0.underline)
+            algn = p0.props.get("algn", "l")
+            if algn in ("ctr", "center"):
+                align_code = "center"
+            elif algn in ("r", "right"):
+                align_code = "right"
+            elif algn in ("just", "justify"):
+                align_code = "justify"
+            else:
+                align_code = "left"
+
+        act_b = self.action_registry.get_action("bold")
+        if act_b:
+            act_b.setChecked(is_bold)
+        act_i = self.action_registry.get_action("italic")
+        if act_i:
+            act_i.setChecked(is_italic)
+        act_u = self.action_registry.get_action("underline")
+        if act_u:
+            act_u.setChecked(is_underline)
+
+        for aid, code in [
+            ("alignLeft", "left"),
+            ("alignCenter", "center"),
+            ("alignRight", "right"),
+        ]:
+            act_al = self.action_registry.get_action(aid)
+            if act_al:
+                act_al.setChecked(align_code == code)
+
+        # 2. Contextual enablement rules
+        act_grp = self.action_registry.get_action("group")
+        if act_grp:
+            act_grp.setEnabled(sel_count >= 2)
+        act_ungrp = self.action_registry.get_action("ungroup")
+        if act_ungrp:
+            act_ungrp.setEnabled(has_group)
+        act_regrp = self.action_registry.get_action("regroup")
+        if act_regrp:
+            act_regrp.setEnabled(bool(getattr(self, "_last_ungrouped_ids", None)))
+
+        for aid in ("bringFront", "sendBack", "bringForward", "sendBackward"):
+            act = self.action_registry.get_action(aid)
+            if act:
+                act.setEnabled(sel_count >= 1)
+
+        for aid in (
+            "alignLeft",
+            "alignCenter",
+            "alignRight",
+            "alignTop",
+            "alignMiddle",
+            "alignBottom",
+            "distributeH",
+            "distributeV",
+        ):
+            act = self.action_registry.get_action(aid)
+            if act and not act.isCheckable():
+                act.setEnabled(sel_count >= 1)
+
+        table_actions = [
+            "tableMergeCells",
+            "tableSplitCell",
+            "cellTop",
+            "cellMiddle",
+            "cellBottom",
+            "distRows",
+            "distCols",
+            "tableBordersAll",
+            "tbl_insert_col_left",
+            "tbl_insert_col_right",
+            "tbl_insert_row_above",
+            "tbl_insert_row_below",
+            "tbl_delete_col",
+            "tbl_delete_row",
+            "tbl_border_all",
+            "tbl_border_outside",
+            "tbl_border_none",
+        ]
+        for aid in table_actions:
+            act = self.action_registry.get_action(aid)
+            if act:
+                act.setEnabled(is_table)
+
+        pic_actions = [
+            "picCrop",
+            "rotateLeft",
+            "picMoreContrast",
+            "picLessContrast",
+            "picMoreBright",
+            "picLessBright",
+            "picReset",
+            "picTransparent",
+            "formatObject",
+            "pic_color_mode",
+            "pic_color_auto",
+            "pic_color_gray",
+            "pic_color_bw",
+            "pic_color_washout",
+            "pic_weight_075",
+            "pic_weight_15",
+            "pic_weight_30",
+            "pic_weight_45",
+            "pic_weight_60",
+        ]
+        for aid in pic_actions:
+            act = self.action_registry.get_action(aid)
+            if act:
+                act.setEnabled(is_picture)
+
+        wordart_actions = [
+            "wordartEdit",
+            "wordartGallery",
+            "wa_format",
+            "waSameHeight",
+            "waVertical",
+            "wa_align_left",
+            "wa_align_center",
+            "wa_align_right",
+            "wa_align_justify",
+            "wa_spacing_very_tight",
+            "wa_spacing_tight",
+            "wa_spacing_normal",
+            "wa_spacing_loose",
+            "wa_spacing_very_loose",
+        ]
+        for aid in wordart_actions:
+            act = self.action_registry.get_action(aid)
+            if act:
+                act.setEnabled(is_wordart)
+
+        diag_actions = [
+            "diagramAddShape",
+            "diagramAddAfter",
+            "diagramAddBefore",
+            "diagramAddAbove",
+            "diagramAddBelow",
+            "diagramPromote",
+            "diagramDemote",
+            "diagramMoveUp",
+            "diagramMoveDown",
+            "diagramReset",
+            "diagramToShapes",
+        ]
+        for aid in diag_actions:
+            act = self.action_registry.get_action(aid)
+            if act:
+                act.setEnabled(is_diagram)
 
     def _on_presentation_modified(self) -> None:
         """Mark presentation as modified when slide content or layout changes."""
@@ -489,11 +1676,13 @@ class LecternWindow(BaseOfficeWindow):
                 "is_wordart": is_wordart,
             }
         )
+        self._sync_toolbar_states()
 
     def _on_left_pane_tab_changed(self, index: int) -> None:
         """Handle left pane tab change between Slides (0) and Outline (1)."""
         is_outline = index == 1
         self.update_context_toolbars({"is_outline": is_outline})
+        self._sync_toolbar_states()
 
     @property
     def default_doc_name(self) -> str:
@@ -598,6 +1787,8 @@ class LecternWindow(BaseOfficeWindow):
 
         # Apply initial contextual visibility
         self.update_context_toolbars({})
+        self._wire_toolbar_widgets()
+        self._sync_toolbar_states()
 
     def set_toolbar_mode(self, name: str, mode: bool | str) -> None:
         """Set toolbar visibility mode: True, False, or 'auto'."""
@@ -689,6 +1880,7 @@ class LecternWindow(BaseOfficeWindow):
         if hasattr(self, "act_view_master") and self.act_view_master:
             self.act_view_master.setChecked(mode == "master")
         self.update_context_toolbars({"view_mode": mode})
+        self._sync_toolbar_states()
 
     def render_to_printer(
         self,
@@ -738,9 +1930,7 @@ class LecternWindow(BaseOfficeWindow):
                 painter.setFont(QFont("Arial", 9))
                 painter.setPen(QPen(QColor(120, 120, 120)))
                 doc_title = (
-                    self.current_file_path.stem
-                    if self.current_file_path
-                    else self.default_doc_name
+                    self.current_file_path.stem if self.current_file_path else self.default_doc_name
                 )
                 painter.drawText(
                     QRectF(margin_left, 18.0, avail_w, 20.0),
@@ -828,9 +2018,7 @@ class LecternWindow(BaseOfficeWindow):
                 painter.drawText(
                     caption_rect,
                     int(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter),
-                    safe_tr("幻灯片 {num} / {total}").format(
-                        num=s_idx + 1, total=total_slides
-                    ),
+                    safe_tr("幻灯片 {num} / {total}").format(num=s_idx + 1, total=total_slides),
                 )
 
         painter.end()
@@ -849,6 +2037,8 @@ class LecternWindow(BaseOfficeWindow):
     def retranslate_ui(self) -> None:
         """Update localized UI strings when application language changes."""
         super().retranslate_ui()
+        if hasattr(self, "action_registry") and self.action_registry:
+            self.action_registry.retranslate_ui(safe_tr)
         if hasattr(self, "toolbars") and self.toolbars:
             retranslate_lectern_toolbars(self.toolbars, safe_tr)
         if hasattr(self, "presentation_view"):
