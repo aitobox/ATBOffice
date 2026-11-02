@@ -13,6 +13,37 @@ from PySide6.QtWidgets import QComboBox, QMessageBox, QWidget
 from atboffice.core.action_registry import ActionRegistry
 from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.core.search import SearchController, WriterSearchAdapter
+from atboffice.modules.writer.dialogs import (
+    AutoCorrectDialog,
+    AutoSummarizeDialog,
+    BookmarkDialog,
+    BreakDialog,
+    CaptionDialog,
+    ChangeCaseDialog,
+    CrossRefDialog,
+    CustomizeDialog,
+    DateTimeDialog,
+    DeleteCellsDialog,
+    DocumentThemeDialog,
+    DropCapDialog,
+    EnvelopesLabelsDialog,
+    FieldDialog,
+    FootnoteDialog,
+    HyperlinkDialog,
+    HyphenationDialog,
+    IndexTablesDialog,
+    InsertCellsDialog,
+    LetterWizardDialog,
+    PageNumbersDialog,
+    QuireOptionsDialog,
+    SplitCellsDialog,
+    SymbolDialog,
+    TableAutoFormatDialog,
+    TableFormulaDialog,
+    TableSortDialog,
+    TextDirectionDialog,
+    WatermarkDialog,
+)
 from atboffice.modules.writer.layout.pagination import paginate_document
 from atboffice.modules.writer.models.document import ilen
 from atboffice.modules.writer.models.revision import is_tracking
@@ -389,6 +420,193 @@ class QuireWindow(BaseOfficeWindow):
         self.action_registry.set_handler("drawRect", lambda: self.insert_shape("rect"))
         self.action_registry.set_handler("drawOval", lambda: self.insert_shape("oval"))
         self.action_registry.set_handler("textBox", lambda: self.insert_shape("textbox"))
+
+        # Missing Quire dialog clusters (Phase 6)
+        # Cluster 1: Formatting & Page Setup
+        self.action_registry.set_handler("break", self.open_break_dialog)
+        self.action_registry.set_handler("dropCap", self.open_drop_cap_dialog)
+        self.action_registry.set_handler("textDirection", self.open_text_direction_dialog)
+        self.action_registry.set_handler("watermark", self.open_watermark_dialog)
+        self.action_registry.set_handler("pageNumbers", self.open_page_numbers_dialog)
+        self.action_registry.set_handler("changeCase", self.open_change_case_dialog)
+        self.action_registry.set_handler("theme", self.open_document_theme_dialog)
+
+        # Cluster 2: References & Markers
+        self.action_registry.set_handler("footnote", self.open_footnote_dialog)
+        self.action_registry.set_handler("caption", self.open_caption_dialog)
+        self.action_registry.set_handler("crossReference", self.open_cross_ref_dialog)
+        self.action_registry.set_handler("indexTables", self.open_index_tables_dialog)
+        self.action_registry.set_handler("bookmark", self.open_bookmark_dialog)
+        self.action_registry.set_handler("hyperlink", self.open_hyperlink_dialog)
+        self.action_registry.set_handler("dateTime", self.open_date_time_dialog)
+        self.action_registry.set_handler("field", self.open_field_dialog)
+        self.action_registry.set_handler("symbol", self.open_symbol_dialog)
+
+        # Cluster 3: Tools & Options
+        self.action_registry.set_handler("autoCorrect", self.open_autocorrect_dialog)
+        self.action_registry.set_handler("autocorrect", self.open_autocorrect_dialog)
+        self.action_registry.set_handler("customize", self.open_customize_dialog)
+        self.action_registry.set_handler("options", self.open_quire_options_dialog)
+        self.action_registry.set_handler("envelopes", self.open_envelopes_labels_dialog)
+        self.action_registry.set_handler("letterWizard", self.open_letter_wizard_dialog)
+        self.action_registry.set_handler("autoSummarize", self.open_autosummarize_dialog)
+        self.action_registry.set_handler("hyphenation", self.open_hyphenation_dialog)
+
+        # Cluster 4: Table Operations
+        self.action_registry.set_handler("insertCells", self.open_insert_cells_dialog)
+        self.action_registry.set_handler("deleteCells", self.open_delete_cells_dialog)
+        self.action_registry.set_handler("splitCells_dialog", self.open_split_cells_dialog)
+        self.action_registry.set_handler("tableAutoFormat", self.open_table_autoformat_dialog)
+        self.action_registry.set_handler("sort", self.open_table_sort_dialog)
+        self.action_registry.set_handler("tableSort", self.open_table_sort_dialog)
+        self.action_registry.set_handler("formula", self.open_table_formula_dialog)
+        self.action_registry.set_handler("tableFormula", self.open_table_formula_dialog)
+
+    # --- Quire Missing Dialog Cluster Openers ---
+    def open_break_dialog(self) -> BreakDialog:
+        dlg = BreakDialog(self)
+        dlg.exec()
+        return dlg
+
+    def open_drop_cap_dialog(self) -> DropCapDialog:
+        dlg = DropCapDialog(parent=self)
+        dlg.exec()
+        return dlg
+
+    def open_text_direction_dialog(self) -> TextDirectionDialog:
+        dlg = TextDirectionDialog(parent=self)
+        dlg.exec()
+        return dlg
+
+    def open_watermark_dialog(self) -> WatermarkDialog:
+        dlg = WatermarkDialog(parent=self)
+        dlg.exec()
+        return dlg
+
+    def open_page_numbers_dialog(self) -> PageNumbersDialog:
+        dlg = PageNumbersDialog(parent=self)
+        dlg.exec()
+        return dlg
+
+    def open_change_case_dialog(self) -> ChangeCaseDialog:
+        dlg = ChangeCaseDialog(self)
+        dlg.exec()
+        return dlg
+
+    def open_document_theme_dialog(self) -> DocumentThemeDialog:
+        dlg = DocumentThemeDialog(parent=self)
+        dlg.exec()
+        return dlg
+
+    def open_footnote_dialog(self) -> FootnoteDialog:
+        dlg = FootnoteDialog(self)
+        dlg.exec()
+        return dlg
+
+    def open_caption_dialog(self) -> CaptionDialog:
+        dlg = CaptionDialog(self)
+        dlg.exec()
+        return dlg
+
+    def open_cross_ref_dialog(self) -> CrossRefDialog:
+        dlg = CrossRefDialog(self)
+        dlg.exec()
+        return dlg
+
+    def open_index_tables_dialog(self) -> IndexTablesDialog:
+        dlg = IndexTablesDialog(self)
+        dlg.exec()
+        return dlg
+
+    def open_bookmark_dialog(self) -> BookmarkDialog:
+        dlg = BookmarkDialog(parent=self)
+        dlg.exec()
+        return dlg
+
+    def open_hyperlink_dialog(self) -> HyperlinkDialog:
+        dlg = HyperlinkDialog(parent=self)
+        dlg.exec()
+        return dlg
+
+    def open_date_time_dialog(self) -> DateTimeDialog:
+        dlg = DateTimeDialog(self)
+        dlg.exec()
+        return dlg
+
+    def open_field_dialog(self) -> FieldDialog:
+        dlg = FieldDialog(self)
+        dlg.exec()
+        return dlg
+
+    def open_symbol_dialog(self) -> SymbolDialog:
+        dlg = SymbolDialog(self)
+        dlg.exec()
+        return dlg
+
+    def open_autocorrect_dialog(self) -> AutoCorrectDialog:
+        dlg = AutoCorrectDialog(self)
+        dlg.exec()
+        return dlg
+
+    def open_customize_dialog(self) -> CustomizeDialog:
+        dlg = CustomizeDialog(self)
+        dlg.exec()
+        return dlg
+
+    def open_quire_options_dialog(self) -> QuireOptionsDialog:
+        dlg = QuireOptionsDialog(self)
+        dlg.exec()
+        return dlg
+
+    def open_envelopes_labels_dialog(self) -> EnvelopesLabelsDialog:
+        dlg = EnvelopesLabelsDialog(self)
+        dlg.exec()
+        return dlg
+
+    def open_letter_wizard_dialog(self) -> LetterWizardDialog:
+        dlg = LetterWizardDialog(self)
+        dlg.exec()
+        return dlg
+
+    def open_autosummarize_dialog(self) -> AutoSummarizeDialog:
+        dlg = AutoSummarizeDialog(self)
+        dlg.exec()
+        return dlg
+
+    def open_hyphenation_dialog(self) -> HyphenationDialog:
+        dlg = HyphenationDialog(self)
+        dlg.exec()
+        return dlg
+
+    def open_insert_cells_dialog(self) -> InsertCellsDialog:
+        dlg = InsertCellsDialog(self)
+        dlg.exec()
+        return dlg
+
+    def open_delete_cells_dialog(self) -> DeleteCellsDialog:
+        dlg = DeleteCellsDialog(self)
+        dlg.exec()
+        return dlg
+
+    def open_split_cells_dialog(self) -> SplitCellsDialog:
+        dlg = SplitCellsDialog(parent=self)
+        dlg.exec()
+        return dlg
+
+    def open_table_autoformat_dialog(self) -> TableAutoFormatDialog:
+        dlg = TableAutoFormatDialog(parent=self)
+        dlg.exec()
+        return dlg
+
+    def open_table_sort_dialog(self) -> TableSortDialog:
+        dlg = TableSortDialog(parent=self)
+        dlg.exec()
+        return dlg
+
+    def open_table_formula_dialog(self) -> TableFormulaDialog:
+        dlg = TableFormulaDialog(parent=self)
+        dlg.exec()
+        return dlg
 
     def _ensure_find_replace_dialog(self) -> FindReplaceDialog:
         """Create or return existing FindReplaceDialog instance."""
