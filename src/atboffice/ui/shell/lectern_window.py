@@ -8,7 +8,14 @@ from typing import Any
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtPrintSupport import QPrinter
-from PySide6.QtWidgets import QComboBox, QMessageBox, QWidget
+from PySide6.QtWidgets import (
+    QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QToolButton,
+    QWidget,
+)
 
 from atboffice.core.action_registry import ActionRegistry
 from atboffice.core.i18n import safe_tr as core_safe_tr
@@ -83,7 +90,58 @@ class LecternWindow(BaseOfficeWindow):
             self.update_window_title()
 
         self.set_modified(False)
+        self._setup_status_bar_view_buttons()
         self.menu_bar.retranslate_ui()
+
+    def _setup_status_bar_view_buttons(self) -> None:
+        """Create view mode switcher buttons and slide indicator in status bar."""
+        sb = self.statusBar()
+        if not sb:
+            return
+
+        self.lbl_status_slide = QLabel(safe_tr("幻灯片 1 / 1"), sb)
+        self.lbl_status_slide.setStyleSheet("color: #444444; padding: 0 8px;")
+        sb.addWidget(self.lbl_status_slide)
+
+        self.lbl_status_design = QLabel(safe_tr("默认设计模板"), sb)
+        self.lbl_status_design.setStyleSheet("color: #666666; padding: 0 8px;")
+        sb.addWidget(self.lbl_status_design)
+
+        # Right-aligned view mode switcher buttons
+        self.status_view_group = QWidget(sb)
+        vg_layout = QHBoxLayout(self.status_view_group)
+        vg_layout.setContentsMargins(0, 0, 0, 0)
+        vg_layout.setSpacing(2)
+
+        self.btn_view_normal = QToolButton(self.status_view_group)
+        self.btn_view_normal.setText("▤")
+        self.btn_view_normal.setToolTip(safe_tr("普通视图 (Normal View)"))
+        self.btn_view_normal.setCheckable(True)
+        self.btn_view_normal.setChecked(True)
+        self.btn_view_normal.clicked.connect(lambda: self.set_view_mode("normal"))
+        vg_layout.addWidget(self.btn_view_normal)
+
+        self.btn_view_sorter = QToolButton(self.status_view_group)
+        self.btn_view_sorter.setText("田")
+        self.btn_view_sorter.setToolTip(safe_tr("幻灯片浏览视图 (Slide Sorter View)"))
+        self.btn_view_sorter.setCheckable(True)
+        self.btn_view_sorter.clicked.connect(lambda: self.set_view_mode("sorter"))
+        vg_layout.addWidget(self.btn_view_sorter)
+
+        self.btn_view_notes = QToolButton(self.status_view_group)
+        self.btn_view_notes.setText("🗎")
+        self.btn_view_notes.setToolTip(safe_tr("备注页视图 (Notes Page View)"))
+        self.btn_view_notes.setCheckable(True)
+        self.btn_view_notes.clicked.connect(lambda: self.set_view_mode("notes"))
+        vg_layout.addWidget(self.btn_view_notes)
+
+        self.btn_view_show = QToolButton(self.status_view_group)
+        self.btn_view_show.setText("▶")
+        self.btn_view_show.setToolTip(safe_tr("幻灯片放映 (Slide Show)"))
+        self.btn_view_show.clicked.connect(self.start_slideshow)
+        vg_layout.addWidget(self.btn_view_show)
+
+        sb.addPermanentWidget(self.status_view_group)
 
     def _bind_action_handlers(self) -> None:
         """Bind window callbacks to core action IDs in ActionRegistry."""
@@ -169,6 +227,8 @@ class LecternWindow(BaseOfficeWindow):
         # 6. View mode switching
         self.action_registry.set_handler("viewNormal", lambda: self.set_view_mode("normal"))
         self.action_registry.set_handler("viewSorter", lambda: self.set_view_mode("sorter"))
+        self.action_registry.set_handler("viewNotes", lambda: self.set_view_mode("notes"))
+        self.action_registry.set_handler("viewNotesPage", lambda: self.set_view_mode("notes"))
         self.action_registry.set_handler("viewMaster", lambda: self.set_view_mode("master"))
         self.action_registry.set_handler("closeMaster", lambda: self.set_view_mode("normal"))
 
@@ -1647,6 +1707,12 @@ class LecternWindow(BaseOfficeWindow):
     def _on_presentation_modified(self) -> None:
         """Mark presentation as modified when slide content or layout changes."""
         self.set_modified(True)
+        if hasattr(self, "lbl_status_slide"):
+            ws = self.presentation_view.workspace
+            curr = getattr(ws, "current_slide_index", 0) + 1
+            slides = getattr(ws.presentation, "slides", [])
+            total = len(slides) if slides else 1
+            self.lbl_status_slide.setText(f"{safe_tr('幻灯片')} {curr} / {total}")
 
     def _on_scene_selection_changed(self) -> None:
         """Inspect selected items on the slide scene and trigger toolbar context refresh."""
@@ -1871,7 +1937,7 @@ class LecternWindow(BaseOfficeWindow):
         self.presentation_view.start_slideshow(from_current=True, fullscreen=True)
 
     def set_view_mode(self, mode: str) -> None:
-        """Switch workspace view mode ('normal', 'sorter', or 'master')."""
+        """Switch workspace view mode ('normal', 'sorter', 'notes', or 'master')."""
         self.presentation_view.set_view_mode(mode)
         act_normal = self.action_registry.get_action("viewNormal")
         if act_normal:
@@ -1879,6 +1945,9 @@ class LecternWindow(BaseOfficeWindow):
         act_sorter = self.action_registry.get_action("viewSorter")
         if act_sorter:
             act_sorter.setChecked(mode == "sorter")
+        act_notes = self.action_registry.get_action("viewNotesPage")
+        if act_notes:
+            act_notes.setChecked(mode == "notes")
         act_master = self.action_registry.get_action("viewMaster")
         if act_master:
             act_master.setChecked(mode == "master")
@@ -1886,8 +1955,19 @@ class LecternWindow(BaseOfficeWindow):
             self.act_view_normal.setChecked(mode == "normal")
         if hasattr(self, "act_view_sorter") and self.act_view_sorter:
             self.act_view_sorter.setChecked(mode == "sorter")
+        if hasattr(self, "act_view_notes") and self.act_view_notes:
+            self.act_view_notes.setChecked(mode == "notes")
         if hasattr(self, "act_view_master") and self.act_view_master:
             self.act_view_master.setChecked(mode == "master")
+
+        # Sync status bar buttons
+        if hasattr(self, "btn_view_normal") and self.btn_view_normal:
+            self.btn_view_normal.setChecked(mode == "normal")
+        if hasattr(self, "btn_view_sorter") and self.btn_view_sorter:
+            self.btn_view_sorter.setChecked(mode == "sorter")
+        if hasattr(self, "btn_view_notes") and self.btn_view_notes:
+            self.btn_view_notes.setChecked(mode == "notes")
+
         self.update_context_toolbars({"view_mode": mode})
         self._sync_toolbar_states()
 
@@ -2054,3 +2134,13 @@ class LecternWindow(BaseOfficeWindow):
             self.presentation_view.retranslate_ui()
         if hasattr(self, "menu_bar"):
             self.menu_bar.retranslate_ui()
+        if hasattr(self, "btn_view_normal") and self.btn_view_normal:
+            self.btn_view_normal.setToolTip(safe_tr("普通视图 (Normal View)"))
+        if hasattr(self, "btn_view_sorter") and self.btn_view_sorter:
+            self.btn_view_sorter.setToolTip(safe_tr("幻灯片浏览视图 (Slide Sorter View)"))
+        if hasattr(self, "btn_view_notes") and self.btn_view_notes:
+            self.btn_view_notes.setToolTip(safe_tr("备注页视图 (Notes Page View)"))
+        if hasattr(self, "btn_view_show") and self.btn_view_show:
+            self.btn_view_show.setToolTip(safe_tr("幻灯片放映 (Slide Show)"))
+        if hasattr(self, "lbl_status_design") and self.lbl_status_design:
+            self.lbl_status_design.setText(safe_tr("默认设计模板"))

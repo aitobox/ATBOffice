@@ -703,6 +703,8 @@ class LecternToolBarCluster:
         )
         self._reg_act("viewNormal", "普通视图(&N)", "切换为普通视图")
         self._reg_act("viewSorter", "幻灯片浏览(&D)", "切换为幻灯片浏览视图")
+        self._reg_act("viewNotesPage", "备注页(&P)", "切换为备注页视图")
+        self._reg_act("viewNotes", "备注页(&P)", "切换为备注页视图")
         self._reg_act("viewMaster", "幻灯片母版(&M)", "切换为幻灯片母版视图")
 
         return tb
