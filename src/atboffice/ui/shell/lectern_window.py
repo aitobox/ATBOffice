@@ -203,7 +203,9 @@ class LecternWindow(BaseOfficeWindow):
         self.action_registry.set_handler("slide_color_schemes", self.open_color_schemes_pane)
         self.action_registry.set_handler("color_schemes", self.open_color_schemes_pane)
         self.action_registry.set_handler("slideAnimationSchemes", self.open_animation_schemes_pane)
-        self.action_registry.set_handler("slide_animation_schemes", self.open_animation_schemes_pane)
+        self.action_registry.set_handler(
+            "slide_animation_schemes", self.open_animation_schemes_pane
+        )
         self.action_registry.set_handler("animation_schemes", self.open_animation_schemes_pane)
         self.action_registry.set_handler("slideshow_setup", self.open_setup_show_dialog)
         self.action_registry.set_handler("setupShow", self.open_setup_show_dialog)
@@ -1323,7 +1325,9 @@ class LecternWindow(BaseOfficeWindow):
 
         self.slide_design_pane = SlideDesignPane(presentation=pres, parent=self.task_pane_dock)
         self.color_schemes_pane = ColorSchemesPane(presentation=pres, parent=self.task_pane_dock)
-        self.animation_schemes_pane = AnimationSchemesPane(presentation=pres, parent=self.task_pane_dock)
+        self.animation_schemes_pane = AnimationSchemesPane(
+            presentation=pres, parent=self.task_pane_dock
+        )
 
         # Wire navigation between panes
         for pane in (self.slide_design_pane, self.color_schemes_pane, self.animation_schemes_pane):
@@ -1368,7 +1372,8 @@ class LecternWindow(BaseOfficeWindow):
         pres = getattr(self.presentation_view, "presentation", None)
         if not pres:
             return
-        target_slides = pres.slides if apply_to_all else ([ws.current_slide] if ws and getattr(ws, "current_slide", None) else pres.slides)
+        curr = [ws.current_slide] if ws and getattr(ws, "current_slide", None) else pres.slides
+        target_slides = pres.slides if apply_to_all else curr
         pres.apply_design(design_key, target_slides)
         if ws:
             if hasattr(ws, "render_current_slide"):
@@ -1386,7 +1391,8 @@ class LecternWindow(BaseOfficeWindow):
         pres = getattr(self.presentation_view, "presentation", None)
         if not pres:
             return
-        target_slides = pres.slides if apply_to_all else ([ws.current_slide] if ws and getattr(ws, "current_slide", None) else pres.slides)
+        curr = [ws.current_slide] if ws and getattr(ws, "current_slide", None) else pres.slides
+        target_slides = pres.slides if apply_to_all else curr
         for s in target_slides:
             did = getattr(s, "design_id", None) or getattr(s, "design", None)
             d = pres.designs.get(did) if hasattr(pres, "designs") else None
@@ -1405,7 +1411,8 @@ class LecternWindow(BaseOfficeWindow):
         pres = getattr(self.presentation_view, "presentation", None)
         if not pres:
             return
-        target_slides = pres.slides if apply_to_all else ([ws.current_slide] if ws and getattr(ws, "current_slide", None) else pres.slides)
+        curr = [ws.current_slide] if ws and getattr(ws, "current_slide", None) else pres.slides
+        target_slides = pres.slides if apply_to_all else curr
         for s in target_slides:
             s.animation_scheme = scheme_key
         self.show_status_message(safe_tr(f"已应用动画方案: {scheme_key}"))

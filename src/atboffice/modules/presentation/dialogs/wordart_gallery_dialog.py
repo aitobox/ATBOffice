@@ -5,18 +5,16 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtCore import QCoreApplication, QRectF, QSize, Qt
-from PySide6.QtGui import QBrush, QColor, QFont, QIcon, QLinearGradient, QPainter, QPen, QPixmap
+from PySide6.QtGui import QBrush, QColor, QFont, QIcon, QLinearGradient, QPainter, QPixmap
 from PySide6.QtWidgets import (
-    QButtonGroup,
-    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QGridLayout,
     QHBoxLayout,
     QLabel,
-    QPushButton,
     QPlainTextEdit,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
@@ -27,42 +25,64 @@ def safe_tr(text: str) -> str:
     return QCoreApplication.translate("WordArtGalleryDialog", text)
 
 
+def _w_style(
+    name: str,
+    fill: str | None = None,
+    stroke: str | None = None,
+    grad: tuple[str, str] | None = None,
+    warp: str = "plain",
+    shadow: bool = False,
+) -> dict[str, Any]:
+    item: dict[str, Any] = {
+        "name": name,
+        "fill": fill,
+        "stroke": stroke,
+        "grad": grad,
+        "warp": warp,
+    }
+    if shadow:
+        item["shadow"] = True
+    return item
+
+
 WORDART_30_STYLES: list[dict[str, Any]] = [
     # Row 1
-    {"name": "Style 1", "fill": "#000000", "stroke": None, "grad": None, "warp": "plain"},
-    {"name": "Style 2", "fill": "#FFFFFF", "stroke": "#000000", "grad": None, "warp": "plain"},
-    {"name": "Style 3", "fill": None, "stroke": None, "grad": ("#3366FF", "#99CCFF"), "warp": "plain"},
-    {"name": "Style 4", "fill": "#C0C0C0", "stroke": "#404040", "grad": None, "warp": "plain", "shadow": True},
-    {"name": "Style 5", "fill": None, "stroke": "#993300", "grad": ("#FF6600", "#FFCC00"), "warp": "arch_up"},
-    {"name": "Style 6", "fill": "#3366CC", "stroke": None, "grad": None, "warp": "wave1", "shadow": True},
+    _w_style("Style 1", fill="#000000"),
+    _w_style("Style 2", fill="#FFFFFF", stroke="#000000"),
+    _w_style("Style 3", grad=("#3366FF", "#99CCFF")),
+    _w_style("Style 4", fill="#C0C0C0", stroke="#404040", shadow=True),
+    _w_style("Style 5", stroke="#993300", grad=("#FF6600", "#FFCC00"), warp="arch_up"),
+    _w_style("Style 6", fill="#3366CC", warp="wave1", shadow=True),
     # Row 2
-    {"name": "Style 7", "fill": None, "stroke": "#000000", "grad": ("#FFFFFF", "#808080"), "warp": "plain", "shadow": True},
-    {"name": "Style 8", "fill": "#CC0000", "stroke": "#660000", "grad": None, "warp": "slant_up"},
-    {"name": "Style 9", "fill": None, "stroke": None, "grad": ("#00CC99", "#006666"), "warp": "plain", "shadow": True},
-    {"name": "Style 10", "fill": "#FFFF00", "stroke": "#FF6600", "grad": None, "warp": "plain", "shadow": True},
-    {"name": "Style 11", "fill": None, "stroke": None, "grad": ("#CC99FF", "#660099"), "warp": "arch_down"},
-    {"name": "Style 12", "fill": "#006600", "stroke": "#003300", "grad": None, "warp": "triangle"},
+    _w_style("Style 7", stroke="#000000", grad=("#FFFFFF", "#808080"), shadow=True),
+    _w_style("Style 8", fill="#CC0000", stroke="#660000", warp="slant_up"),
+    _w_style("Style 9", grad=("#00CC99", "#006666"), shadow=True),
+    _w_style("Style 10", fill="#FFFF00", stroke="#FF6600", shadow=True),
+    _w_style("Style 11", grad=("#CC99FF", "#660099"), warp="arch_down"),
+    _w_style("Style 12", fill="#006600", stroke="#003300", warp="triangle"),
     # Row 3
-    {"name": "Style 13", "fill": None, "stroke": "#663300", "grad": ("#FFCC00", "#CC6600"), "warp": "plain", "shadow": True},
-    {"name": "Style 14", "fill": "#000080", "stroke": None, "grad": None, "warp": "chevron", "shadow": True},
-    {"name": "Style 15", "fill": None, "stroke": "#000000", "grad": ("#E6E6E6", "#333333"), "warp": "plain"},
-    {"name": "Style 16", "fill": "#FF99CC", "stroke": "#CC0066", "grad": None, "warp": "wave1", "shadow": True},
-    {"name": "Style 17", "fill": None, "stroke": None, "grad": ("#66CCFF", "#003399"), "warp": "can_up", "shadow": True},
-    {"name": "Style 18", "fill": "#996633", "stroke": "#663300", "grad": None, "warp": "slant_down"},
+    _w_style("Style 13", stroke="#663300", grad=("#FFCC00", "#CC6600"), shadow=True),
+    _w_style("Style 14", fill="#000080", warp="chevron", shadow=True),
+    _w_style("Style 15", stroke="#000000", grad=("#E6E6E6", "#333333")),
+    _w_style("Style 16", fill="#FF99CC", stroke="#CC0066", warp="wave1", shadow=True),
+    _w_style("Style 17", grad=("#66CCFF", "#003399"), warp="can_up", shadow=True),
+    _w_style("Style 18", fill="#996633", stroke="#663300", warp="slant_down"),
     # Row 4
-    {"name": "Style 19", "fill": None, "stroke": "#996600", "grad": ("#FFFF99", "#FF9900"), "warp": "arch_up", "shadow": True},
-    {"name": "Style 20", "fill": "#00CCFF", "stroke": "#006699", "grad": None, "warp": "plain"},
-    {"name": "Style 21", "fill": None, "stroke": None, "grad": ("#FF0000", "#660000"), "warp": "plain", "shadow": True},
-    {"name": "Style 22", "fill": "#808080", "stroke": None, "grad": None, "warp": "plain", "shadow": True},
-    {"name": "Style 23", "fill": None, "stroke": "#006600", "grad": ("#99FF99", "#009900"), "warp": "circle"},
-    {"name": "Style 24", "fill": "#FF6600", "stroke": None, "grad": None, "warp": "triangle", "shadow": True},
+    _w_style(
+        "Style 19", stroke="#996600", grad=("#FFFF99", "#FF9900"), warp="arch_up", shadow=True
+    ),
+    _w_style("Style 20", fill="#00CCFF", stroke="#006699"),
+    _w_style("Style 21", grad=("#FF0000", "#660000"), shadow=True),
+    _w_style("Style 22", fill="#808080", shadow=True),
+    _w_style("Style 23", stroke="#006600", grad=("#99FF99", "#009900"), warp="circle"),
+    _w_style("Style 24", fill="#FF6600", warp="triangle", shadow=True),
     # Row 5
-    {"name": "Style 25", "fill": None, "stroke": None, "grad": ("#000000", "#808080"), "warp": "plain", "shadow": True},
-    {"name": "Style 26", "fill": "#FFFFFF", "stroke": "#3366CC", "grad": None, "warp": "arch_up", "shadow": True},
-    {"name": "Style 27", "fill": None, "stroke": None, "grad": ("#CC66FF", "#3399FF"), "warp": "wave1"},
-    {"name": "Style 28", "fill": "#003366", "stroke": "#99CCFF", "grad": None, "warp": "slant_up", "shadow": True},
-    {"name": "Style 29", "fill": None, "stroke": "#990033", "grad": ("#FFCCCC", "#FF3366"), "warp": "chevron"},
-    {"name": "Style 30", "fill": "#669900", "stroke": None, "grad": None, "warp": "can_up", "shadow": True},
+    _w_style("Style 25", grad=("#000000", "#808080")),
+    _w_style("Style 26", fill="#FFFFFF", stroke="#3366CC", warp="arch_up", shadow=True),
+    _w_style("Style 27", grad=("#CC66FF", "#3399FF"), warp="wave1"),
+    _w_style("Style 28", fill="#003366", stroke="#99CCFF", warp="slant_up", shadow=True),
+    _w_style("Style 29", stroke="#990033", grad=("#FFCCCC", "#FF3366"), warp="chevron"),
+    _w_style("Style 30", fill="#669900", warp="can_up", shadow=True),
 ]
 
 
@@ -216,7 +236,16 @@ class EditWordArtTextDialog(QDialog):
         top_row = QHBoxLayout()
         self.lbl_font = QLabel(safe_tr("字体(&F):"), self)
         self.combo_font = QComboBox(self)
-        for f in ["Arial Black", "Impact", "Arial", "Times New Roman", "Georgia", "Trebuchet MS", "Verdana"]:
+        font_list = [
+            "Arial Black",
+            "Impact",
+            "Arial",
+            "Times New Roman",
+            "Georgia",
+            "Trebuchet MS",
+            "Verdana",
+        ]
+        for f in font_list:
             self.combo_font.addItem(f)
         idx_f = self.combo_font.findText(self.initial_font)
         if idx_f >= 0:

@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QCoreApplication, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QIcon, QPainter, QPixmap
+from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
-    QHBoxLayout,
     QLabel,
     QMenu,
     QPushButton,
@@ -19,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from atboffice.modules.presentation.models.designs import DESIGNS, DesignDefinition, build_design
+from atboffice.modules.presentation.models.designs import DESIGNS, DesignDefinition
 
 if TYPE_CHECKING:
     from atboffice.modules.presentation.models.presentation import Presentation

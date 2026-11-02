@@ -16,7 +16,6 @@ Covers:
 from __future__ import annotations
 
 import pytest
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from atboffice.modules.presentation.dialogs import (
@@ -26,12 +25,10 @@ from atboffice.modules.presentation.dialogs import (
     LecternOptionsDialog,
     PhotoAlbumDialog,
     SetUpShowDialog,
-    SetupShowDialog,
     WordArtGalleryDialog,
 )
-from atboffice.modules.presentation.models.designs import ColorScheme, DESIGNS
+from atboffice.modules.presentation.models.designs import DESIGNS, ColorScheme
 from atboffice.modules.presentation.models.presentation import Presentation
-from atboffice.modules.presentation.models.shape import Fill
 from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.panes import (
     AnimationSchemesPane,

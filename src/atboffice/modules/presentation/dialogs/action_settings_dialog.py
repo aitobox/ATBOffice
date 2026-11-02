@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QGroupBox,
     QHBoxLayout,
-    QLabel,
     QLineEdit,
     QRadioButton,
     QTabWidget,

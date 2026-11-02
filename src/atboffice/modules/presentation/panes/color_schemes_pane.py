@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QCoreApplication, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QPainter, QPixmap
+from PySide6.QtGui import QColor, QFont, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
-    QGridLayout,
-    QHBoxLayout,
     QLabel,
     QMenu,
     QPushButton,
@@ -20,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from atboffice.modules.presentation.models.designs import ColorScheme, DESIGNS
+from atboffice.modules.presentation.models.designs import DESIGNS, ColorScheme
 
 if TYPE_CHECKING:
     from atboffice.modules.presentation.models.presentation import Presentation
@@ -209,7 +207,7 @@ class ColorSchemesPane(QWidget):
         for i, s in enumerate(schemes):
             card = ColorSchemeCard(s, name=f"Scheme {i + 1}", parent=self)
             card.apply_requested.connect(
-                lambda apply_all, scheme=s: self.apply_color_scheme_requested.emit(scheme, apply_all)
+                lambda apply_all, sc=s: self.apply_color_scheme_requested.emit(sc, apply_all)
             )
             self.scheme_cards.append(card)
             self.grid_layout.addWidget(card)
