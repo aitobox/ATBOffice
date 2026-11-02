@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QDialog,
@@ -102,10 +101,16 @@ class AboutDialog(QDialog):
             f"{__app_name__}  v{__version__}"
         )
         self.lbl_apps.setText(
-            safe_tr("ATBOffice 原生跨平台办公套件：包含 Quire（文本文档）、Ledger（电子表格）与 Lectern（演示文稿）。")
+            safe_tr(
+                "ATBOffice 原生跨平台办公套件："
+                "包含 Quire（文本文档）、Ledger（电子表格）与 Lectern（演示文稿）。"
+            )
         )
         self.lbl_privacy.setText(
-            safe_tr("所有文档均完全运行在您的本地设备上并安全存取。最近文档仅在本地保留快捷打开缓存。")
+            safe_tr(
+                "所有文档均完全运行在您的本地设备上并安全存取。"
+                "最近文档仅在本地保留快捷打开缓存。"
+            )
         )
         self.lbl_oss.setText(
             safe_tr("由全球优秀的开源软件与字体赋能构建。")

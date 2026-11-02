@@ -92,7 +92,8 @@ class UpdateDialog(QDialog):
         self.btn_download = QPushButton(self)
         self.btn_download.setDefault(True)
         self.btn_download.setStyleSheet(
-            "background-color: #0284C7; color: white; font-weight: bold; padding: 6px 16px; border-radius: 4px;"
+            "background-color: #0284C7; color: white; font-weight: bold; "
+            "padding: 6px 16px; border-radius: 4px;"
         )
         self.btn_download.clicked.connect(self._on_download_clicked)
         btn_layout.addWidget(self.btn_download)
@@ -100,7 +101,11 @@ class UpdateDialog(QDialog):
         layout.addLayout(btn_layout)
 
     def _on_download_clicked(self) -> None:
-        url = self.info.html_url if self.info and self.info.html_url else "https://github.com/aitobox/ATBOffice/releases"
+        url = (
+            self.info.html_url
+            if self.info and self.info.html_url
+            else "https://github.com/aitobox/ATBOffice/releases"
+        )
         QDesktopServices.openUrl(QUrl(url))
         self.accept()
 
@@ -110,11 +115,10 @@ class UpdateDialog(QDialog):
         self.label_header.setText(safe_tr("发现新版本 ATBOffice"))
 
         new_ver = self.info.version if self.info else "1.0.1"
-        self.label_version.setText(
-            safe_tr("有更高版本的 ATBOffice 可用。当前版本为 v{cur_ver}，最新版本为 v{new_ver}。").format(
-                cur_ver=self.current_version, new_ver=new_ver
-            )
-        )
+        msg = safe_tr(
+            "有更高版本的 ATBOffice 可用。当前版本为 v{cur_ver}，最新版本为 v{new_ver}。"
+        ).format(cur_ver=self.current_version, new_ver=new_ver)
+        self.label_version.setText(msg)
         self.label_prompt.setText(
             safe_tr("现在下载更新吗？您的文档和最近打开的文件将保持原样。")
         )

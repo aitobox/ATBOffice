@@ -8,19 +8,14 @@ from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
 
 from packaging import version
-from PySide6.QtCore import QObject, QThread, QUrl, Signal
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import QObject, QThread, Signal
 from PySide6.QtWidgets import (
     QApplication,
-    QDialog,
-    QHBoxLayout,
-    QLabel,
     QMessageBox,
-    QPlainTextEdit,
-    QPushButton,
-    QVBoxLayout,
     QWidget,
 )
+
+from atboffice.ui.dialogs.update_dialog import UpdateDialog
 
 
 def safe_tr(text: str) -> str:
@@ -138,9 +133,6 @@ class UpdateCheckWorker(QThread):
             self.check_failed.emit(
                 safe_tr("检查更新出错: {err}").format(err=str(e))
             )
-
-
-from atboffice.ui.dialogs.update_dialog import UpdateDialog
 
 
 # Module-level active worker reference to prevent Python garbage collection mid-flight

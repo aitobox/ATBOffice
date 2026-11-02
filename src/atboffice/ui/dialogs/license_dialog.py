@@ -146,7 +146,9 @@ freely.""",
     OSSComponent(
         name="CommonMark",
         license_type="BSD-2-Clause",
-        summary="Standard, unambiguous syntax specification and reference implementation for Markdown.",
+        summary=(
+            "Standard, unambiguous syntax specification and reference implementation for Markdown."
+        ),
         url="https://commonmark.org/",
         license_text="""Copyright (c) 2014, John MacFarlane
 All rights reserved.
@@ -267,7 +269,8 @@ class LicenseDialog(QDialog):
         font.setStyleHint(QFont.StyleHint.Monospace)
         self.text_license.setFont(font)
         self.text_license.setStyleSheet(
-            "background-color: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 4px; padding: 6px;"
+            "background-color: #F8FAFC; border: 1px solid #CBD5E1; "
+            "border-radius: 4px; padding: 6px;"
         )
         right_layout.addWidget(self.text_license, stretch=1)
 

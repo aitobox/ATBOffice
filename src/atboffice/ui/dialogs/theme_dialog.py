@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPaintEvent
@@ -456,7 +456,8 @@ class SuiteThemePreviewCanvas(QWidget):
             painter.drawLine(0, 28, w, 28)
             for i in range(6):
                 bx = 8 + i * 14
-                btn_color = accent if (i == 1 and self.theme_key == "paper") else QColor(255, 255, 255, 180)
+                is_paper_active = i == 1 and self.theme_key == "paper"
+                btn_color = accent if is_paper_active else QColor(255, 255, 255, 180)
                 painter.fillRect(bx, 14, 10, 12, btn_color)
 
             top_h = 28
@@ -570,7 +571,10 @@ class SuiteThemeCard(QFrame):
 
 
 class SuiteThemeDialog(QDialog):
-    """Standalone Themes gallery dialog matching VibeOffice 3-card suite looks (Classic, Paper, Paper 2016 Ribbon)."""
+    """Standalone Themes gallery dialog matching VibeOffice 3-card suite looks.
+
+    Themes include Classic, Paper, and Paper 2016 Ribbon.
+    """
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)

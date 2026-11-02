@@ -409,7 +409,10 @@ def test_suite_theme_dialog_cards_and_switching(qtbot):
         assert dlg.cards[key].lbl_title.text() != ""
 
     # Select Paper
-    dlg.cards["paper"].click() if hasattr(dlg.cards["paper"], "click") else dlg._on_card_selected("paper")
+    if hasattr(dlg.cards["paper"], "click"):
+        dlg.cards["paper"].click()
+    else:
+        dlg._on_card_selected("paper")
     assert dlg.selected_theme == "paper"
     assert dlg.cards["paper"].is_selected is True
     assert dlg.cards["classic"].is_selected is False
