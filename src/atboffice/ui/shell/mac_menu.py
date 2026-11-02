@@ -162,6 +162,11 @@ class MacMenuBar(QMenuBar):
         menu_file.addSeparator()
 
         self._reg_act(
+            menu_file, "properties", "file_properties"
+        )
+        menu_file.addSeparator()
+
+        self._reg_act(
             menu_file, "close", "file_close", shortcut=QKeySequence.StandardKey.Close
         )
 
@@ -210,6 +215,13 @@ class MacMenuBar(QMenuBar):
         menu_view = self.addMenu("")
         self.menu_map["view"] = menu_view
 
+        self._reg_act(
+            menu_view,
+            "taskPane",
+            "view_task_pane",
+            shortcut=QKeySequence("Ctrl+F1"),
+            checkable=True,
+        )
         self._reg_act(
             menu_view,
             "view_fullscreen",
@@ -554,6 +566,14 @@ class MacMenuBar(QMenuBar):
                 safe_tr("打印预览"),
                 safe_tr("打开全功能交互式打印预览视口"),
             ),
+            "file_properties": (
+                safe_tr("属性(&I)"),
+                safe_tr("查看或编辑文档摘要及统计属性"),
+            ),
+            "properties": (
+                safe_tr("属性(&I)"),
+                safe_tr("查看或编辑文档摘要及统计属性"),
+            ),
             "file_close": (close_text, close_tip),
             "close": (close_text, close_tip),
             # Edit
@@ -582,6 +602,14 @@ class MacMenuBar(QMenuBar):
                 safe_tr("打开单元格格式设置对话框"),
             ),
             # View
+            "view_task_pane": (
+                safe_tr("任务窗格(&K)"),
+                safe_tr("显示或隐藏侧边任务窗格 (Ctrl+F1)"),
+            ),
+            "taskPane": (
+                safe_tr("任务窗格(&K)"),
+                safe_tr("显示或隐藏侧边任务窗格 (Ctrl+F1)"),
+            ),
             "view_fullscreen": (safe_tr("全屏切换"), safe_tr("进入或退出全屏模式")),
             "view_zoom_in": (safe_tr("放大"), safe_tr("放大视图")),
             "zoom_in": (safe_tr("放大"), safe_tr("放大视图")),
