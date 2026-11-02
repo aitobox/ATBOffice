@@ -2,32 +2,26 @@
 
 Issue #201: [Phase 5] 执行三模块端到端与稳定性最终验收.
 Covers:
-1. Quire (Word Processor):
-   - Workflow: New -> Input -> Format -> Undo/Redo -> Save (docx & html) -> Reopen -> Edit -> Cancel Close.
-2. Ledger (Spreadsheet):
-   - Workflow: New -> Cell Data & Formula -> Format -> Undo/Redo -> Save (xlsx & csv) -> Reopen -> Edit -> Cancel Close.
-3. Lectern (Presentation):
-   - Workflow: New -> Shapes & Text -> Format -> Undo/Redo -> Save (pptx) -> Reopen -> Edit -> Cancel Close.
+1. Quire (Word Processor): New -> Input -> Format -> Undo/Redo -> Save -> Reopen.
+2. Ledger (Spreadsheet): New -> Cell Data & Formula -> Format -> Undo/Redo -> Save -> Reopen.
+3. Lectern (Presentation): New -> Shapes & Text -> Format -> Undo/Redo -> Save -> Reopen.
 4. 100-cycle mixed interaction stress test in native Qt event loop across all 3 modules.
 5. 100-cycle isolated subprocess replay stress test across all 3 modules with diagnostics.
 """
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QPoint, QPointF, Qt
-from PySide6.QtGui import QCloseEvent, QKeyEvent, QMouseEvent
+from PySide6.QtCore import QPointF, Qt
+from PySide6.QtGui import QCloseEvent, QMouseEvent
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from atboffice.core.diagnostics import drain_event_loop
 from atboffice.modules.presentation.models.shape import Fill, Line, Shape
 from atboffice.modules.presentation.models.text import TextBody
 from atboffice.modules.writer.models.document import (
-    Paragraph,
-    TextItem,
     all_paragraphs,
     ptext,
 )
@@ -48,7 +42,7 @@ def replay_runner(tmp_path: Path) -> SubprocessReplayRunner:
 # ==============================================================================
 
 def test_quire_e2e_workflow_and_roundtrip(qtbot, monkeypatch, tmp_path: Path):
-    """Quire complete lifecycle: New -> Input -> Format -> Undo/Redo -> Save -> Reopen -> Cancel Close."""
+    """Quire complete lifecycle: New -> Input -> Format -> Undo/Redo -> Save -> Reopen."""
     win = QuireWindow()
     qtbot.addWidget(win)
     win.resize(1000, 700)
@@ -125,7 +119,7 @@ def test_quire_e2e_workflow_and_roundtrip(qtbot, monkeypatch, tmp_path: Path):
 # ==============================================================================
 
 def test_ledger_e2e_workflow_and_roundtrip(qtbot, monkeypatch, tmp_path: Path):
-    """Ledger complete lifecycle: New -> Cell Data & Formula -> Format -> Undo/Redo -> Save -> Reopen -> Cancel Close."""
+    """Ledger complete lifecycle: New -> Data & Formula -> Format -> Undo/Redo -> Save."""
     win = LedgerWindow()
     qtbot.addWidget(win)
     win.resize(1000, 700)
@@ -214,7 +208,7 @@ def test_ledger_e2e_workflow_and_roundtrip(qtbot, monkeypatch, tmp_path: Path):
 # ==============================================================================
 
 def test_lectern_e2e_workflow_and_roundtrip(qtbot, monkeypatch, tmp_path: Path):
-    """Lectern complete lifecycle: New -> Shapes & Text -> Format -> Undo/Redo -> Save -> Reopen -> Cancel Close."""
+    """Lectern complete lifecycle: New -> Shapes & Text -> Format -> Undo/Redo -> Save."""
     win = LecternWindow()
     qtbot.addWidget(win)
     win.resize(1000, 700)
@@ -301,7 +295,9 @@ def test_lectern_e2e_workflow_and_roundtrip(qtbot, monkeypatch, tmp_path: Path):
 # ==============================================================================
 
 def test_three_modules_in_process_100_mixed_interactions(qtbot):
-    """Execute >= 100 mixed GUI interactions across Quire, Ledger, and Lectern without crash or leak."""
+    """Execute >= 100 mixed GUI interactions across Quire, Ledger, and Lectern
+    without crash or leak.
+    """
     # Module 1: Quire (100 mixed interactions)
     quire_win = QuireWindow()
     qtbot.addWidget(quire_win)
@@ -402,7 +398,9 @@ def test_three_modules_in_process_100_mixed_interactions(qtbot):
 def test_three_modules_subprocess_100_stress_replay(
     replay_runner: SubprocessReplayRunner, module: str
 ) -> None:
-    """Isolated subprocess runs 100 stress interactions with diagnostics enabled and exits cleanly."""
+    """Isolated subprocess runs 100 stress interactions with diagnostics enabled
+    and exits cleanly.
+    """
     result = replay_runner.run(
         module=module,
         action="stress_interaction",
