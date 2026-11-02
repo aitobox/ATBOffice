@@ -1000,6 +1000,13 @@ class CaretController(QObject):
         if ctrl and key == Qt.Key.Key_A:
             self.select_all()
             return True
+        if key == Qt.Key.Key_Escape:
+            if not self.selection.is_collapsed:
+                self.selection.anchor = self.pos
+                self.selection_changed.emit()
+                self.caret_changed.emit()
+                return True
+            return False
 
         text = event.text()
         if text and text.isprintable():

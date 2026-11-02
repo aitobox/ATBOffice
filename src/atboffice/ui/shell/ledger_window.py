@@ -2114,7 +2114,7 @@ class LedgerWindow(BaseOfficeWindow):
 
         r1, c1, r2, c2 = self._get_selected_cell_range()
         model = self.spreadsheet_view.model
-        src_cell = model.get_cell(r1, c1)
+        src_cell = model.get_cell(r1, c1) or CellData()
 
         self._format_painter_active = True
         self._format_painter_sticky = bool(double_click)

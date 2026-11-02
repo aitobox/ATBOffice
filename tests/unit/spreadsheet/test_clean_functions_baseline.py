@@ -12,14 +12,19 @@ import pytest
 from atboffice.modules.spreadsheet.calc.context import EvalContext
 from atboffice.modules.spreadsheet.calc.evaluator import evaluate
 
-BASELINE_PATH = Path(".vibeoffice/tests/ledger/clean-functions.baseline.json")
+REPO_ROOT = Path(__file__).resolve().parents[2]
+BASELINE_PATH = REPO_ROOT / "fixtures" / "baseline" / "clean-functions.baseline.json"
+FALLBACK_BASELINE_PATH = (
+    REPO_ROOT / ".vibeoffice" / "tests" / "ledger" / "clean-functions.baseline.json"
+)
 
 
 @pytest.fixture(scope="module")
 def baseline_data() -> dict[str, Any]:
-    if not BASELINE_PATH.exists():
+    path = BASELINE_PATH if BASELINE_PATH.exists() else FALLBACK_BASELINE_PATH
+    if not path.exists():
         pytest.skip("clean-functions.baseline.json not found")
-    with open(BASELINE_PATH, encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 

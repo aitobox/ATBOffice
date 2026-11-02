@@ -1,5 +1,12 @@
 """Spreadsheet data, selection, and workbook models."""
 
+from atboffice.modules.spreadsheet.models.color_utils import (
+    apply_tint,
+    font_row_pt,
+    hsl_to_rgb,
+    pt_to_px,
+    rgb_to_hsl,
+)
 from atboffice.modules.spreadsheet.models.conditional_format import (
     CFVO,
     CFOp,
@@ -76,4 +83,9 @@ __all__ = [
     "read_pivots_from_zip",
     "validate_cell_value",
     "write_pivots_to_package",
+    "apply_tint",
+    "font_row_pt",
+    "hsl_to_rgb",
+    "pt_to_px",
+    "rgb_to_hsl",
 ]

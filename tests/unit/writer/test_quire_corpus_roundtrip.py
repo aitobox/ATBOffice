@@ -31,9 +31,23 @@ from atboffice.modules.writer.layout.pagination import paginate_document
 from atboffice.modules.writer.models.document import all_paragraphs, ptext
 from atboffice.vfs.opc import SourcePackage
 
-CORPUS_LINECASES = Path(".vibeoffice/tests/quire/lines/linecases.docx")
-CORPUS_LINEGRID = Path(".vibeoffice/tests/from-issues/11/linegrid.docx")
-WORD_REF_JSON = Path(".vibeoffice/tests/from-issues/11/word.json")
+REPO_ROOT = Path(__file__).resolve().parents[2]
+FIXTURES_DIR = REPO_ROOT / "fixtures"
+
+_p_linecases = FIXTURES_DIR / "docs" / "linecases.docx"
+CORPUS_LINECASES = _p_linecases if _p_linecases.exists() else (
+    REPO_ROOT / ".vibeoffice" / "tests" / "quire" / "lines" / "linecases.docx"
+)
+
+_p_linegrid = FIXTURES_DIR / "docs" / "linegrid.docx"
+CORPUS_LINEGRID = _p_linegrid if _p_linegrid.exists() else (
+    REPO_ROOT / ".vibeoffice" / "tests" / "from-issues" / "11" / "linegrid.docx"
+)
+
+_p_word = FIXTURES_DIR / "benchmarks" / "word.json"
+WORD_REF_JSON = _p_word if _p_word.exists() else (
+    REPO_ROOT / ".vibeoffice" / "tests" / "from-issues" / "11" / "word.json"
+)
 
 CT_RELS = "application/vnd.openxmlformats-package.relationships+xml"
 CT_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"
