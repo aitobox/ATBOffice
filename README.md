@@ -32,6 +32,7 @@ atboffice
 ```bash
 ruff check .
 pytest
+python scripts/run_corpus_audit.py --corpus-dir tests/docs/full_corpus --workers 4 --output audit_report.jsonl
 ```
 
 项目使用 `src` 布局；各办公模块位于 `src/atboffice/modules/`，共享 UI 和应用入口分别位于 `src/atboffice/ui/` 与 `src/atboffice/`。
