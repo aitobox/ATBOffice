@@ -55,8 +55,10 @@ def test_normalize_locale_name():
     assert normalize_locale_name("ko_KR") == "ko"
     assert normalize_locale_name("fr_FR") == "fr"
     assert normalize_locale_name("de_DE") == "de"
+    assert normalize_locale_name("es_ES") == "es"
+    assert normalize_locale_name("ru_RU") == "ru"
     # Unknown fallback
-    assert normalize_locale_name("es") == "en"
+    assert normalize_locale_name("it") == "en"
 
 
 def test_translation_catalog_7_languages():

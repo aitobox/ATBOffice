@@ -471,7 +471,7 @@ class OutlineViewWidget(QWidget):
             row_rect = QRect(indent, y, self.width() - indent - 20, line_height)
             sym_rect = QRect(indent - 18, y + 4, 16, 16)
 
-            caret_p = self.controller.caret_para if self.controller else None
+            caret_p = getattr(self.controller, "caret_para", None) if self.controller else None
             is_selected = (self.selected_para and self.selected_para.id == p.id) or (
                 caret_p is not None and caret_p.id == p.id
             )

@@ -2391,10 +2391,10 @@ class LedgerWindow(BaseOfficeWindow):
             grid.redo()
             self.set_modified(True)
 
-    def set_view_mode(self, mode: str) -> None:
+    def set_view_mode(self, mode: str, prompt_welcome: bool = False) -> None:
         """Switch spreadsheet view mode ('normal' or 'page_break')."""
         if hasattr(self, "spreadsheet_view") and hasattr(self.spreadsheet_view, "grid"):
-            self.spreadsheet_view.grid.set_view_mode(mode)
+            self.spreadsheet_view.grid.set_view_mode(mode, prompt_welcome=prompt_welcome)
         if hasattr(self, "action_registry") and self.action_registry:
             self.action_registry.set_checked("view_normal", mode == "normal")
             self.action_registry.set_checked("view_page_break", mode == "page_break")

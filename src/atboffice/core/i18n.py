@@ -20,6 +20,8 @@ SUPPORTED_LOCALES = [
     "ko",
     "fr",
     "de",
+    "es",
+    "ru",
 ]
 
 LOCALE_DISPLAY_NAMES = {
@@ -30,6 +32,8 @@ LOCALE_DISPLAY_NAMES = {
     "ko": "한국어 (Korean)",
     "fr": "Français (French)",
     "de": "Deutsch (German)",
+    "es": "Español (Spanish)",
+    "ru": "Русский (Russian)",
 }
 
 # Regex for stripping trailing Asian mnemonic accelerator, e.g. "保存(&S)" -> "保存"
@@ -62,7 +66,7 @@ def normalize_locale_name(locale_name: str | None) -> str:
 
     # Base language codes
     base = tag.split("-")[0]
-    if base in ("ja", "ko", "fr", "de", "en"):
+    if base in ("ja", "ko", "fr", "de", "es", "ru", "en"):
         return base
 
     # Fallback to English for other non-supported languages
