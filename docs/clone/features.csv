@@ -4,7 +4,7 @@ Recent Files History and Persistence,core,must,yes,yes,RecentFilesManager stores
 CLI Routing and Module Subcommand Launch,core,must,yes,yes,"atboffice CLI router supports start-center, quire, ledger, lectern subcommands"
 ActionRegistry Unified Command Bus,core,must,yes,yes,Window-scoped ActionRegistry with state tracking and fallback toast
 Universal Find and Replace Engine,core,must,yes,yes,"SearchController supports text search, regex, case sensitive, direction"
-Full 7-Language i18n Translation Engine,core,must,yes,yes,"safe_tr dynamic loader with zh-CN, zh-Hant, en, ja, ko, fr, de JSON catalogs"
+Full 7-Language (9-Locale) i18n Translation Engine,core,must,yes,yes,"safe_tr dynamic loader with zh-CN, zh-Hant, en, ja, ko, fr, de, es, ru JSON catalogs (PR #233, fixes #221)"
 Application Settings and Preferences Storage,core,should,yes,yes,"Multi-tab Tools -> Options dialog with general, view, edit, print, security, and theme switcher (PR #148)"
 Open Packaging Conventions (OPC) Container,vfs,must,yes,yes,Pure Python OPC package parsing and relationship management
 Part-Level Lossless Preserve Engine,vfs,must,yes,yes,"Byte-for-byte carry for unmodified parts (VBA macros, themes, media)"
@@ -114,3 +114,14 @@ Office Assistant Scout Character Widget,common_ui,could,yes,yes,"assistant_scout
 Application Preferences and Options Dialog,common_ui,should,yes,yes,Comprehensive multi-tab Tools -> Options dialog with settings persistence (PR #148)
 Document Printing and Print Preview Subsystem,common_ui,must,yes,yes,"Universal printing controller, QPrintPreviewDialog, and vector PDF export (PR #144)"
 Automatic Updater and Release Check,common_ui,could,yes,yes,"updater.py asynchronous background GitHub release checker and update notification (PR #184, fixes #167)"
+Quire Web/Reading/Outline/FullScreen View Matrix,quire_ui,must,yes,yes,"Complete view modes with zoom, layout adaptation, and toolbar switching (PR #223)"
+Quire 100 Dialog Target Matrix and Tab Navigation,quire_ui,must,yes,yes,"All 100 Word 2003 dialog targets with full tab stepping and control wiring (PR #224)"
+Ledger Page Break Preview and FullScreen View Matrix,ledger_ui,must,yes,yes,"Normal and Page Break Preview with watermark, split lines, and full screen mode (PR #225)"
+Ledger 77 Dialog Target Matrix (Format Cells & Page Setup),ledger_ui,must,yes,yes,"Format Cells 6 tabs, Page Setup 4 tabs, and complete dialog matrix (PR #226)"
+Ledger Chart Wizard and Text to Columns Wizard,ledger_ui,must,yes,yes,"Multi-step chart wizard, delimited/fixed-width text parse wizard, and analysis dialogs (PR #229)"
+Lectern Slide Sorter / Notes Page / Master Views,lectern_ui,must,yes,yes,"Slide sorter grid, notes page layout, slide/title/handout/notes master views (PR #230)"
+Lectern Slide Show Floating Controller and Setup Dialog,lectern_ui,must,yes,yes,"Full-screen slide show controller, pen/laser pointer, navigation menu, and setup dialog (PR #230)"
+Lectern Design Template / Color Scheme / Animation Panes,lectern_ui,must,yes,yes,"Side task panes for design templates, color schemes, and custom animations (PR #231)"
+Start Center Settings / Theme Selection / License Dialogs,common_ui,must,yes,yes,"Options dialog, Luna/Classic theme switcher, update notifier, and license viewer (PR #232)"
+Automated Screenshot Capture and imgdiff Analysis Suite,tooling,must,yes,yes,"scripts/capture_atboffice_screens.py and scripts/imgdiff.py for 412 screenshot parity verification (fixes #221)"
+Extended 9-Locale Internationalization (es and ru),core,must,yes,yes,"Added Spanish and Russian translation catalogs to canonical 7 languages with safe_tr() (fixes #221)"
