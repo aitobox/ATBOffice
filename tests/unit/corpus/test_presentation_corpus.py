@@ -7,12 +7,10 @@ the curated real-world production PowerPoint files in tests/docs/powerpoint/.
 from __future__ import annotations
 
 from pathlib import Path
-import pytest
 
 from atboffice.deep.audit.core import AuditSession, load_package_xml
 from atboffice.deep.audit.presentation import extract_presentation_features
 from atboffice.modules.presentation.io import read_pptx, write_pptx
-
 
 PPTX_DIR = Path("tests/docs/powerpoint/pptx")
 PPT_DIR = Path("tests/docs/powerpoint/ppt")

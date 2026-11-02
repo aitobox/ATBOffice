@@ -12,11 +12,11 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 # Pinned upstream repositories and commits known to contain high-value Office fixtures
@@ -85,8 +85,7 @@ def git(folder: Path, *args: str, check: bool = True) -> str | None:
     res = subprocess.run(
         ["git", "-C", str(folder), *args],
         check=check,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         text=True,
     )
     return res.stdout.strip() if res.returncode == 0 else None
@@ -127,7 +126,8 @@ def fetch_ledger_features(dest_dir: Path) -> list[dict[str, Any]]:
         digest = hashlib.sha256(data).hexdigest()
         if digest != expected_digest:
             raise ValueError(
-                f"Fixture hash mismatch for {file_path.name}: expected {expected_digest}, got {digest}"
+                f"Fixture hash mismatch for {file_path.name}: "
+                f"expected {expected_digest}, got {digest}"
             )
 
         if not file_path.exists():
@@ -326,15 +326,17 @@ def curate_representative_samples(
             curated_files.append(dst)
             total_bytes += c["size"]
 
+    mb = total_bytes / (1024 * 1024)
     print(
-        f"Curated {len(curated_files)} files into {curated_base_dir} (total {total_bytes / (1024 * 1024):.2f}MB)",
+        f"Curated {len(curated_files)} files into {curated_base_dir} (total {mb:.2f}MB)",
         flush=True,
     )
     return curated_files
 
 
 def main() -> None:
-    default_cache = Path(os.environ.get("ATBOFFICE_CORPORA_CACHE", Path.home() / ".cache" / "atboffice_corpora"))
+    cache_env = os.environ.get("ATBOFFICE_CORPORA_CACHE")
+    default_cache = Path(cache_env) if cache_env else (Path.home() / ".cache" / "atboffice_corpora")
     parser = argparse.ArgumentParser(description="Fetch and manage Office test corpora.")
     parser.add_argument(
         "--dest",

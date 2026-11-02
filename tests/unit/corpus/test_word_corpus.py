@@ -7,12 +7,10 @@ the curated real-world production Word files in tests/docs/word/.
 from __future__ import annotations
 
 from pathlib import Path
-import pytest
 
 from atboffice.deep.audit.core import AuditSession, load_package_xml
 from atboffice.deep.audit.word import count_document_words, extract_word_features
 from atboffice.modules.writer.io import read_docx, write_docx
-
 
 DOCX_DIR = Path("tests/docs/word/docx")
 DOC_DIR = Path("tests/docs/word/doc")
@@ -46,6 +44,8 @@ def test_curated_docx_roundtrip_and_feature_preservation() -> None:
         # Word count check
         orig_words = count_document_words(orig_files)
         saved_words = count_document_words(saved_files)
+        assert orig_words >= 0
+        assert saved_words >= 0
 
         # Record in audit session
         session.record_pair(

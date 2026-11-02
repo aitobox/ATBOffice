@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import io
-from pathlib import Path
 import zipfile
-
-import pytest
+from pathlib import Path
 
 from atboffice.deep.audit.core import AuditSession, load_package_xml, xml_text
 
@@ -34,8 +32,19 @@ def test_load_package_xml_alternate_content() -> None:
 
 def test_audit_session_metrics() -> None:
     session = AuditSession()
-    session.record_pair("doc1.docx", status="ok", original_features={"comments": 2}, saved_features={"comments": 2})
-    session.record_pair("doc2.docx", status="failed", reason="Missing part", original_features={"comments": 1}, saved_features={"comments": 0})
+    session.record_pair(
+        "doc1.docx",
+        status="ok",
+        original_features={"comments": 2},
+        saved_features={"comments": 2},
+    )
+    session.record_pair(
+        "doc2.docx",
+        status="failed",
+        reason="Missing part",
+        original_features={"comments": 1},
+        saved_features={"comments": 0},
+    )
     session.record_pair("doc3.docx", status="excluded", reason="Fuzz malformed file")
     report = session.summary()
     assert report["attempted"] == 3

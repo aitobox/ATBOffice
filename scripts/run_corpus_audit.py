@@ -9,18 +9,13 @@ the 6,200+ files in tests/docs/full_corpus/ or any specified directory.
 from __future__ import annotations
 
 import argparse
-from concurrent.futures import ProcessPoolExecutor, as_completed
 import json
 import os
-from pathlib import Path
 import sys
 import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from pathlib import Path
 from typing import Any
-
-# Ensure src/ is in sys.path when invoked directly
-src_dir = str(Path(__file__).resolve().parents[1] / "src")
-if src_dir not in sys.path:
-    sys.path.insert(0, src_dir)
 
 from atboffice.deep.audit.core import load_package_xml
 from atboffice.deep.audit.excel import extract_excel_features
@@ -30,7 +25,6 @@ from atboffice.modules.presentation.io import read_pptx, write_pptx
 from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
 from atboffice.modules.spreadsheet.io.xlsx_writer import write_xlsx
 from atboffice.modules.writer.io import read_docx, write_docx
-
 
 EXT_TO_APP: dict[str, str] = {
     ".docx": "word",
@@ -243,8 +237,9 @@ def main() -> None:
 
             if completed % max(1, total // 20) == 0 or completed == total:
                 elapsed = time.time() - start_time
+                status_str = f"ok={ok_count} failed={failed_count} excluded={excluded_count}"
                 print(
-                    f"[{completed}/{total}] ok={ok_count} failed={failed_count} excluded={excluded_count} ({elapsed:.1f}s)",
+                    f"[{completed}/{total}] {status_str} ({elapsed:.1f}s)",
                     flush=True,
                 )
 
@@ -260,4 +255,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    src_dir = str(Path(__file__).resolve().parents[1] / "src")
+    if src_dir not in sys.path:
+        sys.path.insert(0, src_dir)
     main()

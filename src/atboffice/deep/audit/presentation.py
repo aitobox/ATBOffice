@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import collections
 import re
-from typing import Callable
+from collections.abc import Callable
 
 SLIDES = r"ppt/slides/slide\d+\.xml$"
 

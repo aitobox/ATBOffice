@@ -7,13 +7,11 @@ the curated real-world production Excel files in tests/docs/excel/.
 from __future__ import annotations
 
 from pathlib import Path
-import pytest
 
 from atboffice.deep.audit.core import AuditSession, load_package_xml
 from atboffice.deep.audit.excel import extract_excel_features
 from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
 from atboffice.modules.spreadsheet.io.xlsx_writer import write_xlsx
-
 
 XLSX_DIR = Path("tests/docs/excel/xlsx")
 XLS_DIR = Path("tests/docs/excel/xls")
@@ -70,4 +68,6 @@ def test_curated_xls_binary_safe_handling() -> None:
         if data.startswith(ole2_header) or data.startswith(biff_header):
             valid_header_count += 1
 
-    assert valid_header_count >= 10, "Curated .xls collection should include real OLE2 or BIFF workbooks"
+    assert valid_header_count >= 10, (
+        "Curated .xls collection should include real OLE2 or BIFF workbooks"
+    )

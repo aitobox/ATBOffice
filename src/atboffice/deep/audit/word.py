@@ -6,7 +6,7 @@ Ported and refined from .vibeoffice/tests/quire/loss-audit.py.
 from __future__ import annotations
 
 import re
-from typing import Callable
+from collections.abc import Callable
 
 BODY = r"word/(document|header\d*|footer\d*|footnotes|endnotes|comments)\.xml$"
 
