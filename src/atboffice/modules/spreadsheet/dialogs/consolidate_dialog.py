@@ -132,7 +132,10 @@ class ConsolidateDialog(QDialog):
 
     def _on_add_reference(self) -> None:
         ref = self.edit_reference.text().strip()
-        if ref and ref not in [self.list_references.item(i).text() for i in range(self.list_references.count())]:
+        existing = [
+            self.list_references.item(i).text() for i in range(self.list_references.count())
+        ]
+        if ref and ref not in existing:
             self.list_references.addItem(ref)
             self.edit_reference.clear()
 

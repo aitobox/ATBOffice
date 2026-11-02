@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QCoreApplication, Qt, Signal
 from PySide6.QtWidgets import (
-    QButtonGroup,
     QCheckBox,
     QDialog,
     QGridLayout,
@@ -20,8 +19,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
-from atboffice.modules.spreadsheet.calc.goal_seek import parse_cell_reference
 
 if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel

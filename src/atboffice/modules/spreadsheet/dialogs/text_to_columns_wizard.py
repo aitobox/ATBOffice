@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QCoreApplication, Qt, Signal
 from PySide6.QtWidgets import (
-    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -239,7 +238,14 @@ class TextToColumnsWizard(QDialog):
         h_qual.addStretch(1)
         grid_d.addLayout(h_qual, 4, 0, 1, 2)
 
-        for chk in (self.chk_tab, self.chk_semicolon, self.chk_comma, self.chk_space, self.chk_other, self.chk_consecutive):
+        for chk in (
+            self.chk_tab,
+            self.chk_semicolon,
+            self.chk_comma,
+            self.chk_space,
+            self.chk_other,
+            self.chk_consecutive,
+        ):
             chk.stateChanged.connect(self._refresh_split_preview)
         self.edit_other.textChanged.connect(self._refresh_split_preview)
         self.combo_qualifier.currentIndexChanged.connect(self._refresh_split_preview)
@@ -289,7 +295,12 @@ class TextToColumnsWizard(QDialog):
         layout.addWidget(grp_fmt)
 
         # Connect format radio changes
-        for r_btn in (self.radio_fmt_general, self.radio_fmt_text, self.radio_fmt_date, self.radio_fmt_skip):
+        for r_btn in (
+            self.radio_fmt_general,
+            self.radio_fmt_text,
+            self.radio_fmt_date,
+            self.radio_fmt_skip,
+        ):
             r_btn.toggled.connect(self._on_format_changed)
 
         h_dest = QHBoxLayout()
@@ -331,18 +342,13 @@ class TextToColumnsWizard(QDialog):
         if self.chk_consecutive.isChecked():
             pattern = f"({pattern})+"
 
-        qual = self.combo_qualifier.currentText()
-        if qual in ('"', "'"):
-            # Simple quoted-token split
-            regex = f'{qual}([^{qual}]*){qual}|(?:(?<={pattern})|^)([^{"".join(delims)}]*)(?={pattern}|$)'
-
         parts = re.split(pattern, line)
         return [p.strip('"\'') for p in parts]
 
     def _refresh_split_preview(self) -> None:
         start = self.spin_start_row.value() - 1
         lines = self.raw_lines[start : start + 20]
-        rows: list[list[str]] = [self._split_line(l) for l in lines]
+        rows: list[list[str]] = [self._split_line(line_text) for line_text in lines]
 
         max_cols = max((len(r) for r in rows), default=1)
         for tbl in (self.table_p2, self.table_p3):

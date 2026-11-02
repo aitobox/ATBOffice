@@ -15,8 +15,6 @@ Covers:
 
 from __future__ import annotations
 
-from typing import Any
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QDialog
 
@@ -244,7 +242,10 @@ class TestScenarioManagerDialog:
         data = add_dlg.get_data()
         assert data["name"] == "BestCase"
 
-        val_dlg = ScenarioValuesDialog(changing_cells=["B1", "B2"], initial_values={"B1": "80", "B2": "150"})
+        val_dlg = ScenarioValuesDialog(
+            changing_cells=["B1", "B2"],
+            initial_values={"B1": "80", "B2": "150"},
+        )
         vals = val_dlg.get_values()
         assert vals["B1"] == "80"
         assert vals["B2"] == "150"
@@ -341,7 +342,11 @@ class TestProtectDialogs:
 class TestAdvancedFilterDialog:
     def test_advanced_filter_params(self, qapp: QApplication) -> None:
         sheet = SheetDataModel(name="Sheet1")
-        dlg = AdvancedFilterDialog(sheet_model=sheet, initial_list_range="$A$1:$D$50", initial_criteria_range="$F$1:$G$2")
+        dlg = AdvancedFilterDialog(
+            sheet_model=sheet,
+            initial_list_range="$A$1:$D$50",
+            initial_criteria_range="$F$1:$G$2",
+        )
         assert dlg.windowTitle() == "高级筛选"
 
         dlg.radio_copy_to.setChecked(True)

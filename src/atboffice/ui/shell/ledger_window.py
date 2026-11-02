@@ -300,7 +300,9 @@ class LedgerWindow(BaseOfficeWindow):
         self.action_registry.set_handler("protectSheet", self.open_protect_sheet_dialog)
         self.action_registry.set_handler("tools_protect_sheet", self.open_protect_sheet_dialog)
         self.action_registry.set_handler("protectWorkbook", self.open_protect_workbook_dialog)
-        self.action_registry.set_handler("tools_protect_workbook", self.open_protect_workbook_dialog)
+        self.action_registry.set_handler(
+            "tools_protect_workbook", self.open_protect_workbook_dialog
+        )
         self.action_registry.set_handler("advancedFilter", self.open_advanced_filter_dialog)
         self.action_registry.set_handler("data_advanced_filter", self.open_advanced_filter_dialog)
         self.action_registry.set_handler("options", self.open_options_dialog)
@@ -1640,11 +1642,11 @@ class LedgerWindow(BaseOfficeWindow):
 
         sheet = getattr(self.spreadsheet_view, "model", None)
         sel = getattr(self.spreadsheet_view, "selection", None)
-        sel_range = (
-            (sel.active_range.top, sel.active_range.left, sel.active_range.bottom, sel.active_range.right)
-            if (sel and getattr(sel, "active_range", None))
-            else (0, 0, 0, 0)
-        )
+        if sel and getattr(sel, "active_range", None):
+            ar = sel.active_range
+            sel_range = (ar.top, ar.left, ar.bottom, ar.right)
+        else:
+            sel_range = (0, 0, 0, 0)
         dlg = TextToColumnsWizard(
             sheet_model=sheet,
             selected_range=sel_range,
@@ -1659,11 +1661,11 @@ class LedgerWindow(BaseOfficeWindow):
 
         sheet = getattr(self.spreadsheet_view, "model", None)
         sel = getattr(self.spreadsheet_view, "selection", None)
-        sel_range = (
-            (sel.active_range.top, sel.active_range.left, sel.active_range.bottom, sel.active_range.right)
-            if (sel and getattr(sel, "active_range", None))
-            else (0, 0, 10, 5)
-        )
+        if sel and getattr(sel, "active_range", None):
+            ar = sel.active_range
+            sel_range = (ar.top, ar.left, ar.bottom, ar.right)
+        else:
+            sel_range = (0, 0, 10, 5)
         dlg = SubtotalDialog(
             sheet_model=sheet,
             selected_range=sel_range,
@@ -1688,7 +1690,9 @@ class LedgerWindow(BaseOfficeWindow):
 
     def open_scenario_manager(self) -> None:
         """Open Excel 2003 classic Scenario Manager (方案管理器) dialog."""
-        from atboffice.modules.spreadsheet.dialogs.scenario_manager_dialog import ScenarioManagerDialog
+        from atboffice.modules.spreadsheet.dialogs.scenario_manager_dialog import (
+            ScenarioManagerDialog,
+        )
 
         sheet = getattr(self.spreadsheet_view, "model", None)
         dlg = ScenarioManagerDialog(
@@ -1704,11 +1708,11 @@ class LedgerWindow(BaseOfficeWindow):
 
         sheet = getattr(self.spreadsheet_view, "model", None)
         sel = getattr(self.spreadsheet_view, "selection", None)
-        sel_range = (
-            (sel.active_range.top, sel.active_range.left, sel.active_range.bottom, sel.active_range.right)
-            if (sel and getattr(sel, "active_range", None))
-            else (0, 0, 5, 5)
-        )
+        if sel and getattr(sel, "active_range", None):
+            ar = sel.active_range
+            sel_range = (ar.top, ar.left, ar.bottom, ar.right)
+        else:
+            sel_range = (0, 0, 5, 5)
         dlg = DataTableDialog(
             sheet_model=sheet,
             selected_range=sel_range,
@@ -1741,7 +1745,9 @@ class LedgerWindow(BaseOfficeWindow):
 
     def open_advanced_filter_dialog(self) -> None:
         """Open Excel 2003 classic Advanced Filter (高级筛选) dialog."""
-        from atboffice.modules.spreadsheet.dialogs.advanced_filter_dialog import AdvancedFilterDialog
+        from atboffice.modules.spreadsheet.dialogs.advanced_filter_dialog import (
+            AdvancedFilterDialog,
+        )
 
         sheet = getattr(self.spreadsheet_view, "model", None)
         dlg = AdvancedFilterDialog(sheet_model=sheet, parent=self)

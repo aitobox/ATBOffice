@@ -100,7 +100,12 @@ class SubtotalDialog(QDialog):
             item = QListWidgetItem(h, self.list_columns)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             # Default check the last column
-            item.setCheckState(Qt.CheckState.Checked if idx == len(self.headers) - 1 else Qt.CheckState.Unchecked)
+            check_state = (
+                Qt.CheckState.Checked
+                if idx == len(self.headers) - 1
+                else Qt.CheckState.Unchecked
+            )
+            item.setCheckState(check_state)
         left_layout.addWidget(self.list_columns, 1)
 
         self.check_replace = QCheckBox(safe_tr("替换当前分类汇总(&R)"), self)

@@ -5,9 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QCoreApplication, Qt, Signal
-from PySide6.QtGui import QFont, QPainter, QColor, QPen, QBrush
+from PySide6.QtGui import QBrush, QColor, QPainter, QPen
 from PySide6.QtWidgets import (
-    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -220,8 +219,8 @@ class ChartSamplePreviewWidget(QWidget):
                 (125, h - 50),
                 (125, h - 15),
             ]
-            from PySide6.QtGui import QPolygon
             from PySide6.QtCore import QPoint
+            from PySide6.QtGui import QPolygon
             painter.drawPolygon(QPolygon([QPoint(px, py) for px, py in poly]))
 
 
@@ -357,7 +356,9 @@ class ChartWizardDialog(QDialog):
 
         self.lbl_desc = QLabel(right_box)
         self.lbl_desc.setWordWrap(True)
-        self.lbl_desc.setStyleSheet("background-color: #F7F7F7; border: 1px solid #C0C0C0; padding: 6px;")
+        self.lbl_desc.setStyleSheet(
+            "background-color: #F7F7F7; border: 1px solid #C0C0C0; padding: 6px;"
+        )
         right_layout.addWidget(self.lbl_desc, 1)
 
         tab_layout.addWidget(right_box, 2)
@@ -553,7 +554,13 @@ class ChartWizardDialog(QDialog):
         self.radio_lbl_val = QRadioButton(safe_tr("值(&V)"), grp_labels)
         self.radio_lbl_pct = QRadioButton(safe_tr("百分比(&P)"), grp_labels)
         self.radio_lbl_none.setChecked(True)
-        for r in (self.radio_lbl_none, self.radio_lbl_series, self.radio_lbl_cat, self.radio_lbl_val, self.radio_lbl_pct):
+        for r in (
+            self.radio_lbl_none,
+            self.radio_lbl_series,
+            self.radio_lbl_cat,
+            self.radio_lbl_val,
+            self.radio_lbl_pct,
+        ):
             v_lbl_grp.addWidget(r)
         v_labels.addWidget(grp_labels)
         v_labels.addStretch(1)
@@ -690,7 +697,9 @@ class ChartWizardDialog(QDialog):
             "data_labels": self.data_labels_type,
             "show_data_table": self.show_data_table,
             "as_new_sheet": self.location_as_new_sheet,
-            "sheet_name": self.new_sheet_name if self.location_as_new_sheet else self.existing_sheet_name,
+            "sheet_name": (
+                self.new_sheet_name if self.location_as_new_sheet else self.existing_sheet_name
+            ),
         }
 
     def retranslate_ui(self) -> None:

@@ -6,7 +6,6 @@ from typing import Any
 
 from PySide6.QtCore import QCoreApplication, Qt, Signal
 from PySide6.QtWidgets import (
-    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -17,7 +16,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
-    QListWidgetItem,
     QPlainTextEdit,
     QPushButton,
     QRadioButton,
@@ -34,8 +32,17 @@ def safe_tr(text: str) -> str:
 
 
 BUILTIN_CUSTOM_LISTS = [
-    ["Sun, Mon, Tue, Wed, Thu, Fri, Sat", "Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday"],
-    ["Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec", "January, February, March, April, May, June, July, August, September, October, November, December"],
+    [
+        "Sun, Mon, Tue, Wed, Thu, Fri, Sat",
+        "Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday",
+    ],
+    [
+        "Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec",
+        (
+            "January, February, March, April, May, June, July, "
+            "August, September, October, November, December"
+        ),
+    ],
     ["日, 一, 二, 三, 四, 五, 六", "星期日, 星期一, 星期二, 星期三, 星期四, 星期五, 星期六"],
     ["一月, 二月, 三月, 四月, 五月, 六月, 七月, 八月, 九月, 十月, 十一月, 十二月"],
 ]
@@ -46,7 +53,11 @@ class LedgerOptionsDialog(QDialog):
 
     options_saved = Signal(dict)
 
-    def __init__(self, initial_options: dict[str, Any] | None = None, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        initial_options: dict[str, Any] | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.options: dict[str, Any] = initial_options or {}
 
@@ -199,7 +210,9 @@ class LedgerOptionsDialog(QDialog):
         self.chk_move_on_enter = QCheckBox(safe_tr("按 Enter 键后移动所选单元格(&M)"), w)
         self.chk_move_on_enter.setChecked(True)
         self.combo_enter_dir = QComboBox(w)
-        self.combo_enter_dir.addItems([safe_tr("向下"), safe_tr("向右"), safe_tr("向上"), safe_tr("向左")])
+        self.combo_enter_dir.addItems(
+            [safe_tr("向下"), safe_tr("向右"), safe_tr("向上"), safe_tr("向左")]
+        )
         h_enter.addWidget(self.chk_move_on_enter)
         h_enter.addWidget(self.combo_enter_dir)
         h_enter.addStretch(1)
@@ -297,7 +310,9 @@ class LedgerOptionsDialog(QDialog):
         self.chk_rule_eval.setChecked(True)
         self.chk_rule_number_text = QCheckBox(safe_tr("以文本形式存储的数字(&N)"), grp_rules)
         self.chk_rule_number_text.setChecked(True)
-        self.chk_rule_inconsistent_formula = QCheckBox(safe_tr("公式与区域中其他公式不一致(&F)"), grp_rules)
+        self.chk_rule_inconsistent_formula = QCheckBox(
+            safe_tr("公式与区域中其他公式不一致(&F)"), grp_rules
+        )
         self.chk_rule_inconsistent_formula.setChecked(True)
         v_r.addWidget(self.chk_rule_eval)
         v_r.addWidget(self.chk_rule_number_text)
