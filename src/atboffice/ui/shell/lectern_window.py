@@ -10,6 +10,7 @@ from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import (
     QComboBox,
+    QDialog,
     QHBoxLayout,
     QLabel,
     QMessageBox,
@@ -63,6 +64,7 @@ class LecternWindow(BaseOfficeWindow):
 
         # 4. Initialize universal TaskPaneDock
         self.init_task_pane_dock(safe_tr("演示文稿"))
+        self._setup_lectern_task_panes()
 
         # 5. Setup Office 2003 Luna 10 toolbars
         self._setup_toolbars()
@@ -195,6 +197,29 @@ class LecternWindow(BaseOfficeWindow):
         self.action_registry.set_handler("alignCenter", self._handle_align_center)
         self.action_registry.set_handler("alignRight", self._handle_align_right)
         self.action_registry.set_handler("slideDesign", self.open_slide_design_pane)
+        self.action_registry.set_handler("slide_design", self.open_slide_design_pane)
+        self.action_registry.set_handler("sorter_slideDesign", self.open_slide_design_pane)
+        self.action_registry.set_handler("slideColorSchemes", self.open_color_schemes_pane)
+        self.action_registry.set_handler("slide_color_schemes", self.open_color_schemes_pane)
+        self.action_registry.set_handler("color_schemes", self.open_color_schemes_pane)
+        self.action_registry.set_handler("slideAnimationSchemes", self.open_animation_schemes_pane)
+        self.action_registry.set_handler(
+            "slide_animation_schemes", self.open_animation_schemes_pane
+        )
+        self.action_registry.set_handler("animation_schemes", self.open_animation_schemes_pane)
+        self.action_registry.set_handler("slideshow_setup", self.open_setup_show_dialog)
+        self.action_registry.set_handler("setupShow", self.open_setup_show_dialog)
+        self.action_registry.set_handler("slide_setup_show", self.open_setup_show_dialog)
+        self.action_registry.set_handler("actionSettings", self.open_action_settings_dialog)
+        self.action_registry.set_handler("slide_action_settings", self.open_action_settings_dialog)
+        self.action_registry.set_handler("action_settings", self.open_action_settings_dialog)
+        self.action_registry.set_handler("photoAlbum", self.open_photo_album_dialog)
+        self.action_registry.set_handler("insert_photo_album", self.open_photo_album_dialog)
+        self.action_registry.set_handler("lecternOptions", self.open_options_dialog)
+        self.action_registry.set_handler("tools_options", self.open_options_dialog)
+        self.action_registry.set_handler("options", self.open_options_dialog)
+        self.action_registry.set_handler("fillEffects", self.open_fill_effects_dialog)
+        self.action_registry.set_handler("fill_effects", self.open_fill_effects_dialog)
         self.action_registry.set_handler("newSlide", self.add_new_slide)
         self.action_registry.set_handler("new_slide", self.add_new_slide)
 
@@ -1285,10 +1310,209 @@ class LecternWindow(BaseOfficeWindow):
     def open_transition_pane(self) -> None:
         self.show_status_message(safe_tr("打开幻灯片切换窗格"))
 
+    def _setup_lectern_task_panes(self) -> None:
+        """Register Lectern specific task panes (Slide Design, Color Schemes, Animation Schemes)."""
+        if not self.task_pane_dock:
+            return
+
+        from atboffice.modules.presentation.panes import (
+            AnimationSchemesPane,
+            ColorSchemesPane,
+            SlideDesignPane,
+        )
+
+        pres = getattr(self.presentation_view, "presentation", None)
+
+        self.slide_design_pane = SlideDesignPane(presentation=pres, parent=self.task_pane_dock)
+        self.color_schemes_pane = ColorSchemesPane(presentation=pres, parent=self.task_pane_dock)
+        self.animation_schemes_pane = AnimationSchemesPane(
+            presentation=pres, parent=self.task_pane_dock
+        )
+
+        # Wire navigation between panes
+        for pane in (self.slide_design_pane, self.color_schemes_pane, self.animation_schemes_pane):
+            pane.navigate_pane.connect(self._on_task_pane_navigate)
+
+        # Wire design & scheme application
+        self.slide_design_pane.apply_design_requested.connect(self._on_apply_design_template)
+        self.color_schemes_pane.apply_color_scheme_requested.connect(self._on_apply_color_scheme)
+        self.animation_schemes_pane.apply_animation_scheme_requested.connect(self._on_apply_animation_scheme)
+        self.animation_schemes_pane.play_requested.connect(self._on_play_slide_animation)
+        self.animation_schemes_pane.slide_show_requested.connect(self.start_slideshow_current)
+
+        self.task_pane_dock.register_pane(
+            "slide_design",
+            safe_tr("幻灯片设计 - 设计模板"),
+            self.slide_design_pane,
+        )
+        self.task_pane_dock.register_pane(
+            "color_schemes",
+            safe_tr("幻灯片设计 - 配色方案"),
+            self.color_schemes_pane,
+        )
+        self.task_pane_dock.register_pane(
+            "animation_schemes",
+            safe_tr("幻灯片设计 - 动画方案"),
+            self.animation_schemes_pane,
+        )
+
+    def _on_task_pane_navigate(self, target: str) -> None:
+        if not self.task_pane_dock:
+            return
+        mapping = {
+            "design": "slide_design",
+            "colors": "color_schemes",
+            "animations": "animation_schemes",
+        }
+        pane_id = mapping.get(target, target)
+        self.task_pane_dock.show_pane(pane_id)
+
+    def _on_apply_design_template(self, design_key: str, apply_to_all: bool) -> None:
+        ws = getattr(self.presentation_view, "workspace", None)
+        pres = getattr(self.presentation_view, "presentation", None)
+        if not pres:
+            return
+        curr = [ws.current_slide] if ws and getattr(ws, "current_slide", None) else pres.slides
+        target_slides = pres.slides if apply_to_all else curr
+        pres.apply_design(design_key, target_slides)
+        if ws:
+            if hasattr(ws, "render_current_slide"):
+                ws.render_current_slide()
+            elif hasattr(ws, "update"):
+                ws.update()
+        if hasattr(self, "slide_design_pane"):
+            self.slide_design_pane.refresh_used_designs()
+        self.show_status_message(safe_tr(f"已应用设计模板: {design_key}"))
+        self.set_modified(True)
+
+    def _on_apply_color_scheme(self, scheme: Any, apply_to_all: bool) -> None:
+        import copy
+        ws = getattr(self.presentation_view, "workspace", None)
+        pres = getattr(self.presentation_view, "presentation", None)
+        if not pres:
+            return
+        curr = [ws.current_slide] if ws and getattr(ws, "current_slide", None) else pres.slides
+        target_slides = pres.slides if apply_to_all else curr
+        for s in target_slides:
+            did = getattr(s, "design_id", None) or getattr(s, "design", None)
+            d = pres.designs.get(did) if hasattr(pres, "designs") else None
+            if d:
+                d.colors = copy.deepcopy(scheme)
+        if ws:
+            if hasattr(ws, "render_current_slide"):
+                ws.render_current_slide()
+            elif hasattr(ws, "update"):
+                ws.update()
+        self.show_status_message(safe_tr("已应用配色方案"))
+        self.set_modified(True)
+
+    def _on_apply_animation_scheme(self, scheme_key: str, apply_to_all: bool) -> None:
+        ws = getattr(self.presentation_view, "workspace", None)
+        pres = getattr(self.presentation_view, "presentation", None)
+        if not pres:
+            return
+        curr = [ws.current_slide] if ws and getattr(ws, "current_slide", None) else pres.slides
+        target_slides = pres.slides if apply_to_all else curr
+        for s in target_slides:
+            s.animation_scheme = scheme_key
+        self.show_status_message(safe_tr(f"已应用动画方案: {scheme_key}"))
+        self.set_modified(True)
+
+    def _on_play_slide_animation(self) -> None:
+        self.show_status_message(safe_tr("播放幻灯片动画预览"))
+
     def open_slide_design_pane(self) -> None:
         self.show_status_message(safe_tr("打开幻灯片设计窗格"))
         if self.task_pane_dock is not None:
             self.task_pane_dock.show()
+            self.task_pane_dock.show_pane("slide_design")
+
+    def open_color_schemes_pane(self) -> None:
+        self.show_status_message(safe_tr("打开配色方案窗格"))
+        if self.task_pane_dock is not None:
+            self.task_pane_dock.show()
+            self.task_pane_dock.show_pane("color_schemes")
+
+    def open_animation_schemes_pane(self) -> None:
+        self.show_status_message(safe_tr("打开动画方案窗格"))
+        if self.task_pane_dock is not None:
+            self.task_pane_dock.show()
+            self.task_pane_dock.show_pane("animation_schemes")
+
+    def open_action_settings_dialog(self) -> None:
+        from atboffice.modules.presentation.dialogs import ActionSettingsDialog
+
+        pres = getattr(self.presentation_view, "presentation", None)
+        dlg = ActionSettingsDialog(presentation=pres, parent=self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            settings = dlg.get_action_settings()
+            ws = getattr(self.presentation_view, "workspace", None)
+            if ws and ws.scene:
+                for item in ws.scene.selectedItems():
+                    if hasattr(item, "shape") and item.shape:
+                        item.shape.action_settings = settings
+            self.show_status_message(safe_tr("动作设置已应用"))
+            self.set_modified(True)
+
+    def open_setup_show_dialog(self) -> None:
+        from atboffice.modules.presentation.dialogs import SetUpShowDialog
+
+        pres = getattr(self.presentation_view, "presentation", None)
+        dlg = SetUpShowDialog(presentation=pres, parent=self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self.show_status_message(safe_tr("放映设置已更新"))
+            self.set_modified(True)
+
+    def open_photo_album_dialog(self) -> None:
+        from atboffice.modules.presentation.dialogs import PhotoAlbumDialog
+
+        dlg = PhotoAlbumDialog(parent=self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            spec = dlg.get_album_spec()
+            self._create_photo_album_slides(spec)
+            self.show_status_message(safe_tr("相册幻灯片已创建"))
+            self.set_modified(True)
+
+    def _create_photo_album_slides(self, spec: dict[str, Any]) -> None:
+        from atboffice.modules.presentation.models.shape import Shape
+        from atboffice.modules.presentation.models.slide import Slide
+
+        pres = getattr(self.presentation_view, "presentation", None)
+        if not pres:
+            return
+
+        pics = spec.get("pictures", [])
+        for i, pic_path in enumerate(pics):
+            slide = Slide(id=f"slide_photo_{i + 1}", layout="blank")
+            shape = Shape.create_picture(
+                shape_id=f"pic_{i + 1}",
+                image_path=pic_path,
+                x=50.0,
+                y=50.0,
+                w=pres.w - 100.0,
+                h=pres.h - 100.0,
+            )
+            slide.shapes.append(shape)
+            pres.slides.append(slide)
+
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and hasattr(ws, "update_slides"):
+            ws.update_slides()
+
+    def open_options_dialog(self) -> None:
+        from atboffice.modules.presentation.dialogs import LecternOptionsDialog
+
+        dlg = LecternOptionsDialog(parent=self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self.show_status_message(safe_tr("选项设置已更新"))
+
+    def open_fill_effects_dialog(self) -> None:
+        from atboffice.modules.presentation.dialogs import FillEffectsDialog
+
+        dlg = FillEffectsDialog(parent=self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self.show_status_message(safe_tr("填充效果已配置"))
+            self.set_modified(True)
 
     def insert_slide_master(self) -> None:
         self.show_status_message(safe_tr("插入幻灯片母版"))
@@ -2144,3 +2368,9 @@ class LecternWindow(BaseOfficeWindow):
             self.btn_view_show.setToolTip(safe_tr("幻灯片放映 (Slide Show)"))
         if hasattr(self, "lbl_status_design") and self.lbl_status_design:
             self.lbl_status_design.setText(safe_tr("默认设计模板"))
+        if hasattr(self, "slide_design_pane") and self.slide_design_pane:
+            self.slide_design_pane.retranslate_ui()
+        if hasattr(self, "color_schemes_pane") and self.color_schemes_pane:
+            self.color_schemes_pane.retranslate_ui()
+        if hasattr(self, "animation_schemes_pane") and self.animation_schemes_pane:
+            self.animation_schemes_pane.retranslate_ui()
