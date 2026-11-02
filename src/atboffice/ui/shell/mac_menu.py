@@ -217,11 +217,71 @@ class MacMenuBar(QMenuBar):
 
         self._reg_act(
             menu_view,
+            "view_normal",
+            "view_normal",
+            checkable=True,
+            checked=False,
+        )
+        self._reg_act(
+            menu_view,
+            "view_web",
+            "view_web",
+            checkable=True,
+            checked=False,
+        )
+        self._reg_act(
+            menu_view,
+            "view_print",
+            "view_print",
+            checkable=True,
+            checked=True,
+        )
+        self._reg_act(
+            menu_view,
+            "view_reading",
+            "view_reading",
+            checkable=True,
+            checked=False,
+        )
+        self._reg_act(
+            menu_view,
+            "view_outline",
+            "view_outline",
+            checkable=True,
+            checked=False,
+        )
+        menu_view.addSeparator()
+
+        self._reg_act(
+            menu_view,
             "taskPane",
             "view_task_pane",
             shortcut=QKeySequence("Ctrl+F1"),
             checkable=True,
         )
+        self._reg_act(
+            menu_view,
+            "view_doc_map",
+            "view_doc_map",
+            checkable=True,
+            checked=False,
+        )
+        self._reg_act(
+            menu_view,
+            "view_thumbnails",
+            "view_thumbnails",
+            checkable=True,
+            checked=False,
+        )
+        self._reg_act(
+            menu_view,
+            "view_ruler",
+            "view_ruler",
+            checkable=True,
+            checked=True,
+        )
+        menu_view.addSeparator()
+
         self._reg_act(
             menu_view,
             "view_fullscreen",
@@ -602,6 +662,11 @@ class MacMenuBar(QMenuBar):
                 safe_tr("打开单元格格式设置对话框"),
             ),
             # View
+            "view_normal": (safe_tr("普通(&N)"), safe_tr("切换到普通视图草稿模式")),
+            "view_web": (safe_tr("Web 版式(&W)"), safe_tr("切换到 Web 版式视图")),
+            "view_print": (safe_tr("页面(&P)"), safe_tr("切换到页面排版视图")),
+            "view_reading": (safe_tr("阅读版式(&R)"), safe_tr("切换到双页或舒适阅读版式")),
+            "view_outline": (safe_tr("大纲(&O)"), safe_tr("切换到大纲视图")),
             "view_task_pane": (
                 safe_tr("任务窗格(&K)"),
                 safe_tr("显示或隐藏侧边任务窗格 (Ctrl+F1)"),
@@ -610,7 +675,10 @@ class MacMenuBar(QMenuBar):
                 safe_tr("任务窗格(&K)"),
                 safe_tr("显示或隐藏侧边任务窗格 (Ctrl+F1)"),
             ),
-            "view_fullscreen": (safe_tr("全屏切换"), safe_tr("进入或退出全屏模式")),
+            "view_doc_map": (safe_tr("文档结构图(&D)"), safe_tr("显示或隐藏左侧文档结构图导航")),
+            "view_thumbnails": (safe_tr("缩略图(&T)"), safe_tr("显示或隐藏左侧页面缩略图导航")),
+            "view_ruler": (safe_tr("标尺(&R)"), safe_tr("显示或隐藏标尺")),
+            "view_fullscreen": (safe_tr("全屏(&F)"), safe_tr("进入或退出全屏模式")),
             "view_zoom_in": (safe_tr("放大"), safe_tr("放大视图")),
             "zoom_in": (safe_tr("放大"), safe_tr("放大视图")),
             "view_zoom_out": (safe_tr("缩小"), safe_tr("缩小视图")),

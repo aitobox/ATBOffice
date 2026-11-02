@@ -537,6 +537,15 @@ class CaretController(QObject):
     # Selection & Navigation Methods
     # -----------------------------------------------------------------------
 
+    def set_caret(
+        self,
+        para_id: int,
+        offset: int = 0,
+        extend_selection: bool = False,
+    ) -> None:
+        """Position caret at specified paragraph ID and character offset."""
+        self.set_pos(DocPos(para_id, offset), extend_selection=extend_selection)
+
     def set_pos(
         self,
         pos: DocPos,

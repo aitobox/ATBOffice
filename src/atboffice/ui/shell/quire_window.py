@@ -17,6 +17,11 @@ from atboffice.modules.writer.layout.pagination import paginate_document
 from atboffice.modules.writer.models.document import ilen
 from atboffice.modules.writer.models.revision import is_tracking
 from atboffice.modules.writer.view import WriterView
+from atboffice.modules.writer.views import (
+    CloseFullScreenBar,
+    QuireNavDock,
+    ViewMode,
+)
 from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.toolbar import OfficeToolBar
 from atboffice.ui.dialogs.find_replace_dialog import FindReplaceDialog
@@ -70,6 +75,34 @@ class QuireWindow(BaseOfficeWindow):
         # 4. Initialize universal TaskPaneDock
         self.init_task_pane_dock(safe_tr("文档"))
 
+        # Initialize Quire Left Navigation Dock (Document Map & Thumbnails)
+        self.nav_dock = QuireNavDock(
+            doc=self.writer_view.canvas_view.doc,
+            canvas_view=self.writer_view.canvas_view,
+            controller=self.writer_view.canvas_view.controller,
+            parent=self,
+        )
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.nav_dock)
+        self.nav_dock.hide()
+        self.nav_dock.visibilityChanged.connect(self._on_nav_dock_visibility_changed)
+        self.nav_dock.doc_map_pane.heading_selected.connect(self.writer_view.scroll_to_paragraph)
+        self.nav_dock.thumbnails_pane.page_selected.connect(self.writer_view.scroll_to_page)
+
+        # Initialize Floating Full Screen Bar
+        self.fullscreen_bar = CloseFullScreenBar(parent=self)
+        self.fullscreen_bar.close_full_screen_requested.connect(self.exit_full_screen)
+        self.fullscreen_bar.hide()
+        self._is_fullscreen_mode: bool = False
+        self._prev_view_mode: ViewMode = ViewMode.PRINT
+        self._saved_toolbars_visible: list[tuple[Any, bool]] = []
+
+        # Wire view mode and reading toolbar signals
+        self.writer_view.view_mode_changed.connect(self._on_view_mode_changed)
+        self.writer_view.reading_toolbar.toggle_doc_map_requested.connect(self.toggle_document_map)
+        self.writer_view.reading_toolbar.toggle_thumbnails_requested.connect(self.toggle_thumbnails)
+        self.writer_view.reading_toolbar.find_requested.connect(self.open_find_dialog)
+        self.writer_view.reading_toolbar.research_requested.connect(self.toggle_task_pane)
+
         # 5. Setup Office 2003 Luna toolbars
         self._setup_toolbars()
         self._bind_action_handlers()
@@ -122,6 +155,49 @@ class QuireWindow(BaseOfficeWindow):
 
         # Zoom & view
         self.action_registry.set_handler("taskPane", self.toggle_task_pane)
+        self.action_registry.set_handler(
+            "view_normal", lambda: self.switch_view_mode(ViewMode.NORMAL)
+        )
+        self.action_registry.set_handler(
+            "view_web", lambda: self.switch_view_mode(ViewMode.WEB)
+        )
+        self.action_registry.set_handler(
+            "view_print", lambda: self.switch_view_mode(ViewMode.PRINT)
+        )
+        self.action_registry.set_handler(
+            "view_reading", lambda: self.switch_view_mode(ViewMode.READING)
+        )
+        self.action_registry.set_handler(
+            "view_outline", lambda: self.switch_view_mode(ViewMode.OUTLINE)
+        )
+        self.action_registry.set_handler("view_fullscreen", self.toggle_fullscreen)
+        self.action_registry.set_handler("view_doc_map", self.toggle_document_map)
+        self.action_registry.set_handler("view_thumbnails", self.toggle_thumbnails)
+        self.action_registry.set_handler("view_ruler", self.toggle_rulers)
+        self.action_registry.set_handler(
+            "promoteH1", self.writer_view.outline_widget.promote_selected_h1
+        )
+        self.action_registry.set_handler(
+            "promote", self.writer_view.outline_widget.promote_selected
+        )
+        self.action_registry.set_handler(
+            "demote", self.writer_view.outline_widget.demote_selected
+        )
+        self.action_registry.set_handler(
+            "demoteBody", self.writer_view.outline_widget.demote_selected_body
+        )
+        self.action_registry.set_handler(
+            "moveUp", self.writer_view.outline_widget.move_selected_up
+        )
+        self.action_registry.set_handler(
+            "moveDown", self.writer_view.outline_widget.move_selected_down
+        )
+        self.action_registry.set_handler(
+            "expand", self.writer_view.outline_widget.expand_selected
+        )
+        self.action_registry.set_handler(
+            "collapse", self.writer_view.outline_widget.collapse_selected
+        )
         self.action_registry.set_handler("properties", self.show_document_properties_dialog)
         self.action_registry.set_handler("zoom_in", self.zoom_in)
         self.action_registry.set_handler("zoom_out", self.zoom_out)
@@ -462,15 +538,17 @@ class QuireWindow(BaseOfficeWindow):
             from atboffice.modules.writer.io.html_io import read_html
 
             doc = read_html(path)
-            self.writer_view.canvas_view.doc = doc
-            self.writer_view.canvas_view.update()
+            self.writer_view.canvas_view.set_document(doc)
+            if hasattr(self, "nav_dock"):
+                self.nav_dock.set_document(doc)
             return True
         if ext in {".docx", ".docm", ".dotx"}:
             from atboffice.modules.writer.io.docx_reader import read_docx
 
             doc = read_docx(path)
-            self.writer_view.canvas_view.doc = doc
-            self.writer_view.canvas_view.update()
+            self.writer_view.canvas_view.set_document(doc)
+            if hasattr(self, "nav_dock"):
+                self.nav_dock.set_document(doc)
             return True
         return True
 
@@ -689,6 +767,111 @@ class QuireWindow(BaseOfficeWindow):
             "has_revisions": has_revisions,
             "track_changes": is_tracking(canvas.doc),
         })
+        if hasattr(self, "nav_dock") and self.nav_dock.isVisible():
+            p = canvas.controller._paragraph_by_id(para_id)
+            self.nav_dock.doc_map_pane.sync_caret_para(p)
+        self._sync_toolbar_states()
+
+    def switch_view_mode(self, mode: ViewMode | str) -> None:
+        """Switch Quire view display mode (print, normal, web, reading, outline)."""
+        if isinstance(mode, str):
+            mode = ViewMode(mode)
+        self.writer_view.set_view_mode(mode)
+        self._sync_toolbar_states()
+
+    def toggle_document_map(self) -> None:
+        """Toggle left Document Map navigation pane."""
+        if self.nav_dock.isVisible() and self.nav_dock.active_mode() == "doc_map":
+            self.nav_dock.hide()
+        else:
+            self.nav_dock.show_document_map()
+        self._sync_toolbar_states()
+
+    def toggle_thumbnails(self) -> None:
+        """Toggle left Thumbnails navigation pane."""
+        if self.nav_dock.isVisible() and self.nav_dock.active_mode() == "thumbnails":
+            self.nav_dock.hide()
+        else:
+            self.nav_dock.show_thumbnails()
+        self._sync_toolbar_states()
+
+    def toggle_rulers(self) -> None:
+        """Toggle rulers visibility."""
+        vis = not self.writer_view.h_ruler.isVisible()
+        self.writer_view.set_ruler_visible(vis)
+        self._sync_toolbar_states()
+
+    def toggle_fullscreen(self) -> None:
+        """Toggle Full Screen mode."""
+        if self._is_fullscreen_mode:
+            self.exit_full_screen()
+        else:
+            self.enter_full_screen()
+
+    def enter_full_screen(self) -> None:
+        """Enter full screen view: hide menus, toolbars, and status bar, and show floating toolbar."""
+        if self._is_fullscreen_mode:
+            return
+        self._is_fullscreen_mode = True
+        self._prev_view_mode = self.writer_view.view_mode
+
+        self._saved_toolbars_visible = []
+        for tb in self.findChildren(OfficeToolBar):
+            self._saved_toolbars_visible.append((tb, tb.isVisible()))
+            tb.hide()
+
+        if self.menuBar():
+            self.menuBar().hide()
+        if self.statusBar():
+            self.statusBar().hide()
+
+        self.showFullScreen()
+
+        self.fullscreen_bar.show()
+        self.fullscreen_bar.raise_()
+        self._reposition_fullscreen_bar()
+        self._sync_toolbar_states()
+
+    def exit_full_screen(self) -> None:
+        """Exit full screen mode and restore menus and toolbars."""
+        if not self._is_fullscreen_mode:
+            return
+        self._is_fullscreen_mode = False
+        self.fullscreen_bar.hide()
+
+        if self.menuBar():
+            self.menuBar().show()
+        if self.statusBar():
+            self.statusBar().show()
+
+        for tb, was_vis in self._saved_toolbars_visible:
+            tb.setVisible(was_vis)
+        self._saved_toolbars_visible.clear()
+
+        self.showNormal()
+        self.switch_view_mode(self._prev_view_mode)
+
+    def _reposition_fullscreen_bar(self) -> None:
+        if self.fullscreen_bar.isVisible():
+            geo = self.geometry()
+            self.fullscreen_bar.move(geo.right() - self.fullscreen_bar.width() - 40, geo.top() + 40)
+
+    def resizeEvent(self, event: Any) -> None:
+        super().resizeEvent(event)
+        if hasattr(self, "_is_fullscreen_mode") and self._is_fullscreen_mode:
+            self._reposition_fullscreen_bar()
+
+    def keyPressEvent(self, event: Any) -> None:
+        if getattr(self, "_is_fullscreen_mode", False) and event.key() == Qt.Key.Key_Escape:
+            self.exit_full_screen()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def _on_view_mode_changed(self, mode: ViewMode) -> None:
+        self._sync_toolbar_states()
+
+    def _on_nav_dock_visibility_changed(self, visible: bool) -> None:
         self._sync_toolbar_states()
 
     def show_status_message(self, message: str, timeout: int = 2000) -> None:
@@ -891,6 +1074,32 @@ class QuireWindow(BaseOfficeWindow):
                 act = self.action_registry.get_action(aid)
                 if act:
                     act.setEnabled(has_revisions)
+
+            # 8. View modes radio sync
+            vm = self.writer_view.view_mode
+            for act_name, target_vm in [
+                ("view_normal", ViewMode.NORMAL),
+                ("view_web", ViewMode.WEB),
+                ("view_print", ViewMode.PRINT),
+                ("view_reading", ViewMode.READING),
+                ("view_outline", ViewMode.OUTLINE),
+            ]:
+                act = self.action_registry.get_action(act_name)
+                if act:
+                    act.setChecked(vm == target_vm)
+
+            # 9. Document map, thumbnails, and ruler sync
+            act_dm = self.action_registry.get_action("view_doc_map")
+            if act_dm and hasattr(self, "nav_dock"):
+                act_dm.setChecked(self.nav_dock.isVisible() and self.nav_dock.active_mode() == "doc_map")
+
+            act_th = self.action_registry.get_action("view_thumbnails")
+            if act_th and hasattr(self, "nav_dock"):
+                act_th.setChecked(self.nav_dock.isVisible() and self.nav_dock.active_mode() == "thumbnails")
+
+            act_ruler = self.action_registry.get_action("view_ruler")
+            if act_ruler:
+                act_ruler.setChecked(self.writer_view.h_ruler.isVisible())
         finally:
             self._syncing_toolbars = False
 

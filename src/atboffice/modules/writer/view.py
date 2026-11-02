@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication
-from PySide6.QtWidgets import QGridLayout, QWidget
+from PySide6.QtCore import QCoreApplication, Signal
+from PySide6.QtWidgets import QGridLayout, QStackedWidget, QVBoxLayout, QWidget
 
-from atboffice.modules.writer.models.document import Document, Paragraph
+from atboffice.modules.writer.models.document import Document, Paragraph, all_paragraphs
 from atboffice.modules.writer.models.mailmerge import MailMergeEngine
 from atboffice.modules.writer.views.canvas_view import WriterCanvasView
+from atboffice.modules.writer.views.outline_view import OutlineToolbar, OutlineViewWidget
+from atboffice.modules.writer.views.reading_toolbar import ReadingLayoutToolbar
 from atboffice.modules.writer.views.review_pane import ReviewPane, ReviewToolbar
 from atboffice.modules.writer.views.ruler import (
     HorizontalRuler,
@@ -17,6 +19,7 @@ from atboffice.modules.writer.views.ruler import (
     TabSelectorWidget,
     VerticalRuler,
 )
+from atboffice.modules.writer.views.view_modes import ViewMode
 
 if TYPE_CHECKING:
     from atboffice.modules.writer.dialogs.word_count_dlg import WordCountDialog
@@ -30,30 +33,59 @@ def safe_tr(text: str) -> str:
 class WriterView(QWidget):
     """Word 2003 styled document editing viewport widget with interactive dual rulers."""
 
+    view_mode_changed = Signal(object)
+
     def __init__(self, doc: Document | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        layout = QGridLayout(self)
+        self.view_mode: ViewMode = ViewMode.PRINT
+
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+
+        # 0. Specialized Top Toolbars
+        self.reading_toolbar = ReadingLayoutToolbar(parent=self)
+        self.reading_toolbar.setVisible(False)
+        root_layout.addWidget(self.reading_toolbar)
+
+        self.outline_toolbar = OutlineToolbar(parent=self)
+        self.outline_toolbar.setVisible(False)
+        root_layout.addWidget(self.outline_toolbar)
+
+        # Grid container for rulers, canvas, and panes
+        grid_container = QWidget(self)
+        layout = QGridLayout(grid_container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
+        root_layout.addWidget(grid_container, 1)
 
         # 1. Corner tab selector button
-        self.tab_selector = TabSelectorWidget(parent=self)
+        self.tab_selector = TabSelectorWidget(parent=grid_container)
         layout.addWidget(self.tab_selector, 0, 0)
 
         # 2. Horizontal ruler
-        self.h_ruler = HorizontalRuler(parent=self)
+        self.h_ruler = HorizontalRuler(parent=grid_container)
         layout.addWidget(self.h_ruler, 0, 1)
 
         # 3. Vertical ruler
-        self.v_ruler = VerticalRuler(parent=self)
+        self.v_ruler = VerticalRuler(parent=grid_container)
         layout.addWidget(self.v_ruler, 1, 0)
 
-        # 4. Canvas viewport
-        self.canvas_view = WriterCanvasView(doc=doc, parent=self)
-        layout.addWidget(self.canvas_view, 1, 1)
+        # 4. Center Stack: Canvas View (0) and Outline View (1)
+        self.center_stack = QStackedWidget(grid_container)
+        self.canvas_view = WriterCanvasView(doc=doc, parent=self.center_stack)
+        self.center_stack.addWidget(self.canvas_view)
+
+        self.outline_widget = OutlineViewWidget(
+            doc=self.canvas_view.doc,
+            controller=self.canvas_view.controller,
+            parent=self.center_stack,
+        )
+        self.center_stack.addWidget(self.outline_widget)
+        layout.addWidget(self.center_stack, 1, 1)
 
         # 5. Collapsible Reviewing Pane on the right
-        self.review_pane = ReviewPane(doc=self.canvas_view.doc, parent=self)
+        self.review_pane = ReviewPane(doc=self.canvas_view.doc, parent=grid_container)
         self.review_pane.setVisible(False)
         layout.addWidget(self.review_pane, 0, 2, 2, 1)
 
@@ -77,6 +109,26 @@ class WriterView(QWidget):
         self.canvas_view.caret_moved.connect(self._on_caret_moved)
         self.canvas_view.controller.document_modified.connect(self._on_document_modified)
 
+        # Wire outline toolbar & widget
+        self.outline_toolbar.promote_requested.connect(self.outline_widget.promote_selected)
+        self.outline_toolbar.demote_requested.connect(self.outline_widget.demote_selected)
+        self.outline_toolbar.promote_h1_requested.connect(self.outline_widget.promote_selected_h1)
+        self.outline_toolbar.demote_body_requested.connect(self.outline_widget.demote_selected_body)
+        self.outline_toolbar.move_up_requested.connect(self.outline_widget.move_selected_up)
+        self.outline_toolbar.move_down_requested.connect(self.outline_widget.move_selected_down)
+        self.outline_toolbar.expand_requested.connect(self.outline_widget.expand_selected)
+        self.outline_toolbar.collapse_requested.connect(self.outline_widget.collapse_selected)
+        self.outline_toolbar.show_level_changed.connect(self.outline_widget.set_show_level)
+        self.outline_toolbar.first_line_toggled.connect(self.outline_widget.set_first_line_only)
+        self.outline_toolbar.show_formatting_toggled.connect(self.outline_widget.set_show_formatting)
+        self.outline_toolbar.close_requested.connect(lambda: self.set_view_mode(ViewMode.PRINT))
+        self.outline_widget.structure_changed.connect(self._on_outline_structure_changed)
+
+        # Wire reading toolbar
+        self.reading_toolbar.grow_font_requested.connect(self.canvas_view.zoom_in)
+        self.reading_toolbar.shrink_font_requested.connect(self.canvas_view.zoom_out)
+        self.reading_toolbar.close_requested.connect(lambda: self.set_view_mode(ViewMode.PRINT))
+
         # Wire review components
         self.review_toolbar.review_pane_toggled.connect(self.set_review_pane_visible)
         self.review_toolbar.markup_filter_changed.connect(self.review_pane.set_markup_filter)
@@ -92,6 +144,10 @@ class WriterView(QWidget):
         self.review_pane.item_activated.connect(self._on_review_item_activated)
 
         self.retranslate_ui()
+
+    def _on_outline_structure_changed(self) -> None:
+        self.canvas_view.set_document(self.canvas_view.doc)
+        self.canvas_view.controller.document_modified.emit()
 
     def _on_zoom_changed(self, zoom: float) -> None:
         self.h_ruler.update_zoom(zoom)
@@ -200,6 +256,65 @@ class WriterView(QWidget):
         """Toggle Reviewing Toolbar visibility."""
         self.review_toolbar.setVisible(visible)
 
+    def set_view_mode(self, mode: ViewMode | str) -> None:
+        """Switch active display mode (print, normal, web, reading, outline)."""
+        if isinstance(mode, str):
+            mode = ViewMode(mode)
+        self.view_mode = mode
+        self.canvas_view.set_view_mode(mode)
+        if mode == ViewMode.OUTLINE:
+            self.tab_selector.setVisible(False)
+            self.h_ruler.setVisible(False)
+            self.v_ruler.setVisible(False)
+            self.outline_toolbar.setVisible(True)
+            self.reading_toolbar.setVisible(False)
+            self.outline_widget.set_document(self.canvas_view.doc)
+            self.center_stack.setCurrentIndex(1)
+        elif mode == ViewMode.READING:
+            self.tab_selector.setVisible(False)
+            self.h_ruler.setVisible(False)
+            self.v_ruler.setVisible(False)
+            self.outline_toolbar.setVisible(False)
+            self.reading_toolbar.setVisible(True)
+            self.center_stack.setCurrentIndex(0)
+        elif mode == ViewMode.NORMAL:
+            self.tab_selector.setVisible(False)
+            self.h_ruler.setVisible(True)
+            self.v_ruler.setVisible(False)
+            self.outline_toolbar.setVisible(False)
+            self.reading_toolbar.setVisible(False)
+            self.center_stack.setCurrentIndex(0)
+        elif mode == ViewMode.WEB:
+            self.tab_selector.setVisible(False)
+            self.h_ruler.setVisible(True)
+            self.v_ruler.setVisible(False)
+            self.outline_toolbar.setVisible(False)
+            self.reading_toolbar.setVisible(False)
+            self.center_stack.setCurrentIndex(0)
+        else:  # PRINT or default
+            self.tab_selector.setVisible(True)
+            self.h_ruler.setVisible(True)
+            self.v_ruler.setVisible(True)
+            self.outline_toolbar.setVisible(False)
+            self.reading_toolbar.setVisible(False)
+            self.center_stack.setCurrentIndex(0)
+
+        self.view_mode_changed.emit(self.view_mode)
+
+    def scroll_to_page(self, page_idx: int) -> None:
+        """Scroll document to page page_idx."""
+        self.canvas_view.scroll_to_page(page_idx)
+
+    def scroll_to_paragraph(self, para_id: int) -> bool:
+        """Scroll document to paragraph with para_id."""
+        if self.view_mode == ViewMode.OUTLINE:
+            for p in all_paragraphs(self.canvas_view.doc):
+                if p.id == para_id:
+                    self.outline_widget.selected_para = p
+                    self.outline_widget.update()
+                    break
+        return self.canvas_view.scroll_to_paragraph(para_id)
+
     def set_ruler_visible(self, visible: bool) -> None:
         """Toggle visibility of rulers and corner tab selector."""
         self.tab_selector.setVisible(visible)
@@ -219,6 +334,8 @@ class WriterView(QWidget):
         self.canvas_view.retranslate_ui()
         self.review_pane.retranslate_ui()
         self.review_toolbar.retranslate_ui()
+        self.outline_toolbar.retranslate_ui()
+        self.reading_toolbar.retranslate_ui()
 
     def open_spelling_dialog(self) -> None:
         """Open Spelling and Grammar check modal dialog (F7)."""
