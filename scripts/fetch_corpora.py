@@ -178,12 +178,15 @@ def fetch_source(root: Path, name: str, url: str, commit: str, folders: list[str
     print(f"[{name}] Ready at {commit}", flush=True)
 
 
-def build_corpus_manifest(root: Path, selected_sources: list[str]) -> list[dict[str, Any]]:
+def build_corpus_manifest(
+    root: Path, selected_sources: list[str], source_root: Path | None = None
+) -> list[dict[str, Any]]:
     """Scan checked-out files and link them into word/excel/powerpoint directories with manifest."""
     manifest: list[dict[str, Any]] = []
+    base_source = source_root or root
 
     for name in selected_sources:
-        folder = root / name
+        folder = base_source / name
         if not (folder / ".git").exists():
             continue
         commit = git(folder, "rev-parse", "--verify", "HEAD", check=False) or ""
@@ -219,12 +222,12 @@ def build_corpus_manifest(root: Path, selected_sources: list[str]) -> list[dict[
             )
 
     # Add ledger features into excel directory if downloaded
-    lf_manifest = root / "ledger-features" / "manifest.json"
+    lf_manifest = base_source / "ledger-features" / "manifest.json"
     if lf_manifest.exists():
         try:
             lf_data = json.loads(lf_manifest.read_text(encoding="utf-8"))
             for item in lf_data:
-                src = root / "ledger-features" / Path(item["path"]).name
+                src = base_source / "ledger-features" / Path(item["path"]).name
                 if src.exists():
                     target = root / "excel" / f"supplemental__{src.name}"
                     link_or_copy(src, target)
@@ -331,12 +334,19 @@ def curate_representative_samples(
 
 
 def main() -> None:
+    default_cache = Path(os.environ.get("ATBOFFICE_CORPORA_CACHE", Path.home() / ".cache" / "atboffice_corpora"))
     parser = argparse.ArgumentParser(description="Fetch and manage Office test corpora.")
     parser.add_argument(
         "--dest",
         type=Path,
         default=Path("tests/docs/full_corpus"),
         help="Destination directory for the full corpus.",
+    )
+    parser.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=default_cache,
+        help="Persistent cache directory outside repository for git checkouts.",
     )
     parser.add_argument(
         "--sources",
@@ -361,16 +371,19 @@ def main() -> None:
     dest = args.dest.resolve()
     dest.mkdir(parents=True, exist_ok=True)
 
+    cache_dir = args.cache_dir.resolve()
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
     sources_to_fetch = [s for s in args.sources if s in SOURCES]
     for s in sources_to_fetch:
         url, commit, folders = SOURCES[s]
-        fetch_source(dest, s, url, commit, folders)
+        fetch_source(cache_dir, s, url, commit, folders)
 
     if "ledger-features" in args.sources:
-        fetch_ledger_features(dest)
+        fetch_ledger_features(cache_dir)
 
     print("Building full corpus layout and manifest...", flush=True)
-    manifest = build_corpus_manifest(dest, sources_to_fetch)
+    manifest = build_corpus_manifest(dest, sources_to_fetch, source_root=cache_dir)
     print(f"Total corpus files indexed: {len(manifest)}", flush=True)
 
     for app in EXTENSIONS:
