@@ -7,7 +7,6 @@ from typing import Final
 from PySide6.QtCore import QCoreApplication, QPoint, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import (
-    QColorDialog,
     QFrame,
     QGridLayout,
     QPushButton,
@@ -201,12 +200,15 @@ class ColorPickerPopup(QFrame):
 
     def _open_more_colors_dialog(self) -> None:
         self.close()
-        dialog = QColorDialog(self.parentWidget())
-        dialog.setWindowTitle(safe_tr("颜色"))
-        if dialog.exec():
-            selected = dialog.selectedColor()
-            if selected.isValid():
-                self.color_selected.emit(selected.name().upper())
+        from atboffice.ui.components.honeycomb_color_dialog import HoneycombColorDialog
+
+        selected = HoneycombColorDialog.getColor(
+            initial="#3366FF",
+            parent=self.parentWidget(),
+            title=safe_tr("颜色"),
+        )
+        if selected is not None and selected.isValid():
+            self.color_selected.emit(selected.name().upper())
 
 
 class ColorPickerButton(QToolButton):

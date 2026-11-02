@@ -54,7 +54,10 @@ class LecternWindow(BaseOfficeWindow):
         # 3. Setup native macOS menu bar
         self.menu_bar: MacMenuBar = setup_mac_menu(self)
 
-        # 4. Setup Office 2003 Luna 10 toolbars
+        # 4. Initialize universal TaskPaneDock
+        self.init_task_pane_dock(safe_tr("演示文稿"))
+
+        # 5. Setup Office 2003 Luna 10 toolbars
         self._setup_toolbars()
 
         # 5. Connect slide changes & selection signals
@@ -97,6 +100,10 @@ class LecternWindow(BaseOfficeWindow):
         self.action_registry.set_handler("file_print", self.print_document)
         self.action_registry.set_handler("printPreview", self.print_preview)
         self.action_registry.set_handler("file_print_preview", self.print_preview)
+        self.action_registry.set_handler("properties", self.show_document_properties_dialog)
+        self.action_registry.set_handler("file_properties", self.show_document_properties_dialog)
+        self.action_registry.set_handler("taskPane", self.toggle_task_pane)
+        self.action_registry.set_handler("view_task_pane", self.toggle_task_pane)
 
         # 2. Edit & Clipboard
         self.action_registry.set_handler("cut", self.cut)
@@ -1220,6 +1227,8 @@ class LecternWindow(BaseOfficeWindow):
 
     def open_slide_design_pane(self) -> None:
         self.show_status_message(safe_tr("打开幻灯片设计窗格"))
+        if self.task_pane_dock is not None:
+            self.task_pane_dock.show()
 
     def insert_slide_master(self) -> None:
         self.show_status_message(safe_tr("插入幻灯片母版"))

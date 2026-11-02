@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QCloseEvent
@@ -30,6 +31,8 @@ class BaseOfficeWindow(QMainWindow):
         self.current_file_path: Path | None = None
         self._is_modified: bool = False
         self.current_theme: str = "blue"
+        self.task_pane_dock: Any | None = None
+        self._document_metadata: Any | None = None
         if not hasattr(self, "app_name"):
             self.app_name: str = "ATBOffice"
         if not hasattr(self, "app_type"):
@@ -581,6 +584,87 @@ class BaseOfficeWindow(QMainWindow):
         else:
             event.ignore()
 
+    def init_task_pane_dock(self, doc_type_name: str = "文档") -> Any:
+        """Initialize and attach universal TaskPaneDock to right dock area."""
+        from PySide6.QtCore import Qt
+
+        from atboffice.ui.components.task_pane import TaskPaneDock
+
+        if self.task_pane_dock is None:
+            self.task_pane_dock = TaskPaneDock(self)
+            self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.task_pane_dock)
+            self.task_pane_dock.action_requested.connect(self._on_task_pane_action)
+            self.task_pane_dock.visibilityChanged.connect(self._on_task_pane_visibility_changed)
+            self.task_pane_dock.hide()
+        return self.task_pane_dock
+
+    def toggle_task_pane(self, pane_id: str | None = None) -> None:
+        """Toggle or switch active task pane."""
+        if self.task_pane_dock is not None:
+            self.task_pane_dock.toggle_task_pane(pane_id)
+
+    def show_task_pane(self, pane_id: str) -> None:
+        """Display specified task pane."""
+        if self.task_pane_dock is not None:
+            self.task_pane_dock.show_pane(pane_id)
+
+    def _on_task_pane_visibility_changed(self, visible: bool) -> None:
+        """Sync check state in view menu when task pane is opened or closed."""
+        if hasattr(self, "menu_bar") and hasattr(self.menu_bar, "action_map"):
+            if "taskPane" in self.menu_bar.action_map:
+                self.menu_bar.action_map["taskPane"].setChecked(visible)
+
+    def _on_task_pane_action(self, action: str) -> None:
+        """Handle common action link clicks originating from task panes."""
+        if action == "open_file":
+            self.open_file_dialog()
+        elif action == "new_blank":
+            self.new_file()
+        elif action == "help":
+            self.show_help()
+        elif action.startswith("search:"):
+            self.show_help()
+
+    def show_document_properties_dialog(self) -> int:
+        """Open 5-tab Document Properties dialog."""
+        from atboffice.ui.dialogs.document_properties_dialog import (
+            DocumentPropertiesDialog,
+        )
+
+        meta = self.get_document_metadata()
+        dlg = DocumentPropertiesDialog(meta, self)
+        res = dlg.exec()
+        if res == DocumentPropertiesDialog.DialogCode.Accepted:
+            self.set_document_metadata(dlg.metadata)
+        return res
+
+    def get_document_metadata(self) -> Any:
+        """Return document metadata for properties dialog."""
+        import datetime
+
+        from atboffice.ui.dialogs.document_properties_dialog import DocumentMetadata
+
+        now = datetime.datetime.now()
+        meta = DocumentMetadata(
+            file_path=self.current_file_path,
+            file_type=f"{self.app_name} 文档",
+            title=self.current_file_path.stem if self.current_file_path else self.default_doc_name,
+            created=now,
+            modified=now,
+            accessed=now,
+        )
+        if hasattr(self, "_document_metadata") and self._document_metadata is not None:
+            meta = self._document_metadata
+            meta.file_path = self.current_file_path
+        return meta
+
+    def set_document_metadata(self, metadata: Any) -> None:
+        """Store updated document metadata."""
+        self._document_metadata = metadata
+        self.set_modified(True)
+
     def retranslate_ui(self) -> None:
         """Update localized UI strings when application language changes."""
         self.update_window_title()
+        if self.task_pane_dock is not None:
+            self.task_pane_dock.retranslate_ui()

@@ -81,7 +81,10 @@ class LedgerWindow(BaseOfficeWindow):
         # 3. Setup native macOS menu bar
         self.menu_bar: MacMenuBar = setup_mac_menu(self)
 
-        # 4. Setup Office 2003 Luna toolbars
+        # 4. Initialize universal TaskPaneDock
+        self.init_task_pane_dock(safe_tr("工作簿"))
+
+        # 5. Setup Office 2003 Luna toolbars
         self._setup_toolbars()
 
         # 5. Setup AutoCalculate status bar
@@ -112,6 +115,8 @@ class LedgerWindow(BaseOfficeWindow):
         self.action_registry.set_handler("new", self.new_file)
         self.action_registry.set_handler("open", self.open_file_dialog)
         self.action_registry.set_handler("save", self.save_file)
+        self.action_registry.set_handler("properties", self.show_document_properties_dialog)
+        self.action_registry.set_handler("taskPane", self.toggle_task_pane)
         self.action_registry.set_handler("cut", self.cut)
         self.action_registry.set_handler("copy", self.copy)
         self.action_registry.set_handler("paste", self.paste)
