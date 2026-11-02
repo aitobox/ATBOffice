@@ -284,6 +284,28 @@ class LedgerWindow(BaseOfficeWindow):
         self.action_registry.set_handler("insertWordArt", self.open_wordart_gallery)
         self.action_registry.set_handler("wordartGallery", self.open_wordart_gallery)
 
+        # Phase 6 dialog actions
+        self.action_registry.set_handler("insertChart", self.open_chart_wizard)
+        self.action_registry.set_handler("insert_chart", self.open_chart_wizard)
+        self.action_registry.set_handler("textToColumns", self.open_text_to_columns_wizard)
+        self.action_registry.set_handler("data_text_to_columns", self.open_text_to_columns_wizard)
+        self.action_registry.set_handler("subtotals", self.open_subtotal_dialog)
+        self.action_registry.set_handler("data_subtotals", self.open_subtotal_dialog)
+        self.action_registry.set_handler("consolidate", self.open_consolidate_dialog)
+        self.action_registry.set_handler("data_consolidate", self.open_consolidate_dialog)
+        self.action_registry.set_handler("scenarios", self.open_scenario_manager)
+        self.action_registry.set_handler("tools_scenarios", self.open_scenario_manager)
+        self.action_registry.set_handler("dataTable", self.open_data_table_dialog)
+        self.action_registry.set_handler("data_table", self.open_data_table_dialog)
+        self.action_registry.set_handler("protectSheet", self.open_protect_sheet_dialog)
+        self.action_registry.set_handler("tools_protect_sheet", self.open_protect_sheet_dialog)
+        self.action_registry.set_handler("protectWorkbook", self.open_protect_workbook_dialog)
+        self.action_registry.set_handler("tools_protect_workbook", self.open_protect_workbook_dialog)
+        self.action_registry.set_handler("advancedFilter", self.open_advanced_filter_dialog)
+        self.action_registry.set_handler("data_advanced_filter", self.open_advanced_filter_dialog)
+        self.action_registry.set_handler("options", self.open_options_dialog)
+        self.action_registry.set_handler("tools_options", self.open_options_dialog)
+
     def _ensure_find_replace_dialog(self) -> FindReplaceDialog:
         """Create or return existing FindReplaceDialog instance."""
         if self._find_replace_dialog is None:
@@ -1597,6 +1619,141 @@ class LedgerWindow(BaseOfficeWindow):
         )
         if dlg.exec():
             self.spreadsheet_view.grid.viewport().update()
+
+    def open_chart_wizard(self) -> None:
+        """Open Excel 2003 classic Chart Wizard (4 步图表向导)."""
+        from atboffice.modules.spreadsheet.dialogs.chart_wizard import ChartWizardDialog
+
+        sheet = getattr(self.spreadsheet_view, "model", None)
+        workbook = getattr(self.spreadsheet_view, "workbook", None)
+        dlg = ChartWizardDialog(
+            sheet_model=sheet,
+            workbook_model=workbook,
+            parent=self,
+        )
+        if dlg.exec():
+            self.spreadsheet_view.grid.viewport().update()
+
+    def open_text_to_columns_wizard(self) -> None:
+        """Open Excel 2003 classic Convert Text to Columns Wizard (文本分列向导)."""
+        from atboffice.modules.spreadsheet.dialogs.text_to_columns_wizard import TextToColumnsWizard
+
+        sheet = getattr(self.spreadsheet_view, "model", None)
+        sel = getattr(self.spreadsheet_view, "selection", None)
+        sel_range = (
+            (sel.active_range.top, sel.active_range.left, sel.active_range.bottom, sel.active_range.right)
+            if (sel and getattr(sel, "active_range", None))
+            else (0, 0, 0, 0)
+        )
+        dlg = TextToColumnsWizard(
+            sheet_model=sheet,
+            selected_range=sel_range,
+            parent=self,
+        )
+        if dlg.exec():
+            self.spreadsheet_view.grid.viewport().update()
+
+    def open_subtotal_dialog(self) -> None:
+        """Open Excel 2003 classic Subtotal Calculation (分类汇总) dialog."""
+        from atboffice.modules.spreadsheet.dialogs.subtotal_dialog import SubtotalDialog
+
+        sheet = getattr(self.spreadsheet_view, "model", None)
+        sel = getattr(self.spreadsheet_view, "selection", None)
+        sel_range = (
+            (sel.active_range.top, sel.active_range.left, sel.active_range.bottom, sel.active_range.right)
+            if (sel and getattr(sel, "active_range", None))
+            else (0, 0, 10, 5)
+        )
+        dlg = SubtotalDialog(
+            sheet_model=sheet,
+            selected_range=sel_range,
+            parent=self,
+        )
+        if dlg.exec():
+            self.spreadsheet_view.grid.viewport().update()
+
+    def open_consolidate_dialog(self) -> None:
+        """Open Excel 2003 classic Consolidate (合并计算) dialog."""
+        from atboffice.modules.spreadsheet.dialogs.consolidate_dialog import ConsolidateDialog
+
+        sheet = getattr(self.spreadsheet_view, "model", None)
+        workbook = getattr(self.spreadsheet_view, "workbook", None)
+        dlg = ConsolidateDialog(
+            sheet_model=sheet,
+            workbook_model=workbook,
+            parent=self,
+        )
+        if dlg.exec():
+            self.spreadsheet_view.grid.viewport().update()
+
+    def open_scenario_manager(self) -> None:
+        """Open Excel 2003 classic Scenario Manager (方案管理器) dialog."""
+        from atboffice.modules.spreadsheet.dialogs.scenario_manager_dialog import ScenarioManagerDialog
+
+        sheet = getattr(self.spreadsheet_view, "model", None)
+        dlg = ScenarioManagerDialog(
+            sheet_model=sheet,
+            parent=self,
+        )
+        if dlg.exec():
+            self.spreadsheet_view.grid.viewport().update()
+
+    def open_data_table_dialog(self) -> None:
+        """Open Excel 2003 classic Data Table (模拟运算表) dialog."""
+        from atboffice.modules.spreadsheet.dialogs.data_table_dialog import DataTableDialog
+
+        sheet = getattr(self.spreadsheet_view, "model", None)
+        sel = getattr(self.spreadsheet_view, "selection", None)
+        sel_range = (
+            (sel.active_range.top, sel.active_range.left, sel.active_range.bottom, sel.active_range.right)
+            if (sel and getattr(sel, "active_range", None))
+            else (0, 0, 5, 5)
+        )
+        dlg = DataTableDialog(
+            sheet_model=sheet,
+            selected_range=sel_range,
+            parent=self,
+        )
+        if dlg.exec():
+            self.spreadsheet_view.grid.viewport().update()
+
+    def open_protect_sheet_dialog(self) -> None:
+        """Open Excel 2003 classic Protect/Unprotect Sheet dialog."""
+        from atboffice.modules.spreadsheet.dialogs.protect_dialog import (
+            ProtectSheetDialog,
+            UnprotectSheetDialog,
+        )
+
+        sheet = getattr(self.spreadsheet_view, "model", None)
+        if sheet and getattr(sheet, "protection", None):
+            dlg = UnprotectSheetDialog(sheet_model=sheet, parent=self)
+        else:
+            dlg = ProtectSheetDialog(sheet_model=sheet, parent=self)
+        dlg.exec()
+
+    def open_protect_workbook_dialog(self) -> None:
+        """Open Excel 2003 classic Protect Workbook dialog."""
+        from atboffice.modules.spreadsheet.dialogs.protect_dialog import ProtectWorkbookDialog
+
+        workbook = getattr(self.spreadsheet_view, "workbook", None)
+        dlg = ProtectWorkbookDialog(workbook_model=workbook, parent=self)
+        dlg.exec()
+
+    def open_advanced_filter_dialog(self) -> None:
+        """Open Excel 2003 classic Advanced Filter (高级筛选) dialog."""
+        from atboffice.modules.spreadsheet.dialogs.advanced_filter_dialog import AdvancedFilterDialog
+
+        sheet = getattr(self.spreadsheet_view, "model", None)
+        dlg = AdvancedFilterDialog(sheet_model=sheet, parent=self)
+        if dlg.exec():
+            self.spreadsheet_view.grid.viewport().update()
+
+    def open_options_dialog(self) -> None:
+        """Open Excel 2003 classic Ledger Options dialog."""
+        from atboffice.modules.spreadsheet.dialogs.options_dialog import LedgerOptionsDialog
+
+        dlg = LedgerOptionsDialog(parent=self)
+        dlg.exec()
 
     def toggle_total_row(self) -> None:
         """Toggle table total calculation summary row."""
