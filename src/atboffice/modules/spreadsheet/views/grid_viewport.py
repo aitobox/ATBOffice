@@ -132,6 +132,7 @@ class GridViewport(QAbstractScrollArea):
 
     cell_selected = Signal(int, int)
     cell_double_clicked = Signal(int, int)
+    view_mode_changed = Signal(str)
 
     # Classic Office / Luna color palette
     COLOR_GRIDLINE: Final[QColor] = QColor(208, 215, 229)
@@ -192,6 +193,8 @@ class GridViewport(QAbstractScrollArea):
         self._redo_stack: list[dict[str, Any]] = []
         self._dv_dropdown_rect: QRect | None = None
         self._format_painter_window: Any | None = None
+        self._view_mode: str = "normal"  # "normal" | "page_break"
+        self._page_break_welcome_shown: bool = False
 
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
@@ -203,6 +206,32 @@ class GridViewport(QAbstractScrollArea):
 
         self._update_scrollbars()
         self.retranslate_ui()
+
+    @property
+    def view_mode(self) -> str:
+        """Current view mode ('normal' or 'page_break')."""
+        return self._view_mode
+
+    def set_view_mode(self, mode: str, prompt_welcome: bool = True) -> None:
+        """Switch view mode between 'normal' and 'page_break'."""
+        if mode not in ("normal", "page_break"):
+            mode = "normal"
+        if self._view_mode != mode:
+            self._view_mode = mode
+            if mode == "page_break" and prompt_welcome and not self._page_break_welcome_shown:
+                self.show_page_break_welcome_dialog()
+            self.view_mode_changed.emit(self._view_mode)
+            self.viewport().update()
+
+    def show_page_break_welcome_dialog(self) -> None:
+        """Show classic Excel 2003 'Welcome to Page Break Preview' dialog."""
+        self._page_break_welcome_shown = True
+        QMessageBox.information(
+            self,
+            safe_tr("Ledger"),
+            safe_tr("欢迎使用分页符预览。\n\n可以通过用鼠标拖动分页符来调整其位置。"),
+            QMessageBox.StandardButton.Ok,
+        )
 
     @property
     def is_dragging(self) -> bool:
@@ -1195,6 +1224,11 @@ class GridViewport(QAbstractScrollArea):
             painter.drawLine(frozen_x, self.col_header_height, frozen_x, vh)
             painter.restore()
 
+        # 5.12 Draw Page Break Preview overlay & watermarks if active
+        self._paint_page_break_preview(
+            painter, cell_clip, scroll_x, scroll_y, vw, vh
+        )
+
         # 6. Draw Fixed Headers (Column Headers, Row Headers, Corner)
         self._paint_headers(
             painter, start_row, end_row, start_col, end_col, scroll_x, scroll_y, vw, vh
@@ -1219,6 +1253,116 @@ class GridViewport(QAbstractScrollArea):
             painter.setPen(guide_pen)
             painter.drawLine(0, self._resize_preview_pos, vw, self._resize_preview_pos)
             painter.restore()
+
+    def _paint_page_break_preview(
+        self,
+        painter: QPainter,
+        cell_clip: QRect,
+        scroll_x: int,
+        scroll_y: int,
+        vw: int,
+        vh: int,
+    ) -> None:
+        """Render Excel 2003 Page Break Preview mode."""
+        if self._view_mode != "page_break":
+            return
+
+        used_rows = [r for (r, c) in self.model.cells.keys()]
+        used_cols = [c for (r, c) in self.model.cells.keys()]
+        max_r = max(used_rows) if used_rows else 0
+        max_c = max(used_cols) if used_cols else 0
+
+        rows_per_page = 45
+        cols_per_page = 8
+
+        total_rows = max(rows_per_page, max_r + 1)
+        total_cols = max(cols_per_page, max_c + 1)
+
+        page_rows = math.ceil(total_rows / rows_per_page) * rows_per_page
+        page_cols = math.ceil(total_cols / cols_per_page) * cols_per_page
+
+        print_x1 = self.row_header_width + self.geometry_mapper.col_pos(0) - scroll_x
+        print_y1 = self.col_header_height + self.geometry_mapper.row_pos(0) - scroll_y
+        print_x2 = self.row_header_width + self.geometry_mapper.col_pos(page_cols) - scroll_x
+        print_y2 = self.col_header_height + self.geometry_mapper.row_pos(page_rows) - scroll_y
+        total_print_rect = QRect(print_x1, print_y1, print_x2 - print_x1, print_y2 - print_y1)
+
+        painter.save()
+        painter.setClipRect(cell_clip)
+
+        # 1. Dim outside background with gray overlay
+        gray_color = QColor(160, 160, 160, 150)
+        if total_print_rect.intersects(cell_clip):
+            if total_print_rect.left() > cell_clip.left():
+                w = total_print_rect.left() - cell_clip.left()
+                painter.fillRect(
+                    QRect(cell_clip.left(), cell_clip.top(), w, cell_clip.height()),
+                    gray_color,
+                )
+            if total_print_rect.right() < cell_clip.right():
+                w = cell_clip.right() - total_print_rect.right()
+                painter.fillRect(
+                    QRect(total_print_rect.right() + 1, cell_clip.top(), w, cell_clip.height()),
+                    gray_color,
+                )
+            if total_print_rect.top() > cell_clip.top():
+                x = max(cell_clip.left(), total_print_rect.left())
+                w = min(cell_clip.width(), total_print_rect.width())
+                h = total_print_rect.top() - cell_clip.top()
+                painter.fillRect(QRect(x, cell_clip.top(), w, h), gray_color)
+            if total_print_rect.bottom() < cell_clip.bottom():
+                x = max(cell_clip.left(), total_print_rect.left())
+                w = min(cell_clip.width(), total_print_rect.width())
+                h = cell_clip.bottom() - total_print_rect.bottom()
+                painter.fillRect(QRect(x, total_print_rect.bottom() + 1, w, h), gray_color)
+        else:
+            painter.fillRect(cell_clip, gray_color)
+
+        # 2. Draw Page Watermarks and internal dashed lines
+        num_pages_y = page_rows // rows_per_page
+        num_pages_x = page_cols // cols_per_page
+        page_num = 1
+
+        watermark_font = QFont("Arial", 46, QFont.Weight.Bold)
+        watermark_color = QColor(160, 160, 160, 130)
+
+        for py in range(num_pages_y):
+            r_start = py * rows_per_page
+            r_end = (py + 1) * rows_per_page
+            for px in range(num_pages_x):
+                c_start = px * cols_per_page
+                c_end = (px + 1) * cols_per_page
+
+                pg_x1 = self.row_header_width + self.geometry_mapper.col_pos(c_start) - scroll_x
+                pg_y1 = self.col_header_height + self.geometry_mapper.row_pos(r_start) - scroll_y
+                pg_x2 = self.row_header_width + self.geometry_mapper.col_pos(c_end) - scroll_x
+                pg_y2 = self.col_header_height + self.geometry_mapper.row_pos(r_end) - scroll_y
+                pg_rect = QRect(pg_x1, pg_y1, pg_x2 - pg_x1, pg_y2 - pg_y1)
+
+                if pg_rect.intersects(cell_clip):
+                    painter.setFont(watermark_font)
+                    painter.setPen(QPen(watermark_color))
+                    painter.drawText(pg_rect, Qt.AlignmentFlag.AlignCenter, f"Page {page_num}")
+
+                    # Internal dashed break lines
+                    if px > 0:
+                        dash_pen = QPen(QColor(0, 0, 255), 1, Qt.PenStyle.DashLine)
+                        painter.setPen(dash_pen)
+                        painter.drawLine(pg_x1, pg_y1, pg_x1, pg_y2)
+                    if py > 0:
+                        dash_pen = QPen(QColor(0, 0, 255), 1, Qt.PenStyle.DashLine)
+                        painter.setPen(dash_pen)
+                        painter.drawLine(pg_x1, pg_y1, pg_x2, pg_y1)
+
+                page_num += 1
+
+        # 3. Outer boundary: bold solid blue border
+        outer_pen = QPen(QColor(0, 0, 255), 2, Qt.PenStyle.SolidLine)
+        painter.setPen(outer_pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(total_print_rect)
+
+        painter.restore()
 
     def _paint_audit_arrows(
         self,
@@ -2678,6 +2822,12 @@ class GridViewport(QAbstractScrollArea):
         act_cw = menu.addAction(safe_tr("列宽(&C)…"))
         act_cw.triggered.connect(self.set_col_width_dialog)
 
+        act_autofit_col = menu.addAction(safe_tr("最适合的列宽(&A)"))
+        act_autofit_col.triggered.connect(self.autofit_selected_cols)
+
+        act_std_cw = menu.addAction(safe_tr("标准列宽(&S)…"))
+        act_std_cw.triggered.connect(self.set_standard_col_width_dialog)
+
         act_hide = menu.addAction(safe_tr("隐藏(&H)"))
         act_hide.setShortcut("Ctrl+0")
         act_hide.triggered.connect(self.hide_selected_cols)
@@ -2726,6 +2876,9 @@ class GridViewport(QAbstractScrollArea):
 
         act_rh = menu.addAction(safe_tr("行高(&R)…"))
         act_rh.triggered.connect(self.set_row_height_dialog)
+
+        act_autofit_row = menu.addAction(safe_tr("最适合的行高(&A)"))
+        act_autofit_row.triggered.connect(self.autofit_selected_rows)
 
         act_hide = menu.addAction(safe_tr("隐藏(&H)"))
         act_hide.setShortcut("Ctrl+9")
@@ -3565,6 +3718,66 @@ class GridViewport(QAbstractScrollArea):
         if ok:
             for r in range(pr.min_r, pr.max_r + 1):
                 self.geometry_mapper.set_row_height(r, val)
+            self._update_scrollbars()
+            self.viewport().update()
+
+    def autofit_selected_rows(self) -> None:
+        """Autofit row heights for selected rows based on cell contents."""
+        if self.guard_protect("formatRows"):
+            return
+        pr = self.selection.primary_range
+        fm = QFontMetrics(self.font())
+        default_h = 20
+        for r in range(pr.min_r, pr.max_r + 1):
+            max_h = default_h
+            for c in range(min(100, self.selection.max_cols)):
+                cell = self.model.get_cell(r, c)
+                if cell is not None and cell.value is not None and str(cell.value) != "":
+                    lines = str(cell.value).split("\n")
+                    needed_h = max(default_h, len(lines) * (fm.height() + 4) + 4)
+                    if needed_h > max_h:
+                        max_h = min(needed_h, 409)
+            self.geometry_mapper.set_row_height(r, max_h)
+        self._update_scrollbars()
+        self.viewport().update()
+
+    def autofit_selected_cols(self) -> None:
+        """Autofit column widths for selected columns based on cell contents."""
+        if self.guard_protect("formatColumns"):
+            return
+        pr = self.selection.primary_range
+        fm = QFontMetrics(self.font())
+        min_w = 40
+        for c in range(pr.min_c, pr.max_c + 1):
+            max_w = min_w
+            for r in range(min(500, self.selection.max_rows)):
+                cell = self.model.get_cell(r, c)
+                if cell is not None and cell.value is not None and str(cell.value) != "":
+                    val_str = str(getattr(cell, "formatted_value", None) or cell.value)
+                    w = fm.horizontalAdvance(val_str) + 16
+                    if w > max_w:
+                        max_w = min(w, 500)
+            self.geometry_mapper.set_col_width(c, max_w)
+        self._update_scrollbars()
+        self.viewport().update()
+
+    def set_standard_col_width_dialog(self) -> None:
+        """Show dialog to set standard column width."""
+        if self.guard_protect("formatColumns"):
+            return
+        curr = 72
+        val, ok = QInputDialog.getInt(
+            self,
+            safe_tr("标准列宽"),
+            safe_tr("标准列宽(&S):"),
+            curr,
+            0,
+            1000,
+        )
+        if ok:
+            pr = self.selection.primary_range
+            for c in range(pr.min_c, pr.max_c + 1):
+                self.geometry_mapper.set_col_width(c, val)
             self._update_scrollbars()
             self.viewport().update()
 

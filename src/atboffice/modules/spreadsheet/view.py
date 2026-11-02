@@ -169,6 +169,15 @@ class SpreadsheetView(QWidget):
         """Switch active worksheet by index."""
         self._workbook.set_active_sheet_index(index)
 
+    @property
+    def view_mode(self) -> str:
+        """Current view mode of the grid viewport ('normal' or 'page_break')."""
+        return self.grid.view_mode
+
+    def set_view_mode(self, mode: str, prompt_welcome: bool = True) -> None:
+        """Set grid viewport view mode ('normal' or 'page_break')."""
+        self.grid.set_view_mode(mode, prompt_welcome=prompt_welcome)
+
     def _on_active_sheet_changed(self, index: int) -> None:
         """Synchronize viewport and editor with newly activated worksheet."""
         active_sheet = self._workbook.active_sheet

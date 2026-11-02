@@ -29,6 +29,7 @@ from atboffice.modules.spreadsheet.views.object_layer import (
     FloatingObject,
 )
 from atboffice.ui.components.color_picker import ColorPickerButton
+from atboffice.ui.components.fullscreen_bar import CloseFullScreenBar
 from atboffice.ui.components.status_bar import StatusBar
 from atboffice.ui.components.toolbar import OfficeToolBar
 from atboffice.ui.dialogs.find_replace_dialog import FindReplaceDialog
@@ -87,7 +88,15 @@ class LedgerWindow(BaseOfficeWindow):
         # 5. Setup Office 2003 Luna toolbars
         self._setup_toolbars()
 
-        # 5. Setup AutoCalculate status bar
+        # 5.1 Full Screen Bar and View Mode State
+        self._is_fullscreen_mode: bool = False
+        self._prev_view_mode: str = "normal"
+        self._saved_toolbars_visible: list[tuple[Any, bool]] = []
+        self._saved_formula_bar_visible: bool = True
+        self.fullscreen_bar = CloseFullScreenBar(parent=self)
+        self.fullscreen_bar.close_full_screen_requested.connect(self.exit_full_screen)
+
+        # 5.2 Setup AutoCalculate status bar
         self.status_bar = StatusBar(self)
         self.setStatusBar(self.status_bar)
 
@@ -128,6 +137,9 @@ class LedgerWindow(BaseOfficeWindow):
         self.action_registry.set_handler("format_cells", self.format_cells)
         self.action_registry.set_handler("find", self.open_find_dialog)
         self.action_registry.set_handler("replace", self.open_replace_dialog)
+        self.action_registry.set_handler("view_normal", self.set_normal_view)
+        self.action_registry.set_handler("view_page_break", self.set_page_break_view)
+        self.action_registry.set_handler("view_fullscreen", self.toggle_fullscreen)
 
         # Standard toolbar actions
         self.action_registry.set_handler("autoSum", self.auto_sum)
@@ -2216,6 +2228,97 @@ class LedgerWindow(BaseOfficeWindow):
             grid.redo()
             self.set_modified(True)
 
+    def set_view_mode(self, mode: str) -> None:
+        """Switch spreadsheet view mode ('normal' or 'page_break')."""
+        if hasattr(self, "spreadsheet_view") and hasattr(self.spreadsheet_view, "grid"):
+            self.spreadsheet_view.grid.set_view_mode(mode)
+        if hasattr(self, "action_registry") and self.action_registry:
+            self.action_registry.set_checked("view_normal", mode == "normal")
+            self.action_registry.set_checked("view_page_break", mode == "page_break")
+
+    def set_normal_view(self) -> None:
+        """Switch to Normal grid view."""
+        self.set_view_mode("normal")
+
+    def set_page_break_view(self) -> None:
+        """Switch to Page Break Preview mode."""
+        self.set_view_mode("page_break")
+
+    def toggle_fullscreen(self) -> None:
+        """Toggle Full Screen mode."""
+        if self._is_fullscreen_mode:
+            self.exit_full_screen()
+        else:
+            self.enter_full_screen()
+
+    def enter_full_screen(self) -> None:
+        """Enter full screen view: hide chrome and show floating toolbar."""
+        if self._is_fullscreen_mode:
+            return
+        self._is_fullscreen_mode = True
+        self._prev_view_mode = getattr(self.spreadsheet_view, "view_mode", "normal")
+
+        self._saved_toolbars_visible = []
+        for tb in self.findChildren(OfficeToolBar):
+            self._saved_toolbars_visible.append((tb, tb.isVisible()))
+            tb.hide()
+
+        if self.menuBar():
+            self.menuBar().hide()
+        if self.statusBar():
+            self.statusBar().hide()
+
+        if hasattr(self, "spreadsheet_view") and hasattr(self.spreadsheet_view, "formula_bar"):
+            self._saved_formula_bar_visible = self.spreadsheet_view.formula_bar.isVisible()
+            self.spreadsheet_view.formula_bar.hide()
+
+        self.showFullScreen()
+
+        self.fullscreen_bar.show()
+        self.fullscreen_bar.raise_()
+        self._reposition_fullscreen_bar()
+
+    def exit_full_screen(self) -> None:
+        """Exit full screen mode and restore menus and toolbars."""
+        if not self._is_fullscreen_mode:
+            return
+        self._is_fullscreen_mode = False
+        self.fullscreen_bar.hide()
+
+        if self.menuBar():
+            self.menuBar().show()
+        if self.statusBar():
+            self.statusBar().show()
+
+        for tb, was_vis in self._saved_toolbars_visible:
+            tb.setVisible(was_vis)
+        self._saved_toolbars_visible.clear()
+
+        if hasattr(self, "spreadsheet_view") and hasattr(self.spreadsheet_view, "formula_bar"):
+            self.spreadsheet_view.formula_bar.setVisible(self._saved_formula_bar_visible)
+
+        self.showNormal()
+
+    def _reposition_fullscreen_bar(self) -> None:
+        if hasattr(self, "fullscreen_bar") and self.fullscreen_bar.isVisible():
+            geo = self.geometry()
+            self.fullscreen_bar.move(
+                geo.right() - self.fullscreen_bar.width() - 40,
+                geo.top() + 40,
+            )
+
+    def resizeEvent(self, event: Any) -> None:
+        super().resizeEvent(event)
+        if hasattr(self, "_is_fullscreen_mode") and self._is_fullscreen_mode:
+            self._reposition_fullscreen_bar()
+
+    def keyPressEvent(self, event: Any) -> None:
+        if getattr(self, "_is_fullscreen_mode", False) and event.key() == Qt.Key.Key_Escape:
+            self.exit_full_screen()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
     def retranslate_ui(self) -> None:
         """Update localized UI strings when application language changes."""
         super().retranslate_ui()
@@ -2233,3 +2336,5 @@ class LedgerWindow(BaseOfficeWindow):
             self.spreadsheet_view.retranslate_ui()
         if hasattr(self, "menu_bar") and self.menu_bar:
             self.menu_bar.retranslate_ui()
+        if hasattr(self, "fullscreen_bar") and self.fullscreen_bar:
+            self.fullscreen_bar.retranslate_ui()
