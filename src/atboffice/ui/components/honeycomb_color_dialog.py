@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import math
-from typing import Final
 
-from PySide6.QtCore import QCoreApplication, QPoint, QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QCoreApplication, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QMouseEvent,
     QPainter,
-    QPainterPath,
     QPaintEvent,
     QPen,
     QPolygonF,

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +15,6 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QFrame,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QLineEdit,
     QListView,
@@ -37,7 +35,9 @@ def safe_tr(text: str) -> str:
 class ConfirmPasswordDialog(QDialog):
     """Secondary confirmation dialog for file encryption password."""
 
-    def __init__(self, prompt: str = "请重新输入打开权限密码:", parent: QWidget | None = None) -> None:
+    def __init__(
+        self, prompt: str = "请重新输入打开权限密码:", parent: QWidget | None = None
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle(safe_tr("确认密码"))
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
@@ -78,7 +78,9 @@ class ConfirmPasswordDialog(QDialog):
 class SecurityOptionsDialog(QDialog):
     """File encryption and protection options dialog."""
 
-    def __init__(self, initial_options: dict[str, Any] | None = None, parent: QWidget | None = None) -> None:
+    def __init__(
+        self, initial_options: dict[str, Any] | None = None, parent: QWidget | None = None
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle(safe_tr("安全选项"))
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
@@ -125,7 +127,10 @@ class SecurityOptionsDialog(QDialog):
         layout.addWidget(self.chk_read_only)
 
         lbl_note = QLabel(
-            safe_tr("注意: 使用密码保存的文件将进行加密保护（AES-256）。若未设置密码，则以普通无密码格式保存。"),
+            safe_tr(
+                "注意: 使用密码保存的文件将进行加密保护（AES-256）。"
+                "若未设置密码，则以普通无密码格式保存。"
+            ),
             self,
         )
         lbl_note.setWordWrap(True)
@@ -151,7 +156,9 @@ class SecurityOptionsDialog(QDialog):
             if dlg.exec() != QDialog.DialogCode.Accepted:
                 return
             if dlg.confirmed_password() != open_pwd:
-                QMessageBox.warning(self, safe_tr("密码不匹配"), safe_tr("两次输入的密码不一致，请重试。"))
+                QMessageBox.warning(
+                    self, safe_tr("密码不匹配"), safe_tr("两次输入的密码不一致，请重试。")
+                )
                 return
 
         self._options["password"] = open_pwd
@@ -225,7 +232,8 @@ class InAppSaveAsDialog(QDialog):
         # File List View
         self.fs_model = QFileSystemModel(self)
         self.fs_model.setRootPath(str(self._current_dir))
-        self.fs_model.setFilter(QDir.Filter.AllDirs | QDir.Filter.Files | QDir.Filter.NoDotAndDotDot)
+        filter_flags = QDir.Filter.AllDirs | QDir.Filter.Files | QDir.Filter.NoDotAndDotDot
+        self.fs_model.setFilter(filter_flags)
 
         self.file_view = QListView(self)
         self.file_view.setModel(self.fs_model)

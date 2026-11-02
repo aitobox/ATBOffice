@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import datetime
 from dataclasses import dataclass, field
-import os
 from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QCoreApplication, Qt
-from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -23,9 +21,9 @@ from PySide6.QtWidgets import (
     QListWidget,
     QMessageBox,
     QPushButton,
-    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -416,9 +414,10 @@ class DocumentPropertiesDialog(QDialog):
             safe_tr("类型"),
             safe_tr("值"),
         ])
-        self.table_custom.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        self.table_custom.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.table_custom.horizontalHeader().setStretchLastSection(True)
+        hh = self.table_custom.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        hh.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        hh.setStretchLastSection(True)
         self.table_custom.verticalHeader().setVisible(False)
         self.table_custom.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table_custom.itemSelectionChanged.connect(self._on_custom_table_selection_changed)

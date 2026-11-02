@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QCloseEvent
@@ -585,8 +586,9 @@ class BaseOfficeWindow(QMainWindow):
 
     def init_task_pane_dock(self, doc_type_name: str = "文档") -> Any:
         """Initialize and attach universal TaskPaneDock to right dock area."""
-        from atboffice.ui.components.task_pane import TaskPaneDock
         from PySide6.QtCore import Qt
+
+        from atboffice.ui.components.task_pane import TaskPaneDock
 
         if self.task_pane_dock is None:
             self.task_pane_dock = TaskPaneDock(self)
@@ -626,7 +628,6 @@ class BaseOfficeWindow(QMainWindow):
     def show_document_properties_dialog(self) -> int:
         """Open 5-tab Document Properties dialog."""
         from atboffice.ui.dialogs.document_properties_dialog import (
-            DocumentMetadata,
             DocumentPropertiesDialog,
         )
 
@@ -640,6 +641,7 @@ class BaseOfficeWindow(QMainWindow):
     def get_document_metadata(self) -> Any:
         """Return document metadata for properties dialog."""
         import datetime
+
         from atboffice.ui.dialogs.document_properties_dialog import DocumentMetadata
 
         now = datetime.datetime.now()

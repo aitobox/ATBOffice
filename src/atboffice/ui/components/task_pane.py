@@ -7,20 +7,18 @@ navigation history stack, and built-in standard panes (Getting Started, New Docu
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable
 
 from PySide6.QtCore import QCoreApplication, QSize, Qt, Signal
-from PySide6.QtGui import QAction, QFont, QIcon
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QDockWidget,
-    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMenu,
     QPushButton,
-    QScrollArea,
     QSizePolicy,
     QStackedWidget,
     QToolButton,
@@ -172,13 +170,17 @@ class SectionHeader(QLabel):
 
     def __init__(self, text: str, parent: QWidget | None = None) -> None:
         super().__init__(text, parent)
-        self.setStyleSheet("font-weight: bold; color: #000080; margin-top: 8px; margin-bottom: 2px;")
+        self.setStyleSheet(
+            "font-weight: bold; color: #000080; margin-top: 8px; margin-bottom: 2px;"
+        )
 
 
 class PaneLinkButton(QPushButton):
     """Clickable action link styled like an Office 2003 web-link."""
 
-    def __init__(self, text: str, icon_key: str | None = None, parent: QWidget | None = None) -> None:
+    def __init__(
+        self, text: str, icon_key: str | None = None, parent: QWidget | None = None
+    ) -> None:
         super().__init__(text, parent)
         if icon_key:
             self.setIcon(get_office_icon(icon_key))
@@ -219,7 +221,9 @@ class GettingStartedPane(QWidget):
 
         # App banner
         lbl_app = QLabel(self.app_title, self)
-        lbl_app.setStyleSheet("font-size: 13px; font-weight: bold; color: #333333; margin-bottom: 4px;")
+        lbl_app.setStyleSheet(
+            "font-size: 13px; font-weight: bold; color: #333333; margin-bottom: 4px;"
+        )
         layout.addWidget(lbl_app)
 
         # Search Help section
@@ -303,7 +307,9 @@ class NewDocumentPane(QWidget):
         self.btn_web.clicked.connect(lambda: self.action_triggered.emit("new_web"))
         layout.addWidget(self.btn_web)
 
-        self.btn_from_existing = PaneLinkButton(safe_tr(f"根据现有{self.doc_type_name}..."), "fileOpen", self)
+        self.btn_from_existing = PaneLinkButton(
+            safe_tr(f"根据现有{self.doc_type_name}..."), "fileOpen", self
+        )
         self.btn_from_existing.clicked.connect(lambda: self.action_triggered.emit("open_file"))
         layout.addWidget(self.btn_from_existing)
 
@@ -376,7 +382,9 @@ class TaskPaneDock(QDockWidget):
     def _setup_default_panes(self) -> None:
         self.pane_getting_started = GettingStartedPane(parent=self)
         self.pane_getting_started.action_triggered.connect(self._handle_pane_action)
-        self.register_pane("getting-started", safe_tr("开始使用"), self.pane_getting_started, is_default=True)
+        self.register_pane(
+            "getting-started", safe_tr("开始使用"), self.pane_getting_started, is_default=True
+        )
 
         self.pane_new = NewDocumentPane(parent=self)
         self.pane_new.action_triggered.connect(self._handle_pane_action)

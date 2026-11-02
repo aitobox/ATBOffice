@@ -2,20 +2,16 @@
 
 from __future__ import annotations
 
-import datetime
 from pathlib import Path
 from unittest.mock import patch
 
-from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QDialog
-import pytest
 
 from atboffice.ui.components.color_picker import ColorPickerPopup
 from atboffice.ui.components.honeycomb_color_dialog import (
     GrayscaleStrip,
     HoneycombColorDialog,
-    HoneycombWidget,
 )
 from atboffice.ui.dialogs.document_properties_dialog import (
     DocumentMetadata,

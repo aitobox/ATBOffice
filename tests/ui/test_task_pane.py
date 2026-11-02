@@ -3,14 +3,10 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QWidget
-import pytest
+from PySide6.QtWidgets import QLabel
 
 from atboffice.ui.components.task_pane import (
-    GettingStartedPane,
-    NewDocumentPane,
     TaskPaneDock,
-    TaskPaneHeader,
 )
 from atboffice.ui.shell.lectern_window import LecternWindow
 from atboffice.ui.shell.ledger_window import LedgerWindow

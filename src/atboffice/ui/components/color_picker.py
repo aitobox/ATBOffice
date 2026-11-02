@@ -7,7 +7,6 @@ from typing import Final
 from PySide6.QtCore import QCoreApplication, QPoint, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import (
-    QColorDialog,
     QFrame,
     QGridLayout,
     QPushButton,
