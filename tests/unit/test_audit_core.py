@@ -43,3 +43,12 @@ def test_audit_session_metrics() -> None:
     assert report["failed"] == 1
     assert report["excluded"] == 1
     assert report["feature_losses"]["comments"] == 1
+
+
+def test_audit_single_file_helper() -> None:
+    from scripts.run_corpus_audit import audit_single_file
+
+    sample = next(Path("tests/docs/word/docx").glob("*.docx"))
+    res = audit_single_file(str(sample), "word")
+    assert res["status"] in ("ok", "failed", "excluded")
+    assert "file" in res
