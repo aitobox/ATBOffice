@@ -17,6 +17,7 @@ from PySide6.QtGui import (
     QPainterPath,
     QPen,
     QRadialGradient,
+    QResizeEvent,
     QWheelEvent,
 )
 from PySide6.QtWidgets import (
@@ -33,6 +34,7 @@ from atboffice.modules.presentation.slideshow.animations import (
     apply_step_state,
     compile_steps,
 )
+from atboffice.modules.presentation.slideshow.slide_hud import SlideShowHud
 from atboffice.modules.presentation.slideshow.transitions import (
     get_transition_duration,
     render_slide_to_image,
@@ -42,6 +44,22 @@ from atboffice.modules.presentation.slideshow.transitions import (
 
 if TYPE_CHECKING:
     from atboffice.modules.presentation.models.presentation import Presentation
+
+
+class SlideInkStroke:
+    """Freehand ink stroke drawn during slide show."""
+
+    def __init__(
+        self,
+        points: list[tuple[float, float]] | None = None,
+        color: str = "#FF0000",
+        alpha: float = 1.0,
+        width: float = 3.0,
+    ) -> None:
+        self.points = points or []
+        self.color = color
+        self.alpha = alpha
+        self.width = width
 
 
 class SlideShowView(QWidget):
@@ -68,6 +86,9 @@ class SlideShowView(QWidget):
         self._cursor_visible = True
         self.ink_strokes: dict[int, list[Any]] = {}
         self.laser_pos: tuple[float, float] | None = None
+        self.pen_tool: str = "arrow"
+        self.pen_color: str = "#FF0000"
+        self._active_stroke: SlideInkStroke | None = None
 
         # Build slide display order (all slide indices)
         self.order: list[int] = list(range(len(presentation.slides)))
@@ -134,6 +155,17 @@ class SlideShowView(QWidget):
         self._schedule_auto_advance()
         self._idle_timer.start()
 
+        # Floating interactive HUD at bottom-left
+        self.hud = SlideShowHud(presentation=self.presentation, parent=self)
+        self.hud.prev_clicked.connect(self.prev_slide)
+        self.hud.next_clicked.connect(self.next_slide)
+        self.hud.goto_slide_requested.connect(self.goto_slide)
+        self.hud.blank_screen_requested.connect(self.toggle_blank)
+        self.hud.end_clicked.connect(self.end_show)
+        self.hud.pen_mode_changed.connect(self._on_hud_pen_mode_changed)
+        self._reposition_hud()
+        self.hud.fade_in()
+
     @property
     def current_slide_index(self) -> int:
         if 0 <= self.slide_pos < len(self.order):
@@ -186,6 +218,11 @@ class SlideShowView(QWidget):
             )
         else:
             self._img_curr = self._get_slide_image(self.current_slide_index)
+
+        if hasattr(self, "hud"):
+            self.hud.update_slide_context(
+                self.current_slide_index, len(self.order), self.presentation
+            )
 
     def _init_current_slide_animations(self) -> None:
         """Compile and set initial state for current slide animations."""
@@ -525,19 +562,96 @@ class SlideShowView(QWidget):
 
         super().keyPressEvent(event)
 
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self._reposition_hud()
+
+    def _reposition_hud(self) -> None:
+        if hasattr(self, "hud"):
+            self.hud.move(24, max(10, self.height() - self.hud.height() - 24))
+
+    def _on_hud_pen_mode_changed(self, tool: str, color: str) -> None:
+        self.pen_tool = tool
+        self.pen_color = color
+        if tool == "clear":
+            self.ink_strokes[self.current_slide_index] = []
+            self.pen_tool = "arrow"
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+            self.update()
+        elif tool in ("pen", "highlighter"):
+            self.setCursor(Qt.CursorShape.CrossCursor)
+        elif tool == "eraser":
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+        else:  # "arrow"
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+
+    def _map_to_slide_coords(self, pos: Any) -> tuple[float, float] | None:
+        vw, vh = float(self.width()), float(self.height())
+        pw = max(100.0, float(self.presentation.w))
+        ph = max(100.0, float(self.presentation.h))
+        scale = min(vw / pw, vh / ph)
+        if scale <= 0:
+            return None
+        sw, sh = pw * scale, ph * scale
+        ox = (vw - sw) / 2.0
+        oy = (vh - sh) / 2.0
+        x = (pos.x() - ox) / scale
+        y = (pos.y() - oy) / scale
+        if 0 <= x <= pw and 0 <= y <= ph:
+            return (x, y)
+        return None
+
+    def _erase_stroke_at(self, pt: tuple[float, float]) -> None:
+        strokes = self.ink_strokes.get(self.current_slide_index, [])
+        px, py = pt
+        for stroke in list(strokes):
+            for sx, sy in getattr(stroke, "points", []):
+                if (sx - px) ** 2 + (sy - py) ** 2 < 400:
+                    strokes.remove(stroke)
+                    self.update()
+                    return
+
     def mousePressEvent(self, event: QMouseEvent) -> None:
         self._reset_cursor_idle()
         if event.button() == Qt.MouseButton.LeftButton:
+            if self.pen_tool in ("pen", "highlighter"):
+                pt = self._map_to_slide_coords(event.position())
+                if pt:
+                    alpha = 0.5 if self.pen_tool == "highlighter" else 1.0
+                    width = 16.0 if self.pen_tool == "highlighter" else 3.0
+                    stroke = SlideInkStroke(
+                        points=[pt], color=self.pen_color, alpha=alpha, width=width
+                    )
+                    if self.current_slide_index not in self.ink_strokes:
+                        self.ink_strokes[self.current_slide_index] = []
+                    self.ink_strokes[self.current_slide_index].append(stroke)
+                    self._active_stroke = stroke
+                    self._mouse_down = True
+                    self.update()
+                    event.accept()
+                    return
+            elif self.pen_tool == "eraser":
+                pt = self._map_to_slide_coords(event.position())
+                if pt:
+                    self._erase_stroke_at(pt)
+                    event.accept()
+                    return
             self._mouse_down = True
             event.accept()
         else:
             super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if self._active_stroke is not None:
+            self._active_stroke = None
+            self._mouse_down = False
+            event.accept()
+            return
         if self._mouse_down and event.button() == Qt.MouseButton.LeftButton:
             self._mouse_down = False
             event.accept()
-            self.next_slide()
+            if self.pen_tool == "arrow":
+                self.next_slide()
             return
         super().mouseReleaseEvent(event)
 
@@ -552,6 +666,19 @@ class SlideShowView(QWidget):
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         self._reset_cursor_idle()
+        pos = event.position().toPoint()
+        if pos.x() < 300 and pos.y() > self.height() - 140:
+            if hasattr(self, "hud"):
+                self.hud.fade_in()
+
+        if self._mouse_down and self._active_stroke is not None:
+            pt = self._map_to_slide_coords(event.position())
+            if pt:
+                self._active_stroke.points.append(pt)
+                self.update()
+                event.accept()
+                return
+
         super().mouseMoveEvent(event)
 
     def _reset_cursor_idle(self) -> None:
@@ -782,4 +909,6 @@ class SlideShowView(QWidget):
     def retranslate_ui(self) -> None:
         """Update window title and UI strings."""
         self.setWindowTitle(safe_tr("幻灯片放映"))
+        if hasattr(self, "hud"):
+            self.hud.retranslate_ui()
         self.update()

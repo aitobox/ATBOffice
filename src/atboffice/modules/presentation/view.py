@@ -65,12 +65,27 @@ class PresentationView(QWidget):
 
     @property
     def view_mode(self) -> str:
-        """Current workspace view mode ('normal', 'sorter', 'master')."""
+        """Current workspace view mode ('normal', 'sorter', 'notes', 'master')."""
         return self.workspace.view_mode
 
     def set_view_mode(self, mode: str) -> None:
-        """Switch view mode ('normal', 'sorter', 'master')."""
+        """Switch view mode ('normal', 'sorter', 'notes', 'master')."""
         self.workspace.set_view_mode(mode)
+
+    @property
+    def sorter_view(self) -> Any:
+        """Access the SlideSorterView instance."""
+        return getattr(self.workspace, "sorter_view", None)
+
+    @property
+    def notes_view(self) -> Any:
+        """Access the NotesPageView instance."""
+        return getattr(self.workspace, "notes_view", None)
+
+    @property
+    def master_view(self) -> Any:
+        """Access the SlideMasterView instance."""
+        return getattr(self.workspace, "master_view", None)
 
     def retranslate_ui(self) -> None:
         """Retranslate presentation UI controls."""

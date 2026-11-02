@@ -947,12 +947,23 @@ class LecternWorkspace(QWidget):
         center_normal_layout.addWidget(self.center_splitter)
         self.center_stack.addWidget(self.center_normal_widget)
 
+        from atboffice.modules.presentation.views.master_view import SlideMasterView
+        from atboffice.modules.presentation.views.notes_view import NotesPageView
         from atboffice.modules.presentation.views.sorter_view import SlideSorterView
 
         self.sorter_view = SlideSorterView(presentation=self.presentation, parent=self.center_stack)
         self.sorter_view.slide_double_clicked.connect(self._on_sorter_slide_double_clicked)
         self.sorter_view.slides_reordered.connect(self._on_sorter_slides_reordered)
         self.center_stack.addWidget(self.sorter_view)
+
+        self.notes_view = NotesPageView(presentation=self.presentation, parent=self.center_stack)
+        self.notes_view.notes_changed.connect(self._on_notes_view_changed)
+        self.notes_view.slide_navigated.connect(self._on_notes_slide_navigated)
+        self.center_stack.addWidget(self.notes_view)
+
+        self.master_view = SlideMasterView(presentation=self.presentation, parent=self.center_stack)
+        self.master_view.close_requested.connect(self.exit_master_view)
+        self.center_stack.addWidget(self.master_view)
 
         self.main_splitter.addWidget(self.center_stack)
 
@@ -1028,6 +1039,13 @@ class LecternWorkspace(QWidget):
         self.outline_editor.reload(presentation)
         self._refresh_active_slide()
 
+        if hasattr(self, "sorter_view"):
+            self.sorter_view.load_presentation(presentation)
+        if hasattr(self, "notes_view"):
+            self.notes_view.load_presentation(presentation)
+        if hasattr(self, "master_view"):
+            self.master_view.load_presentation(presentation)
+
     def set_current_slide_index(self, index: int) -> None:
         """Switch active slide shown in canvas and notes."""
         if not self.presentation.slides:
@@ -1039,6 +1057,8 @@ class LecternWorkspace(QWidget):
             # Sync thumbnail list selection
             if self.thumbnail_list.currentRow() != clamped:
                 self.thumbnail_list.setCurrentRow(clamped)
+            if hasattr(self, "notes_view"):
+                self.notes_view.set_current_slide_index(clamped)
             self.slide_changed.emit(clamped)
 
     def set_current_slide(self, index: int) -> None:
@@ -1176,6 +1196,8 @@ class LecternWorkspace(QWidget):
                 self.animation_pane.set_slide(None)
 
     def _on_thumbnail_clicked(self, row: int) -> None:
+        if row < 0:
+            return
         if self._view_mode == "master":
             kind = "title" if row == 1 else "slide"
             if kind != self.master_kind:
@@ -1191,8 +1213,8 @@ class LecternWorkspace(QWidget):
         return self._view_mode
 
     def set_view_mode(self, mode: str) -> None:
-        """Switch workspace view mode ('normal', 'sorter', 'master')."""
-        if mode not in ("normal", "sorter", "master"):
+        """Switch workspace view mode ('normal', 'sorter', 'notes', 'master')."""
+        if mode not in ("normal", "sorter", "notes", "master"):
             mode = "normal"
         self._view_mode = mode
 
@@ -1204,6 +1226,13 @@ class LecternWorkspace(QWidget):
             if self.presentation.slides:
                 self.sorter_view.select_slide(self.current_slide_index)
             self.center_stack.setCurrentWidget(self.sorter_view)
+        elif mode == "notes":
+            self.left_pane.hide()
+            self.task_pane.hide()
+            self.master_close_bar.hide()
+            self.notes_view.load_presentation(self.presentation)
+            self.notes_view.set_current_slide_index(self.current_slide_index)
+            self.center_stack.setCurrentWidget(self.notes_view)
         elif mode == "master":
             self.left_pane.show()
             self.task_pane.hide()
@@ -1219,6 +1248,18 @@ class LecternWorkspace(QWidget):
             self._restore_normal_thumbnails()
             self._refresh_active_slide()
             self.center_stack.setCurrentWidget(self.center_normal_widget)
+
+    def _on_notes_view_changed(self, index: int, text: str) -> None:
+        if 0 <= index < len(self.presentation.slides):
+            self.presentation.slides[index].notes = text
+            if index == self.current_slide_index:
+                self.notes_pane.set_plain_text(text)
+
+    def _on_notes_slide_navigated(self, index: int) -> None:
+        if 0 <= index < len(self.presentation.slides):
+            self.current_slide_index = index
+            if self.thumbnail_list.currentRow() != index:
+                self.thumbnail_list.setCurrentRow(index)
 
     def _on_sorter_slide_double_clicked(self, index: int) -> None:
         self.set_view_mode("normal")
@@ -1240,14 +1281,19 @@ class LecternWorkspace(QWidget):
         self.scene.load_slide(self.master_slide)
         self.canvas_view.zoom_fit()
         self._refresh_master_thumbnails()
+        if hasattr(self, "master_view"):
+            self.master_view.set_master_kind(master_kind)
 
     def exit_master_view(self) -> None:
         """Sync master edits back to design and return to normal view."""
-        if self.master_slide:
+        if hasattr(self, "master_view") and self.master_view.master_slide:
+            sync_master_slide(self.presentation, self.master_view.master_slide)
+        elif self.master_slide:
             sync_master_slide(self.presentation, self.master_slide)
         self.set_view_mode("normal")
 
     def _refresh_master_thumbnails(self) -> None:
+        self.thumbnail_list.blockSignals(True)
         self.thumbnail_list.clear()
         design = self.presentation.get_design_for_slide(
             self.current_slide if self.presentation.slides else None
@@ -1269,6 +1315,7 @@ class LecternWorkspace(QWidget):
 
         cur_row = 1 if self.master_kind == "title" else 0
         self.thumbnail_list.setCurrentRow(cur_row)
+        self.thumbnail_list.blockSignals(False)
 
     def _restore_normal_thumbnails(self) -> None:
         self._refresh_thumbnails()
@@ -1372,6 +1419,10 @@ class LecternWorkspace(QWidget):
             self.master_close_bar.retranslate_ui()
         if hasattr(self, "sorter_view"):
             self.sorter_view.retranslate_ui()
+        if hasattr(self, "notes_view"):
+            self.notes_view.retranslate_ui()
+        if hasattr(self, "master_view"):
+            self.master_view.retranslate_ui()
         if hasattr(self, "smartart_pane"):
             self.smartart_pane.retranslate_ui()
         if hasattr(self, "transition_pane"):
