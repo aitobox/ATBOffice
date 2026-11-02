@@ -379,29 +379,48 @@ class StartCenterWindow(BaseOfficeWindow):
 
         layout.addStretch(1)
 
-        # Bottom Utilities (Settings, About)
-        bottom_bar = QHBoxLayout()
-        bottom_bar.setSpacing(6)
+        # Bottom Utilities (Themes, Settings, About, Update)
+        bottom_box = QVBoxLayout()
+        bottom_box.setSpacing(6)
+
+        row_top = QHBoxLayout()
+        row_top.setSpacing(6)
+        row_bot = QHBoxLayout()
+        row_bot.setSpacing(6)
 
         util_style = (
-            "QPushButton { padding: 6px 10px; font-size: 12px; border: 1px solid #E2E8F0; "
+            "QPushButton { padding: 6px 8px; font-size: 12px; border: 1px solid #E2E8F0; "
             "border-radius: 6px; background: #FFFFFF; color: #475569; }"
             "QPushButton:hover { background: #F1F5F9; color: #0F172A; border-color: #CBD5E1; }"
         )
+
+        self.btn_themes = QPushButton(safe_tr("主题"), sidebar)
+        self.btn_themes.setStyleSheet(util_style)
+        self.btn_themes.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_themes.clicked.connect(self.show_theme_dialog)
+        row_top.addWidget(self.btn_themes)
 
         self.btn_settings = QPushButton(safe_tr("设置"), sidebar)
         self.btn_settings.setStyleSheet(util_style)
         self.btn_settings.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_settings.clicked.connect(self._on_settings_clicked)
-        bottom_bar.addWidget(self.btn_settings)
+        row_top.addWidget(self.btn_settings)
 
         self.btn_about = QPushButton(safe_tr("关于"), sidebar)
         self.btn_about.setStyleSheet(util_style)
         self.btn_about.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_about.clicked.connect(self.show_about)
-        bottom_bar.addWidget(self.btn_about)
+        row_bot.addWidget(self.btn_about)
 
-        layout.addLayout(bottom_bar)
+        self.btn_update = QPushButton(safe_tr("检查更新"), sidebar)
+        self.btn_update.setStyleSheet(util_style)
+        self.btn_update.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_update.clicked.connect(self.check_for_updates)
+        row_bot.addWidget(self.btn_update)
+
+        bottom_box.addLayout(row_top)
+        bottom_box.addLayout(row_bot)
+        layout.addLayout(bottom_box)
         return sidebar
 
     def _create_recent_page(self) -> QWidget:
@@ -738,6 +757,40 @@ class StartCenterWindow(BaseOfficeWindow):
         if self.show_options_dialog() == QDialog.DialogCode.Accepted:
             self.refresh_recent_files()
 
+    def show_theme_dialog(self) -> int:
+        """Open the standalone SuiteThemeDialog gallery."""
+        from atboffice.ui.dialogs.theme_dialog import SuiteThemeDialog
+
+        dlg = SuiteThemeDialog(self)
+        return dlg.exec()
+
+    def show_license_dialog(self) -> int:
+        """Open the Open Source Licenses dialog."""
+        from atboffice.ui.dialogs.license_dialog import LicenseDialog
+
+        dlg = LicenseDialog(self)
+        return dlg.exec()
+
+    def show_update_dialog(self) -> int:
+        """Open the software update dialog."""
+        from atboffice.ui.dialogs.update_dialog import UpdateDialog
+
+        dlg = UpdateDialog(parent=self)
+        return dlg.exec()
+
+    def check_for_updates(self) -> None:
+        """Check for application updates."""
+        from atboffice.core.updater import check_for_updates
+
+        check_for_updates(parent=self, manual=True)
+
+    def show_about(self) -> None:
+        """Display application about dialog with license and update links."""
+        from atboffice.ui.dialogs.about_dialog import AboutDialog
+
+        dlg = AboutDialog(self)
+        dlg.exec()
+
     # -------------------------------------------------------------------------
     # Drag and Drop Implementation
     # -------------------------------------------------------------------------
@@ -849,10 +902,14 @@ class StartCenterWindow(BaseOfficeWindow):
             self.btn_nav_recent.setText("🕒  " + safe_tr("最近文档"))
         if hasattr(self, "btn_nav_templates"):
             self.btn_nav_templates.setText("🗂️  " + safe_tr("模板库"))
+        if hasattr(self, "btn_themes"):
+            self.btn_themes.setText(safe_tr("主题"))
         if hasattr(self, "btn_settings"):
             self.btn_settings.setText(safe_tr("设置"))
         if hasattr(self, "btn_about"):
             self.btn_about.setText(safe_tr("关于"))
+        if hasattr(self, "btn_update"):
+            self.btn_update.setText(safe_tr("检查更新"))
         if hasattr(self, "lbl_recent_title"):
             self.lbl_recent_title.setText(safe_tr("最近打开的文档"))
         if hasattr(self, "btn_clear_recent"):

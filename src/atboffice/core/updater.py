@@ -140,74 +140,7 @@ class UpdateCheckWorker(QThread):
             )
 
 
-class UpdateDialog(QDialog):
-    """Dialog displaying new release information and download action."""
-
-    def __init__(
-        self,
-        info: VersionInfo,
-        current_version: str,
-        parent: QWidget | None = None,
-    ) -> None:
-        super().__init__(parent)
-        self.info = info
-        self.current_version = current_version
-
-        self.setWindowTitle(safe_tr("软件更新 — ATBOffice"))
-        self.setMinimumSize(480, 360)
-        self.resize(520, 400)
-
-        self._init_ui()
-
-    def _init_ui(self) -> None:
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(12)
-
-        # Title / Version header
-        self.label_header = QLabel(f"<h3>{safe_tr('发现新版本 ATBOffice')}</h3>", self)
-        layout.addWidget(self.label_header)
-
-        self.label_version = QLabel(
-            safe_tr("最新版本: v{new_ver}  (当前版本: v{cur_ver})").format(
-                new_ver=self.info.version, cur_ver=self.current_version
-            ),
-            self,
-        )
-        self.label_version.setStyleSheet("font-weight: bold; color: #2e6bc6;")
-        layout.addWidget(self.label_version)
-
-        # Changelog / Release notes
-        self.label_notes_title = QLabel(safe_tr("更新日志:"), self)
-        layout.addWidget(self.label_notes_title)
-
-        self.text_notes = QPlainTextEdit(self)
-        self.text_notes.setReadOnly(True)
-        self.text_notes.setPlainText(self.info.body or safe_tr("暂无详细更新日志。"))
-        layout.addWidget(self.text_notes, stretch=1)
-
-        # Buttons
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
-
-        self.btn_later = QPushButton(safe_tr("稍后提醒(&L)"), self)
-        self.btn_later.clicked.connect(self.reject)
-        btn_layout.addWidget(self.btn_later)
-
-        self.btn_download = QPushButton(safe_tr("前往下载(&D)"), self)
-        self.btn_download.setDefault(True)
-        self.btn_download.setStyleSheet(
-            "background-color: #2e6bc6; color: white; font-weight: bold; padding: 6px 14px;"
-        )
-        self.btn_download.clicked.connect(self._on_download_clicked)
-        btn_layout.addWidget(self.btn_download)
-
-        layout.addLayout(btn_layout)
-
-    def _on_download_clicked(self) -> None:
-        if self.info.html_url:
-            QDesktopServices.openUrl(QUrl(self.info.html_url))
-        self.accept()
+from atboffice.ui.dialogs.update_dialog import UpdateDialog
 
 
 # Module-level active worker reference to prevent Python garbage collection mid-flight
