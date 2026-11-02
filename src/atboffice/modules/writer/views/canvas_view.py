@@ -94,6 +94,7 @@ from atboffice.modules.writer.views.caret_controller import (
     delete_range_in_paragraph,
     insert_text_in_paragraph,
 )
+from atboffice.modules.writer.views.view_modes import ViewMode
 
 
 def safe_tr(text: str) -> str:
@@ -117,6 +118,7 @@ class WriterCanvasView(QAbstractScrollArea):
 
     zoom_changed = Signal(float)
     caret_moved = Signal(int, int)  # para_id, offset
+    view_mode_changed = Signal(object)
 
     def __init__(
         self,
@@ -124,6 +126,7 @@ class WriterCanvasView(QAbstractScrollArea):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        self.view_mode: ViewMode = ViewMode.PRINT
         self.doc: Document = doc or Document()
         if not self.doc.main.blocks:
             self.doc.main.blocks.append(Paragraph())
@@ -245,6 +248,42 @@ class WriterCanvasView(QAbstractScrollArea):
         total_h += 24.0  # Bottom padding
         max_w += 48.0  # Horizontal padding
         return QSize(int(math.ceil(max_w)), int(math.ceil(total_h)))
+
+    def set_view_mode(self, mode: ViewMode | str) -> None:
+        """Switch view display mode (print, normal, web, reading, outline)."""
+        if isinstance(mode, str):
+            mode = ViewMode(mode)
+        if self.view_mode == mode:
+            return
+        self.view_mode = mode
+        self._update_scroll_ranges()
+        self.viewport().update()
+        self.view_mode_changed.emit(self.view_mode)
+
+    def scroll_to_page(self, page_idx: int) -> None:
+        """Scroll vertical scrollbar so page page_idx is visible at the top."""
+        if not self.pagination or not self.pagination.pages:
+            return
+        rect = self.page_rect_canvas(page_idx)
+        self.verticalScrollBar().setValue(int(rect.top() - 10))
+        self.viewport().update()
+
+    def scroll_to_paragraph(self, para_id: int) -> bool:
+        """Locate paragraph on canvas and scroll it into view."""
+        if not self.pagination or not self.pagination.pages:
+            return False
+        for p_idx, page in enumerate(self.pagination.pages):
+            for reg in getattr(page, "regions", []):
+                for col in getattr(reg, "columns", []):
+                    for fr in getattr(col, "fragments", []):
+                        if getattr(fr, "paragraph", None) and fr.paragraph.id == para_id:
+                            p_rect = self.page_rect_canvas(p_idx)
+                            target_y = p_rect.top() + self.pt_to_px(getattr(fr, "top", 0.0))
+                            self.verticalScrollBar().setValue(max(0, int(target_y - 20)))
+                            self.controller.set_caret(para_id, 0)
+                            self.viewport().update()
+                            return True
+        return False
 
     def page_rect_canvas(self, page_idx: int) -> QRectF:
         """Return the physical QRectF bounding box (in canvas px) of page page_idx."""
@@ -384,8 +423,9 @@ class WriterCanvasView(QAbstractScrollArea):
             if not rect_vp.intersects(QRectF(visible_rect)):
                 continue
 
-            # 2. Paint Page Drop Shadow
-            self._paint_page_shadow(painter, rect_vp)
+            # 2. Paint Page Drop Shadow (only in PRINT and READING modes)
+            if self.view_mode in (ViewMode.PRINT, ViewMode.READING):
+                self._paint_page_shadow(painter, rect_vp)
 
             # 3. Paint Page Sheet Background & Border
             painter.fillRect(rect_vp, COLOR_PAGE_PAPER)
@@ -554,9 +594,7 @@ class WriterCanvasView(QAbstractScrollArea):
                                                         w,
                                                         w_start,
                                                         w_end,
-                                                    ) in self.spell_engine.tokenize_words(
-                                                        po.text
-                                                    ):
+                                                    ) in self.spell_engine.tokenize_words(po.text):
                                                         if not self.spell_engine.is_valid_word(w):
                                                             w_x1 = x_px + fm.horizontalAdvance(
                                                                 po.text[:w_start]
@@ -611,9 +649,7 @@ class WriterCanvasView(QAbstractScrollArea):
                                     po.text,
                                 )
                                 if (
-                                    self.spell_engine.is_enabled(
-                                        "spelling/check_as_you_type", True
-                                    )
+                                    self.spell_engine.is_enabled("spelling/check_as_you_type", True)
                                     and po.text
                                 ):
                                     fm = QFontMetricsF(font)
@@ -623,12 +659,8 @@ class WriterCanvasView(QAbstractScrollArea):
                                         w_end,
                                     ) in self.spell_engine.tokenize_words(po.text):
                                         if not self.spell_engine.is_valid_word(w):
-                                            w_x1 = x_px + fm.horizontalAdvance(
-                                                po.text[:w_start]
-                                            )
-                                            w_x2 = x_px + fm.horizontalAdvance(
-                                                po.text[:w_end]
-                                            )
+                                            w_x1 = x_px + fm.horizontalAdvance(po.text[:w_start])
+                                            w_x2 = x_px + fm.horizontalAdvance(po.text[:w_end])
                                             self._draw_wavy_line(
                                                 painter,
                                                 w_x1,
@@ -1607,11 +1639,7 @@ class WriterCanvasView(QAbstractScrollArea):
 
             def _key(row_entry: list):
                 if c_idx < len(row_entry):
-                    p = (
-                        row_entry[c_idx].cell.blocks[0]
-                        if row_entry[c_idx].cell.blocks
-                        else None
-                    )
+                    p = row_entry[c_idx].cell.blocks[0] if row_entry[c_idx].cell.blocks else None
                     return ptext(p) if p else ""
                 return ""
 

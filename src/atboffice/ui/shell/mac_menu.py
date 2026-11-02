@@ -137,60 +137,36 @@ class MacMenuBar(QMenuBar):
         menu_file = self.addMenu("")
         self.menu_map["file"] = menu_file
 
-        self._reg_act(
-            menu_file, "new", "file_new", shortcut=QKeySequence.StandardKey.New
-        )
-        self._reg_act(
-            menu_file, "open", "file_open", shortcut=QKeySequence.StandardKey.Open
-        )
+        self._reg_act(menu_file, "new", "file_new", shortcut=QKeySequence.StandardKey.New)
+        self._reg_act(menu_file, "open", "file_open", shortcut=QKeySequence.StandardKey.Open)
         menu_file.addSeparator()
 
-        self._reg_act(
-            menu_file, "save", "file_save", shortcut=QKeySequence.StandardKey.Save
-        )
+        self._reg_act(menu_file, "save", "file_save", shortcut=QKeySequence.StandardKey.Save)
         self._reg_act(
             menu_file, "save_as", "file_save_as", shortcut=QKeySequence.StandardKey.SaveAs
         )
         menu_file.addSeparator()
 
-        self._reg_act(
-            menu_file, "print", "file_print", shortcut=QKeySequence.StandardKey.Print
-        )
-        self._reg_act(
-            menu_file, "printPreview", "file_print_preview"
-        )
+        self._reg_act(menu_file, "print", "file_print", shortcut=QKeySequence.StandardKey.Print)
+        self._reg_act(menu_file, "printPreview", "file_print_preview")
         menu_file.addSeparator()
 
-        self._reg_act(
-            menu_file, "properties", "file_properties"
-        )
+        self._reg_act(menu_file, "properties", "file_properties")
         menu_file.addSeparator()
 
-        self._reg_act(
-            menu_file, "close", "file_close", shortcut=QKeySequence.StandardKey.Close
-        )
+        self._reg_act(menu_file, "close", "file_close", shortcut=QKeySequence.StandardKey.Close)
 
         # 2. Edit Menu
         menu_edit = self.addMenu("")
         self.menu_map["edit"] = menu_edit
 
-        self._reg_act(
-            menu_edit, "undo", "edit_undo", shortcut=QKeySequence.StandardKey.Undo
-        )
-        self._reg_act(
-            menu_edit, "redo", "edit_redo", shortcut=QKeySequence.StandardKey.Redo
-        )
+        self._reg_act(menu_edit, "undo", "edit_undo", shortcut=QKeySequence.StandardKey.Undo)
+        self._reg_act(menu_edit, "redo", "edit_redo", shortcut=QKeySequence.StandardKey.Redo)
         menu_edit.addSeparator()
 
-        self._reg_act(
-            menu_edit, "cut", "edit_cut", shortcut=QKeySequence.StandardKey.Cut
-        )
-        self._reg_act(
-            menu_edit, "copy", "edit_copy", shortcut=QKeySequence.StandardKey.Copy
-        )
-        self._reg_act(
-            menu_edit, "paste", "edit_paste", shortcut=QKeySequence.StandardKey.Paste
-        )
+        self._reg_act(menu_edit, "cut", "edit_cut", shortcut=QKeySequence.StandardKey.Cut)
+        self._reg_act(menu_edit, "copy", "edit_copy", shortcut=QKeySequence.StandardKey.Copy)
+        self._reg_act(menu_edit, "paste", "edit_paste", shortcut=QKeySequence.StandardKey.Paste)
         menu_edit.addSeparator()
 
         self._reg_act(
@@ -199,9 +175,7 @@ class MacMenuBar(QMenuBar):
             "edit_select_all",
             shortcut=QKeySequence.StandardKey.SelectAll,
         )
-        self._reg_act(
-            menu_edit, "find", "edit_find", shortcut=QKeySequence.StandardKey.Find
-        )
+        self._reg_act(menu_edit, "find", "edit_find", shortcut=QKeySequence.StandardKey.Find)
         self._reg_act(
             menu_edit, "replace", "edit_replace", shortcut=QKeySequence.StandardKey.Replace
         )
@@ -217,11 +191,71 @@ class MacMenuBar(QMenuBar):
 
         self._reg_act(
             menu_view,
+            "view_normal",
+            "view_normal",
+            checkable=True,
+            checked=False,
+        )
+        self._reg_act(
+            menu_view,
+            "view_web",
+            "view_web",
+            checkable=True,
+            checked=False,
+        )
+        self._reg_act(
+            menu_view,
+            "view_print",
+            "view_print",
+            checkable=True,
+            checked=True,
+        )
+        self._reg_act(
+            menu_view,
+            "view_reading",
+            "view_reading",
+            checkable=True,
+            checked=False,
+        )
+        self._reg_act(
+            menu_view,
+            "view_outline",
+            "view_outline",
+            checkable=True,
+            checked=False,
+        )
+        menu_view.addSeparator()
+
+        self._reg_act(
+            menu_view,
             "taskPane",
             "view_task_pane",
             shortcut=QKeySequence("Ctrl+F1"),
             checkable=True,
         )
+        self._reg_act(
+            menu_view,
+            "view_doc_map",
+            "view_doc_map",
+            checkable=True,
+            checked=False,
+        )
+        self._reg_act(
+            menu_view,
+            "view_thumbnails",
+            "view_thumbnails",
+            checkable=True,
+            checked=False,
+        )
+        self._reg_act(
+            menu_view,
+            "view_ruler",
+            "view_ruler",
+            checkable=True,
+            checked=True,
+        )
+        menu_view.addSeparator()
+
         self._reg_act(
             menu_view,
             "view_fullscreen",
@@ -236,9 +270,7 @@ class MacMenuBar(QMenuBar):
         self._reg_act(
             menu_view, "zoom_out", "view_zoom_out", shortcut=QKeySequence.StandardKey.ZoomOut
         )
-        self._reg_act(
-            menu_view, "zoom_reset", "view_zoom_reset", shortcut=QKeySequence("Ctrl+0")
-        )
+        self._reg_act(menu_view, "zoom_reset", "view_zoom_reset", shortcut=QKeySequence("Ctrl+0"))
         menu_view.addSeparator()
 
         # Themes Sub-menu
@@ -254,9 +286,7 @@ class MacMenuBar(QMenuBar):
         self._reg_act(
             menu_theme, "theme_luna_olive", "theme_luna_olive", checkable=True, checked=False
         )
-        self._reg_act(
-            menu_theme, "theme_classic", "theme_classic", checkable=True, checked=False
-        )
+        self._reg_act(menu_theme, "theme_classic", "theme_classic", checkable=True, checked=False)
         menu_theme.addSeparator()
         self._reg_act(menu_theme, "theme_selector", "theme_selector")
 
@@ -304,17 +334,13 @@ class MacMenuBar(QMenuBar):
         self._reg_act(menu_insert, "insert_shape", "insert_shape")
         menu_insert.addSeparator()
 
-        self._reg_act(
-            menu_insert, "hyperlink", "insert_hyperlink", shortcut=QKeySequence("Ctrl+K")
-        )
+        self._reg_act(menu_insert, "hyperlink", "insert_hyperlink", shortcut=QKeySequence("Ctrl+K"))
 
         # 5. Format Menu
         menu_format = self.addMenu("")
         self.menu_map["format"] = menu_format
 
-        self._reg_act(
-            menu_format, "format_font", "format_font", shortcut=QKeySequence("Ctrl+D")
-        )
+        self._reg_act(menu_format, "format_font", "format_font", shortcut=QKeySequence("Ctrl+D"))
         self._reg_act(menu_format, "format_paragraph", "format_paragraph")
         menu_format.addSeparator()
 
@@ -332,9 +358,7 @@ class MacMenuBar(QMenuBar):
         menu_tools = self.addMenu("")
         self.menu_map["tools"] = menu_tools
 
-        self._reg_act(
-            menu_tools, "spelling", "tools_spelling", shortcut=QKeySequence("F7")
-        )
+        self._reg_act(menu_tools, "spelling", "tools_spelling", shortcut=QKeySequence("F7"))
         self._reg_act(menu_tools, "tools_word_count", "wordCount")
         self._reg_act(menu_tools, "tools_language", "tools_language")
         menu_tools.addSeparator()
@@ -602,6 +626,11 @@ class MacMenuBar(QMenuBar):
                 safe_tr("打开单元格格式设置对话框"),
             ),
             # View
+            "view_normal": (safe_tr("普通(&N)"), safe_tr("切换到普通视图草稿模式")),
+            "view_web": (safe_tr("Web 版式(&W)"), safe_tr("切换到 Web 版式视图")),
+            "view_print": (safe_tr("页面(&P)"), safe_tr("切换到页面排版视图")),
+            "view_reading": (safe_tr("阅读版式(&R)"), safe_tr("切换到双页或舒适阅读版式")),
+            "view_outline": (safe_tr("大纲(&O)"), safe_tr("切换到大纲视图")),
             "view_task_pane": (
                 safe_tr("任务窗格(&K)"),
                 safe_tr("显示或隐藏侧边任务窗格 (Ctrl+F1)"),
@@ -610,7 +639,10 @@ class MacMenuBar(QMenuBar):
                 safe_tr("任务窗格(&K)"),
                 safe_tr("显示或隐藏侧边任务窗格 (Ctrl+F1)"),
             ),
-            "view_fullscreen": (safe_tr("全屏切换"), safe_tr("进入或退出全屏模式")),
+            "view_doc_map": (safe_tr("文档结构图(&D)"), safe_tr("显示或隐藏左侧文档结构图导航")),
+            "view_thumbnails": (safe_tr("缩略图(&T)"), safe_tr("显示或隐藏左侧页面缩略图导航")),
+            "view_ruler": (safe_tr("标尺(&R)"), safe_tr("显示或隐藏标尺")),
+            "view_fullscreen": (safe_tr("全屏(&F)"), safe_tr("进入或退出全屏模式")),
             "view_zoom_in": (safe_tr("放大"), safe_tr("放大视图")),
             "zoom_in": (safe_tr("放大"), safe_tr("放大视图")),
             "view_zoom_out": (safe_tr("缩小"), safe_tr("缩小视图")),
@@ -854,7 +886,8 @@ class MacMenuBar(QMenuBar):
             ),
             "slideshow_transition": (
                 safe_tr("幻灯片切换…"),
-                safe_tr("配置选定幻灯片的入场转场动效与声音")),
+                safe_tr("配置选定幻灯片的入场转场动效与声音"),
+            ),
             # Window
             "window_minimize": (safe_tr("最小化"), safe_tr("将窗口最小化到程序坞")),
             "window_zoom": (safe_tr("缩放窗口"), safe_tr("最大化或恢复窗口尺寸")),

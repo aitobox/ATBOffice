@@ -17,6 +17,11 @@ from atboffice.modules.writer.layout.pagination import paginate_document
 from atboffice.modules.writer.models.document import ilen
 from atboffice.modules.writer.models.revision import is_tracking
 from atboffice.modules.writer.view import WriterView
+from atboffice.modules.writer.views import (
+    CloseFullScreenBar,
+    QuireNavDock,
+    ViewMode,
+)
 from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.toolbar import OfficeToolBar
 from atboffice.ui.dialogs.find_replace_dialog import FindReplaceDialog
@@ -70,6 +75,34 @@ class QuireWindow(BaseOfficeWindow):
         # 4. Initialize universal TaskPaneDock
         self.init_task_pane_dock(safe_tr("文档"))
 
+        # Initialize Quire Left Navigation Dock (Document Map & Thumbnails)
+        self.nav_dock = QuireNavDock(
+            doc=self.writer_view.canvas_view.doc,
+            canvas_view=self.writer_view.canvas_view,
+            controller=self.writer_view.canvas_view.controller,
+            parent=self,
+        )
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.nav_dock)
+        self.nav_dock.hide()
+        self.nav_dock.visibilityChanged.connect(self._on_nav_dock_visibility_changed)
+        self.nav_dock.doc_map_pane.heading_selected.connect(self.writer_view.scroll_to_paragraph)
+        self.nav_dock.thumbnails_pane.page_selected.connect(self.writer_view.scroll_to_page)
+
+        # Initialize Floating Full Screen Bar
+        self.fullscreen_bar = CloseFullScreenBar(parent=self)
+        self.fullscreen_bar.close_full_screen_requested.connect(self.exit_full_screen)
+        self.fullscreen_bar.hide()
+        self._is_fullscreen_mode: bool = False
+        self._prev_view_mode: ViewMode = ViewMode.PRINT
+        self._saved_toolbars_visible: list[tuple[Any, bool]] = []
+
+        # Wire view mode and reading toolbar signals
+        self.writer_view.view_mode_changed.connect(self._on_view_mode_changed)
+        self.writer_view.reading_toolbar.toggle_doc_map_requested.connect(self.toggle_document_map)
+        self.writer_view.reading_toolbar.toggle_thumbnails_requested.connect(self.toggle_thumbnails)
+        self.writer_view.reading_toolbar.find_requested.connect(self.open_find_dialog)
+        self.writer_view.reading_toolbar.research_requested.connect(self.toggle_task_pane)
+
         # 5. Setup Office 2003 Luna toolbars
         self._setup_toolbars()
         self._bind_action_handlers()
@@ -79,9 +112,7 @@ class QuireWindow(BaseOfficeWindow):
             self._on_document_modified
         )
         self.writer_view.canvas_view.caret_moved.connect(self._on_caret_moved)
-        self.writer_view.canvas_view.controller.selection_changed.connect(
-            self._sync_toolbar_states
-        )
+        self.writer_view.canvas_view.controller.selection_changed.connect(self._sync_toolbar_states)
 
         # 6. Load file or set initial document title
         if file_path is not None:
@@ -116,12 +147,45 @@ class QuireWindow(BaseOfficeWindow):
         self.action_registry.set_handler(
             "tools_word_count", self.writer_view.open_word_count_dialog
         )
-        self.action_registry.set_handler(
-            "wordCount", self.writer_view.open_word_count_dialog
-        )
+        self.action_registry.set_handler("wordCount", self.writer_view.open_word_count_dialog)
 
         # Zoom & view
         self.action_registry.set_handler("taskPane", self.toggle_task_pane)
+        self.action_registry.set_handler(
+            "view_normal", lambda: self.switch_view_mode(ViewMode.NORMAL)
+        )
+        self.action_registry.set_handler("view_web", lambda: self.switch_view_mode(ViewMode.WEB))
+        self.action_registry.set_handler(
+            "view_print", lambda: self.switch_view_mode(ViewMode.PRINT)
+        )
+        self.action_registry.set_handler(
+            "view_reading", lambda: self.switch_view_mode(ViewMode.READING)
+        )
+        self.action_registry.set_handler(
+            "view_outline", lambda: self.switch_view_mode(ViewMode.OUTLINE)
+        )
+        self.action_registry.set_handler("view_fullscreen", self.toggle_fullscreen)
+        self.action_registry.set_handler("view_doc_map", self.toggle_document_map)
+        self.action_registry.set_handler("view_thumbnails", self.toggle_thumbnails)
+        self.action_registry.set_handler("view_ruler", self.toggle_rulers)
+        self.action_registry.set_handler(
+            "promoteH1", self.writer_view.outline_widget.promote_selected_h1
+        )
+        self.action_registry.set_handler(
+            "promote", self.writer_view.outline_widget.promote_selected
+        )
+        self.action_registry.set_handler("demote", self.writer_view.outline_widget.demote_selected)
+        self.action_registry.set_handler(
+            "demoteBody", self.writer_view.outline_widget.demote_selected_body
+        )
+        self.action_registry.set_handler("moveUp", self.writer_view.outline_widget.move_selected_up)
+        self.action_registry.set_handler(
+            "moveDown", self.writer_view.outline_widget.move_selected_down
+        )
+        self.action_registry.set_handler("expand", self.writer_view.outline_widget.expand_selected)
+        self.action_registry.set_handler(
+            "collapse", self.writer_view.outline_widget.collapse_selected
+        )
         self.action_registry.set_handler("properties", self.show_document_properties_dialog)
         self.action_registry.set_handler("zoom_in", self.zoom_in)
         self.action_registry.set_handler("zoom_out", self.zoom_out)
@@ -208,12 +272,8 @@ class QuireWindow(BaseOfficeWindow):
         self.action_registry.set_handler("wordartEdit", self.open_wordart_gallery)
 
         # Standard toolbar dropdowns
-        self.action_registry.set_handler(
-            "tb_table_drop", lambda: canvas.insert_table(2, 2)
-        )
-        self.action_registry.set_handler(
-            "insertTable_dialog", lambda: canvas.insert_table(2, 2)
-        )
+        self.action_registry.set_handler("tb_table_drop", lambda: canvas.insert_table(2, 2))
+        self.action_registry.set_handler("insertTable_dialog", lambda: canvas.insert_table(2, 2))
         self.action_registry.set_handler(
             "insertTable_col_left", lambda: canvas.insert_table_col(left=True)
         )
@@ -234,53 +294,27 @@ class QuireWindow(BaseOfficeWindow):
         )
 
         # Formatting toolbar dropdowns and split actions
-        self.action_registry.set_handler(
-            "line_spacing_1_0", lambda: canvas.set_line_spacing(1.0)
-        )
-        self.action_registry.set_handler(
-            "line_spacing_1_5", lambda: canvas.set_line_spacing(1.5)
-        )
-        self.action_registry.set_handler(
-            "line_spacing_2_0", lambda: canvas.set_line_spacing(2.0)
-        )
-        self.action_registry.set_handler(
-            "line_spacing_2_5", lambda: canvas.set_line_spacing(2.5)
-        )
-        self.action_registry.set_handler(
-            "line_spacing_3_0", lambda: canvas.set_line_spacing(3.0)
-        )
-        self.action_registry.set_handler(
-            "line_spacing_more", lambda: canvas.set_line_spacing(1.5)
-        )
-        self.action_registry.set_handler(
-            "borderBtn", lambda: self.apply_border_preset("outside")
-        )
-        self.action_registry.set_handler(
-            "border_none", lambda: self.apply_border_preset("none")
-        )
-        self.action_registry.set_handler(
-            "border_all", lambda: self.apply_border_preset("all")
-        )
+        self.action_registry.set_handler("line_spacing_1_0", lambda: canvas.set_line_spacing(1.0))
+        self.action_registry.set_handler("line_spacing_1_5", lambda: canvas.set_line_spacing(1.5))
+        self.action_registry.set_handler("line_spacing_2_0", lambda: canvas.set_line_spacing(2.0))
+        self.action_registry.set_handler("line_spacing_2_5", lambda: canvas.set_line_spacing(2.5))
+        self.action_registry.set_handler("line_spacing_3_0", lambda: canvas.set_line_spacing(3.0))
+        self.action_registry.set_handler("line_spacing_more", lambda: canvas.set_line_spacing(1.5))
+        self.action_registry.set_handler("borderBtn", lambda: self.apply_border_preset("outside"))
+        self.action_registry.set_handler("border_none", lambda: self.apply_border_preset("none"))
+        self.action_registry.set_handler("border_all", lambda: self.apply_border_preset("all"))
         self.action_registry.set_handler(
             "border_outside", lambda: self.apply_border_preset("outside")
         )
         self.action_registry.set_handler(
             "border_bottom", lambda: self.apply_border_preset("bottom")
         )
-        self.action_registry.set_handler(
-            "border_top", lambda: self.apply_border_preset("top")
-        )
-        self.action_registry.set_handler(
-            "border_left", lambda: self.apply_border_preset("left")
-        )
-        self.action_registry.set_handler(
-            "border_right", lambda: self.apply_border_preset("right")
-        )
+        self.action_registry.set_handler("border_top", lambda: self.apply_border_preset("top"))
+        self.action_registry.set_handler("border_left", lambda: self.apply_border_preset("left"))
+        self.action_registry.set_handler("border_right", lambda: self.apply_border_preset("right"))
 
         # Tables toolbar dropdowns and split actions
-        self.action_registry.set_handler(
-            "tbl_insert_table", lambda: canvas.insert_table(2, 2)
-        )
+        self.action_registry.set_handler("tbl_insert_table", lambda: canvas.insert_table(2, 2))
         self.action_registry.set_handler(
             "tbl_insert_col_left", lambda: canvas.insert_table_col(left=True)
         )
@@ -293,21 +327,13 @@ class QuireWindow(BaseOfficeWindow):
         self.action_registry.set_handler(
             "tbl_insert_row_below", lambda: canvas.insert_table_row(above=False)
         )
-        self.action_registry.set_handler(
-            "tableBorderBtn", lambda: self.apply_table_border("all")
-        )
-        self.action_registry.set_handler(
-            "tbl_border_all", lambda: self.apply_table_border("all")
-        )
+        self.action_registry.set_handler("tableBorderBtn", lambda: self.apply_table_border("all"))
+        self.action_registry.set_handler("tbl_border_all", lambda: self.apply_table_border("all"))
         self.action_registry.set_handler(
             "tbl_border_outside", lambda: self.apply_table_border("outside")
         )
-        self.action_registry.set_handler(
-            "tbl_border_none", lambda: self.apply_table_border("none")
-        )
-        self.action_registry.set_handler(
-            "tbl_align_top", lambda: self.set_table_cell_valign("top")
-        )
+        self.action_registry.set_handler("tbl_border_none", lambda: self.apply_table_border("none"))
+        self.action_registry.set_handler("tbl_align_top", lambda: self.set_table_cell_valign("top"))
         self.action_registry.set_handler(
             "tbl_align_center", lambda: self.set_table_cell_valign("center")
         )
@@ -341,9 +367,7 @@ class QuireWindow(BaseOfficeWindow):
         self.action_registry.set_handler(
             "draw_order_back", lambda: self.reorder_selected_object("back")
         )
-        self.action_registry.set_handler(
-            "draw_nudge_up", lambda: self.nudge_selected_object(0, -1)
-        )
+        self.action_registry.set_handler("draw_nudge_up", lambda: self.nudge_selected_object(0, -1))
         self.action_registry.set_handler(
             "draw_nudge_down", lambda: self.nudge_selected_object(0, 1)
         )
@@ -353,42 +377,18 @@ class QuireWindow(BaseOfficeWindow):
         self.action_registry.set_handler(
             "draw_rotate_right", lambda: self.rotate_selected_object(90)
         )
-        self.action_registry.set_handler(
-            "as_lines", lambda: self.insert_shape("line")
-        )
-        self.action_registry.set_handler(
-            "as_connectors", lambda: self.insert_shape("connector")
-        )
-        self.action_registry.set_handler(
-            "as_basic", lambda: self.insert_shape("basic")
-        )
-        self.action_registry.set_handler(
-            "as_arrows", lambda: self.insert_shape("arrow")
-        )
-        self.action_registry.set_handler(
-            "as_flowchart", lambda: self.insert_shape("flowchart")
-        )
-        self.action_registry.set_handler(
-            "as_stars", lambda: self.insert_shape("star")
-        )
-        self.action_registry.set_handler(
-            "as_callouts", lambda: self.insert_shape("callout")
-        )
-        self.action_registry.set_handler(
-            "drawLine", lambda: self.insert_shape("line")
-        )
-        self.action_registry.set_handler(
-            "drawArrow", lambda: self.insert_shape("arrow")
-        )
-        self.action_registry.set_handler(
-            "drawRect", lambda: self.insert_shape("rect")
-        )
-        self.action_registry.set_handler(
-            "drawOval", lambda: self.insert_shape("oval")
-        )
-        self.action_registry.set_handler(
-            "textBox", lambda: self.insert_shape("textbox")
-        )
+        self.action_registry.set_handler("as_lines", lambda: self.insert_shape("line"))
+        self.action_registry.set_handler("as_connectors", lambda: self.insert_shape("connector"))
+        self.action_registry.set_handler("as_basic", lambda: self.insert_shape("basic"))
+        self.action_registry.set_handler("as_arrows", lambda: self.insert_shape("arrow"))
+        self.action_registry.set_handler("as_flowchart", lambda: self.insert_shape("flowchart"))
+        self.action_registry.set_handler("as_stars", lambda: self.insert_shape("star"))
+        self.action_registry.set_handler("as_callouts", lambda: self.insert_shape("callout"))
+        self.action_registry.set_handler("drawLine", lambda: self.insert_shape("line"))
+        self.action_registry.set_handler("drawArrow", lambda: self.insert_shape("arrow"))
+        self.action_registry.set_handler("drawRect", lambda: self.insert_shape("rect"))
+        self.action_registry.set_handler("drawOval", lambda: self.insert_shape("oval"))
+        self.action_registry.set_handler("textBox", lambda: self.insert_shape("textbox"))
 
     def _ensure_find_replace_dialog(self) -> FindReplaceDialog:
         """Create or return existing FindReplaceDialog instance."""
@@ -462,23 +462,23 @@ class QuireWindow(BaseOfficeWindow):
             from atboffice.modules.writer.io.html_io import read_html
 
             doc = read_html(path)
-            self.writer_view.canvas_view.doc = doc
-            self.writer_view.canvas_view.update()
+            self.writer_view.canvas_view.set_document(doc)
+            if hasattr(self, "nav_dock"):
+                self.nav_dock.set_document(doc)
             return True
         if ext in {".docx", ".docm", ".dotx"}:
             from atboffice.modules.writer.io.docx_reader import read_docx
 
             doc = read_docx(path)
-            self.writer_view.canvas_view.doc = doc
-            self.writer_view.canvas_view.update()
+            self.writer_view.canvas_view.set_document(doc)
+            if hasattr(self, "nav_dock"):
+                self.nav_dock.set_document(doc)
             return True
         return True
 
     def _setup_toolbars(self) -> None:
         """Initialize Word 2003 Luna 10 toolbars cluster."""
-        self.toolbars: dict[str, OfficeToolBar] = build_quire_toolbars(
-            self, self.action_registry
-        )
+        self.toolbars: dict[str, OfficeToolBar] = build_quire_toolbars(self, self.action_registry)
 
         # Row 1: Standard toolbar
         if "standard" in self.toolbars:
@@ -593,9 +593,18 @@ class QuireWindow(BaseOfficeWindow):
         if self._syncing_toolbars or not text:
             return
         pt_map = {
-            "初号": 42.0, "小初": 36.0, "一号": 26.0, "小一": 24.0,
-            "二号": 22.0, "小二": 18.0, "三号": 16.0, "小三": 15.0,
-            "四号": 14.0, "小四": 12.0, "五号": 10.5, "小五": 9.0,
+            "初号": 42.0,
+            "小初": 36.0,
+            "一号": 26.0,
+            "小一": 24.0,
+            "二号": 22.0,
+            "小二": 18.0,
+            "三号": 16.0,
+            "小三": 15.0,
+            "四号": 14.0,
+            "小四": 12.0,
+            "五号": 10.5,
+            "小五": 9.0,
         }
         val = pt_map.get(text.strip())
         if val is None:
@@ -684,11 +693,118 @@ class QuireWindow(BaseOfficeWindow):
         canvas = self.writer_view.canvas_view
         in_table = canvas.get_current_table_context() is not None
         has_revisions = bool(getattr(canvas.doc, "comments", [])) or is_tracking(canvas.doc)
-        self.update_context_toolbars({
-            "in_table": in_table,
-            "has_revisions": has_revisions,
-            "track_changes": is_tracking(canvas.doc),
-        })
+        self.update_context_toolbars(
+            {
+                "in_table": in_table,
+                "has_revisions": has_revisions,
+                "track_changes": is_tracking(canvas.doc),
+            }
+        )
+        if hasattr(self, "nav_dock") and self.nav_dock.isVisible():
+            p = canvas.controller._paragraph_by_id(para_id)
+            self.nav_dock.doc_map_pane.sync_caret_para(p)
+        self._sync_toolbar_states()
+
+    def switch_view_mode(self, mode: ViewMode | str) -> None:
+        """Switch Quire view display mode (print, normal, web, reading, outline)."""
+        if isinstance(mode, str):
+            mode = ViewMode(mode)
+        self.writer_view.set_view_mode(mode)
+        self._sync_toolbar_states()
+
+    def toggle_document_map(self) -> None:
+        """Toggle left Document Map navigation pane."""
+        if self.nav_dock.isVisible() and self.nav_dock.active_mode() == "doc_map":
+            self.nav_dock.hide()
+        else:
+            self.nav_dock.show_document_map()
+        self._sync_toolbar_states()
+
+    def toggle_thumbnails(self) -> None:
+        """Toggle left Thumbnails navigation pane."""
+        if self.nav_dock.isVisible() and self.nav_dock.active_mode() == "thumbnails":
+            self.nav_dock.hide()
+        else:
+            self.nav_dock.show_thumbnails()
+        self._sync_toolbar_states()
+
+    def toggle_rulers(self) -> None:
+        """Toggle rulers visibility."""
+        vis = not self.writer_view.h_ruler.isVisible()
+        self.writer_view.set_ruler_visible(vis)
+        self._sync_toolbar_states()
+
+    def toggle_fullscreen(self) -> None:
+        """Toggle Full Screen mode."""
+        if self._is_fullscreen_mode:
+            self.exit_full_screen()
+        else:
+            self.enter_full_screen()
+
+    def enter_full_screen(self) -> None:
+        """Enter full screen view: hide chrome and show floating toolbar."""
+        if self._is_fullscreen_mode:
+            return
+        self._is_fullscreen_mode = True
+        self._prev_view_mode = self.writer_view.view_mode
+
+        self._saved_toolbars_visible = []
+        for tb in self.findChildren(OfficeToolBar):
+            self._saved_toolbars_visible.append((tb, tb.isVisible()))
+            tb.hide()
+
+        if self.menuBar():
+            self.menuBar().hide()
+        if self.statusBar():
+            self.statusBar().hide()
+
+        self.showFullScreen()
+
+        self.fullscreen_bar.show()
+        self.fullscreen_bar.raise_()
+        self._reposition_fullscreen_bar()
+        self._sync_toolbar_states()
+
+    def exit_full_screen(self) -> None:
+        """Exit full screen mode and restore menus and toolbars."""
+        if not self._is_fullscreen_mode:
+            return
+        self._is_fullscreen_mode = False
+        self.fullscreen_bar.hide()
+
+        if self.menuBar():
+            self.menuBar().show()
+        if self.statusBar():
+            self.statusBar().show()
+
+        for tb, was_vis in self._saved_toolbars_visible:
+            tb.setVisible(was_vis)
+        self._saved_toolbars_visible.clear()
+
+        self.showNormal()
+        self.switch_view_mode(self._prev_view_mode)
+
+    def _reposition_fullscreen_bar(self) -> None:
+        if self.fullscreen_bar.isVisible():
+            geo = self.geometry()
+            self.fullscreen_bar.move(geo.right() - self.fullscreen_bar.width() - 40, geo.top() + 40)
+
+    def resizeEvent(self, event: Any) -> None:
+        super().resizeEvent(event)
+        if hasattr(self, "_is_fullscreen_mode") and self._is_fullscreen_mode:
+            self._reposition_fullscreen_bar()
+
+    def keyPressEvent(self, event: Any) -> None:
+        if getattr(self, "_is_fullscreen_mode", False) and event.key() == Qt.Key.Key_Escape:
+            self.exit_full_screen()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def _on_view_mode_changed(self, mode: ViewMode) -> None:
+        self._sync_toolbar_states()
+
+    def _on_nav_dock_visibility_changed(self, visible: bool) -> None:
         self._sync_toolbar_states()
 
     def show_status_message(self, message: str, timeout: int = 2000) -> None:
@@ -891,6 +1007,34 @@ class QuireWindow(BaseOfficeWindow):
                 act = self.action_registry.get_action(aid)
                 if act:
                     act.setEnabled(has_revisions)
+
+            # 8. View modes radio sync
+            vm = self.writer_view.view_mode
+            for act_name, target_vm in [
+                ("view_normal", ViewMode.NORMAL),
+                ("view_web", ViewMode.WEB),
+                ("view_print", ViewMode.PRINT),
+                ("view_reading", ViewMode.READING),
+                ("view_outline", ViewMode.OUTLINE),
+            ]:
+                act = self.action_registry.get_action(act_name)
+                if act:
+                    act.setChecked(vm == target_vm)
+
+            # 9. Document map, thumbnails, and ruler sync
+            act_dm = self.action_registry.get_action("view_doc_map")
+            if act_dm and hasattr(self, "nav_dock"):
+                is_dm = self.nav_dock.isVisible() and self.nav_dock.active_mode() == "doc_map"
+                act_dm.setChecked(is_dm)
+
+            act_th = self.action_registry.get_action("view_thumbnails")
+            if act_th and hasattr(self, "nav_dock"):
+                is_th = self.nav_dock.isVisible() and self.nav_dock.active_mode() == "thumbnails"
+                act_th.setChecked(is_th)
+
+            act_ruler = self.action_registry.get_action("view_ruler")
+            if act_ruler:
+                act_ruler.setChecked(self.writer_view.h_ruler.isVisible())
         finally:
             self._syncing_toolbars = False
 

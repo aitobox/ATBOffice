@@ -537,6 +537,15 @@ class CaretController(QObject):
     # Selection & Navigation Methods
     # -----------------------------------------------------------------------
 
+    def set_caret(
+        self,
+        para_id: int,
+        offset: int = 0,
+        extend_selection: bool = False,
+    ) -> None:
+        """Position caret at specified paragraph ID and character offset."""
+        self.set_pos(DocPos(para_id, offset), extend_selection=extend_selection)
+
     def set_pos(
         self,
         pos: DocPos,
@@ -728,6 +737,7 @@ class CaretController(QObject):
         if start.para_id == end.para_id:
             return ptext(p_start)[start.offset : end.offset]
         from atboffice.modules.writer.models.document import paras_between
+
         paras = paras_between(self.doc, p_start, p_end)
         parts = []
         for i, p in enumerate(paras):
