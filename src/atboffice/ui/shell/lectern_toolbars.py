@@ -27,9 +27,14 @@ from PySide6.QtWidgets import (
 )
 
 from atboffice.core.action_registry import ActionRegistry, ActionSpec
+from atboffice.core.i18n import clean_asian_mnemonic
 from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.toolbar import OfficeToolBar
+from atboffice.ui.components.toolbar_buttons import (
+    OfficeDropDownButton,
+    OfficeSplitButton,
+)
 from atboffice.ui.icons import get_office_icon, has_office_icon
 
 
@@ -69,6 +74,198 @@ _LECTERN_DROP_ICONS: Final[dict[str, str]] = {
     "线条样式": "lineStyle",
 }
 
+_LECTERN_DROP_AIDS_MAP: Final[dict[str, str]] = {
+    # Diagram
+    "版式(&L)": "diagram_layout_menu",
+    "版式": "diagram_layout_menu",
+    "更改颜色(&C)": "diagram_colors_menu",
+    "更改颜色": "diagram_colors_menu",
+    "样式(&S)": "diagram_style_menu",
+    "样式": "diagram_style_menu",
+    # Tables
+    "表格(&T)": "table_menu",
+    "表格": "table_menu",
+    "粗细": "tbl_line_weight",
+    "线条颜色": "tbl_line_color",
+    "底纹颜色": "tbl_shading_color",
+    # Picture
+    "颜色(&C)": "pic_color_mode",
+    "颜色": "pic_color_mode",
+    "线条样式": "pic_line_style",
+    # WordArt
+    "艺术字形状(&S)": "wa_shape_menu",
+    "艺术字形状": "wa_shape_menu",
+    "艺术字对齐(&A)": "wa_align_menu",
+    "艺术字对齐": "wa_align_menu",
+    "字符间距(&P)": "wa_char_spacing_menu",
+    "字符间距": "wa_char_spacing_menu",
+    # Drawing
+    "绘图(&R)": "draw_menu",
+    "绘图": "draw_menu",
+    "自选图形(&U)": "autoshapes_menu",
+    "自选图形": "autoshapes_menu",
+    "虚线线型": "draw_dash_style",
+    "箭头样式": "draw_arrow_style",
+    "阴影样式": "draw_shadow_style",
+}
+
+_LECTERN_DROP_AIDS: Final[list[str]] = [
+    # Diagram
+    "diagram_layout_menu",
+    "diagram_colors_menu",
+    "diagram_style_menu",
+    # Tables
+    "table_menu",
+    "tbl_dash_style",
+    "tbl_line_weight",
+    "tbl_line_color",
+    "tbl_shading_color",
+    # Picture
+    "pic_color_mode",
+    "pic_line_style",
+    # WordArt
+    "wa_shape_menu",
+    "wa_align_menu",
+    "wa_char_spacing_menu",
+    # Drawing
+    "draw_menu",
+    "autoshapes_menu",
+    "lineStyle",
+    "draw_dash_style",
+    "draw_arrow_style",
+    "draw_shadow_style",
+]
+
+_LECTERN_KNOWN_ITEM_AIDS: Final[dict[str, tuple[str, str, bool, bool]]] = {
+    # Undo / Redo
+    "undo_empty": ("undo_empty", "无操作可撤销", False, False),
+    "redo_empty": ("redo_empty", "无操作可重做", False, False),
+    # View Gray Split
+    "view_color": ("view_color", "彩色(&C)", True, True),
+    "view_grayscale": ("view_grayscale", "灰度(&G)", True, True),
+    "view_black_and_white": ("view_black_and_white", "纯黑白(&B)", True, True),
+    # Diagram: Layout Drop
+    "diag_layout_org": ("diag_layout_org", "组织结构图", True, False),
+    "diag_layout_hierarchy": ("diag_layout_hierarchy", "层次结构", True, False),
+    "diag_layout_cycle": ("diag_layout_cycle", "循环图", True, False),
+    "diag_layout_radial": ("diag_layout_radial", "射线图", True, False),
+    "diag_layout_pyramid": ("diag_layout_pyramid", "金字塔图", True, False),
+    "diag_layout_venn": ("diag_layout_venn", "维恩图", True, False),
+    "diag_layout_target": ("diag_layout_target", "目标图", True, False),
+    # Diagram: Colors Drop
+    "diag_color_primary": ("diag_color_primary", "主色调", True, False),
+    "diag_color_colorful": ("diag_color_colorful", "多彩", True, False),
+    "diag_color_dark": ("diag_color_dark", "深色", True, False),
+    "diag_color_light": ("diag_color_light", "轻快", True, False),
+    # Diagram: Styles Drop
+    "diag_style_flat": ("diag_style_flat", "平面样式", True, False),
+    "diag_style_3d": ("diag_style_3d", "3D 凸起", True, False),
+    "diag_style_metal": ("diag_style_metal", "金属质感", True, False),
+    "diag_style_gradient": ("diag_style_gradient", "渐变填充", True, False),
+    # Tables: Dash Style Drop
+    "tbl_line_single": ("tbl_line_single", "实线", True, False),
+    "tbl_line_dash": ("tbl_line_dash", "虚线", True, False),
+    "tbl_line_dot": ("tbl_line_dot", "点线", True, False),
+    "tbl_line_double": ("tbl_line_double", "双线", True, False),
+    # Tables: Line Weight Drop
+    "tbl_weight_05": ("tbl_weight_05", "0.5 磅", True, False),
+    "tbl_weight_10": ("tbl_weight_10", "1.0 磅", True, False),
+    "tbl_weight_15": ("tbl_weight_15", "1.5 磅", True, False),
+    "tbl_weight_225": ("tbl_weight_225", "2.25 磅", True, False),
+    "tbl_weight_30": ("tbl_weight_30", "3.0 磅", True, False),
+    "tbl_weight_45": ("tbl_weight_45", "4.5 磅", True, False),
+    "tbl_weight_60": ("tbl_weight_60", "6.0 磅", True, False),
+    # Tables: Line Color Drop
+    "tbl_color_auto": ("tbl_color_auto", "自动", True, False),
+    "tbl_color_black": ("tbl_color_black", "黑色", True, False),
+    "tbl_color_red": ("tbl_color_red", "红色", True, False),
+    "tbl_color_blue": ("tbl_color_blue", "蓝色", True, False),
+    "tbl_color_gray": ("tbl_color_gray", "灰色", True, False),
+    # Tables: Table Borders Split
+    "tbl_border_all": ("tbl_border_all", "所有框线", True, False),
+    "tbl_border_outside": ("tbl_border_outside", "外侧框线", True, False),
+    "tbl_border_inside": ("tbl_border_inside", "内侧框线", True, False),
+    "tbl_border_none": ("tbl_border_none", "无框线", True, False),
+    "tbl_border_top": ("tbl_border_top", "顶端框线", True, False),
+    "tbl_border_bottom": ("tbl_border_bottom", "底端框线", True, False),
+    "tbl_border_left": ("tbl_border_left", "左侧框线", True, False),
+    "tbl_border_right": ("tbl_border_right", "右侧框线", True, False),
+    # Tables: Shading Color Drop
+    "tbl_shade_none": ("tbl_shade_none", "无填充", True, False),
+    "tbl_shade_gray": ("tbl_shade_gray", "浅灰色", True, False),
+    "tbl_shade_yellow": ("tbl_shade_yellow", "黄色", True, False),
+    "tbl_shade_blue": ("tbl_shade_blue", "浅蓝色", True, False),
+    "tbl_shade_green": ("tbl_shade_green", "浅绿色", True, False),
+    # Tables: Table Menu Drop
+    "tbl_insert_table": ("tbl_insert_table", "插入表格(&I)...", True, False),
+    "tbl_insert_col_left": ("tbl_insert_col_left", "在左侧插入列", True, False),
+    "tbl_insert_col_right": ("tbl_insert_col_right", "在右侧插入列", True, False),
+    "tbl_insert_row_above": ("tbl_insert_row_above", "在上方插入行", True, False),
+    "tbl_insert_row_below": ("tbl_insert_row_below", "在下方插入行", True, False),
+    "tbl_delete_col": ("tbl_delete_col", "删除列(&C)", True, False),
+    "tbl_delete_row": ("tbl_delete_row", "删除行(&R)", True, False),
+    "tableMergeCells": ("tableMergeCells", "合并单元格(&M)", True, False),
+    "tableSplitCell": ("tableSplitCell", "拆分单元格(&P)...", True, False),
+    "tbl_select_table": ("tbl_select_table", "选择表格(&S)", True, False),
+    "tbl_borders_and_shading": ("tbl_borders_and_shading", "边框和底纹(&B)...", True, False),
+    # Picture: Color Mode Drop
+    "pic_color_auto": ("pic_color_auto", "自动(&A)", True, False),
+    "pic_color_gray": ("pic_color_gray", "灰度(&G)", True, False),
+    "pic_color_bw": ("pic_color_bw", "黑白(&B)", True, False),
+    "pic_color_washout": ("pic_color_washout", "冲蚀(&W)", True, False),
+    # Picture: Line Style Drop
+    "pic_weight_075": ("pic_weight_075", "0.75 磅", True, False),
+    "pic_weight_15": ("pic_weight_15", "1.5 磅", True, False),
+    "pic_weight_30": ("pic_weight_30", "3 磅", True, False),
+    "pic_weight_45": ("pic_weight_45", "4.5 磅", True, False),
+    "pic_weight_60": ("pic_weight_60", "6 磅", True, False),
+    # WordArt: Shape Drop
+    "wa_shape_plain": ("wa_shape_plain", "纯文本", True, False),
+    "wa_shape_wave": ("wa_shape_wave", "波浪", True, False),
+    "wa_shape_arch_up": ("wa_shape_arch_up", "上凸", True, False),
+    "wa_shape_arch_down": ("wa_shape_arch_down", "下凹", True, False),
+    "wa_shape_circle": ("wa_shape_circle", "环形", True, False),
+    "wa_shape_triangle_down": ("wa_shape_triangle_down", "倒三角形", True, False),
+    # WordArt: Alignment Drop
+    "wa_align_left": ("wa_align_left", "左对齐(&L)", True, False),
+    "wa_align_center": ("wa_align_center", "居中(&C)", True, False),
+    "wa_align_right": ("wa_align_right", "右对齐(&R)", True, False),
+    "wa_align_justify": ("wa_align_justify", "两端对齐(&J)", True, False),
+    # WordArt: Character Spacing Drop
+    "wa_spacing_very_tight": ("wa_spacing_very_tight", "很紧(&V)", True, False),
+    "wa_spacing_tight": ("wa_spacing_tight", "紧密(&T)", True, False),
+    "wa_spacing_normal": ("wa_spacing_normal", "常规(&N)", True, False),
+    "wa_spacing_loose": ("wa_spacing_loose", "稀疏(&L)", True, False),
+    "wa_spacing_very_loose": ("wa_spacing_very_loose", "很松(&E)", True, False),
+    # Drawing: AutoShapes Drop
+    "ashape_lines": ("ashape_lines", "线条", True, False),
+    "ashape_connectors": ("ashape_connectors", "连接符", True, False),
+    "ashape_basic": ("ashape_basic", "基本形状", True, False),
+    "ashape_arrows": ("ashape_arrows", "箭头总汇", True, False),
+    "ashape_flowchart": ("ashape_flowchart", "流程图", True, False),
+    "ashape_stars": ("ashape_stars", "星与旗帜", True, False),
+    "ashape_callouts": ("ashape_callouts", "标注", True, False),
+    # Drawing: Dash Style Drop
+    "draw_dash_round_dot": ("draw_dash_round_dot", "圆点", True, False),
+    "draw_dash_short_dash": ("draw_dash_short_dash", "短划线", True, False),
+    "draw_dash_long_dash": ("draw_dash_long_dash", "长划线", True, False),
+    "draw_dash_dash_dot": ("draw_dash_dash_dot", "点划线", True, False),
+    # Drawing: Arrow Style Drop
+    "draw_arrow_none": ("draw_arrow_none", "无箭头", True, False),
+    "draw_arrow_style1": ("draw_arrow_style1", "箭头样式 1", True, False),
+    "draw_arrow_style2": ("draw_arrow_style2", "箭头样式 2", True, False),
+    "draw_arrow_double": ("draw_arrow_double", "双向箭头", True, False),
+    # Drawing: Shadow Style Drop
+    "draw_shadow_none": ("draw_shadow_none", "无阴影", True, False),
+    "draw_shadow_style1": ("draw_shadow_style1", "阴影样式 1", True, False),
+    "draw_shadow_style2": ("draw_shadow_style2", "阴影样式 2", True, False),
+    "draw_shadow_style3": ("draw_shadow_style3", "阴影样式 3", True, False),
+}
+
+_LECTERN_LABEL_TO_AID: Final[dict[str, tuple[str, str, bool, bool]]] = {
+    v[1]: v for v in _LECTERN_KNOWN_ITEM_AIDS.values()
+}
+
 
 class LecternToolBarCluster:
     """Builder for Lectern 10 toolbars cluster connected to ActionRegistry."""
@@ -100,11 +297,18 @@ class LecternToolBarCluster:
         shortcut: Any = None,
         checkable: bool = False,
         checked: bool = False,
+        enabled: bool = True,
         is_split: bool = False,
         is_drop: bool = False,
         handler: Callable[[], Any] | None = None,
         icon: QIcon | str | None = None,
     ) -> QAction:
+        existing = self.action_registry.get_action(aid)
+        if existing is not None:
+            if checkable and not existing.isCheckable():
+                existing.setCheckable(True)
+            return existing
+
         resolved_icon = None
         if isinstance(icon, QIcon):
             resolved_icon = icon
@@ -121,6 +325,7 @@ class LecternToolBarCluster:
             shortcut=shortcut,
             checkable=checkable,
             checked=checked,
+            enabled=enabled,
             is_split=is_split,
             is_drop=is_drop,
             handler=handler,
@@ -136,6 +341,7 @@ class LecternToolBarCluster:
         shortcut: Any = None,
         checkable: bool = False,
         checked: bool = False,
+        enabled: bool = True,
         is_split: bool = False,
         is_drop: bool = False,
         handler: Callable[[], Any] | None = None,
@@ -148,6 +354,7 @@ class LecternToolBarCluster:
             shortcut=shortcut,
             checkable=checkable,
             checked=checked,
+            enabled=enabled,
             is_split=is_split,
             is_drop=is_drop,
             handler=handler,
@@ -156,19 +363,96 @@ class LecternToolBarCluster:
         tb.addAction(act)
         return act
 
+    def _add_menu_item(
+        self,
+        menu: QMenu,
+        item: Any,
+        parent_aid: str | None = None,
+    ) -> QAction | None:
+        if item == "-":
+            menu.addSeparator()
+            return None
+
+        aid = ""
+        label = ""
+        tip = ""
+        enabled = True
+        checkable = False
+        checked = False
+        handler = None
+        icon = None
+
+        if isinstance(item, QAction):
+            menu.addAction(item)
+            return item
+
+        if isinstance(item, tuple):
+            aid = item[0]
+            label = item[1]
+            if len(item) > 2:
+                enabled = item[2]
+            if len(item) > 3:
+                checkable = item[3]
+            if len(item) > 4:
+                checked = item[4]
+            if len(item) > 5:
+                handler = item[5]
+            if len(item) > 6:
+                icon = item[6]
+        elif isinstance(item, str):
+            if self.action_registry.has_action(item):
+                act = self.action_registry.get_action(item)
+                if act:
+                    menu.addAction(act)
+                    return act
+            if item in _LECTERN_KNOWN_ITEM_AIDS:
+                aid, label, enabled, checkable = _LECTERN_KNOWN_ITEM_AIDS[item]
+            elif item in _LECTERN_LABEL_TO_AID:
+                aid, label, enabled, checkable = _LECTERN_LABEL_TO_AID[item]
+            else:
+                aid = f"{parent_aid}_{item}" if parent_aid else item
+                label = item
+        else:
+            return None
+
+        act = self._reg_act(
+            aid=aid,
+            label=label,
+            tip=tip,
+            enabled=enabled,
+            checkable=checkable,
+            checked=checked,
+            handler=handler,
+            icon=icon,
+        )
+        menu.addAction(act)
+        return act
+
     def _add_drop(
         self,
         tb: OfficeToolBar,
         label: str,
-        items: list[str],
+        items: list[Any],
         icon: QIcon | str | None = None,
-    ) -> None:
+        aid: str | None = None,
+    ) -> OfficeDropDownButton:
         menu = QMenu(tb)
+        menu.setProperty("drop_label", label)
+        plain_lbl = clean_asian_mnemonic(label)
+        resolved_aid = (
+            aid or _LECTERN_DROP_AIDS_MAP.get(label) or _LECTERN_DROP_AIDS_MAP.get(plain_lbl)
+        )
+        if resolved_aid:
+            self._reg_act(
+                aid=resolved_aid,
+                label=label,
+                is_drop=True,
+                icon=icon,
+            )
+            menu.setProperty("drop_aid", resolved_aid)
+
         for item in items:
-            if item == "-":
-                menu.addSeparator()
-            else:
-                menu.addAction(safe_tr(item))
+            self._add_menu_item(menu, item, parent_aid=resolved_aid)
 
         resolved_icon = None
         if isinstance(icon, QIcon):
@@ -180,11 +464,21 @@ class LecternToolBarCluster:
             if drop_key and has_office_icon(drop_key):
                 resolved_icon = get_office_icon(drop_key)
 
-        keep_text = "绘图" in label or "自选图形" in label or "Table" in label
+        keep_text = (
+            "绘图" in label
+            or "自选图形" in label
+            or "Table" in label
+            or "表格" in label
+            or "版式" in label
+            or "更改颜色" in label
+            or "样式" in label
+            or "艺术字" in label
+        )
         btn_text = safe_tr(label) if not resolved_icon or keep_text else ""
         btn = tb.add_drop_button(btn_text, resolved_icon, menu)
         if resolved_icon and not btn_text:
             btn.setToolTip(safe_tr(label))
+        return btn
 
     def _add_split(
         self,
@@ -192,10 +486,10 @@ class LecternToolBarCluster:
         aid: str,
         label: str,
         tip: str,
-        items: list[str],
+        items: list[Any],
         shortcut: Any = None,
         icon: QIcon | str | None = None,
-    ) -> None:
+    ) -> OfficeSplitButton:
         act = self._reg_act(
             aid=aid,
             label=label,
@@ -205,12 +499,10 @@ class LecternToolBarCluster:
             icon=icon,
         )
         menu = QMenu(tb)
+        menu.setProperty("split_aid", aid)
         for item in items:
-            if item == "-":
-                menu.addSeparator()
-            else:
-                menu.addAction(safe_tr(item))
-        tb.add_split_action(act, menu)
+            self._add_menu_item(menu, item, parent_aid=aid)
+        return tb.add_split_action(act, menu)
 
     def _build_standard_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("常用"), self.window)
@@ -260,7 +552,11 @@ class LecternToolBarCluster:
             "viewGray",
             "颜色/灰度(&C)",
             "切换彩色、灰度或纯黑白显示模式",
-            ["彩色(&C)", "灰度(&G)", "纯黑白(&B)"],
+            [
+                ("view_color", "彩色(&C)", True, True),
+                ("view_grayscale", "灰度(&G)", True, True),
+                ("view_black_and_white", "纯黑白(&B)", True, True),
+            ],
         )
 
         zoom_combo = QComboBox(tb)
@@ -533,11 +829,20 @@ class LecternToolBarCluster:
     def _build_tables_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("表格和边框"), self.window)
 
-        self._add_drop(tb, "线型", ["实线", "虚线", "点线", "双线"])
+        self._add_drop(tb, "线型", ["实线", "虚线", "点线", "双线"], aid="tbl_dash_style")
         self._add_drop(
             tb,
             "粗细",
-            ["0.5 磅", "1.0 磅", "1.5 磅", "2.25 磅", "3.0 磅", "4.5 磅", "6.0 磅"],
+            [
+                ("tbl_weight_05", "0.5 磅", True, False),
+                ("tbl_weight_10", "1.0 磅", True, False),
+                ("tbl_weight_15", "1.5 磅", True, False),
+                ("tbl_weight_225", "2.25 磅", True, False),
+                ("tbl_weight_30", "3.0 磅", True, False),
+                ("tbl_weight_45", "4.5 磅", True, False),
+                ("tbl_weight_60", "6.0 磅", True, False),
+            ],
+            aid="tbl_line_weight",
         )
         self._add_drop(tb, "线条颜色", ["自动", "黑色", "红色", "蓝色", "灰色"])
         self._add_split(
@@ -614,7 +919,18 @@ class LecternToolBarCluster:
 
         self._add(tb, "picCrop", "裁剪(&C)", "裁剪图片尺寸与显示区域", checkable=True)
         self._add(tb, "rotateLeft", "向左旋转 90°(&R)", "将图片逆时针旋转 90 度")
-        self._add_drop(tb, "线型", ["0.75 磅", "1.5 磅", "3 磅", "4.5 磅", "6 磅"])
+        self._add_drop(
+            tb,
+            "线条样式",
+            [
+                ("pic_weight_075", "0.75 磅", True, False),
+                ("pic_weight_15", "1.5 磅", True, False),
+                ("pic_weight_30", "3 磅", True, False),
+                ("pic_weight_45", "4.5 磅", True, False),
+                ("pic_weight_60", "6 磅", True, False),
+            ],
+            aid="pic_line_style",
+        )
 
         tb.add_office_separator()
 
@@ -709,6 +1025,14 @@ class LecternToolBarCluster:
         align_sub.addAction(act_dh)
         align_sub.addAction(act_dv)
 
+        self._reg_act(
+            aid="draw_menu",
+            label="绘图(&R)",
+            tip=safe_tr("绘图菜单"),
+            is_drop=True,
+        )
+        draw_menu.setProperty("drop_aid", "draw_menu")
+        draw_menu.setProperty("drop_label", "绘图(&R)")
         tb.add_drop_button(safe_tr("绘图(&R)"), None, draw_menu)
         self._add(tb, "selectObjects", "选择对象(&S)", "框选画布中的图形对象", checkable=True)
 
@@ -752,7 +1076,7 @@ class LecternToolBarCluster:
 
         tb.add_office_separator()
 
-        self._add_drop(tb, "线型", ["0.75 磅", "1.5 磅", "3 磅", "4.5 磅", "6 磅"])
+        self._add_drop(tb, "线型", ["0.75 磅", "1.5 磅", "3 磅", "4.5 磅", "6 磅"], aid="lineStyle")
         self._add_drop(tb, "虚线线型", ["实线", "圆点", "短划线", "长划线", "点划线"])
         self._add_drop(tb, "箭头样式", ["无箭头", "箭头样式 1", "箭头样式 2", "双向箭头"])
         self._add_drop(tb, "阴影样式", ["无阴影", "阴影样式 1", "阴影样式 2", "阴影样式 3"])
@@ -773,7 +1097,7 @@ def retranslate_lectern_toolbars(
     toolbars: dict[str, OfficeToolBar],
     tr_func: Callable[[str], str] | None = None,
 ) -> None:
-    """Update localized window titles across all 10 toolbars."""
+    """Update localized window titles, drop buttons, and combos across all 10 toolbars."""
     translate = tr_func or safe_tr
     titles: dict[str, str] = {
         "standard": translate("常用"),
@@ -791,3 +1115,19 @@ def retranslate_lectern_toolbars(
         tb = toolbars.get(name)
         if tb is not None:
             tb.setWindowTitle(title)
+            for btn in tb.findChildren(OfficeDropDownButton):
+                btn.retranslate_ui(translate)
+
+            zoom_combo = tb.findChild(QComboBox, "Lectern_ZoomCombo")
+            if zoom_combo:
+                zoom_combo.setToolTip(translate("显示比例"))
+                if zoom_combo.count() > 0:
+                    zoom_combo.setItemText(0, translate("适合比例"))
+
+            font_combo = tb.findChild(QComboBox, "Lectern_FontCombo")
+            if font_combo:
+                font_combo.setToolTip(translate("字体"))
+
+            size_combo = tb.findChild(QComboBox, "Lectern_SizeCombo")
+            if size_combo:
+                size_combo.setToolTip(translate("字号"))

@@ -430,7 +430,12 @@ class ShapeGraphicsItem(QGraphicsObject):
     def retranslate_ui(self) -> None:
         """Update tooltips and labels on locale switch."""
         if self.model.media_item:
-            media_lbl = safe_tr("视频") if self.model.media_item.is_video else safe_tr("音频")
+            is_vid = (
+                getattr(self.model.media_item, "is_video", False)
+                if not isinstance(self.model.media_item, dict)
+                else self.model.media_item.get("is_video", False)
+            )
+            media_lbl = safe_tr("视频") if is_vid else safe_tr("音频")
             preview_hint = safe_tr("单击中央徽标预览播放")
             tip = f"{media_lbl}{safe_tr('多媒体')}: {self.model.name} ({preview_hint})"
             self.setToolTip(tip)

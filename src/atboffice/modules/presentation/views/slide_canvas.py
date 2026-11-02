@@ -591,14 +591,21 @@ class SlideScene(QGraphicsScene):
         """Ungroup any selected group shapes."""
         selected = self.selected_shape_items()
         unpacked_items: list[ShapeGraphicsItem] = []
+        kids_ids: list[str] = []
 
         for it in selected:
             if it.model.type == "group" and it.model.kids:
                 self.slide.remove_shape(it.model.id)
                 for kid in it.model.kids:
                     self.slide.add_shape(kid)
+                    kids_ids.append(kid.id)
 
         self.load_slide(self.slide)
+        for kid_id in kids_ids:
+            item = self.get_shape_item(kid_id)
+            if item:
+                unpacked_items.append(item)
+                item.setSelected(True)
         return unpacked_items
 
     def delete_selected(self) -> None:
