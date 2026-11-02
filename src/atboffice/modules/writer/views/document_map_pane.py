@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QCoreApplication, Qt, Signal
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QTreeWidget,
     QTreeWidgetItem,
@@ -140,9 +140,10 @@ class DocumentMapPane(QWidget):
 
         # Find matching item in tree
         def _find_item(parent_item: QTreeWidgetItem | QTreeWidget) -> QTreeWidgetItem | None:
-            count = parent_item.topLevelItemCount() if isinstance(parent_item, QTreeWidget) else parent_item.childCount()
+            is_tw = isinstance(parent_item, QTreeWidget)
+            count = parent_item.topLevelItemCount() if is_tw else parent_item.childCount()
             for idx in range(count):
-                child = parent_item.topLevelItem(idx) if isinstance(parent_item, QTreeWidget) else parent_item.child(idx)
+                child = parent_item.topLevelItem(idx) if is_tw else parent_item.child(idx)
                 if child.data(0, Qt.ItemDataRole.UserRole) == target_id:
                     return child
                 found = _find_item(child)
@@ -168,5 +169,8 @@ class DocumentMapPane(QWidget):
     def retranslate_ui(self) -> None:
         """Update localized UI text."""
         self.setWindowTitle(safe_tr("文档结构图"))
-        if self.tree.topLevelItemCount() == 1 and self.tree.topLevelItem(0).data(0, Qt.ItemDataRole.UserRole) is None:
+        if (
+            self.tree.topLevelItemCount() == 1
+            and self.tree.topLevelItem(0).data(0, Qt.ItemDataRole.UserRole) is None
+        ):
             self.tree.topLevelItem(0).setText(0, safe_tr("(无标题)"))

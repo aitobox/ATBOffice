@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QApplication
 
@@ -11,7 +11,6 @@ from atboffice.modules.writer.models.document import (
     Document,
     Paragraph,
     TextItem,
-    all_paragraphs,
     plain_text,
     reindex,
 )
@@ -182,7 +181,9 @@ class TestOutlineLogic:
         assert doc.main.blocks[2] == h2
         assert doc.main.blocks[3] == p2
 
-    def test_outline_widget_and_toolbar(self, qapp: QApplication, sample_document: Document) -> None:
+    def test_outline_widget_and_toolbar(
+        self, qapp: QApplication, sample_document: Document
+    ) -> None:
         widget = OutlineViewWidget(doc=sample_document)
         widget.resize(600, 400)
         widget.show()
@@ -265,7 +266,9 @@ class TestNavigationPanes:
 
 
 class TestQuireWindowViewsIntegration:
-    def test_window_view_actions_and_dock(self, qapp: QApplication, sample_document: Document) -> None:
+    def test_window_view_actions_and_dock(
+        self, qapp: QApplication, sample_document: Document
+    ) -> None:
         win = QuireWindow()
         win.writer_view.canvas_view.set_document(sample_document)
         win.show()
@@ -317,14 +320,18 @@ class TestQuireWindowViewsIntegration:
         assert win.fullscreen_bar.isVisible()
 
         # Exit full screen via Esc key event
-        esc_event = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier)
+        esc_event = QKeyEvent(
+            QKeyEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier
+        )
         win.keyPressEvent(esc_event)
         assert not win._is_fullscreen_mode
         assert not win.fullscreen_bar.isVisible()
 
         win.close()
 
-    def test_reading_toolbar_and_scroll_navigation(self, qapp: QApplication, sample_document: Document) -> None:
+    def test_reading_toolbar_and_scroll_navigation(
+        self, qapp: QApplication, sample_document: Document
+    ) -> None:
         view = WriterView(doc=sample_document)
         view.resize(900, 700)
         view.show()

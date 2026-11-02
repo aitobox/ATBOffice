@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDockWidget,
     QHBoxLayout,
-    QLabel,
     QPushButton,
     QStackedWidget,
     QVBoxLayout,
@@ -45,7 +44,9 @@ class QuireNavDock(QDockWidget):
         super().__init__(parent)
         self.setObjectName("dock_quire_nav")
         self.setWindowTitle(safe_tr("导航"))
-        self.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
+        self.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
+        )
 
         # Title bar custom widget
         title_widget = QWidget(self)
@@ -119,7 +120,6 @@ class QuireNavDock(QDockWidget):
         return self._combo_mode.currentData() or "doc_map"
 
     def _on_mode_changed(self, idx: int) -> None:
-        mode = self._combo_mode.currentData()
         if idx == 0:
             self.stack.setCurrentIndex(0)
             self.doc_map_pane.refresh_headings()
@@ -145,7 +145,6 @@ class QuireNavDock(QDockWidget):
         """Update localized UI text."""
         self.setWindowTitle(safe_tr("导航"))
         self._btn_close.setToolTip(safe_tr("关闭导航窗格"))
-        cur_idx = self._combo_mode.currentIndex()
         self._combo_mode.blockSignals(True)
         self._combo_mode.setItemText(0, safe_tr("文档结构图"))
         self._combo_mode.setItemText(1, safe_tr("缩略图"))

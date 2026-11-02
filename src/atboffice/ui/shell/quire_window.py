@@ -112,9 +112,7 @@ class QuireWindow(BaseOfficeWindow):
             self._on_document_modified
         )
         self.writer_view.canvas_view.caret_moved.connect(self._on_caret_moved)
-        self.writer_view.canvas_view.controller.selection_changed.connect(
-            self._sync_toolbar_states
-        )
+        self.writer_view.canvas_view.controller.selection_changed.connect(self._sync_toolbar_states)
 
         # 6. Load file or set initial document title
         if file_path is not None:
@@ -149,18 +147,14 @@ class QuireWindow(BaseOfficeWindow):
         self.action_registry.set_handler(
             "tools_word_count", self.writer_view.open_word_count_dialog
         )
-        self.action_registry.set_handler(
-            "wordCount", self.writer_view.open_word_count_dialog
-        )
+        self.action_registry.set_handler("wordCount", self.writer_view.open_word_count_dialog)
 
         # Zoom & view
         self.action_registry.set_handler("taskPane", self.toggle_task_pane)
         self.action_registry.set_handler(
             "view_normal", lambda: self.switch_view_mode(ViewMode.NORMAL)
         )
-        self.action_registry.set_handler(
-            "view_web", lambda: self.switch_view_mode(ViewMode.WEB)
-        )
+        self.action_registry.set_handler("view_web", lambda: self.switch_view_mode(ViewMode.WEB))
         self.action_registry.set_handler(
             "view_print", lambda: self.switch_view_mode(ViewMode.PRINT)
         )
@@ -180,21 +174,15 @@ class QuireWindow(BaseOfficeWindow):
         self.action_registry.set_handler(
             "promote", self.writer_view.outline_widget.promote_selected
         )
-        self.action_registry.set_handler(
-            "demote", self.writer_view.outline_widget.demote_selected
-        )
+        self.action_registry.set_handler("demote", self.writer_view.outline_widget.demote_selected)
         self.action_registry.set_handler(
             "demoteBody", self.writer_view.outline_widget.demote_selected_body
         )
-        self.action_registry.set_handler(
-            "moveUp", self.writer_view.outline_widget.move_selected_up
-        )
+        self.action_registry.set_handler("moveUp", self.writer_view.outline_widget.move_selected_up)
         self.action_registry.set_handler(
             "moveDown", self.writer_view.outline_widget.move_selected_down
         )
-        self.action_registry.set_handler(
-            "expand", self.writer_view.outline_widget.expand_selected
-        )
+        self.action_registry.set_handler("expand", self.writer_view.outline_widget.expand_selected)
         self.action_registry.set_handler(
             "collapse", self.writer_view.outline_widget.collapse_selected
         )
@@ -284,12 +272,8 @@ class QuireWindow(BaseOfficeWindow):
         self.action_registry.set_handler("wordartEdit", self.open_wordart_gallery)
 
         # Standard toolbar dropdowns
-        self.action_registry.set_handler(
-            "tb_table_drop", lambda: canvas.insert_table(2, 2)
-        )
-        self.action_registry.set_handler(
-            "insertTable_dialog", lambda: canvas.insert_table(2, 2)
-        )
+        self.action_registry.set_handler("tb_table_drop", lambda: canvas.insert_table(2, 2))
+        self.action_registry.set_handler("insertTable_dialog", lambda: canvas.insert_table(2, 2))
         self.action_registry.set_handler(
             "insertTable_col_left", lambda: canvas.insert_table_col(left=True)
         )
@@ -310,53 +294,27 @@ class QuireWindow(BaseOfficeWindow):
         )
 
         # Formatting toolbar dropdowns and split actions
-        self.action_registry.set_handler(
-            "line_spacing_1_0", lambda: canvas.set_line_spacing(1.0)
-        )
-        self.action_registry.set_handler(
-            "line_spacing_1_5", lambda: canvas.set_line_spacing(1.5)
-        )
-        self.action_registry.set_handler(
-            "line_spacing_2_0", lambda: canvas.set_line_spacing(2.0)
-        )
-        self.action_registry.set_handler(
-            "line_spacing_2_5", lambda: canvas.set_line_spacing(2.5)
-        )
-        self.action_registry.set_handler(
-            "line_spacing_3_0", lambda: canvas.set_line_spacing(3.0)
-        )
-        self.action_registry.set_handler(
-            "line_spacing_more", lambda: canvas.set_line_spacing(1.5)
-        )
-        self.action_registry.set_handler(
-            "borderBtn", lambda: self.apply_border_preset("outside")
-        )
-        self.action_registry.set_handler(
-            "border_none", lambda: self.apply_border_preset("none")
-        )
-        self.action_registry.set_handler(
-            "border_all", lambda: self.apply_border_preset("all")
-        )
+        self.action_registry.set_handler("line_spacing_1_0", lambda: canvas.set_line_spacing(1.0))
+        self.action_registry.set_handler("line_spacing_1_5", lambda: canvas.set_line_spacing(1.5))
+        self.action_registry.set_handler("line_spacing_2_0", lambda: canvas.set_line_spacing(2.0))
+        self.action_registry.set_handler("line_spacing_2_5", lambda: canvas.set_line_spacing(2.5))
+        self.action_registry.set_handler("line_spacing_3_0", lambda: canvas.set_line_spacing(3.0))
+        self.action_registry.set_handler("line_spacing_more", lambda: canvas.set_line_spacing(1.5))
+        self.action_registry.set_handler("borderBtn", lambda: self.apply_border_preset("outside"))
+        self.action_registry.set_handler("border_none", lambda: self.apply_border_preset("none"))
+        self.action_registry.set_handler("border_all", lambda: self.apply_border_preset("all"))
         self.action_registry.set_handler(
             "border_outside", lambda: self.apply_border_preset("outside")
         )
         self.action_registry.set_handler(
             "border_bottom", lambda: self.apply_border_preset("bottom")
         )
-        self.action_registry.set_handler(
-            "border_top", lambda: self.apply_border_preset("top")
-        )
-        self.action_registry.set_handler(
-            "border_left", lambda: self.apply_border_preset("left")
-        )
-        self.action_registry.set_handler(
-            "border_right", lambda: self.apply_border_preset("right")
-        )
+        self.action_registry.set_handler("border_top", lambda: self.apply_border_preset("top"))
+        self.action_registry.set_handler("border_left", lambda: self.apply_border_preset("left"))
+        self.action_registry.set_handler("border_right", lambda: self.apply_border_preset("right"))
 
         # Tables toolbar dropdowns and split actions
-        self.action_registry.set_handler(
-            "tbl_insert_table", lambda: canvas.insert_table(2, 2)
-        )
+        self.action_registry.set_handler("tbl_insert_table", lambda: canvas.insert_table(2, 2))
         self.action_registry.set_handler(
             "tbl_insert_col_left", lambda: canvas.insert_table_col(left=True)
         )
@@ -369,21 +327,13 @@ class QuireWindow(BaseOfficeWindow):
         self.action_registry.set_handler(
             "tbl_insert_row_below", lambda: canvas.insert_table_row(above=False)
         )
-        self.action_registry.set_handler(
-            "tableBorderBtn", lambda: self.apply_table_border("all")
-        )
-        self.action_registry.set_handler(
-            "tbl_border_all", lambda: self.apply_table_border("all")
-        )
+        self.action_registry.set_handler("tableBorderBtn", lambda: self.apply_table_border("all"))
+        self.action_registry.set_handler("tbl_border_all", lambda: self.apply_table_border("all"))
         self.action_registry.set_handler(
             "tbl_border_outside", lambda: self.apply_table_border("outside")
         )
-        self.action_registry.set_handler(
-            "tbl_border_none", lambda: self.apply_table_border("none")
-        )
-        self.action_registry.set_handler(
-            "tbl_align_top", lambda: self.set_table_cell_valign("top")
-        )
+        self.action_registry.set_handler("tbl_border_none", lambda: self.apply_table_border("none"))
+        self.action_registry.set_handler("tbl_align_top", lambda: self.set_table_cell_valign("top"))
         self.action_registry.set_handler(
             "tbl_align_center", lambda: self.set_table_cell_valign("center")
         )
@@ -417,9 +367,7 @@ class QuireWindow(BaseOfficeWindow):
         self.action_registry.set_handler(
             "draw_order_back", lambda: self.reorder_selected_object("back")
         )
-        self.action_registry.set_handler(
-            "draw_nudge_up", lambda: self.nudge_selected_object(0, -1)
-        )
+        self.action_registry.set_handler("draw_nudge_up", lambda: self.nudge_selected_object(0, -1))
         self.action_registry.set_handler(
             "draw_nudge_down", lambda: self.nudge_selected_object(0, 1)
         )
@@ -429,42 +377,18 @@ class QuireWindow(BaseOfficeWindow):
         self.action_registry.set_handler(
             "draw_rotate_right", lambda: self.rotate_selected_object(90)
         )
-        self.action_registry.set_handler(
-            "as_lines", lambda: self.insert_shape("line")
-        )
-        self.action_registry.set_handler(
-            "as_connectors", lambda: self.insert_shape("connector")
-        )
-        self.action_registry.set_handler(
-            "as_basic", lambda: self.insert_shape("basic")
-        )
-        self.action_registry.set_handler(
-            "as_arrows", lambda: self.insert_shape("arrow")
-        )
-        self.action_registry.set_handler(
-            "as_flowchart", lambda: self.insert_shape("flowchart")
-        )
-        self.action_registry.set_handler(
-            "as_stars", lambda: self.insert_shape("star")
-        )
-        self.action_registry.set_handler(
-            "as_callouts", lambda: self.insert_shape("callout")
-        )
-        self.action_registry.set_handler(
-            "drawLine", lambda: self.insert_shape("line")
-        )
-        self.action_registry.set_handler(
-            "drawArrow", lambda: self.insert_shape("arrow")
-        )
-        self.action_registry.set_handler(
-            "drawRect", lambda: self.insert_shape("rect")
-        )
-        self.action_registry.set_handler(
-            "drawOval", lambda: self.insert_shape("oval")
-        )
-        self.action_registry.set_handler(
-            "textBox", lambda: self.insert_shape("textbox")
-        )
+        self.action_registry.set_handler("as_lines", lambda: self.insert_shape("line"))
+        self.action_registry.set_handler("as_connectors", lambda: self.insert_shape("connector"))
+        self.action_registry.set_handler("as_basic", lambda: self.insert_shape("basic"))
+        self.action_registry.set_handler("as_arrows", lambda: self.insert_shape("arrow"))
+        self.action_registry.set_handler("as_flowchart", lambda: self.insert_shape("flowchart"))
+        self.action_registry.set_handler("as_stars", lambda: self.insert_shape("star"))
+        self.action_registry.set_handler("as_callouts", lambda: self.insert_shape("callout"))
+        self.action_registry.set_handler("drawLine", lambda: self.insert_shape("line"))
+        self.action_registry.set_handler("drawArrow", lambda: self.insert_shape("arrow"))
+        self.action_registry.set_handler("drawRect", lambda: self.insert_shape("rect"))
+        self.action_registry.set_handler("drawOval", lambda: self.insert_shape("oval"))
+        self.action_registry.set_handler("textBox", lambda: self.insert_shape("textbox"))
 
     def _ensure_find_replace_dialog(self) -> FindReplaceDialog:
         """Create or return existing FindReplaceDialog instance."""
@@ -554,9 +478,7 @@ class QuireWindow(BaseOfficeWindow):
 
     def _setup_toolbars(self) -> None:
         """Initialize Word 2003 Luna 10 toolbars cluster."""
-        self.toolbars: dict[str, OfficeToolBar] = build_quire_toolbars(
-            self, self.action_registry
-        )
+        self.toolbars: dict[str, OfficeToolBar] = build_quire_toolbars(self, self.action_registry)
 
         # Row 1: Standard toolbar
         if "standard" in self.toolbars:
@@ -671,9 +593,18 @@ class QuireWindow(BaseOfficeWindow):
         if self._syncing_toolbars or not text:
             return
         pt_map = {
-            "初号": 42.0, "小初": 36.0, "一号": 26.0, "小一": 24.0,
-            "二号": 22.0, "小二": 18.0, "三号": 16.0, "小三": 15.0,
-            "四号": 14.0, "小四": 12.0, "五号": 10.5, "小五": 9.0,
+            "初号": 42.0,
+            "小初": 36.0,
+            "一号": 26.0,
+            "小一": 24.0,
+            "二号": 22.0,
+            "小二": 18.0,
+            "三号": 16.0,
+            "小三": 15.0,
+            "四号": 14.0,
+            "小四": 12.0,
+            "五号": 10.5,
+            "小五": 9.0,
         }
         val = pt_map.get(text.strip())
         if val is None:
@@ -762,11 +693,13 @@ class QuireWindow(BaseOfficeWindow):
         canvas = self.writer_view.canvas_view
         in_table = canvas.get_current_table_context() is not None
         has_revisions = bool(getattr(canvas.doc, "comments", [])) or is_tracking(canvas.doc)
-        self.update_context_toolbars({
-            "in_table": in_table,
-            "has_revisions": has_revisions,
-            "track_changes": is_tracking(canvas.doc),
-        })
+        self.update_context_toolbars(
+            {
+                "in_table": in_table,
+                "has_revisions": has_revisions,
+                "track_changes": is_tracking(canvas.doc),
+            }
+        )
         if hasattr(self, "nav_dock") and self.nav_dock.isVisible():
             p = canvas.controller._paragraph_by_id(para_id)
             self.nav_dock.doc_map_pane.sync_caret_para(p)
@@ -809,7 +742,7 @@ class QuireWindow(BaseOfficeWindow):
             self.enter_full_screen()
 
     def enter_full_screen(self) -> None:
-        """Enter full screen view: hide menus, toolbars, and status bar, and show floating toolbar."""
+        """Enter full screen view: hide chrome and show floating toolbar."""
         if self._is_fullscreen_mode:
             return
         self._is_fullscreen_mode = True
@@ -1091,11 +1024,13 @@ class QuireWindow(BaseOfficeWindow):
             # 9. Document map, thumbnails, and ruler sync
             act_dm = self.action_registry.get_action("view_doc_map")
             if act_dm and hasattr(self, "nav_dock"):
-                act_dm.setChecked(self.nav_dock.isVisible() and self.nav_dock.active_mode() == "doc_map")
+                is_dm = self.nav_dock.isVisible() and self.nav_dock.active_mode() == "doc_map"
+                act_dm.setChecked(is_dm)
 
             act_th = self.action_registry.get_action("view_thumbnails")
             if act_th and hasattr(self, "nav_dock"):
-                act_th.setChecked(self.nav_dock.isVisible() and self.nav_dock.active_mode() == "thumbnails")
+                is_th = self.nav_dock.isVisible() and self.nav_dock.active_mode() == "thumbnails"
+                act_th.setChecked(is_th)
 
             act_ruler = self.action_registry.get_action("view_ruler")
             if act_ruler:

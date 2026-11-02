@@ -6,19 +6,15 @@ expand, collapse, and outline toolbar interactions.
 
 from __future__ import annotations
 
-import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPaintEvent, QPen
+from PySide6.QtCore import QCoreApplication, QRect, Qt, Signal
+from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import (
     QComboBox,
-    QHBoxLayout,
-    QScrollArea,
     QSizePolicy,
     QToolBar,
     QToolButton,
-    QVBoxLayout,
     QWidget,
 )
 
@@ -107,9 +103,7 @@ def demote_to_body_text(doc: Document, p: Paragraph) -> int:
     return 0
 
 
-def get_collapsed_extent(
-    doc: Document, idx: int, collapsed_ids: set[int] | None = None
-) -> int:
+def get_collapsed_extent(doc: Document, idx: int, collapsed_ids: set[int] | None = None) -> int:
     """Return ending index of collapsed heading subtree, or idx if not collapsed."""
     blocks = doc.main.blocks
     if not (0 <= idx < len(blocks)):
@@ -477,8 +471,9 @@ class OutlineViewWidget(QWidget):
             row_rect = QRect(indent, y, self.width() - indent - 20, line_height)
             sym_rect = QRect(indent - 18, y + 4, 16, 16)
 
+            caret_p = self.controller.caret_para if self.controller else None
             is_selected = (self.selected_para and self.selected_para.id == p.id) or (
-                self.controller and self.controller.caret_para and self.controller.caret_para.id == p.id
+                caret_p is not None and caret_p.id == p.id
             )
 
             if is_selected:

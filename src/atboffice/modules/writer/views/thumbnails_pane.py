@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QCoreApplication, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
 )
 
 from atboffice.modules.writer.layout.pagination import (
-    PaginationResult,
     paginate_document,
 )
 from atboffice.modules.writer.models.document import Document

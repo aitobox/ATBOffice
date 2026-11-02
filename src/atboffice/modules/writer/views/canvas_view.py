@@ -87,7 +87,6 @@ from atboffice.modules.writer.models.table import (
     table_map,
 )
 from atboffice.modules.writer.spell import SpellEngine
-from atboffice.modules.writer.views.view_modes import ViewMode
 from atboffice.modules.writer.views.caret_controller import (
     CaretController,
     DocPos,
@@ -95,6 +94,7 @@ from atboffice.modules.writer.views.caret_controller import (
     delete_range_in_paragraph,
     insert_text_in_paragraph,
 )
+from atboffice.modules.writer.views.view_modes import ViewMode
 
 
 def safe_tr(text: str) -> str:
@@ -594,9 +594,7 @@ class WriterCanvasView(QAbstractScrollArea):
                                                         w,
                                                         w_start,
                                                         w_end,
-                                                    ) in self.spell_engine.tokenize_words(
-                                                        po.text
-                                                    ):
+                                                    ) in self.spell_engine.tokenize_words(po.text):
                                                         if not self.spell_engine.is_valid_word(w):
                                                             w_x1 = x_px + fm.horizontalAdvance(
                                                                 po.text[:w_start]
@@ -651,9 +649,7 @@ class WriterCanvasView(QAbstractScrollArea):
                                     po.text,
                                 )
                                 if (
-                                    self.spell_engine.is_enabled(
-                                        "spelling/check_as_you_type", True
-                                    )
+                                    self.spell_engine.is_enabled("spelling/check_as_you_type", True)
                                     and po.text
                                 ):
                                     fm = QFontMetricsF(font)
@@ -663,12 +659,8 @@ class WriterCanvasView(QAbstractScrollArea):
                                         w_end,
                                     ) in self.spell_engine.tokenize_words(po.text):
                                         if not self.spell_engine.is_valid_word(w):
-                                            w_x1 = x_px + fm.horizontalAdvance(
-                                                po.text[:w_start]
-                                            )
-                                            w_x2 = x_px + fm.horizontalAdvance(
-                                                po.text[:w_end]
-                                            )
+                                            w_x1 = x_px + fm.horizontalAdvance(po.text[:w_start])
+                                            w_x2 = x_px + fm.horizontalAdvance(po.text[:w_end])
                                             self._draw_wavy_line(
                                                 painter,
                                                 w_x1,
@@ -1647,11 +1639,7 @@ class WriterCanvasView(QAbstractScrollArea):
 
             def _key(row_entry: list):
                 if c_idx < len(row_entry):
-                    p = (
-                        row_entry[c_idx].cell.blocks[0]
-                        if row_entry[c_idx].cell.blocks
-                        else None
-                    )
+                    p = row_entry[c_idx].cell.blocks[0] if row_entry[c_idx].cell.blocks else None
                     return ptext(p) if p else ""
                 return ""
 

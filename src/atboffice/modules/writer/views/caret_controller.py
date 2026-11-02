@@ -737,6 +737,7 @@ class CaretController(QObject):
         if start.para_id == end.para_id:
             return ptext(p_start)[start.offset : end.offset]
         from atboffice.modules.writer.models.document import paras_between
+
         paras = paras_between(self.doc, p_start, p_end)
         parts = []
         for i, p in enumerate(paras):

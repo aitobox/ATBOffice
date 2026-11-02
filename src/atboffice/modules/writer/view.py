@@ -120,7 +120,9 @@ class WriterView(QWidget):
         self.outline_toolbar.collapse_requested.connect(self.outline_widget.collapse_selected)
         self.outline_toolbar.show_level_changed.connect(self.outline_widget.set_show_level)
         self.outline_toolbar.first_line_toggled.connect(self.outline_widget.set_first_line_only)
-        self.outline_toolbar.show_formatting_toggled.connect(self.outline_widget.set_show_formatting)
+        self.outline_toolbar.show_formatting_toggled.connect(
+            self.outline_widget.set_show_formatting
+        )
         self.outline_toolbar.close_requested.connect(lambda: self.set_view_mode(ViewMode.PRINT))
         self.outline_widget.structure_changed.connect(self._on_outline_structure_changed)
 
