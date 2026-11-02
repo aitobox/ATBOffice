@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """Multi-process Corpus Batch Audit & Roundtrip Runner.
 
 Ports and extends .vibeoffice/tests/ledger/recalc-all.js and corpus drivers.
@@ -16,6 +17,11 @@ import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
+
+# Ensure src/ is in sys.path so the CLI can be run directly from anywhere
+src_dir = str(Path(__file__).resolve().parents[1] / "src")
+if src_dir not in sys.path:
+    sys.path.insert(0, src_dir)
 
 from atboffice.deep.audit.core import load_package_xml
 from atboffice.deep.audit.excel import extract_excel_features
@@ -255,7 +261,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    src_dir = str(Path(__file__).resolve().parents[1] / "src")
-    if src_dir not in sys.path:
-        sys.path.insert(0, src_dir)
     main()
