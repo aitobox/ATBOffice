@@ -198,6 +198,13 @@ class MacMenuBar(QMenuBar):
         )
         self._reg_act(
             menu_view,
+            "view_page_break",
+            "view_page_break",
+            checkable=True,
+            checked=False,
+        )
+        self._reg_act(
+            menu_view,
             "view_web",
             "view_web",
             checkable=True,
@@ -473,6 +480,8 @@ class MacMenuBar(QMenuBar):
         connect_if("background", "open_background_dialog")
         connect_if("format_background", "open_background_dialog")
 
+        connect_if("view_normal", "set_normal_view")
+        connect_if("view_page_break", "set_page_break_view")
         connect_if("view_fullscreen", "toggle_fullscreen")
         connect_if("view_zoom_in", "zoom_in")
         connect_if("view_zoom_out", "zoom_out")
@@ -627,6 +636,7 @@ class MacMenuBar(QMenuBar):
             ),
             # View
             "view_normal": (safe_tr("普通(&N)"), safe_tr("切换到普通视图草稿模式")),
+            "view_page_break": (safe_tr("分页预览(&P)"), safe_tr("切换到分页符预览视图")),
             "view_web": (safe_tr("Web 版式(&W)"), safe_tr("切换到 Web 版式视图")),
             "view_print": (safe_tr("页面(&P)"), safe_tr("切换到页面排版视图")),
             "view_reading": (safe_tr("阅读版式(&R)"), safe_tr("切换到双页或舒适阅读版式")),

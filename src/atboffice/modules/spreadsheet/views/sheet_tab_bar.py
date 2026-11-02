@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import copy
+import re
+
 from PySide6.QtCore import QCoreApplication, QEvent, QPoint, QRect, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
@@ -26,6 +29,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.modules.spreadsheet.dialogs.move_copy_sheet_dialog import (
+    MoveCopySheetDialog,
+)
 from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
 from atboffice.modules.spreadsheet.models.workbook_model import (
     WorkbookModel,
@@ -682,13 +688,21 @@ class SheetTabBar(QWidget):
         act_delete = menu.addAction(safe_tr("删除(&D)"))
         act_rename = menu.addAction(safe_tr("重命名(&R)"))
         act_copy = menu.addAction(safe_tr("移动或复制(&M)..."))
-        act_color = menu.addAction(safe_tr("工作表标签颜色(&T)..."))
         menu.addSeparator()
         act_code = menu.addAction(safe_tr("查看代码(&V)"))
         act_code.setEnabled(False)
+        act_protect = menu.addAction(safe_tr("保护工作表(&P)..."))
+        act_protect.setEnabled(False)
+        act_color = menu.addAction(safe_tr("工作表标签颜色(&T)..."))
+        act_hide = menu.addAction(safe_tr("隐藏(&H)"))
+        act_unhide = menu.addAction(safe_tr("取消隐藏(&U)..."))
+        act_unhide.setEnabled(False)
+        menu.addSeparator()
+        act_select_all = menu.addAction(safe_tr("选定全部工作表(&S)"))
 
         if len(self._workbook.sheets) <= 1:
             act_delete.setEnabled(False)
+            act_hide.setEnabled(False)
 
         action = menu.exec(global_pos)
         if action == act_insert:
@@ -698,12 +712,40 @@ class SheetTabBar(QWidget):
         elif action == act_rename:
             self.start_rename(index)
         elif action == act_copy:
-            self.duplicate_sheet(index)
+            dlg = MoveCopySheetDialog(self._workbook, active_index=index, parent=self)
+            if dlg.exec():
+                target_idx = dlg.selected_target_index
+                if dlg.is_create_copy:
+                    src_sheet = self._workbook.sheets[index]
+                    copy_sheet = copy.deepcopy(src_sheet)
+                    base_name = re.sub(r"\s*\(\d+\)$", "", src_sheet.name)
+                    existing_names = {s.name for s in self._workbook.sheets}
+                    cand_idx = 2
+                    cand = f"{base_name} ({cand_idx})"
+                    while cand in existing_names:
+                        cand_idx += 1
+                        cand = f"{base_name} ({cand_idx})"
+                    sheet_count = len(self._workbook.sheets)
+                    dest_idx = target_idx if target_idx < sheet_count else sheet_count
+                    self._workbook.add_sheet(name=cand, index=dest_idx, sheet=copy_sheet)
+                    self.set_active_index(dest_idx)
+                else:
+                    if target_idx >= len(self._workbook.sheets):
+                        dest_idx = len(self._workbook.sheets) - 1
+                    elif target_idx > index:
+                        dest_idx = target_idx - 1
+                    else:
+                        dest_idx = target_idx
+                    self._workbook.move_sheet(index, dest_idx)
+                    self.set_active_index(dest_idx)
         elif action == act_color:
             cur_color = self.tab_color(index) or QColor(255, 255, 255)
             color = QColorDialog.getColor(cur_color, self, safe_tr("选择标签颜色"))
             if color.isValid():
                 self.set_tab_color(index, color)
+        elif action == act_select_all:
+            # Select all sheets (activate current and update tab strip)
+            self._strip.update()
 
     # Workbook Lifecycle Callbacks
     def _on_sheet_added(self, index: int, name: str) -> None:

@@ -207,21 +207,21 @@ class StatusBar(QStatusBar):
         if has_error and fn not in ("COUNTA", "COUNT"):
             result_text = ""
         elif fn == "SUM":
-            result_text = safe_tr(f"求和={fmt_num(total_sum)}")
+            result_text = safe_tr("求和={0}").format(fmt_num(total_sum))
         elif fn == "AVERAGE":
             if numeric_count > 0:
                 avg = total_sum / numeric_count
-                result_text = safe_tr(f"平均值={fmt_num(avg)}")
+                result_text = safe_tr("平均值={0}").format(fmt_num(avg))
         elif fn == "COUNTA":
-            result_text = safe_tr(f"计数={non_empty_count}")
+            result_text = safe_tr("计数={0}").format(non_empty_count)
         elif fn == "COUNT":
-            result_text = safe_tr(f"数值计数={numeric_count}")
+            result_text = safe_tr("数值计数={0}").format(numeric_count)
         elif fn == "MAX":
             if numeric_count > 0:
-                result_text = safe_tr(f"最大值={fmt_num(max_val)}")
+                result_text = safe_tr("最大值={0}").format(fmt_num(max_val))
         elif fn == "MIN":
             if numeric_count > 0:
-                result_text = safe_tr(f"最小值={fmt_num(min_val)}")
+                result_text = safe_tr("最小值={0}").format(fmt_num(min_val))
 
         self.lbl_calc.setText(result_text)
 
