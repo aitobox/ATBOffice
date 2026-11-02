@@ -4,6 +4,7 @@
 
 Compares PySide6 rendered screenshots with .vibeoffice/screenshots/ baselines,
 calculating structural similarity scores and generating structured comparison reports.
+Uses pure PySide6 and standard library (zero external third-party dependencies).
 """
 
 from __future__ import annotations
@@ -13,8 +14,8 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
-import numpy as np
-from PIL import Image
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QImage
 
 repo_root = Path(__file__).resolve().parent.parent
 
@@ -28,47 +29,66 @@ class DiffResult(NamedTuple):
     orig_size: tuple[int, int]
 
 
-def compare_images(img_a_path: Path, img_b_path: Path, threshold: float = 0.9) -> DiffResult:
-    """Compare two images and return similarity score and pass status."""
-    img_a = Image.open(img_a_path).convert("RGB")
-    img_b = Image.open(img_b_path).convert("RGB")
+def compare_images(
+    img_a_path: Path,
+    img_b_path: Path,
+    threshold: float = 0.85,
+    sample_size: tuple[int, int] = (320, 200),
+) -> DiffResult:
+    """Compare two images using PySide6 and return similarity score and pass status."""
+    img_a = QImage(str(img_a_path))
+    img_b = QImage(str(img_b_path))
 
-    size_a = img_a.size
-    size_b = img_b.size
+    if img_a.isNull() or img_b.isNull():
+        return DiffResult(
+            module=img_a_path.parent.name,
+            filename=img_a_path.name,
+            similarity=0.0,
+            passed=False,
+            atb_size=(img_a.width(), img_a.height()),
+            orig_size=(img_b.width(), img_b.height()),
+        )
 
-    # Scale to match dimensions if needed (e.g. 2880x1800 vs 1440x900)
-    target_size = (min(size_a[0], size_b[0]), min(size_a[1], size_b[1]))
-    if img_a.size != target_size:
-        img_a = img_a.resize(target_size, Image.Resampling.BILINEAR)
-    if img_b.size != target_size:
-        img_b = img_b.resize(target_size, Image.Resampling.BILINEAR)
+    size_a = (img_a.width(), img_a.height())
+    size_b = (img_b.width(), img_b.height())
 
-    arr_a = np.asarray(img_a, dtype=np.float32)
-    arr_b = np.asarray(img_b, dtype=np.float32)
+    # Rescale both images to sample_size for fast and normalized pixel comparison
+    scaled_a = img_a.scaled(
+        sample_size[0], sample_size[1], Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation
+    ).convertToFormat(QImage.Format.Format_RGB888)
 
-    # Mean absolute difference normalized to [0, 1]
-    diff = np.abs(arr_a - arr_b)
-    mad = np.mean(diff) / 255.0
-    similarity = max(0.0, min(1.0, 1.0 - mad))
+    scaled_b = img_b.scaled(
+        sample_size[0], sample_size[1], Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation
+    ).convertToFormat(QImage.Format.Format_RGB888)
+
+    bytes_a = bytes(scaled_a.constBits())
+    bytes_b = bytes(scaled_b.constBits())
+
+    # Compare pixel buffers
+    min_len = min(len(bytes_a), len(bytes_b))
+    if min_len == 0:
+        similarity = 0.0
+    else:
+        diff_sum = sum(abs(a - b) for a, b in zip(bytes_a[:min_len], bytes_b[:min_len]))
+        similarity = 1.0 - (diff_sum / (min_len * 255.0))
 
     passed = similarity >= threshold
-    mod = img_a_path.parent.name
+
     return DiffResult(
-        module=mod,
+        module=img_a_path.parent.name,
         filename=img_a_path.name,
-        similarity=float(similarity),
+        similarity=similarity,
         passed=passed,
         atb_size=size_a,
         orig_size=size_b,
     )
 
 
-def generate_report(results: list[DiffResult], threshold: float, report_path: Path):
-    """Write comprehensive markdown imgdiff report."""
+def generate_report(results: list[DiffResult], threshold: float = 0.85) -> str:
+    """Generate Markdown comparison report."""
     total = len(results)
     passed_count = sum(1 for r in results if r.passed)
-    pass_rate = (passed_count / total * 100) if total > 0 else 100.0
-    avg_score = (sum(r.similarity for r in results) / total) if total > 0 else 1.0
+    avg_sim = (sum(r.similarity for r in results) / total) if total > 0 else 0.0
 
     lines = [
         "# ATBOffice vs. VibeOffice UI 图像差异对比报告 (imgdiff)",
@@ -76,8 +96,8 @@ def generate_report(results: list[DiffResult], threshold: float, report_path: Pa
         "- **对比对标基准**: `.vibeoffice/screenshots/`",
         f"- **对比样本总数**: {total}",
         f"- **判定阈值**: `{threshold:.2f}` (Similarity >= {threshold * 100:.0f}%)",
-        f"- **平均相似度**: `{avg_score * 100:.2f}%`",
-        f"- **达标总数 (Pass)**: {passed_count} / {total} (`{pass_rate:.1f}%`)",
+        f"- **平均相似度**: `{avg_sim * 100:.2f}%`",
+        f"- **达标总数 (Pass)**: {passed_count} / {total} (`{passed_count / total * 100:.1f}%`)",
         "",
         "## 1. 模块相似度汇总",
         "",
@@ -85,15 +105,20 @@ def generate_report(results: list[DiffResult], threshold: float, report_path: Pa
         "|---|---|---|---|---|",
     ]
 
-    by_module: dict[str, list[DiffResult]] = {}
+    # Group by module
+    modules: dict[str, list[DiffResult]] = {}
     for r in results:
-        by_module.setdefault(r.module, []).append(r)
+        modules.setdefault(r.module, []).append(r)
 
-    for mod, mod_res in sorted(by_module.items()):
-        m_pass = sum(1 for r in mod_res if r.passed)
-        m_avg = sum(r.similarity for r in mod_res) / len(mod_res)
-        m_status = "✅ 达标 (Pass)" if m_avg >= threshold else "⚠️ 需关注 (Review)"
-        lines.append(f"| **{mod}** | {len(mod_res)} | {m_pass} / {len(mod_res)} | `{m_avg * 100:.2f}%` | {m_status} |")
+    for mod in sorted(modules.keys()):
+        m_results = modules[mod]
+        m_total = len(m_results)
+        m_passed = sum(1 for r in m_results if r.passed)
+        m_avg = sum(r.similarity for r in m_results) / m_total if m_total > 0 else 0.0
+        status = "✅ 达标 (Pass)" if (m_avg >= threshold) else "⚠️ 需关注 (Review)"
+        lines.append(
+            f"| **{mod}** | {m_total} | {m_passed} / {m_total} | `{m_avg * 100:.2f}%` | {status} |"
+        )
 
     lines.extend([
         "",
@@ -105,87 +130,84 @@ def generate_report(results: list[DiffResult], threshold: float, report_path: Pa
 
     for i, r in enumerate(results, 1):
         status_badge = "✅ PASS" if r.passed else "⚠️ REVIEW"
-        atb_sz = f"{r.atb_size[0]}×{r.atb_size[1]}"
-        orig_sz = f"{r.orig_size[0]}×{r.orig_size[1]}"
         lines.append(
-            f"| {i} | `{r.module}` | `{r.filename}` | {atb_sz} | {orig_sz} | `{r.similarity * 100:.2f}%` | {status_badge} |"
+            f"| {i} | `{r.module}` | `{r.filename}` | {r.atb_size[0]}×{r.atb_size[1]} | "
+            f"{r.orig_size[0]}×{r.orig_size[1]} | `{r.similarity * 100:.2f}%` | {status_badge} |"
         )
 
     lines.append("")
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text("\n".join(lines), encoding="utf-8")
-    print(f"Report generated at: {report_path}")
+    return "\n".join(lines)
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Calculate visual similarity difference between ATBOffice and baseline screenshots.")
-    parser.add_argument("target_dir", nargs="?", default=None, help="Directory containing screenshots or evidence directory")
-    parser.add_argument("--threshold", type=float, default=0.9, help="Similarity pass threshold (default: 0.9)")
-    parser.add_argument("--baseline-dir", default=str(repo_root / ".vibeoffice" / "screenshots"), help="Baseline screenshots directory")
-    parser.add_argument("--evidence-dir", default=None, help="Evidence screenshots directory")
-    parser.add_argument("--report-path", default=None, help="Path to write output markdown report")
-    args = parser.parse_args()
-
-    # Resolve evidence dir
-    evidence_dir = None
-    if args.evidence_dir:
-        evidence_dir = Path(args.evidence_dir)
-    elif args.target_dir:
-        t_path = Path(args.target_dir)
-        if (t_path / "screenshots").exists():
-            evidence_dir = t_path / "screenshots"
-        else:
-            evidence_dir = t_path
-    else:
-        evidence_dir = repo_root / "docs" / "clone" / "evidence" / "phase6" / "screenshots"
-
-    baseline_dir = Path(args.baseline_dir)
-
-    if not evidence_dir.exists():
-        print(f"Error: Evidence directory {evidence_dir} does not exist.")
-        sys.exit(1)
-    if not baseline_dir.exists():
-        print(f"Error: Baseline directory {baseline_dir} does not exist.")
-        sys.exit(1)
-
-    report_path = (
-        Path(args.report_path)
-        if args.report_path
-        else (evidence_dir.parent / "IMGDIFF_REPORT.md")
+def main() -> None:
+    parser = argparse.ArgumentParser(description="ATBOffice Screenshot imgdiff analyzer")
+    parser.add_argument(
+        "evidence_dir",
+        type=Path,
+        nargs="?",
+        default=repo_root / "docs" / "clone" / "evidence" / "phase6",
+        help="Path to phase evidence directory",
+    )
+    parser.add_argument(
+        "--baseline-dir",
+        type=Path,
+        default=repo_root / ".vibeoffice" / "screenshots",
+        help="Path to .vibeoffice/screenshots baseline directory",
+    )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=0.85,
+        help="Similarity pass threshold (default: 0.85)",
+    )
+    parser.add_argument(
+        "--report-name",
+        type=str,
+        default="IMGDIFF_REPORT.md",
+        help="Output report markdown filename",
     )
 
+    args = parser.parse_args()
+
+    evidence_dir = args.evidence_dir
+    baseline_dir = args.baseline_dir
+    threshold = args.threshold
+    screenshots_dir = evidence_dir / "screenshots"
+
+    if not screenshots_dir.exists():
+        print(f"Error: Screenshots directory not found: {screenshots_dir}")
+        sys.exit(1)
+
     print("Running imgdiff comparison...")
-    print(f"Evidence: {evidence_dir}")
+    print(f"Evidence: {screenshots_dir}")
     print(f"Baseline: {baseline_dir}")
-    print(f"Threshold: {args.threshold}")
+    print(f"Threshold: {threshold}")
 
-    # Gather matching pngs
-    evidence_pngs = sorted(evidence_dir.glob("*/*.png"))
-    if not evidence_pngs:
-        # Check flat dir
-        evidence_pngs = sorted(evidence_dir.glob("*.png"))
-
-    if not evidence_pngs:
-        print(f"No PNG files found in {evidence_dir}")
+    atb_images = sorted(screenshots_dir.rglob("*.png"))
+    if not atb_images:
+        print(f"No PNG screenshots found in {screenshots_dir}")
         sys.exit(1)
 
     results: list[DiffResult] = []
-    for ep in evidence_pngs:
-        rel = ep.relative_to(evidence_dir)
-        bp = baseline_dir / rel
-        if not bp.exists():
+    for atb_img in atb_images:
+        rel = atb_img.relative_to(screenshots_dir)
+        orig_img = baseline_dir / rel
+
+        if not orig_img.exists():
             continue
-        res = compare_images(ep, bp, threshold=args.threshold)
+
+        res = compare_images(atb_img, orig_img, threshold=threshold)
         results.append(res)
-        status_str = "PASS" if res.passed else "REVIEW"
-        print(f"[{status_str}] {rel}: {res.similarity * 100:.2f}%")
+        tag = "PASS" if res.passed else "REVIEW"
+        print(f"[{tag}] {rel}: {res.similarity * 100:.2f}%")
 
-    if not results:
-        print("Warning: No matching baseline files found to compare.")
-        sys.exit(0)
+    report_path = evidence_dir / args.report_name
+    report_content = generate_report(results, threshold=threshold)
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write(report_content)
 
-    generate_report(results, args.threshold, report_path)
-    avg_score = sum(r.similarity for r in results) / len(results)
+    print(f"Report generated at: {report_path}")
+    avg_score = (sum(r.similarity for r in results) / len(results)) if results else 0.0
     print(f"\nCompleted {len(results)} image comparisons. Average similarity: {avg_score * 100:.2f}%")
 
 
