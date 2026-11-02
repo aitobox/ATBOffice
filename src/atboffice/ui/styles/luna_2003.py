@@ -199,6 +199,27 @@ def get_luna_stylesheet(theme: str = "blue") -> str:
         menu_face = CLASSIC_MENU_FACE
         status_bg = CLASSIC_STATUS_BG
         status_sep = CLASSIC_STATUS_SEP
+    elif t in ("paper", "paper2016"):
+        tb_a = PAPER_TB_A
+        tb_b = PAPER_TB_B
+        tb_c = PAPER_TB_C
+        tb_border = PAPER_TB_BORDER
+        tb_edge = PAPER_TB_EDGE
+        dock_top = PAPER_DOCK_TOP
+        dock_bottom = PAPER_DOCK_BOTTOM
+        hot_a = PAPER_HOT_A
+        hot_b = PAPER_HOT_B
+        hot_border = PAPER_HOT_BORDER
+        press_a = PAPER_PRESS_A
+        press_b = PAPER_PRESS_B
+        press_border = PAPER_PRESS_BORDER
+        chk_a = PAPER_CHK_A
+        chk_b = PAPER_CHK_B
+        menu_border = PAPER_MENU_BORDER
+        menu_hot = PAPER_MENU_HOT
+        menu_face = PAPER_MENU_FACE
+        status_bg = PAPER_STATUS_BG
+        status_sep = PAPER_STATUS_SEP
     else:  # default "blue"
         tb_a = LUNA_BLUE_TB_A
         tb_b = LUNA_BLUE_TB_B
@@ -334,6 +355,8 @@ def apply_luna_theme(widget: QWidget, theme: str = "blue") -> None:
         bg_hex = LUNA_OLIVE_DOCK_TOP
     elif t == "classic":
         bg_hex = CLASSIC_DOCK_TOP
+    elif t in ("paper", "paper2016"):
+        bg_hex = PAPER_DOCK_TOP
     else:
         bg_hex = LUNA_BLUE_DOCK_TOP
 
@@ -342,6 +365,31 @@ def apply_luna_theme(widget: QWidget, theme: str = "blue") -> None:
     palette.setColor(QPalette.ColorRole.WindowText, QColor("#000000"))
     widget.setPalette(palette)
 
+
+# --- Paper Modern & Paper 2016 Color Tokens ---
+PAPER_DOCK_TOP: Final = "#F2EFE9"
+PAPER_DOCK_BOTTOM: Final = "#EAE6DE"
+PAPER_TB_A: Final = "#F2EFE9"
+PAPER_TB_B: Final = "#E8E4DC"
+PAPER_TB_C: Final = "#D8D2C6"
+PAPER_TB_BORDER: Final = "#B8B0A2"
+PAPER_TB_EDGE: Final = "#FFFFFF"
+PAPER_GRIP: Final = "#70685C"
+PAPER_GRIP_HI: Final = "#FFFFFF"
+PAPER_HOT_A: Final = "#FBF9F5"
+PAPER_HOT_B: Final = "#EAE6DE"
+PAPER_HOT_BORDER: Final = "#008080"
+PAPER_PRESS_A: Final = "#E0DAD0"
+PAPER_PRESS_B: Final = "#D5CEBF"
+PAPER_PRESS_BORDER: Final = "#006666"
+PAPER_CHK_A: Final = "#EAE6DE"
+PAPER_CHK_B: Final = "#DDD6C8"
+PAPER_MENU_BORDER: Final = "#B8B0A2"
+PAPER_MENU_HOT: Final = "#E6F4F4"
+PAPER_MENU_FACE: Final = "#FCFAF7"
+PAPER_STATUS_BG: Final = "#E8E4DC"
+PAPER_STATUS_SEP: Final = "#B8B0A2"
+PAPER_STATUS_SEP_HI: Final = "#FFFFFF"
 
 THEMES: list[tuple[str, str, str]] = [
     ("blue", "Luna 2003 蓝色", "经典 Windows XP 湛蓝风格，搭配淡蓝渐变工具栏与深蓝命令菜单"),
@@ -358,7 +406,7 @@ def apply_theme_globally(theme: str) -> None:
     from atboffice.core.settings import get_app_settings
 
     theme_key = theme.lower().strip()
-    if theme_key not in ("blue", "silver", "olive", "classic"):
+    if theme_key not in ("blue", "silver", "olive", "classic", "paper", "paper2016"):
         theme_key = "blue"
 
     import os

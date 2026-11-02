@@ -356,3 +356,204 @@ def test_start_center_window_manager_show(qtbot):
     assert isinstance(sc, StartCenterWindow)
     assert sc.isVisible()
     assert wm.start_center is sc
+
+
+def test_options_dialog_system_fonts_and_ui_scale(qtbot):
+    """Verify OptionsDialog system fonts scanning, UI scale, and persistence."""
+    from atboffice.core.settings import get_app_settings
+    from atboffice.ui.dialogs.options_dialog import OptionsDialog
+
+    settings = get_app_settings()
+    dlg = OptionsDialog()
+    qtbot.addWidget(dlg)
+
+    assert hasattr(dlg, "chk_scan_system_fonts")
+    assert hasattr(dlg, "btn_load_fonts")
+    assert hasattr(dlg, "lbl_font_info")
+    assert hasattr(dlg, "combo_ui_scale")
+
+    # Change scale to 150% and font scanning to False
+    scale_idx = dlg.combo_ui_scale.findText("150%")
+    assert scale_idx >= 0
+    dlg.combo_ui_scale.setCurrentIndex(scale_idx)
+    dlg.chk_scan_system_fonts.setChecked(False)
+
+    dlg.save_to_settings()
+    assert settings.get_value("view/ui_scale") == "150%"
+    assert settings.get_value("fonts/scan_system_fonts") is False
+
+    # Trigger scan button
+    dlg.btn_load_fonts.click()
+    assert "款系统字体" in dlg.lbl_font_info.text() or "系统字体" in dlg.lbl_font_info.text()
+
+    # Reset
+    dlg._on_restore_defaults()
+    assert dlg.combo_ui_scale.currentText() == "100%"
+    assert dlg.chk_scan_system_fonts.isChecked() is True
+
+
+def test_suite_theme_dialog_cards_and_switching(qtbot):
+    """Verify SuiteThemeDialog 3-card gallery and theme switching."""
+    from atboffice.core.settings import get_app_settings
+    from atboffice.ui.dialogs.theme_dialog import SuiteThemeDialog, ThemeDialog
+
+    settings = get_app_settings()
+    dlg = SuiteThemeDialog()
+    qtbot.addWidget(dlg)
+
+    # Must contain exactly the 3 VibeOffice suite looks
+    assert len(dlg.cards) == 3
+    for key in ("classic", "paper", "paper2016"):
+        assert key in dlg.cards
+        assert dlg.cards[key].preview is not None
+        assert dlg.cards[key].lbl_title.text() != ""
+
+    # Select Paper
+    if hasattr(dlg.cards["paper"], "click"):
+        dlg.cards["paper"].click()
+    else:
+        dlg._on_card_selected("paper")
+    assert dlg.selected_theme == "paper"
+    assert dlg.cards["paper"].is_selected is True
+    assert dlg.cards["classic"].is_selected is False
+    assert settings.get_value("theme/active_theme") == "paper"
+
+    # Select Paper 2016 Ribbon
+    dlg._on_card_selected("paper2016")
+    assert dlg.selected_theme == "paper2016"
+    assert dlg.cards["paper2016"].is_selected is True
+    assert settings.get_value("theme/active_theme") == "paper2016"
+
+    # Verify ThemeDialog(mode="suite") also produces 3 cards
+    suite_dlg = ThemeDialog(mode="suite")
+    qtbot.addWidget(suite_dlg)
+    assert len(suite_dlg.cards) == 3
+
+
+def test_update_dialog_init_and_actions(qtbot):
+    """Verify UpdateDialog release notes display and download action."""
+    from atboffice.core.updater import VersionInfo
+    from atboffice.ui.dialogs.update_dialog import UpdateDialog
+
+    info = VersionInfo(
+        version="2.0.0",
+        tag_name="v2.0.0",
+        name="ATBOffice 2.0.0 Release",
+        body="Major enhancements and screenshot parity.",
+        html_url="https://github.com/aitobox/ATBOffice/releases/tag/v2.0.0",
+        published_at="2026-11-02T10:00:00Z",
+    )
+
+    dlg = UpdateDialog(info=info, current_version="0.1.0")
+    qtbot.addWidget(dlg)
+
+    assert "2.0.0" in dlg.label_version.text()
+    assert "0.1.0" in dlg.label_version.text()
+    assert "Major enhancements" in dlg.text_notes.toPlainText()
+    assert dlg.btn_download.isEnabled()
+    assert dlg.btn_later.isEnabled()
+
+    with patch("PySide6.QtGui.QDesktopServices.openUrl") as mock_open:
+        dlg._on_download_clicked()
+        mock_open.assert_called_once()
+
+
+def test_license_dialog_search_and_display(qtbot):
+    """Verify LicenseDialog OSS components list, filtering, and license text viewer."""
+    from atboffice.ui.dialogs.license_dialog import LicenseDialog
+
+    dlg = LicenseDialog()
+    qtbot.addWidget(dlg)
+
+    assert dlg.list_widget.count() >= 5
+    assert "PySide6" in dlg.list_widget.item(0).text() or "Python" in dlg.list_widget.item(0).text()
+
+    # Right pane displays license content
+    assert len(dlg.text_license.toPlainText()) > 20
+
+    # Test filtering search box
+    dlg.txt_search.setText("openpyxl")
+    assert dlg.list_widget.count() == 1
+    assert "openpyxl" in dlg.lbl_comp_name.text()
+    assert "MIT" in dlg.lbl_comp_meta.text()
+
+    # Search non-matching term
+    dlg.txt_search.setText("non_existent_library_xyz")
+    assert dlg.list_widget.count() == 0
+    assert "未找到" in dlg.lbl_comp_name.text()
+
+    # Clear filter
+    dlg.txt_search.setText("")
+    assert dlg.list_widget.count() >= 5
+
+    # Test copy button
+    dlg._on_copy_license()
+
+
+def test_about_dialog_and_license_link(qtbot):
+    """Verify AboutDialog product overview and license dialog launcher."""
+    from atboffice.ui.dialogs.about_dialog import AboutDialog
+
+    dlg = AboutDialog()
+    qtbot.addWidget(dlg)
+
+    assert "ATBOffice" in dlg.lbl_title.text()
+    assert "Quire" in dlg.lbl_apps.text()
+    assert "Ledger" in dlg.lbl_apps.text()
+    assert "Lectern" in dlg.lbl_apps.text()
+
+    with patch("atboffice.ui.dialogs.license_dialog.LicenseDialog.exec") as mock_lic:
+        dlg._on_open_licenses()
+        mock_lic.assert_called_once()
+
+    with patch("atboffice.core.updater.check_for_updates") as mock_upd:
+        dlg._on_check_update()
+        mock_upd.assert_called_once()
+
+
+def test_start_center_all_bottom_buttons_and_wiring(qtbot):
+    """Verify StartCenterWindow has themes, settings, about, update buttons wired."""
+    win = StartCenterWindow()
+    qtbot.addWidget(win)
+
+    assert hasattr(win, "btn_themes")
+    assert hasattr(win, "btn_settings")
+    assert hasattr(win, "btn_about")
+    assert hasattr(win, "btn_update")
+
+    with patch.object(win, "show_theme_dialog") as mock_thm:
+        win.btn_themes.click()
+        mock_thm.assert_called_once()
+
+    with patch.object(win, "show_options_dialog") as mock_opt:
+        win.btn_settings.click()
+        mock_opt.assert_called_once()
+
+    with patch.object(win, "show_about") as mock_abt:
+        win.btn_about.click()
+        mock_abt.assert_called_once()
+
+    with patch.object(win, "check_for_updates") as mock_upd:
+        win.btn_update.click()
+        mock_upd.assert_called_once()
+
+
+def test_start_center_retranslate_full_coverage(qtbot):
+    """Verify StartCenterWindow retranslate_ui updates all buttons and labels."""
+    from atboffice.core.i18n import load_locale
+
+    win = StartCenterWindow()
+    qtbot.addWidget(win)
+
+    load_locale("en")
+    win.retranslate_ui()
+    assert win.btn_themes.text() in ("Themes", "主题")
+    assert win.btn_settings.text() in ("Settings", "设置")
+    assert win.btn_about.text() in ("About", "关于")
+
+    load_locale("zh-CN")
+    win.retranslate_ui()
+    assert win.btn_themes.text() == "主题"
+    assert win.btn_settings.text() == "设置"
+    assert win.btn_about.text() == "关于"
+

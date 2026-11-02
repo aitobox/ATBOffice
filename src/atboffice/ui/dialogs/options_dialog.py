@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -236,6 +237,30 @@ class OptionsDialog(QDialog):
         self.chk_show_gridlines.setChecked(True)
         layout.addWidget(self.chk_show_gridlines)
 
+        # System Fonts Section
+        self.grp_system_fonts = QGroupBox(safe_tr("本机安装字体与扫描"), self.tab_edit)
+        font_box_layout = QVBoxLayout(self.grp_system_fonts)
+        font_box_layout.setSpacing(6)
+
+        self.chk_scan_system_fonts = QCheckBox(
+            safe_tr("启动时扫描并加载本机系统字体"), self.grp_system_fonts
+        )
+        self.chk_scan_system_fonts.setChecked(True)
+        font_box_layout.addWidget(self.chk_scan_system_fonts)
+
+        font_btn_row = QHBoxLayout()
+        self.btn_load_fonts = QPushButton(safe_tr("立即扫描本机字体"), self.grp_system_fonts)
+        self.btn_load_fonts.clicked.connect(self._on_scan_system_fonts)
+        font_btn_row.addWidget(self.btn_load_fonts)
+
+        self.lbl_font_info = QLabel("", self.grp_system_fonts)
+        self.lbl_font_info.setStyleSheet("color: #64748B; font-size: 11px;")
+        font_btn_row.addWidget(self.lbl_font_info)
+        font_btn_row.addStretch(1)
+        font_box_layout.addLayout(font_btn_row)
+
+        layout.addWidget(self.grp_system_fonts)
+
         layout.addStretch(1)
 
     def _build_save_tab(self) -> None:
@@ -327,6 +352,11 @@ class OptionsDialog(QDialog):
         self.chk_show_gridlines.setChecked(
             bool(self.settings.get_value("edit/show_gridlines", True))
         )
+        if hasattr(self, "chk_scan_system_fonts"):
+            self.chk_scan_system_fonts.setChecked(
+                bool(self.settings.get_value("fonts/scan_system_fonts", True))
+            )
+            self._update_font_info_text()
 
         # Save
         self.spin_auto_save.setValue(int(self.settings.get_value("save/auto_save_interval", 10)))
@@ -361,6 +391,10 @@ class OptionsDialog(QDialog):
         self.settings.set_value("edit/default_font_family", self.combo_font_family.currentText())
         self.settings.set_value("edit/default_font_size", self.spin_font_size.value())
         self.settings.set_value("edit/show_gridlines", self.chk_show_gridlines.isChecked())
+        if hasattr(self, "chk_scan_system_fonts"):
+            self.settings.set_value(
+                "fonts/scan_system_fonts", self.chk_scan_system_fonts.isChecked()
+            )
 
         # Save
         self.settings.set_value("save/auto_save_interval", self.spin_auto_save.value())
@@ -380,6 +414,23 @@ class OptionsDialog(QDialog):
     # -------------------------------------------------------------------------
     # Event Handlers
     # -------------------------------------------------------------------------
+    def _on_scan_system_fonts(self) -> None:
+        """Scan system fonts and update display information."""
+        self._update_font_info_text(force_scan=True)
+
+    def _update_font_info_text(self, force_scan: bool = False) -> None:
+        """Update font count info label."""
+        if not hasattr(self, "lbl_font_info"):
+            return
+        try:
+            families = QFontDatabase.families()
+            count = len(families)
+            self.lbl_font_info.setText(
+                safe_tr("已加载 {count} 款系统字体。").format(count=count)
+            )
+        except Exception:
+            self.lbl_font_info.setText(safe_tr("系统字体可用。"))
+
     def _on_browse_path(self) -> None:
         if os.environ.get("PYTEST_CURRENT_TEST"):
             return
@@ -415,6 +466,11 @@ class OptionsDialog(QDialog):
             self.combo_font_family.setCurrentIndex(font_idx)
         self.spin_font_size.setValue(int(DEFAULT_SETTINGS["edit/default_font_size"]))
         self.chk_show_gridlines.setChecked(bool(DEFAULT_SETTINGS["edit/show_gridlines"]))
+        if hasattr(self, "chk_scan_system_fonts"):
+            self.chk_scan_system_fonts.setChecked(
+                bool(DEFAULT_SETTINGS.get("fonts/scan_system_fonts", True))
+            )
+            self._update_font_info_text()
 
         self.spin_auto_save.setValue(int(DEFAULT_SETTINGS["save/auto_save_interval"]))
         fmt_idx = self.combo_save_format.findText(
@@ -471,6 +527,13 @@ class OptionsDialog(QDialog):
         self.chk_show_gridlines.setText(
             safe_tr("在 Ledger 电子表格中默认显示单元格网格线")
         )
+        if hasattr(self, "grp_system_fonts"):
+            self.grp_system_fonts.setTitle(safe_tr("本机安装字体与扫描"))
+        if hasattr(self, "chk_scan_system_fonts"):
+            self.chk_scan_system_fonts.setText(safe_tr("启动时扫描并加载本机系统字体"))
+        if hasattr(self, "btn_load_fonts"):
+            self.btn_load_fonts.setText(safe_tr("立即扫描本机字体"))
+        self._update_font_info_text()
 
         # Save
         self.lbl_auto_save.setText(safe_tr("自动恢复信息保存时间间隔："))

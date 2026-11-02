@@ -18,6 +18,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # View
     "view/ui_scale": "100%",  # "100%", "125%", "150%", "200%"
     "view/status_bar_timeout": 3000,  # milliseconds
+    # Fonts
+    "fonts/scan_system_fonts": True,
     # Edit
     "edit/default_font_family": "Tahoma",
     "edit/default_font_size": 12,  # point size
