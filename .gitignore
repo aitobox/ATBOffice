@@ -67,3 +67,8 @@ renders/
 .github-agent-state.yml
 .gemini/
 软件著作权申请资料/
+
+# Test documents full corpora
+/tests/docs/full_corpus/
+tests/docs/.corpus*/
+
