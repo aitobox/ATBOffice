@@ -2,7 +2,8 @@
 
 Provides:
 - Authentic PowerPoint 2003 Slide Master editing environment.
-- Dedicated master close toolbar with "Close Master View", "Insert Title Master", and "Delete Title Master".
+- Dedicated master close toolbar with "Close Master View",
+  "Insert Title Master", and "Delete Title Master".
 - Left-hand master hierarchy list (Slide Master / Title Master).
 - Full WYSIWYG master canvas showing title, multi-level body, and footer placeholders.
 - Seamless synchronization with presentation DesignTemplate on close.
@@ -12,14 +13,11 @@ Provides:
 from __future__ import annotations
 
 import copy
-from typing import Any
 
 from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QFont, QIcon, QPixmap
+from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (
     QApplication,
-    QFrame,
-    QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
@@ -30,9 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from atboffice.modules.presentation.models.designs import DesignTemplate
 from atboffice.modules.presentation.models.presentation import Presentation
-from atboffice.modules.presentation.models.shape import Shape
 from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.views.slide_canvas import (
     SlideCanvasView,

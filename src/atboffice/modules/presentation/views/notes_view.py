@@ -11,15 +11,9 @@ Provides:
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import (
-    QColor,
     QFont,
-    QPainter,
-    QPaintEvent,
-    QPen,
-    QPixmap,
-    QResizeEvent,
 )
 from PySide6.QtWidgets import (
     QApplication,

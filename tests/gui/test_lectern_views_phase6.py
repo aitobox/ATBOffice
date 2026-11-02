@@ -1,11 +1,10 @@
-"""Comprehensive tests for Lectern view matrix (Sorter, Notes, Master) and SlideShow HUD (Phase 6)."""
+"""Tests for Lectern view matrix (Sorter, Notes, Master) and SlideShow HUD (Phase 6)."""
 
 from __future__ import annotations
 
 import pytest
-from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QKeyEvent, QMouseEvent
-from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.presentation.models.designs import build_design
 from atboffice.modules.presentation.models.presentation import Presentation
@@ -13,9 +12,8 @@ from atboffice.modules.presentation.models.slide import Transition
 from atboffice.modules.presentation.models.text import TextBody
 from atboffice.modules.presentation.slideshow.slide_hud import SlideShowHud
 from atboffice.modules.presentation.slideshow.slideshow_view import SlideShowView
-from atboffice.modules.presentation.view import PresentationView
 from atboffice.modules.presentation.views.master_view import SlideMasterView
-from atboffice.modules.presentation.views.notes_view import NotesPagePaper, NotesPageView
+from atboffice.modules.presentation.views.notes_view import NotesPageView
 from atboffice.modules.presentation.views.sorter_view import SlideSorterView
 from atboffice.modules.presentation.views.workspace import LecternWorkspace
 from atboffice.ui.shell.lectern_window import LecternWindow
@@ -338,7 +336,9 @@ def test_slideshow_view_hud_and_drawing(qtbot, phase6_presentation: Presentation
     # Test Escape key exits show safely
     ended = []
     view.showEnded.connect(lambda: ended.append(True))
-    esc_event = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier)
+    esc_event = QKeyEvent(
+        QKeyEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier
+    )
     view.keyPressEvent(esc_event)
     assert view.is_ended or len(ended) > 0
 

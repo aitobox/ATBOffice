@@ -14,28 +14,21 @@ Provides:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import (
     QEvent,
-    QPoint,
     QPropertyAnimation,
-    QRect,
-    QRectF,
-    QSize,
-    QTimer,
     Qt,
+    QTimer,
     Signal,
 )
-from PySide6.QtGui import QAction, QColor, QFont, QIcon, QPainter, QPen
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
     QGraphicsOpacityEffect,
     QHBoxLayout,
     QMenu,
-    QPushButton,
-    QSizePolicy,
     QToolButton,
     QWidget,
 )
@@ -180,7 +173,9 @@ class SlideShowHud(QFrame):
     def _build_pen_menu(self) -> None:
         """Construct the Pointer / Pen options menu."""
         menu = QMenu(self)
-        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #FFFFFF; border: 1px solid #555555; }")
+        menu.setStyleSheet(
+            "QMenu { background-color: #2D2D2D; color: #FFFFFF; border: 1px solid #555555; }"
+        )
 
         act_arrow = menu.addAction(safe_tr("箭头指针 (&A)"))
         act_arrow.triggered.connect(lambda: self._select_pen_tool("arrow"))
@@ -220,7 +215,9 @@ class SlideShowHud(QFrame):
     def _build_quick_menu(self) -> None:
         """Construct the Quick Slide Jump & Screen control menu."""
         menu = QMenu(self)
-        menu.setStyleSheet("QMenu { background-color: #2D2D2D; color: #FFFFFF; border: 1px solid #555555; }")
+        menu.setStyleSheet(
+            "QMenu { background-color: #2D2D2D; color: #FFFFFF; border: 1px solid #555555; }"
+        )
 
         # Go to slide submenu
         self.menu_goto = menu.addMenu(safe_tr("定位到幻灯片 (&G)"))
@@ -259,7 +256,9 @@ class SlideShowHud(QFrame):
             act = self.menu_goto.addAction(title)
             if idx == self.current_slide_index:
                 act.setText("✔ " + title)
-            act.triggered.connect(lambda checked=False, target=idx: self.goto_slide_requested.emit(target))
+            act.triggered.connect(
+                lambda checked=False, target=idx: self.goto_slide_requested.emit(target)
+            )
 
     def update_slide_context(
         self,
