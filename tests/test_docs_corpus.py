@@ -1,6 +1,7 @@
-from pathlib import Path
 import json
 import subprocess
+from pathlib import Path
+
 import pytest
 
 
@@ -35,7 +36,8 @@ def test_extension_mapping():
 
 
 def test_pinned_sources_defined():
-    from scripts.fetch_corpora import SOURCES, EXTENSIONS
+    from scripts.fetch_corpora import EXTENSIONS, SOURCES
+
     assert "libreoffice" in SOURCES
     assert "poi" in SOURCES
     assert "openxml-sdk" in SOURCES
@@ -71,7 +73,9 @@ def test_curated_docs_presence_and_size():
             extensions_found.add(f.suffix.lower())
 
     assert {".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt"}.issubset(extensions_found)
-    assert total_size < 15 * 1024 * 1024, f"Curated files total {total_size / (1024*1024):.2f}MB, exceeds 15MB"
+    assert total_size < 15 * 1024 * 1024, (
+        f"Curated files total {total_size / (1024 * 1024):.2f}MB, exceeds 15MB"
+    )
 
 
 def test_curated_files_format_integrity():
@@ -105,7 +109,14 @@ def test_curated_files_format_integrity():
                     else:
                         fuzz_malformed_count += 1
 
-    assert valid_ooxml_count >= 70, f"Expected at least 70 valid OOXML files, got {valid_ooxml_count}"
-    assert valid_ole2_count >= 60, f"Expected at least 60 valid OLE2 files, got {valid_ole2_count}"
-    # Intentionally malformed/fuzz files from Bugzilla CVEs should also be present for robustness testing
-    assert fuzz_malformed_count > 0, "Expected some real-world fuzz/corrupted test files from corpora"
+    assert valid_ooxml_count >= 70, (
+        f"Expected at least 70 valid OOXML files, got {valid_ooxml_count}"
+    )
+    assert valid_ole2_count >= 60, (
+        f"Expected at least 60 valid OLE2 files, got {valid_ole2_count}"
+    )
+    # Intentionally malformed/fuzz files from Bugzilla CVEs should also be present
+    # for robustness testing
+    assert fuzz_malformed_count > 0, (
+        "Expected some real-world fuzz/corrupted test files from corpora"
+    )

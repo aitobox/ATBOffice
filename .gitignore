@@ -68,7 +68,10 @@ renders/
 .gemini/
 软件著作权申请资料/
 
-# Test documents full corpora
+# Test documents full corpora & audit outputs
 /tests/docs/full_corpus/
 tests/docs/.corpus*/
+audit_report*.jsonl
+*.jsonl
+
 
