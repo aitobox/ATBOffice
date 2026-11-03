@@ -38,6 +38,7 @@ lib/
 __pycache__
 .worktrees/
 # Python project runtime data
+*.log
 *.egg-info/
 .omo
 .superpowers

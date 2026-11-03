@@ -1,5 +1,5 @@
 feature,area,priority,original,clone,notes,verification_status,evidence
-Application Lifecycle and Multi-Window Management,core,must,yes,yes,"BaseOfficeWindow and WindowManager handle launch, lifecycle, and windows",unverified,
+Application Lifecycle and Multi-Window Management,core,must,yes,yes,"BaseOfficeWindow and WindowManager handle launch, lifecycle, and windows with crash replay diagnostics and action breadcrumbs",verified,tests/gui/test_phase7_native_replay.py
 Recent Files History and Persistence,core,must,yes,yes,RecentFilesManager stores and manages recent documents,unverified,
 CLI Routing and Module Subcommand Launch,core,must,yes,yes,"atboffice CLI router supports start-center, quire, ledger, lectern subcommands",unverified,
 ActionRegistry Unified Command Bus,core,must,yes,yes,Window-scoped ActionRegistry with state tracking and fallback toast,unverified,

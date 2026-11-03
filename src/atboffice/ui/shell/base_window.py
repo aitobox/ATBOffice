@@ -341,6 +341,10 @@ class BaseOfficeWindow(QMainWindow):
             ),
         )
 
+    def show_about_dialog(self) -> None:
+        """Alias for show_about for dialog lifecycle testing and CLI replay."""
+        self.show_about()
+
     def open_wordart_gallery(self) -> None:
         """Open WordArt Gallery dialog and insert selected WordArt into document/canvas."""
         from atboffice.modules.common.wordart_gallery import prompt_insert_wordart
@@ -640,6 +644,15 @@ class BaseOfficeWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:
         """Intercept window close to prompt for unsaved changes and emit signal."""
         if self.maybe_save_prompt():
+            from atboffice.core.diagnostics import record_action
+
+            record_action("window_close_accepted", "base_window", {"app_name": self.app_name})
+            cw = self.centralWidget()
+            if cw is not None:
+                if hasattr(cw, "grid") and hasattr(cw.grid, "cancel_drag"):
+                    cw.grid.cancel_drag(why="api")
+                if hasattr(cw, "editor_controller") and hasattr(cw.editor_controller, "cancel_editing"):
+                    cw.editor_controller.cancel_editing()
             event.accept()
             self.window_closed.emit(self)
             try:

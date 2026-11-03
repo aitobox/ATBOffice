@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import collections
 import faulthandler
+import hashlib
 import logging
 import os
 import platform
 import re
 import subprocess
 import sys
+import tempfile
+import threading
 import traceback
 from datetime import datetime
 from pathlib import Path
@@ -22,6 +26,120 @@ logger = logging.getLogger(__name__)
 # Fallback known commit hashes
 ORIG_REPO_SHA_FALLBACK = "32ff53a5da0e75ebac11acdb0251cd3d8c7bf408"
 CLONE_REPO_SHA_FALLBACK = "38664cabd0dcb88dabec91855eb0357dc30f0cdd"
+
+_CAPTURED_EXCEPTIONS: list[tuple[type[BaseException], BaseException, Any]] = []
+
+
+def get_captured_exceptions() -> list[BaseException]:
+    """Return all uncaught exceptions captured by the diagnostics handler."""
+    return [exc[1] for exc in _CAPTURED_EXCEPTIONS]
+
+
+def clear_captured_exceptions() -> None:
+    """Clear list of captured exceptions."""
+    _CAPTURED_EXCEPTIONS.clear()
+
+
+class ActionRecorder:
+    """Thread-safe circular recorder tracking recent user actions and command breadcrumbs."""
+
+    _instance: ActionRecorder | None = None
+    _class_lock = threading.Lock()
+
+    def __init__(self, max_actions: int = 50) -> None:
+        self.max_actions = max_actions
+        self._actions: collections.deque[dict[str, Any]] = collections.deque(maxlen=max_actions)
+        self._lock = threading.Lock()
+        self._document_shas: dict[str, str] = {}
+
+    @classmethod
+    def get_instance(cls) -> ActionRecorder:
+        """Return singleton ActionRecorder instance."""
+        if cls._instance is None:
+            with cls._class_lock:
+                if cls._instance is None:
+                    cls._instance = cls()
+        return cls._instance
+
+    @classmethod
+    def reset_instance(cls) -> None:
+        """Reset singleton ActionRecorder instance."""
+        with cls._class_lock:
+            cls._instance = None
+
+    def record_action(
+        self, action: str, component: str = "", details: dict[str, Any] | None = None
+    ) -> None:
+        """Record an action event with ISO timestamp and optional details."""
+        with self._lock:
+            self._actions.append({
+                "time": datetime.now().isoformat(),
+                "action": action,
+                "component": component,
+                "details": details or {},
+            })
+
+    def get_recent_actions(self) -> list[dict[str, Any]]:
+        """Return a copy of recent recorded actions in chronological order."""
+        with self._lock:
+            return list(self._actions)
+
+    def record_document_sha(
+        self, doc_path_or_bytes: str | Path | bytes, label: str = "active_document"
+    ) -> str:
+        """Compute and store SHA-256 for a document to aid debugging without leaking content."""
+        sha = ""
+        if isinstance(doc_path_or_bytes, bytes):
+            sha = hashlib.sha256(doc_path_or_bytes).hexdigest()
+        else:
+            p = Path(doc_path_or_bytes)
+            if p.exists() and p.is_file():
+                try:
+                    content = p.read_bytes()
+                    sha = hashlib.sha256(content).hexdigest()
+                except Exception:
+                    sha = f"unavailable_read_error:{p.name}"
+            else:
+                sha = f"not_found:{p.name}"
+
+        with self._lock:
+            self._document_shas[label] = sha
+        return sha
+
+    def get_document_shas(self) -> dict[str, str]:
+        """Return registered document SHA hashes."""
+        with self._lock:
+            return dict(self._document_shas)
+
+    def format_breadcrumb_summary(self) -> str:
+        """Format recent actions and document SHAs into a sanitized text summary."""
+        lines = []
+        with self._lock:
+            if self._document_shas:
+                lines.append("Document SHA Hashes:")
+                for lbl, sha in self._document_shas.items():
+                    lines.append(f"  {lbl}: {sha}")
+            lines.append("Recent Action Sequence:")
+            if not self._actions:
+                lines.append("  (none recorded)")
+            for entry in self._actions:
+                det = f" {entry['details']}" if entry["details"] else ""
+                lines.append(f"  [{entry['time']}] {entry['component']} -> {entry['action']}{det}")
+        return "\n".join(lines)
+
+
+def record_action(
+    action: str, component: str = "", details: dict[str, Any] | None = None
+) -> None:
+    """Convenience helper to record an action on the singleton ActionRecorder."""
+    ActionRecorder.get_instance().record_action(action, component=component, details=details)
+
+
+def record_document_sha(
+    doc_path_or_bytes: str | Path | bytes, label: str = "active_document"
+) -> str:
+    """Convenience helper to register a document SHA hash."""
+    return ActionRecorder.get_instance().record_document_sha(doc_path_or_bytes, label=label)
 
 
 def _get_git_commit(repo_dir: Path | str, fallback: str = "") -> str:
@@ -170,15 +288,19 @@ class CrashDiagnostics:
         exc_value: BaseException,
         exc_traceback: Any,
     ) -> None:
-        """Log uncaught exception with sanitized traceback and environment telemetry."""
+        """Log uncaught exception with sanitized traceback, telemetry, and action breadcrumbs."""
+        _CAPTURED_EXCEPTIONS.append((exc_type, exc_value, exc_traceback))
+
         raw_tb = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
         sanitized_tb = sanitize_traceback(raw_tb)
         telemetry = get_environment_telemetry()
+        breadcrumbs = ActionRecorder.get_instance().format_breadcrumb_summary()
 
         report = [
             f"=== ATBOffice Crash Diagnostic Report ({datetime.now().isoformat()}) ===",
             "Environment Telemetry:",
             *(f"  {k}: {v}" for k, v in telemetry.items()),
+            "\n" + breadcrumbs,
             "\nSanitized Traceback:",
             sanitized_tb,
             "==========================================================\n",
@@ -192,6 +314,31 @@ class CrashDiagnostics:
             sys.stderr.write(f"Failed to write crash log: {err}\n")
 
         sys.stderr.write(report_text)
+
+
+_DEFAULT_CRASH_HANDLER: CrashDiagnostics | None = None
+
+
+def install_default_crash_handler(log_dir: Path | str | None = None) -> CrashDiagnostics:
+    """Install default background crash handler logging to user config directory or given path."""
+    global _DEFAULT_CRASH_HANDLER
+    if _DEFAULT_CRASH_HANDLER is not None and _DEFAULT_CRASH_HANDLER._enabled:
+        return _DEFAULT_CRASH_HANDLER
+
+    if log_dir is None:
+        crash_dir = Path.home() / ".atboffice" / "logs"
+    else:
+        crash_dir = Path(log_dir)
+
+    try:
+        crash_dir.mkdir(parents=True, exist_ok=True)
+        log_file = crash_dir / "crash.log"
+    except Exception:
+        log_file = Path(tempfile.gettempdir()) / "atboffice_crash.log"
+
+    _DEFAULT_CRASH_HANDLER = CrashDiagnostics(log_file)
+    _DEFAULT_CRASH_HANDLER.enable()
+    return _DEFAULT_CRASH_HANDLER
 
     def find_recent_crash_reports(self, since_timestamp: float | None = None) -> list[Path]:
         """Locate OS-level crash reports (e.g. .ips / .crash files on macOS)."""
