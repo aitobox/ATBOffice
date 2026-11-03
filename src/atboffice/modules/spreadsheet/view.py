@@ -133,6 +133,15 @@ class SpreadsheetView(QWidget):
     @workbook.setter
     def workbook(self, value: WorkbookModel) -> None:
         """Bind a new WorkbookModel and reinitialize views."""
+        if hasattr(self, "_workbook") and self._workbook is not None:
+            try:
+                self._workbook.active_sheet_changed.disconnect(self._on_active_sheet_changed)
+            except Exception:
+                pass
+            try:
+                self._workbook.sheet_removed.disconnect(self._on_sheet_removed)
+            except Exception:
+                pass
         self._workbook = value
         self._sheet_selections.clear()
         if hasattr(self, "sheet_tab_bar") and self.sheet_tab_bar is not None:

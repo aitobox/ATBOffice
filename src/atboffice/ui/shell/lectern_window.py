@@ -2000,10 +2000,9 @@ class LecternWindow(BaseOfficeWindow):
     def get_file_filter(self) -> str:
         """Return file filter pattern for Lectern save/open dialogs."""
         return safe_tr(
-            "所有支持的格式 (*.pptx *.ppt *.odp);;"
-            "PowerPoint 演示文稿 (*.pptx);;"
+            "所有支持的格式 (*.pptx *.ppsx *.potx);;"
+            "PowerPoint 演示文稿 (*.pptx *.ppsx *.potx);;"
             "PowerPoint 97-2003 演示文稿 (*.ppt);;"
-            "OpenDocument 演示文稿 (*.odp);;"
             "所有文件 (*.*)"
         )
 
@@ -2025,14 +2024,62 @@ class LecternWindow(BaseOfficeWindow):
         return True
 
     def do_open(self, path: Path) -> bool:
-        """Parse and load Lectern presentation from disk."""
+        """Parse and load Lectern presentation from disk with transactional rollback."""
+        from atboffice.ui.shell.base_window import FileOpenWarningHandled
+        from atboffice.vfs.crypto import is_encrypted_package
+
         ext = path.suffix.lower()
-        if ext in {".pptx", ".ppsx", ".potx"}:
+
+        # Check binary magic header
+        header = b""
+        try:
+            with open(path, "rb") as f:
+                header = f.read(512)
+        except Exception as e:
+            raise e
+
+        is_cfb = len(header) >= 8 and header[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+
+        # 1. Check if legacy binary .ppt
+        if ext in {".ppt", ".pps", ".pot"} or (is_cfb and not is_encrypted_package(path)):
+            QMessageBox.warning(
+                self,
+                safe_tr("文件格式提示"),
+                safe_tr(
+                    "“{name}”是旧版二进制 PowerPoint 97–2003 演示文稿 (.ppt)。"
+                    "Lectern 原生支持 .pptx 演示文稿。"
+                    "请在 PowerPoint 或 LibreOffice 中将其另存为 .pptx 格式后再打开。"
+                ).format(name=path.name),
+            )
+            raise FileOpenWarningHandled("Legacy binary .ppt is not supported")
+
+        # 2. Check for encrypted package
+        decrypted_bytes, is_enc = self.try_decrypt_if_encrypted(path)
+
+        # 3. Parse into candidate presentation
+        candidate_pres = None
+        if ext in {".pptx", ".ppsx", ".potx"} or is_enc:
             from atboffice.modules.presentation.io.pptx_reader import read_pptx
 
-            pres = read_pptx(path)
-            self.presentation_view.load_presentation(pres)
-            return True
+            source = decrypted_bytes if is_enc and decrypted_bytes is not None else path
+            candidate_pres = read_pptx(source)
+        else:
+            return False
+
+        if candidate_pres is None:
+            return False
+
+        # 4. Transactional UI binding with rollback
+        old_pres = self.presentation_view.presentation
+        try:
+            self.presentation_view.load_presentation(candidate_pres)
+        except Exception as bind_err:
+            try:
+                self.presentation_view.load_presentation(old_pres)
+            except Exception:
+                pass
+            raise bind_err
+
         return True
 
     def _setup_toolbars(self) -> None:

@@ -647,12 +647,13 @@ class QuireWindow(BaseOfficeWindow):
     def get_file_filter(self) -> str:
         """Return file filter pattern for Quire save/open dialogs."""
         return safe_tr(
-            "所有支持的格式 (*.docx *.doc *.odt *.rtf *.txt *.html *.htm);;"
-            "Word 文档 (*.docx);;"
-            "Word 97-2003 文档 (*.doc);;"
+            "所有支持的格式 (*.docx *.docm *.dotx *.html *.htm *.rtf *.md *.markdown *.txt);;"
+            "Word 文档 (*.docx *.docm *.dotx);;"
             "HTML 网页 (*.html *.htm);;"
             "富文本格式 (*.rtf);;"
+            "Markdown 文档 (*.md *.markdown);;"
             "纯文本文件 (*.txt);;"
+            "Word 97-2003 文档 (*.doc);;"
             "所有文件 (*.*)"
         )
 
@@ -674,24 +675,95 @@ class QuireWindow(BaseOfficeWindow):
         return True
 
     def do_open(self, path: Path) -> bool:
-        """Parse and load Quire document from disk."""
+        """Parse and load Quire document from disk with transactional rollback."""
+        from atboffice.ui.shell.base_window import FileOpenWarningHandled
+        from atboffice.vfs.crypto import is_encrypted_package
+
         ext = path.suffix.lower()
+
+        # Check binary magic header
+        header = b""
+        try:
+            with open(path, "rb") as f:
+                header = f.read(512)
+        except Exception as e:
+            raise e
+
+        is_cfb = len(header) >= 8 and header[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+
+        # 1. Check if legacy binary .doc
+        if ext in {".doc", ".dot"} or (is_cfb and not is_encrypted_package(path)):
+            QMessageBox.warning(
+                self,
+                safe_tr("文件格式提示"),
+                safe_tr(
+                    "“{name}”是旧版二进制 Word 97–2003 文档 (.doc)。"
+                    "Quire 原生支持 .docx、.html、.rtf、.md 和纯文本文件。"
+                    "请在 Word 或 LibreOffice 中将其另存为 .docx 格式后再打开。"
+                ).format(name=path.name),
+            )
+            raise FileOpenWarningHandled("Legacy binary .doc is not supported")
+
+        # 2. Check for encrypted package
+        decrypted_bytes, is_enc = self.try_decrypt_if_encrypted(path)
+
+        # 3. Parse candidate document
+        candidate_doc = None
         if ext in {".html", ".htm"}:
             from atboffice.modules.writer.io.html_io import read_html
 
-            doc = read_html(path)
-            self.writer_view.canvas_view.set_document(doc)
-            if hasattr(self, "nav_dock"):
-                self.nav_dock.set_document(doc)
-            return True
-        if ext in {".docx", ".docm", ".dotx"}:
+            candidate_doc = read_html(path)
+        elif ext == ".rtf":
+            from atboffice.modules.writer.io.rtf_io import RtfReader
+
+            candidate_doc = RtfReader().read(path.read_bytes())
+        elif ext in {".md", ".markdown"}:
+            from atboffice.modules.writer.io.markdown_io import MarkdownReader
+
+            candidate_doc = MarkdownReader().read(path.read_text(encoding="utf-8"))
+        elif ext == ".txt":
+            from atboffice.modules.writer.models.document import (
+                Document,
+                Paragraph,
+                Story,
+                TextItem,
+            )
+
+            candidate_doc = Document()
+            candidate_doc.main = Story(kind="main", blocks=[])
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+            if not lines:
+                lines = [""]
+            for line in lines:
+                p = Paragraph()
+                p.runs.append(TextItem(text=line))
+                candidate_doc.main.blocks.append(p)
+        elif ext in {".docx", ".docm", ".dotx"} or is_enc:
             from atboffice.modules.writer.io.docx_reader import read_docx
 
-            doc = read_docx(path)
-            self.writer_view.canvas_view.set_document(doc)
-            if hasattr(self, "nav_dock"):
-                self.nav_dock.set_document(doc)
-            return True
+            source = decrypted_bytes if is_enc and decrypted_bytes is not None else path
+            candidate_doc = read_docx(source)
+        else:
+            return False
+
+        if candidate_doc is None:
+            return False
+
+        # 4. Transactional UI binding with rollback
+        old_doc = self.writer_view.canvas_view.doc
+        try:
+            self.writer_view.canvas_view.set_document(candidate_doc)
+            if hasattr(self, "nav_dock") and self.nav_dock is not None:
+                self.nav_dock.set_document(candidate_doc)
+        except Exception as bind_err:
+            try:
+                self.writer_view.canvas_view.set_document(old_doc)
+                if hasattr(self, "nav_dock") and self.nav_dock is not None:
+                    self.nav_dock.set_document(old_doc)
+            except Exception:
+                pass
+            raise bind_err
+
         return True
 
     def _setup_toolbars(self) -> None:
