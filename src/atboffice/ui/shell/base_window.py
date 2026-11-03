@@ -21,6 +21,14 @@ def safe_tr(text: str) -> str:
     return core_safe_tr(text)
 
 
+class FileOpenCancelled(Exception):
+    """Raised when user cleanly cancels file opening (e.g. password dialog)."""
+
+
+class FileOpenWarningHandled(Exception):
+    """Raised when an informative message or rejection was already displayed to the user."""
+
+
 class BaseOfficeWindow(QMainWindow):
     """Universal office window base class with document lifecycle and dirty tracking."""
 
@@ -119,6 +127,59 @@ class BaseOfficeWindow(QMainWindow):
         """
         return True
 
+    def prompt_for_package_password(self, file_name: str) -> str | None:
+        """Prompt user for document open password.
+
+        Returns:
+            Password string if user confirmed, or None if user clicked Cancel.
+        """
+        from PySide6.QtWidgets import QInputDialog, QLineEdit
+
+        pwd, ok = QInputDialog.getText(
+            self,
+            safe_tr("输入密码"),
+            safe_tr("“{name}”受密码保护，请输入密码：").format(name=file_name),
+            QLineEdit.EchoMode.Password,
+        )
+        if not ok:
+            return None
+        return pwd
+
+    def try_decrypt_if_encrypted(self, path: Path) -> tuple[bytes | None, bool]:
+        """Check if file is an encrypted package; decrypt with user password if so.
+
+        Returns:
+            (bytes_data, is_encrypted)
+            If not encrypted: returns (None, False).
+            If encrypted and successfully decrypted: returns (decrypted_bytes, True).
+
+        Raises:
+            FileOpenCancelled: If user clicked Cancel on password dialog.
+            FileOpenWarningHandled: If password was invalid and warning was shown.
+        """
+        from atboffice.vfs.crypto import decrypt_package, is_encrypted_package
+
+        if not is_encrypted_package(path):
+            return (None, False)
+
+        pwd = self.prompt_for_package_password(path.name)
+        if pwd is None:
+            raise FileOpenCancelled("User cancelled password prompt")
+
+        try:
+            decrypted = decrypt_package(path, passcode=pwd)
+            return (decrypted, True)
+        except ValueError as err:
+            err_msg = str(err)
+            if "invalid password" in err_msg.lower():
+                QMessageBox.warning(
+                    self,
+                    safe_tr("打开失败"),
+                    safe_tr("密码不正确，无法打开文档。"),
+                )
+                raise FileOpenWarningHandled("Incorrect password") from err
+            raise
+
     def open_file_dialog(self) -> bool:
         """Present standard file dialog to select and open a document."""
         if os.environ.get("PYTEST_CURRENT_TEST") and isinstance(
@@ -157,6 +218,12 @@ class BaseOfficeWindow(QMainWindow):
                     safe_tr("无法打开文件“{path}”：文件已损坏或格式不兼容。").format(path=path),
                 )
                 return False
+        except FileOpenCancelled:
+            # User cleanly cancelled the operation (e.g. password dialog)
+            return False
+        except FileOpenWarningHandled:
+            # Informative message or rejection guidance was already presented
+            return False
         except Exception as exc:
             QMessageBox.critical(
                 self,

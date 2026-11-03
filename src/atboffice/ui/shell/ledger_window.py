@@ -361,10 +361,12 @@ class LedgerWindow(BaseOfficeWindow):
     def get_file_filter(self) -> str:
         """Return file filter pattern for Ledger save/open dialogs."""
         return safe_tr(
-            "所有支持的格式 (*.xlsx *.xls *.csv *.tsv *.ods);;"
-            "Excel 工作簿 (*.xlsx *.xls);;"
+            "所有支持的格式 (*.xlsx *.xlsm *.csv *.tsv *.xml *.xmlss);;"
+            "Excel 工作簿 (*.xlsx *.xlsm);;"
             "CSV 逗号分隔文本 (*.csv);;"
             "TSV 制表符分隔文本 (*.tsv);;"
+            "XML 电子表格 (*.xml *.xmlss);;"
+            "Excel 97-2003 工作簿 (*.xls);;"
             "所有文件 (*.*)"
         )
 
@@ -392,27 +394,81 @@ class LedgerWindow(BaseOfficeWindow):
         return True
 
     def do_open(self, path: Path) -> bool:
-        """Parse and load Ledger workbook from disk."""
+        """Parse and load Ledger workbook from disk with transactional rollback."""
+        from atboffice.ui.shell.base_window import FileOpenWarningHandled
+        from atboffice.vfs.crypto import is_encrypted_package
+
         ext = path.suffix.lower()
-        if ext in {".xlsx", ".xlsm"}:
+
+        # Check binary magic header
+        header = b""
+        try:
+            with open(path, "rb") as f:
+                header = f.read(512)
+        except Exception as e:
+            raise e
+
+        is_cfb = len(header) >= 8 and header[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+
+        # 1. Check if legacy binary .xls
+        if ext in {".xls", ".xlt"} or (is_cfb and not is_encrypted_package(path)):
+            QMessageBox.warning(
+                self,
+                safe_tr("文件格式提示"),
+                safe_tr(
+                    "“{name}”是旧版二进制 Excel 97–2003 工作簿 (.xls)。"
+                    "Ledger 原生支持 .xlsx、.xlsm、.csv、.tsv 和 XML 电子表格。"
+                    "请在 Excel 或 LibreOffice 中将其另存为 .xlsx 格式后再打开。"
+                ).format(name=path.name),
+            )
+            raise FileOpenWarningHandled("Legacy binary .xls is not supported")
+
+        # 2. Check for encrypted package
+        decrypted_bytes, is_enc = self.try_decrypt_if_encrypted(path)
+
+        # 3. Parse into candidate workbook
+        candidate_wb = None
+        if ext in {".xlsx", ".xlsm"} or is_enc:
             from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
 
-            wb = read_xlsx(path)
-            self.spreadsheet_view.workbook = wb
-            return True
-        if ext in {".csv", ".tsv"}:
+            source = decrypted_bytes if is_enc and decrypted_bytes is not None else path
+            candidate_wb = read_xlsx(source)
+        elif ext in {".csv", ".tsv"}:
             from atboffice.modules.spreadsheet.io.csv_io import read_csv
+            from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
+            from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 
             delimiter = "\t" if ext == ".tsv" else ","
-            read_csv(path, model=self.spreadsheet_view.model, delimiter=delimiter)
-            self.spreadsheet_view.grid.viewport().update()
-            return True
-        if ext in {".xml", ".xmlss"}:
+            new_sheet = SheetDataModel(name=path.stem or "Sheet1")
+            read_csv(path, model=new_sheet, delimiter=delimiter)
+            candidate_wb = WorkbookModel(sheets=[new_sheet])
+        elif ext in {".xml", ".xmlss"}:
             from atboffice.modules.spreadsheet.io.xmlss_io import read_xmlss
+            from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
+            from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 
-            read_xmlss(path, workbook=self.spreadsheet_view.workbook)
+            new_sheet = SheetDataModel(name="Sheet1")
+            read_xmlss(path.read_bytes(), model=new_sheet)
+            candidate_wb = WorkbookModel(sheets=[new_sheet])
+        else:
+            return False
+
+        if candidate_wb is None:
+            return False
+
+        # 4. Transactional UI binding with rollback
+        old_wb = self.spreadsheet_view.workbook
+        try:
+            self.spreadsheet_view.workbook = candidate_wb
             self.spreadsheet_view.grid.viewport().update()
-            return True
+        except Exception as bind_err:
+            try:
+                self.spreadsheet_view.workbook = old_wb
+                self.spreadsheet_view.grid.viewport().update()
+            except Exception:
+                pass
+            raise bind_err
+
         return True
 
     def _setup_toolbars(self) -> None:
