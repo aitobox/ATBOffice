@@ -17,7 +17,6 @@ import sys
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QImage, QPainter
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -89,7 +88,8 @@ class TestControlMatrix:
         expected_orig_refs = {r["path"] for r in records}
         missing_in_matrix = expected_orig_refs - matrix_orig_refs
         assert not missing_in_matrix, (
-            f"Control matrix missing {len(missing_in_matrix)} records: {list(missing_in_matrix)[:5]}"
+            f"Control matrix missing {len(missing_in_matrix)} records: "
+            f"{list(missing_in_matrix)[:5]}"
         )
 
 
@@ -205,5 +205,7 @@ class TestImgdiffMetricSeparation:
         )
 
         report = generate_report([result])
-        assert "Pixel MAE" in report or "pixel_mae" in report.lower(), "Report should state Pixel MAE"
+        assert "Pixel MAE" in report or "pixel_mae" in report.lower(), (
+            "Report should state Pixel MAE"
+        )
         assert "MAE as SSIM" not in report

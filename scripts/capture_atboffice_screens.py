@@ -30,15 +30,14 @@ repo_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(repo_root / "src"))
 sys.path.insert(0, str(repo_root / "scripts"))
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QPainter, QPixmap
-from PySide6.QtWidgets import QApplication, QTabWidget, QWidget
-
 from phase7_capture_scenarios import (
     CaptureScenarioRegistry,
     ScenarioCaptureError,
     ScenarioStatus,
 )
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QPainter, QPixmap
+from PySide6.QtWidgets import QApplication, QTabWidget, QWidget
 
 from atboffice.ui.dialogs.about_dialog import AboutDialog
 from atboffice.ui.dialogs.license_dialog import LicenseDialog

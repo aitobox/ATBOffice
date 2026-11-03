@@ -12,16 +12,14 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
-from PySide6.QtWidgets import QApplication, QTabWidget, QWidget
+from PySide6.QtGui import QImage, QPixmap
 
 if TYPE_CHECKING:
     pass
@@ -29,7 +27,7 @@ if TYPE_CHECKING:
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
-class ScenarioStatus(str, Enum):
+class ScenarioStatus(StrEnum):
     VERIFIED = "verified"
     PARTIAL = "partial"
     MISSING = "missing"
@@ -91,7 +89,8 @@ class CaptureScenarioRegistry:
     """Registry of all 412 UI capture scenarios with explicit execution contracts."""
 
     def __init__(self, records_path: Path | None = None):
-        self.records_path = records_path or (REPO_ROOT / ".vibeoffice" / "screenshots" / "records.json")
+        default_records = REPO_ROOT / ".vibeoffice" / "screenshots" / "records.json"
+        self.records_path = records_path or default_records
         self._scenarios_by_path: dict[str, CaptureScenario] = {}
         self._scenarios_by_filename: dict[str, CaptureScenario] = {}
         self.tracker = DuplicateHashTracker()
@@ -189,7 +188,8 @@ class CaptureScenarioRegistry:
         if scenario.handler is None:
             if strict:
                 raise ScenarioCaptureError(
-                    f"No explicit handler registered for scenario [{scenario.path}]. Silent fallback prohibited."
+                    f"No explicit handler registered for scenario [{scenario.path}]. "
+                    "Silent fallback prohibited."
                 )
             scenario.status = ScenarioStatus.FAILED
             raise ScenarioCaptureError(f"No handler registered for {scenario.path}")
