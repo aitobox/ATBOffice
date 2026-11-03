@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: E402, E501
-"""Automated high-fidelity UI screenshot capture tool for ATBOffice.
+"""Automated high-fidelity UI screenshot capture tool for ATBOffice (TASK-701 / Issue #235).
 
 Renders and captures paired 1440x900 screenshots across all 4 modules:
 - 00_start_center (10 items)
@@ -8,6 +8,11 @@ Renders and captures paired 1440x900 screenshots across all 4 modules:
 - 02_ledger (131 items)
 - 03_lectern (96 items)
 Matching the 412 baseline screenshots documented in .vibeoffice/screenshots/records.json.
+
+Strict mode enforces:
+- Explicit scenario handling without silent window.grab fallback.
+- Validation of dialog instances and tab index ranges.
+- Detection of duplicate screenshot hashes across distinct semantic states.
 """
 
 from __future__ import annotations
@@ -23,7 +28,13 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 repo_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(repo_root / "src"))
+sys.path.insert(0, str(repo_root / "scripts"))
 
+from phase7_capture_scenarios import (
+    CaptureScenarioRegistry,
+    ScenarioCaptureError,
+    ScenarioStatus,
+)
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QTabWidget, QWidget
@@ -118,12 +129,14 @@ def create_composite_canvas(base_win: QWidget, dialog_widget: QWidget | None = N
 
 
 class ScreenCaptureManager:
-    """Orchestrates screenshot generation for all 412 benchmark UI states."""
+    """Orchestrates screenshot generation for benchmark UI states with non-fallback contracts."""
 
-    def __init__(self, out_dir: Path):
+    def __init__(self, out_dir: Path, strict: bool = True):
         self.out_dir = out_dir
         self.out_dir.mkdir(parents=True, exist_ok=True)
+        self.strict = strict
         self.app = QApplication.instance() or QApplication(sys.argv)
+        self.registry = CaptureScenarioRegistry()
 
         self._start_center_win: StartCenterWindow | None = None
         self._quire_win: QuireWindow | None = None
@@ -154,12 +167,22 @@ class ScreenCaptureManager:
             self._lectern_win.resize(VIEWPORT_W, VIEWPORT_H)
         return self._lectern_win
 
-    def capture_record(self, record: dict) -> Path:
-        """Capture an individual record and save to disk."""
+    def capture_record(self, record: dict) -> Path | None:
+        """Capture an individual record adhering strictly to non-fallback contracts."""
         mod = record["module"]
         fn = record["filename"]
+        path = record.get("path") or f"{mod}/{fn}"
         dest = self.out_dir / mod / fn
         dest.parent.mkdir(parents=True, exist_ok=True)
+
+        scenario = self.registry.get_by_path(path) or self.registry.get_by_filename(fn)
+        if scenario is None:
+            if self.strict:
+                raise ScenarioCaptureError(f"Unregistered capture scenario: {path}")
+            return None
+
+        if self.strict and scenario.status == ScenarioStatus.MISSING:
+            raise ScenarioCaptureError(f"Scenario [{path}] is marked MISSING in registry.")
 
         try:
             if mod == "00_start_center":
@@ -171,22 +194,22 @@ class ScreenCaptureManager:
             elif mod == "03_lectern":
                 pix = self._capture_lectern_record(record)
             else:
-                win = self.get_start_center()
-                pix = win.grab()
+                if self.strict:
+                    raise ScenarioCaptureError(f"Unknown module [{mod}] for record [{path}]")
+                pix = None
         except Exception as e:
-            print(f"Warning: capture failed for {record['path']}: {e}. Using fallback grab.")
-            try:
-                if mod == "01_quire":
-                    pix = self.get_quire().grab()
-                elif mod == "02_ledger":
-                    pix = self.get_ledger().grab()
-                elif mod == "03_lectern":
-                    pix = self.get_lectern().grab()
-                else:
-                    pix = self.get_start_center().grab()
-            except Exception:
-                pix = QPixmap(VIEWPORT_W, VIEWPORT_H)
-                pix.fill(QColor(240, 240, 240))
+            if self.strict:
+                raise ScenarioCaptureError(f"Capture failed for [{path}]: {e}") from e
+            print(f"Warning: capture failed for {path}: {e}")
+            return None
+
+        if pix is None or pix.isNull():
+            if self.strict:
+                raise ScenarioCaptureError(f"Null pixmap produced for [{path}]")
+            return None
+
+        # Track hash to detect unexpected duplicate grabs
+        self.registry.tracker.register_image(path, pix)
 
         # Save result
         pix.save(str(dest), "PNG")
@@ -234,6 +257,8 @@ class ScreenCaptureManager:
             dlg = LicenseDialog(win)
             return create_composite_canvas(win, dlg)
         else:
+            if self.strict:
+                raise ScenarioCaptureError(f"Unhandled start center scenario: {fn}")
             return win.grab()
 
     def _capture_quire_record(self, record: dict) -> QPixmap:
@@ -241,8 +266,7 @@ class ScreenCaptureManager:
         fn = record["filename"]
         cat = record.get("category", "")
 
-        # Tab extraction if any (e.g. tab1_Margins, tab2_Paper)
-        tab_idx = 0
+        tab_idx: int | None = None
         if "tab" in fn:
             try:
                 import re
@@ -263,10 +287,12 @@ class ScreenCaptureManager:
                 win.switch_view_mode("outline")
             elif "Full_Screen" in fn:
                 win.enter_full_screen()
+            else:
+                if self.strict:
+                    raise ScenarioCaptureError(f"Unhandled quire overview mode: {fn}")
             return win.grab()
 
         elif cat == "dialog":
-            # Dialog mapping for Quire
             dlg = None
             if "Page_Setup" in fn and "PageSetupDialog" in globals():
                 dlg = PageSetupDialog(win)
@@ -297,21 +323,33 @@ class ScreenCaptureManager:
             elif "About" in fn:
                 dlg = AboutDialog(win)
 
-            if dlg:
-                tabs = dlg.findChild(QTabWidget)
-                if tabs and tab_idx < tabs.count():
-                    tabs.setCurrentIndex(tab_idx)
+            if dlg is not None:
+                if tab_idx is not None:
+                    tabs = dlg.findChild(QTabWidget)
+                    if tabs is None:
+                        if self.strict:
+                            raise ScenarioCaptureError(f"Tab {tab_idx} requested but no QTabWidget found in {fn}")
+                    elif tab_idx >= tabs.count():
+                        if self.strict:
+                            raise ScenarioCaptureError(
+                                f"Tab index {tab_idx} out of range ({tabs.count()} tabs) in {fn}"
+                            )
+                    else:
+                        tabs.setCurrentIndex(tab_idx)
                 return create_composite_canvas(win, dlg)
             else:
+                if self.strict:
+                    raise ScenarioCaptureError(f"Missing dialog implementation for quire: {fn}")
                 return win.grab()
 
         elif cat == "toolbar":
-            # Show all toolbars
             for tb in win.toolbars.values():
                 tb.setVisible(True)
             return win.grab()
 
         else:
+            if self.strict:
+                raise ScenarioCaptureError(f"Category [{cat}] not yet wired for capture without fallback: {fn}")
             return win.grab()
 
     def _capture_ledger_record(self, record: dict) -> QPixmap:
@@ -319,7 +357,7 @@ class ScreenCaptureManager:
         fn = record["filename"]
         cat = record.get("category", "")
 
-        tab_idx = 0
+        tab_idx: int | None = None
         if "tab" in fn:
             try:
                 import re
@@ -336,6 +374,9 @@ class ScreenCaptureManager:
                 win.set_view_mode("page_break", prompt_welcome=False)
             elif "Full_Screen" in fn or "Fullscreen" in fn:
                 win.enter_full_screen()
+            else:
+                if self.strict:
+                    raise ScenarioCaptureError(f"Unhandled ledger overview mode: {fn}")
             return win.grab()
 
         elif cat == "dialog":
@@ -361,12 +402,23 @@ class ScreenCaptureManager:
             elif "Theme" in fn:
                 dlg = ThemeDialog(win, mode="suite")
 
-            if dlg:
-                tabs = dlg.findChild(QTabWidget)
-                if tabs and tab_idx < tabs.count():
-                    tabs.setCurrentIndex(tab_idx)
+            if dlg is not None:
+                if tab_idx is not None:
+                    tabs = dlg.findChild(QTabWidget)
+                    if tabs is None:
+                        if self.strict:
+                            raise ScenarioCaptureError(f"Tab {tab_idx} requested but no QTabWidget found in {fn}")
+                    elif tab_idx >= tabs.count():
+                        if self.strict:
+                            raise ScenarioCaptureError(
+                                f"Tab index {tab_idx} out of range ({tabs.count()} tabs) in {fn}"
+                            )
+                    else:
+                        tabs.setCurrentIndex(tab_idx)
                 return create_composite_canvas(win, dlg)
             else:
+                if self.strict:
+                    raise ScenarioCaptureError(f"Missing dialog implementation for ledger: {fn}")
                 return win.grab()
 
         elif cat == "toolbar":
@@ -375,6 +427,8 @@ class ScreenCaptureManager:
             return win.grab()
 
         else:
+            if self.strict:
+                raise ScenarioCaptureError(f"Category [{cat}] not yet wired for capture without fallback: {fn}")
             return win.grab()
 
     def _capture_lectern_record(self, record: dict) -> QPixmap:
@@ -382,7 +436,7 @@ class ScreenCaptureManager:
         fn = record["filename"]
         cat = record.get("category", "")
 
-        tab_idx = 0
+        tab_idx: int | None = None
         if "tab" in fn:
             try:
                 import re
@@ -401,6 +455,9 @@ class ScreenCaptureManager:
                 win.set_view_mode("master")
             elif "Slide_Show" in fn:
                 win.start_slideshow()
+            else:
+                if self.strict:
+                    raise ScenarioCaptureError(f"Unhandled lectern overview mode: {fn}")
             return win.grab()
 
         elif cat == "dialog":
@@ -418,12 +475,23 @@ class ScreenCaptureManager:
             elif "Options" in fn:
                 dlg = OptionsDialog(win)
 
-            if dlg:
-                tabs = dlg.findChild(QTabWidget)
-                if tabs and tab_idx < tabs.count():
-                    tabs.setCurrentIndex(tab_idx)
+            if dlg is not None:
+                if tab_idx is not None:
+                    tabs = dlg.findChild(QTabWidget)
+                    if tabs is None:
+                        if self.strict:
+                            raise ScenarioCaptureError(f"Tab {tab_idx} requested but no QTabWidget found in {fn}")
+                    elif tab_idx >= tabs.count():
+                        if self.strict:
+                            raise ScenarioCaptureError(
+                                f"Tab index {tab_idx} out of range ({tabs.count()} tabs) in {fn}"
+                            )
+                    else:
+                        tabs.setCurrentIndex(tab_idx)
                 return create_composite_canvas(win, dlg)
             else:
+                if self.strict:
+                    raise ScenarioCaptureError(f"Missing dialog implementation for lectern: {fn}")
                 return win.grab()
 
         elif cat == "toolbar":
@@ -432,19 +500,23 @@ class ScreenCaptureManager:
             return win.grab()
 
         else:
+            if self.strict:
+                raise ScenarioCaptureError(f"Category [{cat}] not yet wired for capture without fallback: {fn}")
             return win.grab()
 
     def generate_index_markdown(self, records: list[dict]):
-        """Generate INDEX.md cataloging all paired screenshots."""
+        """Generate INDEX.md cataloging all paired screenshots and verification status."""
         index_file = self.out_dir / "INDEX.md"
+        duplicates = self.registry.tracker.get_duplicates()
         lines = [
-            "# ATBOffice Phase 6: 全量 412 张配对截图与原版 1:1 对标证据索引",
+            "# ATBOffice: 全量 412 张配对截图与原版 1:1 对标证据索引",
             "",
             "本目录由 `scripts/capture_atboffice_screens.py` 自动化抓取生成，包含 Start Center、Quire、Ledger、Lectern 四大子系统在标准视口 (1440×900) 下的原生 PySide6 GUI 渲染证据，并与原版 `.vibeoffice/screenshots/` 412 张基线截图形成全量配对。",
             "",
             "- **分辨率**: 1440 × 900 (HiDPI @2x Retina compatible)",
             "- **外观**: `classic` (Office 2003 Luna Command Bars)",
-            "- **截图总数**: 412 张",
+            f"- **截图总目标**: {len(records)} 张",
+            f"- **检测到哈希碰撞组数**: {len(duplicates)}",
             "",
             "| # | 模块 | 场景类别 | 抓取动作 / 触发目标 | ATBOffice 截图文件 (PySide6) | 原版对应基线截图 (.vibeoffice) |",
             "|---|---|---|---|---|---|",
@@ -469,15 +541,34 @@ def main():
     parser.add_argument("--output-dir", default=str(repo_root / "docs" / "clone" / "evidence" / "phase6" / "screenshots"), help="Output directory")
     parser.add_argument("--module", choices=["00_start_center", "01_quire", "02_ledger", "03_lectern"], help="Filter by module")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of screenshots captured")
+    parser.add_argument("--no-strict", action="store_true", help="Allow non-strict capture for audit exploration")
     args = parser.parse_args()
 
     records_file = repo_root / ".vibeoffice" / "screenshots" / "records.json"
-    if not records_file.exists():
-        print(f"Error: {records_file} not found.")
-        sys.exit(1)
+    matrix_file = repo_root / "docs" / "clone" / "phase7_control_matrix.csv"
 
-    with open(records_file, encoding="utf-8") as f:
-        records = json.load(f)
+    if records_file.exists():
+        with open(records_file, encoding="utf-8") as f:
+            records = json.load(f)
+    elif matrix_file.exists():
+        import csv
+
+        with open(matrix_file, encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f)
+            records = [
+                {
+                    "module": row["module"],
+                    "filename": Path(row["original_ref"]).name,
+                    "category": row.get("context", "overview"),
+                    "action": row.get("command_id", ""),
+                    "guiTarget": row.get("target_ref", ""),
+                    "path": row["original_ref"],
+                }
+                for row in reader
+            ]
+    else:
+        print(f"Error: Neither {records_file} nor {matrix_file} found.")
+        sys.exit(1)
 
     if args.module:
         records = [r for r in records if r["module"] == args.module]
@@ -485,18 +576,26 @@ def main():
     if args.limit:
         records = records[:args.limit]
 
-    print(f"Starting capture for {len(records)} screenshot targets...")
-    mgr = ScreenCaptureManager(Path(args.output_dir))
+    strict_mode = not args.no_strict
+    print(f"Starting capture for {len(records)} screenshot targets (strict={strict_mode})...")
+    mgr = ScreenCaptureManager(Path(args.output_dir), strict=strict_mode)
 
     captured = 0
+    failed = 0
     for r in records:
-        mgr.capture_record(r)
-        captured += 1
-        if captured % 25 == 0 or captured == len(records):
-            print(f"Captured [{captured}/{len(records)}] -> {r['path']}")
+        try:
+            mgr.capture_record(r)
+            captured += 1
+            if captured % 25 == 0 or captured == len(records):
+                print(f"Captured [{captured}/{len(records)}] -> {r['path']}")
+        except Exception as e:
+            failed += 1
+            print(f"FAILED [{failed}] -> {r['path']}: {e}")
+            if strict_mode:
+                sys.exit(1)
 
     mgr.generate_index_markdown(records)
-    print(f"\nSuccessfully captured all {captured} screenshots to {args.output_dir}")
+    print(f"\nFinished: {captured} captured, {failed} failed in {args.output_dir}")
 
 
 if __name__ == "__main__":

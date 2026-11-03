@@ -123,6 +123,6 @@ Lectern Slide Sorter / Notes Page / Master Views,lectern_ui,must,yes,yes,"Slide 
 Lectern Slide Show Floating Controller and Setup Dialog,lectern_ui,must,yes,yes,"Full-screen slide show controller, pen/laser pointer, navigation menu, and setup dialog (PR #230)",unverified,
 Lectern Design Template / Color Scheme / Animation Panes,lectern_ui,must,yes,yes,"Side task panes for design templates, color schemes, and custom animations (PR #231)",unverified,
 Start Center Settings / Theme Selection / License Dialogs,common_ui,must,yes,yes,"Options dialog, Luna/Classic theme switcher, update notifier, and license viewer (PR #232)",unverified,
-Automated Screenshot Capture and imgdiff Analysis Suite,tooling,must,yes,yes,scripts/capture_atboffice_screens.py and scripts/imgdiff.py for 412 screenshot parity verification (fixes #221),unverified,
+Automated Screenshot Capture and imgdiff Analysis Suite,tooling,must,yes,yes,"Phase 7 rebuild with explicit scenario registry, non-fallback contracts, dual MAE/ROI metrics, and 412 control matrix (fixes #235)",verified,tests/test_phase7_capture_contract.py
 Extended 9-Locale Internationalization (es and ru),core,must,yes,yes,Added Spanish and Russian translation catalogs to canonical 7 languages with safe_tr() (fixes #221),unverified,
 Transactional Document Open and False-Success Guard,core_io,must,yes,yes,"Transactional document opening, format dispatch, legacy rejection, rollback on failure",verified,"tests/gui/test_phase7_open_contract.py (TASK-702, #236)"
