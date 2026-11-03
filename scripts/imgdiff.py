@@ -26,12 +26,12 @@ repo_root = Path(__file__).resolve().parent.parent
 class DiffResult(NamedTuple):
     module: str
     filename: str
-    pixel_mae_similarity: float
-    roi_similarity: float
-    similarity: float  # Alias to pixel_mae_similarity for backward compatibility
+    similarity: float  # Preserved as 3rd field for backwards compatibility
     passed: bool
     atb_size: tuple[int, int]
     orig_size: tuple[int, int]
+    pixel_mae_similarity: float = 0.0
+    roi_similarity: float = 0.0
 
 
 def compare_images(
@@ -48,12 +48,12 @@ def compare_images(
         return DiffResult(
             module=img_a_path.parent.name,
             filename=img_a_path.name,
-            pixel_mae_similarity=0.0,
-            roi_similarity=0.0,
             similarity=0.0,
             passed=False,
             atb_size=(img_a.width(), img_a.height()),
             orig_size=(img_b.width(), img_b.height()),
+            pixel_mae_similarity=0.0,
+            roi_similarity=0.0,
         )
 
     size_a = (img_a.width(), img_a.height())
@@ -61,11 +61,17 @@ def compare_images(
 
     # Rescale both images to sample_size for fast and normalized pixel comparison
     scaled_a = img_a.scaled(
-        sample_size[0], sample_size[1], Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation
+        sample_size[0],
+        sample_size[1],
+        Qt.AspectRatioMode.IgnoreAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
     ).convertToFormat(QImage.Format.Format_RGB888)
 
     scaled_b = img_b.scaled(
-        sample_size[0], sample_size[1], Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation
+        sample_size[0],
+        sample_size[1],
+        Qt.AspectRatioMode.IgnoreAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
     ).convertToFormat(QImage.Format.Format_RGB888)
 
     bytes_a = bytes(scaled_a.constBits())
@@ -76,7 +82,7 @@ def compare_images(
     if min_len == 0:
         pixel_mae_sim = 0.0
     else:
-        diff_sum = sum(abs(a - b) for a, b in zip(bytes_a[:min_len], bytes_b[:min_len]))
+        diff_sum = sum(abs(a - b) for a, b in zip(bytes_a[:min_len], bytes_b[:min_len], strict=False))
         pixel_mae_sim = 1.0 - (diff_sum / (min_len * 255.0))
 
     # 2. Central Region-Of-Interest (ROI) comparison (middle 60% x 60%)
@@ -95,7 +101,9 @@ def compare_images(
     if min_roi_len == 0:
         roi_sim = 0.0
     else:
-        roi_diff_sum = sum(abs(a - b) for a, b in zip(roi_bytes_a[:min_roi_len], roi_bytes_b[:min_roi_len]))
+        roi_diff_sum = sum(
+            abs(a - b) for a, b in zip(roi_bytes_a[:min_roi_len], roi_bytes_b[:min_roi_len], strict=False)
+        )
         roi_sim = 1.0 - (roi_diff_sum / (min_roi_len * 255.0))
 
     # Pass condition requires both full-image and ROI to meet threshold
@@ -104,12 +112,12 @@ def compare_images(
     return DiffResult(
         module=img_a_path.parent.name,
         filename=img_a_path.name,
-        pixel_mae_similarity=pixel_mae_sim,
-        roi_similarity=roi_sim,
         similarity=pixel_mae_sim,
         passed=passed,
         atb_size=size_a,
         orig_size=size_b,
+        pixel_mae_similarity=pixel_mae_sim,
+        roi_similarity=roi_sim,
     )
 
 
@@ -117,8 +125,18 @@ def generate_report(results: list[DiffResult], threshold: float = 0.85) -> str:
     """Generate Markdown comparison report distinguishing Pixel MAE from ROI metrics."""
     total = len(results)
     passed_count = sum(1 for r in results if r.passed)
-    avg_pixel_mae = (sum(r.pixel_mae_similarity for r in results) / total) if total > 0 else 0.0
-    avg_roi = (sum(r.roi_similarity for r in results) / total) if total > 0 else 0.0
+    avg_pixel_mae = (
+        sum(r.pixel_mae_similarity if r.pixel_mae_similarity else r.similarity for r in results)
+        / total
+        if total > 0
+        else 0.0
+    )
+    avg_roi = (
+        sum(r.roi_similarity if r.roi_similarity else r.similarity for r in results)
+        / total
+        if total > 0
+        else 0.0
+    )
 
     lines = [
         "# ATBOffice vs. VibeOffice UI 图像差异对比报告 (imgdiff)",
@@ -131,7 +149,10 @@ def generate_report(results: list[DiffResult], threshold: float = 0.85) -> str:
         f"- **判定阈值**: `{threshold:.2f}` (Pixel MAE & ROI >= {threshold * 100:.0f}%)",
         f"- **平均 Pixel MAE 相似度**: `{avg_pixel_mae * 100:.2f}%`",
         f"- **平均 ROI 核心区相似度**: `{avg_roi * 100:.2f}%`",
-        f"- **达标总数 (Pass)**: {passed_count} / {total} (`{(passed_count / total * 100.0) if total > 0 else 0.0:.1f}%`)",
+        (
+            f"- **达标总数 (Pass)**: {passed_count} / {total} "
+            f"(`{(passed_count / total * 100.0) if total > 0 else 0.0:.1f}%`)"
+        ),
         "",
         "## 1. 模块相似度汇总",
         "",
@@ -148,11 +169,26 @@ def generate_report(results: list[DiffResult], threshold: float = 0.85) -> str:
         m_results = modules[mod]
         m_total = len(m_results)
         m_passed = sum(1 for r in m_results if r.passed)
-        m_avg_mae = sum(r.pixel_mae_similarity for r in m_results) / m_total if m_total > 0 else 0.0
-        m_avg_roi = sum(r.roi_similarity for r in m_results) / m_total if m_total > 0 else 0.0
-        status = "✅ 达标 (Pass)" if (m_avg_mae >= threshold and m_avg_roi >= threshold) else "⚠️ 需关注 (Review)"
+        m_avg_mae = (
+            sum(r.pixel_mae_similarity if r.pixel_mae_similarity else r.similarity for r in m_results)
+            / m_total
+            if m_total > 0
+            else 0.0
+        )
+        m_avg_roi = (
+            sum(r.roi_similarity if r.roi_similarity else r.similarity for r in m_results)
+            / m_total
+            if m_total > 0
+            else 0.0
+        )
+        status = (
+            "✅ 达标 (Pass)"
+            if (m_avg_mae >= threshold and m_avg_roi >= threshold)
+            else "⚠️ 需关注 (Review)"
+        )
         lines.append(
-            f"| **{mod}** | {m_total} | {m_passed} / {m_total} | `{m_avg_mae * 100:.2f}%` | `{m_avg_roi * 100:.2f}%` | {status} |"
+            f"| **{mod}** | {m_total} | {m_passed} / {m_total} | "
+            f"`{m_avg_mae * 100:.2f}%` | `{m_avg_roi * 100:.2f}%` | {status} |"
         )
 
     lines.extend([
@@ -165,9 +201,11 @@ def generate_report(results: list[DiffResult], threshold: float = 0.85) -> str:
 
     for i, r in enumerate(results, 1):
         status_badge = "✅ PASS" if r.passed else "⚠️ REVIEW"
+        mae = r.pixel_mae_similarity if r.pixel_mae_similarity else r.similarity
+        roi = r.roi_similarity if r.roi_similarity else r.similarity
         lines.append(
             f"| {i} | `{r.module}` | `{r.filename}` | {r.atb_size[0]}×{r.atb_size[1]} | "
-            f"{r.orig_size[0]}×{r.orig_size[1]} | `{r.pixel_mae_similarity * 100:.2f}%` | `{r.roi_similarity * 100:.2f}%` | {status_badge} |"
+            f"{r.orig_size[0]}×{r.orig_size[1]} | `{mae * 100:.2f}%` | `{roi * 100:.2f}%` | {status_badge} |"
         )
 
     lines.append("")
@@ -234,7 +272,9 @@ def main() -> None:
         res = compare_images(atb_img, orig_img, threshold=threshold)
         results.append(res)
         tag = "PASS" if res.passed else "REVIEW"
-        print(f"[{tag}] {rel}: MAE={res.pixel_mae_similarity * 100:.2f}%, ROI={res.roi_similarity * 100:.2f}%")
+        print(
+            f"[{tag}] {rel}: MAE={res.pixel_mae_similarity * 100:.2f}%, ROI={res.roi_similarity * 100:.2f}%"
+        )
 
     report_path = evidence_dir / args.report_name
     report_content = generate_report(results, threshold=threshold)
@@ -242,8 +282,12 @@ def main() -> None:
         f.write(report_content)
 
     print(f"Report generated at: {report_path}")
-    avg_score = (sum(r.pixel_mae_similarity for r in results) / len(results)) if results else 0.0
-    print(f"\nCompleted {len(results)} image comparisons. Average Pixel MAE similarity: {avg_score * 100:.2f}%")
+    avg_score = (
+        (sum(r.pixel_mae_similarity for r in results) / len(results)) if results else 0.0
+    )
+    print(
+        f"\nCompleted {len(results)} image comparisons. Average Pixel MAE similarity: {avg_score * 100:.2f}%"
+    )
 
 
 if __name__ == "__main__":

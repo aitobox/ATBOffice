@@ -103,34 +103,60 @@ class CaptureScenarioRegistry:
         return None
 
     def _load_records(self):
-        if not self.records_path.exists():
-            return
+        matrix_path = REPO_ROOT / "docs" / "clone" / "phase7_control_matrix.csv"
+        if self.records_path.exists():
+            with open(self.records_path, encoding="utf-8") as f:
+                records = json.load(f)
 
-        with open(self.records_path, encoding="utf-8") as f:
-            records = json.load(f)
+            for idx, rec in enumerate(records, 1):
+                path = rec.get("path") or f"{rec['module']}/{rec['filename']}"
+                filename = rec["filename"]
+                tab_idx = self._extract_tab_index(filename)
 
-        for idx, rec in enumerate(records, 1):
-            path = rec.get("path") or f"{rec['module']}/{rec['filename']}"
-            filename = rec["filename"]
-            tab_idx = self._extract_tab_index(filename)
+                scenario = CaptureScenario(
+                    id=idx,
+                    module=rec["module"],
+                    filename=filename,
+                    category=rec.get("category", "overview"),
+                    gui_target=rec.get("guiTarget", ""),
+                    action=rec.get("action", ""),
+                    path=path,
+                    tab_index=tab_idx,
+                    status=ScenarioStatus.UNVERIFIED,
+                )
 
-            scenario = CaptureScenario(
-                id=idx,
-                module=rec["module"],
-                filename=filename,
-                category=rec.get("category", "overview"),
-                gui_target=rec.get("guiTarget", ""),
-                action=rec.get("action", ""),
-                path=path,
-                tab_index=tab_idx,
-                status=ScenarioStatus.UNVERIFIED,
-            )
+                self._assign_scenario_handler(scenario)
+                self._scenarios_by_path[path] = scenario
+                self._scenarios_by_filename[filename] = scenario
+        elif matrix_path.exists():
+            import csv
 
-            # Assign default classification & handlers based on known components
-            self._assign_scenario_handler(scenario)
+            with open(matrix_path, encoding="utf-8", newline="") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    path = row["original_ref"]
+                    filename = Path(path).name
+                    tab_idx = self._extract_tab_index(filename)
+                    status_val = row.get("visual_status", "unverified")
+                    try:
+                        status_enum = ScenarioStatus(status_val)
+                    except ValueError:
+                        status_enum = ScenarioStatus.UNVERIFIED
 
-            self._scenarios_by_path[path] = scenario
-            self._scenarios_by_filename[filename] = scenario
+                    scenario = CaptureScenario(
+                        id=int(row["id"]),
+                        module=row["module"],
+                        filename=filename,
+                        category=row.get("context", "overview"),
+                        gui_target=row.get("target_ref", ""),
+                        action=row.get("command_id", ""),
+                        path=path,
+                        tab_index=tab_idx,
+                        status=status_enum,
+                    )
+                    self._assign_scenario_handler(scenario)
+                    self._scenarios_by_path[path] = scenario
+                    self._scenarios_by_filename[filename] = scenario
 
     def _assign_scenario_handler(self, scenario: CaptureScenario):
         """Map record to concrete handler and status contract."""

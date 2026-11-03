@@ -545,12 +545,30 @@ def main():
     args = parser.parse_args()
 
     records_file = repo_root / ".vibeoffice" / "screenshots" / "records.json"
-    if not records_file.exists():
-        print(f"Error: {records_file} not found.")
-        sys.exit(1)
+    matrix_file = repo_root / "docs" / "clone" / "phase7_control_matrix.csv"
 
-    with open(records_file, encoding="utf-8") as f:
-        records = json.load(f)
+    if records_file.exists():
+        with open(records_file, encoding="utf-8") as f:
+            records = json.load(f)
+    elif matrix_file.exists():
+        import csv
+
+        with open(matrix_file, encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f)
+            records = [
+                {
+                    "module": row["module"],
+                    "filename": Path(row["original_ref"]).name,
+                    "category": row.get("context", "overview"),
+                    "action": row.get("command_id", ""),
+                    "guiTarget": row.get("target_ref", ""),
+                    "path": row["original_ref"],
+                }
+                for row in reader
+            ]
+    else:
+        print(f"Error: Neither {records_file} nor {matrix_file} found.")
+        sys.exit(1)
 
     if args.module:
         records = [r for r in records if r["module"] == args.module]
