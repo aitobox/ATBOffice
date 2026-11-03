@@ -5,12 +5,9 @@ password cancellation, and format reader dispatch.
 
 from __future__ import annotations
 
-import io
-import tempfile
 from pathlib import Path
 from typing import Any
 
-import pytest
 from PySide6.QtWidgets import QInputDialog, QMessageBox
 
 from atboffice.ui.shell.lectern_window import LecternWindow
@@ -155,7 +152,8 @@ def test_unknown_extension_rejected_safely(qtbot, monkeypatch, tmp_path: Path):
 
 
 def test_encrypted_package_cancellation_aborts_cleanly(qtbot, monkeypatch, tmp_path: Path):
-    """Cancelling password dialog for encrypted OOXML packages aborts cleanly without error dialog."""
+    """Cancelling password dialog for encrypted OOXML packages
+    aborts cleanly without error dialog."""
     # Create valid dummy encrypted docx
     inner_zip = b"PK\x03\x04\x14\x00\x00\x00\x08\x00" + b"\x00" * 200
     enc_bytes = encrypt_package(inner_zip, passcode="secret123")

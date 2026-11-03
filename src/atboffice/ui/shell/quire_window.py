@@ -722,7 +722,12 @@ class QuireWindow(BaseOfficeWindow):
 
             candidate_doc = MarkdownReader().read(path.read_text(encoding="utf-8"))
         elif ext == ".txt":
-            from atboffice.modules.writer.models.document import Document, Paragraph, Story, TextItem
+            from atboffice.modules.writer.models.document import (
+                Document,
+                Paragraph,
+                Story,
+                TextItem,
+            )
 
             candidate_doc = Document()
             candidate_doc.main = Story(kind="main", blocks=[])
