@@ -1,0 +1,755 @@
+{
+  "date": "2026-11-03",
+  "clone_sha": "f423efd2609eefcfb5cb32d5d32f4eaef472a5ee",
+  "original_sha": "32ff53a5da0e75ebac11acdb0251cd3d8c7bf408",
+  "python": "3.12.0",
+  "pyside": "6.11.1",
+  "platform": "macOS",
+  "qpa": "offscreen",
+  "scanner": {
+    "orig_components": 126,
+    "clone_classes": 549,
+    "orig_controls": 262,
+    "clone_controls": 1197,
+    "orig_buttons": 255,
+    "clone_buttons": 347,
+    "control_gap": 0,
+    "button_gap": 0,
+    "orphan_controls_count": 17,
+    "stub_methods_count": 15
+  },
+  "orphan_candidates": [
+    {
+      "file": "modules/presentation/dialogs/background_dlg.py",
+      "line": 862,
+      "class_name": "BackgroundDialog",
+      "var_name": "self.btn_fill_picker",
+      "widget_type": "QPushButton",
+      "kind": "button",
+      "label": "",
+      "slot": "",
+      "status": "ORPHAN_NO_SIGNAL"
+    },
+    {
+      "file": "modules/presentation/slideshow/slide_hud.py",
+      "line": 133,
+      "class_name": "SlideShowHud",
+      "var_name": "self.btn_pen",
+      "widget_type": "QToolButton",
+      "kind": "button",
+      "label": "",
+      "slot": "",
+      "status": "ORPHAN_NO_SIGNAL"
+    },
+    {
+      "file": "modules/presentation/slideshow/slide_hud.py",
+      "line": 141,
+      "class_name": "SlideShowHud",
+      "var_name": "self.btn_menu",
+      "widget_type": "QToolButton",
+      "kind": "button",
+      "label": "",
+      "slot": "",
+      "status": "ORPHAN_NO_SIGNAL"
+    },
+    {
+      "file": "modules/spreadsheet/dialogs/chart_wizard.py",
+      "line": 441,
+      "class_name": "ChartWizardDialog",
+      "var_name": "self.btn_add_series",
+      "widget_type": "QPushButton",
+      "kind": "button",
+      "label": "",
+      "slot": "",
+      "status": "ORPHAN_NO_SIGNAL"
+    },
+    {
+      "file": "modules/spreadsheet/dialogs/chart_wizard.py",
+      "line": 442,
+      "class_name": "ChartWizardDialog",
+      "var_name": "self.btn_del_series",
+      "widget_type": "QPushButton",
+      "kind": "button",
+      "label": "",
+      "slot": "",
+      "status": "ORPHAN_NO_SIGNAL"
+    },
+    {
+      "file": "modules/spreadsheet/dialogs/consolidate_dialog.py",
+      "line": 115,
+      "class_name": "ConsolidateDialog",
+      "var_name": "self.btn_browse",
+      "widget_type": "QPushButton",
+      "kind": "button",
+      "label": "",
+      "slot": "",
+      "status": "ORPHAN_NO_SIGNAL"
+    },
+    {
+      "file": "modules/spreadsheet/dialogs/options_dialog.py",
+      "line": 286,
+      "class_name": "LedgerOptionsDialog",
+      "var_name": "self.btn_add_list",
+      "widget_type": "QPushButton",
+      "kind": "button",
+      "label": "",
+      "slot": "",
+      "status": "ORPHAN_NO_SIGNAL"
+    },
+    {
+      "file": "modules/spreadsheet/dialogs/options_dialog.py",
+      "line": 287,
+      "class_name": "LedgerOptionsDialog",
+      "var_name": "self.btn_del_list",
+      "widget_type": "QPushButton",
+      "kind": "button",
+      "label": "",
+      "slot": "",
+      "status": "ORPHAN_NO_SIGNAL"
+    },
+    {
+      "file": "modules/spreadsheet/dialogs/scenario_manager_dialog.py",
+      "line": 230,
+      "class_name": "ScenarioManagerDialog",
+      "var_name": "self.btn_merge",
+      "widget_type": "QPushButton",
+      "kind": "button",
+      "label": "",
+      "slot": "",
+      "status": "ORPHAN_NO_SIGNAL"
+    },
+    {
+      "file": "modules/writer/dialogs/reference_dialogs.py",
+      "line": 564,
+      "class_name": "HyperlinkDialog",
+      "var_name": "self.btn_tip",
+      "widget_type": "QPushButton",
+      "kind": "button",
+      "label": "",
+      "slot": "",
+      "status": "ORPHAN_NO_SIGNAL"
+    },
+    {
+      "file": "modules/writer/dialogs/tools_dialogs.py",
+      "line": 565,
+      "class_name": "CustomizeDialog",
+      "var_name": "self.btn_assign",
+      "widget_type": "QPushButton",
+      "kind": "button",
+      "label": "",
+      "slot": "",
+      "status": "ORPHAN_NO_SIGNAL"
+    },
+    {
+      "file": "modules/writer/views/review_pane.py",
+      "line": 197,
+      "class_name": "ReviewToolbar",
+      "var_name": "self.btn_show",
+      "widget_type": "QToolButton",
+      "kind": "button",
+      "label": "",
+      "slot": "",
+      "status": "ORPHAN_NO_SIGNAL"
+    },
+    {
+      "file": "modules/writer/views/review_pane.py",
+      "line": 229,
+      "class_name": "ReviewToolbar",
+      "var_name": "self.btn_accept",
+      "widget_type": "QToolButton",
+      "kind": "button",
+      "label": "",
+      "slot": "",
+      "status": "ORPHAN_NO_SIGNAL"
+    },
+    {
+      "file": "modules/writer/views/review_pane.py",
+      "line": 241,
+      "class_name": "ReviewToolbar",
+      "var_name": "self.btn_reject",
+      "widget_type": "QToolButton",
+      "kind": "button",
+      "label": "",
+      "slot": "",
+      "status": "ORPHAN_NO_SIGNAL"
+    },
+    {
+      "file": "modules/writer/views/review_pane.py",
+      "line": 260,
+      "class_name": "ReviewToolbar",
+      "var_name": "self.btn_delete_comment",
+      "widget_type": "QToolButton",
+      "kind": "button",
+      "label": "",
+      "slot": "",
+      "status": "ORPHAN_NO_SIGNAL"
+    },
+    {
+      "file": "ui/components/status_bar.py",
+      "line": 134,
+      "class_name": "StatusBar",
+      "var_name": "action",
+      "widget_type": "QAction",
+      "kind": "button",
+      "label": "",
+      "slot": "",
+      "status": "ORPHAN_NO_SIGNAL"
+    },
+    {
+      "file": "ui/dialogs/in_app_save_as_dialog.py",
+      "line": 266,
+      "class_name": "InAppSaveAsDialog",
+      "var_name": "self.btn_tools",
+      "widget_type": "QToolButton",
+      "kind": "button",
+      "label": "",
+      "slot": "",
+      "status": "ORPHAN_NO_SIGNAL"
+    }
+  ],
+  "stub_candidates": [
+    {
+      "file": "core/search.py",
+      "line": 99,
+      "class_name": "SearchAdapter",
+      "name": "find_all",
+      "status": "STUB_IMPLEMENTATION"
+    },
+    {
+      "file": "core/search.py",
+      "line": 104,
+      "class_name": "SearchAdapter",
+      "name": "find_next",
+      "status": "STUB_IMPLEMENTATION"
+    },
+    {
+      "file": "core/search.py",
+      "line": 111,
+      "class_name": "SearchAdapter",
+      "name": "replace_one",
+      "status": "STUB_IMPLEMENTATION"
+    },
+    {
+      "file": "core/search.py",
+      "line": 116,
+      "class_name": "SearchAdapter",
+      "name": "replace_all",
+      "status": "STUB_IMPLEMENTATION"
+    },
+    {
+      "file": "core/search.py",
+      "line": 121,
+      "class_name": "SearchAdapter",
+      "name": "focus_match",
+      "status": "STUB_IMPLEMENTATION"
+    },
+    {
+      "file": "modules/writer/views/outline_view.py",
+      "line": 276,
+      "class_name": "OutlineToolbar",
+      "name": "_on_outline_level_changed",
+      "status": "STUB_IMPLEMENTATION"
+    },
+    {
+      "file": "ui/shell/main_window.py",
+      "line": 254,
+      "class_name": "MainWindow",
+      "name": "undo",
+      "status": "STUB_IMPLEMENTATION"
+    },
+    {
+      "file": "ui/shell/main_window.py",
+      "line": 258,
+      "class_name": "MainWindow",
+      "name": "redo",
+      "status": "STUB_IMPLEMENTATION"
+    },
+    {
+      "file": "ui/shell/main_window.py",
+      "line": 262,
+      "class_name": "MainWindow",
+      "name": "cut",
+      "status": "STUB_IMPLEMENTATION"
+    },
+    {
+      "file": "ui/shell/main_window.py",
+      "line": 266,
+      "class_name": "MainWindow",
+      "name": "copy",
+      "status": "STUB_IMPLEMENTATION"
+    },
+    {
+      "file": "ui/shell/main_window.py",
+      "line": 270,
+      "class_name": "MainWindow",
+      "name": "paste",
+      "status": "STUB_IMPLEMENTATION"
+    },
+    {
+      "file": "ui/shell/main_window.py",
+      "line": 286,
+      "class_name": "MainWindow",
+      "name": "zoom_in",
+      "status": "STUB_IMPLEMENTATION"
+    },
+    {
+      "file": "ui/shell/main_window.py",
+      "line": 290,
+      "class_name": "MainWindow",
+      "name": "zoom_out",
+      "status": "STUB_IMPLEMENTATION"
+    },
+    {
+      "file": "ui/shell/main_window.py",
+      "line": 294,
+      "class_name": "MainWindow",
+      "name": "zoom_reset",
+      "status": "STUB_IMPLEMENTATION"
+    },
+    {
+      "file": "ui/shell/main_window.py",
+      "line": 298,
+      "class_name": "MainWindow",
+      "name": "show_help",
+      "status": "STUB_IMPLEMENTATION"
+    }
+  ],
+  "screenshots": {
+    ".vibeoffice/screenshots": {
+      "00_start_center": {
+        "files": 10,
+        "unique_hashes": 8,
+        "largest_duplicate_group": 3
+      },
+      "01_quire": {
+        "files": 175,
+        "unique_hashes": 174,
+        "largest_duplicate_group": 2
+      },
+      "02_ledger": {
+        "files": 131,
+        "unique_hashes": 128,
+        "largest_duplicate_group": 2
+      },
+      "03_lectern": {
+        "files": 96,
+        "unique_hashes": 93,
+        "largest_duplicate_group": 2
+      }
+    },
+    "docs/clone/evidence/phase6/screenshots": {
+      "00_start_center": {
+        "files": 10,
+        "unique_hashes": 10,
+        "largest_duplicate_group": 1
+      },
+      "01_quire": {
+        "files": 175,
+        "unique_hashes": 18,
+        "largest_duplicate_group": 65
+      },
+      "02_ledger": {
+        "files": 131,
+        "unique_hashes": 10,
+        "largest_duplicate_group": 84
+      },
+      "03_lectern": {
+        "files": 96,
+        "unique_hashes": 14,
+        "largest_duplicate_group": 32
+      }
+    }
+  },
+  "corpus": {
+    "corpus-powerpoint": {
+      "total": 50,
+      "counts": {
+        "legacy_binary/ok": 24,
+        "legacy_binary/excluded": 1,
+        "ooxml/ok": 25
+      },
+      "loss_candidates": [],
+      "excluded": [
+        {
+          "file": "libreoffice__CVE-2010-0033-1.ppt",
+          "reason": "binary signature check rejected"
+        }
+      ]
+    },
+    "corpus-excel": {
+      "total": 50,
+      "counts": {
+        "legacy_binary/ok": 23,
+        "legacy_binary/excluded": 2,
+        "ooxml/ok": 24,
+        "ooxml/excluded": 1
+      },
+      "loss_candidates": [
+        {
+          "file": "libreoffice__enhanced-protection.xlsx",
+          "losses": {
+            "sheet protection": 1
+          }
+        },
+        {
+          "file": "libreoffice__sortconditionref.xlsx",
+          "losses": {
+            "defined names": 1,
+            "auto filter": 1,
+            "sort state": 1
+          }
+        },
+        {
+          "file": "libreoffice__macro-button-form-control.xlsm",
+          "losses": {
+            "drawing shapes": 1,
+            "VBA macros": 1
+          }
+        },
+        {
+          "file": "libreoffice__tdf113621.xlsx",
+          "losses": {
+            "custom XML parts": 3,
+            "custom document properties": 1
+          }
+        },
+        {
+          "file": "libreoffice__tablerefsnamed.xlsx",
+          "losses": {
+            "defined names": 1,
+            "table columns": 2
+          }
+        },
+        {
+          "file": "libreoffice__tdf133595.xlsx",
+          "losses": {
+            "custom document properties": 1
+          }
+        },
+        {
+          "file": "libreoffice__totalsRowShown.xlsx",
+          "losses": {
+            "defined names": 28,
+            "table columns": 3
+          }
+        },
+        {
+          "file": "libreoffice__totalsRowFunction.xlsx",
+          "losses": {
+            "defined names": 1,
+            "table columns": 6,
+            "drawing shapes": 2
+          }
+        },
+        {
+          "file": "openxml-sdk__00d63cdd-ee44-4e6a-99af-a7966ffbdda0.xlsx",
+          "losses": {
+            "drawing shapes": 2
+          }
+        },
+        {
+          "file": "openxml-sdk__XMLMap.xlsx",
+          "losses": {
+            "table columns": 3
+          }
+        },
+        {
+          "file": "poi__45540_form_Header.xlsx",
+          "losses": {
+            "custom document properties": 1,
+            "sheet protection": 1
+          }
+        },
+        {
+          "file": "poi__49156.xlsx",
+          "losses": {
+            "defined names": 1
+          }
+        },
+        {
+          "file": "poi__60509.xlsx",
+          "losses": {
+            "charts": 1
+          }
+        },
+        {
+          "file": "poi__SimpleWithComments.xlsx",
+          "losses": {
+            "notes (comments)": 3
+          }
+        },
+        {
+          "file": "openxml-sdk__NoExtDataB1.xlsx",
+          "losses": {
+            "charts": 1
+          }
+        }
+      ],
+      "excluded": [
+        {
+          "file": "libreoffice__CVE-2010-1246-1.xls",
+          "reason": "binary signature check rejected"
+        },
+        {
+          "file": "libreoffice__tdf158483.xls",
+          "reason": "binary signature check rejected"
+        },
+        {
+          "file": "poi__clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-5636439151607808.xlsx",
+          "reason": "ValueError: Provided data is not a valid XLSX archive."
+        }
+      ]
+    },
+    "corpus-word": {
+      "total": 50,
+      "counts": {
+        "legacy_binary/excluded": 6,
+        "legacy_binary/ok": 19,
+        "ooxml/ok": 24,
+        "ooxml/excluded": 1
+      },
+      "loss_candidates": [
+        {
+          "file": "libreoffice__forum-mso-en-4208.docx",
+          "losses": {
+            "fields (TOC, PAGE, REF, …)": 2,
+            "content controls": 2
+          }
+        },
+        {
+          "file": "libreoffice__fdo55381.docx",
+          "losses": {
+            "drop caps / frames": 4
+          }
+        },
+        {
+          "file": "libreoffice__nested-runs.docx",
+          "losses": {
+            "text boxes": 1,
+            "drawing shapes (wps)": 1
+          }
+        },
+        {
+          "file": "libreoffice__sdt-ignored-footer.docx",
+          "losses": {
+            "content controls": 1
+          }
+        },
+        {
+          "file": "libreoffice__strict.docx",
+          "losses": {
+            "pictures": 1,
+            "equations": 1
+          }
+        },
+        {
+          "file": "libreoffice__tdf113182.docx",
+          "losses": {
+            "drop caps / frames": 1
+          }
+        },
+        {
+          "file": "libreoffice__tdf105035_framePrB.docx",
+          "losses": {
+            "drop caps / frames": 2
+          }
+        },
+        {
+          "file": "libreoffice__tdf113183.docx",
+          "losses": {
+            "drawing shapes (wps)": 2
+          }
+        },
+        {
+          "file": "libreoffice__tdf125881.docx",
+          "losses": {
+            "tracked insertions / deletions": 3
+          }
+        },
+        {
+          "file": "libreoffice__tdf153255.docx",
+          "losses": {
+            "document background colour": 1
+          }
+        },
+        {
+          "file": "libreoffice__textframe-borders.docx",
+          "losses": {
+            "text boxes": 1,
+            "VML shapes": 1
+          }
+        },
+        {
+          "file": "openxml-sdk__Comment066.docx",
+          "losses": {
+            "pictures": 1
+          }
+        },
+        {
+          "file": "openxml-sdk__bullet-complex.docx",
+          "losses": {
+            "drop caps / frames": 2
+          }
+        },
+        {
+          "file": "poi__60316.docx",
+          "losses": {
+            "content controls": 20,
+            "text boxes": 2,
+            "drawing shapes (wps)": 4
+          }
+        },
+        {
+          "file": "poi__headerPic.docx",
+          "losses": {
+            "pictures": 1
+          }
+        }
+      ],
+      "excluded": [
+        {
+          "file": "libreoffice__CVE-2003-0820-1.doc",
+          "reason": "binary signature check rejected"
+        },
+        {
+          "file": "libreoffice__CVE-2005-0941-1.doc",
+          "reason": "binary signature check rejected"
+        },
+        {
+          "file": "libreoffice__CVE-2008-2752-2.doc",
+          "reason": "binary signature check rejected"
+        },
+        {
+          "file": "libreoffice__CVE-2014-6356-1.doc",
+          "reason": "binary signature check rejected"
+        },
+        {
+          "file": "libreoffice__CVE-2015-0064-1.doc",
+          "reason": "binary signature check rejected"
+        },
+        {
+          "file": "libreoffice__ofz18526-1.doc",
+          "reason": "binary signature check rejected"
+        },
+        {
+          "file": "poi__protected_agile.docx",
+          "reason": "ValueError: Not a valid ZIP/OPC package (header mismatch)"
+        }
+      ]
+    }
+  },
+  "content_probes": {
+    "strict_docx": {
+      "file": "tests/docs/word/docx/libreoffice__strict.docx",
+      "source_text_nodes": 7,
+      "model_main_blocks": 1,
+      "root_namespace": "{http://purl.oclc.org/ooxml/wordprocessingml/main}document",
+      "model_text_runs": 0
+    },
+    "unsupported_dispatch": [
+      {
+        "class": "QuireWindow",
+        "file": "tests/docs/word/doc/poi__ThreeColHead.doc",
+        "do_open_return": true,
+        "note": "unbound method probe: unsupported branch does not access self or read bytes"
+      },
+      {
+        "class": "LedgerWindow",
+        "file": "tests/docs/excel/xls/libreoffice__crash-5.xls",
+        "do_open_return": true,
+        "note": "unbound method probe: unsupported branch does not access self or read bytes"
+      },
+      {
+        "class": "LecternWindow",
+        "file": "tests/docs/powerpoint/ppt/poi__datetime.ppt",
+        "do_open_return": true,
+        "note": "unbound method probe: unsupported branch does not access self or read bytes"
+      }
+    ],
+    "xlsm_roundtrip": {
+      "file": "tests/docs/excel/xlsx/libreoffice__macro-button-form-control.xlsm",
+      "original_vba_parts": [
+        "xl/vbaProject.bin"
+      ],
+      "saved_vba_parts": []
+    }
+  },
+  "fill_probe": {
+    "probe": "direct release handler on protected model; not physical drag E2E",
+    "values": [
+      7,
+      7,
+      7
+    ],
+    "protected": true,
+    "undo_entries": 1
+  },
+  "gui_load_probes": [
+    {
+      "module": "quire",
+      "file": "tests/docs/word/docx/libreoffice__strict.docx",
+      "exit_code": 0,
+      "stdout": "{\"load_result\": true, \"capture_null\": false}\n",
+      "stderr": "qt.qpa.fonts: Populating font family aliases took 228 ms. Replace uses of missing font family \"Sans Serif\" with one that exists to avoid this cost. \nThis plugin does not support propagateSizeHints()\n"
+    },
+    {
+      "module": "quire",
+      "file": "tests/docs/word/docx/libreoffice__nested-runs.docx",
+      "exit_code": 0,
+      "stdout": "{\"load_result\": true, \"capture_null\": false}\n",
+      "stderr": "qt.qpa.fonts: Populating font family aliases took 159 ms. Replace uses of missing font family \"Sans Serif\" with one that exists to avoid this cost. \nThis plugin does not support propagateSizeHints()\n"
+    },
+    {
+      "module": "ledger",
+      "file": "tests/docs/excel/xlsx/poi__SimpleWithComments.xlsx",
+      "exit_code": 0,
+      "stdout": "{\"load_result\": true, \"capture_null\": false}\n",
+      "stderr": "qt.qpa.fonts: Populating font family aliases took 183 ms. Replace uses of missing font family \"Sans Serif\" with one that exists to avoid this cost. \nThis plugin does not support propagateSizeHints()\nThis plugin does not support propagateSizeHints()\n"
+    },
+    {
+      "module": "lectern",
+      "file": "tests/docs/powerpoint/pptx/libreoffice__master-slides.pptx",
+      "exit_code": 0,
+      "stdout": "{\"load_result\": true, \"capture_null\": false}\n",
+      "stderr": "qt.qpa.fonts: Populating font family aliases took 145 ms. Replace uses of missing font family \"Sans Serif\" with one that exists to avoid this cost. \nThis plugin does not support propagateSizeHints()\n"
+    }
+  ],
+  "targeted_tests": {
+    "passed": 57,
+    "failed": 0,
+    "duration_seconds": 12.54,
+    "full_suite_run": false
+  },
+  "historical_imgdiff": {
+    "mode": "layout",
+    "original": {
+      "width": 2880,
+      "height": 1800
+    },
+    "clone": {
+      "width": 1440,
+      "height": 900
+    },
+    "compared_at": {
+      "width": 480,
+      "height": 300
+    },
+    "height_delta_pct": 0.0,
+    "score": 33.4,
+    "verdict": "different",
+    "regions": [
+      {
+        "x": 0,
+        "y": 240,
+        "w": 2880,
+        "h": 1560,
+        "cells": 63,
+        "where": "middle centre"
+      }
+    ],
+    "files": {
+      "original": ".vibeoffice/screenshots/02_ledger/038_toolbar_All_Visible__Full_Toolbars_Dock.png",
+      "clone": "docs/clone/evidence/phase6/screenshots/02_ledger/038_toolbar_All_Visible__Full_Toolbars_Dock.png"
+    }
+  }
+}

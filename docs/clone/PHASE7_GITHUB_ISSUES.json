@@ -1,0 +1,376 @@
+{
+  "repository": "aitobox/ATBOffice",
+  "epic": {
+    "number": 234,
+    "url": "https://github.com/aitobox/ATBOffice/issues/234",
+    "title": "[Epic] ATBOffice 第七期：工具栏细节、Ledger 交互、稳定性与文档兼容完善"
+  },
+  "issues": [
+    {
+      "task_id": "701",
+      "number": 235,
+      "url": "https://github.com/aitobox/ATBOffice/issues/235",
+      "title": "[phase7] TASK-701: test(evidence): 重建可信截图与功能验收基线",
+      "type": "enhancement",
+      "labels": [
+        "epic:phase7",
+        "enhancement",
+        "priority:high"
+      ],
+      "depends_on": [],
+      "blocks": [
+        "702",
+        "703",
+        "704",
+        "709",
+        "711"
+      ],
+      "step": 1,
+      "depends_on_issue_numbers": [],
+      "blocks_issue_numbers": [
+        236,
+        237,
+        238,
+        243,
+        245
+      ]
+    },
+    {
+      "task_id": "702",
+      "number": 236,
+      "url": "https://github.com/aitobox/ATBOffice/issues/236",
+      "title": "[phase7] TASK-702: fix(files): 修复假成功并事务化文件打开",
+      "type": "bug",
+      "labels": [
+        "epic:phase7",
+        "bug",
+        "priority:high"
+      ],
+      "depends_on": [
+        "701"
+      ],
+      "blocks": [
+        "705",
+        "706",
+        "708"
+      ],
+      "step": 2,
+      "depends_on_issue_numbers": [
+        235
+      ],
+      "blocks_issue_numbers": [
+        239,
+        240,
+        242
+      ]
+    },
+    {
+      "task_id": "703",
+      "number": 237,
+      "url": "https://github.com/aitobox/ATBOffice/issues/237",
+      "title": "[phase7] TASK-703: fix(stability): 基于操作序列治理崩溃与对象生命周期",
+      "type": "bug",
+      "labels": [
+        "epic:phase7",
+        "bug",
+        "priority:high"
+      ],
+      "depends_on": [
+        "701"
+      ],
+      "blocks": [
+        "713"
+      ],
+      "step": 3,
+      "depends_on_issue_numbers": [
+        235
+      ],
+      "blocks_issue_numbers": [
+        247
+      ]
+    },
+    {
+      "task_id": "704",
+      "number": 238,
+      "url": "https://github.com/aitobox/ATBOffice/issues/238",
+      "title": "[phase7] TASK-704: test(corpus): 建立逐文件内容与显示合同",
+      "type": "enhancement",
+      "labels": [
+        "epic:phase7",
+        "enhancement",
+        "priority:high"
+      ],
+      "depends_on": [
+        "701"
+      ],
+      "blocks": [
+        "705",
+        "706",
+        "707",
+        "708"
+      ],
+      "step": 4,
+      "depends_on_issue_numbers": [
+        235
+      ],
+      "blocks_issue_numbers": [
+        239,
+        240,
+        241,
+        242
+      ]
+    },
+    {
+      "task_id": "705",
+      "number": 239,
+      "url": "https://github.com/aitobox/ATBOffice/issues/239",
+      "title": "[phase7] TASK-705: fix(quire): 修复 Strict DOCX 空白及真实排版差异",
+      "type": "bug",
+      "labels": [
+        "epic:phase7",
+        "bug",
+        "priority:high"
+      ],
+      "depends_on": [
+        "702",
+        "704"
+      ],
+      "blocks": [
+        "713"
+      ],
+      "step": 5,
+      "depends_on_issue_numbers": [
+        236,
+        238
+      ],
+      "blocks_issue_numbers": [
+        247
+      ]
+    },
+    {
+      "task_id": "706",
+      "number": 240,
+      "url": "https://github.com/aitobox/ATBOffice/issues/240",
+      "title": "[phase7] TASK-706: fix(ledger-io): 修复 XLSX/XLSM 默认保存丢失",
+      "type": "bug",
+      "labels": [
+        "epic:phase7",
+        "bug",
+        "priority:high"
+      ],
+      "depends_on": [
+        "702",
+        "704"
+      ],
+      "blocks": [
+        "707"
+      ],
+      "step": 6,
+      "depends_on_issue_numbers": [
+        236,
+        238
+      ],
+      "blocks_issue_numbers": [
+        241
+      ]
+    },
+    {
+      "task_id": "707",
+      "number": 241,
+      "url": "https://github.com/aitobox/ATBOffice/issues/241",
+      "title": "[phase7] TASK-707: fix(ledger-render): 修复真实工作簿载入后的显示与同步",
+      "type": "bug",
+      "labels": [
+        "epic:phase7",
+        "bug",
+        "priority:high"
+      ],
+      "depends_on": [
+        "704",
+        "706"
+      ],
+      "blocks": [
+        "713"
+      ],
+      "step": 7,
+      "depends_on_issue_numbers": [
+        238,
+        240
+      ],
+      "blocks_issue_numbers": [
+        247
+      ]
+    },
+    {
+      "task_id": "708",
+      "number": 242,
+      "url": "https://github.com/aitobox/ATBOffice/issues/242",
+      "title": "[phase7] TASK-708: fix(lectern): 按真实样本修复幻灯片显示及往返",
+      "type": "bug",
+      "labels": [
+        "epic:phase7",
+        "bug",
+        "priority:high"
+      ],
+      "depends_on": [
+        "702",
+        "704"
+      ],
+      "blocks": [
+        "713"
+      ],
+      "step": 8,
+      "depends_on_issue_numbers": [
+        236,
+        238
+      ],
+      "blocks_issue_numbers": [
+        247
+      ]
+    },
+    {
+      "task_id": "709",
+      "number": 243,
+      "url": "https://github.com/aitobox/ATBOffice/issues/243",
+      "title": "[phase7] TASK-709: fix(ledger-menu): 补齐右键菜单的真实业务行为",
+      "type": "bug",
+      "labels": [
+        "epic:phase7",
+        "bug",
+        "priority:high"
+      ],
+      "depends_on": [
+        "701"
+      ],
+      "blocks": [
+        "710"
+      ],
+      "step": 9,
+      "depends_on_issue_numbers": [
+        235
+      ],
+      "blocks_issue_numbers": [
+        244
+      ]
+    },
+    {
+      "task_id": "710",
+      "number": 244,
+      "url": "https://github.com/aitobox/ATBOffice/issues/244",
+      "title": "[phase7] TASK-710: fix(ledger-fill): 恢复填充柄完整事件链与保护事务",
+      "type": "bug",
+      "labels": [
+        "epic:phase7",
+        "bug",
+        "priority:high"
+      ],
+      "depends_on": [
+        "709"
+      ],
+      "blocks": [
+        "713"
+      ],
+      "step": 10,
+      "depends_on_issue_numbers": [
+        243
+      ],
+      "blocks_issue_numbers": [
+        247
+      ]
+    },
+    {
+      "task_id": "711",
+      "number": 245,
+      "url": "https://github.com/aitobox/ATBOffice/issues/245",
+      "title": "[phase7] TASK-711: fix(toolbar): 逐控件校准图标箭头状态与命中区域",
+      "type": "bug",
+      "labels": [
+        "epic:phase7",
+        "bug",
+        "priority:high"
+      ],
+      "depends_on": [
+        "701"
+      ],
+      "blocks": [
+        "712"
+      ],
+      "step": 11,
+      "depends_on_issue_numbers": [
+        235
+      ],
+      "blocks_issue_numbers": [
+        246
+      ]
+    },
+    {
+      "task_id": "712",
+      "number": 246,
+      "url": "https://github.com/aitobox/ATBOffice/issues/246",
+      "title": "[phase7] TASK-712: fix(commands): 清理可见空行为并完善动态本地化",
+      "type": "bug",
+      "labels": [
+        "epic:phase7",
+        "bug",
+        "priority:high"
+      ],
+      "depends_on": [
+        "711"
+      ],
+      "blocks": [
+        "713"
+      ],
+      "step": 12,
+      "depends_on_issue_numbers": [
+        245
+      ],
+      "blocks_issue_numbers": [
+        247
+      ]
+    },
+    {
+      "task_id": "713",
+      "number": 247,
+      "url": "https://github.com/aitobox/ATBOffice/issues/247",
+      "title": "[phase7] TASK-713: test(acceptance): 以真实用户路径完成第七期验收",
+      "type": "enhancement",
+      "labels": [
+        "epic:phase7",
+        "enhancement",
+        "priority:high"
+      ],
+      "depends_on": [
+        "703",
+        "705",
+        "707",
+        "708",
+        "710",
+        "712"
+      ],
+      "blocks": [],
+      "step": 13,
+      "depends_on_issue_numbers": [
+        237,
+        239,
+        241,
+        242,
+        244,
+        246
+      ],
+      "blocks_issue_numbers": []
+    }
+  ],
+  "source_sha256": {
+    "docs/tasks/07_phase7_fidelity_stability_compatibility_plan.md": "5ba308680ad7e599e936d7fdb43f7ddeeb4ecb0cbee7b211425d6291538dfa06",
+    "docs/clone/CLONE_DIFF.md": "781e70b8d17ea633505ea46af8bcc467938696b415e5004636a358439c0e1ca0",
+    "docs/clone/PHASE7_AUDIT_SUMMARY.json": "8e808f5c9732c7a60e04e438691c96c6fe3347889c5c0ca2de5da0d4f0166c36"
+  },
+  "verification": {
+    "date": "2026-11-04",
+    "issues_verified": 14,
+    "titles_bodies_labels_match": true,
+    "state": "open",
+    "dependency_dag_valid": true,
+    "active_epic_preserved": 212
+  }
+}
