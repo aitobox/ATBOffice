@@ -102,11 +102,11 @@ Start Center Document Hub Window,common_ui,must,yes,yes,"start_center.py with op
 Recent Files Cards with Thumbnail and Removal,common_ui,must,yes,yes,"Recent items list with timestamps, icons, deletion",unverified,
 New Document Template Gallery,common_ui,must,yes,yes,"Templates for Quire, Ledger, Lectern with previews",unverified,
 Drag and Drop File Launching,common_ui,must,yes,yes,Drag files directly into Start Center or app windows,unverified,
-Office 2003 Luna Theme Visual Styling,common_ui,must,yes,yes,"luna_2003.py styling toolbars, menus, buttons, handles",unverified,
+Office 2003 Luna Theme Visual Styling,common_ui,must,yes,yes,"luna_2003.py styling toolbars, menus, buttons, handles (TASK-711, #245)",verified,tests/ui/test_phase7_toolbar_geometry.py
 "Theme Switcher Dialog (Luna Blue, Silver, Olive, Classic)",common_ui,should,yes,yes,"Integrated into Options dialog with live preview for Luna Blue, Silver, Olive, and Classic themes (PR #148)",unverified,
 macOS Native Menu Bar Integration,common_ui,must,yes,yes,"Complete Office 2003 9-menu system (Insert, Format, Tools, Table, Data, Slide Show) with dynamic switching (PR #143)",unverified,
 Universal Find and Replace Modal Dialog,common_ui,must,yes,yes,find_replace_dialog.py with tabbed interface,unverified,
-Office SplitButton and DropDownButton Widgets,common_ui,must,yes,yes,toolbar_buttons.py custom Qt tool buttons with menus,unverified,
+Office SplitButton and DropDownButton Widgets,common_ui,must,yes,yes,"toolbar_buttons.py and color_picker.py calibrated hit-testing, arrow states, 9-locale support (TASK-711, #245)",verified,tests/ui/test_phase7_toolbar_geometry.py
 WMF and EMF Windows Metafile Player,common_ui,should,yes,yes,"metafile_player.py pure Python 16-bit WMF and 32-bit EMF binary parser and QPainter playback (PR #179, fixes #162)",unverified,
 WordArt Gallery Dialog and 3D Text Deformations,common_ui,should,yes,yes,30 preset WordArt styles and 10 parametric bezier warp deformations implemented,unverified,
 ClipArt Vector Graphic Library Dialog,common_ui,could,yes,yes,"clipart_dialog.py categorized vector clipart library browser and insertion dialog (PR #184, fixes #167)",unverified,
