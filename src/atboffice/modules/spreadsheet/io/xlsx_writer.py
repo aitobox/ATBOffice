@@ -516,56 +516,13 @@ class StyleManager:
         return "".join(parts).encode("utf-8")
 
 
-def _serialize_worksheet(
+def _serialize_sheet_data(
     sheet: SheetDataModel,
     style_manager: StyleManager,
     sst_manager: SharedStringsManager,
-    is_active: bool,
-    drawing_rid: str | None = None,
-) -> bytes:
-    """Serialize a single worksheet to SpreadsheetML XML."""
-    coords = list(sheet.cells.keys())
-    for m in sheet.merges:
-        coords.append((m[0], m[1]))
-        coords.append((m[2], m[3]))
-
-    if coords:
-        min_r = min(r for r, _ in coords)
-        max_r = max(r for r, _ in coords)
-        min_c = min(c for _, c in coords)
-        max_c = max(c for _, c in coords)
-        dim_ref = f"{cell_name(min_r, min_c)}:{cell_name(max_r, max_c)}"
-    else:
-        dim_ref = "A1"
-
-    tab_sel_attr = ' tabSelected="1"' if is_active else ""
-    parts = [
-        XML_HEADER,
-        f'<worksheet xmlns="{NS_MAIN}" xmlns:r="{NS_R}">',
-        f'<dimension ref="{dim_ref}"/>',
-        f'<sheetViews><sheetView workbookViewId="0"{tab_sel_attr}/></sheetViews>',
-        '<sheetFormatPr defaultRowHeight="20"/>',
-    ]
-
-    # Columns (<cols>)
-    if sheet.geometry.custom_col_widths or sheet.geometry.hidden_cols:
-        col_indices = sorted(
-            set(sheet.geometry.custom_col_widths.keys()) | set(sheet.geometry.hidden_cols)
-        )
-        if col_indices:
-            parts.append("<cols>")
-            for c in col_indices:
-                w_px = sheet.geometry.col_size(c)
-                w_str = f"{(w_px + 0.1) / 8.0:.2f}"
-                c_1 = c + 1
-                hidden_attr = ' hidden="1"' if c in sheet.geometry.hidden_cols else ""
-                parts.append(
-                    f'<col min="{c_1}" max="{c_1}" width="{w_str}" customWidth="1"{hidden_attr}/>'
-                )
-            parts.append("</cols>")
-
-    # Rows and cells (<sheetData>)
-    parts.append("<sheetData>")
+) -> str:
+    """Serialize the <sheetData>...</sheetData> XML block for a worksheet."""
+    parts = ["<sheetData>"]
     rows_dict: dict[int, list[tuple[int, CellData]]] = {}
     for (r, c), cell in sheet.cells.items():
         if r not in rows_dict:
@@ -656,6 +613,59 @@ def _serialize_worksheet(
         parts.append("</row>")
 
     parts.append("</sheetData>")
+    return "".join(parts)
+
+
+def _serialize_worksheet(
+    sheet: SheetDataModel,
+    style_manager: StyleManager,
+    sst_manager: SharedStringsManager,
+    is_active: bool,
+    drawing_rid: str | None = None,
+) -> bytes:
+    """Serialize a single worksheet to SpreadsheetML XML."""
+    coords = list(sheet.cells.keys())
+    for m in sheet.merges:
+        coords.append((m[0], m[1]))
+        coords.append((m[2], m[3]))
+
+    if coords:
+        min_r = min(r for r, _ in coords)
+        max_r = max(r for r, _ in coords)
+        min_c = min(c for _, c in coords)
+        max_c = max(c for _, c in coords)
+        dim_ref = f"{cell_name(min_r, min_c)}:{cell_name(max_r, max_c)}"
+    else:
+        dim_ref = "A1"
+
+    tab_sel_attr = ' tabSelected="1"' if is_active else ""
+    parts = [
+        XML_HEADER,
+        f'<worksheet xmlns="{NS_MAIN}" xmlns:r="{NS_R}">',
+        f'<dimension ref="{dim_ref}"/>',
+        f'<sheetViews><sheetView workbookViewId="0"{tab_sel_attr}/></sheetViews>',
+        '<sheetFormatPr defaultRowHeight="20"/>',
+    ]
+
+    # Columns (<cols>)
+    if sheet.geometry.custom_col_widths or sheet.geometry.hidden_cols:
+        col_indices = sorted(
+            set(sheet.geometry.custom_col_widths.keys()) | set(sheet.geometry.hidden_cols)
+        )
+        if col_indices:
+            parts.append("<cols>")
+            for c in col_indices:
+                w_px = sheet.geometry.col_size(c)
+                w_str = f"{(w_px + 0.1) / 8.0:.2f}"
+                c_1 = c + 1
+                hidden_attr = ' hidden="1"' if c in sheet.geometry.hidden_cols else ""
+                parts.append(
+                    f'<col min="{c_1}" max="{c_1}" width="{w_str}" customWidth="1"{hidden_attr}/>'
+                )
+            parts.append("</cols>")
+
+    # Rows and cells (<sheetData>)
+    parts.append(_serialize_sheet_data(sheet, style_manager, sst_manager))
 
     # Merged cells (<mergeCells>)
     if sheet.merges:
@@ -896,17 +906,37 @@ def _serialize_drawings(
 
 def _serialize_workbook(workbook: WorkbookModel, sheet_rids: list[str]) -> bytes:
     """Serialize xl/workbook.xml."""
+    fv_code_name = workbook.extra.get("file_version_code_name")
+    fv_attr = f' codeName="{_xml_escape(fv_code_name)}"' if fv_code_name else ""
+    wb_code_name = getattr(workbook, "code_name", None) or workbook.extra.get("code_name")
+    wpr_attrs = ['defaultThemeVersion="124226"']
+    if wb_code_name:
+        wpr_attrs.append(f'codeName="{_xml_escape(wb_code_name)}"')
+    if workbook.extra.get("date1904"):
+        wpr_attrs.append('date1904="1"')
+
     parts = [
         XML_HEADER,
         f'<workbook xmlns="{NS_MAIN}" xmlns:r="{NS_R}">',
-        '<fileVersion appName="xl" lastEdited="4" lowestEdited="4" rupBuild="4505"/>',
-        '<workbookPr defaultThemeVersion="124226"/>',
-        f'<bookViews><workbookView activeTab="{workbook.active_sheet_index}"/></bookViews>',
-        "<sheets>",
+        f'<fileVersion appName="xl" lastEdited="4" lowestEdited="4" rupBuild="4505"{fv_attr}/>',
+        f'<workbookPr {" ".join(wpr_attrs)}/>',
     ]
+
+    prot = workbook.extra.get("protection")
+    if prot:
+        prot_str = " ".join(f'{k}="{_xml_escape(str(v))}"' for k, v in prot.items())
+        parts.append(f"<workbookProtection {prot_str}/>")
+
+    active_idx = workbook.active_sheet_index
+    parts.append(f'<bookViews><workbookView activeTab="{active_idx}"/></bookViews>')
+    parts.append("<sheets>")
     for idx, (sheet, rid) in enumerate(zip(workbook.sheets, sheet_rids)):
         parts.append(f'<sheet name="{_xml_escape(sheet.name)}" sheetId="{idx + 1}" r:id="{rid}"/>')
     parts.append("</sheets>")
+
+    def_names = workbook.extra.get("defined_names")
+    if def_names:
+        parts.append(def_names)
 
     pivots = workbook.extra.get("pivots")
     if pivots:
@@ -922,21 +952,31 @@ def _serialize_workbook(workbook: WorkbookModel, sheet_rids: list[str]) -> bytes
     return "".join(parts).encode("utf-8")
 
 
-def _serialize_workbook_rels(sheet_count: int, workbook: WorkbookModel | None = None) -> bytes:
+def _serialize_workbook_rels(
+    sheet_count: int,
+    workbook: WorkbookModel | None = None,
+    source_pkg: SourcePackage | None = None,
+) -> bytes:
     """Serialize xl/_rels/workbook.xml.rels."""
     parts = [
         XML_HEADER,
         f'<Relationships xmlns="{NS_PKG_REL}">',
     ]
+    used_rids: set[str] = set()
     for i in range(1, sheet_count + 1):
+        rid = f"rId{i}"
+        used_rids.add(rid)
         parts.append(
-            f'<Relationship Id="rId{i}" Type="{REL_WORKSHEET}" Target="worksheets/sheet{i}.xml"/>'
+            f'<Relationship Id="{rid}" Type="{REL_WORKSHEET}" Target="worksheets/sheet{i}.xml"/>'
         )
     styles_rid = f"rId{sheet_count + 1}"
+    used_rids.add(styles_rid)
     parts.append(f'<Relationship Id="{styles_rid}" Type="{REL_STYLES}" Target="styles.xml"/>')
     theme_rid = f"rId{sheet_count + 2}"
+    used_rids.add(theme_rid)
     parts.append(f'<Relationship Id="{theme_rid}" Type="{REL_THEME}" Target="theme/theme1.xml"/>')
     sst_rid = f"rId{sheet_count + 3}"
+    used_rids.add(sst_rid)
     parts.append(
         f'<Relationship Id="{sst_rid}" Type="{REL_SHARED_STRINGS}" Target="sharedStrings.xml"/>'
     )
@@ -945,8 +985,34 @@ def _serialize_workbook_rels(sheet_count: int, workbook: WorkbookModel | None = 
         for c in pivots.caches:
             if not c.drop and c.rel_id:
                 tgt = c.part_name.replace("xl/", "")
+                used_rids.add(c.rel_id)
                 parts.append(
                     f'<Relationship Id="{c.rel_id}" Type="{REL_PIVOT_CACHE}" Target="{tgt}"/>'
+                )
+
+    if source_pkg:
+        orig_wb_rels = source_pkg.get_relationships("xl/workbook.xml")
+        preserved_types = (
+            "worksheet",
+            "styles",
+            "theme",
+            "sharedStrings",
+            "pivotCacheDefinition",
+        )
+        counter = sheet_count + 4
+        for r in orig_wb_rels:
+            is_standard = any(r.type.endswith("/" + t) or r.type == t for t in preserved_types)
+            if not is_standard:
+                r_id = r.id
+                if r_id in used_rids:
+                    while f"rId{counter}" in used_rids:
+                        counter += 1
+                    r_id = f"rId{counter}"
+                used_rids.add(r_id)
+                target_mode_attr = f' TargetMode="{r.target_mode}"' if r.is_external else ""
+                parts.append(
+                    f'<Relationship Id="{r_id}" Type="{r.type}" '
+                    f'Target="{r.target}"{target_mode_attr}/>'
                 )
 
     parts.append("</Relationships>")
@@ -1075,6 +1141,28 @@ def write_xlsx(
             source_pkg = SourcePackage.from_bytes(source_opc)
         elif isinstance(source_opc, (str, Path)):
             source_pkg = SourcePackage.open(source_opc)
+    elif getattr(workbook, "_source_package", None) is not None:
+        source_pkg = workbook._source_package
+    elif workbook.extra.get("source_package") is not None:
+        source_pkg = workbook.extra.get("source_package")
+
+    is_xlsm = False
+    if output_path is not None and str(output_path).lower().endswith(".xlsm"):
+        is_xlsm = True
+    elif workbook.extra.get("is_macro_enabled"):
+        is_xlsm = True
+    elif source_pkg and (
+        source_pkg.has_part("xl/vbaProject.bin")
+        or source_pkg.get_content_type("xl/workbook.xml")
+        == "application/vnd.ms-excel.sheet.macroEnabled.main+xml"
+    ):
+        is_xlsm = True
+
+    ct_workbook = (
+        "application/vnd.ms-excel.sheet.macroEnabled.main+xml"
+        if is_xlsm
+        else CT_WORKBOOK
+    )
 
     pkg_writer = PackageWriter(source_package=source_pkg)
 
@@ -1091,13 +1179,53 @@ def write_xlsx(
         has_drawings = hasattr(sheet, "drawings") and bool(sheet.drawings)
         drawing_rid = "rIdDrawing" if has_drawings else None
         is_active = (i - 1) == workbook.active_sheet_index
-        ws_bytes = _serialize_worksheet(
-            sheet, style_manager, sst_manager, is_active, drawing_rid=drawing_rid
-        )
         part_name = f"xl/worksheets/sheet{i}.xml"
+
+        ooxml_part = getattr(sheet, "_ooxml_part", None) or sheet.extra.get("ooxml_part")
+        sheet_is_dirty = getattr(sheet, "dirty", False) or getattr(workbook, "dirty", False)
+
+        if source_pkg and ooxml_part and source_pkg.has_part(ooxml_part):
+            if not sheet_is_dirty:
+                ws_bytes = source_pkg.read_part(ooxml_part)
+            else:
+                orig_xml = source_pkg.read_part(ooxml_part).decode("utf-8")
+                sheet_data_xml = _serialize_sheet_data(sheet, style_manager, sst_manager)
+                coords = list(sheet.cells.keys())
+                for m in sheet.merges:
+                    coords.append((m[0], m[1]))
+                    coords.append((m[2], m[3]))
+                if coords:
+                    min_r = min(r for r, _ in coords)
+                    max_r = max(r for r, _ in coords)
+                    min_c = min(c for _, c in coords)
+                    max_c = max(c for _, c in coords)
+                    dim_ref = f"{cell_name(min_r, min_c)}:{cell_name(max_r, max_c)}"
+                else:
+                    dim_ref = "A1"
+
+                patched = re.sub(
+                    r"<sheetData\b.*?/>|<sheetData\b.*?</sheetData>",
+                    sheet_data_xml,
+                    orig_xml,
+                    count=1,
+                    flags=re.DOTALL,
+                )
+                patched = re.sub(
+                    r'<dimension\b[^>]*ref="[^"]*"[^>]*/>',
+                    f'<dimension ref="{dim_ref}"/>',
+                    patched,
+                    count=1,
+                )
+                ws_bytes = patched.encode("utf-8")
+        else:
+            ws_bytes = _serialize_worksheet(
+                sheet, style_manager, sst_manager, is_active, drawing_rid=drawing_rid
+            )
+
         pkg_writer.add_part(part_name, ws_bytes, CT_WORKSHEET)
 
         sheet_rels: list[str] = []
+        used_sheet_rids: set[str] = set()
 
         if has_drawings:
             drawing_count += 1
@@ -1148,6 +1276,7 @@ def write_xlsx(
                 f'<Relationship Id="{drawing_rid}" Type="{REL_DRAWING}" '
                 f'Target="../drawings/drawing{drawing_count}.xml"/>'
             )
+            used_sheet_rids.add(drawing_rid)
 
         # Check pivot tables attached to this sheet
         pivots: Any = workbook.extra.get("pivots")
@@ -1159,6 +1288,28 @@ def write_xlsx(
                     sheet_rels.append(
                         f'<Relationship Id="{t_rid}" Type="{REL_PIVOT_TABLE}" Target="{t_target}"/>'
                     )
+                    used_sheet_rids.add(t_rid)
+
+        # Preserve auxiliary sheet relationships from source_pkg
+        if source_pkg and ooxml_part:
+            orig_sheet_rels = source_pkg.get_relationships(ooxml_part)
+            counter = len(sheet_rels) + 1
+            for r in orig_sheet_rels:
+                if r.type.endswith("/drawing") and has_drawings:
+                    continue
+                if r.type.endswith("/pivotTable") and pivots:
+                    continue
+                r_id = r.id
+                if r_id in used_sheet_rids:
+                    while f"rId{counter}" in used_sheet_rids:
+                        counter += 1
+                    r_id = f"rId{counter}"
+                used_sheet_rids.add(r_id)
+                target_mode_attr = f' TargetMode="{r.target_mode}"' if r.is_external else ""
+                sheet_rels.append(
+                    f'<Relationship Id="{r_id}" Type="{r.type}" '
+                    f'Target="{r.target}"{target_mode_attr}/>'
+                )
 
         if sheet_rels:
             sheet_rels_xml = (
@@ -1183,14 +1334,24 @@ def write_xlsx(
 
     # 4. Serialize workbook.xml and workbook.xml.rels
     wb_bytes = _serialize_workbook(workbook, sheet_rids)
-    pkg_writer.add_part("xl/workbook.xml", wb_bytes, CT_WORKBOOK)
+    pkg_writer.add_part("xl/workbook.xml", wb_bytes, ct_workbook)
 
-    wb_rels_bytes = _serialize_workbook_rels(sheet_count, workbook=workbook)
+    wb_rels_bytes = _serialize_workbook_rels(
+        sheet_count, workbook=workbook, source_pkg=source_pkg
+    )
     pkg_writer.add_part("xl/_rels/workbook.xml.rels", wb_rels_bytes, CT_RELATIONSHIPS)
 
     # 4b. Write pivot parts (lossless carry or modified)
     if pivots:
         write_pivots_to_package(pkg_writer, workbook, pivots)
+
+    # 4c. Preserve vbaProject.bin if XLSM
+    if is_xlsm and source_pkg and source_pkg.has_part("xl/vbaProject.bin"):
+        pkg_writer.replace_part(
+            "xl/vbaProject.bin",
+            source_pkg.read_part("xl/vbaProject.bin"),
+            "application/vnd.ms-office.vbaProject",
+        )
 
     # 5. Core package plumbing (if not already carried or needed)
     if not source_pkg or not source_pkg.has_part("xl/theme/theme1.xml"):

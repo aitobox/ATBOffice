@@ -7,7 +7,7 @@ Universal Find and Replace Engine,core,must,yes,yes,"SearchController supports t
 Full 7-Language (9-Locale) i18n Translation Engine,core,must,yes,yes,"safe_tr dynamic loader with zh-CN, zh-Hant, en, ja, ko, fr, de, es, ru JSON catalogs (PR #233, fixes #221)",unverified,
 Application Settings and Preferences Storage,core,should,yes,yes,"Multi-tab Tools -> Options dialog with general, view, edit, print, security, and theme switcher (PR #148)",unverified,
 Open Packaging Conventions (OPC) Container,vfs,must,yes,yes,Pure Python OPC package parsing and relationship management,unverified,
-Part-Level Lossless Preserve Engine,vfs,must,yes,yes,"Byte-for-byte carry for unmodified parts (VBA macros, themes, media)",unverified,
+Part-Level Lossless Preserve Engine,vfs,must,yes,yes,"Byte-for-byte carry for unmodified parts (VBA macros, themes, media, customXml)",verified,tests/gui/test_phase7_xlsx_preserve.py
 Portable XML Tree Parser and Serializer,vfs,must,yes,yes,xml_tree.py with schema-ordered serialization,unverified,
 ECMA-376 Standard and Agile Encryption Engine,vfs,must,yes,yes,crypto.py supporting password protected documents,unverified,
 DOCX OpenXML Reader Core,quire_io,must,yes,yes,"docx_reader.py parses body, runs, paragraphs, styles, numbering with dual ISO/IEC 29500 Strict and ECMA-376 Transitional support (TASK-705, #239)",verified,tests/gui/test_phase7_docx_render.py (TASK-705, #239)
@@ -45,7 +45,7 @@ Quire Toolbar Action Command Handlers,quire_ui,must,yes,yes,"All 10 Quire toolba
 AutoCorrect Typing Replacement Engine,quire_ui,should,yes,yes,AutoCorrect engine with 250+ standard typing replacement pairs and user custom pairs (PR #149),unverified,
 Spell Checking Engine and Suggestions Dialog,quire_ui,should,yes,yes,"Spell checking engine with morphological analysis, Levenshtein suggestions, and suggestions dialog (PR #149)",unverified,
 Pure Python XLSX Reader Engine,ledger_io,must,yes,yes,"xlsx_reader.py parses SST, styles, sheets, formulas, merges",unverified,
-Pure Python XLSX Writer Engine with OPC Roundtrip,ledger_io,must,yes,yes,xlsx_writer.py serializes OpenXML SpreadsheetML,unverified,
+Pure Python XLSX Writer Engine with OPC Roundtrip,ledger_io,must,yes,yes,"xlsx_writer.py serializes OpenXML SpreadsheetML with selective sheet patching and lossless OPC preservation (fixes #240)",verified,tests/gui/test_phase7_xlsx_preserve.py
 CSV Import Wizard and Export Engine,ledger_io,must,yes,yes,text_import_wizard.py and csv_io.py delimiter detection,unverified,
 XML Spreadsheet 2003 (XMLSS) IO,ledger_io,should,yes,yes,xmlss_io.py import and export,unverified,
 WorkbookModel Multi-Sheet Container,ledger_model,must,yes,yes,workbook_model.py managing multiple sheets and ordering,unverified,

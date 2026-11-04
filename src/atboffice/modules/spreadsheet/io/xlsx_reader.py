@@ -34,6 +34,7 @@ from atboffice.modules.spreadsheet.views.object_layer import (
     CellAnchorPoint,
     FloatingObject,
 )
+from atboffice.vfs.opc import SourcePackage
 
 # Builtin OOXML number formats (ECMA-376 Part 1 §18.8.30)
 BUILTIN_NUMFMTS: dict[int, str] = {
@@ -525,6 +526,24 @@ def _parse_worksheet(
         root = ET.fromstring(content)
     except ET.ParseError:
         return
+
+    # 0. Sheet properties & Protection
+    spr = _find_child(root, "sheetPr")
+    if spr is not None:
+        c_name = _attr(spr, "codeName")
+        if c_name:
+            sheet.code_name = c_name
+            sheet.extra["code_name"] = c_name
+
+    sp = _find_child(root, "sheetProtection")
+    if sp is not None:
+        sheet.protection = dict(sp.attrib)
+        sheet.extra["protection"] = dict(sp.attrib)
+
+    af = _find_child(root, "autoFilter")
+    if af is not None:
+        sheet.extra["auto_filter_xml"] = ET.tostring(af, encoding="utf-8").decode("utf-8")
+        sheet.auto_filter = dict(af.attrib)
 
     # 1. Custom column widths & hidden columns
     cols_el = _find_child(root, "cols")
@@ -1062,6 +1081,33 @@ def read_xlsx(
     """
     wb = workbook if workbook is not None else WorkbookModel()
 
+    # Capture SourcePackage for lossless Part-level Carry
+    try:
+        if isinstance(source, bytes):
+            source_pkg = SourcePackage.from_bytes(source)
+        elif isinstance(source, (str, Path)):
+            source_pkg = SourcePackage.open(source)
+        elif hasattr(source, "read"):
+            pos = source.tell() if hasattr(source, "tell") else 0
+            buf = source.read()
+            if hasattr(source, "seek"):
+                source.seek(pos)
+            source_pkg = SourcePackage.from_bytes(buf)
+        else:
+            source_pkg = None
+    except Exception:
+        source_pkg = None
+
+    if source_pkg is not None:
+        wb._source_package = source_pkg
+        wb.extra["source_package"] = source_pkg
+        if (
+            source_pkg.has_part("xl/vbaProject.bin")
+            or source_pkg.get_content_type("xl/workbook.xml")
+            == "application/vnd.ms-excel.sheet.macroEnabled.main+xml"
+        ):
+            wb.extra["is_macro_enabled"] = True
+
     with _open_zip(source) as z:
         # 1. Discover workbook.xml via _rels/.rels
         root_rels = _parse_rels(z, "_rels/.rels")
@@ -1083,6 +1129,39 @@ def read_xlsx(
             wb_root = ET.fromstring(wb_xml_content)
         except (KeyError, ET.ParseError) as err:
             raise ValueError(f"Archive is damaged: missing or invalid '{wb_part}'.") from err
+
+        # Extract workbook properties and codeName
+        wpr_el = _find_child(wb_root, "workbookPr")
+        if wpr_el is not None:
+            c_name = _attr(wpr_el, "codeName")
+            if c_name:
+                wb.code_name = c_name
+                wb.extra["code_name"] = c_name
+            if _attr(wpr_el, "date1904") in ("1", "true"):
+                wb.extra["date1904"] = True
+
+        fv_el = _find_child(wb_root, "fileVersion")
+        if fv_el is not None and _attr(fv_el, "codeName"):
+            wb.extra["file_version_code_name"] = _attr(fv_el, "codeName")
+
+        wp_el = _find_child(wb_root, "workbookProtection")
+        if wp_el is not None:
+            wb.extra["protection"] = dict(wp_el.attrib)
+
+        dn_m = re.search(
+            r"(<(?:\w+:)?definedNames\b.*?</(?:\w+:)?definedNames>)",
+            wb_xml_content.decode("utf-8", "ignore"),
+            re.DOTALL,
+        )
+        if dn_m:
+            dn_raw = dn_m.group(1)
+            # Normalize to default namespace tags (<definedNames>, <definedName>)
+            dn_clean = re.sub(
+                r"</?([a-zA-Z0-9_]+):(definedNames?)\b",
+                lambda m: ("</" if m.group(0).startswith("</") else "<") + m.group(2),
+                dn_raw,
+            )
+            wb.extra["defined_names"] = dn_clean
 
         # 2. Parse workbook relationships
         wb_dir = wb_part.rsplit("/", 1)[0] if "/" in wb_part else ""
@@ -1166,7 +1245,10 @@ def read_xlsx(
                 sheet_model = wb.add_sheet(name=s_name)
 
             if s_part:
+                sheet_model._ooxml_part = s_part
+                sheet_model.extra["ooxml_part"] = s_part
                 _parse_worksheet(z, s_part, sheet_model, sst, style_deltas)
+            sheet_model.dirty = False
 
         # Set active sheet index
         if 0 <= active_tab_idx < len(wb):
@@ -1176,5 +1258,7 @@ def read_xlsx(
         pivots = read_pivots_from_zip(z, wb)
         if pivots is not None:
             wb.extra["pivots"] = pivots
+
+        wb.dirty = False
 
     return wb

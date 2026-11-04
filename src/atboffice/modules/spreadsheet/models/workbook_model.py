@@ -49,6 +49,8 @@ class WorkbookModel(QObject):
         self._active_sheet_index: int = 0
         self.dirty: bool = False
         self.extra: dict[str, Any] = {}
+        self._source_package: Any = None
+        self.code_name: str | None = None
 
         if sheets:
             for s in sheets:
@@ -62,6 +64,16 @@ class WorkbookModel(QObject):
     def sheets(self) -> list[SheetDataModel]:
         """Return shallow copy of worksheets in workbook."""
         return list(self._sheets)
+
+    @property
+    def source_package(self) -> Any:
+        """Return attached SourcePackage if loaded from an OPC container."""
+        return self._source_package or self.extra.get("source_package")
+
+    @source_package.setter
+    def source_package(self, val: Any) -> None:
+        self._source_package = val
+        self.extra["source_package"] = val
 
     def __len__(self) -> int:
         return len(self._sheets)
