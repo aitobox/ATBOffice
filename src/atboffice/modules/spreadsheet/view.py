@@ -7,6 +7,7 @@ from typing import Any
 from PySide6.QtCore import QCoreApplication, Qt
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
+from atboffice.core.diagnostics import record_action
 from atboffice.modules.spreadsheet.models.selection_model import (
     SelectionModel,
     SelectionRange,
@@ -133,6 +134,14 @@ class SpreadsheetView(QWidget):
     @workbook.setter
     def workbook(self, value: WorkbookModel) -> None:
         """Bind a new WorkbookModel and reinitialize views."""
+        if hasattr(self, "grid") and self.grid is not None:
+            self.grid.cancel_drag(why="api")
+        if hasattr(self, "editor_controller") and self.editor_controller is not None:
+            if hasattr(self.editor_controller, "cancel_editing"):
+                self.editor_controller.cancel_editing()
+            elif hasattr(self.editor_controller, "cancel"):
+                self.editor_controller.cancel()
+
         if hasattr(self, "_workbook") and self._workbook is not None:
             try:
                 self._workbook.active_sheet_changed.disconnect(self._on_active_sheet_changed)
@@ -143,6 +152,7 @@ class SpreadsheetView(QWidget):
             except Exception:
                 pass
         self._workbook = value
+        record_action("bind_workbook", "spreadsheet_view", {"sheet_count": len(value.sheets)})
         self._sheet_selections.clear()
         if hasattr(self, "sheet_tab_bar") and self.sheet_tab_bar is not None:
             self.sheet_tab_bar.set_workbook(value)
@@ -185,10 +195,22 @@ class SpreadsheetView(QWidget):
 
     def set_view_mode(self, mode: str, prompt_welcome: bool = True) -> None:
         """Set grid viewport view mode ('normal' or 'page_break')."""
+        if hasattr(self, "grid") and self.grid is not None:
+            self.grid.cancel_drag(why="api")
+        record_action("set_view_mode", "spreadsheet_view", {"mode": mode})
         self.grid.set_view_mode(mode, prompt_welcome=prompt_welcome)
 
     def _on_active_sheet_changed(self, index: int) -> None:
         """Synchronize viewport and editor with newly activated worksheet."""
+        if hasattr(self, "grid") and self.grid is not None:
+            self.grid.cancel_drag(why="api")
+        if hasattr(self, "editor_controller") and self.editor_controller is not None:
+            if hasattr(self.editor_controller, "cancel_editing"):
+                self.editor_controller.cancel_editing()
+            elif hasattr(self.editor_controller, "cancel"):
+                self.editor_controller.cancel()
+
+        record_action("active_sheet_changed", "spreadsheet_view", {"index": index})
         active_sheet = self._workbook.active_sheet
         active_sel = self._get_selection_for_sheet(active_sheet)
 

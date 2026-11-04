@@ -175,9 +175,16 @@ def main(argv: list[str] | None = None, exec_app: bool = True) -> int:
 
         diagnostics = CrashDiagnostics(diag_opts["crash_log"])
         diagnostics.enable()
+    else:
+        from atboffice.core.diagnostics import install_default_crash_handler
+
+        install_default_crash_handler()
+
+    from atboffice.core.diagnostics import record_action, record_document_sha
 
     if diag_opts["simulate_crash"]:
         crash_type = diag_opts["simulate_crash"]
+        record_action("simulate_crash", "cli", {"crash_type": crash_type})
         if crash_type == "segfault":
             import ctypes
 
@@ -186,6 +193,9 @@ def main(argv: list[str] | None = None, exec_app: bool = True) -> int:
             raise RuntimeError("Simulated unhandled exception for crash diagnostics baseline")
 
     action, path = parse_cli_args(filtered_args)
+    record_action("cli_action", "cli", {"action": action, "path": str(path) if path else None})
+    if path:
+        record_document_sha(path, label="cli_target_doc")
 
     if action == "version":
         print(f"ATBOffice {__version__}")
@@ -263,9 +273,90 @@ def main(argv: list[str] | None = None, exec_app: bool = True) -> int:
                 drain_event_loop(1)
             window.close()
         elif action_name == "dialog_lifecycle":
-            if hasattr(window, "show_about_dialog"):
-                window.show_about_dialog()
+            record_action("dialog_lifecycle", "replay")
+            from PySide6.QtWidgets import QDialog, QLabel, QVBoxLayout
+
+            dlg = QDialog(window)
+            dlg.setWindowTitle("Lifecycle Dialog")
+            dlg_layout = QVBoxLayout(dlg)
+            dlg_layout.addWidget(QLabel("Testing dialog lifecycle"))
+            dlg.show()
             drain_event_loop(2)
+            dlg.close()
+            drain_event_loop(2)
+            window.close()
+        elif action_name == "open_during_edit":
+            if hasattr(window, "set_modified"):
+                window.set_modified(True)
+            record_action("modify_document", "replay")
+            drain_event_loop(2)
+            win2 = win_mgr.open_quire() if action != "quire" else win_mgr.open_ledger()
+            drain_event_loop(2)
+            win2.activateWindow()
+            drain_event_loop(2)
+            win2.close()
+            if hasattr(window, "set_modified"):
+                window.set_modified(False)
+            window.close()
+        elif action_name == "switch_views":
+            record_action("switch_views", "replay")
+            if hasattr(window, "spreadsheet_view") and window.spreadsheet_view is not None:
+                sv = window.spreadsheet_view
+                sv.set_view_mode("page_break", prompt_welcome=False)
+                drain_event_loop(2)
+                sv.set_view_mode("normal", prompt_welcome=False)
+                drain_event_loop(2)
+                if len(sv.workbook.sheets) > 1:
+                    sv.set_active_sheet_index(1)
+                    drain_event_loop(2)
+                    sv.set_active_sheet_index(0)
+            drain_event_loop(2)
+            window.close()
+        elif action_name == "modal_menu_dialog":
+            record_action("modal_menu_dialog", "replay")
+            from PySide6.QtWidgets import QDialog, QLabel, QMenu, QVBoxLayout
+
+            dlg = QDialog(window)
+            dlg.setWindowTitle("Modal Replay Dialog")
+            dlg_layout = QVBoxLayout(dlg)
+            dlg_layout.addWidget(QLabel("Testing modal menu dialog"))
+            dlg.show()
+            drain_event_loop(2)
+            dlg.close()
+
+            central = window.centralWidget() if hasattr(window, "centralWidget") else None
+            if central is not None:
+                menu = QMenu(central)
+                menu.addAction("Test Action")
+                menu.popup(QPoint(100, 100))
+                drain_event_loop(2)
+                menu.close()
+            drain_event_loop(2)
+            window.close()
+        elif action_name == "drag_cancel_lifecycle":
+            record_action("drag_cancel_lifecycle", "replay")
+            if hasattr(window, "spreadsheet_view") and window.spreadsheet_view is not None:
+                grid = window.spreadsheet_view.grid
+                press_ev = QMouseEvent(
+                    QEvent.Type.MouseButtonPress,
+                    QPoint(100, 100),
+                    Qt.MouseButton.LeftButton,
+                    Qt.MouseButton.LeftButton,
+                    Qt.KeyboardModifier.NoModifier,
+                )
+                app.sendEvent(grid.viewport(), press_ev)
+                drain_event_loop(1)
+                move_ev = QMouseEvent(
+                    QEvent.Type.MouseMove,
+                    QPoint(150, 150),
+                    Qt.MouseButton.LeftButton,
+                    Qt.MouseButton.LeftButton,
+                    Qt.KeyboardModifier.NoModifier,
+                )
+                app.sendEvent(grid.viewport(), move_ev)
+                drain_event_loop(1)
+                grid.cancel_drag(why="api")
+                drain_event_loop(2)
             window.close()
         else:
             window.close()

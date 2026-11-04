@@ -149,6 +149,9 @@ class WindowManager(QObject):
         Args:
             win: Window instance being closed.
         """
+        from atboffice.core.diagnostics import record_action
+
+        record_action("unregister_window", "window_manager", {"win": type(win).__name__})
         was_active = win in self._active_windows
         if was_active:
             self._active_windows.remove(win)

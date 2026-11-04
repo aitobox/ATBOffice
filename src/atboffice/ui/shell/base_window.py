@@ -640,6 +640,17 @@ class BaseOfficeWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:
         """Intercept window close to prompt for unsaved changes and emit signal."""
         if self.maybe_save_prompt():
+            from atboffice.core.diagnostics import record_action
+
+            record_action("window_close_accepted", "base_window", {"app_name": self.app_name})
+            cw = self.centralWidget()
+            if cw is not None:
+                grid = getattr(cw, "grid", None)
+                if grid is not None and hasattr(grid, "cancel_drag"):
+                    grid.cancel_drag(why="api")
+                ec = getattr(cw, "editor_controller", None)
+                if ec is not None and hasattr(ec, "cancel_editing"):
+                    ec.cancel_editing()
             event.accept()
             self.window_closed.emit(self)
             try:
