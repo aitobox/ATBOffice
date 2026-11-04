@@ -545,6 +545,29 @@ def _parse_worksheet(
         sheet.extra["auto_filter_xml"] = ET.tostring(af, encoding="utf-8").decode("utf-8")
         sheet.auto_filter = dict(af.attrib)
 
+    # 0b. Sheet Views (Freeze panes & Zoom)
+    svs_el = _find_child(root, "sheetViews")
+    if svs_el is not None:
+        sv_el = _find_child(svs_el, "sheetView")
+        if sv_el is not None:
+            z_str = _attr(sv_el, "zoomScale")
+            if z_str:
+                try:
+                    sheet.extra["zoom"] = int(z_str)
+                except ValueError:
+                    pass
+            pane_el = _find_child(sv_el, "pane")
+            if pane_el is not None:
+                p_state = _attr(pane_el, "state", "split")
+                xs_str = _attr(pane_el, "xSplit", "0")
+                ys_str = _attr(pane_el, "ySplit", "0")
+                if p_state in ("frozen", "frozenSplit"):
+                    try:
+                        sheet.freeze_cols = max(0, int(float(xs_str or 0)))
+                        sheet.freeze_rows = max(0, int(float(ys_str or 0)))
+                    except ValueError:
+                        pass
+
     # 1. Custom column widths & hidden columns
     cols_el = _find_child(root, "cols")
     if cols_el is not None:
@@ -799,6 +822,9 @@ def _parse_worksheet(
     # 6. Floating drawings
     _parse_worksheet_drawings(zip_file, sheet_path, sheet)
 
+    # 7. Worksheet comments
+    _parse_worksheet_comments(zip_file, sheet_path, sheet)
+
 
 def _parse_worksheet_drawings(
     zip_file: zipfile.ZipFile,
@@ -1035,6 +1061,98 @@ def _parse_worksheet_drawings(
                 z_index=len(sheet.drawings),
             )
             sheet.drawings.append(obj)
+
+
+def _parse_worksheet_comments(
+    zip_file: zipfile.ZipFile,
+    sheet_path: str,
+    sheet: SheetDataModel,
+) -> None:
+    """Parse comments and associated VML notes for sheet_path."""
+    sheet_dir = sheet_path.rsplit("/", 1)[0] if "/" in sheet_path else ""
+    sheet_file = sheet_path.rsplit("/", 1)[-1]
+    rels_path = f"{sheet_dir}/_rels/{sheet_file}.rels" if sheet_dir else f"_rels/{sheet_file}.rels"
+    sheet_rels = _parse_rels(zip_file, rels_path)
+
+    comments_path: str | None = None
+    vml_path: str | None = None
+
+    for _, (rel_type, target) in sheet_rels.items():
+        if rel_type in ("comments",) or rel_type.endswith("/comments"):
+            comments_path = target
+        elif rel_type in ("vmlDrawing",) or rel_type.endswith("/vmlDrawing"):
+            vml_path = target
+
+    if not comments_path or comments_path not in zip_file.namelist():
+        return
+
+    try:
+        c_content = zip_file.read(comments_path)
+        c_root = ET.fromstring(c_content)
+    except (KeyError, ET.ParseError):
+        return
+
+    # 1. Parse Authors
+    authors: list[str] = []
+    authors_el = _find_child(c_root, "authors")
+    if authors_el is not None:
+        for a_el in _find_children(authors_el, "author"):
+            authors.append(a_el.text or "")
+
+    # 2. Parse VML Note Visibility if available
+    vml_visible_cells: set[tuple[int, int]] = set()
+    if vml_path and vml_path in zip_file.namelist():
+        try:
+            vml_text = zip_file.read(vml_path).decode("utf-8", errors="replace")
+            shape_re = re.compile(r"<v:shape\b([^>]*)>([\s\S]*?)</v:shape>", re.IGNORECASE)
+            for m in shape_re.finditer(vml_text):
+                attrs_str, body = m.group(1), m.group(2)
+                if 'ObjectType="Note"' in body or 'type="#_x0000_t202"' in attrs_str:
+                    row_m = re.search(r"<x:Row>\s*(\d+)\s*</x:Row>", body, re.IGNORECASE)
+                    col_m = re.search(r"<x:Column>\s*(\d+)\s*</x:Column>", body, re.IGNORECASE)
+                    if row_m and col_m:
+                        vr, vc = int(row_m.group(1)), int(col_m.group(1))
+                        vis_pat = (
+                            r"<x:Visible\s*/>|<x:Visible>True</x:Visible>"
+                            r"|visibility:\s*visible"
+                        )
+                        is_vis = bool(re.search(vis_pat, body + attrs_str, re.IGNORECASE))
+                        if is_vis:
+                            vml_visible_cells.add((vr, vc))
+        except Exception:
+            pass
+
+    # 3. Parse Comments
+    cl_el = _find_child(c_root, "commentList")
+    if cl_el is not None:
+        for c_el in _find_children(cl_el, "comment"):
+            ref = _attr(c_el, "ref")
+            if not ref:
+                continue
+            parsed_loc = parse_cell(ref)
+            if not parsed_loc:
+                continue
+            r, c = parsed_loc["r"], parsed_loc["c"]
+
+            author_id_str = _attr(c_el, "authorId", "0")
+            author = ""
+            try:
+                aid = int(author_id_str or 0)
+                if 0 <= aid < len(authors):
+                    author = authors[aid]
+            except ValueError:
+                pass
+
+            text_parts: list[str] = []
+            txt_el = _find_child(c_el, "text")
+            if txt_el is not None:
+                for elem in txt_el.iter():
+                    if _clean_tag(elem.tag) == "t" and elem.text:
+                        text_parts.append(elem.text)
+            text = "".join(text_parts)
+            is_visible = (r, c) in vml_visible_cells
+
+            sheet.set_comment(r, c, text, author=author, visible=is_visible)
 
 
 def _open_zip(source: str | Path | bytes | BinaryIO) -> zipfile.ZipFile:
