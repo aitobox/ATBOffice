@@ -74,8 +74,8 @@ Spreadsheet Page Setup and Print Preview to PDF,ledger_ui,should,yes,yes,"Univer
 Insert Function (fx) Browser Dialog,ledger_ui,should,yes,yes,"function_wizard.py 519-function category browser and argument assistant dialog (PR #174, fixes #157)",unverified,
 Formula Auditing Visual Trace Arrows,ledger_ui,should,yes,yes,"audit_tracer.py visual precedent/dependent trace arrows with QPainter on grid_viewport.py (PR #175, fixes #158)",unverified,
 AutoFilter Custom Filter Dialog,ledger_ui,should,yes,yes,"custom_filter.py two-condition AND/OR custom comparison filter dialog (PR #176, fixes #159)",unverified,
-Pure Python PPTX PresentationML Reader,lectern_io,must,yes,yes,"pptx_reader.py parses master/layout/slide hierarchy, shapes, timing",unverified,
-Pure Python PPTX PresentationML Writer,lectern_io,must,yes,yes,pptx_writer.py and writer modules generating PresentationML,unverified,
+Pure Python PPTX PresentationML Reader,lectern_io,must,yes,yes,"pptx_reader.py parses master/layout/slide hierarchy, shapes, timing, SmartArt, normAutofit fontScale, and decorations",verified,"tests/gui/test_phase7_pptx_render.py, tests/unit/corpus/test_presentation_corpus.py (fixes #242)"
+Pure Python PPTX PresentationML Writer,lectern_io,must,yes,yes,"pptx_writer.py and writer modules generating PresentationML with normAutofit attributes and roundtrip fidelity",verified,"tests/gui/test_phase7_pptx_render.py, tests/unit/corpus/test_presentation_corpus.py (fixes #242)"
 Media Preservation for PPTX,lectern_io,must,yes,yes,"Audio, video, image preservation via OPC carry",unverified,
 Presentation and Slide Hierarchy Models,lectern_model,must,yes,yes,"presentation.py, slide.py, layouts.py, designs.py",unverified,
 Vector Shape and Text Frame Models,lectern_model,must,yes,yes,shape.py and text.py with formatting and geometry,unverified,

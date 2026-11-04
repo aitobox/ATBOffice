@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import copy
 import io
 import math
 import posixpath
 import uuid
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ from atboffice.modules.presentation.models.comment import (
 )
 from atboffice.modules.presentation.models.designs import (
     ColorScheme,
+    DesignTemplate,
 )
 from atboffice.modules.presentation.models.media_item import (
     MediaItem,
@@ -150,6 +152,9 @@ class MasterInfo:
     other_style: dict[int, dict[str, Any]]
     major_font: str | None = None
     minor_font: str | None = None
+    decorations: list[Shape] = field(default_factory=list)
+    bg: Fill | None = None
+    design: DesignTemplate | None = None
 
 
 @dataclass
@@ -157,6 +162,9 @@ class LayoutInfo:
     layout_path: str
     master: MasterInfo | None
     placeholders: list[PlaceholderTemplate]
+    decorations: list[Shape] = field(default_factory=list)
+    bg: Fill | None = None
+    show_master: bool = True
 
 
 def _guide_env(w: float, h: float) -> dict[str, float]:
@@ -473,8 +481,51 @@ class PptxReader:
                 layout_info = self._load_layout(layout_path)
                 break
 
+        if layout_info and layout_info.master:
+            m_info = layout_info.master
+            if m_info.design is None:
+                d_stem = Path(m_info.master_path).stem
+                d_colors = next(iter(self.themes.values()), ColorScheme())
+                d_fonts = {
+                    "major": m_info.major_font or "Arial",
+                    "minor": m_info.minor_font or "Arial",
+                }
+                d_bg = m_info.bg or Fill.solid("bg1")
+                # Combine master decorations and layout decorations
+                all_decos = list(m_info.decorations)
+                if layout_info.decorations:
+                    for ld in layout_info.decorations:
+                        if ld not in all_decos:
+                            all_decos.append(ld)
+                m_info.design = DesignTemplate(
+                    id=f"dsn_{d_stem}",
+                    key=d_stem,
+                    name=f"Master {d_stem}",
+                    colors=d_colors,
+                    fonts=d_fonts,
+                    bg=d_bg,
+                    decorations=all_decos,
+                )
+                pres.designs[m_info.design.id] = m_info.design
+            slide.design_id = m_info.design.id
+
         # 1. Slide Shapes
         c_sld = _get_child(slide_xml, "cSld")
+        if c_sld is not None:
+            bg_elem = _get_child(c_sld, "bg")
+            if bg_elem is not None:
+                bg_pr = _get_child(bg_elem, "bgPr")
+                if bg_pr is not None:
+                    slide.bg = self._parse_fill(bg_pr)
+            if _get_attr(c_sld, "showMasterSp") == "0":
+                slide.hide_master = True
+
+        if slide.bg is None:
+            if layout_info and layout_info.bg:
+                slide.bg = copy.deepcopy(layout_info.bg)
+            elif layout_info and layout_info.master and layout_info.master.bg:
+                slide.bg = copy.deepcopy(layout_info.master.bg)
+
         if c_sld is not None:
             sp_tree = _get_child(c_sld, "spTree")
             if sp_tree is not None:
@@ -921,6 +972,86 @@ class PptxReader:
                 chart=chart_dict,
             )
 
+        # 1.5 Check if graphicData has diagram / SmartArt
+        g_uri = _get_attr(graphic_data, "uri") or ""
+        is_diagram = "diagram" in g_uri.lower() or any(
+            child.tag.endswith("relIds") or "diagram" in child.tag
+            for child in (graphic_data if graphic_data is not None else [])
+        )
+        if is_diagram:
+            rel_ids_elem = None
+            if graphic_data is not None:
+                for child in graphic_data:
+                    if child.tag.endswith("relIds"):
+                        rel_ids_elem = child
+                        break
+
+            diag_texts: list[str] = []
+            diag_layout = "process"
+            if rel_ids_elem is not None and rel_map is not None:
+                dm_rid = ""
+                lo_rid = ""
+                for k, v in rel_ids_elem.attrib.items():
+                    if k.endswith("dm"):
+                        dm_rid = v
+                    elif k.endswith("lo"):
+                        lo_rid = v
+
+                if dm_rid and dm_rid in rel_map:
+                    dm_rel = rel_map[dm_rid]
+                    dm_target = dm_rel.target if hasattr(dm_rel, "target") else str(dm_rel)
+                    dm_path = _resolve_path(slide_path, dm_target)
+                    if self.package.has_part(dm_path):
+                        try:
+                            dm_xml = ET.fromstring(self.package.read_part(dm_path))
+                            for pt in dm_xml.iter():
+                                if pt.tag.endswith("pt"):
+                                    pt_type = pt.attrib.get("type", "node")
+                                    if pt_type not in ("node", "doc"):
+                                        continue
+                                    t_runs: list[str] = []
+                                    for t_node in pt.iter():
+                                        if t_node.tag.endswith("t") and t_node.text and t_node.text.strip():
+                                            t_runs.append(t_node.text.strip())
+                                    if t_runs:
+                                        full_line = " ".join(t_runs).strip()
+                                        if full_line and full_line not in diag_texts:
+                                            diag_texts.append(full_line)
+                        except Exception:
+                            pass
+
+                if lo_rid and lo_rid in rel_map:
+                    lo_rel = rel_map[lo_rid]
+                    lo_target = lo_rel.target if hasattr(lo_rel, "target") else str(lo_rel)
+                    lo_path = _resolve_path(slide_path, lo_target)
+                    if self.package.has_part(lo_path):
+                        try:
+                            lo_xml = ET.fromstring(self.package.read_part(lo_path))
+                            uid = lo_xml.attrib.get("uniqueId", "")
+                            if uid:
+                                diag_layout = uid.split("/")[-1]
+                        except Exception:
+                            pass
+
+            sa_obj = {
+                "layout": diag_layout,
+                "items": [{"text": t} for t in diag_texts] if diag_texts else [{"text": "SmartArt"}],
+            }
+            combined_txt = "\n".join(diag_texts) if diag_texts else "SmartArt"
+            return Shape(
+                id=frame_id or "diag_1",
+                type="group" if diag_texts else "shape",
+                name=frame_name or "Diagram",
+                geom="roundRect",
+                x=x,
+                y=y,
+                w=w,
+                h=h,
+                rot=rot,
+                sa=sa_obj,
+                text=TextBody.from_text(combined_txt),
+            )
+
         # 2. Find table in graphicData
         tbl_dict: dict[str, Any] = {"cols": [], "rows": []}
         tbl_elem = _get_child(graphic_data, "tbl") if graphic_data is not None else None
@@ -969,12 +1100,27 @@ class PptxReader:
         grp_sp_pr = _get_child(elem, "grpSpPr")
         x, y, w, h, rot = self._parse_transform(grp_sp_pr)
 
+        xfrm = _get_child(grp_sp_pr, "xfrm") if grp_sp_pr is not None else None
+        ch_off = _get_child(xfrm, "chOff") if xfrm is not None else None
+        ch_ext = _get_child(xfrm, "chExt") if xfrm is not None else None
+        chx = emu_to_pt(_get_attr(ch_off, "x"), default=0.0) if ch_off is not None else 0.0
+        chy = emu_to_pt(_get_attr(ch_off, "y"), default=0.0) if ch_off is not None else 0.0
+        chw = emu_to_pt(_get_attr(ch_ext, "cx"), default=w) if ch_ext is not None else w
+        chh = emu_to_pt(_get_attr(ch_ext, "cy"), default=h) if ch_ext is not None else h
+        sx = (w / chw) if chw > 0.001 else 1.0
+        sy = (h / chh) if chh > 0.001 else 1.0
+
         kids: list[Shape] = []
         for child in elem:
             tag = _local_tag(child.tag)
             if tag in ("sp", "pic", "graphicFrame", "grpSp"):
                 kid_shape = self._parse_shape(child, slide_path, rel_map)
                 if kid_shape:
+                    if ch_off is not None or ch_ext is not None:
+                        kid_shape.x = round(x + (kid_shape.x - chx) * sx, 2)
+                        kid_shape.y = round(y + (kid_shape.y - chy) * sy, 2)
+                        kid_shape.w = round(kid_shape.w * sx, 2)
+                        kid_shape.h = round(kid_shape.h * sy, 2)
                     kids.append(kid_shape)
 
         return Shape(
@@ -1260,6 +1406,26 @@ class PptxReader:
             sp_tree = _get_child(c_sld, "spTree") if c_sld is not None else None
             phs = self._extract_placeholders_from_tree(sp_tree)
 
+            m_rel_map = {r.id: r for r in m_rels}
+            m_decos: list[Shape] = []
+            if sp_tree is not None:
+                for child in sp_tree:
+                    ltag = _local_tag(child.tag)
+                    if ltag in ("sp", "pic", "graphicFrame", "grpSp"):
+                        has_ph = any(_local_tag(sub.tag) == "ph" for sub in child.iter())
+                        if not has_ph:
+                            sh = self._parse_shape(child, master_path, m_rel_map)
+                            if sh:
+                                m_decos.append(sh)
+
+            m_bg: Fill | None = None
+            if c_sld is not None:
+                bg_elem = _get_child(c_sld, "bg")
+                if bg_elem is not None:
+                    bg_pr = _get_child(bg_elem, "bgPr")
+                    if bg_pr is not None:
+                        m_bg = self._parse_fill(bg_pr)
+
             tx_styles = _get_child(m_xml, "txStyles")
             t_style = self._parse_style_levels(
                 _get_child(tx_styles, "titleStyle") if tx_styles is not None else None
@@ -1279,6 +1445,8 @@ class PptxReader:
                 other_style=o_style,
                 major_font=major_font,
                 minor_font=minor_font,
+                decorations=m_decos,
+                bg=m_bg,
             )
             self._masters[master_path] = info
             return info
@@ -1313,10 +1481,35 @@ class PptxReader:
             sp_tree = _get_child(c_sld, "spTree") if c_sld is not None else None
             phs = self._extract_placeholders_from_tree(sp_tree)
 
+            l_rel_map = {r.id: r for r in l_rels}
+            l_decos: list[Shape] = []
+            if sp_tree is not None:
+                for child in sp_tree:
+                    ltag = _local_tag(child.tag)
+                    if ltag in ("sp", "pic", "graphicFrame", "grpSp"):
+                        has_ph = any(_local_tag(sub.tag) == "ph" for sub in child.iter())
+                        if not has_ph:
+                            sh = self._parse_shape(child, layout_path, l_rel_map)
+                            if sh:
+                                l_decos.append(sh)
+
+            l_bg: Fill | None = None
+            if c_sld is not None:
+                bg_elem = _get_child(c_sld, "bg")
+                if bg_elem is not None:
+                    bg_pr = _get_child(bg_elem, "bgPr")
+                    if bg_pr is not None:
+                        l_bg = self._parse_fill(bg_pr)
+
+            show_master = _get_attr(l_xml, "showMasterSp") != "0"
+
             info = LayoutInfo(
                 layout_path=layout_path,
                 master=master_info,
                 placeholders=phs,
+                decorations=l_decos,
+                bg=l_bg,
+                show_master=show_master,
             )
             self._layouts[layout_path] = info
             return info
@@ -1738,6 +1931,8 @@ class PptxReader:
         anchor = "t"
         autofit = "none"
 
+        font_scale = 1.0
+        ln_spc_red = 0.0
         if body_pr is not None:
             l_ins = emu_to_pt(_get_attr(body_pr, "lIns"), default=7.2)
             t_ins = emu_to_pt(_get_attr(body_pr, "tIns"), default=3.6)
@@ -1753,8 +1948,21 @@ class PptxReader:
             if wrap_val == "none":
                 wrap = False
 
-            if _get_child(body_pr, "normAutofit") is not None:
+            norm_elem = _get_child(body_pr, "normAutofit")
+            if norm_elem is not None:
                 autofit = "norm"
+                fs_attr = _get_attr(norm_elem, "fontScale")
+                if fs_attr:
+                    try:
+                        font_scale = float(fs_attr) / 100000.0
+                    except ValueError:
+                        font_scale = 1.0
+                ls_attr = _get_attr(norm_elem, "lnSpcReduction")
+                if ls_attr:
+                    try:
+                        ln_spc_red = float(ls_attr) / 100000.0
+                    except ValueError:
+                        ln_spc_red = 0.0
             elif _get_child(body_pr, "spAutoFit") is not None:
                 autofit = "shape"
 
@@ -1769,6 +1977,8 @@ class PptxReader:
             wrap=wrap,
             anchor=anchor,
             autofit=autofit,
+            font_scale=font_scale,
+            ln_spc_reduction=ln_spc_red,
         )
 
     def _parse_paragraph(self, p_elem: ET.Element) -> Paragraph:
