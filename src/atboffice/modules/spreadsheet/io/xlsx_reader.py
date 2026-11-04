@@ -1107,12 +1107,16 @@ def _parse_worksheet_comments(
             shape_re = re.compile(r"<v:shape\b([^>]*)>([\s\S]*?)</v:shape>", re.IGNORECASE)
             for m in shape_re.finditer(vml_text):
                 attrs_str, body = m.group(1), m.group(2)
-                if "ObjectType=\"Note\"" in body or "type=\"#_x0000_t202\"" in attrs_str:
+                if 'ObjectType="Note"' in body or 'type="#_x0000_t202"' in attrs_str:
                     row_m = re.search(r"<x:Row>\s*(\d+)\s*</x:Row>", body, re.IGNORECASE)
                     col_m = re.search(r"<x:Column>\s*(\d+)\s*</x:Column>", body, re.IGNORECASE)
                     if row_m and col_m:
                         vr, vc = int(row_m.group(1)), int(col_m.group(1))
-                        is_vis = bool(re.search(r"<x:Visible\s*/>|<x:Visible>True</x:Visible>|visibility:\s*visible", body + attrs_str, re.IGNORECASE))
+                        vis_pat = (
+                            r"<x:Visible\s*/>|<x:Visible>True</x:Visible>"
+                            r"|visibility:\s*visible"
+                        )
+                        is_vis = bool(re.search(vis_pat, body + attrs_str, re.IGNORECASE))
                         if is_vis:
                             vml_visible_cells.add((vr, vc))
         except Exception:

@@ -8,12 +8,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-from PySide6.QtCore import QPoint, Qt
-from PySide6.QtGui import QColor, QPaintEvent, QPainter, QPixmap
-from PySide6.QtWidgets import QApplication
-
-from atboffice.modules.spreadsheet.calc.references import cell_name
 from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
 from atboffice.modules.spreadsheet.models.conditional_format import (
     evaluate_cf_for_cell,
@@ -24,8 +18,6 @@ from atboffice.modules.spreadsheet.models.sheet_model import (
 )
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 from atboffice.modules.spreadsheet.view import SpreadsheetView
-from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport
-from atboffice.ui.shell.ledger_window import LedgerWindow
 
 XLSX_CORPUS = Path("tests/docs/excel/xlsx")
 
@@ -330,7 +322,7 @@ def test_formula_recalculation_and_error_contract(qtbot):
     """
     model = SheetDataModel(name="CalcSheet")
     model.set_cell_value(0, 0, 100)  # A1 = 100
-    model.set_cell_value(0, 1, 50)   # B1 = 50
+    model.set_cell_value(0, 1, 50)  # B1 = 50
 
     wb = WorkbookModel(sheets=[model])
     view = SpreadsheetView(workbook=wb)
