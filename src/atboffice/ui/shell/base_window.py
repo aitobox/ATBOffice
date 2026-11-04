@@ -341,10 +341,6 @@ class BaseOfficeWindow(QMainWindow):
             ),
         )
 
-    def show_about_dialog(self) -> None:
-        """Alias for show_about for dialog lifecycle testing and CLI replay."""
-        self.show_about()
-
     def open_wordart_gallery(self) -> None:
         """Open WordArt Gallery dialog and insert selected WordArt into document/canvas."""
         from atboffice.modules.common.wordart_gallery import prompt_insert_wordart

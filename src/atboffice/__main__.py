@@ -273,8 +273,16 @@ def main(argv: list[str] | None = None, exec_app: bool = True) -> int:
                 drain_event_loop(1)
             window.close()
         elif action_name == "dialog_lifecycle":
-            if hasattr(window, "show_about_dialog"):
-                window.show_about_dialog()
+            record_action("dialog_lifecycle", "replay")
+            from PySide6.QtWidgets import QDialog, QLabel, QVBoxLayout
+
+            dlg = QDialog(window)
+            dlg.setWindowTitle("Lifecycle Dialog")
+            dlg_layout = QVBoxLayout(dlg)
+            dlg_layout.addWidget(QLabel("Testing dialog lifecycle"))
+            dlg.show()
+            drain_event_loop(2)
+            dlg.close()
             drain_event_loop(2)
             window.close()
         elif action_name == "open_during_edit":
@@ -306,13 +314,18 @@ def main(argv: list[str] | None = None, exec_app: bool = True) -> int:
             window.close()
         elif action_name == "modal_menu_dialog":
             record_action("modal_menu_dialog", "replay")
-            if hasattr(window, "show_about_dialog"):
-                window.show_about_dialog()
-                drain_event_loop(2)
+            from PySide6.QtWidgets import QDialog, QLabel, QMenu, QVBoxLayout
+
+            dlg = QDialog(window)
+            dlg.setWindowTitle("Modal Replay Dialog")
+            dlg_layout = QVBoxLayout(dlg)
+            dlg_layout.addWidget(QLabel("Testing modal menu dialog"))
+            dlg.show()
+            drain_event_loop(2)
+            dlg.close()
+
             central = window.centralWidget() if hasattr(window, "centralWidget") else None
             if central is not None:
-                from PySide6.QtWidgets import QMenu
-
                 menu = QMenu(central)
                 menu.addAction("Test Action")
                 menu.popup(QPoint(100, 100))

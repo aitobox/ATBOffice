@@ -316,6 +316,27 @@ class CrashDiagnostics:
         sys.stderr.write(report_text)
 
 
+    def find_recent_crash_reports(self, since_timestamp: float | None = None) -> list[Path]:
+        """Locate OS-level crash reports (e.g. .ips / .crash files on macOS)."""
+        crash_dir = _get_platform_crash_dir()
+        if not crash_dir.exists() or not crash_dir.is_dir():
+            return []
+
+        candidates: list[Path] = []
+        try:
+            for item in crash_dir.iterdir():
+                if not item.is_file():
+                    continue
+                name_lower = item.name.lower()
+                if "atboffice" in name_lower or "python" in name_lower:
+                    if since_timestamp is None or item.stat().st_mtime >= since_timestamp:
+                        candidates.append(item)
+        except Exception as exc:
+            logger.debug("Failed scanning crash directory %s: %s", crash_dir, exc)
+
+        return sorted(candidates, key=lambda p: p.stat().st_mtime, reverse=True)
+
+
 _DEFAULT_CRASH_HANDLER: CrashDiagnostics | None = None
 
 
@@ -339,26 +360,6 @@ def install_default_crash_handler(log_dir: Path | str | None = None) -> CrashDia
     _DEFAULT_CRASH_HANDLER = CrashDiagnostics(log_file)
     _DEFAULT_CRASH_HANDLER.enable()
     return _DEFAULT_CRASH_HANDLER
-
-    def find_recent_crash_reports(self, since_timestamp: float | None = None) -> list[Path]:
-        """Locate OS-level crash reports (e.g. .ips / .crash files on macOS)."""
-        crash_dir = _get_platform_crash_dir()
-        if not crash_dir.exists() or not crash_dir.is_dir():
-            return []
-
-        candidates: list[Path] = []
-        try:
-            for item in crash_dir.iterdir():
-                if not item.is_file():
-                    continue
-                name_lower = item.name.lower()
-                if "atboffice" in name_lower or "python" in name_lower:
-                    if since_timestamp is None or item.stat().st_mtime >= since_timestamp:
-                        candidates.append(item)
-        except Exception as exc:
-            logger.debug("Failed scanning crash directory %s: %s", crash_dir, exc)
-
-        return sorted(candidates, key=lambda p: p.stat().st_mtime, reverse=True)
 
 
 def drain_event_loop(max_iterations: int = 5) -> None:

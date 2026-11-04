@@ -435,6 +435,10 @@ class EditorController(QObject):
         self._end_edit()
         self.viewport.viewport().update()
 
+    def cancel_editing(self) -> None:
+        """Alias for cancel() to unify cancel editing protocol across controllers."""
+        self.cancel()
+
     def _end_edit(self) -> None:
         """Reset editor state back to READY."""
         self.in_cell_editor.hide()

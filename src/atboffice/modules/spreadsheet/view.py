@@ -137,7 +137,10 @@ class SpreadsheetView(QWidget):
         if hasattr(self, "grid") and self.grid is not None:
             self.grid.cancel_drag(why="api")
         if hasattr(self, "editor_controller") and self.editor_controller is not None:
-            self.editor_controller.cancel_editing()
+            if hasattr(self.editor_controller, "cancel_editing"):
+                self.editor_controller.cancel_editing()
+            elif hasattr(self.editor_controller, "cancel"):
+                self.editor_controller.cancel()
 
         if hasattr(self, "_workbook") and self._workbook is not None:
             try:
@@ -202,7 +205,10 @@ class SpreadsheetView(QWidget):
         if hasattr(self, "grid") and self.grid is not None:
             self.grid.cancel_drag(why="api")
         if hasattr(self, "editor_controller") and self.editor_controller is not None:
-            self.editor_controller.cancel_editing()
+            if hasattr(self.editor_controller, "cancel_editing"):
+                self.editor_controller.cancel_editing()
+            elif hasattr(self.editor_controller, "cancel"):
+                self.editor_controller.cancel()
 
         record_action("active_sheet_changed", "spreadsheet_view", {"index": index})
         active_sheet = self._workbook.active_sheet
