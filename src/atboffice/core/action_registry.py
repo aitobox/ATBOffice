@@ -62,7 +62,7 @@ class ActionRegistry(QObject):
         kind: str = "abstract",
         reason: str = "",
     ) -> None:
-        """Register white-listed action (e.g. abstract interface, setMenu container, or defaultAction)."""
+        """Register white-listed action (e.g. abstract interface, setMenu, or defaultAction)."""
         self._whitelist_actions[action_id] = {"kind": kind, "reason": reason}
 
     def is_whitelisted_action(self, action_id: str) -> bool:

@@ -13,7 +13,7 @@ from atboffice.modules.writer.views.outline_view import (
 
 
 def test_outline_toolbar_level_change(qapp: QApplication) -> None:
-    """Verify OutlineToolbar level combo emits outline_level_changed and updates view paragraph level."""
+    """Verify OutlineToolbar level combo emits signal and updates paragraph level."""
     tb = OutlineToolbar()
     emitted_levels: list[int] = []
     tb.outline_level_changed.connect(emitted_levels.append)
@@ -233,7 +233,7 @@ def test_hyperlink_screentip_dialog(qapp: QApplication) -> None:
 
 
 def test_action_registry_fallback_and_whitelist(qapp: QApplication) -> None:
-    """Verify ActionRegistry capability explanations, whitelist, and no duplicate signal connections."""
+    """Verify ActionRegistry capability explanations, whitelist, and no duplicate triggers."""
     from atboffice.core.action_registry import ActionRegistry, ActionSpec
 
     reg = ActionRegistry()
@@ -275,7 +275,7 @@ def test_action_registry_fallback_and_whitelist(qapp: QApplication) -> None:
 
 
 def test_multi_locale_retranslate_across_all_dialogs(qapp: QApplication) -> None:
-    """Verify all 9 locales can be switched dynamically and retranslate_ui executes cleanly without Qt exceptions."""
+    """Verify all 9 locales can switch dynamically and retranslate_ui executes cleanly."""
     from atboffice.core.action_registry import ActionRegistry, ActionSpec
     from atboffice.core.i18n import SUPPORTED_LOCALES, get_i18n_manager
     from atboffice.modules.spreadsheet.dialogs.chart_wizard import ChartWizardDialog

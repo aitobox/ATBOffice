@@ -394,8 +394,8 @@ class ScenarioManagerDialog(QDialog):
         if dlg.exec() == QDialog.DialogCode.Accepted:
             sheet_name = dlg.get_selected_sheet()
             merged_count = 0
-            if self.sheet_model and hasattr(self.sheet_model, "workbook") and self.sheet_model.workbook:
-                wb = self.sheet_model.workbook
+            wb = getattr(self.sheet_model, "workbook", None) if self.sheet_model else None
+            if wb:
                 target_sheet = next((s for s in wb.sheets if s.name == sheet_name), None)
                 if target_sheet and hasattr(target_sheet, "scenarios") and target_sheet.scenarios:
                     merged_count = self.merge_scenarios(target_sheet.scenarios)
