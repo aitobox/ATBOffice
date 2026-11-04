@@ -52,6 +52,9 @@ def test_full_corpus_manifest_if_downloaded():
         pytest.skip("Full corpus not downloaded yet")
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert len(data) > 3000, "Corpus should contain over 3000 files"
+    first_target = Path(__file__).parent / "docs" / "full_corpus" / data[0]["file"]
+    if not first_target.exists():
+        pytest.skip("Full corpus actual files not downloaded yet")
     for item in data[:20]:
         assert "sha256" in item
         assert "file" in item

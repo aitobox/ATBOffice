@@ -1,0 +1,2852 @@
+[
+  {
+    "file": "libreoffice__A019_min.docx",
+    "path": "tests/docs/word/docx/libreoffice__A019_min.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "47ffa39ad5266b1cdadf60500f1e2c082469d3be6694d2ed2aa76446d80feb6e",
+    "size": 15478,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__fdo52208.docx",
+    "path": "tests/docs/word/docx/libreoffice__fdo52208.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "eae9bbb1202750ed7efc1ed0c1073d9578fd91ffc09bceb9e48f0fb3866ee8b1",
+    "size": 13356,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__fdo55381.docx",
+    "path": "tests/docs/word/docx/libreoffice__fdo55381.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "41f726efe22d6340bb71c101f945751deb0fb59e724b19f1878fb4f5eee2959c",
+    "size": 4710,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__forum-mso-en-4208.docx",
+    "path": "tests/docs/word/docx/libreoffice__forum-mso-en-4208.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "da9538df1160959151f4d14698e625194d2d42e26b371b131f974f92cac3aa6f",
+    "size": 945,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__nested-runs.docx",
+    "path": "tests/docs/word/docx/libreoffice__nested-runs.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "e8be63e28e8d57ea18051e1920ce0d22822555ff0a63401a73787af970520b11",
+    "size": 6835,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__sdt-ignored-footer.docx",
+    "path": "tests/docs/word/docx/libreoffice__sdt-ignored-footer.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "be75349e78764df6794c6365cf932e0d5d10f2b2277a6c2e4a8e8c9ef54325b6",
+    "size": 18299,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__strict.docx",
+    "path": "tests/docs/word/docx/libreoffice__strict.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "6e71a4d554ea90df1ddcc9b6fbbcc677a94c6617cb35f9e5b7d4ccab46f1a79e",
+    "size": 25636,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf105035_framePrB.docx",
+    "path": "tests/docs/word/docx/libreoffice__tdf105035_framePrB.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "c54199227c48a74dbac62f2df52f1b39b2c09dbde5175a23bec00175947a15d6",
+    "size": 23142,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf113182.docx",
+    "path": "tests/docs/word/docx/libreoffice__tdf113182.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "e27644fb12f7199cddede41467b05e49e3f4dd66231fc2c734cbc990662ecf03",
+    "size": 12561,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf113183.docx",
+    "path": "tests/docs/word/docx/libreoffice__tdf113183.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "11feb2d893585981e2c6453c41fe50ff0185c2adf3aa432338edb5ec3e014de4",
+    "size": 17163,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf121670_columnsInSectionsOnly.docx",
+    "path": "tests/docs/word/docx/libreoffice__tdf121670_columnsInSectionsOnly.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "bf3a0a8e1944aeaab8d46ea35ff1dc1606d43c0c96b0c0fbfcb6afa7d5f7c0db",
+    "size": 11270,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf125881.docx",
+    "path": "tests/docs/word/docx/libreoffice__tdf125881.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "16e6e2a5dca7297f2315dca876e37bb88d1680ee9a36e0889f92f3acd39448f9",
+    "size": 34448,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf131260.docx",
+    "path": "tests/docs/word/docx/libreoffice__tdf131260.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "fae4a6625d83588ed73a71a799e01105576c2c4356479ce99f0f75206df7b419",
+    "size": 14773,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf132802.docx",
+    "path": "tests/docs/word/docx/libreoffice__tdf132802.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "f68ac0630d09a55adf0fffaa4c712b0431dbd22a4742852f035b1f92317e4c0f",
+    "size": 12960,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf146973_signatureBlock.docx",
+    "path": "tests/docs/word/docx/libreoffice__tdf146973_signatureBlock.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "b0f318a0f3d97681a9e84c0e53dda433c3a69231de9ce23086c30d14746e43ba",
+    "size": 13791,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf153255.docx",
+    "path": "tests/docs/word/docx/libreoffice__tdf153255.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "69dafb78e9f592243bcd3a94ab6ef965a4280265c97b625fa045170b2a5d8757",
+    "size": 14233,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf154751_dualStrikethrough.docx",
+    "path": "tests/docs/word/docx/libreoffice__tdf154751_dualStrikethrough.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "acac7fe008dd8bc4cd1dca7be6d112a4caf25d21bbdba8a623d4fbd01ca1bac3",
+    "size": 11980,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf43100_tdf120715_cursorOnSpacesOverMargin.docx",
+    "path": "tests/docs/word/docx/libreoffice__tdf43100_tdf120715_cursorOnSpacesOverMargin.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "9cce40f917a7cae122db340c83f01dcf3fbae781385fb299586645d844afc575",
+    "size": 9606,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf54095_SmartArtThemeTextColor.docx",
+    "path": "tests/docs/word/docx/libreoffice__tdf54095_SmartArtThemeTextColor.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "7b2dce54389583321d715b7f9ed14694617eac82ca91d72f047234bc5dfa0dbe",
+    "size": 21161,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__textframe-borders.docx",
+    "path": "tests/docs/word/docx/libreoffice__textframe-borders.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "36d55d2f4895c3f9194108c54d1a471971b9d63cbb96f2605e4638d4cdf322ce",
+    "size": 10440,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "openxml-sdk__Comment066.docx",
+    "path": "tests/docs/word/docx/openxml-sdk__Comment066.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "openxml-sdk",
+    "license": "MIT",
+    "sha256": "5fc149a5230f1a9e5e7d56be3a0d80897fa3ae226d0a34dfebc3755cc5130093",
+    "size": 83248,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "openxml-sdk__bullet-complex.docx",
+    "path": "tests/docs/word/docx/openxml-sdk__bullet-complex.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "openxml-sdk",
+    "license": "MIT",
+    "sha256": "167d4ecab381d6855601bddfab40daf43dd5ceb0d2aaa449cf24897092138619",
+    "size": 28831,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "poi__60316.docx",
+    "path": "tests/docs/word/docx/poi__60316.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "0bfd17f6ccbf1d410278fcd9141c6007b521ebb0cba53276eddb52bdd16c4769",
+    "size": 48142,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "poi__headerPic.docx",
+    "path": "tests/docs/word/docx/poi__headerPic.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "valid",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "50d9b17f7575c8a91129fd8a3e6a70feec886480ab9f089e29a7f8ac7e5ed51a",
+    "size": 16206,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "poi__protected_agile.docx",
+    "path": "tests/docs/word/docx/poi__protected_agile.docx",
+    "format": "docx",
+    "app": "word",
+    "category": "encrypted",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "39ae9e6928ad91fa82a54d1aeac665337801ff73071bdfebd0e10d533e4b3cd9",
+    "size": 19456,
+    "notes": "Agile Encrypted OOXML document wrapped in OLE2 container with EncryptedPackage stream",
+    "expectations": {
+      "parse": "rejected_encrypted",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "encrypted"
+    }
+  },
+  {
+    "file": "libreoffice__CVE-2003-0820-1.doc",
+    "path": "tests/docs/word/doc/libreoffice__CVE-2003-0820-1.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "c16714f0f7825c046fd770e2a9b3e70620ac8a10ea796d3f16aa39326204f99c",
+    "size": 28160,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__CVE-2005-0941-1.doc",
+    "path": "tests/docs/word/doc/libreoffice__CVE-2005-0941-1.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "c07560a6d03f425c8cc5d5db4cf5d85e051d582be9560964f0af5f22e4483f1c",
+    "size": 32256,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__CVE-2008-2752-2.doc",
+    "path": "tests/docs/word/doc/libreoffice__CVE-2008-2752-2.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "2418db25d70cb2e927d12f02218d9c4d426d7a8c47a87b608ed4a638d2f11d27",
+    "size": 24576,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__CVE-2014-6356-1.doc",
+    "path": "tests/docs/word/doc/libreoffice__CVE-2014-6356-1.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "ef953e473e30af7bc463983e7bd12a57bdfa4fa7e494690defac3e1d53bec1ac",
+    "size": 39424,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__CVE-2015-0064-1.doc",
+    "path": "tests/docs/word/doc/libreoffice__CVE-2015-0064-1.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "d75d4cd023c3bd995fdb12895b3d836f3b145b86483eba44ea7784bce72a732f",
+    "size": 58880,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__cp1000044.doc",
+    "path": "tests/docs/word/doc/libreoffice__cp1000044.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "ecabaad7dc53313ffa5a94935a34501e936a66781d80d71e92856a3dfb9b0ee1",
+    "size": 26112,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__crash-7.doc",
+    "path": "tests/docs/word/doc/libreoffice__crash-7.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "900653997e03579084c3c3e9db7f7aa46f8c56e8df5f6cc9a93f923b5f79ef7e",
+    "size": 6500,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__floattable-then-floattable.doc",
+    "path": "tests/docs/word/doc/libreoffice__floattable-then-floattable.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "6a93ed6f09166d65f59a4d8192a26a61b53ec5b785ac2c5b4354041b9d77a8dd",
+    "size": 11264,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__forcepoint92.doc",
+    "path": "tests/docs/word/doc/libreoffice__forcepoint92.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "74bc88a841e38a2b1b7868583e054f3a3eaa8e056e20aca2c34d996d2b527531",
+    "size": 29200,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__hang-3.doc",
+    "path": "tests/docs/word/doc/libreoffice__hang-3.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "798c08fbae4201932fd5e61c519fe211080a608bc5fbeeb75ac82b1c7ca7c862",
+    "size": 10240,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__n750255.doc",
+    "path": "tests/docs/word/doc/libreoffice__n750255.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "20e4fc35b68ab20fd915d75af5feabbb5bc9be2b7fe00652f6eacd4fbc69127b",
+    "size": 22016,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__ofz-trailingpara.doc",
+    "path": "tests/docs/word/doc/libreoffice__ofz-trailingpara.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "856e81d89d173f0a832971c983e2f40c385d44a5a7f3930594d4b8ca9d91d39e",
+    "size": 35109,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__ofz18526-1.doc",
+    "path": "tests/docs/word/doc/libreoffice__ofz18526-1.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "a99be449c63fb801fcac4b9645d831eae73555fef97007e11f9ef8c10b8849a4",
+    "size": 781,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__ofz7322-1.doc",
+    "path": "tests/docs/word/doc/libreoffice__ofz7322-1.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "c702a9ba0f0425857d12b459f72cd17a657a4c0d87781e7c9d843b52cd6f90e5",
+    "size": 49544,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__tdf100961_fixedDateTime.doc",
+    "path": "tests/docs/word/doc/libreoffice__tdf100961_fixedDateTime.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "66affec24cb5b663d23ec02689ad8d1fb834e17fd13c34591e21ed8766916cc2",
+    "size": 19968,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__tdf121374_sectionHF2.doc",
+    "path": "tests/docs/word/doc/libreoffice__tdf121374_sectionHF2.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "300a4b129fa8d4bba87a43a2add932fe3e17ae8c7ffc2698eabd7091c7be9772",
+    "size": 127488,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__tdf121734.doc",
+    "path": "tests/docs/word/doc/libreoffice__tdf121734.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "50010975e32b7b8ca10b81f93618d358470fa7ced1ad6ceb4654a9ec18fec424",
+    "size": 26624,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__tdf134619_numberingProps.doc",
+    "path": "tests/docs/word/doc/libreoffice__tdf134619_numberingProps.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "d8633892dd3d1137aa2b315c420c9275a1e9d0a4dae5ef0d767d8a2bda21fc71",
+    "size": 75264,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__tdf54862.doc",
+    "path": "tests/docs/word/doc/libreoffice__tdf54862.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "134bfa2de4db1348f425ad38b1fcb1a1c51e65ee9023cc2a97d1f3ca19ad4904",
+    "size": 16384,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__tdf71749_without_footnote.doc",
+    "path": "tests/docs/word/doc/libreoffice__tdf71749_without_footnote.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "a52c4423ced21d03cea4c487a2ba6f72278d2ad14b778b2f944656b55fd62101",
+    "size": 22528,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__tdf76349_textboxMargins.doc",
+    "path": "tests/docs/word/doc/libreoffice__tdf76349_textboxMargins.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "4be0115f223c72e2560583c5962f327003fbe590ccc97e882a824c38a6526f46",
+    "size": 23552,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__zoomtype.doc",
+    "path": "tests/docs/word/doc/libreoffice__zoomtype.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "a58409623052da49a5e9f2806b3b29ffd8e1c7aa3f4d1e77cfb4ce900816860a",
+    "size": 9216,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__Bug44431.doc",
+    "path": "tests/docs/word/doc/poi__Bug44431.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "edcd8f48cd97503ea57ae1b4e0addb20997656cb17d2bc329db4780257c9e998",
+    "size": 98304,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__Bug47286.doc",
+    "path": "tests/docs/word/doc/poi__Bug47286.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "daa43e747b73d3ee25f016c7106f0f726cad61dc5a9515edeff4eb35feaa9da5",
+    "size": 44544,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__ThreeColHead.doc",
+    "path": "tests/docs/word/doc/poi__ThreeColHead.doc",
+    "format": "doc",
+    "app": "word",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "199dcc99cbf6f7ca5ed5d57b5072e124c7776895f0669d7fac4227f4208a8ad6",
+    "size": 27136,
+    "notes": "Legacy binary DOC 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__Pivot2_Row.xlsx",
+    "path": "tests/docs/excel/xlsx/libreoffice__Pivot2_Row.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "95570d3eb7d3b8dcb3ee8f4e6005100d257210b5a480808a68aaa5f306caff96",
+    "size": 12590,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__cell-value.xlsx",
+    "path": "tests/docs/excel/xlsx/libreoffice__cell-value.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "dd44d55e56de00dfcf597d68d0b7661e90b17dd6a38a8b29cfb1d79a5464679c",
+    "size": 7697,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__conditional_fmt_origin.xlsx",
+    "path": "tests/docs/excel/xlsx/libreoffice__conditional_fmt_origin.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "12a3a7241e225299181a7e3de9721015ee4adf319b144f5158dcef507d0af116",
+    "size": 9705,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__empty.xlsx",
+    "path": "tests/docs/excel/xlsx/libreoffice__empty.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "b8eb7e2482679660a4c10e39fd670a107658af56b6c83ef978dfd1db6950c0b9",
+    "size": 5221,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__enhanced-protection.xlsx",
+    "path": "tests/docs/excel/xlsx/libreoffice__enhanced-protection.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "2a8151eb9653172e350c214c755f820b6d9670b155f9593d41c1b258655bcd44",
+    "size": 8483,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__macro-button-form-control.xlsm",
+    "path": "tests/docs/excel/xlsx/libreoffice__macro-button-form-control.xlsm",
+    "format": "xlsm",
+    "app": "excel",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "182f079e0a2a49954374333ff93ca0d0f2fc068f65e3fc3a67d52ce7604e3042",
+    "size": 15969,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__sortconditionref.xlsx",
+    "path": "tests/docs/excel/xlsx/libreoffice__sortconditionref.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "40accc003c5b305b3adef414f8b13a9ec6b1ecb0f97d54305e00005480f81c0c",
+    "size": 8993,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tablerefsnamed.xlsx",
+    "path": "tests/docs/excel/xlsx/libreoffice__tablerefsnamed.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "1a61f21a603403444587f695434cdd52c4777a0b71c827ea5a8db67afe1a3860",
+    "size": 10387,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf113621.xlsx",
+    "path": "tests/docs/excel/xlsx/libreoffice__tdf113621.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "1159e2faef630607ef6654dd8d01c097d3069948a8e3c7bf2c0f935f324c6e74",
+    "size": 14215,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf133595.xlsx",
+    "path": "tests/docs/excel/xlsx/libreoffice__tdf133595.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "c5295bd95506c9fb0b9d0360ab638327b90f6da659014c2b956dc4e5c59e4bf6",
+    "size": 6219,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf169326_ignore_line_breaks_in_referenced_cells.xlsx",
+    "path": "tests/docs/excel/xlsx/libreoffice__tdf169326_ignore_line_breaks_in_referenced_cells.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "ae80392532c2e2f1c690edd6cb5edc85cafda5d001c928794c547307451049d8",
+    "size": 9475,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__totalsRowFunction.xlsx",
+    "path": "tests/docs/excel/xlsx/libreoffice__totalsRowFunction.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "174fb09653d8fb6cabae2df96f611f20ff8f5547d83f4a3c50474173733cd63e",
+    "size": 18719,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__totalsRowShown.xlsx",
+    "path": "tests/docs/excel/xlsx/libreoffice__totalsRowShown.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "8eb9e4265c2f2d8edacf403c75382118a1722bac87a45bbaa66615943efa032c",
+    "size": 11360,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "openxml-sdk__00d63cdd-ee44-4e6a-99af-a7966ffbdda0.xlsx",
+    "path": "tests/docs/excel/xlsx/openxml-sdk__00d63cdd-ee44-4e6a-99af-a7966ffbdda0.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "openxml-sdk",
+    "license": "MIT",
+    "sha256": "2a2a032f97c4c249cb5643d2493de2fa4489d26fe1ac763a155d7f236de2e65e",
+    "size": 9265,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "openxml-sdk__NoExtDataB1.xlsx",
+    "path": "tests/docs/excel/xlsx/openxml-sdk__NoExtDataB1.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "openxml-sdk",
+    "license": "MIT",
+    "sha256": "3fc63ff0582eca5b316ceb84f7ec505676c897a8963b5610fab25752cca787e3",
+    "size": 139932,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "openxml-sdk__RelationalPivotA4.xlsx",
+    "path": "tests/docs/excel/xlsx/openxml-sdk__RelationalPivotA4.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "openxml-sdk",
+    "license": "MIT",
+    "sha256": "589d69b59d8e5df04a015e98025527b1ab140a7540654397dee88ec9bd31afe7",
+    "size": 38177,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "openxml-sdk__XMLMap.xlsx",
+    "path": "tests/docs/excel/xlsx/openxml-sdk__XMLMap.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "openxml-sdk",
+    "license": "MIT",
+    "sha256": "198aca716bd7185cfa9aa9ac43a60b7c97ba3fcc817e784579bd77d1fdb6928b",
+    "size": 10842,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "poi__45540_form_Header.xlsx",
+    "path": "tests/docs/excel/xlsx/poi__45540_form_Header.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "5e9a5cc4f70614fa4db4b8d87718f0e1bf6110e26046af251db8dc62a22ae7eb",
+    "size": 57471,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "poi__46536.xlsx",
+    "path": "tests/docs/excel/xlsx/poi__46536.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "7e6169dd532c21a45b9b5381945627ff7ffb5990569ae549ae52e7216eab0be4",
+    "size": 8737,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "poi__49156.xlsx",
+    "path": "tests/docs/excel/xlsx/poi__49156.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "7376a8118afc503a82759ad2277f5781a44dce057b2b0984a5b3b5b805db347d",
+    "size": 25064,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "poi__60509.xlsx",
+    "path": "tests/docs/excel/xlsx/poi__60509.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "9890bc6a8630a0c2e371ae643b2743395adf3fc7c49e289799c853919105d99d",
+    "size": 12057,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "poi__GroupTest.xlsx",
+    "path": "tests/docs/excel/xlsx/poi__GroupTest.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "a14e6d478004720480cb99844fd6b00260c804bfa02b3da3f496e2c1fb5c8949",
+    "size": 8149,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "poi__SimpleWithComments.xlsx",
+    "path": "tests/docs/excel/xlsx/poi__SimpleWithComments.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "d7d337b3436e863487d26439a57ef749950c599862325d7bce7e830acf1df0ba",
+    "size": 10060,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "poi__clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-5636439151607808.xlsx",
+    "path": "tests/docs/excel/xlsx/poi__clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-5636439151607808.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "corrupt",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "57c472b9fbb1a5ca1337189465c010cfab59516d532e446b172f2a4d5f88e23f",
+    "size": 372,
+    "notes": "Clusterfuzz minimized corrupt/invalid XLSX archive",
+    "expectations": {
+      "parse": "rejected_corrupt",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "corrupt"
+    }
+  },
+  {
+    "file": "poi__hello-world-signed.xlsx",
+    "path": "tests/docs/excel/xlsx/poi__hello-world-signed.xlsx",
+    "format": "xlsx",
+    "app": "excel",
+    "category": "valid",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "22e2d0f6f1a413d011fbdeba4c386ce842570f1cffc66c4f85956137d86a8f1d",
+    "size": 13072,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__AutoFilter.xls",
+    "path": "tests/docs/excel/xls/libreoffice__AutoFilter.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "2f5e9c7608c4619ded6de7b335ec1e97756951f25c9ea234bab90133fac01905",
+    "size": 13824,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__CVE-2010-1246-1.xls",
+    "path": "tests/docs/excel/xls/libreoffice__CVE-2010-1246-1.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "2cea48932c91fe651de43cbf04b814c0ea652b93666850a3c1bad6ef2a9626ff",
+    "size": 23552,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__Cumprinc.xls",
+    "path": "tests/docs/excel/xls/libreoffice__Cumprinc.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "b7affae1fe390e1b4d9b4409dbbe45779ed9f65cf8438e3957afd3f4ac3d00d5",
+    "size": 7680,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__PPMT.xls",
+    "path": "tests/docs/excel/xls/libreoffice__PPMT.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "f72cadf790da1ed5abd66419ba40863b62871336e3e33e3e4b5e1d2344ebe3d0",
+    "size": 7168,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__StDevA.xls",
+    "path": "tests/docs/excel/xls/libreoffice__StDevA.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "26bc1aa28fe44afd55f8a9de9b3e3522434e90b854add42d4727821f4459dcd4",
+    "size": 8704,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__crash-5.xls",
+    "path": "tests/docs/excel/xls/libreoffice__crash-5.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "ea0866ced3f4b3b8c772036b12dd80495659efbe3411621cee212cd04f419a7e",
+    "size": 183,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__ddb.xls",
+    "path": "tests/docs/excel/xls/libreoffice__ddb.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "00ffb2718546991415799bf310d085663c7819f3a69ddd5d4ce7a5a19deb8c7e",
+    "size": 6656,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__dsum.xls",
+    "path": "tests/docs/excel/xls/libreoffice__dsum.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "044aa4c78ca7a831d2b1b6e14bbcd8182280faf12cdb9ca3f80063ae18473057",
+    "size": 31232,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__pivottable_ext_grouping.xls",
+    "path": "tests/docs/excel/xls/libreoffice__pivottable_ext_grouping.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "6c83c3e8e4619ee6786f10e66898320c3494e352b3389812b4801ae1511e3e02",
+    "size": 90624,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__sqrtpi.xls",
+    "path": "tests/docs/excel/xls/libreoffice__sqrtpi.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "6b2b04a62658861add63264be63afc4dda552bcbf0fe960195764bfa3d2ac314",
+    "size": 24576,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__tdf158483.xls",
+    "path": "tests/docs/excel/xls/libreoffice__tdf158483.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "4174ce9db6cf0acf46cf94b2c3116843055120c79ae03dd993eb30808d5e0236",
+    "size": 26291,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__13796.xls",
+    "path": "tests/docs/excel/xls/poi__13796.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "043684d1184d84420afbe7576dd1a448c39bf80438f3fe5a3e45d81bf642bad3",
+    "size": 49152,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__36947.xls",
+    "path": "tests/docs/excel/xls/poi__36947.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "dc213bea08f35cd6081d6a78d38f92be58880931e1369fe7965937a8267f76e9",
+    "size": 142336,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__49524.xls",
+    "path": "tests/docs/excel/xls/poi__49524.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "ecfbf574b8bd26ebd7987b42039c38b4e8914a3c3d7be505a72742eb7d4b21a2",
+    "size": 13824,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__51535.xls",
+    "path": "tests/docs/excel/xls/poi__51535.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "e8b99584a069b9462e4e4d586a13c2b0c7246b7a353ff098ae7a1189491d7341",
+    "size": 41984,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__53109.xls",
+    "path": "tests/docs/excel/xls/poi__53109.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "55f7125e8809907c22c35581fc2ff1adee411c4037654ceb190e6c495694701a",
+    "size": 19456,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__ContinueRecordProblem.xls",
+    "path": "tests/docs/excel/xls/poi__ContinueRecordProblem.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "ca91fdd3701ad681356be97ea3db21c5c7d34eced47b8adbb603f23e83c23e4d",
+    "size": 64512,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__EmbeddedChartHeaderTest.xls",
+    "path": "tests/docs/excel/xls/poi__EmbeddedChartHeaderTest.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "964cd5cbd45e13e3a76a7249a502e9589e3ba0f3adcf57ec3a03b072f1ca4978",
+    "size": 15360,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__FormulaRefs.xls",
+    "path": "tests/docs/excel/xls/poi__FormulaRefs.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "4ad5856035aadace3ee46bfe0ad8e26e8a31f1f39eb67f28e4524a84276976cd",
+    "size": 17408,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__IfNaTestCaseData.xls",
+    "path": "tests/docs/excel/xls/poi__IfNaTestCaseData.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "809f57c11771f5735af0b4ab371c9527eff52af3f3a83b1ad842466f682555bc",
+    "size": 28160,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__ImaginaryFunctionTestCaseData.xls",
+    "path": "tests/docs/excel/xls/poi__ImaginaryFunctionTestCaseData.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "d75ca8896f8407543c1065110ae1a170a7e496624cbaaed941f54369ed19a1d6",
+    "size": 35840,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__bug69021.xls",
+    "path": "tests/docs/excel/xls/poi__bug69021.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "45793abcf2c7d88ffc96cf3ccc6ca2b5926c1582c777e1282aea0203b7aa0249",
+    "size": 13824,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__ex41187-19267.xls",
+    "path": "tests/docs/excel/xls/poi__ex41187-19267.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "54c637d1fe1e042ae5034abb13c7622775ea17558e0f45ac07e6aef00b0aa23f",
+    "size": 5632,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__poi-fuzz.xls",
+    "path": "tests/docs/excel/xls/poi__poi-fuzz.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "dc74cb971c25adcd1b31645e849ce00965bc8a72ba0ddac327bba18fec7a1e2f",
+    "size": 7680,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__tile-range-test.xls",
+    "path": "tests/docs/excel/xls/poi__tile-range-test.xls",
+    "format": "xls",
+    "app": "excel",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "c7ac561b8cc509beaa268eff67c4030a126b481634056927544bbe3b6ec499b6",
+    "size": 20992,
+    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__TextFittingComparisonWithMSO_3.pptx",
+    "path": "tests/docs/powerpoint/pptx/libreoffice__TextFittingComparisonWithMSO_3.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "48958614e5768831710a90164d7cfd8ef44d2e4ac7206bea65a9b5bb4fc6c3a2",
+    "size": 251857,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__animation-sound-external.pptx",
+    "path": "tests/docs/powerpoint/pptx/libreoffice__animation-sound-external.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "b1d7b0b3faa0caa2d64b722a1be128a08302d71003c78c046e851eea52d97e43",
+    "size": 4558,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__bnc887230.pptx",
+    "path": "tests/docs/powerpoint/pptx/libreoffice__bnc887230.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "1f8f9cada28f451c3ea710680c894d577280bc48f64d313039cbf47be044bf24",
+    "size": 25715,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__connector-shape-animations.pptx",
+    "path": "tests/docs/powerpoint/pptx/libreoffice__connector-shape-animations.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "40d07c0c9433c65c640bc6d4d5f25228735dc15d1bb719530cad0662a926a618",
+    "size": 22329,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__master-slides.pptx",
+    "path": "tests/docs/powerpoint/pptx/libreoffice__master-slides.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "cbc14cf6683c7aa3f5c4b83d70ef405b35c7ae02746e5abcc8bcbedfa235e726",
+    "size": 54445,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__smartart-text.pptx",
+    "path": "tests/docs/powerpoint/pptx/libreoffice__smartart-text.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "2e38dd189152e2bcf2f368a71495a02747b818087063ed46d9720fd708f2b0ec",
+    "size": 38762,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf103876.pptx",
+    "path": "tests/docs/powerpoint/pptx/libreoffice__tdf103876.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "907f3fcd622e39378b82ad5b184eaf1b041f5eeb180587b921c9023bf19639f2",
+    "size": 29585,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf104201.pptx",
+    "path": "tests/docs/powerpoint/pptx/libreoffice__tdf104201.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "d9694ef9891ad3ef99d4539062295cc0b4012eb3fa967e24c8b8fc53a31494d9",
+    "size": 15979,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf104722.pptx",
+    "path": "tests/docs/powerpoint/pptx/libreoffice__tdf104722.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "04e99dbdbd6a39b2a92a5cc3150352c037736523f15f7a765ea38a74f842b148",
+    "size": 40497,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf112089.pptx",
+    "path": "tests/docs/powerpoint/pptx/libreoffice__tdf112089.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "76a2c841fa085e991c53ba5ddcc4a206ee93a98ca87f13c656ab6408bfb4c6c1",
+    "size": 46671,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf126741.pptx",
+    "path": "tests/docs/powerpoint/pptx/libreoffice__tdf126741.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "056b2414af24ca52f13742f8961cd265c7958148766d9b4c3142ca57a93e39d2",
+    "size": 32437,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf129372.pptx",
+    "path": "tests/docs/powerpoint/pptx/libreoffice__tdf129372.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "b9bc871d807225cb92cbc2dfbead959e86920d3e0b2dc53ad6d59fb0110e45b7",
+    "size": 33865,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf136830.pptx",
+    "path": "tests/docs/powerpoint/pptx/libreoffice__tdf136830.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "631c8ca8af1e411e547718ed835e268fdffe0230737e33ae42f9c34bfb2daade",
+    "size": 14105,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf140852.pptx",
+    "path": "tests/docs/powerpoint/pptx/libreoffice__tdf140852.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "2396f6a5a64d7c51a003427b2a9e2261803f568f73b6061b1a5d3644cff2eb0d",
+    "size": 49776,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf143129.pptx",
+    "path": "tests/docs/powerpoint/pptx/libreoffice__tdf143129.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "18e24eff5fc592db2b6b4d54307794b76aea9bcb46c9e4292bcd5a7046c7b7b5",
+    "size": 31053,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf149206.pptx",
+    "path": "tests/docs/powerpoint/pptx/libreoffice__tdf149206.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "0f7da86cfdf42dbce3bbdd09c420397169ae76595451bd183aadbdf2720a9136",
+    "size": 89796,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__tdf164622.pptx",
+    "path": "tests/docs/powerpoint/pptx/libreoffice__tdf164622.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "33b86388804554e35cb3b07e81cf5db5cb6bb02e76716c71f233b57325c2d199",
+    "size": 18696,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "openxml-sdk__Chart_3D (Column).pptx",
+    "path": "tests/docs/powerpoint/pptx/openxml-sdk__Chart_3D (Column).pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "openxml-sdk",
+    "license": "MIT",
+    "sha256": "2b3d57ce8fe0409a214c98c6158dfa647c231e0dd7cb9c9cea80b4100b15fbeb",
+    "size": 73518,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "openxml-sdk__Text_withShadow_200chars.pptx",
+    "path": "tests/docs/powerpoint/pptx/openxml-sdk__Text_withShadow_200chars.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "openxml-sdk",
+    "license": "MIT",
+    "sha256": "3fe20a9a265d87211caaf218d33ea178f1e6d03bc24fcc197eaed4ff20019f90",
+    "size": 66287,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "openxml-sdk__cmpdThickThin_mainUln_UnderlineStrokeCompoundLineTypeThickThin.pptx",
+    "path": "tests/docs/powerpoint/pptx/openxml-sdk__cmpdThickThin_mainUln_UnderlineStrokeCompoundLineTypeThickThin.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "openxml-sdk",
+    "license": "MIT",
+    "sha256": "e1d317a3d752956aea2495fe1b509fdf05f738bb9674efb163a91b5989ac197b",
+    "size": 35199,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "openxml-sdk__main_bodyPr_rtlCol.pptx",
+    "path": "tests/docs/powerpoint/pptx/openxml-sdk__main_bodyPr_rtlCol.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "openxml-sdk",
+    "license": "MIT",
+    "sha256": "daa4b05676a2f3832053afaa7f3ef74dc8478bdd9cd9d06cc4063c2a44ba6bcb",
+    "size": 43607,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "openxml-sdk__marL51206400_mainPpr_LeftMarginMaximum.pptx",
+    "path": "tests/docs/powerpoint/pptx/openxml-sdk__marL51206400_mainPpr_LeftMarginMaximum.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "openxml-sdk",
+    "license": "MIT",
+    "sha256": "f221d278f7791dc1b6d0478b445aab8b25d7946562bd48708b359115f375f700",
+    "size": 33177,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "openxml-sdk__sldsz-Slide Size-type-b4iso.pptx",
+    "path": "tests/docs/powerpoint/pptx/openxml-sdk__sldsz-Slide Size-type-b4iso.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "openxml-sdk",
+    "license": "MIT",
+    "sha256": "69a0bcd79a7bfcc2f2f625c53fad22de92cf0502693cc0853a626717a92bca9d",
+    "size": 34378,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "poi__56812.pptx",
+    "path": "tests/docs/powerpoint/pptx/poi__56812.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "36545b1502bc7149de9ec537ae2a7e83e6c8baf24c7f72e9944d863c41072b65",
+    "size": 58308,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "poi__table-with-different-font-colors.pptx",
+    "path": "tests/docs/powerpoint/pptx/poi__table-with-different-font-colors.pptx",
+    "format": "pptx",
+    "app": "powerpoint",
+    "category": "valid",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "fb0245f28e32e5137da6f9c2a9c35c5a8694a71c35d675ab671a595c1b93d72d",
+    "size": 36562,
+    "notes": "Valid OOXML production test document",
+    "expectations": {
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
+      "roundtrip": "ok",
+      "expected_status": "ok"
+    }
+  },
+  {
+    "file": "libreoffice__CVE-2010-0033-1.ppt",
+    "path": "tests/docs/powerpoint/ppt/libreoffice__CVE-2010-0033-1.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "335c53e0ac34a364e82d83d6913713428b6e5a60c0081217c9bdd6938e08dd90",
+    "size": 3072,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__crash-2.ppt",
+    "path": "tests/docs/powerpoint/ppt/libreoffice__crash-2.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "8706210ec64bbd0774284c37f25363fd95246fd2f5efee695992e3a826a9898d",
+    "size": 7680,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__hang-3.ppt",
+    "path": "tests/docs/powerpoint/ppt/libreoffice__hang-3.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "60b7cdae0ff9425aa3c5e7d5888e22c542cc113a3ef57b8db642568b67795c9e",
+    "size": 7680,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__hang-6.ppt",
+    "path": "tests/docs/powerpoint/ppt/libreoffice__hang-6.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "1f7b5e59abe4abd31efeefbf23b322199f4fcec4649dd047997cdbbb14bcf269",
+    "size": 7712,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__tdf157636.ppt",
+    "path": "tests/docs/powerpoint/ppt/libreoffice__tdf157636.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "69f314f05f96ffc3af22d9aa525aca1517e96fd52a9aa54be56b20947f4b197e",
+    "size": 300544,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__tdf168786.ppt",
+    "path": "tests/docs/powerpoint/ppt/libreoffice__tdf168786.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "9f7073ce9a408564f8b24041bc11ea80251f488d56dc7a62eb187d660418af79",
+    "size": 51712,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "libreoffice__tdf48083.ppt",
+    "path": "tests/docs/powerpoint/ppt/libreoffice__tdf48083.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "libreoffice",
+    "license": "MPL-2.0",
+    "sha256": "94d2b41028637c428abb3d4c1a1a71ba5d3922f122de8daad5860a476c13aaee",
+    "size": 18944,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__2cade576206d5bf9a89479446973deeda5a9b549.ppt",
+    "path": "tests/docs/powerpoint/ppt/poi__2cade576206d5bf9a89479446973deeda5a9b549.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "b17797acffbfeec2b6a62f4744e853f5558538f6c04eada3bae7e77f1da23edb",
+    "size": 129536,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__42474-1.ppt",
+    "path": "tests/docs/powerpoint/ppt/poi__42474-1.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "f592832faa10fc4638e8b50710dfe27e1dc9d968964d2773944c1921fdf3aec1",
+    "size": 11264,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__43781.ppt",
+    "path": "tests/docs/powerpoint/ppt/poi__43781.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "ca2070dd2116825e4526b7c5ef42c1d993788af8dd412a10f62ff70e03ef7194",
+    "size": 39424,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__44770.ppt",
+    "path": "tests/docs/powerpoint/ppt/poi__44770.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "d97c7037510c77d5ca1198865805b7e01c53c8567a44d14cd6543c69bfbcdb94",
+    "size": 457728,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__45537_Footer.ppt",
+    "path": "tests/docs/powerpoint/ppt/poi__45537_Footer.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "89d579ec321c5436e4ad5a0220e22cae2c0133ee10c6d8718fffe8f661eeaf0d",
+    "size": 13312,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__54332a.ppt",
+    "path": "tests/docs/powerpoint/ppt/poi__54332a.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "90cf91cb64b3516a453e1b97a5dda0d84cae8401ce09c69f27d3168825d84c82",
+    "size": 67584,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__54541_cropped_bitmap.ppt",
+    "path": "tests/docs/powerpoint/ppt/poi__54541_cropped_bitmap.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "8009a55d44af2b76ba61330301557a4f8fba6c7504a93aed1a011b57b1e183ef",
+    "size": 157184,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__54541_cropped_bitmap2.ppt",
+    "path": "tests/docs/powerpoint/ppt/poi__54541_cropped_bitmap2.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "31847913a3e49deeff9037b4c375a22766b37521b5124a946b47dc1a4ae74654",
+    "size": 199168,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__PictureTypeZero.ppt",
+    "path": "tests/docs/powerpoint/ppt/poi__PictureTypeZero.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "2ffa9ad19c0513823b62494cd47e7ca83a5f4b10b5fdd91f720cecc748113d6c",
+    "size": 100864,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__br.com.tvcamboriu.www_pps_Pensar_5b1_5d.ppt",
+    "path": "tests/docs/powerpoint/ppt/poi__br.com.tvcamboriu.www_pps_Pensar_5b1_5d.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "1310acbce4231a56014f59eba9ac701c1da3f2730081f883885b6f3df478cd5d",
+    "size": 120833,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__bug46441.ppt",
+    "path": "tests/docs/powerpoint/ppt/poi__bug46441.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "5f6e27ddd62c8fc972a950660b20db5a3233ec67e31399046c02c847a8eeecff",
+    "size": 20480,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__bug55030.ppt",
+    "path": "tests/docs/powerpoint/ppt/poi__bug55030.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "18fccf756b05e3d7529d2a78d9ae9f30f2b5e3638442d969f3a1d2c0e37feaa3",
+    "size": 15360,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__bug58144-headers-footers-2007.ppt",
+    "path": "tests/docs/powerpoint/ppt/poi__bug58144-headers-footers-2007.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "696bdc294290c1f48c47966426bebd5b0281e3e0b9c5d6da6f96adf99a9a53b3",
+    "size": 142848,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__bug61881.ppt",
+    "path": "tests/docs/powerpoint/ppt/poi__bug61881.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "ba2bf551e87f5fd7667dec52ac19005396bdf9af00f0006f9a247a9fede2e8ee",
+    "size": 74752,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__clusterfuzz-testcase-minimized-POIHSLFFuzzer-6192650357112832.ppt",
+    "path": "tests/docs/powerpoint/ppt/poi__clusterfuzz-testcase-minimized-POIHSLFFuzzer-6192650357112832.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "9df7b026b8e2f015e5c43c851df153451a54ff638e880df3bcf1de381aea5644",
+    "size": 9013,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__clusterfuzz-testcase-minimized-POIHSLFFuzzer-6710128412590080.ppt",
+    "path": "tests/docs/powerpoint/ppt/poi__clusterfuzz-testcase-minimized-POIHSLFFuzzer-6710128412590080.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "834f700364aa241ce896d83a8113ade1b6d9f16aa44a895894e4893180f5f3ab",
+    "size": 9732,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__datetime.ppt",
+    "path": "tests/docs/powerpoint/ppt/poi__datetime.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "9f93a1e6bb1eee79e1c154308a899647fb1820604ad568f7a6f7d02b138a3b73",
+    "size": 114176,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  },
+  {
+    "file": "poi__numbers.ppt",
+    "path": "tests/docs/powerpoint/ppt/poi__numbers.ppt",
+    "format": "ppt",
+    "app": "powerpoint",
+    "category": "unsupported_format",
+    "source": "poi",
+    "license": "Apache-2.0",
+    "sha256": "6ca95b01e247ce1ae210f4cb936ab50ea39b8a3ab28d797a8d24148e38b0f218",
+    "size": 87040,
+    "notes": "Legacy binary PPT 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "expectations": {
+      "parse": "rejected_unsupported_format",
+      "model": "skip",
+      "render": "skip",
+      "roundtrip": "skip",
+      "expected_status": "unsupported_format"
+    }
+  }
+]

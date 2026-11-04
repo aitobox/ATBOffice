@@ -1,36 +1,58 @@
 """Excel Corpus Compatibility and Loss-Audit Regression Suite.
 
 Tests roundtrip loading, saving, and ECMA-376 feature preservation across
-the curated real-world production Excel files in tests/docs/excel/.
+the 50 curated real-world production Excel files in tests/docs/excel/
+according to the authoritative expectations contract in tests/docs/expectations.json.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from atboffice.deep.audit.core import AuditSession, load_package_xml
+import pytest
+
+from atboffice.deep.audit.core import AuditSession, CorpusExpectations, load_package_xml
 from atboffice.deep.audit.excel import extract_excel_features
 from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
 from atboffice.modules.spreadsheet.io.xlsx_writer import write_xlsx
 
 XLSX_DIR = Path("tests/docs/excel/xlsx")
 XLS_DIR = Path("tests/docs/excel/xls")
+EXPECTATIONS_PATH = Path("tests/docs/expectations.json")
 
 
 def test_curated_xlsx_roundtrip_and_feature_preservation() -> None:
     xlsx_files = sorted(XLSX_DIR.glob("*.xlsx")) + sorted(XLSX_DIR.glob("*.xlsm"))
-    assert len(xlsx_files) >= 10, "Expected at least 10 curated xlsx/xlsm files"
+    assert len(xlsx_files) == 25, f"Expected 25 curated xlsx/xlsm files, found {len(xlsx_files)}"
 
+    expectations = CorpusExpectations(EXPECTATIONS_PATH)
     session = AuditSession()
-    tested_count = 0
+    valid_count = 0
+    corrupt_count = 0
 
     for xlsx_path in xlsx_files:
         raw_data = xlsx_path.read_bytes()
-        try:
-            wb = read_xlsx(raw_data)
-        except Exception as e:
-            session.record_pair(xlsx_path.name, status="excluded", reason=str(e))
+        exp = expectations.get(xlsx_path.name)
+        assert exp is not None, f"File {xlsx_path.name} must be cataloged in expectations.json"
+
+        expected_cat = exp.get("category")
+
+        if expected_cat == "corrupt":
+            # Malformed/fuzzed archive must be safely rejected
+            with pytest.raises(Exception):
+                read_xlsx(raw_data)
+            corrupt_count += 1
+            session.record_result({
+                "file": xlsx_path.name,
+                "status": "corrupt",
+                "expected_match": True,
+            })
             continue
+
+        wb = read_xlsx(raw_data)
+        assert hasattr(wb, "sheets") and len(wb.sheets) > 0, (
+            f"Parsed workbook model empty for {xlsx_path.name}"
+        )
 
         saved_bytes = write_xlsx(wb)
         assert len(saved_bytes) > 0, f"Saved bytes empty for {xlsx_path.name}"
@@ -47,27 +69,34 @@ def test_curated_xlsx_roundtrip_and_feature_preservation() -> None:
             original_features=orig_feats,
             saved_features=saved_feats,
         )
-        tested_count += 1
+        valid_count += 1
 
     summary = session.summary()
-    assert summary["attempted"] == len(xlsx_files)
-    assert summary["ok"] >= 15, f"Expected at least 15 successful roundtrips, got {summary['ok']}"
+    assert summary["attempted"] == 25
+    assert valid_count == 24, f"Expected 24 valid roundtrips, got {valid_count}"
+    assert corrupt_count == 1, f"Expected 1 corrupt rejection, got {corrupt_count}"
 
 
 def test_curated_xls_binary_safe_handling() -> None:
     xls_files = sorted(XLS_DIR.glob("*.xls"))
-    assert len(xls_files) >= 10, "Expected at least 10 curated xls files"
+    assert len(xls_files) == 25, f"Expected 25 curated xls files, found {len(xls_files)}"
 
-    ole2_header = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
-    biff_header = b"\t\x00"
+    expectations = CorpusExpectations(EXPECTATIONS_PATH)
+    rejected_count = 0
 
-    valid_header_count = 0
     for xls_path in xls_files:
-        data = xls_path.read_bytes()
-        assert len(data) > 0
-        if data.startswith(ole2_header) or data.startswith(biff_header):
-            valid_header_count += 1
+        exp = expectations.get(xls_path.name)
+        assert exp is not None, f"File {xls_path.name} must be cataloged in expectations.json"
+        assert exp.get("category") == "unsupported_format"
 
-    assert valid_header_count >= 10, (
-        "Curated .xls collection should include real OLE2 or BIFF workbooks"
+        raw_data = xls_path.read_bytes()
+        assert len(raw_data) > 0
+
+        # OOXML parser must reject legacy binary files safely without crashing
+        with pytest.raises(Exception):
+            read_xlsx(raw_data)
+        rejected_count += 1
+
+    assert rejected_count == 25, (
+        "All 25 legacy binary .xls files must be safely rejected by OOXML reader"
     )
