@@ -758,16 +758,32 @@ class SpreadsheetObjectLayer(QWidget):
 
         menu = QMenu(self)
 
-        act_cut = menu.addAction(safe_tr("Cut"))
-        act_copy = menu.addAction(safe_tr("Copy"))
-        act_paste = menu.addAction(safe_tr("Paste"))
-        act_delete = menu.addAction(safe_tr("Delete"))
+        act_cut = menu.addAction(safe_tr("剪切(&T)"))
+        act_copy = menu.addAction(safe_tr("复制(&C)"))
+        act_paste = menu.addAction(safe_tr("粘贴(&P)"))
+        act_delete = menu.addAction(safe_tr("删除(&D)"))
         menu.addSeparator()
 
-        act_front = menu.addAction(safe_tr("Bring to Front"))
-        act_forward = menu.addAction(safe_tr("Bring Forward"))
-        act_backward = menu.addAction(safe_tr("Send Backward"))
-        act_back = menu.addAction(safe_tr("Send to Back"))
+        act_chart_type = None
+        act_chart_options = None
+        act_edit_text = None
+
+        if hit_obj.kind == "chart":
+            act_chart_type = menu.addAction(safe_tr("图表类型(&Y)..."))
+            act_chart_options = menu.addAction(safe_tr("图表选项(&O)..."))
+            menu.addSeparator()
+        elif hit_obj.kind in ("rect", "roundRect", "oval", "textbox", "shape"):
+            act_edit_text = menu.addAction(safe_tr("编辑文字(&X)"))
+            menu.addSeparator()
+
+        order_menu = menu.addMenu(safe_tr("叠放次序(&R)"))
+        act_front = order_menu.addAction(safe_tr("置于顶层(&T)"))
+        act_back = order_menu.addAction(safe_tr("置于底层(&K)"))
+        act_forward = order_menu.addAction(safe_tr("上移一层(&F)"))
+        act_backward = order_menu.addAction(safe_tr("下移一层(&B)"))
+        menu.addSeparator()
+
+        act_format = menu.addAction(safe_tr("设置对象格式(&O)..."))
 
         has_sel = self.selected_object is not None
         act_cut.setEnabled(has_sel)
@@ -777,24 +793,34 @@ class SpreadsheetObjectLayer(QWidget):
         act_forward.setEnabled(has_sel)
         act_backward.setEnabled(has_sel)
         act_back.setEnabled(has_sel)
+        act_format.setEnabled(has_sel)
         act_paste.setEnabled(self._clipboard_object is not None)
 
         action = menu.exec(event.globalPos())
-        if not action or not self.selected_object:
-            if action == act_paste:
-                self.paste()
+        if not action:
             return
 
         sel = self.selected_object
+        if action == act_paste:
+            self.paste()
+            return
+
+        if not sel:
+            return
+
         if action == act_cut:
             self.copy_selected()
             self.delete_selected()
         elif action == act_copy:
             self.copy_selected()
-        elif action == act_paste:
-            self.paste()
         elif action == act_delete:
             self.delete_selected()
+        elif act_chart_type is not None and action == act_chart_type:
+            self.open_chart_type_dialog(sel)
+        elif act_chart_options is not None and action == act_chart_options:
+            self.open_chart_options_dialog(sel)
+        elif act_edit_text is not None and action == act_edit_text:
+            self.start_text_editing(sel)
         elif action == act_front:
             self.bring_to_front(sel)
         elif action == act_forward:
@@ -803,3 +829,79 @@ class SpreadsheetObjectLayer(QWidget):
             self.send_backward(sel)
         elif action == act_back:
             self.send_to_back(sel)
+        elif action == act_format:
+            self.open_format_dialog(sel)
+
+    def start_text_editing(self, obj: FloatingObject | None = None) -> None:
+        """Edit text content of the selected shape or textbox."""
+        target = obj or self.selected_object
+        if target is None:
+            return
+        from PySide6.QtWidgets import QInputDialog
+
+        new_text, ok = QInputDialog.getMultiLineText(
+            self,
+            safe_tr("编辑文字"),
+            safe_tr("输入文本内容:"),
+            target.text or "",
+        )
+        if ok:
+            target.text = new_text
+            self.update()
+            self.mark_dirty()
+
+    def open_format_dialog(self, obj: FloatingObject | None = None) -> None:
+        """Open Format Object dialog for the target floating object."""
+        target = obj or self.selected_object
+        if target is None:
+            return
+        from atboffice.modules.spreadsheet.dialogs.format_object_dialog import (
+            FormatObjectDialog,
+        )
+
+        dlg = FormatObjectDialog(target, parent=self)
+        if dlg.exec():
+            self.update()
+            self.mark_dirty()
+
+    def open_chart_type_dialog(self, obj: FloatingObject | None = None) -> None:
+        """Open Chart Type dialog."""
+        target = obj or self.selected_object
+        if target is None:
+            return
+        try:
+            from atboffice.modules.spreadsheet.dialogs.chart_wizard import (
+                ChartWizardDialog,
+            )
+
+            dlg = ChartWizardDialog(parent=self)
+            if dlg.exec():
+                self.update()
+                self.mark_dirty()
+        except ImportError:
+            pass
+
+    def open_chart_options_dialog(self, obj: FloatingObject | None = None) -> None:
+        """Open Chart Options dialog."""
+        target = obj or self.selected_object
+        if target is None:
+            return
+        try:
+            from atboffice.modules.spreadsheet.dialogs.chart_wizard import (
+                ChartWizardDialog,
+            )
+
+            dlg = ChartWizardDialog(parent=self)
+            if dlg.exec():
+                self.update()
+                self.mark_dirty()
+        except ImportError:
+            pass
+
+    def mark_dirty(self) -> None:
+        """Mark parent window and document dirty."""
+        win = self.window()
+        if hasattr(win, "set_dirty"):
+            win.set_dirty(True)
+        elif hasattr(win, "is_dirty"):
+            win.is_dirty = True

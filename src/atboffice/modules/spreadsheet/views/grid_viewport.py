@@ -47,6 +47,7 @@ from PySide6.QtWidgets import (
 from atboffice.modules.spreadsheet.calc.parser import parse, to_text
 from atboffice.modules.spreadsheet.calc.references import (
     adjust_move,
+    cell_name,
     col_name,
     map_ast,
     range_name,
@@ -2956,6 +2957,21 @@ class GridViewport(QAbstractScrollArea):
 
         menu.addSeparator()
 
+        # Table / List conditional branch
+        tbl = self.table_at(r, c)
+        if tbl is not None:
+            list_menu = menu.addMenu(safe_tr("列表(&L)"))
+            act_tot = list_menu.addAction(safe_tr("汇总行(&T)"))
+            act_tot.triggered.connect(lambda: self.toggle_total_row(tbl))
+            act_conv = list_menu.addAction(safe_tr("转换为区域(&R)"))
+            act_conv.triggered.connect(lambda: self.convert_table_to_range(tbl))
+        else:
+            act_create_list = menu.addAction(safe_tr("创建列表(&L)…"))
+            act_create_list.setShortcut("Ctrl+L")
+            act_create_list.triggered.connect(self.create_list)
+
+        menu.addSeparator()
+
         # Hyperlink actions
         has_link = self._has_hyperlink(r, c)
         if has_link:
@@ -2991,6 +3007,18 @@ class GridViewport(QAbstractScrollArea):
 
         menu.addSeparator()
 
+        kind = getattr(obj, "kind", None)
+        if kind == "chart":
+            act_chart_type = menu.addAction(safe_tr("图表类型(&Y)…"))
+            act_chart_type.triggered.connect(lambda: self.open_chart_type_dialog(obj))
+            act_chart_opts = menu.addAction(safe_tr("图表选项(&O)…"))
+            act_chart_opts.triggered.connect(lambda: self.open_chart_options_dialog(obj))
+            menu.addSeparator()
+        elif kind == "shape":
+            act_edit_txt = menu.addAction(safe_tr("编辑文字(&X)"))
+            act_edit_txt.triggered.connect(lambda: self.edit_object_text(obj))
+            menu.addSeparator()
+
         order_menu = menu.addMenu(safe_tr("叠放次序(&R)"))
         if self.object_layer is not None:
             order_menu.addAction(
@@ -3012,7 +3040,17 @@ class GridViewport(QAbstractScrollArea):
 
         menu.addSeparator()
 
-        act_fmt = menu.addAction(safe_tr("设置对象格式(&O)…"))
+        fmt_label = safe_tr("设置对象格式(&O)…")
+        if kind == "image":
+            fmt_label = safe_tr("设置图片格式(&O)…")
+        elif kind == "chart":
+            fmt_label = safe_tr("设置图表区域格式(&O)…")
+        elif kind == "shape" and getattr(obj, "tx_box", False):
+            fmt_label = safe_tr("设置文本框格式(&O)…")
+        elif kind == "shape":
+            fmt_label = safe_tr("设置自选图形格式(&O)…")
+
+        act_fmt = menu.addAction(fmt_label)
         act_fmt.triggered.connect(lambda: self.open_format_object_dialog(obj))
 
         return menu
@@ -3084,7 +3122,7 @@ class GridViewport(QAbstractScrollArea):
             self._internal_clipboard["is_cut"] = True
 
     def copy(self) -> None:
-        """Copy selection to clipboard."""
+        """Copy selection to clipboard using sparse boundaries."""
         if (
             self.object_layer is not None
             and getattr(self.object_layer, "selected_object", None) is not None
@@ -3093,32 +3131,211 @@ class GridViewport(QAbstractScrollArea):
             return
 
         pr = self.selection.primary_range
+        # Calculate sparse bounds to prevent 10^6 iteration on whole column/row selection
+        max_alloc_r = max(
+            (r for (r, c) in self.model.cells.keys() if pr.min_c <= c <= pr.max_c),
+            default=pr.min_r,
+        )
+        max_alloc_c = max(
+            (c for (r, c) in self.model.cells.keys() if pr.min_r <= r <= pr.max_r),
+            default=pr.min_c,
+        )
+
+        eff_max_r = min(pr.max_r, max(pr.min_r, max_alloc_r))
+        eff_max_c = min(pr.max_c, max(pr.min_c, max_alloc_c))
+        eff_range = SelectionRange(pr.min_r, pr.min_c, eff_max_r, eff_max_c)
+
         lines: list[str] = []
-        for r in range(pr.min_r, pr.max_r + 1):
+        for r in range(eff_range.min_r, eff_range.max_r + 1):
             row_vals: list[str] = []
-            for c in range(pr.min_c, pr.max_c + 1):
+            for c in range(eff_range.min_c, eff_range.max_c + 1):
                 val = self.model.get_cell_value(r, c)
                 row_vals.append("" if val is None else str(val))
             lines.append("\t".join(row_vals))
         tsv = "\n".join(lines)
         QApplication.clipboard().setText(tsv)
 
+        col_widths = {
+            c - pr.min_c: self.geometry_mapper.col_size(c)
+            for c in range(eff_range.min_c, eff_range.max_c + 1)
+        }
+
         self._internal_clipboard = {
             "range": pr,
+            "effective_range": eff_range,
+            "h": eff_range.max_r - eff_range.min_r + 1,
+            "w": eff_range.max_c - eff_range.min_c + 1,
+            "col_widths": col_widths,
             "cells": {
                 (r - pr.min_r, c - pr.min_c): (
                     self.model.get_cell(r, c).clone()
                     if self.model.get_cell(r, c)
                     else None
                 )
-                for r in range(pr.min_r, pr.max_r + 1)
-                for c in range(pr.min_c, pr.max_c + 1)
+                for r in range(eff_range.min_r, eff_range.max_r + 1)
+                for c in range(eff_range.min_c, eff_range.max_c + 1)
             },
             "is_cut": False,
         }
 
+    def _snapshot_state(self) -> dict[str, Any]:
+        """Capture cell, merge, comment, and selection snapshot for undo."""
+        before_cells = {k: v.clone() for k, v in self.model.cells.items()}
+        before_merges = list(self.model.merges)
+        before_comments = (
+            {k: CellComment(**v.__dict__) for k, v in self.model.comments.items()}
+            if hasattr(self.model, "comments")
+            else {}
+        )
+        before_sel = self.selection.snapshot()
+        return {
+            "before_cells": before_cells,
+            "before_merges": before_merges,
+            "before_comments": before_comments,
+            "before_sel": before_sel,
+        }
+
+    def _commit_undo(self, before_state: dict[str, Any], action: str = "edit") -> None:
+        """Record state transition in undo stack and flag document dirty."""
+        after_cells = {k: v.clone() for k, v in self.model.cells.items()}
+        after_merges = list(self.model.merges)
+        after_comments = (
+            {k: CellComment(**v.__dict__) for k, v in self.model.comments.items()}
+            if hasattr(self.model, "comments")
+            else {}
+        )
+        after_sel = self.selection.snapshot()
+        entry = {
+            **before_state,
+            "after_cells": after_cells,
+            "after_merges": after_merges,
+            "after_comments": after_comments,
+            "after_sel": after_sel,
+            "action": action,
+        }
+        self._undo_stack.append(entry)
+        self._redo_stack.clear()
+        self.mark_dirty()
+        self.viewport().update()
+
+    def mark_dirty(self) -> None:
+        """Mark workbook as modified."""
+        win = self.window()
+        if hasattr(win, "set_dirty"):
+            win.set_dirty(True)
+        elif hasattr(win, "set_modified"):
+            win.set_modified(True)
+        elif hasattr(self, "workbook") and self.workbook:
+            self.workbook.dirty = True
+
+    def table_at(self, r: int, c: int) -> Any | None:
+        """Check if cell (r, c) is part of a list/table."""
+        for t in getattr(self.model, "tables", []):
+            if hasattr(t, "range"):
+                r1, c1, r2, c2 = t.range
+            elif isinstance(t, dict):
+                r1, c1 = t.get("r1", 0), t.get("c1", 0)
+                r2, c2 = t.get("r2", 0), t.get("c2", 0)
+            else:
+                continue
+            if r1 <= r <= r2 and c1 <= c <= c2:
+                return t
+
+        af = getattr(self.model, "auto_filter", None)
+        if af is not None:
+            r1, c1 = getattr(af, "min_r", 0), getattr(af, "min_c", 0)
+            r2, c2 = getattr(af, "max_r", 0), getattr(af, "max_c", 0)
+            if r1 <= r <= r2 and c1 <= c <= c2:
+                return af
+
+        win = self.window()
+        if getattr(win, "_total_row_active", False):
+            total_r = getattr(win, "_total_row_r", None)
+            c1, c2 = getattr(win, "_total_row_cols", (0, 0))
+            if total_r is not None and r <= total_r and c1 <= c <= c2:
+                return {"r1": 0, "c1": c1, "r2": total_r, "c2": c2}
+
+        return None
+
+    def create_list(self) -> None:
+        """Create a list/table from current selection."""
+        pr = self.selection.primary_range
+        if not hasattr(self.model, "tables"):
+            self.model.tables = []
+        table_info = {
+            "name": f"Table{len(self.model.tables) + 1}",
+            "r1": pr.min_r,
+            "c1": pr.min_c,
+            "r2": pr.max_r,
+            "c2": pr.max_c,
+            "has_headers": True,
+            "totalRow": False,
+        }
+        self.model.tables.append(table_info)
+        self.toggle_auto_filter()
+        self.mark_dirty()
+        self.viewport().update()
+
+    def toggle_total_row(self, target_table: dict | None = None) -> None:
+        """Toggle total row on the active table/list."""
+        win = self.window()
+        if win is not self and hasattr(win, "toggle_total_row"):
+            win.toggle_total_row()
+        tbl = target_table or (self.table_at(*self.selection.active_cell) if hasattr(self, "table_at") else None)
+        if tbl is not None:
+            tbl["totalRow"] = not tbl.get("totalRow", False)
+        self.mark_dirty()
+        self.viewport().update()
+
+    def convert_table_to_range(self, target_table: dict | None = None) -> None:
+        """Convert list/table back to normal range."""
+        win = self.window()
+        if win is not self and hasattr(win, "convert_table_to_range"):
+            win.convert_table_to_range()
+        if hasattr(self.model, "tables"):
+            if target_table is not None and target_table in self.model.tables:
+                self.model.tables.remove(target_table)
+            else:
+                pr = self.selection.primary_range
+                self.model.tables = [
+                    t
+                    for t in self.model.tables
+                    if not (
+                        t.get("r1", 0) <= pr.min_r
+                        and t.get("r2", 0) >= pr.max_r
+                        and t.get("c1", 0) <= pr.min_c
+                        and t.get("c2", 0) >= pr.max_c
+                    )
+                ]
+        self.mark_dirty()
+        self.viewport().update()
+
+    def open_chart_type_dialog(self, obj: Any) -> None:
+        """Open chart type selector for chart object."""
+        win = self.window()
+        if win is not self and hasattr(win, "chart_wizard"):
+            win.chart_wizard()
+        else:
+            from atboffice.modules.spreadsheet.dialogs.chart_wizard import (
+                ChartWizardDialog,
+            )
+
+            dlg = ChartWizardDialog(parent=self)
+            dlg.exec()
+
+    def open_chart_options_dialog(self, obj: Any) -> None:
+        """Open chart wizard / options for chart object."""
+        self.open_chart_type_dialog(obj)
+
+    def edit_object_text(self, obj: Any) -> None:
+        """Begin editing text inside shape/textbox."""
+        if self.object_layer is not None and hasattr(
+            self.object_layer, "start_text_editing"
+        ):
+            self.object_layer.start_text_editing(obj)
+
     def paste(self) -> None:
-        """Paste clipboard content to active cell."""
+        """Paste clipboard content to active cell with undo support."""
         if self.guard_protect(cell_edit=True):
             return
         if (
@@ -3128,6 +3345,7 @@ class GridViewport(QAbstractScrollArea):
             self.object_layer.paste()
             return
 
+        before_state = self._snapshot_state()
         ar, ac = self.selection.active_cell
         if self._internal_clipboard:
             cells_data = self._internal_clipboard.get("cells", {})
@@ -3136,7 +3354,12 @@ class GridViewport(QAbstractScrollArea):
             for (dr, dc), cell_copy in cells_data.items():
                 target_r, target_c = ar + dr, ac + dc
                 if cell_copy is not None:
-                    self.model.set_cell(target_r, target_c, cell_copy.clone())
+                    cloned = cell_copy.clone()
+                    if cloned.formula and src_range is not None:
+                        shift_r = target_r - (src_range.min_r + dr)
+                        shift_c = target_c - (src_range.min_c + dc)
+                        cloned.formula = translate(cloned.formula, shift_r, shift_c)
+                    self.model.set_cell(target_r, target_c, cloned)
                 else:
                     self.model.set_cell(target_r, target_c, CellData())
             if is_cut and src_range:
@@ -3166,14 +3389,190 @@ class GridViewport(QAbstractScrollArea):
                         except ValueError:
                             pass
                         self.model.set_cell_value(ar + dr, ac + dc, val)
-        self.viewport().update()
+        self._commit_undo(before_state, action="paste")
 
-    def paste_special(self) -> None:
-        """Paste values / special options from clipboard."""
-        self.paste()
+    def paste_special(self, options: dict[str, Any] | None = None) -> None:
+        """Paste values / special options from clipboard with real business transformations."""
+        if self.guard_protect(cell_edit=True):
+            return
+
+        if options is None:
+            from atboffice.modules.spreadsheet.dialogs.paste_special_dialog import (
+                PasteSpecialDialog,
+            )
+
+            dlg = PasteSpecialDialog(self)
+            if not dlg.exec():
+                return
+            options = dlg.options
+
+        # Ensure internal clipboard or fallback to parsed clipboard text
+        if not self._internal_clipboard:
+            text = QApplication.clipboard().text()
+            if not text:
+                return
+            rows = text.splitlines()
+            cells = {}
+            for dr, row_str in enumerate(rows):
+                for dc, cell_str in enumerate(row_str.split("\t")):
+                    val: Any = cell_str
+                    try:
+                        if "." in cell_str:
+                            val = float(cell_str)
+                        else:
+                            val = int(cell_str)
+                    except ValueError:
+                        pass
+                    cells[(dr, dc)] = CellData(value=val)
+            h = len(rows)
+            w = max((len(r.split("\t")) for r in rows), default=1)
+            self._internal_clipboard = {
+                "range": SelectionRange(0, 0, h - 1, w - 1),
+                "effective_range": SelectionRange(0, 0, h - 1, w - 1),
+                "h": h,
+                "w": w,
+                "col_widths": {},
+                "cells": cells,
+                "is_cut": False,
+            }
+
+        before_state = self._snapshot_state()
+
+        src_h = self._internal_clipboard.get("h", 1)
+        src_w = self._internal_clipboard.get("w", 1)
+        src_cells = self._internal_clipboard.get("cells", {})
+        src_range = self._internal_clipboard.get("range", SelectionRange(0, 0, 0, 0))
+        col_widths = self._internal_clipboard.get("col_widths", {})
+
+        transpose = bool(options.get("transpose", False))
+        skip_blanks = bool(options.get("skip_blanks", False))
+        what = options.get("what") or options.get("type") or "all"
+        op = options.get("op") or options.get("operation") or "none"
+        is_link = bool(
+            options.get("link", False)
+            or options.get("type") == "paste_link"
+            or options.get("what") == "paste_link"
+        )
+
+        dest_h = src_w if transpose else src_h
+        dest_w = src_h if transpose else src_w
+        ar, ac = self.selection.active_cell
+
+        # Special case: Column widths only
+        if what == "colWidths":
+            for j in range(dest_w):
+                src_j = j if not transpose else 0
+                width = col_widths.get(src_j)
+                if width is not None:
+                    self.geometry_mapper.set_col_width(ac + j, width)
+                    self.model.geometry.set_col_width(ac + j, width)
+            self._commit_undo(before_state, action="paste_special")
+            return
+
+        take_val = what in ("all", "values", "valuesNF")
+        take_formula = what in ("all", "formulas", "noBorders", "formulasNF")
+        take_format = what in ("all", "formats", "noBorders")
+        take_nf = what in ("formulasNF", "valuesNF")
+
+        for dr in range(dest_h):
+            for dc in range(dest_w):
+                si, sj = (dc, dr) if transpose else (dr, dc)
+                src_cell = src_cells.get((si, sj))
+                target_r = ar + dr
+                target_c = ac + dc
+
+                if skip_blanks and (
+                    src_cell is None
+                    or (
+                        (src_cell.value is None or src_cell.value == "")
+                        and not src_cell.formula
+                    )
+                ):
+                    continue
+
+                curr_cell = self.model.get_cell(target_r, target_c)
+                new_cell = curr_cell.clone() if curr_cell else CellData()
+
+                if is_link:
+                    src_abs_r = src_range.min_r + si
+                    src_abs_c = src_range.min_c + sj
+                    sheet_name = getattr(self.model, "name", "")
+                    sheet_ref = f"{sheet_name}!" if sheet_name else ""
+                    new_cell.formula = f"={sheet_ref}{cell_name(src_abs_r, src_abs_c, False, False)}"
+                    new_cell.value = None
+                    self.model.set_cell(target_r, target_c, new_cell)
+                    continue
+
+                if what == "comments":
+                    src_abs_r = src_range.min_r + si
+                    src_abs_c = src_range.min_c + sj
+                    cm = self.model.get_comment(src_abs_r, src_abs_c)
+                    if cm:
+                        self.model.set_comment(
+                            target_r, target_c, cm.text, cm.author, cm.visible
+                        )
+                    continue
+
+                if what == "validation":
+                    src_abs_r = src_range.min_r + si
+                    src_abs_c = src_range.min_c + sj
+                    dv = self.model.get_validation_at(src_abs_r, src_abs_c)
+                    if dv and hasattr(self.model, "add_data_validation"):
+                        self.model.add_data_validation(dv)
+                    continue
+
+                if take_val or take_formula:
+                    src_v = src_cell.value if src_cell else None
+                    src_f = src_cell.formula if (src_cell and take_formula) else None
+
+                    if src_f is not None:
+                        shift_r = target_r - (src_range.min_r + si)
+                        shift_c = target_c - (src_range.min_c + sj)
+                        src_f = translate(src_f, shift_r, shift_c)
+
+                    if op and op != "none":
+                        cur_v = curr_cell.value if curr_cell else None
+                        base_num = cur_v if isinstance(cur_v, (int, float)) else 0
+                        val_num = src_v if isinstance(src_v, (int, float)) else 0
+                        if op == "add":
+                            src_v = base_num + val_num
+                        elif op in ("sub", "subtract"):
+                            src_v = base_num - val_num
+                        elif op in ("mul", "multiply"):
+                            src_v = base_num * val_num
+                        elif op in ("div", "divide"):
+                            src_v = "#DIV/0!" if val_num == 0 else base_num / val_num
+                        src_f = None
+
+                    new_cell.value = src_v
+                    new_cell.formula = src_f
+
+                if take_format and src_cell is not None:
+                    new_cell.font_family = src_cell.font_family
+                    new_cell.font_size = src_cell.font_size
+                    new_cell.bold = src_cell.bold
+                    new_cell.italic = src_cell.italic
+                    new_cell.underline = src_cell.underline
+                    new_cell.fg_color = src_cell.fg_color
+                    new_cell.bg_color = src_cell.bg_color
+                    new_cell.align_h = src_cell.align_h
+                    new_cell.align_v = src_cell.align_v
+                    new_cell.format_code = src_cell.format_code
+                    if what != "noBorders":
+                        new_cell.border_top = src_cell.border_top
+                        new_cell.border_bottom = src_cell.border_bottom
+                        new_cell.border_left = src_cell.border_left
+                        new_cell.border_right = src_cell.border_right
+
+                if take_nf and src_cell is not None:
+                    new_cell.format_code = src_cell.format_code
+
+                self.model.set_cell(target_r, target_c, new_cell)
+
+        self._commit_undo(before_state, action="paste_special")
 
     def clear_contents(self) -> None:
-        """Clear values and formulas in the current selection."""
+        """Clear values and formulas in the current selection with sparse optimization."""
         if self.guard_protect(cell_edit=True):
             return
         if (
@@ -3183,14 +3582,24 @@ class GridViewport(QAbstractScrollArea):
             self.object_layer.delete_selected()
             return
 
+        before_state = self._snapshot_state()
+
         for rg in self.selection.ranges:
-            for r in range(rg.min_r, rg.max_r + 1):
-                for c in range(rg.min_c, rg.max_c + 1):
-                    cell = self.model.get_cell(r, c)
-                    if cell is not None:
+            total_cells = (rg.max_r - rg.min_r + 1) * (rg.max_c - rg.min_c + 1)
+            if total_cells > len(self.model.cells):
+                for (r, c), cell in list(self.model.cells.items()):
+                    if rg.contains(r, c):
                         cell.value = None
                         cell.formula = None
-        self.viewport().update()
+            else:
+                for r in range(rg.min_r, rg.max_r + 1):
+                    for c in range(rg.min_c, rg.max_c + 1):
+                        cell = self.model.get_cell(r, c)
+                        if cell is not None:
+                            cell.value = None
+                            cell.formula = None
+
+        self._commit_undo(before_state, action="clear_contents")
 
     def _holds_data(
         self,

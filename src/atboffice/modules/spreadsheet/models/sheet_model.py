@@ -149,6 +149,10 @@ class SheetGeometry:
             return 0
         return self.custom_col_widths.get(c, self.default_col_width)
 
+    def col_width(self, c: int) -> int:
+        """Alias for col_size."""
+        return self.col_size(c)
+
     def set_row_height(self, r: int, height: int) -> None:
         """Set custom height for row r."""
         self.custom_row_heights[r] = max(0, height)
