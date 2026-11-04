@@ -263,6 +263,9 @@ class SheetDataModel:
         self.links: list[Any] = []
         self.freeze_rows: int = 0
         self.freeze_cols: int = 0
+        self.dirty: bool = False
+        self.extra: dict[str, Any] = {}
+        self.code_name: str | None = None
 
     def set_comment(
         self,
@@ -319,6 +322,7 @@ class SheetDataModel:
 
     def add_merge(self, r1: int, c1: int, r2: int, c2: int) -> None:
         """Add a merged cell region (r1, c1, r2, c2)."""
+        self.dirty = True
         min_r, max_r = min(r1, r2), max(r1, r2)
         min_c, max_c = min(c1, c2), max(c1, c2)
         self.merges = [
@@ -447,6 +451,7 @@ class SheetDataModel:
         return self.cells.get((r, c))
 
     def set_cell(self, r: int, c: int, cell: CellData) -> None:
+        self.dirty = True
         self.cells[(r, c)] = cell
 
     def get_cell_value(self, r: int, c: int, default: Any = None) -> Any:
@@ -454,6 +459,7 @@ class SheetDataModel:
         return cell.value if cell is not None else default
 
     def set_cell_value(self, r: int, c: int, value: Any) -> None:
+        self.dirty = True
         cell = self.cells.get((r, c))
         if cell is None:
             cell = CellData(value=value)
