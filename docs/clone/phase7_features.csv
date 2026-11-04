@@ -10,7 +10,7 @@ Open Packaging Conventions (OPC) Container,vfs,must,yes,yes,Pure Python OPC pack
 Part-Level Lossless Preserve Engine,vfs,must,yes,yes,"Byte-for-byte carry for unmodified parts (VBA macros, themes, media)",unverified,
 Portable XML Tree Parser and Serializer,vfs,must,yes,yes,xml_tree.py with schema-ordered serialization,unverified,
 ECMA-376 Standard and Agile Encryption Engine,vfs,must,yes,yes,crypto.py supporting password protected documents,unverified,
-DOCX OpenXML Reader Core,quire_io,must,yes,yes,"docx_reader.py parses body, runs, paragraphs, styles, numbering",unverified,
+DOCX OpenXML Reader Core,quire_io,must,yes,yes,"docx_reader.py parses body, runs, paragraphs, styles, numbering with dual ISO/IEC 29500 Strict and ECMA-376 Transitional support (TASK-705, #239)",verified,tests/gui/test_phase7_docx_render.py (TASK-705, #239)
 "DOCX Advanced Formatting (GridSpan, VMerge, Numbering)",quire_io,must,yes,yes,Complex table cell merges and multi-level list cascading,unverified,
 DOCX DrawingML and Picture Import,quire_io,must,yes,yes,w:drawing and w:pict anchor and inline extraction,unverified,
 DOCX OpenXML Writer and Serialization,quire_io,must,yes,yes,docx_writer.py generates standard WordprocessingML packages,unverified,

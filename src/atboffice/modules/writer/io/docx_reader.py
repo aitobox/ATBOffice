@@ -71,6 +71,32 @@ NS_V = "urn:schemas-microsoft-com:vml"
 NS_O = "urn:schemas-microsoft-com:office:office"
 NS_W10 = "urn:schemas-microsoft-com:office:word"
 
+# Dual Transitional & Strict Namespaces Sets (ISO/IEC 29500 & ECMA-376)
+W_NAMESPACES = {
+    "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+    "http://purl.oclc.org/ooxml/wordprocessingml/main",
+}
+R_NAMESPACES = {
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+    "http://purl.oclc.org/ooxml/officeDocument/relationships",
+}
+M_NAMESPACES = {
+    "http://schemas.openxmlformats.org/officeDocument/2006/math",
+    "http://purl.oclc.org/ooxml/officeDocument/math",
+}
+WP_NAMESPACES = {
+    "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing",
+    "http://purl.oclc.org/ooxml/drawingml/wordprocessingDrawing",
+}
+A_NAMESPACES = {
+    "http://schemas.openxmlformats.org/drawingml/2006/main",
+    "http://purl.oclc.org/ooxml/drawingml/main",
+}
+PIC_NAMESPACES = {
+    "http://schemas.openxmlformats.org/drawingml/2006/picture",
+    "http://purl.oclc.org/ooxml/drawingml/picture",
+}
+
 CT_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"
 CT_DOCM = "application/vnd.ms-word.document.macroEnabled.main+xml"
 CT_DOTX = "application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml"
@@ -84,6 +110,54 @@ def _local_tag(elem: ET.Element | str) -> str:
     if ":" in tag:
         return tag.split(":", 1)[1]
     return tag
+
+
+def _elem_ns(elem: ET.Element | str) -> str:
+    """Extract namespace URI stripped of Clark notation brackets."""
+    tag = elem.tag if isinstance(elem, ET.Element) else elem
+    if tag.startswith("{"):
+        return tag.split("}", 1)[0][1:]
+    return ""
+
+
+def _find_elem(
+    parent: ET.Element | None, tag: str, ns_set: set[str] | None = None
+) -> ET.Element | None:
+    """Find direct child element by local tag name and optional namespace set."""
+    if parent is None:
+        return None
+    for child in parent:
+        if _local_tag(child) == tag:
+            if ns_set is None or not _elem_ns(child) or _elem_ns(child) in ns_set:
+                return child
+    return None
+
+
+def _findall_elems(
+    parent: ET.Element | None, tag: str, ns_set: set[str] | None = None
+) -> list[ET.Element]:
+    """Find all direct child elements by local tag name and optional namespace set."""
+    if parent is None:
+        return []
+    res: list[ET.Element] = []
+    for child in parent:
+        if _local_tag(child) == tag:
+            if ns_set is None or not _elem_ns(child) or _elem_ns(child) in ns_set:
+                res.append(child)
+    return res
+
+
+def _find_desc(
+    parent: ET.Element | None, tag: str, ns_set: set[str] | None = None
+) -> ET.Element | None:
+    """Find first descendant element by local tag name and optional namespace set."""
+    if parent is None:
+        return None
+    for child in parent.iter():
+        if child is not parent and _local_tag(child) == tag:
+            if ns_set is None or not _elem_ns(child) or _elem_ns(child) in ns_set:
+                return child
+    return None
 
 
 def _get_attr(elem: ET.Element, name: str, default: str | None = None) -> str | None:
@@ -109,11 +183,39 @@ def _bool_val(elem: ET.Element | None, default: bool = False) -> bool:
 
 
 def _twips_to_pt(val: str | int | float | None, default: float = 0.0) -> float:
-    """Convert twips/dxa (1/20 of a pt) to points."""
+    """Convert twips/dxa (1/20 of a pt) or explicit unit strings to points."""
     if val is None or val == "":
         return default
-    try:
+    if isinstance(val, (int, float)):
         return float(val) / 20.0
+    s = str(val).strip()
+    if s.endswith("pt"):
+        try:
+            return float(s[:-2])
+        except ValueError:
+            return default
+    if s.endswith("in"):
+        try:
+            return float(s[:-2]) * 72.0
+        except ValueError:
+            return default
+    if s.endswith("cm"):
+        try:
+            return float(s[:-2]) * 28.3465
+        except ValueError:
+            return default
+    if s.endswith("mm"):
+        try:
+            return float(s[:-2]) * 2.83465
+        except ValueError:
+            return default
+    if s.endswith("pi"):
+        try:
+            return float(s[:-2]) * 12.0
+        except ValueError:
+            return default
+    try:
+        return float(s) / 20.0
     except (ValueError, TypeError):
         return default
 
@@ -156,6 +258,7 @@ class DocxReader:
         self.main_path = "word/document.xml"
         self.doc_format = "docx"
         self.rels: dict[str, Relationship] = {}
+        self.cur_rels: dict[str, Relationship] = {}
         self.doc = Document()
         self.doc._source_pkg = source_pkg  # type: ignore[attr-defined]
 
@@ -195,6 +298,7 @@ class DocxReader:
         """Load relationship entries for main document part."""
         rels_list = self.pkg.get_relationships(self.main_path)
         self.rels = {r.id: r for r in rels_list}
+        self.cur_rels = self.rels
 
     def _rel_target(self, rel_type_suffix: str) -> str | None:
         """Find relationship target matching type suffix."""
@@ -224,41 +328,41 @@ class DocxReader:
         styles = builtin_styles()
 
         # Parse docDefaults
-        doc_defaults = root.find(f"{{{NS_W}}}docDefaults")
+        doc_defaults = _find_elem(root, "docDefaults", W_NAMESPACES)
         if doc_defaults is not None:
-            r_pr_def = doc_defaults.find(f".//{{{NS_W}}}rPr")
-            p_pr_def = doc_defaults.find(f".//{{{NS_W}}}pPr")
+            r_pr_def = _find_desc(doc_defaults, "rPr", W_NAMESPACES)
+            p_pr_def = _find_desc(doc_defaults, "pPr", W_NAMESPACES)
             if r_pr_def is not None:
                 self.doc.defaults["r_pr"] = self._parse_r_pr(r_pr_def)
             if p_pr_def is not None:
                 self.doc.defaults["p_pr"] = self._parse_p_pr(p_pr_def)
 
         # Parse style elements
-        for style_elem in root.findall(f"{{{NS_W}}}style"):
+        for style_elem in _findall_elems(root, "style", W_NAMESPACES):
             s_id = _get_attr(style_elem, "styleId")
             s_type = _get_attr(style_elem, "type", "paragraph")
             if not s_id:
                 continue
 
-            name_elem = style_elem.find(f"{{{NS_W}}}name")
+            name_elem = _find_elem(style_elem, "name", W_NAMESPACES)
             s_name = _get_attr(name_elem, "val", s_id) if name_elem is not None else s_id
 
-            based_on_elem = style_elem.find(f"{{{NS_W}}}basedOn")
+            based_on_elem = _find_elem(style_elem, "basedOn", W_NAMESPACES)
             based_on = _get_attr(based_on_elem, "val") if based_on_elem is not None else None
 
-            next_elem = style_elem.find(f"{{{NS_W}}}next")
+            next_elem = _find_elem(style_elem, "next", W_NAMESPACES)
             next_s = _get_attr(next_elem, "val") if next_elem is not None else None
 
-            def_elem = style_elem.find(f"{{{NS_W}}}default")
+            def_elem = _find_elem(style_elem, "default", W_NAMESPACES)
             is_default = _bool_val(def_elem, False) or _get_attr(style_elem, "default") == "1"
 
             p_pr = None
-            p_pr_elem = style_elem.find(f"{{{NS_W}}}pPr")
+            p_pr_elem = _find_elem(style_elem, "pPr", W_NAMESPACES)
             if p_pr_elem is not None:
                 p_pr = self._parse_p_pr(p_pr_elem)
 
             r_pr = None
-            r_pr_elem = style_elem.find(f"{{{NS_W}}}rPr")
+            r_pr_elem = _find_elem(style_elem, "rPr", W_NAMESPACES)
             if r_pr_elem is not None:
                 r_pr = self._parse_r_pr(r_pr_elem)
 
@@ -293,26 +397,26 @@ class DocxReader:
         nums_map: dict[str, dict[str, Any]] = {}
 
         # 1. Parse abstractNum elements
-        for an in root.findall(f"{{{NS_W}}}abstractNum"):
+        for an in _findall_elems(root, "abstractNum", W_NAMESPACES):
             an_id = _get_attr(an, "abstractNumId")
             if not an_id:
                 continue
 
-            multi_elem = an.find(f"{{{NS_W}}}multiLevelType")
+            multi_elem = _find_elem(an, "multiLevelType", W_NAMESPACES)
             multi = (
                 _get_attr(multi_elem, "val", "multilevel")
                 if multi_elem is not None
                 else "multilevel"
             )
 
-            style_link_elem = an.find(f"{{{NS_W}}}numStyleLink")
+            style_link_elem = _find_elem(an, "numStyleLink", W_NAMESPACES)
             style_link = _get_attr(style_link_elem, "val") if style_link_elem is not None else None
 
-            name_elem = an.find(f"{{{NS_W}}}name")
+            name_elem = _find_elem(an, "name", W_NAMESPACES)
             name = _get_attr(name_elem, "val", "") if name_elem is not None else ""
 
             levels: list[dict[str, Any]] = [{} for _ in range(9)]
-            for lv in an.findall(f"{{{NS_W}}}lvl"):
+            for lv in _findall_elems(an, "lvl", W_NAMESPACES):
                 ilvl_str = _get_attr(lv, "ilvl", "0")
                 try:
                     ilvl = int(ilvl_str)
@@ -321,47 +425,47 @@ class DocxReader:
                 if not (0 <= ilvl < 9):
                     continue
 
-                start_elem = lv.find(f"{{{NS_W}}}start")
+                start_elem = _find_elem(lv, "start", W_NAMESPACES)
                 start_val = (
                     int(_get_attr(start_elem, "val", "1") or "1") if start_elem is not None else 1
                 )
 
-                fmt_elem = lv.find(f"{{{NS_W}}}numFmt")
+                fmt_elem = _find_elem(lv, "numFmt", W_NAMESPACES)
                 fmt_val = (
                     _get_attr(fmt_elem, "val", "decimal") if fmt_elem is not None else "decimal"
                 )
 
-                text_elem = lv.find(f"{{{NS_W}}}lvlText")
+                text_elem = _find_elem(lv, "lvlText", W_NAMESPACES)
                 text_val = (
                     _get_attr(text_elem, "val", f"%{ilvl + 1}.")
                     if text_elem is not None
                     else f"%{ilvl + 1}."
                 )
 
-                jc_elem = lv.find(f"{{{NS_W}}}lvlJc")
+                jc_elem = _find_elem(lv, "lvlJc", W_NAMESPACES)
                 jc_val = _get_attr(jc_elem, "val", "left") if jc_elem is not None else "left"
 
-                suff_elem = lv.find(f"{{{NS_W}}}suff")
+                suff_elem = _find_elem(lv, "suff", W_NAMESPACES)
                 suff_val = _get_attr(suff_elem, "val", "tab") if suff_elem is not None else "tab"
 
-                is_lgl = lv.find(f"{{{NS_W}}}isLgl") is not None
+                is_lgl = _find_elem(lv, "isLgl", W_NAMESPACES) is not None
 
-                restart_elem = lv.find(f"{{{NS_W}}}lvlRestart")
+                restart_elem = _find_elem(lv, "lvlRestart", W_NAMESPACES)
                 restart = (
                     int(_get_attr(restart_elem, "val", "0") or "0") - 1
                     if restart_elem is not None
                     else None
                 )
 
-                p_style_elem = lv.find(f"{{{NS_W}}}pStyle")
+                p_style_elem = _find_elem(lv, "pStyle", W_NAMESPACES)
                 p_style = _get_attr(p_style_elem, "val") if p_style_elem is not None else None
 
                 # Indents & Spacing in pPr
                 ind_dict = {"l": 0.0, "fl": 0.0}
-                p_pr_elem = lv.find(f"{{{NS_W}}}pPr")
+                p_pr_elem = _find_elem(lv, "pPr", W_NAMESPACES)
                 tab_pos = None
                 if p_pr_elem is not None:
-                    ind_elem = p_pr_elem.find(f"{{{NS_W}}}ind")
+                    ind_elem = _find_elem(p_pr_elem, "ind", W_NAMESPACES)
                     if ind_elem is not None:
                         ind_dict["l"] = _twips_to_pt(
                             _get_attr(ind_elem, "left") or _get_attr(ind_elem, "start")
@@ -371,14 +475,14 @@ class DocxReader:
                         elif _get_attr(ind_elem, "firstLine") is not None:
                             ind_dict["fl"] = _twips_to_pt(_get_attr(ind_elem, "firstLine"))
 
-                    tabs_elem = p_pr_elem.find(f"{{{NS_W}}}tabs")
+                    tabs_elem = _find_elem(p_pr_elem, "tabs", W_NAMESPACES)
                     if tabs_elem is not None:
-                        tab_elem = tabs_elem.find(f"{{{NS_W}}}tab")
+                        tab_elem = _find_elem(tabs_elem, "tab", W_NAMESPACES)
                         if tab_elem is not None:
                             tab_pos = _twips_to_pt(_get_attr(tab_elem, "pos"))
 
                 # Run properties
-                r_pr_elem = lv.find(f"{{{NS_W}}}rPr")
+                r_pr_elem = _find_elem(lv, "rPr", W_NAMESPACES)
                 r_pr = self._parse_r_pr(r_pr_elem) if r_pr_elem is not None else RunProperties()
 
                 levels[ilvl] = {
@@ -423,16 +527,16 @@ class DocxReader:
             }
 
         # 2. Parse num elements
-        for n in root.findall(f"{{{NS_W}}}num"):
+        for n in _findall_elems(root, "num", W_NAMESPACES):
             num_id = _get_attr(n, "numId")
             if not num_id:
                 continue
 
-            abs_ref_elem = n.find(f"{{{NS_W}}}abstractNumId")
+            abs_ref_elem = _find_elem(n, "abstractNumId", W_NAMESPACES)
             abs_ref = _get_attr(abs_ref_elem, "val", "") if abs_ref_elem is not None else ""
 
             ov_map: dict[int, dict[str, Any]] = {}
-            for ov in n.findall(f"{{{NS_W}}}lvlOverride"):
+            for ov in _findall_elems(n, "lvlOverride", W_NAMESPACES):
                 ov_ilvl_str = _get_attr(ov, "ilvl", "0")
                 try:
                     ov_ilvl = int(ov_ilvl_str)
@@ -440,19 +544,19 @@ class DocxReader:
                     continue
 
                 ov_dict: dict[str, Any] = {}
-                start_ov = ov.find(f"{{{NS_W}}}startOverride")
+                start_ov = _find_elem(ov, "startOverride", W_NAMESPACES)
                 if start_ov is not None:
                     ov_dict["start"] = int(_get_attr(start_ov, "val", "1") or "1")
 
-                lvl_ov = ov.find(f"{{{NS_W}}}lvl")
+                lvl_ov = _find_elem(ov, "lvl", W_NAMESPACES)
                 if lvl_ov is not None:
-                    fmt_elem = lvl_ov.find(f"{{{NS_W}}}numFmt")
+                    fmt_elem = _find_elem(lvl_ov, "numFmt", W_NAMESPACES)
                     if fmt_elem is not None:
                         ov_dict["fmt"] = _get_attr(fmt_elem, "val", "decimal")
-                    text_elem = lvl_ov.find(f"{{{NS_W}}}lvlText")
+                    text_elem = _find_elem(lvl_ov, "lvlText", W_NAMESPACES)
                     if text_elem is not None:
                         ov_dict["text"] = _get_attr(text_elem, "val", f"%{ov_ilvl + 1}.")
-                    start_elem = lvl_ov.find(f"{{{NS_W}}}start")
+                    start_elem = _find_elem(lvl_ov, "start", W_NAMESPACES)
                     if start_elem is not None:
                         ov_dict["start"] = int(_get_attr(start_elem, "val", "1") or "1")
 
@@ -492,7 +596,7 @@ class DocxReader:
         try:
             root = ET.fromstring(self.pkg.read_part(fonts_path))
             fonts: list[str] = []
-            for font_elem in root.findall(f"{{{NS_W}}}font"):
+            for font_elem in _findall_elems(root, "font", W_NAMESPACES):
                 name = _get_attr(font_elem, "name")
                 if name:
                     fonts.append(name)
@@ -506,12 +610,22 @@ class DocxReader:
             raise ValueError(f"Package missing main document part: {self.main_path}")
 
         root = ET.fromstring(self.pkg.read_part(self.main_path))
-        body = root.find(f"{{{NS_W}}}body")
+        body = _find_elem(root, "body", W_NAMESPACES)
         if body is None:
             return
 
         blocks: list[Paragraph | Table] = []
-        for child in body:
+        self._collect_blocks(body, blocks)
+        if not blocks:
+            blocks.append(Paragraph())
+
+        self.doc.main = Story(kind="main", blocks=blocks)
+
+    def _collect_blocks(
+        self, parent: ET.Element, blocks: list[Paragraph | Table]
+    ) -> None:
+        """Recursively collect paragraph and table blocks from a container element."""
+        for child in parent:
             tag = _local_tag(child)
             if tag == "p":
                 p = self._parse_paragraph(child)
@@ -519,19 +633,25 @@ class DocxReader:
             elif tag == "tbl":
                 tbl = self._parse_table(child)
                 blocks.append(tbl)
+            elif tag in (
+                "sdt", "sdtContent", "customXml", "ins", "del", "smartTag", "moveTo", "moveFrom"
+            ):
+                sdt_content = (
+                    _find_elem(child, "sdtContent", W_NAMESPACES) if tag == "sdt" else None
+                )
+                target = sdt_content if sdt_content is not None else child
+                self._collect_blocks(target, blocks)
             elif tag == "sectPr":
                 self.doc.sect = self._parse_sect_pr(child)
-
-        self.doc.main = Story(kind="main", blocks=blocks)
 
     def _parse_paragraph(self, p_elem: ET.Element) -> Paragraph:
         """Parse <w:p> element into Paragraph."""
         p = Paragraph()
-        p_pr_elem = p_elem.find(f"{{{NS_W}}}pPr")
+        p_pr_elem = _find_elem(p_elem, "pPr", W_NAMESPACES)
         if p_pr_elem is not None:
             p.p_pr = self._parse_p_pr(p_pr_elem)
             # Check for section properties attached to paragraph
-            sect_elem = p_pr_elem.find(f"{{{NS_W}}}sectPr")
+            sect_elem = _find_elem(p_pr_elem, "sectPr", W_NAMESPACES)
             if sect_elem is not None:
                 p.sect = self._parse_sect_pr(sect_elem)
 
@@ -558,7 +678,7 @@ class DocxReader:
         tag = _local_tag(elem)
 
         if tag == "r":
-            r_pr_elem = elem.find(f"{{{NS_W}}}rPr")
+            r_pr_elem = _find_elem(elem, "rPr", W_NAMESPACES)
             r_pr = self._parse_r_pr(r_pr_elem) if r_pr_elem is not None else RunProperties()
             if link_info:
                 r_pr.link = link_info  # type: ignore[attr-defined]
@@ -567,7 +687,7 @@ class DocxReader:
                 c_tag = _local_tag(child)
                 if c_tag == "rPr":
                     continue
-                elif c_tag == "t":
+                elif c_tag in ("t", "delText"):
                     text = child.text or ""
                     runs.append(TextItem(text=text, r_pr=r_pr))
                 elif c_tag == "tab":
@@ -621,13 +741,40 @@ class DocxReader:
                         runs[-1].instr += text
                     else:
                         runs.append(TextItem(text=text, r_pr=r_pr))
+                elif c_tag == "r":
+                    self._parse_inline_element(child, runs, r_pr, link_info)
+                elif c_tag in ("AlternateContent", "Choice", "Fallback"):
+                    choice = _find_elem(child, "Choice")
+                    if choice is None:
+                        choice = _find_elem(child, "Fallback")
+                    target_container = choice if choice is not None else child
+                    for mc_child in target_container:
+                        self._parse_inline_element(mc_child, runs, r_pr, link_info)
+
+        elif tag in ("ins", "del", "moveTo", "moveFrom"):
+            for child in elem:
+                c_tag = _local_tag(child)
+                if c_tag in ("t", "delText"):
+                    r_item = TextItem(
+                        text=child.text or "", r_pr=inherited_r_pr or RunProperties()
+                    )
+                    runs.append(r_item)
+                else:
+                    self._parse_inline_element(child, runs, inherited_r_pr, link_info)
+
+        elif tag in ("sdt", "sdtContent", "customXml", "smartTag", "dir", "bdo"):
+            sdt_content = _find_elem(elem, "sdtContent", W_NAMESPACES) if tag == "sdt" else None
+            target = sdt_content if sdt_content is not None else elem
+            for child in target:
+                self._parse_inline_element(child, runs, inherited_r_pr, link_info)
 
         elif tag == "hyperlink":
             r_id = _get_attr(elem, "id") or _get_attr(elem, "rid") or _get_attr(elem, "r:id")
             anchor = _get_attr(elem, "anchor") or ""
             url = ""
-            if r_id and r_id in self.rels:
-                url = self.rels[r_id].target
+            rels = self.cur_rels if self.cur_rels else self.rels
+            if r_id and r_id in rels:
+                url = rels[r_id].target
             h_link = {"url": url, "anchor": anchor} if (url or anchor) else None
             for child in elem:
                 self._parse_inline_element(child, runs, inherited_r_pr, h_link)
@@ -676,6 +823,14 @@ class DocxReader:
         elif tag in ("oMath", "oMathPara"):
             runs.append(parse_omml(elem))
 
+        elif tag in ("AlternateContent", "Choice", "Fallback"):
+            choice = _find_elem(elem, "Choice")
+            if choice is None:
+                choice = _find_elem(elem, "Fallback")
+            target_container = choice if choice is not None else elem
+            for child in target_container:
+                self._parse_inline_element(child, runs, inherited_r_pr, link_info)
+
     def _parse_p_pr(self, p_pr_elem: ET.Element) -> ParagraphProperties:
         """Parse <w:pPr> element into ParagraphProperties."""
         p_pr = ParagraphProperties()
@@ -705,12 +860,27 @@ class DocxReader:
                 rule = _get_attr(child, "lineRule", "auto")
                 line_val = _get_attr(child, "line")
                 if line_val is not None:
-                    line_num = float(line_val)
-                    line = line_num / 240.0 if rule == "auto" else line_num / 20.0
+                    line_str = str(line_val).strip()
+                    if line_str.endswith("pt"):
+                        try:
+                            line = float(line_str[:-2])
+                        except ValueError:
+                            line = 1.0
+                    elif line_str.endswith("in"):
+                        try:
+                            line = float(line_str[:-2]) * 72.0
+                        except ValueError:
+                            line = 1.0
+                    else:
+                        try:
+                            line_num = float(line_str)
+                            line = line_num / 240.0 if rule == "auto" else line_num / 20.0
+                        except ValueError:
+                            line = 1.0
                 else:
                     line = 1.0
-                b_elem = child.find(f"{{{NS_W}}}beforeAutospacing")
-                a_elem = child.find(f"{{{NS_W}}}afterAutospacing")
+                b_elem = _find_elem(child, "beforeAutospacing", W_NAMESPACES)
+                a_elem = _find_elem(child, "afterAutospacing", W_NAMESPACES)
                 b_auto = _bool_val(b_elem, False) or _get_attr(child, "beforeAutospacing") == "1"
                 a_auto = _bool_val(a_elem, False) or _get_attr(child, "afterAutospacing") == "1"
                 p_pr.sp = SpacingProperties(
@@ -746,15 +916,15 @@ class DocxReader:
                     except ValueError:
                         pass
             elif tag == "numPr":
-                num_id_elem = child.find(f"{{{NS_W}}}numId")
+                num_id_elem = _find_elem(child, "numId", W_NAMESPACES)
                 num_id = _get_attr(num_id_elem if num_id_elem is not None else child, "val", "0")
-                ilvl_elem = child.find(f"{{{NS_W}}}ilvl")
+                ilvl_elem = _find_elem(child, "ilvl", W_NAMESPACES)
                 ilvl_str = _get_attr(ilvl_elem if ilvl_elem is not None else child, "val", "0")
                 ilvl = int(ilvl_str or "0")
                 p_pr.num = NumberingRef(id=str(num_id), lvl=ilvl)
             elif tag == "tabs":
                 tabs: list[TabStop] = []
-                for tab_elem in child.findall(f"{{{NS_W}}}tab"):
+                for tab_elem in _findall_elems(child, "tab", W_NAMESPACES):
                     pos = _twips_to_pt(_get_attr(tab_elem, "pos"))
                     align = _get_attr(tab_elem, "val", "left")
                     leader = _get_attr(tab_elem, "leader", "none")
@@ -819,27 +989,51 @@ class DocxReader:
                     r_pr.lang_ea = ea_lang
         return r_pr
 
+    def _collect_table_rows(self, elem: ET.Element) -> list[ET.Element]:
+        rows: list[ET.Element] = []
+        for child in elem:
+            t = _local_tag(child)
+            if t == "tr":
+                rows.append(child)
+            elif t in ("sdt", "sdtContent", "customXml"):
+                sc = _find_elem(child, "sdtContent", W_NAMESPACES) if t == "sdt" else None
+                target = sc if sc is not None else child
+                rows.extend(self._collect_table_rows(target))
+        return rows
+
+    def _collect_row_cells(self, elem: ET.Element) -> list[ET.Element]:
+        cells: list[ET.Element] = []
+        for child in elem:
+            t = _local_tag(child)
+            if t == "tc":
+                cells.append(child)
+            elif t in ("sdt", "sdtContent", "customXml"):
+                sc = _find_elem(child, "sdtContent", W_NAMESPACES) if t == "sdt" else None
+                target = sc if sc is not None else child
+                cells.extend(self._collect_row_cells(target))
+        return cells
+
     def _parse_table(self, tbl_elem: ET.Element) -> Table:
         """Parse <w:tbl> element into Table."""
         tbl = Table()
 
         # Table Properties
-        tbl_pr_elem = tbl_elem.find(f"{{{NS_W}}}tblPr")
+        tbl_pr_elem = _find_elem(tbl_elem, "tblPr", W_NAMESPACES)
         if tbl_pr_elem is not None:
             tbl_pr = TableProperties()
-            style_elem = tbl_pr_elem.find(f"{{{NS_W}}}tblStyle")
+            style_elem = _find_elem(tbl_pr_elem, "tblStyle", W_NAMESPACES)
             if style_elem is not None:
                 tbl_pr.style = _get_attr(style_elem, "val", "TableNormal")
-            jc_elem = tbl_pr_elem.find(f"{{{NS_W}}}jc")
+            jc_elem = _find_elem(tbl_pr_elem, "jc", W_NAMESPACES)
             if jc_elem is not None:
                 tbl_pr.jc = _get_attr(jc_elem, "val", "left")
-            w_elem = tbl_pr_elem.find(f"{{{NS_W}}}tblW")
+            w_elem = _find_elem(tbl_pr_elem, "tblW", W_NAMESPACES)
             if w_elem is not None:
                 tbl_pr.w_type = _get_attr(w_elem, "type", "auto")
                 tbl_pr.w = _twips_to_pt(_get_attr(w_elem, "w", "0"))
 
             # Table Cell Margins (w:tblCellMar)
-            tbl_cell_mar_elem = tbl_pr_elem.find(f"{{{NS_W}}}tblCellMar")
+            tbl_cell_mar_elem = _find_elem(tbl_pr_elem, "tblCellMar", W_NAMESPACES)
             if tbl_cell_mar_elem is not None:
                 cell_mar: dict[str, float] = {}
                 for side, tag_name in (
@@ -848,18 +1042,18 @@ class DocxReader:
                     ("l", "left"),
                     ("r", "right"),
                 ):
-                    mar_side = tbl_cell_mar_elem.find(f"{{{NS_W}}}{tag_name}")
+                    mar_side = _find_elem(tbl_cell_mar_elem, tag_name, W_NAMESPACES)
                     if mar_side is not None:
                         cell_mar[side] = _twips_to_pt(_get_attr(mar_side, "w", "0"))
                 if cell_mar:
                     tbl_pr.cell_mar = cell_mar
 
             # Table Borders (w:tblBorders)
-            tbl_bds_elem = tbl_pr_elem.find(f"{{{NS_W}}}tblBorders")
+            tbl_bds_elem = _find_elem(tbl_pr_elem, "tblBorders", W_NAMESPACES)
             if tbl_bds_elem is not None:
                 tbl_bds: dict[str, BorderProperties] = {}
                 for b_tag in ("top", "left", "bottom", "right", "insideH", "insideV"):
-                    b_elem = tbl_bds_elem.find(f"{{{NS_W}}}{b_tag}")
+                    b_elem = _find_elem(tbl_bds_elem, b_tag, W_NAMESPACES)
                     if b_elem is not None:
                         val = _get_attr(b_elem, "val", "none")
                         sz = _eighths_to_pt(_get_attr(b_elem, "sz", "4"))
@@ -870,51 +1064,51 @@ class DocxReader:
             tbl.tbl_pr = tbl_pr
 
         # Table Grid
-        tbl_grid_elem = tbl_elem.find(f"{{{NS_W}}}tblGrid")
+        tbl_grid_elem = _find_elem(tbl_elem, "tblGrid", W_NAMESPACES)
         if tbl_grid_elem is not None:
-            for col_elem in tbl_grid_elem.findall(f"{{{NS_W}}}gridCol"):
+            for col_elem in _findall_elems(tbl_grid_elem, "gridCol", W_NAMESPACES):
                 w = _twips_to_pt(_get_attr(col_elem, "w", "0"))
                 tbl.grid.append(w)
 
         # Table Rows
         rows: list[Row] = []
-        for tr_elem in tbl_elem.findall(f"{{{NS_W}}}tr"):
+        for tr_elem in self._collect_table_rows(tbl_elem):
             row = Row()
-            tr_pr_elem = tr_elem.find(f"{{{NS_W}}}trPr")
+            tr_pr_elem = _find_elem(tr_elem, "trPr", W_NAMESPACES)
             if tr_pr_elem is not None:
                 tr_pr = RowProperties()
-                h_elem = tr_pr_elem.find(f"{{{NS_W}}}trHeight")
+                h_elem = _find_elem(tr_pr_elem, "trHeight", W_NAMESPACES)
                 if h_elem is not None:
                     tr_pr.h = _twips_to_pt(_get_attr(h_elem, "val", "0"))
                     tr_pr.h_rule = _get_attr(h_elem, "hRule", "auto")
-                if tr_pr_elem.find(f"{{{NS_W}}}tblHeader") is not None:
+                if _find_elem(tr_pr_elem, "tblHeader", W_NAMESPACES) is not None:
                     tr_pr.tbl_header = True
-                if tr_pr_elem.find(f"{{{NS_W}}}cantSplit") is not None:
+                if _find_elem(tr_pr_elem, "cantSplit", W_NAMESPACES) is not None:
                     tr_pr.cant_split = True
                 row.tr_pr = tr_pr
 
             # Table Cells
             cells: list[Cell] = []
-            for tc_elem in tr_elem.findall(f"{{{NS_W}}}tc"):
+            for tc_elem in self._collect_row_cells(tr_elem):
                 cell = Cell()
-                tc_pr_elem = tc_elem.find(f"{{{NS_W}}}tcPr")
+                tc_pr_elem = _find_elem(tc_elem, "tcPr", W_NAMESPACES)
                 if tc_pr_elem is not None:
                     tc_pr = CellProperties()
-                    w_elem = tc_pr_elem.find(f"{{{NS_W}}}tcW")
+                    w_elem = _find_elem(tc_pr_elem, "tcW", W_NAMESPACES)
                     if w_elem is not None:
                         tc_pr.w = _twips_to_pt(_get_attr(w_elem, "w", "0"))
                         tc_pr.w_type = _get_attr(w_elem, "type", "dxa")
-                    gs_elem = tc_pr_elem.find(f"{{{NS_W}}}gridSpan")
+                    gs_elem = _find_elem(tc_pr_elem, "gridSpan", W_NAMESPACES)
                     if gs_elem is not None:
                         tc_pr.grid_span = int(_get_attr(gs_elem, "val", "1") or "1")
-                    vm_elem = tc_pr_elem.find(f"{{{NS_W}}}vMerge")
+                    vm_elem = _find_elem(tc_pr_elem, "vMerge", W_NAMESPACES)
                     if vm_elem is not None:
                         vm_val = _get_attr(vm_elem, "val")
                         tc_pr.v_merge = vm_val if vm_val else "continue"
-                    va_elem = tc_pr_elem.find(f"{{{NS_W}}}vAlign")
+                    va_elem = _find_elem(tc_pr_elem, "vAlign", W_NAMESPACES)
                     if va_elem is not None:
                         tc_pr.v_align = _get_attr(va_elem, "val", "top")
-                    shd_elem = tc_pr_elem.find(f"{{{NS_W}}}shd")
+                    shd_elem = _find_elem(tc_pr_elem, "shd", W_NAMESPACES)
                     if shd_elem is not None:
                         fill = _get_attr(shd_elem, "fill", "auto")
                         tc_pr.shd = ShadingProperties(
@@ -923,7 +1117,7 @@ class DocxReader:
                             fill=f"#{fill.upper()}" if fill and fill.lower() != "auto" else "auto",
                         )
                     # Cell Margins (w:tcMar)
-                    tc_mar_elem = tc_pr_elem.find(f"{{{NS_W}}}tcMar")
+                    tc_mar_elem = _find_elem(tc_pr_elem, "tcMar", W_NAMESPACES)
                     if tc_mar_elem is not None:
                         tc_mar: dict[str, float] = {}
                         for side, tag_name in (
@@ -932,17 +1126,17 @@ class DocxReader:
                             ("l", "left"),
                             ("r", "right"),
                         ):
-                            mar_side = tc_mar_elem.find(f"{{{NS_W}}}{tag_name}")
+                            mar_side = _find_elem(tc_mar_elem, tag_name, W_NAMESPACES)
                             if mar_side is not None:
                                 tc_mar[side] = _twips_to_pt(_get_attr(mar_side, "w", "0"))
                         tc_pr.tc_mar = tc_mar
 
                     # Cell Borders (w:tcBorders)
-                    tc_bds_elem = tc_pr_elem.find(f"{{{NS_W}}}tcBorders")
+                    tc_bds_elem = _find_elem(tc_pr_elem, "tcBorders", W_NAMESPACES)
                     if tc_bds_elem is not None:
                         tc_bds: dict[str, BorderProperties] = {}
                         for b_tag in ("top", "left", "bottom", "right"):
-                            b_elem = tc_bds_elem.find(f"{{{NS_W}}}{b_tag}")
+                            b_elem = _find_elem(tc_bds_elem, b_tag, W_NAMESPACES)
                             if b_elem is not None:
                                 val = _get_attr(b_elem, "val", "none")
                                 sz = _eighths_to_pt(_get_attr(b_elem, "sz", "4"))
@@ -953,13 +1147,7 @@ class DocxReader:
 
                 # Cell Blocks
                 cell_blocks: list[Paragraph | Table] = []
-                for c_child in tc_elem:
-                    c_tag = _local_tag(c_child)
-                    if c_tag == "p":
-                        cell_blocks.append(self._parse_paragraph(c_child))
-                    elif c_tag == "tbl":
-                        cell_blocks.append(self._parse_table(c_child))
-
+                self._collect_blocks(tc_elem, cell_blocks)
                 if not cell_blocks:
                     cell_blocks.append(Paragraph())
                 cell.blocks = cell_blocks
@@ -975,13 +1163,13 @@ class DocxReader:
         """Parse <w:sectPr> element into SectionProperties."""
         sect = SectionProperties()
 
-        pg_sz_elem = sect_elem.find(f"{{{NS_W}}}pgSz")
+        pg_sz_elem = _find_elem(sect_elem, "pgSz", W_NAMESPACES)
         if pg_sz_elem is not None:
             sect.pg_w = _twips_to_pt(_get_attr(pg_sz_elem, "w"), 612.0)
             sect.pg_h = _twips_to_pt(_get_attr(pg_sz_elem, "h"), 792.0)
             sect.orient = _get_attr(pg_sz_elem, "orient", "portrait")
 
-        pg_mar_elem = sect_elem.find(f"{{{NS_W}}}pgMar")
+        pg_mar_elem = _find_elem(sect_elem, "pgMar", W_NAMESPACES)
         if pg_mar_elem is not None:
             sect.mt = _twips_to_pt(_get_attr(pg_mar_elem, "top"), 72.0)
             sect.mb = _twips_to_pt(_get_attr(pg_mar_elem, "bottom"), 72.0)
@@ -991,27 +1179,27 @@ class DocxReader:
             sect.ftr = _twips_to_pt(_get_attr(pg_mar_elem, "footer"), 36.0)
             sect.gutter = _twips_to_pt(_get_attr(pg_mar_elem, "gutter"), 0.0)
 
-        cols_elem = sect_elem.find(f"{{{NS_W}}}cols")
+        cols_elem = _find_elem(sect_elem, "cols", W_NAMESPACES)
         if cols_elem is not None:
             num = int(_get_attr(cols_elem, "num", "1") or "1")
             space = _twips_to_pt(_get_attr(cols_elem, "space", "720"))
             sect.cols = ColumnsProperties(num=num, space=space)
 
-        type_elem = sect_elem.find(f"{{{NS_W}}}type")
+        type_elem = _find_elem(sect_elem, "type", W_NAMESPACES)
         if type_elem is not None:
             sect.sect_type = _get_attr(type_elem, "val", "nextPage")
 
-        if sect_elem.find(f"{{{NS_W}}}titlePg") is not None:
+        if _find_elem(sect_elem, "titlePg", W_NAMESPACES) is not None:
             sect.title_pg = True
 
         # Header and Footer References
         refs: dict[str, dict[str, str]] = {"hdr": {}, "ftr": {}}
-        for hdr_ref in sect_elem.findall(f"{{{NS_W}}}headerReference"):
+        for hdr_ref in _findall_elems(sect_elem, "headerReference", W_NAMESPACES):
             r_type = _get_attr(hdr_ref, "type", "default")
             r_id = _get_attr(hdr_ref, "id") or _get_attr(hdr_ref, "rid")
             if r_id:
                 refs["hdr"][r_type] = r_id
-        for ftr_ref in sect_elem.findall(f"{{{NS_W}}}footerReference"):
+        for ftr_ref in _findall_elems(sect_elem, "footerReference", W_NAMESPACES):
             r_type = _get_attr(ftr_ref, "type", "default")
             r_id = _get_attr(ftr_ref, "id") or _get_attr(ftr_ref, "rid")
             if r_id:
@@ -1019,7 +1207,7 @@ class DocxReader:
         sect.refs = refs
 
         # Document grid
-        doc_grid_elem = sect_elem.find(f"{{{NS_W}}}docGrid")
+        doc_grid_elem = _find_elem(sect_elem, "docGrid", W_NAMESPACES)
         if doc_grid_elem is not None:
             dg_type = _get_attr(doc_grid_elem, "type", "lines")
             dg_pitch = _twips_to_pt(_get_attr(doc_grid_elem, "linePitch"), 15.6)
@@ -1052,18 +1240,21 @@ class DocxReader:
                     part_path = f"word/{part_path}"
                 if self.pkg.has_part(part_path):
                     try:
-                        root = ET.fromstring(self.pkg.read_part(part_path))
-                        hf_blocks: list[Paragraph | Table] = []
-                        for child in root:
-                            c_tag = _local_tag(child)
-                            if c_tag == "p":
-                                hf_blocks.append(self._parse_paragraph(child))
-                            elif c_tag == "tbl":
-                                hf_blocks.append(self._parse_table(child))
-                        self.doc.hf[r_id] = Story(
-                            kind="header" if kind == "hdr" else "footer",
-                            blocks=hf_blocks,
-                        )
+                        hf_rels_list = self.pkg.get_relationships(part_path)
+                        saved_rels = self.cur_rels
+                        self.cur_rels = {r.id: r for r in hf_rels_list}
+                        try:
+                            root = ET.fromstring(self.pkg.read_part(part_path))
+                            hf_blocks: list[Paragraph | Table] = []
+                            self._collect_blocks(root, hf_blocks)
+                            if not hf_blocks:
+                                hf_blocks.append(Paragraph())
+                            self.doc.hf[r_id] = Story(
+                                kind="header" if kind == "hdr" else "footer",
+                                blocks=hf_blocks,
+                            )
+                        finally:
+                            self.cur_rels = saved_rels
                     except Exception:
                         pass
 
@@ -1085,12 +1276,7 @@ class DocxReader:
                 if not fn_id:
                     continue
                 blocks: list[Paragraph | Table] = []
-                for child in fn:
-                    c_tag = _local_tag(child)
-                    if c_tag == "p":
-                        blocks.append(self._parse_paragraph(child))
-                    elif c_tag == "tbl":
-                        blocks.append(self._parse_table(child))
+                self._collect_blocks(fn, blocks)
                 if not blocks:
                     blocks.append(Paragraph())
                 self.doc.fn[fn_id] = Story(kind="footnote", blocks=blocks)
@@ -1115,12 +1301,7 @@ class DocxReader:
                 if not en_id:
                     continue
                 blocks: list[Paragraph | Table] = []
-                for child in en:
-                    c_tag = _local_tag(child)
-                    if c_tag == "p":
-                        blocks.append(self._parse_paragraph(child))
-                    elif c_tag == "tbl":
-                        blocks.append(self._parse_table(child))
+                self._collect_blocks(en, blocks)
                 if not blocks:
                     blocks.append(Paragraph())
                 self.doc.en[en_id] = Story(kind="endnote", blocks=blocks)
@@ -1175,6 +1356,7 @@ class DocxReader:
         if is_anchor:
             float_pr = self._parse_float_properties(container)
 
+        rels = self.cur_rels if self.cur_rels else self.rels
         image_part = ""
         crop = Crop()
         rotation = 0.0
@@ -1188,8 +1370,8 @@ class DocxReader:
                     or _get_attr(gd, "r:embed")
                     or _get_attr(gd, "r:link")
                 )
-                if r_id and r_id in self.rels:
-                    rel = self.rels[r_id]
+                if r_id and r_id in rels:
+                    rel = rels[r_id]
                     t = rel.target.lstrip("/")
                     if not t.startswith("word/") and not t.startswith("docProps/"):
                         t = f"word/{t}"
@@ -1207,6 +1389,12 @@ class DocxReader:
                         rotation = float(rot_str) / 60000.0
                     except ValueError:
                         rotation = 0.0
+            elif tag == "txbxContent":
+                for p_elem in gd:
+                    if _local_tag(p_elem) == "p":
+                        for c in p_elem.iter():
+                            if _local_tag(c) == "t" and c.text:
+                                runs.append(TextItem(text=c.text, r_pr=r_pr or RunProperties()))
 
         pic = PictureItem(
             id=doc_id,
@@ -1217,7 +1405,7 @@ class DocxReader:
             float_pr=float_pr,
             r_pr=r_pr or RunProperties(),
             image_part=image_part,
-            alt_text=alt_text,
+            alt_text=alt_text or name or "Embedded Object",
             crop=crop,
         )
         runs.append(pic)
@@ -1230,7 +1418,7 @@ class DocxReader:
         wrap_mode = WrapMode.SQUARE
         wrap_side = WrapSide.BOTH
         behind = (
-            _bool_val(anchor.find(f"{{{NS_WP}}}behindDoc"), False)
+            _bool_val(_find_elem(anchor, "behindDoc", WP_NAMESPACES), False)
             or _get_attr(anchor, "behindDoc") == "1"
         )
 
@@ -1310,6 +1498,7 @@ class DocxReader:
         r_pr: RunProperties | None = None,
     ) -> None:
         """Parse legacy VML <w:pict> image and shape elements."""
+        rels = self.cur_rels if self.cur_rels else self.rels
         for shape in elem.iter():
             tag = _local_tag(shape)
             if tag in ("shape", "rect"):
@@ -1327,8 +1516,8 @@ class DocxReader:
                             or _get_attr(child, "r:id")
                             or _get_attr(child, "r:href")
                         )
-                        if r_id and r_id in self.rels:
-                            rel = self.rels[r_id]
+                        if r_id and r_id in rels:
+                            rel = rels[r_id]
                             t = rel.target.lstrip("/")
                             if not t.startswith("word/") and not t.startswith("docProps/"):
                                 t = f"word/{t}"
@@ -1360,6 +1549,15 @@ class DocxReader:
                     alt_text=alt_text,
                 )
                 runs.append(pic)
+
+        # Check for nested textbox content <w:txbxContent> inside VML shapes
+        for txbx in _findall_elems(elem, "txbxContent", W_NAMESPACES):
+            for child in txbx:
+                c_tag = _local_tag(child)
+                if c_tag == "p":
+                    p = self._parse_paragraph(child)
+                    for item in p.runs:
+                        runs.append(item)
 
     def _parse_vml_style(self, style_str: str) -> dict[str, Any]:
         """Parse CSS-like style string from VML elements into numerical point values."""

@@ -260,6 +260,8 @@ def ptext(p: Paragraph, from_idx: int | None = None, to_idx: int | None = None) 
             buf.append("\f" if br_type == "page" else "\v" if br_type == "column" else "\n")
         elif it.t == "sym":
             buf.append(getattr(it, "char", "") or "￼")
+        elif hasattr(it, "plain_text"):
+            buf.append(it.plain_text())
         elif ilen(it) > 0:
             buf.append("￼")
     full_str = "".join(buf)
