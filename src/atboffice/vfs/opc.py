@@ -461,7 +461,11 @@ class PackageWriter:
         if self._source:
             defaults.update(self._source._default_content_types)
             for part, ct in self._source._content_types.items():
-                if part in active_parts and part != "[Content_Types].xml" and not part.endswith(".rels"):
+                if (
+                    part in active_parts
+                    and part != "[Content_Types].xml"
+                    and not part.endswith(".rels")
+                ):
                     overrides[part] = ct
 
         # Standard baseline defaults if missing
@@ -472,7 +476,11 @@ class PackageWriter:
 
         # Apply specific content types from writer
         for part, ct in self._part_content_types.items():
-            if part in active_parts and part != "[Content_Types].xml" and not part.endswith(".rels"):
+            if (
+                part in active_parts
+                and part != "[Content_Types].xml"
+                and not part.endswith(".rels")
+            ):
                 overrides[part] = ct
 
         root = ET.Element(

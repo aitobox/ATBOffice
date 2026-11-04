@@ -29,12 +29,12 @@ from atboffice.modules.spreadsheet.models.sheet_model import (
 )
 from atboffice.modules.spreadsheet.models.validation import DataValidation
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
-from atboffice.vfs.opc import SourcePackage
 from atboffice.modules.spreadsheet.views.object_layer import (
     AnchorType,
     CellAnchorPoint,
     FloatingObject,
 )
+from atboffice.vfs.opc import SourcePackage
 
 # Builtin OOXML number formats (ECMA-376 Part 1 §18.8.30)
 BUILTIN_NUMFMTS: dict[int, str] = {

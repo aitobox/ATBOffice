@@ -12,7 +12,6 @@ import zipfile
 from pathlib import Path
 
 import pytest
-from PySide6.QtWidgets import QMessageBox
 
 from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
 from atboffice.modules.spreadsheet.io.xlsx_writer import write_xlsx

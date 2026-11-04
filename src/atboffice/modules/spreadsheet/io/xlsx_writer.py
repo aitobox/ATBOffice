@@ -927,7 +927,8 @@ def _serialize_workbook(workbook: WorkbookModel, sheet_rids: list[str]) -> bytes
         prot_str = " ".join(f'{k}="{_xml_escape(str(v))}"' for k, v in prot.items())
         parts.append(f"<workbookProtection {prot_str}/>")
 
-    parts.append(f'<bookViews><workbookView activeTab="{workbook.active_sheet_index}"/></bookViews>')
+    active_idx = workbook.active_sheet_index
+    parts.append(f'<bookViews><workbookView activeTab="{active_idx}"/></bookViews>')
     parts.append("<sheets>")
     for idx, (sheet, rid) in enumerate(zip(workbook.sheets, sheet_rids)):
         parts.append(f'<sheet name="{_xml_escape(sheet.name)}" sheetId="{idx + 1}" r:id="{rid}"/>')
@@ -1010,7 +1011,8 @@ def _serialize_workbook_rels(
                 used_rids.add(r_id)
                 target_mode_attr = f' TargetMode="{r.target_mode}"' if r.is_external else ""
                 parts.append(
-                    f'<Relationship Id="{r_id}" Type="{r.type}" Target="{r.target}"{target_mode_attr}/>'
+                    f'<Relationship Id="{r_id}" Type="{r.type}" '
+                    f'Target="{r.target}"{target_mode_attr}/>'
                 )
 
     parts.append("</Relationships>")
@@ -1305,7 +1307,8 @@ def write_xlsx(
                 used_sheet_rids.add(r_id)
                 target_mode_attr = f' TargetMode="{r.target_mode}"' if r.is_external else ""
                 sheet_rels.append(
-                    f'<Relationship Id="{r_id}" Type="{r.type}" Target="{r.target}"{target_mode_attr}/>'
+                    f'<Relationship Id="{r_id}" Type="{r.type}" '
+                    f'Target="{r.target}"{target_mode_attr}/>'
                 )
 
         if sheet_rels:
