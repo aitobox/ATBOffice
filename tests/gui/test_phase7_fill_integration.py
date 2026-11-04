@@ -14,13 +14,11 @@ TASK-710 / Issue #244:
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QFocusEvent, QKeyEvent, QMouseEvent
+from PySide6.QtGui import QFocusEvent, QMouseEvent
 
-from atboffice.modules.spreadsheet.models.selection_model import SelectionRange
-from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetDataModel
+from atboffice.modules.spreadsheet.models.sheet_model import CellData
 from atboffice.modules.spreadsheet.view import SpreadsheetView
 from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport, HitZone
-from atboffice.modules.spreadsheet.views.object_layer import SpreadsheetObjectLayer
 
 
 def test_fill_handle_linear_drag_real_data(qtbot):
@@ -189,8 +187,17 @@ def test_fill_handle_protection_blocks_and_no_dirty(qtbot, monkeypatch):
 
     # Prevent modal QMessageBox popups in automated test
     from PySide6.QtWidgets import QMessageBox
-    monkeypatch.setattr(QMessageBox, "information", lambda *args, **kwargs: QMessageBox.StandardButton.Ok)
-    monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: QMessageBox.StandardButton.Ok)
+
+    monkeypatch.setattr(
+        QMessageBox,
+        "information",
+        lambda *args, **kwargs: QMessageBox.StandardButton.Ok,
+    )
+    monkeypatch.setattr(
+        QMessageBox,
+        "warning",
+        lambda *args, **kwargs: QMessageBox.StandardButton.Ok,
+    )
 
     # Protect the sheet
     viewport.model.protected = True

@@ -2613,7 +2613,6 @@ class GridViewport(QAbstractScrollArea):
 
         dest = SelectionRange(src.min_r, src.min_c, last, src.max_c)
         ctrl = False
-        single = (src.min_r == src.max_r and src.min_c == src.max_c)
         fill_mode = "copy" if ctrl else "auto"
 
         affected_coords = [
