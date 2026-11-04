@@ -55,6 +55,7 @@ from atboffice.modules.spreadsheet.calc.references import (
     translate,
 )
 from atboffice.modules.spreadsheet.calc.tokens import CellRefNode
+from atboffice.platform.cursors import get_safe_cursor
 from atboffice.modules.spreadsheet.models.conditional_format import (
     evaluate_cf_for_cell,
 )
@@ -2032,7 +2033,7 @@ class GridViewport(QAbstractScrollArea):
                 move_start_src=self._move_src_range,
                 move_grab_cell=self._move_grab_cell,
             )
-            self.viewport().setCursor(Qt.CursorShape.SizeAllCursor)
+            self.viewport().setCursor(get_safe_cursor(Qt.CursorShape.SizeAllCursor))
             self.viewport().update()
 
         elif hit.zone == HitZone.FILTER_BUTTON and hit.col is not None:
@@ -2083,7 +2084,7 @@ class GridViewport(QAbstractScrollArea):
             if hit.zone == HitZone.FILL_HANDLE:
                 self.viewport().setCursor(Qt.CursorShape.CrossCursor)
             elif hit.zone == HitZone.BORDER:
-                self.viewport().setCursor(Qt.CursorShape.SizeAllCursor)
+                self.viewport().setCursor(get_safe_cursor(Qt.CursorShape.SizeAllCursor))
             elif hit.zone == HitZone.COL_RESIZE:
                 self.viewport().setCursor(Qt.CursorShape.SplitHCursor)
             elif hit.zone == HitZone.ROW_RESIZE:
