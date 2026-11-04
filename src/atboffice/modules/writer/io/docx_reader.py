@@ -612,7 +612,9 @@ class DocxReader:
         root = ET.fromstring(self.pkg.read_part(self.main_path))
         body = _find_elem(root, "body", W_NAMESPACES)
         if body is None:
-            return
+            raise ValueError(
+                f"Package main part '{self.main_path}' lacks WordprocessingML body element"
+            )
 
         blocks: list[Paragraph | Table] = []
         self._collect_blocks(body, blocks)
