@@ -54,7 +54,7 @@ Formula Tokenizer and AST Parser,ledger_model,must,yes,yes,calc/parser.py suppor
 Formula Evaluator with Cross-Sheet References,ledger_model,must,yes,yes,calc/evaluator.py supporting Sheet!Cell references,unverified,
 DAG Dependency Graph and Cycle Detection,ledger_model,must,yes,yes,calc/dag.py topological sort and circular reference detection,unverified,
 Core Worksheet Function Library (300+ functions),ledger_model,must,yes,yes,"calc/core_fns, engineering, financial, statistical, lookup",unverified,
-Autofill Smart Handle Sequence Prediction,ledger_model,must,yes,yes,"views/autofill.py linear, date, text series generation",unverified,
+Autofill Smart Handle Sequence Prediction,ledger_model,must,yes,yes,"views/autofill.py linear, date, text series generation and grid_viewport.py event chain (fixes #244)",verified,tests/gui/test_phase7_fill_integration.py
 AutoFilter and Multi-Column Sorting,ledger_model,must,yes,yes,models/filter_model.py and views/filter_dropdown.py,unverified,
 Conditional Formatting Engine and Rules,ledger_model,should,yes,yes,"CF engine supporting cell value, formula expression, color scales, data bars, and rules manager (PR #146)",unverified,
 Data Validation Engine and Rules,ledger_model,should,yes,yes,"Data validation engine with list dropdowns, number/date ranges, input messages, and alerts (PR #146)",unverified,

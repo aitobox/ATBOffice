@@ -715,7 +715,7 @@ class SpreadsheetObjectLayer(QWidget):
         elif handle == HandleType.BODY:
             self.setCursor(Qt.CursorShape.SizeAllCursor)
         else:
-            self.setCursor(Qt.CursorShape.ArrowCursor)
+            self.unsetCursor()
 
         event.ignore()
         super().mouseMoveEvent(event)

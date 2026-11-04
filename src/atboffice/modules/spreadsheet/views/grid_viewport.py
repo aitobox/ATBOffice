@@ -1954,10 +1954,19 @@ class GridViewport(QAbstractScrollArea):
             self.viewport().update()
 
         elif hit.zone == HitZone.FILL_HANDLE:
+            if self.editor_controller is not None and self.editor_controller.is_active:
+                if not self.editor_controller.commit():
+                    return
             self._drag_mode = HitZone.FILL_HANDLE
             self._fill_start_src = self.selection.primary_range
             self._fill_preview_range = self._fill_start_src
-            self._fill_ctrl_pressed = bool(modifiers & Qt.KeyboardModifier.ControlModifier)
+            self._fill_ctrl_pressed = bool(
+                modifiers
+                & (
+                    Qt.KeyboardModifier.ControlModifier
+                    | Qt.KeyboardModifier.MetaModifier
+                )
+            )
             self._drag_snapshot = DragSnapshot(
                 zone=HitZone.FILL_HANDLE,
                 sheet_index=getattr(self.model, "active_sheet_index", 0),
@@ -2143,7 +2152,11 @@ class GridViewport(QAbstractScrollArea):
         """Handle active drag update at (x, y)."""
         if self._drag_mode == HitZone.FILL_HANDLE:
             self._fill_ctrl_pressed = bool(
-                modifiers & Qt.KeyboardModifier.ControlModifier
+                modifiers
+                & (
+                    Qt.KeyboardModifier.ControlModifier
+                    | Qt.KeyboardModifier.MetaModifier
+                )
             )
             hit = self.hit_test(x, y)
             row = hit.row
@@ -2340,24 +2353,46 @@ class GridViewport(QAbstractScrollArea):
             ):
                 src = self._fill_start_src
                 dest = self._fill_preview_range
+
+                # Check worksheet protection before applying changes
+                if self.guard_protect(cell_edit=True):
+                    self._fill_start_src = None
+                    self._fill_preview_range = None
+                    self._drag_mode = HitZone.NONE
+                    self._drag_moved = False
+                    self.viewport().update()
+                    return
+
                 ctrl = self._fill_ctrl_pressed or bool(
-                    event.modifiers() & Qt.KeyboardModifier.ControlModifier
+                    event.modifiers()
+                    & (
+                        Qt.KeyboardModifier.ControlModifier
+                        | Qt.KeyboardModifier.MetaModifier
+                    )
                 )
                 single = (src.min_r == src.max_r and src.min_c == src.max_c)
                 fill_mode = (
                     "linear" if (ctrl and single) else ("copy" if ctrl else "auto")
                 )
 
-                before_cells = {k: v.clone() for k, v in self.model.cells.items()}
-                before_merges = list(self.model.merges)
-                before_comments = (
-                    {
-                        k: CellComment(**v.__dict__)
-                        for k, v in self.model.comments.items()
-                    }
-                    if hasattr(self.model, "comments")
-                    else {}
-                )
+                # Capture sparse delta bounding box (prevents whole-sheet memory spike)
+                min_r = min(src.min_r, dest.min_r)
+                max_r = max(src.max_r, dest.max_r)
+                min_c = min(src.min_c, dest.min_c)
+                max_c = max(src.max_c, dest.max_c)
+                affected_coords = [
+                    (r, c)
+                    for r in range(min_r, max_r + 1)
+                    for c in range(min_c, max_c + 1)
+                ]
+                before_delta = {
+                    (r, c): (
+                        self.model.get_cell(r, c).clone()
+                        if self.model.get_cell(r, c)
+                        else None
+                    )
+                    for (r, c) in affected_coords
+                }
                 before_sel = self.selection.snapshot()
 
                 AutoFillEngine.auto_fill(
@@ -2370,32 +2405,36 @@ class GridViewport(QAbstractScrollArea):
                 self.selection.select_cell(dest.min_r, dest.min_c)
                 self.selection.extend_to(dest.max_r, dest.max_c)
 
-                after_cells = {k: v.clone() for k, v in self.model.cells.items()}
-                after_merges = list(self.model.merges)
-                after_comments = (
-                    {
-                        k: CellComment(**v.__dict__)
-                        for k, v in self.model.comments.items()
-                    }
-                    if hasattr(self.model, "comments")
-                    else {}
-                )
+                after_delta = {
+                    (r, c): (
+                        self.model.get_cell(r, c).clone()
+                        if self.model.get_cell(r, c)
+                        else None
+                    )
+                    for (r, c) in affected_coords
+                }
                 after_sel = self.selection.snapshot()
 
                 self._undo_stack.append(
                     {
                         "action": "autofill",
-                        "before_cells": before_cells,
-                        "before_merges": before_merges,
-                        "before_comments": before_comments,
+                        "affected_coords": affected_coords,
+                        "before_delta_cells": before_delta,
+                        "after_delta_cells": after_delta,
                         "before_sel": before_sel,
-                        "after_cells": after_cells,
-                        "after_merges": after_merges,
-                        "after_comments": after_comments,
                         "after_sel": after_sel,
                     }
                 )
                 self._redo_stack.clear()
+                self.mark_dirty()
+                if hasattr(self.model, "recalculate"):
+                    self.model.recalculate()
+                elif (
+                    hasattr(self, "workbook")
+                    and self.workbook
+                    and hasattr(self.workbook, "recalculate")
+                ):
+                    self.workbook.recalculate()
             self._fill_start_src = None
             self._fill_preview_range = None
 
@@ -2493,6 +2532,8 @@ class GridViewport(QAbstractScrollArea):
 
         if hit.zone == HitZone.COL_RESIZE and hit.col is not None:
             self.auto_fit_column(hit.col)
+        elif hit.zone == HitZone.FILL_HANDLE:
+            self.fill_down_to_data()
         elif hit.zone == HitZone.BORDER and len(self.selection.ranges) == 1:
             pr = self.selection.primary_range
             sx = self.horizontalScrollBar().value()
@@ -2534,6 +2575,103 @@ class GridViewport(QAbstractScrollArea):
             self.cell_double_clicked.emit(hit.row, hit.col)
         else:
             super().mouseDoubleClickEvent(event)
+
+    def fill_down_to_data(self) -> None:
+        """Double click on fill handle: fill down as far as the adjacent column has data."""
+        if len(self.selection.ranges) != 1:
+            return
+        if self.guard_protect(cell_edit=True):
+            return
+
+        src = self.selection.primary_range
+        max_rows = self.geometry_mapper.max_rows
+
+        def has_data(r: int, c: int) -> bool:
+            cl = self.model.get_cell(r, c)
+            return cl is not None and (cl.value is not None or cl.formula is not None)
+
+        last = src.max_r
+        # Probe left column first, then right column
+        probe = -1
+        if src.min_c > 0 and has_data(src.max_r + 1, src.min_c - 1):
+            probe = src.min_c - 1
+        elif has_data(src.max_r + 1, src.max_c + 1):
+            probe = src.max_c + 1
+
+        if probe < 0:
+            return
+
+        while (
+            last + 1 < max_rows
+            and has_data(last + 1, probe)
+            and not has_data(last + 1, src.min_c)
+        ):
+            last += 1
+
+        if last == src.max_r:
+            return
+
+        dest = SelectionRange(src.min_r, src.min_c, last, src.max_c)
+        ctrl = False
+        single = (src.min_r == src.max_r and src.min_c == src.max_c)
+        fill_mode = "copy" if ctrl else "auto"
+
+        affected_coords = [
+            (r, c)
+            for r in range(src.min_r, last + 1)
+            for c in range(src.min_c, src.max_c + 1)
+        ]
+        before_delta = {
+            (r, c): (
+                self.model.get_cell(r, c).clone()
+                if self.model.get_cell(r, c)
+                else None
+            )
+            for (r, c) in affected_coords
+        }
+        before_sel = self.selection.snapshot()
+
+        AutoFillEngine.auto_fill(
+            self.model,
+            src,
+            dest,
+            mode=fill_mode,
+            ctrl_pressed=ctrl,
+        )
+        self.selection.select_cell(dest.min_r, dest.min_c)
+        self.selection.extend_to(dest.max_r, dest.max_c)
+
+        after_delta = {
+            (r, c): (
+                self.model.get_cell(r, c).clone()
+                if self.model.get_cell(r, c)
+                else None
+            )
+            for (r, c) in affected_coords
+        }
+        after_sel = self.selection.snapshot()
+
+        self._undo_stack.append(
+            {
+                "action": "autofill",
+                "affected_coords": affected_coords,
+                "before_delta_cells": before_delta,
+                "after_delta_cells": after_delta,
+                "before_sel": before_sel,
+                "after_sel": after_sel,
+            }
+        )
+        self._redo_stack.clear()
+        self.mark_dirty()
+        if hasattr(self.model, "recalculate"):
+            self.model.recalculate()
+        elif (
+            hasattr(self, "workbook")
+            and self.workbook
+            and hasattr(self.workbook, "recalculate")
+        ):
+            self.workbook.recalculate()
+        self.viewport().update()
 
     # -------------------------------------------------------------------------
     # Keyboard Navigation Subsystem
@@ -3936,6 +4074,25 @@ class GridViewport(QAbstractScrollArea):
             self.viewport().update()
             return
 
+        if action == "autofill" and "before_delta_cells" in cmd:
+            for (r, c), old_cell in cmd["before_delta_cells"].items():
+                if old_cell is None:
+                    self.model.cells.pop((r, c), None)
+                else:
+                    self.model.cells[(r, c)] = old_cell.clone()
+            self.selection.restore_snapshot(cmd["before_sel"])
+            self.mark_dirty()
+            if hasattr(self.model, "recalculate"):
+                self.model.recalculate()
+            elif (
+                hasattr(self, "workbook")
+                and self.workbook
+                and hasattr(self.workbook, "recalculate")
+            ):
+                self.workbook.recalculate()
+            self.viewport().update()
+            return
+
         self.model.cells = {k: v.clone() for k, v in cmd["before_cells"].items()}
         self.model.merges = list(cmd["before_merges"])
         if hasattr(self.model, "links") and "before_links" in cmd:
@@ -3972,6 +4129,25 @@ class GridViewport(QAbstractScrollArea):
             for r, sz in cmd["after_sizes"].items():
                 self.geometry_mapper.set_row_height(r, sz)
             self._update_scrollbars()
+            self.viewport().update()
+            return
+
+        if action == "autofill" and "after_delta_cells" in cmd:
+            for (r, c), new_cell in cmd["after_delta_cells"].items():
+                if new_cell is None:
+                    self.model.cells.pop((r, c), None)
+                else:
+                    self.model.cells[(r, c)] = new_cell.clone()
+            self.selection.restore_snapshot(cmd["after_sel"])
+            self.mark_dirty()
+            if hasattr(self.model, "recalculate"):
+                self.model.recalculate()
+            elif (
+                hasattr(self, "workbook")
+                and self.workbook
+                and hasattr(self.workbook, "recalculate")
+            ):
+                self.workbook.recalculate()
             self.viewport().update()
             return
 
