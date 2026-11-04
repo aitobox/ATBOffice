@@ -27,6 +27,8 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QMenu, QWidget
 
+from atboffice.platform.cursors import get_safe_cursor
+
 if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.sheet_model import (
         SheetDataModel,
@@ -713,7 +715,7 @@ class SpreadsheetObjectLayer(QWidget):
         elif handle in (HandleType.W, HandleType.E):
             self.setCursor(Qt.CursorShape.SizeHorCursor)
         elif handle == HandleType.BODY:
-            self.setCursor(Qt.CursorShape.SizeAllCursor)
+            self.setCursor(get_safe_cursor(Qt.CursorShape.SizeAllCursor))
         else:
             self.unsetCursor()
 

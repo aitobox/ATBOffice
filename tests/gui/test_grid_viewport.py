@@ -10,6 +10,7 @@ from atboffice.modules.spreadsheet.models.selection_model import (
 )
 from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetDataModel
 from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport, HitZone
+from atboffice.platform.cursors import get_safe_cursor
 
 
 @pytest.fixture
@@ -611,7 +612,7 @@ class TestSelectionBorderDragAndDrop:
             Qt.KeyboardModifier.NoModifier,
         )
         viewport.mouseMoveEvent(hover_event)
-        assert viewport.viewport().cursor().shape() == Qt.CursorShape.SizeAllCursor
+        assert viewport.viewport().cursor().shape() == get_safe_cursor(Qt.CursorShape.SizeAllCursor)
 
     def test_border_drag_preview_and_esc_cancel(self, viewport: GridViewport) -> None:
         viewport.selection.select_cell(1, 1)
