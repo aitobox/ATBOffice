@@ -2,13 +2,13 @@
 
 TASK-713 / Issue #247:
 - User Journeys across three primary applications:
-  1. Quire: New -> Typing -> Formatting -> Undo/Redo -> Save DOCX -> Reopen & Parity Check.
-  2. Ledger: New -> Data & Formulas -> Context Menu -> Autofill Drag -> Undo/Redo -> Save XLSX -> Reopen & Parity Check.
-  3. Lectern: New -> Slides & Shapes -> Format -> Undo/Redo -> Save PPTX -> Reopen & Parity Check.
+  1. Quire: New -> Typing -> Formatting -> Undo/Redo -> Save DOCX -> Reopen & Parity.
+  2. Ledger: New -> Data & Formulas -> Context Menu -> Drag Fill -> Save XLSX -> Reopen.
+  3. Lectern: New -> Slides & Shapes -> Format -> Undo/Redo -> Save PPTX -> Reopen.
 - Transactional Safety Gate: Reject corrupt/invalid documents with rollback & breadcrumb logging.
-- Multi-Locale Gate: Dynamic 9-locale switching (zh-CN, zh-Hant, en, ja, ko, fr, de, es, ru) with retranslate_ui.
-- Mixed Lifecycle Stress: Multi-step lifecycle in Qt event loop without memory corruption or leaks.
-- Verification Matrix Audit: Asserts phase7_features.csv has 100% verified status for all must-have features.
+- Multi-Locale Gate: Dynamic 9-locale switching with clean retranslate_ui execution.
+- Mixed Lifecycle Stress: Multi-step lifecycle in Qt event loop without memory corruption.
+- Verification Matrix Audit: Asserts phase7_features.csv has 100% verified must-have features.
 """
 
 from __future__ import annotations
@@ -16,10 +16,9 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-import pytest
 from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QCloseEvent, QContextMenuEvent, QMouseEvent
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtGui import QContextMenuEvent, QMouseEvent
+from PySide6.QtWidgets import QMessageBox
 
 from atboffice.core.diagnostics import drain_event_loop
 from atboffice.core.i18n import SUPPORTED_LOCALES, get_i18n_manager
@@ -31,7 +30,6 @@ from atboffice.modules.writer.models.document import all_paragraphs, ptext
 from atboffice.ui.shell.lectern_window import LecternWindow
 from atboffice.ui.shell.ledger_window import LedgerWindow
 from atboffice.ui.shell.quire_window import QuireWindow
-
 
 # ==============================================================================
 # 1. Quire E2E User Journey Acceptance
@@ -94,7 +92,7 @@ def test_quire_user_journey_e2e_acceptance(qtbot, monkeypatch, tmp_path: Path):
 # ==============================================================================
 
 def test_ledger_user_journey_e2e_acceptance(qtbot, monkeypatch, tmp_path: Path):
-    """Ledger complete user path: Cells & Formula -> Context Menu -> Drag Autofill -> Save XLSX -> Reopen."""
+    """Ledger complete user path: Cells/Formula -> Context Menu -> Drag Fill -> Save XLSX."""
     win = LedgerWindow()
     qtbot.addWidget(win)
     win.resize(1024, 768)
@@ -371,11 +369,11 @@ def test_phase7_mixed_operation_lifecycle_stress(qtbot):
 # ==============================================================================
 
 def test_phase7_features_matrix_evidence():
-    """Verify docs/clone/phase7_features.csv exists and all must items are verified with evidence."""
+    """Verify phase7_features.csv exists and all must items are verified with evidence."""
     csv_path = Path("docs/clone/phase7_features.csv")
     assert csv_path.exists(), "phase7_features.csv must exist"
 
-    with open(csv_path, mode="r", encoding="utf-8") as f:
+    with open(csv_path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
 
@@ -391,4 +389,5 @@ def test_phase7_features_matrix_evidence():
             if stat != "verified" or not ev:
                 unverified_must.append(f"{r.get('feature')} (status={stat}, evidence={ev})")
 
-    assert not unverified_must, f"Found unverified must-have features in phase7_features.csv: {unverified_must}"
+    err_msg = f"Found unverified must-have features in phase7_features.csv: {unverified_must}"
+    assert not unverified_must, err_msg
