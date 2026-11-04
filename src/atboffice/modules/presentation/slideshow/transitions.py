@@ -280,7 +280,9 @@ def render_slide_to_image(
                     painter.setFont(font)
                     painter.drawText(
                         d_rect.adjusted(2, 2, -2, -2),
-                        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap,
+                        Qt.AlignmentFlag.AlignLeft
+                        | Qt.AlignmentFlag.AlignTop
+                        | Qt.TextFlag.TextWordWrap,
                         d_sh.text.plain_text,
                     )
 
@@ -303,7 +305,8 @@ def render_slide_to_image(
                 rows = tbl.get("rows", [])
                 if rows:
                     if not cols:
-                        cols = [sh.w / max(1, len(rows[0].get("cells", [])))] * len(rows[0].get("cells", []))
+                        col_count = max(1, len(rows[0].get("cells", [])))
+                        cols = [sh.w / col_count] * col_count
                     tot_w = sum(cols)
                     tbl_sx = (rect.width() / tot_w) if tot_w > 0.001 else 1.0
                     cur_y = rect.top()
@@ -312,7 +315,8 @@ def render_slide_to_image(
                         cur_x = rect.left()
                         cells = r.get("cells", [])
                         for c_idx, cell in enumerate(cells):
-                            cw = (cols[c_idx] if c_idx < len(cols) else (sh.w / max(1, len(cells)))) * tbl_sx
+                            def_w = sh.w / max(1, len(cells))
+                            cw = (cols[c_idx] if c_idx < len(cols) else def_w) * tbl_sx
                             c_rect = QRectF(cur_x, cur_y, cw, rh)
                             painter.setPen(QPen(QColor(180, 180, 180), 1.0))
                             painter.drawRect(c_rect)
@@ -364,7 +368,9 @@ def render_slide_to_image(
                         painter.setFont(font)
                         painter.drawText(
                             k_rect,
-                            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap,
+                            Qt.AlignmentFlag.AlignLeft
+                            | Qt.AlignmentFlag.AlignTop
+                            | Qt.TextFlag.TextWordWrap,
                             kid.text.plain_text,
                         )
                 continue

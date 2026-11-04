@@ -1011,7 +1011,11 @@ class PptxReader:
                                         continue
                                     t_runs: list[str] = []
                                     for t_node in pt.iter():
-                                        if t_node.tag.endswith("t") and t_node.text and t_node.text.strip():
+                                        if (
+                                            t_node.tag.endswith("t")
+                                            and t_node.text
+                                            and t_node.text.strip()
+                                        ):
                                             t_runs.append(t_node.text.strip())
                                     if t_runs:
                                         full_line = " ".join(t_runs).strip()
@@ -1033,9 +1037,10 @@ class PptxReader:
                         except Exception:
                             pass
 
+            sa_items = [{"text": t} for t in diag_texts] if diag_texts else [{"text": "SmartArt"}]
             sa_obj = {
                 "layout": diag_layout,
-                "items": [{"text": t} for t in diag_texts] if diag_texts else [{"text": "SmartArt"}],
+                "items": sa_items,
             }
             combined_txt = "\n".join(diag_texts) if diag_texts else "SmartArt"
             return Shape(

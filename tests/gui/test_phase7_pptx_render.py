@@ -1,10 +1,10 @@
-"""Phase 7 Lectern PPTX Rendering, Placeholder Inheritance, and Lossless Roundtrip Suite.
+"""Phase 7 Lectern PPTX Rendering and Lossless Roundtrip Suite.
 
 Covers TASK-708 (Issue #242):
-- Master slides, layout inheritance, and master decoration rendering (libreoffice__master-slides.pptx)
-- Typography autofit (normAutofit) with fontScale / lnSpcReduction (libreoffice__TextFittingComparisonWithMSO_3.pptx)
+- Master slides, layout inheritance, decorations (libreoffice__master-slides.pptx)
+- Typography autofit (normAutofit) (libreoffice__TextFittingComparisonWithMSO_3.pptx)
 - SmartArt diagram text and dataModel extraction (libreoffice__smartart-text.pptx)
-- Table geometry, cell grid, and per-run font colors (poi__table-with-different-font-colors.pptx)
+- Table geometry, cell grid, per-run font colors (poi__table-with-different-font-colors.pptx)
 - Visual consistency across Normal Canvas View, Thumbnail, and Slideshow
 - Lossless OPC roundtrip preservation of masters, media, animations, and relationships
 """
@@ -14,13 +14,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QPointF, QRectF
-from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
+from PySide6.QtCore import QRectF
+from PySide6.QtGui import QImage, QPainter
 from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.presentation.io import read_pptx, write_pptx
 from atboffice.modules.presentation.slideshow.transitions import render_slide_to_image
-from atboffice.modules.presentation.views.slide_canvas import SlideCanvasView, SlideScene
+from atboffice.modules.presentation.views.slide_canvas import SlideScene
 from atboffice.modules.presentation.views.workspace import render_slide_thumbnail
 
 PPTX_DIR = Path("tests/docs/powerpoint/pptx")
@@ -34,13 +34,19 @@ def qapp() -> QApplication:
     return app
 
 
-def _render_canvas_view_offscreen(scene: SlideScene, width: int = 960, height: int = 540) -> QImage:
+def _render_canvas_view_offscreen(
+    scene: SlideScene, width: int = 960, height: int = 540
+) -> QImage:
     """Render a SlideScene via QGraphicsView offscreen to QImage."""
     img = QImage(width, height, QImage.Format.Format_ARGB32_Premultiplied)
     img.fill(0xFFFFFFFF)
     painter = QPainter(img)
     try:
-        scene.render(painter, QRectF(0, 0, width, height), QRectF(0, 0, scene.slide_width, scene.slide_height))
+        scene.render(
+            painter,
+            QRectF(0, 0, width, height),
+            QRectF(0, 0, scene.slide_width, scene.slide_height),
+        )
     finally:
         painter.end()
     return img
@@ -63,7 +69,9 @@ def test_master_slides_decorations_and_placeholders(qapp: QApplication) -> None:
     # Verify master design and decorations
     design = pres.get_design_for_slide(slide)
     assert design is not None
-    assert len(design.decorations) >= 1, "Master decorations must be extracted from slideMaster spTree"
+    assert len(design.decorations) >= 1, (
+        "Master decorations must be extracted from slideMaster spTree"
+    )
 
     deco_texts = [d.text.plain_text for d in design.decorations if d.text]
     combined_deco = " ".join(deco_texts)
