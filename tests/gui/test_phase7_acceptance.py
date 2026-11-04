@@ -129,8 +129,11 @@ def test_ledger_user_journey_e2e_acceptance(qtbot, monkeypatch, tmp_path: Path):
         ctx_pos.toPoint(),
         vp.mapToGlobal(ctx_pos.toPoint()),
     )
-    # Viewport handles context menu gracefully without crash
-    vp.contextMenuEvent(ctx_event)
+    from unittest.mock import patch
+
+    with patch.object(vp, "open_context_menu") as mock_ctx:
+        vp.contextMenuEvent(ctx_event)
+        assert mock_ctx.called
     drain_event_loop(1)
 
     # 3. Test drag autofill handle (TASK-710)
@@ -289,7 +292,8 @@ def test_phase7_transactional_safety_and_diagnostics(qtbot, monkeypatch, tmp_pat
     win.set_modified(True)
     orig_title = win.windowTitle()
 
-    # Stub dialogs to avoid blocking
+    # Stub dialogs and prompts to avoid modal blocking
+    monkeypatch.setattr(win, "maybe_save_prompt", lambda: True)
     monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: None)
     monkeypatch.setattr(QMessageBox, "critical", lambda *args, **kwargs: None)
 
