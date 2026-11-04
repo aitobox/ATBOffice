@@ -339,12 +339,18 @@ class TabStripWidget(QWidget):
         name = sheet.name
         is_hover = index == self._hover_index and not is_active
         tab_color = self._tab_bar.tab_color(index)
+        default_sel = {wb.active_sheet_index}
+        is_selected = index in getattr(self._tab_bar, "_selected_sheet_indices", default_sel)
 
         border_color = QColor(158, 154, 145) if not is_active else QColor(127, 157, 185)
         bg_color = (
             QColor(255, 255, 255)
             if is_active
-            else (QColor(245, 244, 238) if is_hover else QColor(220, 216, 205))
+            else (
+                QColor(248, 248, 244)
+                if is_selected
+                else (QColor(245, 244, 238) if is_hover else QColor(220, 216, 205))
+            )
         )
 
         r = rect.adjusted(0, 0, 0, 0 if not is_active else 1)
@@ -413,6 +419,9 @@ class SheetTabBar(QWidget):
             workbook if workbook is not None else WorkbookModel()
         )
         self._tab_colors: dict[SheetDataModel, QColor] = {}
+        self._selected_sheet_indices: set[int] = {
+            self._workbook.active_sheet_index if self._workbook.sheets else 0
+        }
         self._is_renaming: bool = False
         self._rename_editor: RenameInlineEditor | None = None
         self._renaming_index: int = -1
@@ -482,6 +491,29 @@ class SheetTabBar(QWidget):
         """Return the active inline QLineEdit editor or None."""
         return self._rename_editor
 
+    @property
+    def selected_sheet_indices(self) -> set[int]:
+        """Return set of selected (grouped) worksheet indices."""
+        return set(self._selected_sheet_indices)
+
+    def select_all_sheets(self) -> None:
+        """Select and group all worksheets in the workbook."""
+        self._selected_sheet_indices = set(range(len(self._workbook.sheets)))
+        self._strip.update()
+
+    def ungroup_sheets(self) -> None:
+        """Ungroup worksheets, leaving only active sheet selected."""
+        self._selected_sheet_indices = {self.active_index}
+        self._strip.update()
+
+    def mark_dirty(self) -> None:
+        """Mark workbook model and parent window dirty."""
+        if hasattr(self._workbook, "dirty"):
+            self._workbook.dirty = True
+        win = self.window()
+        if hasattr(win, "set_dirty"):
+            win.set_dirty(True)
+
     def tab_text(self, index: int) -> str:
         """Return the worksheet name for tab at index."""
         if 0 <= index < len(self._workbook.sheets):
@@ -503,6 +535,7 @@ class SheetTabBar(QWidget):
                 self._tab_colors[sheet] = color
             else:
                 self._tab_colors.pop(sheet, None)
+            self.mark_dirty()
             self._strip.update()
             if color:
                 self.sheet_color_requested.emit(index, color)
@@ -512,6 +545,11 @@ class SheetTabBar(QWidget):
         if 0 <= index < len(self._workbook.sheets):
             if self._is_renaming:
                 self.cancel_rename()
+            if (
+                index not in self._selected_sheet_indices
+                or len(self._selected_sheet_indices) == len(self._workbook.sheets)
+            ):
+                self._selected_sheet_indices = {index}
             self._workbook.set_active_sheet_index(index)
             self._strip.ensure_tab_visible(index)
             self._strip.update()
@@ -619,6 +657,7 @@ class SheetTabBar(QWidget):
             return False
 
         self.cancel_rename()
+        self.mark_dirty()
         self.tab_rename_requested.emit(idx, new_name_clean)
         return True
 
@@ -639,6 +678,7 @@ class SheetTabBar(QWidget):
         new_sheet = self._workbook.add_sheet(name=name, index=index)
         new_idx = self._workbook.sheet_index(new_sheet)
         self.set_active_index(new_idx)
+        self.mark_dirty()
         self.sheet_insert_requested.emit()
         return new_sheet
 
@@ -651,6 +691,8 @@ class SheetTabBar(QWidget):
 
         removed = self._workbook.remove_sheet(index)
         self._tab_colors.pop(removed, None)
+        self._selected_sheet_indices = {self.active_index}
+        self.mark_dirty()
         self.sheet_delete_requested.emit(index)
         return True
 
@@ -678,6 +720,7 @@ class SheetTabBar(QWidget):
             name=copy_name, index=insert_idx, sheet=copy_sheet
         )
         self.set_active_index(insert_idx)
+        self.mark_dirty()
         return new_sheet
 
     def _show_tab_context_menu(self, index: int, global_pos: QPoint) -> None:
@@ -699,6 +742,10 @@ class SheetTabBar(QWidget):
         act_unhide.setEnabled(False)
         menu.addSeparator()
         act_select_all = menu.addAction(safe_tr("选定全部工作表(&S)"))
+
+        act_ungroup = None
+        if len(self._selected_sheet_indices) > 1:
+            act_ungroup = menu.addAction(safe_tr("取消成组工作表(&U)"))
 
         if len(self._workbook.sheets) <= 1:
             act_delete.setEnabled(False)
@@ -729,6 +776,7 @@ class SheetTabBar(QWidget):
                     dest_idx = target_idx if target_idx < sheet_count else sheet_count
                     self._workbook.add_sheet(name=cand, index=dest_idx, sheet=copy_sheet)
                     self.set_active_index(dest_idx)
+                    self.mark_dirty()
                 else:
                     if target_idx >= len(self._workbook.sheets):
                         dest_idx = len(self._workbook.sheets) - 1
@@ -738,14 +786,16 @@ class SheetTabBar(QWidget):
                         dest_idx = target_idx
                     self._workbook.move_sheet(index, dest_idx)
                     self.set_active_index(dest_idx)
+                    self.mark_dirty()
         elif action == act_color:
             cur_color = self.tab_color(index) or QColor(255, 255, 255)
             color = QColorDialog.getColor(cur_color, self, safe_tr("选择标签颜色"))
             if color.isValid():
                 self.set_tab_color(index, color)
         elif action == act_select_all:
-            # Select all sheets (activate current and update tab strip)
-            self._strip.update()
+            self.select_all_sheets()
+        elif act_ungroup is not None and action == act_ungroup:
+            self.ungroup_sheets()
 
     # Workbook Lifecycle Callbacks
     def _on_sheet_added(self, index: int, name: str) -> None:

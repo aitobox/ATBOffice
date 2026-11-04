@@ -30,6 +30,9 @@ from atboffice.modules.spreadsheet.dialogs.goal_seek_dlg import (
 )
 from atboffice.modules.spreadsheet.dialogs.hyperlink_dialog import HyperlinkDialog
 from atboffice.modules.spreadsheet.dialogs.options_dialog import LedgerOptionsDialog
+from atboffice.modules.spreadsheet.dialogs.paste_special_dialog import (
+    PasteSpecialDialog,
+)
 from atboffice.modules.spreadsheet.dialogs.pivot_dialog import PivotTableWizardDialog
 from atboffice.modules.spreadsheet.dialogs.protect_dialog import (
     ProtectSheetDialog,
@@ -65,6 +68,7 @@ __all__ = [
     "HyperlinkDialog",
     "InsertFunctionDialog",
     "LedgerOptionsDialog",
+    "PasteSpecialDialog",
     "PivotTableWizardDialog",
     "ProtectSheetDialog",
     "ProtectWorkbookDialog",

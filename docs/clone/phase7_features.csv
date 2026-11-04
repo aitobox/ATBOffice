@@ -66,7 +66,7 @@ Freeze Panes and Split Rows/Columns,ledger_ui,must,yes,yes,Frozen panes and spli
 In-Place Cell Editor and Formula Bar,ledger_ui,must,yes,yes,views/formula_bar.py and editor_controller.py,unverified,
 Classic Format Cells Dialog (6 Tabs),ledger_ui,must,yes,yes,"format_cells.py (number, alignment, font, border, pattern, protection)",unverified,
 Multi-Column Sort Dialog,ledger_ui,must,yes,yes,sort_dialog.py supporting 3 sort keys and order,unverified,
-Classic SheetTabBar Bottom Worksheets Bar,ledger_ui,must,yes,yes,"views/sheet_tab_bar.py with tabs, navigation, context menu",unverified,
+Classic SheetTabBar Bottom Worksheets Bar,ledger_ui,must,yes,yes,"views/sheet_tab_bar.py with tabs, navigation, context menu",verified,tests/gui/test_phase7_context_actions.py
 "Spreadsheet Floating Object Layer (Shapes, Images, Charts)",ledger_ui,must,yes,yes,views/object_layer.py overlay with 8 handles and DrawingML sync,unverified,
 Ledger 8-Toolbar Cluster Assembly,ledger_ui,must,yes,yes,ledger_toolbars.py builds all 8 toolbars; verified in Phase 5 baseline (fixes #192),unverified,
 Ledger Toolbar Action Command Handlers,ledger_ui,must,yes,yes,"All 8 Ledger toolbars fully wired to cell formatting, formula insertion, auto-sum, sort, and alignment (PR #141)",unverified,

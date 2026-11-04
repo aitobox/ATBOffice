@@ -129,6 +129,7 @@ class LedgerWindow(BaseOfficeWindow):
         self.action_registry.set_handler("cut", self.cut)
         self.action_registry.set_handler("copy", self.copy)
         self.action_registry.set_handler("paste", self.paste)
+        self.action_registry.set_handler("pasteSpecial", self.paste_special)
         self.action_registry.set_handler("undo", self.undo)
         self.action_registry.set_handler("redo", self.redo)
         self.action_registry.set_handler("bold", self._toggle_bold)
@@ -1945,6 +1946,12 @@ class LedgerWindow(BaseOfficeWindow):
             grid._update_scrollbars()
             grid.viewport().update()
         self.set_modified(True)
+
+    def paste_special(self) -> None:
+        """Launch Paste Special dialog and dispatch to spreadsheet view."""
+        grid = getattr(getattr(self, "spreadsheet_view", None), "grid", None)
+        if grid and hasattr(grid, "paste_special"):
+            grid.paste_special()
 
     def format_selected_object(self) -> None:
         """Format properties of selected chart or floating shape."""
