@@ -297,6 +297,28 @@ def get_luna_stylesheet(theme: str = "blue") -> str:
         border: 1px solid transparent;
     }}
 
+    QToolBar QToolButton[popupMode="1"] {{
+        padding-right: 12px;
+    }}
+
+    QToolBar QToolButton::menu-button {{
+        border: none;
+        background: transparent;
+        width: 12px;
+    }}
+
+    QToolBar QToolButton::menu-arrow {{
+        image: none;
+        width: 0px;
+        height: 0px;
+    }}
+
+    QToolBar QToolButton::menu-indicator {{
+        image: none;
+        width: 0px;
+        height: 0px;
+    }}
+
     /* Classic Menus */
     QMenu {{
         background-color: {menu_face};

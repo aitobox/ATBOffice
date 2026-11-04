@@ -312,7 +312,7 @@ class LedgerToolBarCluster:
 
         keep_text = "绘图" in label or "Draw" in label
         btn_text = safe_tr(label) if not resolved_icon or keep_text else ""
-        btn = tb.add_drop_button(btn_text, resolved_icon, menu)
+        btn = tb.add_drop_button(btn_text, resolved_icon, menu, tooltip=label)
         btn.setProperty("drop_menu", menu)
         if resolved_aid:
             btn.setProperty("drop_aid", resolved_aid)
@@ -708,4 +708,8 @@ def retranslate_ledger_toolbars(
         if tb is not None:
             tb.setWindowTitle(title)
             for btn in tb.findChildren(OfficeDropDownButton):
+                btn.retranslate_ui(translate)
+            for btn in tb.findChildren(OfficeSplitButton):
+                btn.retranslate_ui(translate)
+            for btn in tb.findChildren(ColorPickerButton):
                 btn.retranslate_ui(translate)

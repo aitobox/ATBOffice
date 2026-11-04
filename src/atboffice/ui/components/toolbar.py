@@ -172,8 +172,9 @@ class OfficeToolBar(QToolBar):
         text: str,
         icon: QIcon | None,
         menu: QMenu,
+        tooltip: str = "",
     ) -> OfficeDropDownButton:
         """Add an Office 2003 drop-down button that reveals a menu upon click."""
-        btn = OfficeDropDownButton(text=text, icon=icon, menu=menu, parent=self)
+        btn = OfficeDropDownButton(text=text, icon=icon, menu=menu, tooltip=tooltip, parent=self)
         self.addWidget(btn)
         return btn

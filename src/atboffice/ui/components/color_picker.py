@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Final
 
-from PySide6.QtCore import QCoreApplication, QPoint, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent
+from PySide6.QtCore import QPoint, QRect, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent, QPolygon
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -17,12 +18,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.ui.icons import get_office_icon
+from atboffice.ui.styles.luna_2003 import LUNA_BLUE_HOT_BORDER
 
 
 def safe_tr(text: str) -> str:
     """Translate UI text safely for ColorPicker."""
-    return QCoreApplication.translate("ColorPicker", text)
+    return core_safe_tr(text)
 
 
 # Standard 40 colors of Office 2003 (5 rows x 8 columns)
@@ -86,11 +89,7 @@ class SwatchButton(QPushButton):
         super().__init__(parent)
         self.hex_color = hex_color.upper()
         self.setFixedSize(18, 18)
-        name = COLOR_NAMES.get(self.hex_color, self.hex_color)
-        tip_text = safe_tr(name)
-        self.setToolTip(tip_text)
-        self.setStatusTip(tip_text)
-        self.setAccessibleName(tip_text)
+        self.retranslate_ui()
 
         self.setStyleSheet(
             f"""
@@ -105,6 +104,14 @@ class SwatchButton(QPushButton):
             }}
             """
         )
+
+    def retranslate_ui(self, tr_func: Callable[[str], str] | None = None) -> None:
+        translate = tr_func or safe_tr
+        name = COLOR_NAMES.get(self.hex_color, self.hex_color)
+        tip_text = translate(name)
+        self.setToolTip(tip_text)
+        self.setStatusTip(tip_text)
+        self.setAccessibleName(tip_text)
 
 
 class ColorPickerPopup(QFrame):
@@ -190,6 +197,18 @@ class ColorPickerPopup(QFrame):
         self.btn_more_colors.clicked.connect(self._open_more_colors_dialog)
         layout.addWidget(self.btn_more_colors)
 
+    def retranslate_ui(self, tr_func: Callable[[str], str] | None = None) -> None:
+        """Update localized text for action buttons and color swatches."""
+        translate = tr_func or safe_tr
+        if self.mode in ("fill", "line"):
+            btn_text = translate("无填充颜色") if self.mode == "fill" else translate("无线条颜色")
+        else:
+            btn_text = translate("自动")
+        self.btn_auto_or_none.setText(btn_text)
+        self.btn_more_colors.setText(translate("其他颜色..."))
+        for btn in self.swatch_buttons:
+            btn.retranslate_ui(translate)
+
     def _select_special(self, value: str) -> None:
         self.color_selected.emit(value)
         self.close()
@@ -220,14 +239,27 @@ class ColorPickerButton(QToolButton):
         self,
         mode: str = "font",
         default_color: str = "#000000",
+        tooltip: str = "",
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.mode = mode
         self._current_color = default_color.upper()
         self.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setIconSize(QSize(16, 16))
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+
+        default_tip = (
+            "字体颜色"
+            if mode == "font"
+            else ("突出显示" if mode == "highlight" else "填充颜色")
+        )
+        self._raw_tip = tooltip or default_tip
+        tip_text = safe_tr(self._raw_tip)
+        self.setToolTip(tip_text)
+        self.setStatusTip(tip_text)
+        self.setAccessibleName(tip_text)
 
         icon_key = (
             "fontColor"
@@ -244,6 +276,9 @@ class ColorPickerButton(QToolButton):
     @property
     def current_color(self) -> str:
         return self._current_color
+
+    def sizeHint(self) -> QSize:
+        return QSize(34, 22)
 
     def set_color(self, color_hex: str) -> None:
         """Update current color indicator bar."""
@@ -267,8 +302,11 @@ class ColorPickerButton(QToolButton):
             QStyle.SubControl.SC_ToolButtonMenu,
             self,
         )
+        if not arrow_rect.isValid() or arrow_rect.width() <= 0:
+            arrow_rect = QRect(self.width() - 12, 0, 12, self.height())
 
-        if event.button() == Qt.MouseButton.LeftButton and arrow_rect.contains(event.pos()):
+        pt = event.position().toPoint() if hasattr(event, "position") else event.pos()
+        if event.button() == Qt.MouseButton.LeftButton and arrow_rect.contains(pt):
             self._show_popup()
             event.accept()
             return
@@ -280,40 +318,94 @@ class ColorPickerButton(QToolButton):
         self.popup.move(pos)
         self.popup.show()
 
+    def retranslate_ui(self, tr_func: Callable[[str], str] | None = None) -> None:
+        """Update localized tooltips and delegate to popup."""
+        translate = tr_func or safe_tr
+        if self._raw_tip:
+            tip_formatted = translate(self._raw_tip)
+            self.setToolTip(tip_formatted)
+            self.setStatusTip(tip_formatted)
+            self.setAccessibleName(tip_formatted)
+        self.popup.retranslate_ui(translate)
+
     def paintEvent(self, event: QPaintEvent) -> None:
         super().paintEvent(event)
 
-        # Draw Office 2003 colored indicator bar at the bottom
-        painter = QPainter(self)
-        bar_height = 3
-        margin_x = 3
-        rect = self.rect()
-
         opt = QStyleOptionToolButton()
         self.initStyleOption(opt)
+
+        arrow_rect = self.style().subControlRect(
+            QStyle.ComplexControl.CC_ToolButton,
+            opt,
+            QStyle.SubControl.SC_ToolButtonMenu,
+            self,
+        )
+        if not arrow_rect.isValid() or arrow_rect.width() <= 0:
+            arrow_rect = QRect(self.width() - 12, 0, 12, self.height())
+
         btn_rect = self.style().subControlRect(
             QStyle.ComplexControl.CC_ToolButton,
             opt,
             QStyle.SubControl.SC_ToolButton,
             self,
         )
+        if not btn_rect.isValid() or btn_rect.width() <= 0:
+            btn_rect = QRect(0, 0, self.width() - 12, self.height())
 
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+
+        is_hovered = bool(opt.state & QStyle.StateFlag.State_MouseOver)
+        is_enabled = bool(opt.state & QStyle.StateFlag.State_Enabled)
+
+        # 1. Draw 1px vertical divider between main button and arrow area
+        divider_x = arrow_rect.left()
+        top_y = opt.rect.top() + 2
+        bottom_y = opt.rect.bottom() - 2
+
+        if is_hovered and is_enabled:
+            painter.setPen(QColor(LUNA_BLUE_HOT_BORDER))
+            painter.drawLine(divider_x, top_y, divider_x, bottom_y)
+            painter.setPen(QColor("#FFFFFF"))
+            painter.drawLine(divider_x + 1, top_y, divider_x + 1, bottom_y)
+        else:
+            painter.setPen(QColor("#7BA4E0"))
+            painter.drawLine(divider_x, top_y, divider_x, bottom_y)
+            painter.setPen(QColor("#F1F9FF"))
+            painter.drawLine(divider_x + 1, top_y, divider_x + 1, bottom_y)
+
+        # 2. Draw down-arrow triangle centered in arrow_rect
+        cx = arrow_rect.left() + arrow_rect.width() // 2
+        cy = arrow_rect.top() + arrow_rect.height() // 2 - 1
+
+        arrow_color = QColor("#000000") if is_enabled else QColor("#8D8D8D")
+        painter.setBrush(arrow_color)
+        painter.setPen(arrow_color)
+
+        points = [
+            QPoint(cx - 2, cy - 1),
+            QPoint(cx + 2, cy - 1),
+            QPoint(cx, cy + 1),
+        ]
+        painter.drawPolygon(QPolygon(points))
+
+        # 3. Draw Office 2003 colored indicator bar at the bottom of main button
+        bar_height = 3
+        margin_x = 3
         bar_rect = QRect(
             btn_rect.left() + margin_x,
-            rect.bottom() - bar_height - 1,
-            btn_rect.width() - (margin_x * 2),
+            self.height() - bar_height - 2,
+            max(btn_rect.width() - (margin_x * 2), 10),
             bar_height,
         )
 
         if self._current_color.startswith("#"):
             painter.fillRect(bar_rect, QColor(self._current_color))
         elif self._current_color == "none":
-            # Diagonal line representing no fill
             painter.fillRect(bar_rect, QColor("#FFFFFF"))
             painter.setPen(QColor("#FF0000"))
             painter.drawLine(bar_rect.topLeft(), bar_rect.bottomRight())
         else:
-            # Auto: default black or dark gray
             painter.fillRect(bar_rect, QColor("#000000"))
 
         painter.end()

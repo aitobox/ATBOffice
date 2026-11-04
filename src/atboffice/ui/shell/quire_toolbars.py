@@ -413,7 +413,7 @@ class QuireToolBarCluster:
 
         keep_text = "绘图" in label or "自选图形" in label
         btn_text = safe_tr(label) if not resolved_icon or keep_text else ""
-        btn = tb.add_drop_button(btn_text, resolved_icon, menu)
+        btn = tb.add_drop_button(btn_text, resolved_icon, menu, tooltip=label)
         if resolved_icon and not btn_text:
             btn.setToolTip(safe_tr(label))
         return btn
@@ -955,4 +955,8 @@ def retranslate_quire_toolbars(
         if tb is not None:
             tb.setWindowTitle(title)
             for btn in tb.findChildren(OfficeDropDownButton):
+                btn.retranslate_ui(translate)
+            for btn in tb.findChildren(OfficeSplitButton):
+                btn.retranslate_ui(translate)
+            for btn in tb.findChildren(ColorPickerButton):
                 btn.retranslate_ui(translate)
