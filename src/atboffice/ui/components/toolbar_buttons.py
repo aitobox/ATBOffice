@@ -53,7 +53,10 @@ class OfficeSplitButton(QToolButton):
     def sizeHint(self) -> QSize:
         hint = super().sizeHint()
         # Office 2003 standard button height is 22px, split button width ~34px
-        target_w = max(hint.width(), 34)
+        if self.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonIconOnly or not self.text():
+            target_w = 34
+        else:
+            target_w = max(hint.width(), 34)
         return QSize(target_w, 22)
 
     def retranslate_ui(self, tr_func: Callable[[str], str] | None = None) -> None:

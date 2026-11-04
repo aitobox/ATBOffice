@@ -47,14 +47,21 @@ def test_split_button_hit_testing_separation(qtbot) -> None:
     action = QAction("Undo", tb)
     action.triggered.connect(on_action)
     menu = QMenu("Undo List", tb)
+    qtbot.addWidget(menu)
     menu.addAction("Item 1")
 
     menu_shown = False
 
+    def close_menu():
+        try:
+            menu.close()
+        except RuntimeError:
+            pass
+
     def on_menu_show():
         nonlocal menu_shown
         menu_shown = True
-        QTimer.singleShot(0, menu.close)
+        QTimer.singleShot(0, close_menu)
 
     menu.aboutToShow.connect(on_menu_show)
 
@@ -82,6 +89,8 @@ def test_split_button_hit_testing_separation(qtbot) -> None:
     )
     assert action_triggered == 0, "Clicking arrow area must not trigger main action"
     assert menu_shown, "Clicking arrow area must open the menu"
+    qtbot.waitUntil(lambda: not menu.isVisible(), timeout=1000)
+    QApplication.processEvents()
 
 
 def test_color_picker_hit_testing_and_recent_color(qtbot) -> None:
