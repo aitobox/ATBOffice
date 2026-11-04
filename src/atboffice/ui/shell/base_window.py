@@ -649,10 +649,12 @@ class BaseOfficeWindow(QMainWindow):
             record_action("window_close_accepted", "base_window", {"app_name": self.app_name})
             cw = self.centralWidget()
             if cw is not None:
-                if hasattr(cw, "grid") and hasattr(cw.grid, "cancel_drag"):
-                    cw.grid.cancel_drag(why="api")
-                if hasattr(cw, "editor_controller") and hasattr(cw.editor_controller, "cancel_editing"):
-                    cw.editor_controller.cancel_editing()
+                grid = getattr(cw, "grid", None)
+                if grid is not None and hasattr(grid, "cancel_drag"):
+                    grid.cancel_drag(why="api")
+                ec = getattr(cw, "editor_controller", None)
+                if ec is not None and hasattr(ec, "cancel_editing"):
+                    ec.cancel_editing()
             event.accept()
             self.window_closed.emit(self)
             try:

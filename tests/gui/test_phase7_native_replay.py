@@ -12,17 +12,13 @@ Verifies:
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QObject
-from PySide6.QtWidgets import QApplication
 
 from atboffice.core.diagnostics import (
     ActionRecorder,
     clear_captured_exceptions,
-    drain_event_loop,
     get_captured_exceptions,
     record_action,
     record_document_sha,
@@ -72,7 +68,7 @@ def test_modal_menu_dialog_replay(replay_runner: SubprocessReplayRunner) -> None
 
 
 def test_drag_cancel_and_window_close_replay(replay_runner: SubprocessReplayRunner) -> None:
-    """Subprocess begins cell drag gesture, cancels via API, and closes window without dangling timers."""
+    """Subprocess begins cell drag gesture, cancels via API, and closes window cleanly."""
     result = replay_runner.run(
         module="ledger",
         action="drag_cancel_lifecycle",
