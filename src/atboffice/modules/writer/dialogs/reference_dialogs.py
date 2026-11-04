@@ -542,6 +542,37 @@ class BookmarkDialog(QDialog):
         self.check_hidden.setText(safe_tr("隐藏书签(&H)"))
 
 
+class HyperlinkScreenTipDialog(QDialog):
+    """Set Hyperlink ScreenTip dialog (设置超链接屏幕提示)."""
+
+    def __init__(self, initial_tip: str = "", parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(safe_tr("设置超链接屏幕提示"))
+        self.resize(320, 140)
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(10)
+
+        layout.addWidget(QLabel(safe_tr("屏幕提示文字(&S):"), self))
+        self.edit_tip = QLineEdit(initial_tip, self)
+        layout.addWidget(self.edit_tip)
+
+        layout.addStretch(1)
+
+        btn_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+            self,
+        )
+        btn_box.accepted.connect(self.accept)
+        btn_box.rejected.connect(self.reject)
+        layout.addWidget(btn_box)
+
+    def get_screentip(self) -> str:
+        return self.edit_tip.text().strip()
+
+
 class HyperlinkDialog(QDialog):
     """Insert Hyperlink dialog with 3 tabs (插入超链接)."""
 
@@ -558,10 +589,12 @@ class HyperlinkDialog(QDialog):
         main_layout = QVBoxLayout(self)
 
         # Header fields: Text to display & ScreenTip
+        self.screentip: str = ""
         h_top = QHBoxLayout()
         self.lbl_text = QLabel(safe_tr("要显示的文字(&T):"), self)
         self.edit_text = QLineEdit(initial_text, self)
         self.btn_tip = QPushButton(safe_tr("屏幕提示(&P)..."), self)
+        self.btn_tip.clicked.connect(self._on_screentip)
         h_top.addWidget(self.lbl_text)
         h_top.addWidget(self.edit_text)
         h_top.addWidget(self.btn_tip)
@@ -625,6 +658,11 @@ class HyperlinkDialog(QDialog):
         if path:
             self.edit_address.setText(path)
 
+    def _on_screentip(self) -> None:
+        dlg = HyperlinkScreenTipDialog(self.screentip, parent=self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self.screentip = dlg.get_screentip()
+
     def get_hyperlink_data(self) -> dict[str, Any]:
         cur_tab = self.tab_widget.currentIndex()
         if cur_tab == 0:
@@ -642,6 +680,7 @@ class HyperlinkDialog(QDialog):
             "text": self.edit_text.text(),
             "target": target,
             "kind": kind,
+            "screentip": self.screentip,
         }
 
     def retranslate_ui(self) -> None:

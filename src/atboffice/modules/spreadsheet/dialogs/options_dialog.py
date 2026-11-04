@@ -60,6 +60,7 @@ class LedgerOptionsDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.options: dict[str, Any] = initial_options or {}
+        self.custom_lists: list[list[str]] = list(self.options.get("custom_lists", []))
 
         self._init_ui()
 
@@ -109,10 +110,13 @@ class LedgerOptionsDialog(QDialog):
         g_show = QGridLayout(grp_show)
         self.chk_formula_bar = QCheckBox(safe_tr("编辑栏(&F)"), grp_show)
         self.chk_status_bar = QCheckBox(safe_tr("状态栏(&S)"), grp_show)
+        self.chk_show_screentips = QCheckBox(safe_tr("显示屏幕提示(&T)"), grp_show)
         self.chk_formula_bar.setChecked(True)
         self.chk_status_bar.setChecked(True)
+        self.chk_show_screentips.setChecked(True)
         g_show.addWidget(self.chk_formula_bar, 0, 0)
         g_show.addWidget(self.chk_status_bar, 0, 1)
+        g_show.addWidget(self.chk_show_screentips, 1, 0)
         v.addWidget(grp_show)
 
         # Window options group
@@ -272,7 +276,10 @@ class LedgerOptionsDialog(QDialog):
         self.list_custom_lists.addItem(safe_tr("新序列"))
         for item in BUILTIN_CUSTOM_LISTS:
             self.list_custom_lists.addItem(item[0])
+        for cl in self.custom_lists:
+            self.list_custom_lists.addItem(", ".join(cl[:3]) + ("..." if len(cl) > 3 else ""))
         self.list_custom_lists.setCurrentRow(0)
+        self.list_custom_lists.currentRowChanged.connect(self._on_custom_list_selected)
         v_left.addWidget(self.list_custom_lists, 1)
         h.addLayout(v_left, 1)
 
@@ -285,12 +292,61 @@ class LedgerOptionsDialog(QDialog):
         h_btns = QHBoxLayout()
         self.btn_add_list = QPushButton(safe_tr("添加(&A)"), w)
         self.btn_del_list = QPushButton(safe_tr("删除(&D)"), w)
+        self.btn_del_list.setEnabled(False)
+        self.btn_add_list.clicked.connect(self._on_add_custom_list)
+        self.btn_del_list.clicked.connect(self._on_del_custom_list)
         h_btns.addWidget(self.btn_add_list)
         h_btns.addWidget(self.btn_del_list)
         v_right.addLayout(h_btns)
 
         h.addLayout(v_right, 1)
         return w
+
+    def _on_custom_list_selected(self, row: int) -> None:
+        if row <= 0:
+            self.edit_list_entries.clear()
+            self.btn_del_list.setEnabled(False)
+            self.btn_add_list.setEnabled(True)
+        elif 1 <= row <= len(BUILTIN_CUSTOM_LISTS):
+            b_list = BUILTIN_CUSTOM_LISTS[row - 1]
+            self.edit_list_entries.setPlainText("\n".join(b_list))
+            self.btn_del_list.setEnabled(False)
+            self.btn_add_list.setEnabled(False)
+        else:
+            u_idx = row - len(BUILTIN_CUSTOM_LISTS) - 1
+            if 0 <= u_idx < len(self.custom_lists):
+                self.edit_list_entries.setPlainText("\n".join(self.custom_lists[u_idx]))
+                self.btn_del_list.setEnabled(True)
+                self.btn_add_list.setEnabled(False)
+
+    def _on_add_custom_list(self) -> None:
+        raw_text = self.edit_list_entries.toPlainText().strip()
+        if not raw_text:
+            return
+        lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+        if not lines:
+            return
+        items: list[str] = []
+        for line in lines:
+            if "," in line:
+                items.extend([part.strip() for part in line.split(",") if part.strip()])
+            else:
+                items.append(line)
+        if not items:
+            return
+        self.custom_lists.append(items)
+        display_label = ", ".join(items[:3]) + ("..." if len(items) > 3 else "")
+        self.list_custom_lists.addItem(display_label)
+        self.list_custom_lists.setCurrentRow(self.list_custom_lists.count() - 1)
+
+    def _on_del_custom_list(self) -> None:
+        row = self.list_custom_lists.currentRow()
+        if row > len(BUILTIN_CUSTOM_LISTS):
+            u_idx = row - len(BUILTIN_CUSTOM_LISTS) - 1
+            if 0 <= u_idx < len(self.custom_lists):
+                del self.custom_lists[u_idx]
+                self.list_custom_lists.takeItem(row)
+                self.list_custom_lists.setCurrentRow(0)
 
     # -------------------------------------------------------------
     # Tab 6: Error Checking
@@ -401,6 +457,8 @@ class LedgerOptionsDialog(QDialog):
             "username": self.edit_username.text().strip(),
             "bg_error_checking": self.chk_bg_error_check.isChecked(),
             "read_only_recommended": self.chk_read_only_rec.isChecked(),
+            "show_screentips": self.chk_show_screentips.isChecked(),
+            "custom_lists": [list(cl) for cl in self.custom_lists],
         }
 
     def _on_ok(self) -> None:
@@ -412,3 +470,9 @@ class LedgerOptionsDialog(QDialog):
         self.setWindowTitle(safe_tr("选项"))
         self.btn_ok.setText(safe_tr("确定"))
         self.btn_cancel.setText(safe_tr("取消"))
+        if hasattr(self, "btn_add_list"):
+            self.btn_add_list.setText(safe_tr("添加(&A)"))
+        if hasattr(self, "btn_del_list"):
+            self.btn_del_list.setText(safe_tr("删除(&D)"))
+        if hasattr(self, "chk_show_screentips"):
+            self.chk_show_screentips.setText(safe_tr("显示屏幕提示(&T)"))
