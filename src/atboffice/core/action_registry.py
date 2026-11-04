@@ -36,6 +36,7 @@ class ActionSpec:
     is_split: bool = False
     is_drop: bool = False
     handler: Callable[[], Any] | None = None
+    disabled_reason: str = ""
 
 
 class ActionRegistry(QObject):
@@ -53,6 +54,24 @@ class ActionRegistry(QObject):
         self._actions: dict[str, QAction] = {}
         self._specs: dict[str, ActionSpec] = {}
         self._handlers: dict[str, Callable[[], Any]] = {}
+        self._whitelist_actions: dict[str, dict[str, str]] = {}
+
+    def register_whitelist_action(
+        self,
+        action_id: str,
+        kind: str = "abstract",
+        reason: str = "",
+    ) -> None:
+        """Register white-listed action (e.g. abstract interface, setMenu, or defaultAction)."""
+        self._whitelist_actions[action_id] = {"kind": kind, "reason": reason}
+
+    def is_whitelisted_action(self, action_id: str) -> bool:
+        """Check whether action is whitelisted as abstract/setMenu/defaultAction."""
+        return action_id in self._whitelist_actions
+
+    def get_whitelist_info(self, action_id: str) -> dict[str, str] | None:
+        """Retrieve whitelist metadata for the action."""
+        return self._whitelist_actions.get(action_id)
 
     def register_action(
         self,
@@ -192,17 +211,27 @@ class ActionRegistry(QObject):
         self.action_triggered.emit(action_id)
 
     def _show_fallback_toast(self, action_id: str) -> None:
-        """Display a non-blocking toast on the status bar when an action has no handler."""
+        """Display non-blocking toast on status bar with explicit reason/capability explanation."""
         win = self.parent()
+        spec = self._specs.get(action_id)
+        if spec and spec.disabled_reason:
+            message = safe_tr(spec.disabled_reason)
+        elif action_id in self._whitelist_actions:
+            info = self._whitelist_actions[action_id]
+            message = safe_tr(info.get("reason", "抽象命令接口或动态容器菜单"))
+        elif spec:
+            message = safe_tr(f"{spec.label} 正在联调中")
+        else:
+            message = safe_tr("功能正在联调中")
+
         status_bar = getattr(win, "statusBar", None)
         if callable(status_bar):
             sb = status_bar()
             if sb is not None:
-                message = safe_tr("功能正在联调中")
                 sb.showMessage(message, 2000)
                 return
 
-        logger.info("Action %s triggered without handler (development mode)", action_id)
+        logger.info("Action %s triggered without handler: %s", action_id, message)
 
     def retranslate_ui(self, tr_func: Callable[[str], str] | None = None) -> None:
         """Retranslate all registered action labels and tooltips."""

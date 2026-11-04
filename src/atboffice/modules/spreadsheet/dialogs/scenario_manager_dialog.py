@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from PySide6.QtCore import QCoreApplication, Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QGridLayout,
     QGroupBox,
@@ -157,6 +158,52 @@ class AddScenarioDialog(QDialog):
         }
 
 
+class MergeScenariosDialog(QDialog):
+    """Excel 2003 Merge Scenarios sub-dialog."""
+
+    def __init__(
+        self,
+        sheets: list[str] | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.sheets = sheets or []
+        self.selected_sheet: str = self.sheets[0] if self.sheets else ""
+
+        self.setWindowTitle(safe_tr("合并方案"))
+        self.resize(320, 160)
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(10)
+
+        layout.addWidget(QLabel(safe_tr("从工作表合并方案(&S):"), self))
+        self.combo_sheets = QComboBox(self)
+        for s in self.sheets:
+            self.combo_sheets.addItem(s)
+        layout.addWidget(self.combo_sheets)
+
+        layout.addStretch(1)
+
+        btn_layout = QHBoxLayout()
+        btn_ok = QPushButton(safe_tr("确定"), self)
+        btn_cancel = QPushButton(safe_tr("取消"), self)
+        btn_ok.clicked.connect(self._on_ok)
+        btn_cancel.clicked.connect(self.reject)
+        btn_layout.addStretch(1)
+        btn_layout.addWidget(btn_ok)
+        btn_layout.addWidget(btn_cancel)
+        layout.addLayout(btn_layout)
+
+    def _on_ok(self) -> None:
+        self.selected_sheet = self.combo_sheets.currentText()
+        self.accept()
+
+    def get_selected_sheet(self) -> str:
+        return self.selected_sheet
+
+
 class ScenarioManagerDialog(QDialog):
     """Excel 2003 classic Scenario Manager Dialog."""
 
@@ -236,6 +283,7 @@ class ScenarioManagerDialog(QDialog):
         self.btn_add.clicked.connect(self._on_add)
         self.btn_delete.clicked.connect(self._on_delete)
         self.btn_edit.clicked.connect(self._on_edit)
+        self.btn_merge.clicked.connect(self._on_merge)
         self.btn_summary.clicked.connect(self._on_summary)
 
         btn_layout.addWidget(self.btn_show)
@@ -332,6 +380,49 @@ class ScenarioManagerDialog(QDialog):
             safe_tr("方案摘要"),
             safe_tr("已成功创建方案摘要工作表。"),
         )
+
+    def _on_merge(self) -> None:
+        sheets: list[str] = []
+        if self.sheet_model and hasattr(self.sheet_model, "workbook") and self.sheet_model.workbook:
+            wb = self.sheet_model.workbook
+            if hasattr(wb, "sheets"):
+                sheets = [s.name for s in wb.sheets if s != self.sheet_model]
+        if not sheets:
+            sheets = ["Sheet2", "Sheet3"]
+
+        dlg = MergeScenariosDialog(sheets=sheets, parent=self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            sheet_name = dlg.get_selected_sheet()
+            merged_count = 0
+            wb = getattr(self.sheet_model, "workbook", None) if self.sheet_model else None
+            if wb:
+                target_sheet = next((s for s in wb.sheets if s.name == sheet_name), None)
+                if target_sheet and hasattr(target_sheet, "scenarios") and target_sheet.scenarios:
+                    merged_count = self.merge_scenarios(target_sheet.scenarios)
+            if merged_count == 0:
+                QMessageBox.information(
+                    self,
+                    safe_tr("合并方案"),
+                    safe_tr(f"未在工作表 {sheet_name} 中找到可合并的方案。"),
+                )
+
+    def merge_scenarios(self, new_scenarios: list[dict[str, Any]]) -> int:
+        """Merge a list of scenarios into the current list, skipping duplicate names."""
+        existing_names = {s.get("name") for s in self.scenarios}
+        count = 0
+        for sc in new_scenarios:
+            if sc.get("name") not in existing_names:
+                self.scenarios.append(dict(sc))
+                existing_names.add(sc.get("name"))
+                count += 1
+        if count > 0:
+            self._refresh_list()
+            self.scenarios_updated.emit(self.scenarios)
+        return count
+
+    def set_sheet_model(self, sheet_model: SheetDataModel | None) -> None:
+        """Switch target sheet model cleanly."""
+        self.sheet_model = sheet_model
 
     def get_scenarios(self) -> list[dict[str, Any]]:
         return self.scenarios

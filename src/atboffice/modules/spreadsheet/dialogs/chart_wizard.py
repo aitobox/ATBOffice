@@ -248,6 +248,20 @@ class ChartWizardDialog(QDialog):
         self.data_range: str = initial_range
         self.series_in_rows: bool = False  # False = columns, True = rows
 
+        self._syncing_series: bool = False
+        self.series_list: list[dict[str, str]] = [
+            {
+                "name": "=Sheet1!$B$1",
+                "values": "=Sheet1!$B$2:$B$5",
+                "x_values": "=Sheet1!$A$2:$A$5",
+            },
+            {
+                "name": "=Sheet1!$C$1",
+                "values": "=Sheet1!$C$2:$C$5",
+                "x_values": "=Sheet1!$A$2:$A$5",
+            },
+        ]
+
         # Chart Options state
         self.chart_title: str = ""
         self.x_axis_title: str = ""
@@ -432,14 +446,18 @@ class ChartWizardDialog(QDialog):
         h_s = QHBoxLayout(tab_series)
         s_left = QVBoxLayout()
         self.list_series = QListWidget(tab_series)
-        self.list_series.addItem(safe_tr("系列1"))
-        self.list_series.addItem(safe_tr("系列2"))
+        for idx, s in enumerate(self.series_list):
+            name = s.get("name") or safe_tr(f"系列{idx + 1}")
+            self.list_series.addItem(name)
         self.list_series.setCurrentRow(0)
+        self.list_series.currentRowChanged.connect(self._on_series_selection_changed)
         s_left.addWidget(self.list_series)
 
         s_btn_layout = QHBoxLayout()
         self.btn_add_series = QPushButton(safe_tr("添加(&A)"), tab_series)
         self.btn_del_series = QPushButton(safe_tr("删除(&R)"), tab_series)
+        self.btn_add_series.clicked.connect(self._on_add_series)
+        self.btn_del_series.clicked.connect(self._on_del_series)
         s_btn_layout.addWidget(self.btn_add_series)
         s_btn_layout.addWidget(self.btn_del_series)
         s_left.addLayout(s_btn_layout)
@@ -447,21 +465,81 @@ class ChartWizardDialog(QDialog):
 
         s_right = QGridLayout()
         s_right.addWidget(QLabel(safe_tr("名称(&N):")), 0, 0)
-        self.edit_series_name = QLineEdit("=Sheet1!$B$1", tab_series)
+        first_name = self.series_list[0]["name"] if self.series_list else ""
+        self.edit_series_name = QLineEdit(first_name, tab_series)
+        self.edit_series_name.textChanged.connect(self._on_series_name_changed)
         s_right.addWidget(self.edit_series_name, 0, 1)
 
         s_right.addWidget(QLabel(safe_tr("值(&V):")), 1, 0)
-        self.edit_series_values = QLineEdit("=Sheet1!$B$2:$B$5", tab_series)
+        first_values = self.series_list[0]["values"] if self.series_list else ""
+        self.edit_series_values = QLineEdit(first_values, tab_series)
+        self.edit_series_values.textChanged.connect(self._on_series_values_changed)
         s_right.addWidget(self.edit_series_values, 1, 1)
 
         s_right.addWidget(QLabel(safe_tr("分类(X)轴标志(&T):")), 2, 0)
-        self.edit_series_x = QLineEdit("=Sheet1!$A$2:$A$5", tab_series)
+        first_x = self.series_list[0]["x_values"] if self.series_list else ""
+        self.edit_series_x = QLineEdit(first_x, tab_series)
+        self.edit_series_x.textChanged.connect(self._on_series_x_changed)
         s_right.addWidget(self.edit_series_x, 2, 1)
         h_s.addLayout(s_right, 2)
 
         self.tabs_source.addTab(tab_series, safe_tr("系列"))
         layout.addWidget(self.tabs_source)
         return page
+
+    def _on_series_selection_changed(self, row: int) -> None:
+        if self._syncing_series or not (0 <= row < len(self.series_list)):
+            return
+        self._syncing_series = True
+        s = self.series_list[row]
+        self.edit_series_name.setText(s.get("name", ""))
+        self.edit_series_values.setText(s.get("values", ""))
+        self.edit_series_x.setText(s.get("x_values", ""))
+        self._syncing_series = False
+
+    def _on_series_name_changed(self, text: str) -> None:
+        if self._syncing_series:
+            return
+        row = self.list_series.currentRow()
+        if 0 <= row < len(self.series_list):
+            self.series_list[row]["name"] = text
+            item = self.list_series.item(row)
+            if item is not None:
+                item.setText(text or safe_tr(f"系列{row + 1}"))
+
+    def _on_series_values_changed(self, text: str) -> None:
+        if self._syncing_series:
+            return
+        row = self.list_series.currentRow()
+        if 0 <= row < len(self.series_list):
+            self.series_list[row]["values"] = text
+
+    def _on_series_x_changed(self, text: str) -> None:
+        if self._syncing_series:
+            return
+        row = self.list_series.currentRow()
+        if 0 <= row < len(self.series_list):
+            self.series_list[row]["x_values"] = text
+
+    def _on_add_series(self) -> None:
+        idx = len(self.series_list) + 1
+        new_name = safe_tr(f"系列{idx}")
+        new_s = {"name": new_name, "values": "", "x_values": ""}
+        self.series_list.append(new_s)
+        self.list_series.addItem(new_name)
+        self.list_series.setCurrentRow(len(self.series_list) - 1)
+
+    def _on_del_series(self) -> None:
+        if len(self.series_list) <= 1:
+            return
+        row = self.list_series.currentRow()
+        if 0 <= row < len(self.series_list):
+            self._syncing_series = True
+            del self.series_list[row]
+            self.list_series.takeItem(row)
+            next_row = min(row, len(self.series_list) - 1)
+            self._syncing_series = False
+            self.list_series.setCurrentRow(next_row)
 
     # -------------------------------------------------------------
     # Step 3: Chart Options
@@ -700,7 +778,21 @@ class ChartWizardDialog(QDialog):
             "sheet_name": (
                 self.new_sheet_name if self.location_as_new_sheet else self.existing_sheet_name
             ),
+            "series": [dict(s) for s in self.series_list],
         }
+
+    def set_sheet_model(self, sheet_model: SheetDataModel | None) -> None:
+        """Switch target sheet model cleanly without retaining stale reference."""
+        self.sheet_model = sheet_model
+        if sheet_model and hasattr(sheet_model, "name"):
+            self.existing_sheet_name = sheet_model.name
+            if hasattr(self, "combo_sheets"):
+                idx = self.combo_sheets.findText(sheet_model.name)
+                if idx >= 0:
+                    self.combo_sheets.setCurrentIndex(idx)
+                else:
+                    self.combo_sheets.addItem(sheet_model.name)
+                    self.combo_sheets.setCurrentText(sheet_model.name)
 
     def retranslate_ui(self) -> None:
         """Update all text strings dynamically for i18n."""
@@ -708,4 +800,8 @@ class ChartWizardDialog(QDialog):
         self.btn_back.setText(safe_tr("< 上一步(&B)"))
         self.btn_next.setText(safe_tr("下一步(&N) >"))
         self.btn_finish.setText(safe_tr("完成(&F)"))
+        if hasattr(self, "btn_add_series"):
+            self.btn_add_series.setText(safe_tr("添加(&A)"))
+        if hasattr(self, "btn_del_series"):
+            self.btn_del_series.setText(safe_tr("删除(&R)"))
         self._update_step_view()

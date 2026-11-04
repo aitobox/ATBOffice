@@ -173,6 +173,7 @@ class OutlineToolbar(QToolBar):
     move_down_requested = Signal()
     expand_requested = Signal()
     collapse_requested = Signal()
+    outline_level_changed = Signal(int)
     show_level_changed = Signal(int)
     first_line_toggled = Signal(bool)
     show_formatting_toggled = Signal(bool)
@@ -274,7 +275,7 @@ class OutlineToolbar(QToolBar):
         self.retranslate_ui()
 
     def _on_outline_level_changed(self, idx: int) -> None:
-        pass
+        self.outline_level_changed.emit(idx)
 
     def _on_show_level_changed(self, idx: int) -> None:
         # idx 0: All Levels (0), idx 1..9: Level 1..9
@@ -406,6 +407,24 @@ class OutlineViewWidget(QWidget):
             demote_to_body_text(self.doc, p)
             self.update()
             self.structure_changed.emit()
+
+    def set_selected_outline_level(self, level: int) -> None:
+        """Set heading level (1..9) or body text (0) for the selected paragraph."""
+        p = self.selected_para or (self.controller.caret_para if self.controller else None)
+        if not p:
+            return
+        if level <= 0:
+            demote_to_body_text(self.doc, p)
+        elif level == 1:
+            promote_to_heading_1(self.doc, p)
+        else:
+            lvl = min(9, level)
+            style_id = ensure_heading_style(self.doc, lvl)
+            p.p_pr.style = style_id
+            p.p_pr.outline_level = lvl - 1
+        reindex(self.doc)
+        self.update()
+        self.structure_changed.emit()
 
     def move_selected_up(self) -> None:
         p = self.selected_para or (self.controller.caret_para if self.controller else None)
