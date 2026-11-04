@@ -44,7 +44,7 @@ Quire 10-Toolbar Cluster Assembly,quire_ui,must,yes,yes,quire_toolbars.py builds
 Quire Toolbar Action Command Handlers,quire_ui,must,yes,yes,"All 10 Quire toolbars fully wired to canvas text, DOM controllers, and formatting actions (PR #140)",unverified,
 AutoCorrect Typing Replacement Engine,quire_ui,should,yes,yes,AutoCorrect engine with 250+ standard typing replacement pairs and user custom pairs (PR #149),unverified,
 Spell Checking Engine and Suggestions Dialog,quire_ui,should,yes,yes,"Spell checking engine with morphological analysis, Levenshtein suggestions, and suggestions dialog (PR #149)",unverified,
-Pure Python XLSX Reader Engine,ledger_io,must,yes,yes,"xlsx_reader.py parses SST, styles, sheets, formulas, merges",unverified,
+Pure Python XLSX Reader Engine,ledger_io,must,yes,yes,"xlsx_reader.py parses SST, styles, sheets, formulas, merges, comments, freeze panes, zoom (TASK-707, fixes #241)",verified,tests/gui/test_phase7_xlsx_render.py
 Pure Python XLSX Writer Engine with OPC Roundtrip,ledger_io,must,yes,yes,"xlsx_writer.py serializes OpenXML SpreadsheetML with selective sheet patching and lossless OPC preservation (fixes #240)",verified,tests/gui/test_phase7_xlsx_preserve.py
 CSV Import Wizard and Export Engine,ledger_io,must,yes,yes,text_import_wizard.py and csv_io.py delimiter detection,unverified,
 XML Spreadsheet 2003 (XMLSS) IO,ledger_io,should,yes,yes,xmlss_io.py import and export,unverified,
@@ -61,7 +61,7 @@ Data Validation Engine and Rules,ledger_model,should,yes,yes,"Data validation en
 Pivot Tables and Summarization,ledger_model,should,yes,yes,"pivot_model.py PivotTableEngine with PivotCache preservation, field list, and aggregation (PR #177, fixes #160)",unverified,
 Slicers for Filtering,ledger_model,could,yes,yes,"Sheet slicer shape rendering and filter state preservation across workbook open/save (PR #177, fixes #160)",unverified,
 Goal Seek and Equation Solver,ledger_model,could,yes,yes,"goal_seek.py Newton-Raphson numerical iterative solver and GoalSeekDialog (PR #178, fixes #161)",unverified,
-Virtualized Grid Viewport and Rendering,ledger_ui,must,yes,yes,"views/grid_viewport.py with cell formatting, selection, headers",unverified,
+Virtualized Grid Viewport and Rendering,ledger_ui,must,yes,yes,"views/grid_viewport.py with cell formatting, selection, headers, comments, zoom, and freeze panes (TASK-707, fixes #241)",verified,tests/gui/test_phase7_xlsx_render.py
 Freeze Panes and Split Rows/Columns,ledger_ui,must,yes,yes,Frozen panes and split views supported in grid,unverified,
 In-Place Cell Editor and Formula Bar,ledger_ui,must,yes,yes,views/formula_bar.py and editor_controller.py,unverified,
 Classic Format Cells Dialog (6 Tabs),ledger_ui,must,yes,yes,"format_cells.py (number, alignment, font, border, pattern, protection)",unverified,

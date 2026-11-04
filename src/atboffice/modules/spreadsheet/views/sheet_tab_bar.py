@@ -482,6 +482,11 @@ class SheetTabBar(QWidget):
         return self._workbook.active_sheet_index
 
     @property
+    def active_sheet(self) -> SheetDataModel | None:
+        """Return the active SheetDataModel."""
+        return self._workbook.active_sheet if self._workbook else None
+
+    @property
     def is_renaming(self) -> bool:
         """Return True if in inline rename editing mode."""
         return self._is_renaming

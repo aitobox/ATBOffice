@@ -221,10 +221,10 @@
   - `tests/gui/test_phase7_xlsx_render.py（新增）`
 - **Scope & Specification**: 对照 ledger/js/render.js、layout.js、styles.js、objects.js。验证 workbook替换后 grid/editor/tabs/object_layer/geometry 引用同一活动表，解除旧信号。按数值格式、合并、隐藏、冻结、条件样式、图片图表逐类建立参考截图与模型断言。
 - **Acceptance Criteria**:
-- [ ] cell-value、SimpleWithComments、GroupTest、conditional_fmt_origin、Pivot2_Row 等样本加载后非空内容/表签/列宽/对象与参考一致；透视表缓存展示与编辑能力分开记录。
-- [ ] 连续打开两个不同工作簿再切表、撤销、缩放不会显示旧数据；编辑公式后缓存值与重算结果有明确合同，未支持特性不得伪装为空白。
-- [ ] 定向命令：`PYTHONPATH=src conda run -n ATBOffice python -m pytest tests/gui/test_phase7_xlsx_render.py -ra`；退出码0，无未处理Qt异常。原生与offscreen分别注明，不相互替代。
-- [ ] 对应 `phase7_features.csv` 条目附测试/截图/版本证据后才改为 `clone: yes`；更新状态与影响范围。
+- [x] cell-value、SimpleWithComments、GroupTest、conditional_fmt_origin、Pivot2_Row 等样本加载后非空内容/表签/列宽/对象与参考一致；透视表缓存展示与编辑能力分开记录。
+- [x] 连续打开两个不同工作簿再切表、撤销、缩放不会显示旧数据；编辑公式后缓存值与重算结果有明确合同，未支持特性不得伪装为空白。
+- [x] 定向命令：`PYTHONPATH=src conda run -n ATBOffice python -m pytest tests/gui/test_phase7_xlsx_render.py -ra`；退出码0，无未处理Qt异常。原生与offscreen分别注明，不相互替代。
+- [x] 对应 `phase7_features.csv` 条目附测试/截图/版本证据后才改为 `clone: yes`；更新状态与影响范围。
 
 ### [TASK-708] fix(lectern): 按真实样本修复幻灯片显示及往返
 

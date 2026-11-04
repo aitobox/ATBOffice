@@ -136,6 +136,9 @@ class SpreadsheetView(QWidget):
         """Bind a new WorkbookModel and reinitialize views."""
         if hasattr(self, "grid") and self.grid is not None:
             self.grid.cancel_drag(why="api")
+            self.grid.clear_undo_stack()
+            self.grid.horizontalScrollBar().setValue(0)
+            self.grid.verticalScrollBar().setValue(0)
         if hasattr(self, "editor_controller") and self.editor_controller is not None:
             if hasattr(self.editor_controller, "cancel_editing"):
                 self.editor_controller.cancel_editing()

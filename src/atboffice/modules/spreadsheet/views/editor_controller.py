@@ -11,6 +11,8 @@ from PySide6.QtCore import QCoreApplication, QObject, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QKeyEvent
 from PySide6.QtWidgets import QLineEdit, QWidget
 
+from atboffice.modules.spreadsheet.calc.context import EvalContext
+from atboffice.modules.spreadsheet.calc.errors import ExcelError
 from atboffice.modules.spreadsheet.calc.evaluator import evaluate_ast
 from atboffice.modules.spreadsheet.calc.parser import parse, tokenize
 from atboffice.modules.spreadsheet.calc.references import cell_name
@@ -337,10 +339,31 @@ class EditorController(QObject):
             formula_body = text[1:].strip()
             val = None
             try:
+                wb = getattr(self.viewport, "workbook", None)
+                if wb is None and hasattr(self.parent(), "workbook"):
+                    wb = getattr(self.parent(), "workbook")
+                sh_name = self.model.name if hasattr(self.model, "name") else "Sheet1"
+
+                def _cell_getter(s: str, r_idx: int, c_idx: int) -> Any:
+                    if not s or s.lower() == sh_name.lower():
+                        return self.model.get_cell_value(r_idx, c_idx)
+                    if wb is not None and hasattr(wb, "get_sheet_by_name"):
+                        target_sh = wb.get_sheet_by_name(s)
+                        if target_sh is not None:
+                            return target_sh.get_cell_value(r_idx, c_idx)
+                    return None
+
+                ctx = EvalContext(
+                    workbook=wb,
+                    current_sheet=sh_name,
+                    cell_getter=_cell_getter,
+                )
                 ast = parse(formula_body)
-                val = evaluate_ast(ast)
+                val = evaluate_ast(ast, ctx)
+                if isinstance(val, ExcelError):
+                    val = str(val)
             except Exception:
-                val = None
+                val = "#VALUE!"
 
             cell = self.model.get_cell(r, c)
             if cell is None:
@@ -348,8 +371,7 @@ class EditorController(QObject):
                 self.model.set_cell(r, c, cell)
             else:
                 cell.formula = formula_body
-                if val is not None:
-                    cell.value = val
+                cell.value = val
         else:
             # Literal value
             parsed_val: Any = text

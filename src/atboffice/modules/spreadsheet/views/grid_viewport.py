@@ -196,6 +196,7 @@ class GridViewport(QAbstractScrollArea):
         self._format_painter_window: Any | None = None
         self._view_mode: str = "normal"  # "normal" | "page_break"
         self._page_break_welcome_shown: bool = False
+        self._zoom: float = 1.0
 
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
@@ -335,14 +336,45 @@ class GridViewport(QAbstractScrollArea):
         )
         return QRect(fx - 4, fy - 4, 9, 9)
 
+    @property
+    def zoom(self) -> float:
+        """Current view zoom factor (1.0 = 100%)."""
+        return getattr(self, "_zoom", 1.0)
+
+    def set_zoom(self, zoom: float) -> None:
+        """Set view zoom factor (clamped between 0.1 and 4.0)."""
+        self._zoom = max(0.1, min(4.0, float(zoom)))
+        self.cancel_drag(why="api")
+        if self.editor_controller is not None:
+            self.editor_controller.reposition_editor()
+        self._update_scrollbars()
+        self.viewport().update()
+
+    def clear_undo_stack(self) -> None:
+        """Clear all undo and redo history and reset transient interaction states."""
+        self._undo_stack.clear()
+        self._redo_stack.clear()
+        self._internal_clipboard = None
+        self._fill_preview_range = None
+        self._move_preview_range = None
+        self._move_src_range = None
+        self._drag_snapshot = None
+        self._dv_dropdown_rect = None
+
     def set_model_and_selection(
         self, model: SheetDataModel, selection: SelectionModel
     ) -> None:
         """Switch active SheetDataModel and SelectionModel."""
         self.cancel_drag(why="api")
+        self.clear_undo_stack()
         self.model = model
         self.selection = selection
         self.geometry_mapper = model.geometry
+        if hasattr(model, "extra") and "zoom" in model.extra:
+            try:
+                self.set_zoom(model.extra["zoom"] / 100.0)
+            except Exception:
+                pass
         self._update_scrollbars()
         self.viewport().update()
 
