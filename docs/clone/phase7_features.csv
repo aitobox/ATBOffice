@@ -1,130 +1,130 @@
 feature,area,priority,original,clone,notes,verification_status,evidence
 Application Lifecycle and Multi-Window Management,core,must,yes,yes,"BaseOfficeWindow and WindowManager handle launch, lifecycle, and windows with crash replay diagnostics and action breadcrumbs",verified,tests/gui/test_phase7_native_replay.py
-Recent Files History and Persistence,core,must,yes,yes,RecentFilesManager stores and manages recent documents,unverified,
-CLI Routing and Module Subcommand Launch,core,must,yes,yes,"atboffice CLI router supports start-center, quire, ledger, lectern subcommands",unverified,
-ActionRegistry Unified Command Bus,core,must,yes,yes,Window-scoped ActionRegistry with state tracking and fallback toast,unverified,
-Universal Find and Replace Engine,core,must,yes,yes,"SearchController supports text search, regex, case sensitive, direction",unverified,
-Full 7-Language (9-Locale) i18n Translation Engine,core,must,yes,yes,"safe_tr dynamic loader with zh-CN, zh-Hant, en, ja, ko, fr, de, es, ru JSON catalogs (PR #233, fixes #221)",unverified,
-Application Settings and Preferences Storage,core,should,yes,yes,"Multi-tab Tools -> Options dialog with general, view, edit, print, security, and theme switcher (PR #148)",unverified,
-Open Packaging Conventions (OPC) Container,vfs,must,yes,yes,Pure Python OPC package parsing and relationship management,unverified,
+Recent Files History and Persistence,core,must,yes,yes,RecentFilesManager stores and manages recent documents,verified,tests/test_recent_files.py
+CLI Routing and Module Subcommand Launch,core,must,yes,yes,"atboffice CLI router supports start-center, quire, ledger, lectern subcommands",verified,tests/test_cli_router.py
+ActionRegistry Unified Command Bus,core,must,yes,yes,Window-scoped ActionRegistry with state tracking and fallback toast,verified,"tests/core/test_action_registry.py, tests/gui/test_phase7_visible_commands.py"
+Universal Find and Replace Engine,core,must,yes,yes,"SearchController supports text search, regex, case sensitive, direction",verified,"tests/core/test_search.py, tests/ui/test_shell_find_replace.py"
+Full 7-Language (9-Locale) i18n Translation Engine,core,must,yes,yes,"safe_tr dynamic loader with zh-CN, zh-Hant, en, ja, ko, fr, de, es, ru JSON catalogs (PR #233, fixes #221)",verified,"tests/core/test_i18n.py, tests/test_i18n_phase6.py"
+Application Settings and Preferences Storage,core,should,yes,yes,"Multi-tab Tools -> Options dialog with general, view, edit, print, security, and theme switcher (PR #148)",verified,tests/ui/test_options_dialog.py
+Open Packaging Conventions (OPC) Container,vfs,must,yes,yes,Pure Python OPC package parsing and relationship management,verified,"tests/unit/vfs/test_opc.py, tests/vfs/test_opc_preserve.py"
 Part-Level Lossless Preserve Engine,vfs,must,yes,yes,"Byte-for-byte carry for unmodified parts (VBA macros, themes, media, customXml)",verified,tests/gui/test_phase7_xlsx_preserve.py
-Portable XML Tree Parser and Serializer,vfs,must,yes,yes,xml_tree.py with schema-ordered serialization,unverified,
-ECMA-376 Standard and Agile Encryption Engine,vfs,must,yes,yes,crypto.py supporting password protected documents,unverified,
-DOCX OpenXML Reader Core,quire_io,must,yes,yes,"docx_reader.py parses body, runs, paragraphs, styles, numbering with dual ISO/IEC 29500 Strict and ECMA-376 Transitional support (TASK-705, #239)",verified,tests/gui/test_phase7_docx_render.py (TASK-705, #239)
-"DOCX Advanced Formatting (GridSpan, VMerge, Numbering)",quire_io,must,yes,yes,Complex table cell merges and multi-level list cascading,unverified,
-DOCX DrawingML and Picture Import,quire_io,must,yes,yes,w:drawing and w:pict anchor and inline extraction,unverified,
-DOCX OpenXML Writer and Serialization,quire_io,must,yes,yes,docx_writer.py generates standard WordprocessingML packages,unverified,
-Markdown Import and Export,quire_io,should,yes,yes,markdown_io.py with table and formatting conversion,unverified,
-Rich Text Format (RTF) Import and Export,quire_io,should,yes,yes,rtf_io.py bidirectional conversion,unverified,
-HTML Document Import and Export,quire_io,should,yes,yes,"html_io.py HTML DOM parser and semantic HTML exporter with rich formatting (PR #180, fixes #163)",unverified,
-Quire Document DOM Tree Models,quire_model,must,yes,yes,"Document, Paragraph, Run, Table, Cell models in writer/models",unverified,
-Quire Table Model and Merged Cells,quire_model,must,yes,yes,"Table, Row, Cell with gridSpan and vMerge",unverified,
-Fields and Table of Contents (TOC) Model,quire_model,should,yes,yes,field.py and toc.py with page ref and heading outline extraction,unverified,
-Track Changes and Revisions Model,quire_model,should,yes,yes,revision.py tracking insertions and deletions,unverified,
-Document Comments and Threading Model,quire_model,should,yes,yes,Comment and author threading in writer and presenter,unverified,
-Office Math Markup Language (OMML) Model,quire_model,should,yes,yes,omml.py and math_layout.py,unverified,
-Mail Merge Engine and Data Binding,quire_model,should,yes,yes,mailmerge.py supporting CSV/TXT data sources and field merge,unverified,
-Quire Pagination and Flow Layout Engine,quire_ui,must,yes,yes,pagination.py and portions.py calculating page breaks and line wraps,unverified,
-Quire Canvas Caret and In-Place Text Editing,quire_ui,must,yes,yes,caret_controller.py and canvas_view.py,unverified,
-Interactive Horizontal and Vertical Rulers,quire_ui,must,yes,yes,"ruler.py, horizontal_ruler.py, vertical_ruler.py with margin/indent/tab drag",unverified,
-Quire Review Pane for Comments and Changes,quire_ui,should,yes,yes,review_pane.py docked review sidebar,unverified,
-Font Formatting Dialog,quire_ui,must,yes,yes,"font_dialog.py with font family, size, effects, preview",unverified,
-Paragraph Formatting Dialog,quire_ui,must,yes,yes,"paragraph_dialog.py with alignment, indents, spacing, line spacing",unverified,
-Page Setup Dialog,quire_ui,must,yes,yes,"page_setup.py with paper size, margins, orientation, header/footer",unverified,
-Bullets and Numbering Dialog,quire_ui,should,yes,yes,bullets_numbering.py with bullet styles and numbered lists,unverified,
-Mail Merge Wizard Dialog,quire_ui,should,yes,yes,mailmerge_wizard.py six-step wizard with preview and merge,unverified,
-Universal Find and Replace Dialog,quire_ui,must,yes,yes,find_replace_dialog.py floating dialog,unverified,
-Table Properties Dialog,quire_ui,should,yes,yes,"Table Properties dialog with Table, Row, Column, Cell, and Borders & Shading tabs (PR #145)",unverified,
-Insert Table Dialog,quire_ui,should,yes,yes,"Insert Table dialog with rows/columns, auto-fit behavior, and format memory (PR #145)",unverified,
-Borders and Shading Dialog,quire_ui,should,yes,yes,"Borders and Shading dialog with presets, line styles, colors, and fill patterns (PR #145)",unverified,
-Tabs Setup Dialog,quire_ui,should,yes,yes,"Tabs setup dialog with tab stop positions, alignments, and leader styles (PR #145)",unverified,
-Columns Formatting Dialog,quire_ui,should,yes,yes,"Columns formatting dialog with presets, custom column count, width/spacing, and line-between option (PR #145)",unverified,
-Word Count Dialog,quire_ui,could,yes,yes,"word_count_dlg.py Word 2003 statistics dialog (pages, words, chars, paragraphs, lines) (PR #181, fixes #164)",unverified,
-Quire 10-Toolbar Cluster Assembly,quire_ui,must,yes,yes,quire_toolbars.py builds all 10 Office 2003 toolbars; verified in Phase 5 baseline (fixes #192),unverified,
-Quire Toolbar Action Command Handlers,quire_ui,must,yes,yes,"All 10 Quire toolbars fully wired to canvas text, DOM controllers, and formatting actions (PR #140)",unverified,
-AutoCorrect Typing Replacement Engine,quire_ui,should,yes,yes,AutoCorrect engine with 250+ standard typing replacement pairs and user custom pairs (PR #149),unverified,
-Spell Checking Engine and Suggestions Dialog,quire_ui,should,yes,yes,"Spell checking engine with morphological analysis, Levenshtein suggestions, and suggestions dialog (PR #149)",unverified,
-Pure Python XLSX Reader Engine,ledger_io,must,yes,yes,"xlsx_reader.py parses SST, styles, sheets, formulas, merges, comments, freeze panes, zoom (TASK-707, fixes #241)",verified,tests/gui/test_phase7_xlsx_render.py
-Pure Python XLSX Writer Engine with OPC Roundtrip,ledger_io,must,yes,yes,"xlsx_writer.py serializes OpenXML SpreadsheetML with selective sheet patching and lossless OPC preservation (fixes #240)",verified,tests/gui/test_phase7_xlsx_preserve.py
-CSV Import Wizard and Export Engine,ledger_io,must,yes,yes,text_import_wizard.py and csv_io.py delimiter detection,unverified,
-XML Spreadsheet 2003 (XMLSS) IO,ledger_io,should,yes,yes,xmlss_io.py import and export,unverified,
-WorkbookModel Multi-Sheet Container,ledger_model,must,yes,yes,workbook_model.py managing multiple sheets and ordering,unverified,
-SheetDataModel Grid Store,ledger_model,must,yes,yes,sheet_model.py sparse cell grid and styling,unverified,
-Formula Tokenizer and AST Parser,ledger_model,must,yes,yes,calc/parser.py supporting Excel grammar and cell references,unverified,
-Formula Evaluator with Cross-Sheet References,ledger_model,must,yes,yes,calc/evaluator.py supporting Sheet!Cell references,unverified,
-DAG Dependency Graph and Cycle Detection,ledger_model,must,yes,yes,calc/dag.py topological sort and circular reference detection,unverified,
-Core Worksheet Function Library (300+ functions),ledger_model,must,yes,yes,"calc/core_fns, engineering, financial, statistical, lookup",unverified,
-Autofill Smart Handle Sequence Prediction,ledger_model,must,yes,yes,"views/autofill.py linear, date, text series generation and grid_viewport.py event chain (fixes #244)",verified,tests/gui/test_phase7_fill_integration.py
-AutoFilter and Multi-Column Sorting,ledger_model,must,yes,yes,models/filter_model.py and views/filter_dropdown.py,unverified,
-Conditional Formatting Engine and Rules,ledger_model,should,yes,yes,"CF engine supporting cell value, formula expression, color scales, data bars, and rules manager (PR #146)",unverified,
-Data Validation Engine and Rules,ledger_model,should,yes,yes,"Data validation engine with list dropdowns, number/date ranges, input messages, and alerts (PR #146)",unverified,
-Pivot Tables and Summarization,ledger_model,should,yes,yes,"pivot_model.py PivotTableEngine with PivotCache preservation, field list, and aggregation (PR #177, fixes #160)",unverified,
-Slicers for Filtering,ledger_model,could,yes,yes,"Sheet slicer shape rendering and filter state preservation across workbook open/save (PR #177, fixes #160)",unverified,
-Goal Seek and Equation Solver,ledger_model,could,yes,yes,"goal_seek.py Newton-Raphson numerical iterative solver and GoalSeekDialog (PR #178, fixes #161)",unverified,
-Virtualized Grid Viewport and Rendering,ledger_ui,must,yes,yes,"views/grid_viewport.py with cell formatting, selection, headers, comments, zoom, and freeze panes (TASK-707, fixes #241)",verified,tests/gui/test_phase7_xlsx_render.py
-Freeze Panes and Split Rows/Columns,ledger_ui,must,yes,yes,Frozen panes and split views supported in grid,unverified,
-In-Place Cell Editor and Formula Bar,ledger_ui,must,yes,yes,views/formula_bar.py and editor_controller.py,unverified,
-Classic Format Cells Dialog (6 Tabs),ledger_ui,must,yes,yes,"format_cells.py (number, alignment, font, border, pattern, protection)",unverified,
-Multi-Column Sort Dialog,ledger_ui,must,yes,yes,sort_dialog.py supporting 3 sort keys and order,unverified,
-Classic SheetTabBar Bottom Worksheets Bar,ledger_ui,must,yes,yes,"views/sheet_tab_bar.py with tabs, navigation, context menu",verified,tests/gui/test_phase7_context_actions.py
-"Spreadsheet Floating Object Layer (Shapes, Images, Charts)",ledger_ui,must,yes,yes,views/object_layer.py overlay with 8 handles and DrawingML sync,unverified,
-Ledger 8-Toolbar Cluster Assembly,ledger_ui,must,yes,yes,ledger_toolbars.py builds all 8 toolbars; verified in Phase 5 baseline (fixes #192),unverified,
-Ledger Toolbar Action Command Handlers,ledger_ui,must,yes,yes,"All 8 Ledger toolbars fully wired to cell formatting, formula insertion, auto-sum, sort, and alignment (PR #141)",unverified,
-Spreadsheet Page Setup and Print Preview to PDF,ledger_ui,should,yes,yes,"Universal print preview dialog, page setup, and vector PDF export wired to Ledger (PR #144)",unverified,
-Insert Function (fx) Browser Dialog,ledger_ui,should,yes,yes,"function_wizard.py 519-function category browser and argument assistant dialog (PR #174, fixes #157)",unverified,
-Formula Auditing Visual Trace Arrows,ledger_ui,should,yes,yes,"audit_tracer.py visual precedent/dependent trace arrows with QPainter on grid_viewport.py (PR #175, fixes #158)",unverified,
-AutoFilter Custom Filter Dialog,ledger_ui,should,yes,yes,"custom_filter.py two-condition AND/OR custom comparison filter dialog (PR #176, fixes #159)",unverified,
-Pure Python PPTX PresentationML Reader,lectern_io,must,yes,yes,"pptx_reader.py parses master/layout/slide hierarchy, shapes, timing, SmartArt, normAutofit fontScale, and decorations",verified,"tests/gui/test_phase7_pptx_render.py, tests/unit/corpus/test_presentation_corpus.py (fixes #242)"
-Pure Python PPTX PresentationML Writer,lectern_io,must,yes,yes,"pptx_writer.py and writer modules generating PresentationML with normAutofit attributes and roundtrip fidelity",verified,"tests/gui/test_phase7_pptx_render.py, tests/unit/corpus/test_presentation_corpus.py (fixes #242)"
-Media Preservation for PPTX,lectern_io,must,yes,yes,"Audio, video, image preservation via OPC carry",unverified,
-Presentation and Slide Hierarchy Models,lectern_model,must,yes,yes,"presentation.py, slide.py, layouts.py, designs.py",unverified,
-Vector Shape and Text Frame Models,lectern_model,must,yes,yes,shape.py and text.py with formatting and geometry,unverified,
-DrawingML Chart Model and Multi-Type Renderers,lectern_model,must,yes,yes,"chart/ with bar, column, line, area, pie, doughnut, radar, scatter",unverified,
-IntelliArt / SmartArt Layout Engine (28 Layouts),lectern_model,must,yes,yes,"smartart/ with cycle, hierarchy, list, matrix, process, pyramid",unverified,
-Custom Animations Timing and Sequence Model,lectern_model,must,yes,yes,slideshow/animations.py timing engine,unverified,
-Slide Transitions Engine,lectern_model,must,yes,yes,slideshow/transitions.py transition effects,unverified,
-Classic Three-Pane Workspace,lectern_ui,must,yes,yes,"views/workspace.py with thumbnails, canvas, notes, taskpane",unverified,
-Interactive Slide Canvas with Transform Handles,lectern_ui,must,yes,yes,"views/slide_canvas.py 8-point handles, multi-select, rotation",unverified,
-Shape Text In-Place Editor and Text AutoFit,lectern_ui,must,yes,yes,views/text_editor.py in-place editing and sizing,unverified,
-Slide Sorter and Slide Master View Modes,lectern_ui,must,yes,yes,views/sorter_view.py and view mode switching,unverified,
-Presenter View and Full-Screen Slideshow Engine,lectern_ui,must,yes,yes,slideshow/slideshow_view.py and presenter_view.py with timer/notes,unverified,
-Datasheet Chart Data Editing Dialog,lectern_ui,must,yes,yes,dialogs/datasheet_dialog.py grid editor for chart data,unverified,
-Format Shape Properties Dialog,lectern_ui,must,yes,yes,"dialogs/format_shape.py fill, line, size, position tabs",unverified,
-Slide Header and Footer Dialog,lectern_ui,must,yes,yes,"dialogs/header_footer.py date, time, slide number, footer",unverified,
-Set Up Show Configuration Dialog,lectern_ui,must,yes,yes,"dialogs/setup_show.py full screen, window, loop options",unverified,
-Slide Layout Selection Dialog,lectern_ui,must,yes,yes,dialogs/slide_layout.py 21 standard slide layouts,unverified,
-Slide Transition Configuration Dialog,lectern_ui,should,yes,yes,"Interactive slide transition task pane with effects, sounds, and timing controls (PR #147)",unverified,
-Custom Animation Task Pane,lectern_ui,should,yes,yes,"Custom animation task pane with effect lists, reordering, timing, and triggers (PR #147)",unverified,
-Slide Background Formatting Dialog,lectern_ui,should,yes,yes,"background_dlg.py solid, gradient, texture, pattern, and picture slide background dialog (PR #182, fixes #165)",unverified,
-Lectern 10-Toolbar Cluster Assembly,lectern_ui,must,yes,yes,lectern_toolbars.py builds all 10 toolbars; verified in Phase 5 baseline (fixes #192),unverified,
-Lectern Toolbar Action Command Handlers,lectern_ui,must,yes,yes,"All 10 Lectern toolbars fully wired to slide canvas, shapes, diagram layout, and master views (PR #142)",unverified,
-Start Center Document Hub Window,common_ui,must,yes,yes,"start_center.py with open, recent, create, app launch",unverified,
-Recent Files Cards with Thumbnail and Removal,common_ui,must,yes,yes,"Recent items list with timestamps, icons, deletion",unverified,
-New Document Template Gallery,common_ui,must,yes,yes,"Templates for Quire, Ledger, Lectern with previews",unverified,
-Drag and Drop File Launching,common_ui,must,yes,yes,Drag files directly into Start Center or app windows,unverified,
-Office 2003 Luna Theme Visual Styling,common_ui,must,yes,yes,"luna_2003.py styling toolbars, menus, buttons, handles (TASK-711, #245)",verified,tests/ui/test_phase7_toolbar_geometry.py
-"Theme Switcher Dialog (Luna Blue, Silver, Olive, Classic)",common_ui,should,yes,yes,"Integrated into Options dialog with live preview for Luna Blue, Silver, Olive, and Classic themes (PR #148)",unverified,
-macOS Native Menu Bar Integration,common_ui,must,yes,yes,"Complete Office 2003 9-menu system (Insert, Format, Tools, Table, Data, Slide Show) with dynamic switching (PR #143)",unverified,
-Universal Find and Replace Modal Dialog,common_ui,must,yes,yes,find_replace_dialog.py with tabbed interface,unverified,
-Office SplitButton and DropDownButton Widgets,common_ui,must,yes,yes,"toolbar_buttons.py and color_picker.py calibrated hit-testing, arrow states, 9-locale support (TASK-711, #245)",verified,tests/ui/test_phase7_toolbar_geometry.py
-WMF and EMF Windows Metafile Player,common_ui,should,yes,yes,"metafile_player.py pure Python 16-bit WMF and 32-bit EMF binary parser and QPainter playback (PR #179, fixes #162)",unverified,
-WordArt Gallery Dialog and 3D Text Deformations,common_ui,should,yes,yes,30 preset WordArt styles and 10 parametric bezier warp deformations implemented,unverified,
-ClipArt Vector Graphic Library Dialog,common_ui,could,yes,yes,"clipart_dialog.py categorized vector clipart library browser and insertion dialog (PR #184, fixes #167)",unverified,
-Office Assistant Scout Character Widget,common_ui,could,yes,yes,"assistant_scout.py floating cartoon puppy assistant with animations and speech balloons (PR #184, fixes #167)",unverified,
-Application Preferences and Options Dialog,common_ui,should,yes,yes,Comprehensive multi-tab Tools -> Options dialog with settings persistence (PR #148),unverified,
-Document Printing and Print Preview Subsystem,common_ui,must,yes,yes,"Universal printing controller, QPrintPreviewDialog, and vector PDF export (PR #144)",unverified,
-Automatic Updater and Release Check,common_ui,could,yes,yes,"updater.py asynchronous background GitHub release checker and update notification (PR #184, fixes #167)",unverified,
-Quire Web/Reading/Outline/FullScreen View Matrix,quire_ui,must,yes,yes,"Complete view modes with zoom, layout adaptation, and toolbar switching (PR #223)",unverified,
-Quire 100 Dialog Target Matrix and Tab Navigation,quire_ui,must,yes,yes,All 100 Word 2003 dialog targets with full tab stepping and control wiring (PR #224),unverified,
-Ledger Page Break Preview and FullScreen View Matrix,ledger_ui,must,yes,yes,"Normal and Page Break Preview with watermark, split lines, and full screen mode (PR #225)",unverified,
-Ledger 77 Dialog Target Matrix (Format Cells & Page Setup),ledger_ui,must,yes,yes,"Format Cells 6 tabs, Page Setup 4 tabs, and complete dialog matrix (PR #226)",unverified,
-Ledger Chart Wizard and Text to Columns Wizard,ledger_ui,must,yes,yes,"Multi-step chart wizard, delimited/fixed-width text parse wizard, and analysis dialogs (PR #229)",verified,"tests/gui/test_phase7_visible_commands.py (TASK-712, #246)"
-Lectern Slide Sorter / Notes Page / Master Views,lectern_ui,must,yes,yes,"Slide sorter grid, notes page layout, slide/title/handout/notes master views (PR #230)",unverified,
-Lectern Slide Show Floating Controller and Setup Dialog,lectern_ui,must,yes,yes,"Full-screen slide show controller, pen/laser pointer, navigation menu, and setup dialog (PR #230)",unverified,
-Lectern Design Template / Color Scheme / Animation Panes,lectern_ui,must,yes,yes,"Side task panes for design templates, color schemes, and custom animations (PR #231)",unverified,
-Start Center Settings / Theme Selection / License Dialogs,common_ui,must,yes,yes,"Options dialog, Luna/Classic theme switcher, update notifier, and license viewer (PR #232)",unverified,
+Portable XML Tree Parser and Serializer,vfs,must,yes,yes,xml_tree.py with schema-ordered serialization,verified,"tests/unit/vfs/test_order.py, tests/unit/vfs/test_office_roundtrip.py"
+ECMA-376 Standard and Agile Encryption Engine,vfs,must,yes,yes,crypto.py supporting password protected documents,verified,tests/unit/vfs/test_crypto.py
+DOCX OpenXML Reader Core,quire_io,must,yes,yes,"docx_reader.py parses body, runs, paragraphs, styles, numbering with dual ISO/IEC 29500 Strict and ECMA-376 Transitional support (TASK-705, #239)",verified,tests/gui/test_phase7_docx_render.py
+"DOCX Advanced Formatting (GridSpan, VMerge, Numbering)",quire_io,must,yes,yes,Complex table cell merges and multi-level list cascading,verified,"tests/modules/writer/test_docx_reader_advanced.py, tests/unit/writer/test_tables.py"
+DOCX DrawingML and Picture Import,quire_io,must,yes,yes,w:drawing and w:pict anchor and inline extraction,verified,tests/unit/writer/test_drawing_wrap.py
+DOCX OpenXML Writer and Serialization,quire_io,must,yes,yes,docx_writer.py generates standard WordprocessingML packages,verified,"tests/unit/writer/test_docx_io.py, tests/gui/test_phase7_acceptance.py"
+Markdown Import and Export,quire_io,should,yes,yes,markdown_io.py with table and formatting conversion,verified,tests/unit/writer/test_markdown_rtf.py
+Rich Text Format (RTF) Import and Export,quire_io,should,yes,yes,rtf_io.py bidirectional conversion,verified,tests/unit/writer/test_markdown_rtf.py
+HTML Document Import and Export,quire_io,should,yes,yes,"html_io.py HTML DOM parser and semantic HTML exporter with rich formatting (PR #180, fixes #163)",verified,"tests/modules/writer/test_html_io.py, tests/gui/test_phase5_e2e_acceptance.py"
+Quire Document DOM Tree Models,quire_model,must,yes,yes,"Document, Paragraph, Run, Table, Cell models in writer/models",verified,tests/unit/writer/test_dmodel.py
+Quire Table Model and Merged Cells,quire_model,must,yes,yes,"Table, Row, Cell with gridSpan and vMerge",verified,tests/unit/writer/test_tables.py
+Fields and Table of Contents (TOC) Model,quire_model,should,yes,yes,field.py and toc.py with page ref and heading outline extraction,verified,tests/unit/writer/test_fields.py
+Track Changes and Revisions Model,quire_model,should,yes,yes,revision.py tracking insertions and deletions,verified,tests/unit/writer/test_review.py
+Document Comments and Threading Model,quire_model,should,yes,yes,Comment and author threading in writer and presenter,verified,tests/unit/writer/test_review.py
+Office Math Markup Language (OMML) Model,quire_model,should,yes,yes,omml.py and math_layout.py,verified,tests/unit/writer/test_omml.py
+Mail Merge Engine and Data Binding,quire_model,should,yes,yes,mailmerge.py supporting CSV/TXT data sources and field merge,verified,tests/unit/writer/test_mailmerge.py
+Quire Pagination and Flow Layout Engine,quire_ui,must,yes,yes,pagination.py and portions.py calculating page breaks and line wraps,verified,"tests/unit/writer/test_pagination.py, tests/unit/writer/test_portions.py"
+Quire Canvas Caret and In-Place Text Editing,quire_ui,must,yes,yes,caret_controller.py and canvas_view.py,verified,"tests/gui/test_writer_canvas.py, tests/gui/test_phase7_acceptance.py"
+Interactive Horizontal and Vertical Rulers,quire_ui,must,yes,yes,"ruler.py, horizontal_ruler.py, vertical_ruler.py with margin/indent/tab drag",verified,tests/gui/test_ruler.py
+Quire Review Pane for Comments and Changes,quire_ui,should,yes,yes,review_pane.py docked review sidebar,verified,tests/gui/test_writer_views.py
+Font Formatting Dialog,quire_ui,must,yes,yes,"font_dialog.py with font family, size, effects, preview",verified,tests/gui/test_writer_dialogs.py
+Paragraph Formatting Dialog,quire_ui,must,yes,yes,"paragraph_dialog.py with alignment, indents, spacing, line spacing",verified,tests/gui/test_writer_dialogs.py
+Page Setup Dialog,quire_ui,must,yes,yes,"page_setup.py with paper size, margins, orientation, header/footer",verified,tests/gui/test_writer_dialogs.py
+Bullets and Numbering Dialog,quire_ui,should,yes,yes,bullets_numbering.py with bullet styles and numbered lists,verified,tests/gui/test_writer_dialogs.py
+Mail Merge Wizard Dialog,quire_ui,should,yes,yes,mailmerge_wizard.py six-step wizard with preview and merge,verified,tests/gui/test_writer_dialogs.py
+Universal Find and Replace Dialog,quire_ui,must,yes,yes,find_replace_dialog.py floating dialog,verified,tests/ui/test_find_replace_dialog.py
+Table Properties Dialog,quire_ui,should,yes,yes,"Table Properties dialog with Table, Row, Column, Cell, and Borders & Shading tabs (PR #145)",verified,tests/gui/test_writer_dialogs.py
+Insert Table Dialog,quire_ui,should,yes,yes,"Insert Table dialog with rows/columns, auto-fit behavior, and format memory (PR #145)",verified,tests/gui/test_writer_dialogs.py
+Borders and Shading Dialog,quire_ui,should,yes,yes,"Borders and Shading dialog with presets, line styles, colors, and fill patterns (PR #145)",verified,tests/gui/test_writer_dialogs.py
+Tabs Setup Dialog,quire_ui,should,yes,yes,"Tabs setup dialog with tab stop positions, alignments, and leader styles (PR #145)",verified,tests/gui/test_writer_dialogs.py
+Columns Formatting Dialog,quire_ui,should,yes,yes,"Columns formatting dialog with presets, custom column count, width/spacing, and line-between option (PR #145)",verified,tests/gui/test_writer_dialogs.py
+Word Count Dialog,quire_ui,could,yes,yes,"word_count_dlg.py Word 2003 statistics dialog (pages, words, chars, paragraphs, lines) (PR #181, fixes #164)",verified,tests/modules/writer/test_word_count.py
+Quire 10-Toolbar Cluster Assembly,quire_ui,must,yes,yes,quire_toolbars.py builds all 10 Office 2003 toolbars; verified in Phase 5 baseline (fixes #192),verified,"tests/ui/test_quire_toolbars.py, tests/ui/test_phase7_toolbar_geometry.py"
+Quire Toolbar Action Command Handlers,quire_ui,must,yes,yes,"All 10 Quire toolbars fully wired to canvas text, DOM controllers, and formatting actions (PR #140)",verified,"tests/ui/test_quire_toolbar_wiring.py, tests/gui/test_phase7_visible_commands.py"
+AutoCorrect Typing Replacement Engine,quire_ui,should,yes,yes,AutoCorrect engine with 250+ standard typing replacement pairs and user custom pairs (PR #149),verified,tests/modules/writer/test_autocorrect_spell.py
+Spell Checking Engine and Suggestions Dialog,quire_ui,should,yes,yes,"Spell checking engine with morphological analysis, Levenshtein suggestions, and suggestions dialog (PR #149)",verified,tests/modules/writer/test_autocorrect_spell.py
+Pure Python XLSX Reader Engine,ledger_io,must,yes,yes,"xlsx_reader.py parses SST, styles, sheets, formulas, merges, comments, freeze panes, zoom (TASK-707, fixes #241)",verified,"tests/gui/test_phase7_xlsx_render.py, tests/modules/spreadsheet/test_xlsx_reader.py"
+Pure Python XLSX Writer Engine with OPC Roundtrip,ledger_io,must,yes,yes,xlsx_writer.py serializes OpenXML SpreadsheetML with selective sheet patching and lossless OPC preservation (fixes #240),verified,"tests/gui/test_phase7_xlsx_preserve.py, tests/modules/spreadsheet/test_xlsx_writer.py"
+CSV Import Wizard and Export Engine,ledger_io,must,yes,yes,text_import_wizard.py and csv_io.py delimiter detection,verified,tests/unit/spreadsheet/test_csv_and_xmlss.py
+XML Spreadsheet 2003 (XMLSS) IO,ledger_io,should,yes,yes,xmlss_io.py import and export,verified,tests/unit/spreadsheet/test_csv_and_xmlss.py
+WorkbookModel Multi-Sheet Container,ledger_model,must,yes,yes,workbook_model.py managing multiple sheets and ordering,verified,"tests/modules/spreadsheet/test_workbook_model.py, tests/gui/test_spreadsheet_view_workbook.py"
+SheetDataModel Grid Store,ledger_model,must,yes,yes,sheet_model.py sparse cell grid and styling,verified,"tests/unit/spreadsheet/test_cell_format_model.py, tests/gui/test_grid_viewport.py"
+Formula Tokenizer and AST Parser,ledger_model,must,yes,yes,calc/parser.py supporting Excel grammar and cell references,verified,"tests/unit/spreadsheet/test_tokens.py, tests/unit/spreadsheet/test_parser.py"
+Formula Evaluator with Cross-Sheet References,ledger_model,must,yes,yes,calc/evaluator.py supporting Sheet!Cell references,verified,"tests/modules/spreadsheet/test_cross_sheet_calc.py, tests/unit/spreadsheet/test_references.py"
+DAG Dependency Graph and Cycle Detection,ledger_model,must,yes,yes,calc/dag.py topological sort and circular reference detection,verified,"tests/unit/spreadsheet/test_dag.py, tests/unit/spreadsheet/test_dag_regression.py"
+Core Worksheet Function Library (300+ functions),ledger_model,must,yes,yes,"calc/core_fns, engineering, financial, statistical, lookup",verified,"tests/unit/spreadsheet/test_functions_core.py, tests/unit/spreadsheet/test_functions_advanced.py"
+Autofill Smart Handle Sequence Prediction,ledger_model,must,yes,yes,"views/autofill.py linear, date, text series generation and grid_viewport.py event chain (fixes #244)",verified,"tests/gui/test_autofill.py, tests/gui/test_phase7_fill_integration.py"
+AutoFilter and Multi-Column Sorting,ledger_model,must,yes,yes,models/filter_model.py and views/filter_dropdown.py,verified,"tests/unit/spreadsheet/test_filter_and_sort_logic.py, tests/gui/test_filter_and_sort.py"
+Conditional Formatting Engine and Rules,ledger_model,should,yes,yes,"CF engine supporting cell value, formula expression, color scales, data bars, and rules manager (PR #146)",verified,tests/modules/spreadsheet/test_cf_validation.py
+Data Validation Engine and Rules,ledger_model,should,yes,yes,"Data validation engine with list dropdowns, number/date ranges, input messages, and alerts (PR #146)",verified,tests/modules/spreadsheet/test_cf_validation.py
+Pivot Tables and Summarization,ledger_model,should,yes,yes,"pivot_model.py PivotTableEngine with PivotCache preservation, field list, and aggregation (PR #177, fixes #160)",verified,tests/modules/spreadsheet/test_pivot_tables.py
+Slicers for Filtering,ledger_model,could,yes,yes,"Sheet slicer shape rendering and filter state preservation across workbook open/save (PR #177, fixes #160)",verified,tests/unit/spreadsheet/test_slicers_recovery.py
+Goal Seek and Equation Solver,ledger_model,could,yes,yes,"goal_seek.py Newton-Raphson numerical iterative solver and GoalSeekDialog (PR #178, fixes #161)",verified,tests/modules/spreadsheet/test_goal_seek.py
+Virtualized Grid Viewport and Rendering,ledger_ui,must,yes,yes,"views/grid_viewport.py with cell formatting, selection, headers, comments, zoom, and freeze panes (TASK-707, fixes #241)",verified,"tests/gui/test_grid_viewport.py, tests/gui/test_phase7_xlsx_render.py"
+Freeze Panes and Split Rows/Columns,ledger_ui,must,yes,yes,Frozen panes and split views supported in grid,verified,tests/gui/test_grid_viewport.py
+In-Place Cell Editor and Formula Bar,ledger_ui,must,yes,yes,views/formula_bar.py and editor_controller.py,verified,tests/gui/test_editor_and_status_bar.py
+Classic Format Cells Dialog (6 Tabs),ledger_ui,must,yes,yes,"format_cells.py (number, alignment, font, border, pattern, protection)",verified,tests/gui/test_format_cells_dialog.py
+Multi-Column Sort Dialog,ledger_ui,must,yes,yes,sort_dialog.py supporting 3 sort keys and order,verified,tests/gui/test_filter_and_sort.py
+Classic SheetTabBar Bottom Worksheets Bar,ledger_ui,must,yes,yes,"views/sheet_tab_bar.py with tabs, navigation, context menu",verified,"tests/modules/spreadsheet/test_sheet_tab_bar.py, tests/gui/test_phase7_context_actions.py"
+"Spreadsheet Floating Object Layer (Shapes, Images, Charts)",ledger_ui,must,yes,yes,views/object_layer.py overlay with 8 handles and DrawingML sync,verified,"tests/modules/spreadsheet/test_object_layer.py, tests/gui/test_shape_graphics_item.py"
+Ledger 8-Toolbar Cluster Assembly,ledger_ui,must,yes,yes,ledger_toolbars.py builds all 8 toolbars; verified in Phase 5 baseline (fixes #192),verified,"tests/ui/test_ledger_toolbars.py, tests/ui/test_phase7_toolbar_geometry.py"
+Ledger Toolbar Action Command Handlers,ledger_ui,must,yes,yes,"All 8 Ledger toolbars fully wired to cell formatting, formula insertion, auto-sum, sort, and alignment (PR #141)",verified,"tests/ui/test_ledger_toolbar_wiring.py, tests/gui/test_phase7_visible_commands.py"
+Spreadsheet Page Setup and Print Preview to PDF,ledger_ui,should,yes,yes,"Universal print preview dialog, page setup, and vector PDF export wired to Ledger (PR #144)",verified,"tests/gui/test_ledger_dialogs_phase6.py, tests/ui/test_printing.py"
+Insert Function (fx) Browser Dialog,ledger_ui,should,yes,yes,"function_wizard.py 519-function category browser and argument assistant dialog (PR #174, fixes #157)",verified,tests/modules/spreadsheet/test_function_wizard.py
+Formula Auditing Visual Trace Arrows,ledger_ui,should,yes,yes,"audit_tracer.py visual precedent/dependent trace arrows with QPainter on grid_viewport.py (PR #175, fixes #158)",verified,tests/modules/spreadsheet/test_formula_auditing.py
+AutoFilter Custom Filter Dialog,ledger_ui,should,yes,yes,"custom_filter.py two-condition AND/OR custom comparison filter dialog (PR #176, fixes #159)",verified,tests/gui/test_filter_and_sort.py
+Pure Python PPTX PresentationML Reader,lectern_io,must,yes,yes,"pptx_reader.py parses master/layout/slide hierarchy, shapes, timing, SmartArt, normAutofit fontScale, and decorations",verified,"tests/gui/test_phase7_pptx_render.py, tests/unit/corpus/test_presentation_corpus.py"
+Pure Python PPTX PresentationML Writer,lectern_io,must,yes,yes,pptx_writer.py and writer modules generating PresentationML with normAutofit attributes and roundtrip fidelity,verified,"tests/gui/test_phase7_pptx_render.py, tests/unit/corpus/test_presentation_corpus.py"
+Media Preservation for PPTX,lectern_io,must,yes,yes,"Audio, video, image preservation via OPC carry",verified,tests/unit/presentation/test_media_preserve.py
+Presentation and Slide Hierarchy Models,lectern_model,must,yes,yes,"presentation.py, slide.py, layouts.py, designs.py",verified,tests/unit/presentation/test_pmodel.py
+Vector Shape and Text Frame Models,lectern_model,must,yes,yes,shape.py and text.py with formatting and geometry,verified,"tests/unit/presentation/test_text_autofit.py, tests/gui/test_slide_canvas.py"
+DrawingML Chart Model and Multi-Type Renderers,lectern_model,must,yes,yes,"chart/ with bar, column, line, area, pie, doughnut, radar, scatter",verified,"tests/unit/presentation/test_chart_draw.py, tests/gui/test_lectern_views_phase6.py"
+IntelliArt / SmartArt Layout Engine (28 Layouts),lectern_model,must,yes,yes,"smartart/ with cycle, hierarchy, list, matrix, process, pyramid",verified,"tests/unit/presentation/test_smartart.py, tests/gui/test_lectern_views_phase6.py"
+Custom Animations Timing and Sequence Model,lectern_model,must,yes,yes,slideshow/animations.py timing engine,verified,"tests/modules/presentation/test_animation_panes.py, tests/gui/test_animations.py"
+Slide Transitions Engine,lectern_model,must,yes,yes,slideshow/transitions.py transition effects,verified,"tests/unit/presentation/test_transitions.py, tests/gui/test_slideshow.py"
+Classic Three-Pane Workspace,lectern_ui,must,yes,yes,"views/workspace.py with thumbnails, canvas, notes, taskpane",verified,tests/gui/test_lectern_workspace.py
+Interactive Slide Canvas with Transform Handles,lectern_ui,must,yes,yes,"views/slide_canvas.py 8-point handles, multi-select, rotation",verified,tests/gui/test_slide_canvas.py
+Shape Text In-Place Editor and Text AutoFit,lectern_ui,must,yes,yes,views/text_editor.py in-place editing and sizing,verified,"tests/unit/presentation/test_text_autofit.py, tests/gui/test_slide_canvas.py"
+Slide Sorter and Slide Master View Modes,lectern_ui,must,yes,yes,views/sorter_view.py and view mode switching,verified,tests/gui/test_sorter_view.py
+Presenter View and Full-Screen Slideshow Engine,lectern_ui,must,yes,yes,slideshow/slideshow_view.py and presenter_view.py with timer/notes,verified,tests/gui/test_presenter_view.py
+Datasheet Chart Data Editing Dialog,lectern_ui,must,yes,yes,dialogs/datasheet_dialog.py grid editor for chart data,verified,tests/gui/test_lectern_dialogs.py
+Format Shape Properties Dialog,lectern_ui,must,yes,yes,"dialogs/format_shape.py fill, line, size, position tabs",verified,tests/gui/test_lectern_dialogs.py
+Slide Header and Footer Dialog,lectern_ui,must,yes,yes,"dialogs/header_footer.py date, time, slide number, footer",verified,tests/gui/test_lectern_dialogs.py
+Set Up Show Configuration Dialog,lectern_ui,must,yes,yes,"dialogs/setup_show.py full screen, window, loop options",verified,tests/gui/test_lectern_dialogs.py
+Slide Layout Selection Dialog,lectern_ui,must,yes,yes,dialogs/slide_layout.py 21 standard slide layouts,verified,tests/gui/test_lectern_dialogs.py
+Slide Transition Configuration Dialog,lectern_ui,should,yes,yes,"Interactive slide transition task pane with effects, sounds, and timing controls (PR #147)",verified,tests/gui/test_lectern_dialogs.py
+Custom Animation Task Pane,lectern_ui,should,yes,yes,"Custom animation task pane with effect lists, reordering, timing, and triggers (PR #147)",verified,tests/modules/presentation/test_animation_panes.py
+Slide Background Formatting Dialog,lectern_ui,should,yes,yes,"background_dlg.py solid, gradient, texture, pattern, and picture slide background dialog (PR #182, fixes #165)",verified,tests/modules/presentation/test_background_dialog.py
+Lectern 10-Toolbar Cluster Assembly,lectern_ui,must,yes,yes,lectern_toolbars.py builds all 10 toolbars; verified in Phase 5 baseline (fixes #192),verified,"tests/ui/test_lectern_toolbars.py, tests/ui/test_phase7_toolbar_geometry.py"
+Lectern Toolbar Action Command Handlers,lectern_ui,must,yes,yes,"All 10 Lectern toolbars fully wired to slide canvas, shapes, diagram layout, and master views (PR #142)",verified,"tests/ui/test_lectern_toolbar_wiring.py, tests/gui/test_phase7_visible_commands.py"
+Start Center Document Hub Window,common_ui,must,yes,yes,"start_center.py with open, recent, create, app launch",verified,"tests/test_start_center_ui.py, tests/gui/test_mac_shell.py"
+Recent Files Cards with Thumbnail and Removal,common_ui,must,yes,yes,"Recent items list with timestamps, icons, deletion",verified,"tests/test_recent_files.py, tests/test_start_center_ui.py"
+New Document Template Gallery,common_ui,must,yes,yes,"Templates for Quire, Ledger, Lectern with previews",verified,tests/test_start_center_ui.py
+Drag and Drop File Launching,common_ui,must,yes,yes,Drag files directly into Start Center or app windows,verified,"tests/gui/test_gestures_drag.py, tests/gui/test_mac_shell.py"
+Office 2003 Luna Theme Visual Styling,common_ui,must,yes,yes,"luna_2003.py styling toolbars, menus, buttons, handles (TASK-711, #245)",verified,"tests/ui/test_phase7_toolbar_geometry.py, tests/gui/test_luna_ui.py"
+"Theme Switcher Dialog (Luna Blue, Silver, Olive, Classic)",common_ui,should,yes,yes,"Integrated into Options dialog with live preview for Luna Blue, Silver, Olive, and Classic themes (PR #148)",verified,tests/ui/test_options_dialog.py
+macOS Native Menu Bar Integration,common_ui,must,yes,yes,"Complete Office 2003 9-menu system (Insert, Format, Tools, Table, Data, Slide Show) with dynamic switching (PR #143)",verified,"tests/ui/test_mac_menu.py, tests/gui/test_mac_shell.py"
+Universal Find and Replace Modal Dialog,common_ui,must,yes,yes,find_replace_dialog.py with tabbed interface,verified,tests/ui/test_find_replace_dialog.py
+Office SplitButton and DropDownButton Widgets,common_ui,must,yes,yes,"toolbar_buttons.py and color_picker.py calibrated hit-testing, arrow states, 9-locale support (TASK-711, #245)",verified,"tests/ui/test_toolbar_buttons.py, tests/ui/test_phase7_toolbar_geometry.py"
+WMF and EMF Windows Metafile Player,common_ui,should,yes,yes,"metafile_player.py pure Python 16-bit WMF and 32-bit EMF binary parser and QPainter playback (PR #179, fixes #162)",verified,tests/test_metafile_player.py
+WordArt Gallery Dialog and 3D Text Deformations,common_ui,should,yes,yes,30 preset WordArt styles and 10 parametric bezier warp deformations implemented,verified,tests/test_wordart.py
+ClipArt Vector Graphic Library Dialog,common_ui,could,yes,yes,"clipart_dialog.py categorized vector clipart library browser and insertion dialog (PR #184, fixes #167)",verified,tests/modules/common/test_auxiliary.py
+Office Assistant Scout Character Widget,common_ui,could,yes,yes,"assistant_scout.py floating cartoon puppy assistant with animations and speech balloons (PR #184, fixes #167)",verified,tests/modules/common/test_auxiliary.py
+Application Preferences and Options Dialog,common_ui,should,yes,yes,Comprehensive multi-tab Tools -> Options dialog with settings persistence (PR #148),verified,tests/ui/test_options_dialog.py
+Document Printing and Print Preview Subsystem,common_ui,must,yes,yes,"Universal printing controller, QPrintPreviewDialog, and vector PDF export (PR #144)",verified,tests/ui/test_printing.py
+Automatic Updater and Release Check,common_ui,could,yes,yes,"updater.py asynchronous background GitHub release checker and update notification (PR #184, fixes #167)",verified,tests/test_release_workflow.py
+Quire Web/Reading/Outline/FullScreen View Matrix,quire_ui,must,yes,yes,"Complete view modes with zoom, layout adaptation, and toolbar switching (PR #223)",verified,"tests/gui/test_writer_views.py, tests/gui/test_phase7_visible_commands.py"
+Quire 100 Dialog Target Matrix and Tab Navigation,quire_ui,must,yes,yes,All 100 Word 2003 dialog targets with full tab stepping and control wiring (PR #224),verified,tests/gui/test_writer_dialogs_phase6.py
+Ledger Page Break Preview and FullScreen View Matrix,ledger_ui,must,yes,yes,"Normal and Page Break Preview with watermark, split lines, and full screen mode (PR #225)",verified,tests/gui/test_grid_viewport.py
+Ledger 77 Dialog Target Matrix (Format Cells & Page Setup),ledger_ui,must,yes,yes,"Format Cells 6 tabs, Page Setup 4 tabs, and complete dialog matrix (PR #226)",verified,tests/gui/test_ledger_dialogs_phase6.py
+Ledger Chart Wizard and Text to Columns Wizard,ledger_ui,must,yes,yes,"Multi-step chart wizard, delimited/fixed-width text parse wizard, and analysis dialogs (PR #229)",verified,tests/gui/test_phase7_visible_commands.py
+Lectern Slide Sorter / Notes Page / Master Views,lectern_ui,must,yes,yes,"Slide sorter grid, notes page layout, slide/title/handout/notes master views (PR #230)",verified,tests/gui/test_lectern_views_phase6.py
+Lectern Slide Show Floating Controller and Setup Dialog,lectern_ui,must,yes,yes,"Full-screen slide show controller, pen/laser pointer, navigation menu, and setup dialog (PR #230)",verified,"tests/gui/test_lectern_views_phase6.py, tests/gui/test_slideshow.py"
+Lectern Design Template / Color Scheme / Animation Panes,lectern_ui,must,yes,yes,"Side task panes for design templates, color schemes, and custom animations (PR #231)",verified,tests/gui/test_lectern_dialogs_phase6.py
+Start Center Settings / Theme Selection / License Dialogs,common_ui,must,yes,yes,"Options dialog, Luna/Classic theme switcher, update notifier, and license viewer (PR #232)",verified,tests/ui/test_common_dialogs.py
 Automated Screenshot Capture and imgdiff Analysis Suite,tooling,must,yes,yes,"Phase 7 rebuild with explicit scenario registry, non-fallback contracts, dual MAE/ROI metrics, and 412 control matrix (fixes #235)",verified,tests/test_phase7_capture_contract.py
-Extended 9-Locale Internationalization (es and ru),core,must,yes,yes,Added Spanish and Russian translation catalogs to canonical 7 languages with safe_tr() (fixes #221),verified,"tests/gui/test_phase7_visible_commands.py tests/test_i18n_phase6.py (TASK-712, #246)"
-Transactional Document Open and False-Success Guard,core_io,must,yes,yes,"Transactional document opening, format dispatch, legacy rejection, rollback on failure",verified,"tests/gui/test_phase7_open_contract.py (TASK-702, #236)"
-Visible Commands and Dynamic Localization,common_ui,must,yes,yes,"ActionRegistry capability tracking, OutlineToolbar levels, ChartWizard series, ScenarioManager merge, CustomLists/ScreenTips, and 9-locale dynamic i18n",verified,"tests/gui/test_phase7_visible_commands.py (TASK-712, #246)"
+Extended 9-Locale Internationalization (es and ru),core,must,yes,yes,Added Spanish and Russian translation catalogs to canonical 7 languages with safe_tr() (fixes #221),verified,"tests/gui/test_phase7_visible_commands.py, tests/test_i18n_phase6.py"
+Transactional Document Open and False-Success Guard,core_io,must,yes,yes,"Transactional document opening, format dispatch, legacy rejection, rollback on failure",verified,tests/gui/test_phase7_open_contract.py
+Visible Commands and Dynamic Localization,common_ui,must,yes,yes,"ActionRegistry capability tracking, OutlineToolbar levels, ChartWizard series, ScenarioManager merge, CustomLists/ScreenTips, and 9-locale dynamic i18n",verified,tests/gui/test_phase7_visible_commands.py
 150-File Curated Corpus Audit and Hard Timeout Process Isolation,core_io,must,yes,yes,"Authoritative 150-file expectations manifest, IsolatedFileRunner with 30s hard timeout termination, fault injection detection, and multi-stage parse/model/render/roundtrip verification (TASK-704, fixes #238)",verified,"tests/test_phase7_corpus_runner.py, tests/unit/corpus/test_word_corpus.py, tests/unit/corpus/test_excel_corpus.py, tests/unit/corpus/test_presentation_corpus.py"
