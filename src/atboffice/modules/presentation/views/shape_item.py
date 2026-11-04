@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from atboffice.modules.presentation.models.shape import Shape
+from atboffice.modules.presentation.models.text import TextBody
 from atboffice.modules.presentation.views.geometry_helper import (
     create_shape_path,
     get_adjustment_handles,
@@ -317,6 +318,36 @@ class ShapeGraphicsItem(QGraphicsObject):
         # 0.1 Multimedia / Picture rendering
         if self.model.media_item or self.model.type == "image":
             self._paint_media_or_image(painter, w, h)
+            if self.isSelected():
+                sel_pen = QPen(QColor(0, 120, 215, 180), 1.0, Qt.PenStyle.DashLine)
+                painter.setPen(sel_pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRect(QRectF(0.0, 0.0, w, h))
+            return
+
+        # 0.2 Table rendering if shape is a table
+        if self.model.type == "table" or bool(self.model.tbl):
+            self._paint_table(painter, w, h)
+            if self.isSelected():
+                sel_pen = QPen(QColor(0, 120, 215, 180), 1.0, Qt.PenStyle.DashLine)
+                painter.setPen(sel_pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRect(QRectF(0.0, 0.0, w, h))
+            return
+
+        # 0.3 SmartArt Diagram rendering
+        if self.model.is_diagram or bool(self.model.sa):
+            self._paint_diagram(painter, w, h)
+            if self.isSelected():
+                sel_pen = QPen(QColor(0, 120, 215, 180), 1.0, Qt.PenStyle.DashLine)
+                painter.setPen(sel_pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRect(QRectF(0.0, 0.0, w, h))
+            return
+
+        # 0.4 Group rendering
+        if self.model.type == "group" and self.model.kids:
+            self._paint_group(painter, w, h)
             if self.isSelected():
                 sel_pen = QPen(QColor(0, 120, 215, 180), 1.0, Qt.PenStyle.DashLine)
                 painter.setPen(sel_pen)
@@ -642,6 +673,167 @@ class ShapeGraphicsItem(QGraphicsObject):
                 time_text,
             )
 
+        painter.restore()
+
+    def _paint_table(self, painter: QPainter, w: float, h: float) -> None:
+        """Render table grid cells, borders, fills, and multiline text runs with font colors."""
+        tbl_data = self.model.tbl or {}
+        cols = tbl_data.get("cols", [])
+        rows = tbl_data.get("rows", [])
+        if not rows:
+            return
+
+        if not cols:
+            num_c = max(len(r.get("cells", [])) for r in rows) if rows else 1
+            cols = [w / max(1, num_c)] * max(1, num_c)
+
+        tot_cols_w = sum(cols)
+        sx = (w / tot_cols_w) if tot_cols_w > 0.001 else 1.0
+
+        from atboffice.modules.presentation.views.text_editor import ShapeTextEditorItem
+
+        cur_y = 0.0
+        for r_idx, row in enumerate(rows):
+            row_h = float(row.get("h", 30.0))
+            cur_x = 0.0
+            cells = row.get("cells", [])
+            for c_idx, cell in enumerate(cells):
+                col_w = (cols[c_idx] if c_idx < len(cols) else (w / max(1, len(cells)))) * sx
+                cell_rect = QRectF(cur_x, cur_y, col_w, row_h)
+
+                # Fill
+                c_fill = cell.get("fill")
+                if c_fill and isinstance(c_fill, dict) and c_fill.get("t") == "solid":
+                    painter.fillRect(cell_rect, self._resolve_color(c_fill.get("c")))
+                elif c_fill and hasattr(c_fill, "color") and c_fill.color:
+                    painter.fillRect(cell_rect, self._resolve_color(c_fill.color))
+
+                # Border
+                grid_pen = QPen(QColor(180, 180, 180), 1.0)
+                painter.setPen(grid_pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRect(cell_rect)
+
+                # Text
+                cell_tx = cell.get("tx")
+                if isinstance(cell_tx, dict):
+                    try:
+                        cell_tx = TextBody.from_dict(cell_tx)
+                    except Exception:
+                        cell_tx = None
+                if cell_tx and hasattr(cell_tx, "is_empty") and not cell_tx.is_empty():
+                    pad_rect = cell_rect.adjusted(6.0, 3.0, -6.0, -3.0)
+                    ShapeTextEditorItem.render_static_text(
+                        painter, cell_tx, pad_rect, self._resolve_color
+                    )
+                elif cell.get("text"):
+                    painter.setPen(QColor("#000000"))
+                    font = QFont("Arial", 11)
+                    painter.setFont(font)
+                    painter.drawText(
+                        cell_rect.adjusted(6.0, 3.0, -6.0, -3.0),
+                        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                        str(cell["text"]),
+                    )
+
+                cur_x += col_w
+            cur_y += row_h
+
+    def _paint_diagram(self, painter: QPainter, w: float, h: float) -> None:
+        """Render SmartArt diagram layout and text."""
+        rect = QRectF(0.0, 0.0, w, h)
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+        # Background container
+        fill_col = self._resolve_color(
+            self.model.fill.color
+            if self.model.fill and self.model.fill.type != "none"
+            else "accent1"
+        )
+        fill_col.setAlphaF(0.15)
+        painter.setBrush(QBrush(fill_col))
+        painter.setPen(QPen(self._resolve_color("accent1"), 1.5))
+        painter.drawRoundedRect(rect, 8.0, 8.0)
+
+        items = []
+        if self.model.sa and isinstance(self.model.sa, dict):
+            items = self.model.sa.get("items", [])
+
+        if items:
+            n = len(items)
+            gap = min(16.0, w / (n * 8))
+            bw = (w - 20.0 - gap * (n - 1)) / max(1, n)
+            bh = min(h * 0.7, bw * 0.6)
+            by = (h - bh) / 2.0
+            for i, it in enumerate(items):
+                bx = 10.0 + i * (bw + gap)
+                box_rect = QRectF(bx, by, bw, bh)
+                box_c = self._resolve_color("accent1")
+                painter.setBrush(QBrush(box_c))
+                painter.setPen(QPen(self._resolve_color("dk1"), 1.0))
+                painter.drawRoundedRect(box_rect, 4.0, 4.0)
+
+                it_txt = str(it.get("text", ""))
+                if it_txt:
+                    painter.setPen(QColor("#FFFFFF"))
+                    font = QFont("Arial", max(9, int(bh * 0.22)))
+                    font.setBold(True)
+                    painter.setFont(font)
+                    painter.drawText(
+                        box_rect.adjusted(4.0, 4.0, -4.0, -4.0),
+                        Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
+                        it_txt,
+                    )
+        elif self.model.text and not self.model.text.is_empty():
+            self._paint_text(painter, w, h)
+
+        painter.restore()
+
+    def _paint_group(self, painter: QPainter, w: float, h: float) -> None:
+        """Recursively render child shapes inside a group shape."""
+        painter.save()
+        for kid in self.model.kids:
+            local_x = kid.x - self.model.x
+            local_y = kid.y - self.model.y
+            painter.save()
+            painter.translate(local_x, local_y)
+
+            kw = max(1.0, kid.w)
+            kh = max(1.0, kid.h)
+            path = create_shape_path(kid.geom, kw, kh, kid.adj, kid.custom_path)
+
+            if kid.fill and kid.fill.type == "solid":
+                fc = self._resolve_color(kid.fill.color)
+                fc.setAlphaF(kid.fill.alpha)
+                painter.setBrush(QBrush(fc))
+            else:
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+
+            if kid.line and kid.line.type != "none":
+                lc = self._resolve_color(kid.line.color)
+                painter.setPen(QPen(lc, max(1.0, kid.line.width)))
+            else:
+                painter.setPen(Qt.PenStyle.NoPen)
+
+            painter.drawPath(path)
+
+            if kid.text and not kid.text.is_empty():
+                from atboffice.modules.presentation.views.text_editor import ShapeTextEditorItem
+
+                insets = kid.text.insets
+                ins_l, ins_t, ins_r, ins_b = insets
+                text_rect = QRectF(
+                    ins_l,
+                    ins_t,
+                    max(10.0, kw - ins_l - ins_r),
+                    max(10.0, kh - ins_t - ins_b),
+                )
+                ShapeTextEditorItem.render_static_text(
+                    painter, kid.text, text_rect, self._resolve_color
+                )
+
+            painter.restore()
         painter.restore()
 
     def mouseDoubleClickEvent(self, event: QGraphicsSceneMouseEvent) -> None:

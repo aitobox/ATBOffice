@@ -14,6 +14,7 @@ from typing import Any
 
 from PySide6.QtCore import QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (
+    QBrush,
     QColor,
     QFont,
     QIcon,
@@ -108,21 +109,130 @@ def render_slide_thumbnail(
         )
         paint_fill_rect(painter, slide_rect, fill_to_paint, design)
 
+        # Draw master decorations behind slide shapes if not hide_master
+        if design and hasattr(design, "decorations") and not getattr(slide, "hide_master", False):
+            for d_sh in design.decorations:
+                if d_sh.w <= 0 or d_sh.h <= 0:
+                    continue
+                d_rect = QRectF(d_sh.x * sx, d_sh.y * sy, d_sh.w * sx, d_sh.h * sy)
+                if d_sh.fill and d_sh.fill.type == "solid":
+                    painter.fillRect(d_rect, QColor(d_sh.fill.color))
+                if d_sh.line and d_sh.line.width > 0:
+                    painter.setPen(QPen(QColor(d_sh.line.color), max(0.5, d_sh.line.width * sx)))
+                    painter.drawRect(d_rect)
+                if d_sh.text and not d_sh.text.is_empty():
+                    painter.setPen(QColor(design.colors.dk1 if design else "#000000"))
+                    font = QFont("Arial", max(5, int(9 * sy)))
+                    painter.setFont(font)
+                    painter.drawText(
+                        d_rect.adjusted(2, 2, -2, -2),
+                        Qt.AlignmentFlag.AlignLeft
+                        | Qt.AlignmentFlag.AlignTop
+                        | Qt.TextFlag.TextWordWrap,
+                        d_sh.text.plain_text,
+                    )
+
         # 2. Draw slide shapes
         for sh in slide.shapes:
             if sh.w <= 0 or sh.h <= 0:
                 continue
             rect = QRectF(sh.x * sx, sh.y * sy, sh.w * sx, sh.h * sy)
 
+            # Table
+            if sh.type == "table" or bool(sh.tbl):
+                tbl = sh.tbl or {}
+                cols = tbl.get("cols", [])
+                rows = tbl.get("rows", [])
+                if rows:
+                    if not cols:
+                        col_count = max(1, len(rows[0].get("cells", [])))
+                        cols = [sh.w / col_count] * col_count
+                    tot_w = sum(cols)
+                    tbl_sx = (rect.width() / tot_w) if tot_w > 0.001 else 1.0
+                    cur_y = rect.top()
+                    for r in rows:
+                        rh = float(r.get("h", 20.0)) * sy
+                        cur_x = rect.left()
+                        cells = r.get("cells", [])
+                        for c_idx, cell in enumerate(cells):
+                            def_w = sh.w / max(1, len(cells))
+                            cw = (cols[c_idx] if c_idx < len(cols) else def_w) * tbl_sx
+                            c_rect = QRectF(cur_x, cur_y, cw, rh)
+                            painter.setPen(QPen(QColor(180, 180, 180), 0.5))
+                            painter.drawRect(c_rect)
+                            cell_tx = cell.get("tx")
+                            if isinstance(cell_tx, dict):
+                                try:
+                                    cell_tx = TextBody.from_dict(cell_tx)
+                                except Exception:
+                                    cell_tx = None
+                            if (
+                                cell_tx
+                                and hasattr(cell_tx, "is_empty")
+                                and not cell_tx.is_empty()
+                            ):
+                                c_col = QColor(design.colors.dk1 if design else "#000000")
+                                for p in cell_tx.paragraphs:
+                                    for r_item in p.runs:
+                                        if r_item.color:
+                                            c_col = QColor(r_item.color)
+                                            break
+                                painter.setPen(c_col)
+                                font = QFont("Arial", max(5, int(8 * sy)))
+                                painter.setFont(font)
+                                painter.drawText(
+                                    c_rect.adjusted(1, 1, -1, -1),
+                                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                                    cell_tx.plain_text,
+                                )
+                            cur_x += cw
+                        cur_y += rh
+                continue
+
+            # SmartArt
+            if sh.is_diagram or bool(sh.sa):
+                painter.setPen(QPen(QColor(design.colors.accent1 if design else "#2B579A"), 1.0))
+                painter.setBrush(QBrush(QColor(230, 240, 250)))
+                painter.drawRoundedRect(rect, 3.0, 3.0)
+                if sh.text and not sh.text.is_empty():
+                    painter.setPen(QColor(design.colors.dk1 if design else "#000000"))
+                    font = QFont("Arial", max(6, int(10 * sy)))
+                    font.setBold(True)
+                    painter.setFont(font)
+                    painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, sh.text.plain_text)
+                continue
+
+            # Group
+            if sh.type == "group" and sh.kids:
+                for kid in sh.kids:
+                    k_rect = QRectF(kid.x * sx, kid.y * sy, kid.w * sx, kid.h * sy)
+                    if kid.fill and kid.fill.type == "solid":
+                        painter.fillRect(k_rect, QColor(kid.fill.color))
+                    if kid.line and kid.line.width > 0:
+                        painter.setPen(QPen(QColor(kid.line.color), max(0.5, kid.line.width * sx)))
+                        painter.drawRect(k_rect)
+                    if kid.text and not kid.text.is_empty():
+                        painter.setPen(QColor(design.colors.dk1 if design else "#000000"))
+                        font = QFont("Arial", max(5, int(8 * sy)))
+                        painter.setFont(font)
+                        painter.drawText(
+                            k_rect,
+                            Qt.AlignmentFlag.AlignLeft
+                            | Qt.AlignmentFlag.AlignTop
+                            | Qt.TextFlag.TextWordWrap,
+                            kid.text.plain_text,
+                        )
+                continue
+
             # Fill
             if sh.fill and sh.fill.type == "solid":
                 painter.fillRect(rect, QColor(sh.fill.color))
             elif sh.placeholder and sh.placeholder.type in ("title", "ctrTitle"):
                 # Subtle hint for empty placeholders
-                painter.setPen(QPen(QColor("#CCCCCC"), 0.5, Qt.DashLine))
+                painter.setPen(QPen(QColor("#CCCCCC"), 0.5, Qt.PenStyle.DashLine))
                 painter.drawRect(rect)
             elif sh.placeholder:
-                painter.setPen(QPen(QColor("#E0E0E0"), 0.5, Qt.DashLine))
+                painter.setPen(QPen(QColor("#E0E0E0"), 0.5, Qt.PenStyle.DashLine))
                 painter.drawRect(rect)
 
             # Border
@@ -134,13 +244,17 @@ def render_slide_thumbnail(
             if sh.text and not sh.text.is_empty():
                 txt = sh.text.plain_text
                 painter.setPen(QColor(design.colors.dk1 if design else "#000000"))
-                font = QFont("Arial", max(6, int(10 * sy)))
+                base_sz = max(6, int(10 * sy))
+                fs = sh.text.font_scale if sh.text.font_scale > 0.001 else 1.0
+                font = QFont("Arial", max(5, int(base_sz * fs)))
                 if sh.placeholder and sh.placeholder.type in ("title", "ctrTitle"):
                     font.setBold(True)
                 painter.setFont(font)
                 painter.drawText(
                     rect.adjusted(2, 2, -2, -2),
-                    Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap,
+                    Qt.AlignmentFlag.AlignLeft
+                    | Qt.AlignmentFlag.AlignTop
+                    | Qt.TextFlag.TextWordWrap,
                     txt,
                 )
 

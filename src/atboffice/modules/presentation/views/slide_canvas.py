@@ -15,6 +15,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QApplication,
+    QGraphicsItem,
     QGraphicsScene,
     QGraphicsSceneMouseEvent,
     QGraphicsView,
@@ -57,12 +58,16 @@ class SlideScene(QGraphicsScene):
     def __init__(
         self,
         slide: Slide | None = None,
-        slide_width: float = 960.0,
+        slide_width: float | Any = 960.0,
         slide_height: float = 540.0,
         presentation: Any | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        if presentation is None and hasattr(slide_width, "w") and hasattr(slide_width, "h"):
+            presentation = slide_width
+            slide_width = presentation.w
+            slide_height = presentation.h
         self.slide_width = float(slide_width)
         self.slide_height = float(slide_height)
         self.presentation = presentation
@@ -92,6 +97,17 @@ class SlideScene(QGraphicsScene):
         self.clear()
         self._items_by_id.clear()
         self._comment_items.clear()
+
+        # Add master decorations behind slide shapes if not hide_master
+        if self.presentation and not getattr(slide, "hide_master", False):
+            design = self.presentation.get_design_for_slide(slide)
+            if design and getattr(design, "decorations", None):
+                for d_idx, d_sh in enumerate(design.decorations):
+                    d_item = ShapeGraphicsItem(d_sh)
+                    d_item.setZValue(-100.0 + d_idx)
+                    d_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False)
+                    d_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+                    self.addItem(d_item)
 
         for idx, sh in enumerate(slide.shapes):
             if sh.is_chart:

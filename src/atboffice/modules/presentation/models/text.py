@@ -251,6 +251,7 @@ class TextBody:
     paragraphs: list[Paragraph] = field(default_factory=list)
     vert: str | None = None  # None or "vert"
     font_scale: float = 1.0  # Dynamic font scale factor (AutoFit)
+    ln_spc_reduction: float = 0.0  # Line spacing reduction factor (AutoFit)
 
     @property
     def plain_text(self) -> str:
@@ -294,6 +295,8 @@ class TextBody:
         }
         if abs(self.font_scale - 1.0) > 0.001:
             d["fontScale"] = self.font_scale
+        if self.ln_spc_reduction > 0.001:
+            d["lnSpcReduction"] = self.ln_spc_reduction
         if self.vert:
             d["vert"] = self.vert
         return d
@@ -304,6 +307,7 @@ class TextBody:
             return cls.create_empty()
         ins = tuple(data.get("ins", [7.2, 3.6, 7.2, 3.6]))
         font_scale = float(data.get("fontScale", 1.0))
+        ln_spc_red = float(data.get("lnSpcReduction", 0.0))
         return cls(
             anchor=data.get("anchor", "t"),
             wrap=bool(data.get("wrap", True)),
@@ -312,4 +316,5 @@ class TextBody:
             paragraphs=[Paragraph.from_dict(p) for p in data.get("ps", [])],
             vert=data.get("vert"),
             font_scale=font_scale,
+            ln_spc_reduction=ln_spc_red,
         )

@@ -186,7 +186,13 @@ def body_properties_to_xml(text_body: TextBody) -> str:
     if text_body.autofit == "shape":
         inner = "<a:spAutoFit/>"
     elif text_body.autofit == "norm":
-        inner = "<a:normAutofit/>"
+        na_attrs: list[str] = []
+        if abs(getattr(text_body, "font_scale", 1.0) - 1.0) > 0.001:
+            na_attrs.append(f'fontScale="{int(round(text_body.font_scale * 100000))}"')
+        if getattr(text_body, "ln_spc_reduction", 0.0) > 0.001:
+            na_attrs.append(f'lnSpcReduction="{int(round(text_body.ln_spc_reduction * 100000))}"')
+        attrs_str = f" {' '.join(na_attrs)}" if na_attrs else ""
+        inner = f"<a:normAutofit{attrs_str}/>"
 
     return f"<a:bodyPr {' '.join(attrs)}>{inner}</a:bodyPr>"
 
