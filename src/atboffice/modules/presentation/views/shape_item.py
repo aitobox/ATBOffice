@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from atboffice.modules.presentation.models.shape import Shape
+from atboffice.modules.presentation.models.text import TextBody
 from atboffice.modules.presentation.views.geometry_helper import (
     create_shape_path,
     get_adjustment_handles,
@@ -715,7 +716,12 @@ class ShapeGraphicsItem(QGraphicsObject):
 
                 # Text
                 cell_tx = cell.get("tx")
-                if cell_tx and not cell_tx.is_empty():
+                if isinstance(cell_tx, dict):
+                    try:
+                        cell_tx = TextBody.from_dict(cell_tx)
+                    except Exception:
+                        cell_tx = None
+                if cell_tx and hasattr(cell_tx, "is_empty") and not cell_tx.is_empty():
                     pad_rect = cell_rect.adjusted(6.0, 3.0, -6.0, -3.0)
                     ShapeTextEditorItem.render_static_text(
                         painter, cell_tx, pad_rect, self._resolve_color

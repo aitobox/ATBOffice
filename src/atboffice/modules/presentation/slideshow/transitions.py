@@ -20,6 +20,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.presentation.models.slide import Slide, Transition
+from atboffice.modules.presentation.models.text import TextBody
 from atboffice.modules.presentation.views.background_renderer import paint_fill_rect
 from atboffice.modules.presentation.views.geometry_helper import create_shape_path
 
@@ -321,7 +322,16 @@ def render_slide_to_image(
                             painter.setPen(QPen(QColor(180, 180, 180), 1.0))
                             painter.drawRect(c_rect)
                             cell_tx = cell.get("tx")
-                            if cell_tx and not cell_tx.is_empty():
+                            if isinstance(cell_tx, dict):
+                                try:
+                                    cell_tx = TextBody.from_dict(cell_tx)
+                                except Exception:
+                                    cell_tx = None
+                            if (
+                                cell_tx
+                                and hasattr(cell_tx, "is_empty")
+                                and not cell_tx.is_empty()
+                            ):
                                 c_col = QColor(design.colors.dk1 if design else "#000000")
                                 for p in cell_tx.paragraphs:
                                     for r_item in p.runs:
