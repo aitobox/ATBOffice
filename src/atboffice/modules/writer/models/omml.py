@@ -301,6 +301,27 @@ class OfficeMathItem(RunItem):
     descent: float = 0.0
     layout_box: Any = None
 
+    def plain_text(self) -> str:
+        """Return plain text of all math runs within this formula."""
+        def _node_text(node: Any) -> str:
+            if isinstance(node, MathRun):
+                return node.text
+            parts: list[str] = []
+            for attr in ("base", "sup", "sub", "num", "den", "deg", "args", "nodes", "elem"):
+                val = getattr(node, attr, None)
+                if isinstance(val, list):
+                    for item in val:
+                        if isinstance(item, list):
+                            for sub in item:
+                                parts.append(_node_text(sub))
+                        else:
+                            parts.append(_node_text(item))
+                elif val is not None and hasattr(val, "__dict__"):
+                    parts.append(_node_text(val))
+            return "".join(parts)
+
+        return "".join(_node_text(n) for n in self.nodes)
+
     def __init__(
         self,
         nodes: list[MathNode] | None = None,
@@ -607,11 +628,12 @@ def parse_omml(elem_or_xml: ET.Element | str) -> OfficeMathItem:
 
     # Detect font size from embedded w:rPr/w:sz if present
     font_size = 12.0
-    for sz_elem in root.iter(f"{{{NS_W}}}sz"):
-        val_str = _get_val(sz_elem)
-        if val_str and val_str.isdigit():
-            font_size = float(val_str) / 2.0
-            break
+    for sz_elem in root.iter():
+        if _local_tag(sz_elem) == "sz":
+            val_str = _get_val(sz_elem)
+            if val_str and val_str.isdigit():
+                font_size = float(val_str) / 2.0
+                break
 
     return OfficeMathItem(
         nodes=nodes,
