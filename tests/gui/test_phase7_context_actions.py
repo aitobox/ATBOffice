@@ -1,20 +1,22 @@
 """Phase 7 acceptance tests for Ledger context menus and business actions.
 
 Covers:
-- Matrix 234: 049_context_Cell (selection targeting, editor commit, Shift+F10, copy, cut, paste, paste special, table actions)
+- Matrix 234: 049_context_Cell (selection targeting, editor commit, Shift+F10,
+  copy, cut, paste, paste special, table actions)
 - Matrix 235: 050_context_Row_Header (row selection, insert, delete, clear, format)
 - Matrix 236: 051_context_Col_Header (col selection, insert, delete, clear, format)
-- Matrix 237: 052_context_Sheet_Tab (sheet tab context menu, grouping, select all, ungroup, dirty marking)
+- Matrix 237: 052_context_Sheet_Tab (sheet tab context menu, grouping, select all,
+  ungroup, dirty marking)
 - Matrix 238: 053_context_StatusBar_Calc (status bar calculation context menu and live aggregation)
 """
 
 from __future__ import annotations
 
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QColor, QContextMenuEvent, QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import QApplication, QDialog, QInputDialog, QMenu
 
@@ -31,8 +33,6 @@ from atboffice.modules.spreadsheet.views.object_layer import (
     SpreadsheetObjectLayer,
 )
 from atboffice.modules.spreadsheet.views.sheet_tab_bar import SheetTabBar
-from atboffice.ui.components.status_bar import StatusBar
-from atboffice.ui.shell.ledger_window import LedgerWindow
 
 
 @pytest.fixture

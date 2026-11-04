@@ -339,7 +339,8 @@ class TabStripWidget(QWidget):
         name = sheet.name
         is_hover = index == self._hover_index and not is_active
         tab_color = self._tab_bar.tab_color(index)
-        is_selected = index in getattr(self._tab_bar, "_selected_sheet_indices", {wb.active_sheet_index})
+        default_sel = {wb.active_sheet_index}
+        is_selected = index in getattr(self._tab_bar, "_selected_sheet_indices", default_sel)
 
         border_color = QColor(158, 154, 145) if not is_active else QColor(127, 157, 185)
         bg_color = (

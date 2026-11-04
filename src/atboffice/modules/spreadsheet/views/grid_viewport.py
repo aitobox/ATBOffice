@@ -3281,7 +3281,10 @@ class GridViewport(QAbstractScrollArea):
         win = self.window()
         if win is not self and hasattr(win, "toggle_total_row"):
             win.toggle_total_row()
-        tbl = target_table or (self.table_at(*self.selection.active_cell) if hasattr(self, "table_at") else None)
+        active_pos = self.selection.active_cell
+        tbl = target_table or (
+            self.table_at(*active_pos) if hasattr(self, "table_at") else None
+        )
         if tbl is not None:
             tbl["totalRow"] = not tbl.get("totalRow", False)
         self.mark_dirty()
@@ -3498,7 +3501,8 @@ class GridViewport(QAbstractScrollArea):
                     src_abs_c = src_range.min_c + sj
                     sheet_name = getattr(self.model, "name", "")
                     sheet_ref = f"{sheet_name}!" if sheet_name else ""
-                    new_cell.formula = f"={sheet_ref}{cell_name(src_abs_r, src_abs_c, False, False)}"
+                    ref_str = cell_name(src_abs_r, src_abs_c, False, False)
+                    new_cell.formula = f"={sheet_ref}{ref_str}"
                     new_cell.value = None
                     self.model.set_cell(target_r, target_c, new_cell)
                     continue
