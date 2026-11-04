@@ -9,7 +9,6 @@ import json
 import multiprocessing
 import os
 import re
-import sys
 import time
 import zipfile
 from pathlib import Path
@@ -192,17 +191,17 @@ def _execute_file_audit_worker(
 
         # Stage 1: Parse
         if app == "word":
-            from atboffice.modules.writer.io import read_docx, write_docx
             from atboffice.deep.audit.word import extract_word_features
+            from atboffice.modules.writer.io import read_docx, write_docx
             model = read_docx(raw_data)
         elif app == "excel":
+            from atboffice.deep.audit.excel import extract_excel_features
             from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
             from atboffice.modules.spreadsheet.io.xlsx_writer import write_xlsx
-            from atboffice.deep.audit.excel import extract_excel_features
             model = read_xlsx(raw_data)
         elif app == "powerpoint":
-            from atboffice.modules.presentation.io import read_pptx, write_pptx
             from atboffice.deep.audit.presentation import extract_presentation_features
+            from atboffice.modules.presentation.io import read_pptx, write_pptx
             model = read_pptx(raw_data)
         else:
             queue.put({
@@ -217,9 +216,15 @@ def _execute_file_audit_worker(
 
         # Stage 2: Model inspection
         if app == "word":
-            stages["model"] = "ok" if (hasattr(model, "main") or hasattr(model, "body") or hasattr(model, "paragraphs")) else "fail"
+            has_body = (
+                hasattr(model, "main")
+                or hasattr(model, "body")
+                or hasattr(model, "paragraphs")
+            )
+            stages["model"] = "ok" if has_body else "fail"
         elif app == "excel":
-            stages["model"] = "ok" if (hasattr(model, "sheets") or hasattr(model, "worksheets")) else "fail"
+            has_sheets = hasattr(model, "sheets") or hasattr(model, "worksheets")
+            stages["model"] = "ok" if has_sheets else "fail"
         elif app == "powerpoint":
             stages["model"] = "ok" if hasattr(model, "slides") else "fail"
 

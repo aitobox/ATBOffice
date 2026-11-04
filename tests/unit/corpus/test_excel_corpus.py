@@ -97,4 +97,6 @@ def test_curated_xls_binary_safe_handling() -> None:
             read_xlsx(raw_data)
         rejected_count += 1
 
-    assert rejected_count == 25, "All 25 legacy binary .xls files must be safely rejected by OOXML reader"
+    assert rejected_count == 25, (
+        "All 25 legacy binary .xls files must be safely rejected by OOXML reader"
+    )

@@ -9,10 +9,7 @@ Verifies:
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
-
-import pytest
 
 from atboffice.deep.audit.core import (
     AuditSession,
@@ -31,9 +28,15 @@ def test_expectations_manifest_completeness() -> None:
     assert len(manifest) == 150, f"Expected exactly 150 files in manifest, got {len(manifest)}"
 
     categories = manifest.category_counts()
-    assert categories.get("valid", 0) == 73, f"Expected 73 valid files, got {categories.get('valid')}"
-    assert categories.get("encrypted", 0) == 1, f"Expected 1 encrypted file, got {categories.get('encrypted')}"
-    assert categories.get("corrupt", 0) == 1, f"Expected 1 corrupt file, got {categories.get('corrupt')}"
+    assert categories.get("valid", 0) == 73, (
+        f"Expected 73 valid files, got {categories.get('valid')}"
+    )
+    assert categories.get("encrypted", 0) == 1, (
+        f"Expected 1 encrypted file, got {categories.get('encrypted')}"
+    )
+    assert categories.get("corrupt", 0) == 1, (
+        f"Expected 1 corrupt file, got {categories.get('corrupt')}"
+    )
     assert categories.get("unsupported_format", 0) == 75, (
         f"Expected 75 unsupported_format files, got {categories.get('unsupported_format')}"
     )
@@ -44,7 +47,7 @@ def test_expectations_manifest_completeness() -> None:
 
 
 def test_runner_isolated_timeout_injection() -> None:
-    """Verify that a hanging worker is forcefully terminated within timeout and returns status='timeout'."""
+    """Verify that a hanging worker is forcefully terminated within timeout."""
     runner = IsolatedFileRunner(timeout=1.0)
     result = runner.run_with_injection(
         file_path="tests/docs/word/docx/libreoffice__A019_min.docx",
@@ -172,5 +175,10 @@ def test_audit_session_accounting() -> None:
     assert session.is_passing() is True
 
     # Inject unmatched failure
-    session.record_result({"file": "e.docx", "status": "fail", "expected_match": False, "reason": "broken"})
+    session.record_result({
+        "file": "e.docx",
+        "status": "fail",
+        "expected_match": False,
+        "reason": "broken",
+    })
     assert session.is_passing() is False

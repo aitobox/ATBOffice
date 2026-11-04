@@ -79,4 +79,6 @@ def test_curated_ppt_binary_safe_handling() -> None:
             read_pptx(raw_data)
         rejected_count += 1
 
-    assert rejected_count == 25, "All 25 legacy binary .ppt files must be safely rejected by OOXML reader"
+    assert rejected_count == 25, (
+        "All 25 legacy binary .ppt files must be safely rejected by OOXML reader"
+    )

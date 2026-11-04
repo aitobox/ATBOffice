@@ -111,7 +111,10 @@ def main() -> None:
             expectations = CorpusExpectations(args.expectations)
             print(f"Loaded {len(expectations)} document expectations from {args.expectations}")
         except Exception as e:
-            print(f"Warning: Failed to load expectations from {args.expectations}: {e}", file=sys.stderr)
+            print(
+                f"Warning: Failed to load expectations from {args.expectations}: {e}",
+                file=sys.stderr,
+            )
 
     all_files: list[Path] = []
     for f in corpus_dir.rglob("*"):

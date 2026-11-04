@@ -102,4 +102,6 @@ def test_curated_doc_binary_safe_handling() -> None:
             read_docx(raw_data)
         rejected_count += 1
 
-    assert rejected_count == 25, "All 25 legacy binary .doc files must be safely rejected by OOXML reader"
+    assert rejected_count == 25, (
+        "All 25 legacy binary .doc files must be safely rejected by OOXML reader"
+    )
