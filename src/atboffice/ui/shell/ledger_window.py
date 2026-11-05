@@ -376,6 +376,23 @@ class LedgerWindow(BaseOfficeWindow):
             "所有文件 (*.*)"
         )
 
+    def _apply_template_result(self, result: Any) -> None:
+        """Apply generated template WorkbookModel to Ledger spreadsheet view."""
+        if result is not None:
+            from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
+
+            if isinstance(result, WorkbookModel):
+                self.spreadsheet_view.workbook = result
+
+    def new_file(self) -> bool:
+        """Create a new blank workbook document."""
+        if not super().new_file():
+            return False
+        from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
+
+        self.spreadsheet_view.workbook = WorkbookModel()
+        return True
+
     def do_save(self, path: Path) -> bool:
         """Serialize Ledger workbook to destination path."""
         path.parent.mkdir(parents=True, exist_ok=True)
