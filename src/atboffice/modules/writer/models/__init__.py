@@ -15,6 +15,8 @@ from atboffice.modules.writer.models.document import (
     Paragraph,
     Row,
     RunItem,
+    SdtEndItem,
+    SdtStartItem,
     Story,
     SymbolItem,
     TabItem,

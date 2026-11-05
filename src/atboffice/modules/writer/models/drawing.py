@@ -130,6 +130,7 @@ class DrawingObject(RunItem):
     rotation: float = 0.0
     float_pr: FloatProperties | None = None
     raw_data: dict[str, Any] = field(default_factory=dict)
+    raw_xml: str | None = None
 
     def __init__(
         self,
@@ -142,6 +143,7 @@ class DrawingObject(RunItem):
         r_pr: RunProperties | None = None,
         raw_data: dict[str, Any] | None = None,
         t: str = "drawing",
+        raw_xml: str | None = None,
     ) -> None:
         super().__init__(t=t, r_pr=r_pr or RunProperties())
         self.id = id
@@ -151,6 +153,7 @@ class DrawingObject(RunItem):
         self.rotation = float(rotation)
         self.float_pr = float_pr
         self.raw_data = raw_data or {}
+        self.raw_xml = raw_xml
 
 
 @dataclass
@@ -186,6 +189,7 @@ class PictureItem(DrawingObject):
         contrast: float = 0.0,
         grayscale: bool = False,
         washout: bool = False,
+        raw_xml: str | None = None,
     ) -> None:
         super().__init__(
             id=id,
@@ -197,6 +201,7 @@ class PictureItem(DrawingObject):
             r_pr=r_pr,
             raw_data=raw_data,
             t="picture",
+            raw_xml=raw_xml,
         )
         self.image_part = image_part
         self.alt_text = alt_text

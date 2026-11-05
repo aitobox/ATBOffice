@@ -165,6 +165,8 @@ SCHEMA_ORDERS: dict[str, list[str]] = {
         "eastAsianLayout",
         "specVanish",
         "oMath",
+        "ins",
+        "del",
         "rPrChange",
     ],
     # Common PresentationML Shape: p:CT_Shape

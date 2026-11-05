@@ -6,6 +6,8 @@ import io
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from typing import Any
+
 from atboffice.modules.writer.models.document import (
     BookmarkEndItem,
     BookmarkStartItem,
@@ -18,12 +20,15 @@ from atboffice.modules.writer.models.document import (
     FieldSeparateItem,
     Paragraph,
     RunItem,
+    SdtEndItem,
+    SdtStartItem,
     Story,
     SymbolItem,
     TabItem,
     Table,
     TextItem,
 )
+from atboffice.modules.writer.models.drawing import PictureItem
 from atboffice.modules.writer.models.omml import OfficeMathItem, serialize_omml
 from atboffice.modules.writer.models.properties import (
     ParagraphProperties,
@@ -192,17 +197,43 @@ class DocxWriter:
     def _build_document_and_rels(self) -> tuple[bytes, bytes, dict[str, str]]:
         """Build <w:document> XML and word/_rels/document.xml.rels XML."""
         self.rels = []
-        self._next_r_id = 1
+        existing_styles_id = None
+        existing_settings_id = None
+        existing_fonts_id = None
 
-        # Add standard relationships
-        r_styles = self._gen_r_id()
-        self.rels.append(Relationship(id=r_styles, type=REL_STYLES, target="styles.xml"))
+        if self.source_pkg is not None:
+            for r in self.source_pkg.get_relationships("word/document.xml"):
+                if r.type == REL_STYLES:
+                    existing_styles_id = r.id
+                elif r.type == REL_SETTINGS:
+                    existing_settings_id = r.id
+                elif r.type == REL_FONTS:
+                    existing_fonts_id = r.id
+                # Skip existing header/footer rels as they will be re-added
+                if r.type in (REL_HEADER, REL_FOOTER):
+                    continue
+                self.rels.append(r)
 
-        r_settings = self._gen_r_id()
-        self.rels.append(Relationship(id=r_settings, type=REL_SETTINGS, target="settings.xml"))
+        max_id = 0
+        for r in self.rels:
+            if r.id.startswith("rId") and r.id[3:].isdigit():
+                max_id = max(max_id, int(r.id[3:]))
+        self._next_r_id = max_id + 1
 
-        r_fonts = self._gen_r_id()
-        self.rels.append(Relationship(id=r_fonts, type=REL_FONTS, target="fontTable.xml"))
+        # Add or preserve standard relationships
+        if existing_styles_id:
+            r_styles = existing_styles_id
+        else:
+            r_styles = self._gen_r_id()
+            self.rels.append(Relationship(id=r_styles, type=REL_STYLES, target="styles.xml"))
+
+        if not existing_settings_id:
+            r_settings = self._gen_r_id()
+            self.rels.append(Relationship(id=r_settings, type=REL_SETTINGS, target="settings.xml"))
+
+        if not existing_fonts_id:
+            r_fonts = self._gen_r_id()
+            self.rels.append(Relationship(id=r_fonts, type=REL_FONTS, target="fontTable.xml"))
 
         # Map header/footer relationships
         hf_id_map: dict[str, str] = {}
@@ -221,14 +252,8 @@ class DocxWriter:
         root = ET.Element(_w("document"))
         body = ET.SubElement(root, _w("body"))
 
-        # Serialize main story blocks
-        for block in self.doc.main.blocks:
-            if isinstance(block, Paragraph):
-                p_elem = self._serialize_paragraph(block, hf_id_map)
-                body.append(p_elem)
-            elif isinstance(block, Table):
-                tbl_elem = self._serialize_table(block, hf_id_map)
-                body.append(tbl_elem)
+        # Serialize main story blocks with block SDT wrapping
+        self._serialize_block_sequence(body, self.doc.main.blocks, hf_id_map)
 
         # Trailing section properties
         sect_elem = self._serialize_sect_pr(self.doc.sect, hf_id_map)
@@ -254,6 +279,52 @@ class DocxWriter:
         rels_xml = serialize_xml(rels_elem, standalone=True)
         return doc_xml, rels_xml, hf_id_map
 
+    def _serialize_block_sequence(
+        self,
+        container: ET.Element,
+        blocks: list[Paragraph | Table],
+        hf_id_map: dict[str, str] | None = None,
+    ) -> None:
+        """Serialize a sequence of Paragraph/Table blocks with stack-based SDT wrapping."""
+        # Stack entries: (sdt_elem, current_content_elem, control_dict)
+        stack: list[tuple[ET.Element | None, ET.Element, dict[str, Any] | None]] = [
+            (None, container, None)
+        ]
+
+        for block in blocks:
+            pr = block.p_pr if isinstance(block, Paragraph) else block.tbl_pr
+            for ctrl in getattr(pr, "sdts", []):
+                shell_xml = ctrl.get("shell_xml")
+                if shell_xml:
+                    try:
+                        sdt_elem = ET.fromstring(shell_xml)
+                        sc = sdt_elem.find(f"{{{NS_W}}}sdtContent")
+                        if sc is None:
+                            sc = ET.SubElement(sdt_elem, _w("sdtContent"))
+                        stack.append((sdt_elem, sc, ctrl))
+                    except Exception:
+                        pass
+
+            _, curr_content, _ = stack[-1]
+
+            if isinstance(block, Table):
+                tbl_elem = self._serialize_table(block, hf_id_map)
+                curr_content.append(tbl_elem)
+            else:
+                p_elem = self._serialize_paragraph(block, hf_id_map)
+                curr_content.append(p_elem)
+
+            for key in getattr(pr, "sdte", []):
+                if len(stack) > 1 and stack[-1][2] and stack[-1][2].get("key") == key:
+                    finished_sdt, _, _ = stack.pop()
+                    if finished_sdt is not None:
+                        stack[-1][1].append(finished_sdt)
+
+        while len(stack) > 1:
+            finished_sdt, _, _ = stack.pop()
+            if finished_sdt is not None:
+                stack[-1][1].append(finished_sdt)
+
     def _serialize_paragraph(
         self, p: Paragraph, hf_id_map: dict[str, str] | None = None
     ) -> ET.Element:
@@ -262,7 +333,7 @@ class DocxWriter:
 
         # Paragraph Properties
         p_pr_elem = ET.Element(_w("pPr"))
-        self._populate_p_pr(p_pr_elem, p.p_pr)
+        self._populate_p_pr(p_pr_elem, p.p_pr, p)
 
         if p.sect is not None:
             sect_elem = self._serialize_sect_pr(p.sect, hf_id_map)
@@ -274,12 +345,13 @@ class DocxWriter:
             p_elem.append(p_pr_elem)
 
         # Runs & Inline Items
-        for item in p.runs:
-            self._serialize_run_item(p_elem, item)
+        self._serialize_runs_sequence(p_elem, p.runs)
 
         return p_elem
 
-    def _populate_p_pr(self, p_pr_elem: ET.Element, p_pr: ParagraphProperties) -> None:
+    def _populate_p_pr(
+        self, p_pr_elem: ET.Element, p_pr: ParagraphProperties, p: Paragraph | None = None
+    ) -> None:
         """Add child elements to <w:pPr>."""
         if p_pr.style and p_pr.style != "Normal":
             p_style = ET.SubElement(p_pr_elem, _w("pStyle"))
@@ -354,61 +426,203 @@ class DocxWriter:
             lvl_elem = ET.SubElement(p_pr_elem, _w("outlineLvl"))
             lvl_elem.set(_w("val"), str(p_pr.outline_level))
 
-    def _serialize_run_item(self, p_elem: ET.Element, item: RunItem) -> None:
-        """Serialize a RunItem into corresponding XML elements under <w:p>."""
+        # Check for paragraph mark styling and revisions in pPr/rPr
+        mark_ins = getattr(p, "mark_ins", None) if p else None
+        mark_del = getattr(p, "mark_del", None) if p else None
+        p_r_pr = getattr(p, "r_pr", None) if p else None
+        has_r_pr = (
+            mark_ins is not None
+            or mark_del is not None
+            or (
+                p_r_pr
+                and (
+                    p_r_pr.style
+                    or p_r_pr.font != "Times New Roman"
+                    or p_r_pr.b
+                    or p_r_pr.i
+                    or p_r_pr.color
+                )
+            )
+        )
+        if has_r_pr:
+            r_pr_elem = ET.Element(_w("rPr"))
+            if mark_ins is not None:
+                ins = ET.SubElement(r_pr_elem, _w("ins"))
+                ins.set(_w("id"), str(mark_ins.id))
+                ins.set(_w("author"), mark_ins.author)
+                if mark_ins.date:
+                    ins.set(_w("date"), mark_ins.date)
+            if mark_del is not None:
+                del_elem = ET.SubElement(r_pr_elem, _w("del"))
+                del_elem.set(_w("id"), str(mark_del.id))
+                del_elem.set(_w("author"), mark_del.author)
+                if mark_del.date:
+                    del_elem.set(_w("date"), mark_del.date)
+            if p_r_pr:
+                self._populate_r_pr(r_pr_elem, p_r_pr)
+            p_pr_elem.append(r_pr_elem)
+
+    def _serialize_runs_sequence(self, p_elem: ET.Element, runs: list[RunItem]) -> None:
+        """Serialize inline runs handling inline SDTs, links, and revisions."""
+        i = 0
+        while i < len(runs):
+            item = runs[i]
+            # 1. Inline SDT Start
+            if getattr(item, "t", "") == "sdts" or isinstance(item, SdtStartItem):
+                ctrl = getattr(item, "control", {}) or {}
+                key = ctrl.get("key")
+                end_idx = -1
+                for j in range(i + 1, len(runs)):
+                    if (
+                        getattr(runs[j], "t", "") == "sdte" or isinstance(runs[j], SdtEndItem)
+                    ) and getattr(runs[j], "key", "") == key:
+                        end_idx = j
+                        break
+                if end_idx != -1:
+                    shell_xml = ctrl.get("shell_xml")
+                    if shell_xml:
+                        try:
+                            sdt_elem = ET.fromstring(shell_xml)
+                            sc = sdt_elem.find(f"{{{NS_W}}}sdtContent")
+                            if sc is None:
+                                sc = ET.SubElement(sdt_elem, _w("sdtContent"))
+                            self._serialize_runs_sequence(sc, runs[i + 1 : end_idx])
+                            p_elem.append(sdt_elem)
+                            i = end_idx + 1
+                            continue
+                        except Exception:
+                            pass
+                i += 1
+                continue
+
+            if getattr(item, "t", "") == "sdte" or isinstance(item, SdtEndItem):
+                i += 1
+                continue
+
+            # 2. Check for PictureItem with raw_xml
+            if isinstance(item, PictureItem) and item.raw_xml:
+                try:
+                    elem = ET.fromstring(item.raw_xml)
+                    if elem.tag.endswith("AlternateContent") or elem.tag.endswith("drawing"):
+                        r_elem = ET.SubElement(p_elem, _w("r"))
+                        r_elem.append(elem)
+                    else:
+                        p_elem.append(elem)
+                    i += 1
+                    continue
+                except Exception:
+                    pass
+
+            # 3. Group consecutive items sharing link, ins, del_rev
+            link_info = getattr(item.r_pr, "link", None) if hasattr(item, "r_pr") else None
+            ins_info = getattr(item.r_pr, "ins", None) if hasattr(item, "r_pr") else None
+            del_info = getattr(item.r_pr, "del_rev", None) if hasattr(item, "r_pr") else None
+
+            j = i + 1
+            if link_info or ins_info or del_info:
+                while j < len(runs):
+                    next_item = runs[j]
+                    if getattr(next_item, "t", "") in ("sdts", "sdte") or isinstance(
+                        next_item, (SdtStartItem, SdtEndItem)
+                    ):
+                        break
+                    if isinstance(next_item, PictureItem) and next_item.raw_xml:
+                        break
+                    n_r = getattr(next_item, "r_pr", None)
+                    n_link = getattr(n_r, "link", None) if n_r else None
+                    n_ins = getattr(n_r, "ins", None) if n_r else None
+                    n_del = getattr(n_r, "del_rev", None) if n_r else None
+                    if n_link != link_info or n_ins != ins_info or n_del != del_info:
+                        break
+                    j += 1
+
+            target_container = p_elem
+            if link_info and isinstance(link_info, dict):
+                url = link_info.get("url", "")
+                anchor = link_info.get("anchor", "")
+                h_elem = ET.SubElement(target_container, _w("hyperlink"))
+                if url:
+                    r_id = self._gen_r_id()
+                    self.rels.append(
+                        Relationship(
+                            id=r_id, type=REL_HYPERLINK, target=url, target_mode="External"
+                        )
+                    )
+                    h_elem.set(_r("id"), r_id)
+                if anchor:
+                    h_elem.set(_w("anchor"), anchor)
+                target_container = h_elem
+
+            if ins_info:
+                ins_elem = ET.SubElement(target_container, _w("ins"))
+                ins_elem.set(_w("id"), str(ins_info.id))
+                ins_elem.set(_w("author"), ins_info.author)
+                if ins_info.date:
+                    ins_elem.set(_w("date"), ins_info.date)
+                target_container = ins_elem
+            elif del_info:
+                del_elem = ET.SubElement(target_container, _w("del"))
+                del_elem.set(_w("id"), str(del_info.id))
+                del_elem.set(_w("author"), del_info.author)
+                if del_info.date:
+                    del_elem.set(_w("date"), del_info.date)
+                target_container = del_elem
+
+            for k in range(i, j):
+                self._serialize_run_item(target_container, runs[k], is_del=bool(del_info))
+
+            i = j
+
+    def _serialize_run_item(
+        self, parent: ET.Element, item: RunItem, is_del: bool = False
+    ) -> None:
+        """Serialize a RunItem into corresponding XML elements under <w:p> or wrapper."""
         if isinstance(item, OfficeMathItem):
             math_elem = serialize_omml(item)
-            p_elem.append(math_elem)
+            parent.append(math_elem)
             return
 
         if isinstance(item, BookmarkStartItem):
-            bm_s = ET.SubElement(p_elem, _w("bookmarkStart"))
+            bm_s = ET.SubElement(parent, _w("bookmarkStart"))
             bm_s.set(_w("id"), str(item.bookmark_id))
             bm_s.set(_w("name"), item.name)
             return
 
         if isinstance(item, BookmarkEndItem):
-            bm_e = ET.SubElement(p_elem, _w("bookmarkEnd"))
+            bm_e = ET.SubElement(parent, _w("bookmarkEnd"))
             bm_e.set(_w("id"), str(item.bookmark_id))
             return
 
         if isinstance(item, CommentRangeStart):
-            cm_s = ET.SubElement(p_elem, _w("commentRangeStart"))
+            cm_s = ET.SubElement(parent, _w("commentRangeStart"))
             cm_s.set(_w("id"), str(item.comment_id))
             return
 
         if isinstance(item, CommentRangeEnd):
-            cm_e = ET.SubElement(p_elem, _w("commentRangeEnd"))
+            cm_e = ET.SubElement(parent, _w("commentRangeEnd"))
             cm_e.set(_w("id"), str(item.comment_id))
             return
 
-        # Check if item is inside a hyperlink
-        link_info = getattr(item.r_pr, "link", None)
-        parent = p_elem
-        if link_info and isinstance(link_info, dict):
-            url = link_info.get("url", "")
-            anchor = link_info.get("anchor", "")
-            h_elem = ET.SubElement(p_elem, _w("hyperlink"))
-            if url:
-                r_id = self._gen_r_id()
-                self.rels.append(
-                    Relationship(id=r_id, type=REL_HYPERLINK, target=url, target_mode="External")
-                )
-                h_elem.set(_r("id"), r_id)
-            if anchor:
-                h_elem.set(_w("anchor"), anchor)
-            parent = h_elem
+        if isinstance(item, PictureItem):
+            if item.raw_xml:
+                try:
+                    parent.append(ET.fromstring(item.raw_xml))
+                    return
+                except Exception:
+                    pass
 
         r_elem = ET.SubElement(parent, _w("r"))
         r_pr_elem = ET.Element(_w("rPr"))
-        self._populate_r_pr(r_pr_elem, item.r_pr)
+        if hasattr(item, "r_pr") and item.r_pr:
+            self._populate_r_pr(r_pr_elem, item.r_pr)
 
         if len(r_pr_elem) > 0:
             enforce_schema_order(r_pr_elem, "wordprocessingml_rpr")
             r_elem.append(r_pr_elem)
 
         if isinstance(item, TextItem):
-            t_elem = ET.SubElement(r_elem, _w("t"))
+            t_tag = _w("delText") if is_del else _w("t")
+            t_elem = ET.SubElement(r_elem, t_tag)
             text = item.text
             t_elem.text = text
             if text.startswith(" ") or text.endswith(" ") or "  " in text or "\n" in text:
@@ -550,9 +764,25 @@ class DocxWriter:
                 col_elem.set(_w("w"), str(pt_to_dxa(col_w)))
 
         # Rows
+        row_stack: list[tuple[ET.Element | None, ET.Element, dict[str, Any] | None]] = [
+            (None, tbl_elem, None)
+        ]
         for row in tbl.rows:
-            tr_elem = ET.SubElement(tbl_elem, _w("tr"))
             tr_pr = row.tr_pr
+            for ctrl in getattr(tr_pr, "sdts", []):
+                shell_xml = ctrl.get("shell_xml")
+                if shell_xml:
+                    try:
+                        sdt_elem = ET.fromstring(shell_xml)
+                        sc = sdt_elem.find(f"{{{NS_W}}}sdtContent")
+                        if sc is None:
+                            sc = ET.SubElement(sdt_elem, _w("sdtContent"))
+                        row_stack.append((sdt_elem, sc, ctrl))
+                    except Exception:
+                        pass
+
+            _, curr_row_container, _ = row_stack[-1]
+            tr_elem = ET.SubElement(curr_row_container, _w("tr"))
             if tr_pr.h is not None or tr_pr.tbl_header or tr_pr.cant_split:
                 tr_pr_elem = ET.SubElement(tr_elem, _w("trPr"))
                 if tr_pr.h is not None:
@@ -565,9 +795,25 @@ class DocxWriter:
                     ET.SubElement(tr_pr_elem, _w("cantSplit"))
 
             # Cells
+            cell_stack: list[tuple[ET.Element | None, ET.Element, dict[str, Any] | None]] = [
+                (None, tr_elem, None)
+            ]
             for cell in row.cells:
-                tc_elem = ET.SubElement(tr_elem, _w("tc"))
                 tc_pr = cell.tc_pr
+                for ctrl in getattr(tc_pr, "sdts", []):
+                    shell_xml = ctrl.get("shell_xml")
+                    if shell_xml:
+                        try:
+                            sdt_elem = ET.fromstring(shell_xml)
+                            sc = sdt_elem.find(f"{{{NS_W}}}sdtContent")
+                            if sc is None:
+                                sc = ET.SubElement(sdt_elem, _w("sdtContent"))
+                            cell_stack.append((sdt_elem, sc, ctrl))
+                        except Exception:
+                            pass
+
+                _, curr_cell_container, _ = cell_stack[-1]
+                tc_elem = ET.SubElement(curr_cell_container, _w("tc"))
                 tc_pr_elem = ET.SubElement(tc_elem, _w("tcPr"))
 
                 if tc_pr.w:
@@ -595,11 +841,37 @@ class DocxWriter:
                     shd.set(_w("fill"), _clean_hex(tc_pr.shd.fill) or "auto")
 
                 # Cell Blocks
-                for c_block in cell.blocks:
-                    if isinstance(c_block, Paragraph):
-                        tc_elem.append(self._serialize_paragraph(c_block, hf_id_map))
-                    elif isinstance(c_block, Table):
-                        tc_elem.append(self._serialize_table(c_block, hf_id_map))
+                self._serialize_block_sequence(tc_elem, cell.blocks, hf_id_map)
+
+                for key in getattr(tc_pr, "sdte", []):
+                    if (
+                        len(cell_stack) > 1
+                        and cell_stack[-1][2]
+                        and cell_stack[-1][2].get("key") == key
+                    ):
+                        finished_sdt, _, _ = cell_stack.pop()
+                        if finished_sdt is not None:
+                            cell_stack[-1][1].append(finished_sdt)
+
+            while len(cell_stack) > 1:
+                finished_sdt, _, _ = cell_stack.pop()
+                if finished_sdt is not None:
+                    cell_stack[-1][1].append(finished_sdt)
+
+            for key in getattr(tr_pr, "sdte", []):
+                if (
+                    len(row_stack) > 1
+                    and row_stack[-1][2]
+                    and row_stack[-1][2].get("key") == key
+                ):
+                    finished_sdt, _, _ = row_stack.pop()
+                    if finished_sdt is not None:
+                        row_stack[-1][1].append(finished_sdt)
+
+        while len(row_stack) > 1:
+            finished_sdt, _, _ = row_stack.pop()
+            if finished_sdt is not None:
+                row_stack[-1][1].append(finished_sdt)
 
         return tbl_elem
 
@@ -662,11 +934,7 @@ class DocxWriter:
         root_tag = "hdr" if story.kind == "header" else "ftr"
         root = ET.Element(_w(root_tag))
 
-        for block in story.blocks:
-            if isinstance(block, Paragraph):
-                root.append(self._serialize_paragraph(block))
-            elif isinstance(block, Table):
-                root.append(self._serialize_table(block))
+        self._serialize_block_sequence(root, story.blocks, None)
 
         return serialize_xml(root, standalone=True)
 
