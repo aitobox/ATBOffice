@@ -206,6 +206,7 @@ class ParagraphProperties:
     outline_level: int | None = None
     tabs: list[TabStop] = field(default_factory=list)
     num: NumberingRef | None = None
+    borders: dict[str, Any] = field(default_factory=dict)
     chg: RevisionStamp | None = None
 
     @property
@@ -328,6 +329,7 @@ class BorderProperties:
     val: str = "none"  # "none", "single", "double", etc.
     sz: float = 0.5  # pt
     color: str = "auto"
+    space: float = 0.0
 
 
 @dataclass

@@ -191,6 +191,8 @@ class TemplateRegistry:
                 safe_tr("配料表与制作步骤卡片"),
             ),
         ]
+        from atboffice.modules.writer.templates import build_quire_template
+
         for tid, name, cat, icon, desc in quire_items:
             self.register(
                 TemplateInfo(
@@ -200,6 +202,7 @@ class TemplateRegistry:
                     category=cat,
                     icon=icon,
                     description=desc,
+                    builder=lambda win=None, target_id=tid: build_quire_template(target_id),
                 )
             )
 

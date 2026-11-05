@@ -576,3 +576,7 @@ def sect_for(doc: Document, p: Paragraph) -> SectionProperties:
         if inf["i"] < s["to"] or s["end_para"] is None:
             return s["sect"]
     return doc.sect
+
+
+DocumentModel = Document
+
