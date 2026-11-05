@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import datetime
-
-from atboffice.modules.spreadsheet.calc.errors import DIV0, NA, VALUE, ExcelError
+from atboffice.modules.spreadsheet.calc.errors import DIV0, ExcelError
 from atboffice.modules.spreadsheet.io.xmlss_io import (
     from_r1c1,
     read_xmlss,
@@ -14,7 +12,6 @@ from atboffice.modules.spreadsheet.io.xmlss_io import (
 )
 from atboffice.modules.spreadsheet.models.sheet_model import (
     BorderStyle,
-    CellComment,
     CellData,
     SheetDataModel,
 )
@@ -178,9 +175,17 @@ def test_geometry_row_col_merges_fidelity():
     assert loaded_sheet.get_cell_value(0, 0) == "Merged Header"
     assert loaded_sheet.is_merged(0, 0) is True
     assert loaded_sheet.get_merge_range(0, 0) == (0, 0, 0, 1)
-    assert loaded_sheet.geometry.col_size(0) == 120 or abs(loaded_sheet.geometry.col_size(0) - 120) <= 2
-    assert loaded_sheet.geometry.col_size(1) == 200 or abs(loaded_sheet.geometry.col_size(1) - 200) <= 2
-    assert loaded_sheet.geometry.row_size(0) == 40 or abs(loaded_sheet.geometry.row_size(0) - 40) <= 2
+    assert (
+        loaded_sheet.geometry.col_size(0) == 120
+        or abs(loaded_sheet.geometry.col_size(0) - 120) <= 2
+    )
+    assert (
+        loaded_sheet.geometry.col_size(1) == 200
+        or abs(loaded_sheet.geometry.col_size(1) - 200) <= 2
+    )
+    assert (
+        loaded_sheet.geometry.row_size(0) == 40 or abs(loaded_sheet.geometry.row_size(0) - 40) <= 2
+    )
 
 
 def test_styles_borders_fills_fonts_fidelity():

@@ -8,7 +8,7 @@ import re
 import xml.etree.ElementTree as ET
 from typing import Any
 
-from atboffice.modules.spreadsheet.calc.coercion import date_to_serial, serial_to_parts
+from atboffice.modules.spreadsheet.calc.coercion import date_to_serial
 from atboffice.modules.spreadsheet.calc.errors import ALL_ERRORS, ExcelError
 from atboffice.modules.spreadsheet.calc.references import (
     col_index,
@@ -17,7 +17,6 @@ from atboffice.modules.spreadsheet.calc.references import (
 from atboffice.modules.spreadsheet.io.csv_io import decode_bytes
 from atboffice.modules.spreadsheet.models.sheet_model import (
     BorderStyle,
-    CellComment,
     CellData,
     SheetDataModel,
 )
@@ -50,9 +49,7 @@ def from_r1c1(text: str, r: int, c: int) -> str:
         r_str = str(max(0, rr[0]) + 1)
         return f"{c_abs}{c_str}{r_abs}{r_str}"
 
-    r1c1_re = re.compile(
-        r"^(?:[Rr](\[-?\d+\]|\d+)?)?(?:[Cc](\[-?\d+\]|\d+)?)?"
-    )
+    r1c1_re = re.compile(r"^(?:[Rr](\[-?\d+\]|\d+)?)?(?:[Cc](\[-?\d+\]|\d+)?)?")
 
     while i < n:
         ch = s[i]
@@ -197,8 +194,7 @@ def to_r1c1(formula: str, r: int, c: int) -> str:
         tokens.append("".join(curr_seg))
 
     out_parts: list[str] = [
-        tok if tok.startswith('"') else ref_pat.sub(replace_ref, tok)
-        for tok in tokens
+        tok if tok.startswith('"') else ref_pat.sub(replace_ref, tok) for tok in tokens
     ]
     return "=" + "".join(out_parts)
 
@@ -538,11 +534,7 @@ def read_xmlss(
                             raw_text = d_el.text or ""
                             if d_type == "Number":
                                 try:
-                                    val = (
-                                        int(raw_text)
-                                        if "." not in raw_text
-                                        else float(raw_text)
-                                    )
+                                    val = int(raw_text) if "." not in raw_text else float(raw_text)
                                 except ValueError:
                                     val = raw_text
                             elif d_type == "Boolean":
@@ -687,7 +679,9 @@ def write_xmlss(
     for sh in sheets:
         for cell in sh.cells.values():
             bt = (cell.border_top.style, cell.border_top.color) if cell.border_top else None
-            bb = (cell.border_bottom.style, cell.border_bottom.color) if cell.border_bottom else None
+            bb = (
+                (cell.border_bottom.style, cell.border_bottom.color) if cell.border_bottom else None
+            )
             bl = (cell.border_left.style, cell.border_left.color) if cell.border_left else None
             br = (cell.border_right.style, cell.border_right.color) if cell.border_right else None
             key = (
@@ -765,9 +759,11 @@ def write_xmlss(
                                 weight = 0
 
                             col_str = f' ss:Color="{b.color}"' if b.color else ""
-                            s_xml.append(
-                                f'    <Border ss:Position="{pos}" ss:LineStyle="{line_style}" ss:Weight="{weight}"{col_str}/>'
+                            b_tag = (
+                                f'    <Border ss:Position="{pos}" ss:LineStyle="{line_style}" '
+                                f'ss:Weight="{weight}"{col_str}/>'
                             )
+                            s_xml.append(b_tag)
                     s_xml.append("   </Borders>")
 
                 # Font
@@ -779,13 +775,19 @@ def write_xmlss(
                 if cell.italic:
                     font_attrs.append('ss:Italic="1"')
                 if cell.underline:
-                    u_map = {"double": "Double", "singleaccounting": "SingleAccounting", "doubleaccounting": "DoubleAccounting"}
+                    u_map = {
+                        "double": "Double",
+                        "singleaccounting": "SingleAccounting",
+                        "doubleaccounting": "DoubleAccounting",
+                    }
                     u_val = u_map.get(cell.underline_style.lower(), "Single")
                     font_attrs.append(f'ss:Underline="{u_val}"')
                 if cell.strike:
                     font_attrs.append('ss:StrikeThrough="1"')
                 if cell.vert_align:
-                    va_val = "Superscript" if cell.vert_align.lower() == "superscript" else "Subscript"
+                    va_val = (
+                        "Superscript" if cell.vert_align.lower() == "superscript" else "Subscript"
+                    )
                     font_attrs.append(f'ss:VerticalAlign="{va_val}"')
                 if cell.fg_color:
                     font_attrs.append(f'ss:Color="{cell.fg_color}"')
@@ -804,9 +806,7 @@ def write_xmlss(
 
                 # NumberFormat
                 if cell.format_code and cell.format_code != "General":
-                    s_xml.append(
-                        f'   <NumberFormat ss:Format="{html.escape(cell.format_code)}"/>'
-                    )
+                    s_xml.append(f'   <NumberFormat ss:Format="{html.escape(cell.format_code)}"/>')
 
                 s_xml.append("  </Style>")
                 style_defs.append("\n".join(s_xml))
@@ -816,7 +816,7 @@ def write_xmlss(
     out.append(" </Styles>")
 
     # ExcelWorkbook active sheet
-    out.append(" <ExcelWorkbook xmlns=\"urn:schemas-microsoft-com:office:excel\">")
+    out.append(' <ExcelWorkbook xmlns="urn:schemas-microsoft-com:office:excel">')
     out.append(f"  <ActiveSheet>{active_idx}</ActiveSheet>")
     out.append(" </ExcelWorkbook>")
 
@@ -906,9 +906,17 @@ def write_xmlss(
                     last_c = c
 
                 bt = (cell.border_top.style, cell.border_top.color) if cell.border_top else None
-                bb = (cell.border_bottom.style, cell.border_bottom.color) if cell.border_bottom else None
+                bb = (
+                    (cell.border_bottom.style, cell.border_bottom.color)
+                    if cell.border_bottom
+                    else None
+                )
                 bl = (cell.border_left.style, cell.border_left.color) if cell.border_left else None
-                br = (cell.border_right.style, cell.border_right.color) if cell.border_right else None
+                br = (
+                    (cell.border_right.style, cell.border_right.color)
+                    if cell.border_right
+                    else None
+                )
                 key = (
                     cell.bold,
                     cell.italic,
@@ -960,7 +968,8 @@ def write_xmlss(
                         else:
                             d_val = f"{val.isoformat()}T00:00:00.000"
                     elif isinstance(val, ExcelError) or (
-                        isinstance(val, str) and (val in [str(e) for e in ALL_ERRORS] or val.startswith("#"))
+                        isinstance(val, str)
+                        and (val in [str(e) for e in ALL_ERRORS] or val.startswith("#"))
                     ):
                         d_type = "Error"
                         d_val = html.escape(str(val))
@@ -976,7 +985,8 @@ def write_xmlss(
                 if cm:
                     auth_attr = f' ss:Author="{html.escape(cm.author)}"' if cm.author else ""
                     show_attr = ' ss:ShowAlways="1"' if cm.visible else ""
-                    comment_str = f'<Comment{auth_attr}{show_attr}><Data>{html.escape(cm.text)}</Data></Comment>'
+                    esc_cm = html.escape(cm.text)
+                    comment_str = f"<Comment{auth_attr}{show_attr}><Data>{esc_cm}</Data></Comment>"
 
                 if data_str or comment_str:
                     out.append(f"    <Cell{cell_attr_str}>{data_str}{comment_str}</Cell>")
