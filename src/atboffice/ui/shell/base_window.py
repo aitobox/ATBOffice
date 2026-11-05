@@ -800,10 +800,25 @@ class BaseOfficeWindow(QMainWindow):
             self.open_file_dialog()
         elif action == "new_blank":
             self.new_file()
+        elif action == "templates":
+            self.show_templates_dialog()
         elif action == "help":
             self.show_help()
         elif action.startswith("search:"):
             self.show_help()
+
+    def show_templates_dialog(self) -> int:
+        """Open the Templates dialog to choose and instantiate a template."""
+        from atboffice.ui.dialogs.templates_dialog import TemplatesDialog
+
+        app_name = getattr(self, "app_name", "").lower()
+        dlg = TemplatesDialog(app=app_name if app_name else None, parent=self)
+        res = dlg.exec()
+        if res == TemplatesDialog.DialogCode.Accepted:
+            selected_id = dlg.get_selected_template_id()
+            if selected_id:
+                self.load_template(selected_id)
+        return res
 
     def show_document_properties_dialog(self) -> int:
         """Open 5-tab Document Properties dialog."""
