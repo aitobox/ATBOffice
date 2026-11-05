@@ -662,6 +662,23 @@ class QuireWindow(BaseOfficeWindow):
             "所有文件 (*.*)"
         )
 
+    def _apply_template_result(self, result: Any) -> None:
+        """Apply generated template Document model to Quire canvas."""
+        if result is not None:
+            from atboffice.modules.writer.models.document import Document
+
+            if isinstance(result, Document):
+                self.writer_view.canvas_view.set_document(result)
+
+    def new_file(self) -> bool:
+        """Create a new untitled blank document on canvas."""
+        if not super().new_file():
+            return False
+        from atboffice.modules.writer.models.document import Document
+
+        self.writer_view.canvas_view.set_document(Document())
+        return True
+
     def do_save(self, path: Path) -> bool:
         """Serialize Quire document to destination path."""
         path.parent.mkdir(parents=True, exist_ok=True)
