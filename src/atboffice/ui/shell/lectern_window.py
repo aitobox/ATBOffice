@@ -2016,6 +2016,23 @@ class LecternWindow(BaseOfficeWindow):
         """Return the bound Presentation model."""
         return self.presentation_view.presentation
 
+    def _apply_template_result(self, result: Any) -> None:
+        """Apply generated template Presentation model to presentation view."""
+        if result is not None:
+            from atboffice.modules.presentation.models.presentation import Presentation
+
+            if isinstance(result, Presentation):
+                self.presentation_view.load_presentation(result)
+
+    def new_file(self) -> bool:
+        """Create a new blank presentation document."""
+        if not super().new_file():
+            return False
+        from atboffice.modules.presentation.models.presentation import Presentation
+
+        self.presentation_view.load_presentation(Presentation.create_new())
+        return True
+
     def do_save(self, path: Path) -> bool:
         """Serialize Lectern presentation to destination path."""
         path.parent.mkdir(parents=True, exist_ok=True)

@@ -12,6 +12,7 @@ from atboffice.ui.dialogs.in_app_save_as_dialog import (
 )
 from atboffice.ui.dialogs.license_dialog import LicenseDialog
 from atboffice.ui.dialogs.options_dialog import OptionsDialog
+from atboffice.ui.dialogs.templates_dialog import TemplatesDialog
 from atboffice.ui.dialogs.theme_dialog import (
     SuiteThemeDialog,
     ThemeDialog,
@@ -29,6 +30,7 @@ __all__ = [
     "OptionsDialog",
     "SecurityOptionsDialog",
     "SuiteThemeDialog",
+    "TemplatesDialog",
     "ThemeDialog",
     "ThemesDialog",
     "UpdateDialog",

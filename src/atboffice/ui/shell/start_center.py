@@ -6,6 +6,7 @@ import logging
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import (
@@ -166,9 +167,11 @@ class TemplateCard(QFrame):
         icon_text: str,
         on_create: Callable[[], None],
         parent: QWidget | None = None,
+        template_id: str | None = None,
     ) -> None:
         super().__init__(parent)
         self.on_create = on_create
+        self.template_id = template_id
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedSize(180, 160)
@@ -593,18 +596,35 @@ class StartCenterWindow(BaseOfficeWindow):
                     safe_tr("16:9 宽屏演示"),
                     "📙",
                     lambda: WindowManager.get_instance().open_lectern(),
+                    None,
                 ),
                 (
-                    safe_tr("商业计划路演"),
-                    safe_tr("融资提案框架"),
-                    "💡",
+                    safe_tr("项目状态汇报"),
+                    safe_tr("蓝图设计风格进度报告"),
+                    "📈",
                     lambda: WindowManager.get_instance().open_lectern(template_id="status"),
+                    "status",
                 ),
                 (
-                    safe_tr("技术方案汇报"),
-                    safe_tr("架构与流程图示"),
-                    "📐",
+                    safe_tr("团队例会"),
+                    safe_tr("草地设计风格周会演示"),
+                    "👥",
                     lambda: WindowManager.get_instance().open_lectern(template_id="meeting"),
+                    "meeting",
+                ),
+                (
+                    safe_tr("课程教案"),
+                    safe_tr("羊皮纸风格课程讲义"),
+                    "🎓",
+                    lambda: WindowManager.get_instance().open_lectern(template_id="lesson"),
+                    "lesson",
+                ),
+                (
+                    safe_tr("活动通告"),
+                    safe_tr("暗夜风格活动宣讲"),
+                    "🎉",
+                    lambda: WindowManager.get_instance().open_lectern(template_id="event"),
+                    "event",
                 ),
             ],
         )
@@ -619,7 +639,7 @@ class StartCenterWindow(BaseOfficeWindow):
         self,
         container_layout: QVBoxLayout,
         title: str,
-        items: list[tuple[str, str, str, Callable[[], None]]],
+        items: list[tuple[Any, ...]],
     ) -> None:
         """Add a category row of template cards."""
         sec_title = QLabel(title)
@@ -632,8 +652,10 @@ class StartCenterWindow(BaseOfficeWindow):
 
         cards_row = QHBoxLayout()
         cards_row.setSpacing(14)
-        for card_title, subtitle, icon, callback in items:
-            card = TemplateCard(card_title, subtitle, icon, callback)
+        for item in items:
+            card_title, subtitle, icon, callback = item[0], item[1], item[2], item[3]
+            tid = item[4] if len(item) > 4 else None
+            card = TemplateCard(card_title, subtitle, icon, callback, template_id=tid)
             cards_row.addWidget(card)
         cards_row.addStretch(1)
         container_layout.addLayout(cards_row)

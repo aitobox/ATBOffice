@@ -311,6 +311,8 @@ class TemplateRegistry:
                 safe_tr("暗夜风格的活动宣讲与通告"),
             ),
         ]
+        from atboffice.modules.presentation.templates import build_lectern_template
+
         for tid, name, cat, icon, desc in lectern_items:
             self.register(
                 TemplateInfo(
@@ -320,5 +322,6 @@ class TemplateRegistry:
                     category=cat,
                     icon=icon,
                     description=desc,
+                    builder=lambda win=None, target_id=tid: build_lectern_template(target_id),
                 )
             )
