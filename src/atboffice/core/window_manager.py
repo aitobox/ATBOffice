@@ -163,11 +163,16 @@ class WindowManager(QObject):
         if was_active and not self._is_quitting and len(self._active_windows) == 0:
             self.show_start_center()
 
-    def open_quire(self, path: str | Path | None = None) -> BaseOfficeWindow:
+    def open_quire(
+        self,
+        path: str | Path | None = None,
+        template_id: str | None = None,
+    ) -> BaseOfficeWindow:
         """Open a Quire word-processing window.
 
         Args:
             path: Optional document file path to load.
+            template_id: Optional template ID to initialize the document with.
 
         Returns:
             The created and registered Quire window.
@@ -187,6 +192,9 @@ class WindowManager(QObject):
             win = BaseOfficeWindow()
             win.app_name = "Quire"
 
+        if template_id is not None:
+            win.load_template(template_id)
+
         if path is not None:
             resolved = Path(path).resolve()
             if win.current_file_path != resolved:
@@ -199,11 +207,16 @@ class WindowManager(QObject):
         win.activateWindow()
         return win
 
-    def open_ledger(self, path: str | Path | None = None) -> BaseOfficeWindow:
+    def open_ledger(
+        self,
+        path: str | Path | None = None,
+        template_id: str | None = None,
+    ) -> BaseOfficeWindow:
         """Open a Ledger spreadsheet window.
 
         Args:
             path: Optional spreadsheet file path to load.
+            template_id: Optional template ID to initialize the spreadsheet with.
 
         Returns:
             The created and registered Ledger window.
@@ -223,6 +236,9 @@ class WindowManager(QObject):
             win = BaseOfficeWindow()
             win.app_name = "Ledger"
 
+        if template_id is not None:
+            win.load_template(template_id)
+
         if path is not None:
             resolved = Path(path).resolve()
             if win.current_file_path != resolved:
@@ -235,11 +251,16 @@ class WindowManager(QObject):
         win.activateWindow()
         return win
 
-    def open_lectern(self, path: str | Path | None = None) -> BaseOfficeWindow:
+    def open_lectern(
+        self,
+        path: str | Path | None = None,
+        template_id: str | None = None,
+    ) -> BaseOfficeWindow:
         """Open a Lectern presentation window.
 
         Args:
             path: Optional presentation file path to load.
+            template_id: Optional template ID to initialize the presentation with.
 
         Returns:
             The created and registered Lectern window.
@@ -259,6 +280,9 @@ class WindowManager(QObject):
             win = BaseOfficeWindow()
             win.app_name = "Lectern"
 
+        if template_id is not None:
+            win.load_template(template_id)
+
         if path is not None:
             resolved = Path(path).resolve()
             if win.current_file_path != resolved:
@@ -270,6 +294,31 @@ class WindowManager(QObject):
         win.raise_()
         win.activateWindow()
         return win
+
+    def open_template(
+        self,
+        template_id: str,
+        app: str | None = None,
+    ) -> BaseOfficeWindow:
+        """Open a new document window initialized from a registered template.
+
+        Args:
+            template_id: Identifier of the template to open.
+            app: Optional application hint ('quire', 'ledger', 'lectern').
+
+        Returns:
+            The created and registered window initialized with the template.
+        """
+        from atboffice.core.templates import TemplateRegistry
+
+        reg = TemplateRegistry.get_instance()
+        tpl = reg.get(template_id, app=app)
+        target_app = tpl.app.lower() if tpl else (app.lower() if app else "quire")
+        if target_app == "ledger":
+            return self.open_ledger(template_id=template_id)
+        if target_app == "lectern":
+            return self.open_lectern(template_id=template_id)
+        return self.open_quire(template_id=template_id)
 
     def open_file_auto(self, path: str | Path) -> BaseOfficeWindow:
         """Open a file with appropriate office window based on its extension.

@@ -640,11 +640,13 @@ class QuireWindow(BaseOfficeWindow):
 
     def update_window_title(self) -> None:
         """Set window title according to active document and dirty flag."""
-        doc_name = (
-            self.current_file_path.name
-            if self.current_file_path is not None
-            else self.default_doc_name
-        )
+        if self.current_file_path is not None:
+            doc_name = self.current_file_path.name
+        elif getattr(self, "active_template", None) is not None:
+            tag = safe_tr("基于模板")
+            doc_name = f"{self.default_doc_name} [{tag}: {self.active_template.name}]"
+        else:
+            doc_name = self.default_doc_name
         self.setWindowTitle(f"{doc_name} — {self.app_name} [*]")
 
     def get_file_filter(self) -> str:

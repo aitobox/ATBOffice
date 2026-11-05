@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,9 @@ def safe_tr(text: str) -> str:
     return core_safe_tr(text)
 
 
+logger = logging.getLogger(__name__)
+
+
 class FileOpenCancelled(Exception):
     """Raised when user cleanly cancels file opening (e.g. password dialog)."""
 
@@ -37,6 +41,7 @@ class BaseOfficeWindow(QMainWindow):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.current_file_path: Path | None = None
+        self.active_template: Any | None = None
         self._is_modified: bool = False
         self.current_theme: str = "blue"
         self.task_pane_dock: Any | None = None
@@ -72,6 +77,10 @@ class BaseOfficeWindow(QMainWindow):
         """Set window title according to active document and dirty placeholder."""
         if self.current_file_path is not None:
             title = f"{self.current_file_path.name} — {self.app_name} [*]"
+        elif getattr(self, "active_template", None) is not None:
+            tag = safe_tr("基于模板")
+            tname = self.active_template.name
+            title = f"{self.default_doc_name} [{tag}: {tname}] — {self.app_name} [*]"
         else:
             title = f"{self.app_name} [*]"
         self.setWindowTitle(title)
@@ -115,9 +124,60 @@ class BaseOfficeWindow(QMainWindow):
         if not self.maybe_save_prompt():
             return False
         self.current_file_path = None
+        self.active_template = None
         self.set_modified(False)
         self.update_window_title()
         return True
+
+    def load_template(self, template_id: str) -> bool:
+        """Load a template by ID into the window as a new unsaved document.
+
+        Args:
+            template_id: Template identifier (e.g. 'letter', 'loan', 'status').
+
+        Returns:
+            True if template was found and loaded successfully, False otherwise.
+        """
+        if not self.maybe_save_prompt():
+            return False
+
+        from atboffice.core.templates import TemplateRegistry
+
+        reg = TemplateRegistry.get_instance()
+        tpl = reg.get(template_id, app=self.app_name.lower())
+        if tpl is None:
+            tpl = reg.get(template_id)
+
+        if tpl is None:
+            logger.warning(
+                "Template %r not found for %s", template_id, self.app_name
+            )
+            return False
+
+        # Reset path to None to guarantee this is an unsaved new document
+        self.current_file_path = None
+        self.active_template = tpl
+
+        # Invoke custom builder if present
+        if callable(tpl.builder):
+            try:
+                res = tpl.builder(self)
+                self._apply_template_result(res)
+            except Exception as exc:
+                logger.exception(
+                    "Error executing builder for template %s: %s", template_id, exc
+                )
+                self.active_template = None
+                return False
+
+        # Mark as modified so user is prompted to save/name the new document
+        self.set_modified(True)
+        self.update_window_title()
+        return True
+
+    def _apply_template_result(self, result: Any) -> None:
+        """Subclass hook to handle custom builder return values."""
+        pass
 
     def do_open(self, path: Path) -> bool:
         """Subclass hook to parse and load document from disk.
@@ -276,6 +336,7 @@ class BaseOfficeWindow(QMainWindow):
             return False
 
         self.current_file_path = path
+        self.active_template = None
         self.set_modified(False)
         self.update_window_title()
 
