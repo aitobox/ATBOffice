@@ -265,6 +265,8 @@ class TemplateRegistry:
                 safe_tr("每周时间日程安排与备忘"),
             ),
         ]
+        from atboffice.modules.spreadsheet.templates import build_ledger_template
+
         for tid, name, cat, icon, desc in ledger_items:
             self.register(
                 TemplateInfo(
@@ -274,6 +276,7 @@ class TemplateRegistry:
                     category=cat,
                     icon=icon,
                     description=desc,
+                    builder=lambda win=None, target_id=tid: build_ledger_template(target_id),
                 )
             )
 
