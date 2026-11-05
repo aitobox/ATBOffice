@@ -176,7 +176,7 @@ class WindowManager(QObject):
         try:
             from atboffice.ui.shell.quire_window import QuireWindow
 
-            win = QuireWindow()
+            win = QuireWindow(file_path=path)
         except (ImportError, Exception) as exc:
             logger.debug(
                 "QuireWindow not yet available, falling back to BaseOfficeWindow: %s",
@@ -189,8 +189,8 @@ class WindowManager(QObject):
 
         if path is not None:
             resolved = Path(path).resolve()
-            win.current_file_path = resolved
-            win.update_window_title()
+            if win.current_file_path != resolved:
+                win.open_file(path)
             self.recent_files.add_file(resolved, "quire")
 
         self.register_window(win)
@@ -212,7 +212,7 @@ class WindowManager(QObject):
         try:
             from atboffice.ui.shell.ledger_window import LedgerWindow
 
-            win = LedgerWindow()
+            win = LedgerWindow(file_path=path)
         except (ImportError, Exception) as exc:
             logger.debug(
                 "LedgerWindow not yet available, falling back to BaseOfficeWindow: %s",
@@ -225,8 +225,8 @@ class WindowManager(QObject):
 
         if path is not None:
             resolved = Path(path).resolve()
-            win.current_file_path = resolved
-            win.update_window_title()
+            if win.current_file_path != resolved:
+                win.open_file(path)
             self.recent_files.add_file(resolved, "ledger")
 
         self.register_window(win)
@@ -248,7 +248,7 @@ class WindowManager(QObject):
         try:
             from atboffice.ui.shell.lectern_window import LecternWindow
 
-            win = LecternWindow()
+            win = LecternWindow(file_path=path)
         except (ImportError, Exception) as exc:
             logger.debug(
                 "LecternWindow not yet available, falling back to BaseOfficeWindow: %s",
@@ -261,8 +261,8 @@ class WindowManager(QObject):
 
         if path is not None:
             resolved = Path(path).resolve()
-            win.current_file_path = resolved
-            win.update_window_title()
+            if win.current_file_path != resolved:
+                win.open_file(path)
             self.recent_files.add_file(resolved, "lectern")
 
         self.register_window(win)

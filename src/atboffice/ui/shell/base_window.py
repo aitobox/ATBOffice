@@ -201,7 +201,28 @@ class BaseOfficeWindow(QMainWindow):
         if not self.maybe_save_prompt():
             return False
 
-        path = Path(file_path).resolve()
+        raw_path = Path(file_path)
+        if raw_path.is_symlink() and not raw_path.exists():
+            target_str = ""
+            try:
+                target_str = str(os.readlink(file_path))
+            except OSError:
+                pass
+            if "atboffice_corpora" in target_str or "atboffice_corpora" in str(file_path):
+                QMessageBox.warning(
+                    self,
+                    safe_tr("测试语料未下载"),
+                    safe_tr(
+                        "该文件为测试语料库软链接，目标语料尚未下载。\n"
+                        "请先在终端运行以下命令下载语料包：\n"
+                        "python scripts/fetch_corpora.py\n\n"
+                        "链接路径：{path}\n"
+                        "目标路径：{target}"
+                    ).format(path=file_path, target=target_str or safe_tr("未知")),
+                )
+                return False
+
+        path = raw_path.resolve()
         if not path.exists():
             QMessageBox.critical(
                 self,

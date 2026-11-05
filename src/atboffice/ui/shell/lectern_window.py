@@ -85,9 +85,12 @@ class LecternWindow(BaseOfficeWindow):
 
         # 6. Load file or set initial document title
         if file_path is not None:
-            resolved = Path(file_path).resolve()
-            self.current_file_path = resolved
-            self.update_window_title()
+            p = Path(file_path)
+            if p.exists() or p.is_symlink():
+                self.open_file(p)
+            else:
+                self.current_file_path = p.resolve()
+                self.update_window_title()
         else:
             self.update_window_title()
 
@@ -2027,6 +2030,13 @@ class LecternWindow(BaseOfficeWindow):
         """Parse and load Lectern presentation from disk with transactional rollback."""
         from atboffice.ui.shell.base_window import FileOpenWarningHandled
         from atboffice.vfs.crypto import is_encrypted_package
+
+        if path.stat().st_size == 0:
+            from atboffice.modules.presentation.models.presentation import Presentation, Slide
+
+            candidate_pres = Presentation(slides=[Slide()])
+            self.presentation_view.load_presentation(candidate_pres)
+            return True
 
         ext = path.suffix.lower()
 

@@ -1,13 +1,13 @@
 """Tests for macOS safe cursor adaptation in GridViewport and ObjectLayer."""
 
 import sys
+
 import pytest
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.spreadsheet.models.sheet_model import (
-    CellData,
     SheetDataModel,
 )
 from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport, HitZone
