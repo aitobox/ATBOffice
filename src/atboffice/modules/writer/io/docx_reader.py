@@ -45,14 +45,12 @@ from atboffice.modules.writer.models.drawing import (
 from atboffice.modules.writer.models.omml import parse_omml
 from atboffice.modules.writer.models.properties import (
     BorderProperties,
-    CellProperties,
     ColumnsProperties,
     DocGridProperties,
     IndentProperties,
     NumberingRef,
     ParagraphProperties,
     RevisionStamp,
-    RowProperties,
     RunProperties,
     SectionProperties,
     ShadingProperties,

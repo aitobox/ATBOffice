@@ -1,7 +1,7 @@
 """Tests for DOCX Content Controls (SDT) and Revisions (Track Changes) Roundtrip Preservation.
 
 Tests issue #286:
-- poi__60316.docx: 27 content controls (sdt) in body and drawing textboxes must be preserved roundtrip.
+- poi__60316.docx: 27 content controls in body and drawing textboxes must be preserved.
 - libreoffice__tdf125881.docx: ins and del revision tags must be preserved roundtrip.
 - Relationships in word/_rels/document.xml.rels (customXml, etc.) must remain intact.
 - Lossy saving protection: cancellation aborts saving without file corruption.
@@ -10,11 +10,9 @@ Tests issue #286:
 from __future__ import annotations
 
 import io
-import zipfile
 import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
-
-import pytest
 
 from atboffice.modules.writer.io.docx_reader import read_docx
 from atboffice.modules.writer.io.docx_writer import write_docx
@@ -26,7 +24,6 @@ from atboffice.modules.writer.models.document import (
     TextItem,
 )
 from atboffice.modules.writer.models.properties import RevisionStamp, RunProperties
-
 
 CORPUS_POI = Path("tests/docs/word/docx/poi__60316.docx")
 CORPUS_TDF = Path("tests/docs/word/docx/libreoffice__tdf125881.docx")
@@ -54,11 +51,11 @@ def test_poi_60316_sdt_roundtrip_preservation():
         # Check relationships in document.xml.rels
         rels_xml = zf.read("word/_rels/document.xml.rels")
         rels_root = ET.fromstring(rels_xml)
+        rel_tag = "{http://schemas.openxmlformats.org/package/2006/relationships}Relationship"
         custom_rels = [
-            r for r in rels_root.iter("{http://schemas.openxmlformats.org/package/2006/relationships}Relationship")
-            if "customXml" in r.attrib.get("Type", "")
+            r for r in rels_root.iter(rel_tag) if "customXml" in r.attrib.get("Type", "")
         ]
-        assert len(custom_rels) >= 2, f"Expected customXml relationships preserved, got {len(custom_rels)}"
+        assert len(custom_rels) >= 2, f"Expected customXml rels preserved, got {len(custom_rels)}"
 
     # Re-open saved package and verify no crash
     doc2 = read_docx(io.BytesIO(out_bytes))
@@ -66,7 +63,7 @@ def test_poi_60316_sdt_roundtrip_preservation():
 
 
 def test_tdf125881_revisions_roundtrip_preservation():
-    """Verify that paragraph mark revisions (2 ins, 1 del) in libreoffice__tdf125881.docx are preserved."""
+    """Verify paragraph mark revisions in libreoffice__tdf125881.docx are preserved."""
     assert CORPUS_TDF.exists(), f"Missing corpus file: {CORPUS_TDF}"
 
     doc = read_docx(CORPUS_TDF)
@@ -97,7 +94,12 @@ def test_inline_sdt_synthetic_roundtrip():
         '<w:sdtPr><w:alias w:val="Test Control"/><w:tag w:val="TEST"/></w:sdtPr>'
         '<w:sdtContent></w:sdtContent></w:sdt>'
     )
-    control = {"key": "ctrl_test_1", "shell_xml": shell_xml, "alias": "Test Control", "tag": "TEST"}
+    control = {
+        "key": "ctrl_test_1",
+        "shell_xml": shell_xml,
+        "alias": "Test Control",
+        "tag": "TEST",
+    }
     p.runs.append(SdtStartItem(control=control))
     p.runs.append(TextItem(text="Hello Inside Control"))
     p.runs.append(SdtEndItem(key="ctrl_test_1"))
@@ -111,7 +113,8 @@ def test_inline_sdt_synthetic_roundtrip():
         assert sdt is not None
         alias = sdt.find(".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}alias")
         assert alias is not None
-        assert alias.attrib.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val") == "Test Control"
+        val_attr = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val"
+        assert alias.attrib.get(val_attr) == "Test Control"
 
 
 def test_run_revisions_synthetic_roundtrip():
@@ -132,15 +135,18 @@ def test_run_revisions_synthetic_roundtrip():
         ins = root.find(".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}ins")
         del_elem = root.find(".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}del")
         assert ins is not None
-        assert ins.attrib.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}author") == "Alice"
+        author_attr = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}author"
+        assert ins.attrib.get(author_attr) == "Alice"
         assert del_elem is not None
-        assert del_elem.attrib.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}author") == "Bob"
+        assert del_elem.attrib.get(author_attr) == "Bob"
 
 
 def test_lossy_save_prompt_cancellation(qapp, tmp_path):
-    """Verify that saving a document with losses prompts the user, and user cancellation aborts save."""
+    """Verify saving document with losses prompts user, and cancellation aborts save."""
     from unittest.mock import patch
+
     from PySide6.QtWidgets import QMessageBox
+
     from atboffice.ui.shell.quire_window import QuireWindow
 
     win = QuireWindow()
@@ -152,7 +158,9 @@ def test_lossy_save_prompt_cancellation(qapp, tmp_path):
     target_file.write_bytes(b"original content")
 
     # Simulate user clicking "No" (Cancel)
-    with patch.object(QMessageBox, "warning", return_value=QMessageBox.StandardButton.No) as mock_warn:
+    with patch.object(
+        QMessageBox, "warning", return_value=QMessageBox.StandardButton.No
+    ) as mock_warn:
         success = win.do_save(target_file)
         assert success is False
         assert mock_warn.called
@@ -160,7 +168,9 @@ def test_lossy_save_prompt_cancellation(qapp, tmp_path):
         assert target_file.read_bytes() == b"original content"
 
     # Simulate user clicking "Yes" (Continue)
-    with patch.object(QMessageBox, "warning", return_value=QMessageBox.StandardButton.Yes) as mock_warn:
+    with patch.object(
+        QMessageBox, "warning", return_value=QMessageBox.StandardButton.Yes
+    ) as mock_warn:
         success = win.do_save(target_file)
         assert success is True
         assert mock_warn.called

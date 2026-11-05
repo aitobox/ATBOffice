@@ -5,7 +5,6 @@ from __future__ import annotations
 import io
 import xml.etree.ElementTree as ET
 from pathlib import Path
-
 from typing import Any
 
 from atboffice.modules.writer.models.document import (

@@ -201,6 +201,8 @@ __all__ = [
     "RowProperties",
     "RunItem",
     "RunProperties",
+    "SdtEndItem",
+    "SdtStartItem",
     "SectionProperties",
     "ShadingProperties",
     "SpacingProperties",
