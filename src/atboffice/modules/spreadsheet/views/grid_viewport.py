@@ -55,7 +55,6 @@ from atboffice.modules.spreadsheet.calc.references import (
     translate,
 )
 from atboffice.modules.spreadsheet.calc.tokens import CellRefNode
-from atboffice.platform.cursors import get_safe_cursor
 from atboffice.modules.spreadsheet.models.conditional_format import (
     evaluate_cf_for_cell,
 )
@@ -69,6 +68,7 @@ from atboffice.modules.spreadsheet.models.sheet_model import (
     SheetDataModel,
 )
 from atboffice.modules.spreadsheet.views.autofill import AutoFillEngine
+from atboffice.platform.cursors import get_safe_cursor
 
 if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.views.editor_controller import (

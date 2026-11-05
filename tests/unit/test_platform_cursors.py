@@ -1,16 +1,16 @@
 """Unit tests for platform-specific cursor adaptation."""
 
 import sys
-import pytest
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QCursor
 from PySide6.QtWidgets import QApplication, QWidget
 
 from atboffice.platform.cursors import (
     get_safe_cursor,
-    set_safe_cursor,
-    safe_set_override_cursor,
     safe_restore_override_cursor,
+    safe_set_override_cursor,
+    set_safe_cursor,
 )
 
 
@@ -25,18 +25,24 @@ class TestPlatformCursors:
         assert safe_wait == Qt.CursorShape.BusyCursor
 
         # Other standard cursors must remain unchanged
-        assert get_safe_cursor(Qt.CursorShape.ArrowCursor, platform_name="darwin") == Qt.CursorShape.ArrowCursor
-        assert get_safe_cursor(Qt.CursorShape.PointingHandCursor, platform_name="darwin") == Qt.CursorShape.PointingHandCursor
-        assert get_safe_cursor(Qt.CursorShape.CrossCursor, platform_name="darwin") == Qt.CursorShape.CrossCursor
-        assert get_safe_cursor(Qt.CursorShape.SplitHCursor, platform_name="darwin") == Qt.CursorShape.SplitHCursor
-        assert get_safe_cursor(Qt.CursorShape.SplitVCursor, platform_name="darwin") == Qt.CursorShape.SplitVCursor
+        for shape in [
+            Qt.CursorShape.ArrowCursor,
+            Qt.CursorShape.PointingHandCursor,
+            Qt.CursorShape.CrossCursor,
+            Qt.CursorShape.SplitHCursor,
+            Qt.CursorShape.SplitVCursor,
+        ]:
+            assert get_safe_cursor(shape, platform_name="darwin") == shape
 
     def test_non_macos_cursor_preservation(self) -> None:
         # On Linux/Windows, shapes should not be altered
         for plat in ["linux", "win32"]:
-            assert get_safe_cursor(Qt.CursorShape.SizeAllCursor, platform_name=plat) == Qt.CursorShape.SizeAllCursor
-            assert get_safe_cursor(Qt.CursorShape.WaitCursor, platform_name=plat) == Qt.CursorShape.WaitCursor
-            assert get_safe_cursor(Qt.CursorShape.ArrowCursor, platform_name=plat) == Qt.CursorShape.ArrowCursor
+            for shape in [
+                Qt.CursorShape.SizeAllCursor,
+                Qt.CursorShape.WaitCursor,
+                Qt.CursorShape.ArrowCursor,
+            ]:
+                assert get_safe_cursor(shape, platform_name=plat) == shape
 
     def test_qcursor_instance_handling(self, qapp: QApplication) -> None:
         # Handling when QCursor object is passed
@@ -52,8 +58,9 @@ class TestPlatformCursors:
     def test_set_safe_cursor(self, qapp: QApplication) -> None:
         widget = QWidget()
         set_safe_cursor(widget, Qt.CursorShape.SizeAllCursor)
+        is_darwin = sys.platform == "darwin"
         expected_shape = (
-            Qt.CursorShape.OpenHandCursor if sys.platform == "darwin" else Qt.CursorShape.SizeAllCursor
+            Qt.CursorShape.OpenHandCursor if is_darwin else Qt.CursorShape.SizeAllCursor
         )
         assert widget.cursor().shape() == expected_shape
 
