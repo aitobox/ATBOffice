@@ -12,6 +12,7 @@ Supports:
 from __future__ import annotations
 
 import base64
+from dataclasses import dataclass
 import hashlib
 import hmac
 import math
@@ -583,18 +584,271 @@ class CFBReader:
         return name.lower() in self.entries
 
 
-def is_encrypted_package(data: bytes | str | Path) -> bool:
-    """Return True if data represents an encrypted Office package CFB container."""
+@dataclass(frozen=True)
+class FileFormatInspection:
+    """Result of inspecting an Office document file format, OLE streams, and extension."""
+
+    is_ole: bool
+    is_encrypted: bool
+    ole_format: str  # "word97", "excel97", "powerpoint97", "encrypted_ooxml", "legacy_binary", "none"
+    ext: str
+    is_disguised: bool
+    guidance_title: str | None = None
+    guidance_message: str | None = None
+
+    @property
+    def should_reject(self) -> bool:
+        """Return True if the file is an unsupported legacy/disguised format requiring rejection."""
+        return (self.guidance_message is not None) and (not self.is_encrypted)
+
+
+def is_ole_compound_file(data: bytes | str | Path) -> bool:
+    """Return True if data starts with the OLE CFB 8-byte signature."""
     try:
         raw = _to_bytes(data)
-        if len(raw) < 512:
-            return False
-        if raw[:8] != CFB_SIGNATURE:
-            return False
-        reader = CFBReader(raw)
-        return reader.has_stream("EncryptionInfo") and reader.has_stream("EncryptedPackage")
+        return len(raw) >= 8 and raw[:8] == CFB_SIGNATURE
     except Exception:
         return False
+
+
+def detect_ole_format(data: bytes | str | Path) -> str:
+    """Identify the specific format inside an OLE compound document.
+
+    Returns:
+        - "encrypted_ooxml": Contains EncryptionInfo and EncryptedPackage streams.
+        - "word97": Contains WordDocument stream (Word 97-2003 .doc).
+        - "excel97": Contains Workbook or Book stream (Excel 97-2003 .xls).
+        - "powerpoint97": Contains PowerPoint Document or Current User stream (.ppt).
+        - "legacy_binary": Unidentified or generic OLE compound file.
+        - "none": Not an OLE compound file.
+    """
+    try:
+        raw = _to_bytes(data)
+        if len(raw) < 8 or raw[:8] != CFB_SIGNATURE:
+            return "none"
+
+        # 1. Attempt structured directory parsing via CFBReader
+        try:
+            reader = CFBReader(raw)
+            if reader.has_stream("encryptioninfo") and reader.has_stream("encryptedpackage"):
+                return "encrypted_ooxml"
+            if reader.has_stream("worddocument"):
+                return "word97"
+            if reader.has_stream("workbook") or reader.has_stream("book"):
+                return "excel97"
+            if reader.has_stream("powerpoint document") or reader.has_stream("current user"):
+                return "powerpoint97"
+            if reader.entries:
+                return "legacy_binary"
+        except Exception:
+            pass
+
+        # 2. Fallback heuristic: UTF-16LE substring probe in the first 1MB (aligned with .vibeoffice zip.js)
+        probe_limit = min(len(raw), 1 << 20)
+        probe_bytes = raw[:probe_limit]
+
+        if b"E\x00n\x00c\x00r\x00y\x00p\x00t\x00e\x00d\x00P\x00a\x00c\x00k\x00a\x00g\x00e\x00" in probe_bytes:
+            return "encrypted_ooxml"
+        if b"W\x00o\x00r\x00d\x00D\x00o\x00c\x00u\x00m\x00e\x00n\x00t\x00" in probe_bytes:
+            return "word97"
+        if b"W\x00o\x00r\x00k\x00b\x00o\x00o\x00k\x00" in probe_bytes or b"B\x00o\x00o\x00k\x00" in probe_bytes:
+            return "excel97"
+        if b"P\x00o\x00w\x00e\x00r\x00P\x00o\x00i\x00n\x00t\x00 \x00D\x00o\x00c\x00u\x00m\x00e\x00n\x00t\x00" in probe_bytes or b"C\x00u\x00r\x00r\x00e\x00n\x00t\x00 \x00U\x00s\x00e\x00r\x00" in probe_bytes:
+            return "powerpoint97"
+
+        return "legacy_binary"
+    except Exception:
+        return "none"
+
+
+def is_encrypted_package(data: bytes | str | Path) -> bool:
+    """Return True if data represents an encrypted Office package CFB container."""
+    return detect_ole_format(data) == "encrypted_ooxml"
+
+
+def inspect_file_format(
+    path_or_bytes: bytes | str | Path,
+    expected_app: str | None = None,
+) -> FileFormatInspection:
+    """Inspect file header, OLE streams, and extension to provide accurate guidance."""
+    from atboffice.core.i18n import safe_tr
+
+    name = ""
+    ext = ""
+    if isinstance(path_or_bytes, (str, Path)):
+        p = Path(path_or_bytes)
+        name = p.name
+        ext = p.suffix.lower()
+
+    is_ole = is_ole_compound_file(path_or_bytes)
+    app = (expected_app or "").lower().strip()
+
+    if not is_ole:
+        header_prefix = b""
+        try:
+            raw_sample = _to_bytes(path_or_bytes)[:64]
+            header_prefix = raw_sample.lstrip()
+        except Exception:
+            pass
+
+        if app == "quire" and ext in {".doc", ".dot"}:
+            return FileFormatInspection(
+                is_ole=False,
+                is_encrypted=False,
+                ole_format="word97",
+                ext=ext,
+                is_disguised=False,
+                guidance_title=safe_tr("文件格式提示"),
+                guidance_message=safe_tr(
+                    "“{name}”是旧版二进制 Word 97–2003 文档 (.doc)。"
+                    "Quire 原生支持 .docx、.html、.rtf、.md 和纯文本文件。"
+                    "请在 Word 或 LibreOffice 中将其另存为 .docx 格式后再打开。"
+                ).format(name=name),
+            )
+
+        if app == "lectern" and ext in {".ppt", ".pps", ".pot"}:
+            return FileFormatInspection(
+                is_ole=False,
+                is_encrypted=False,
+                ole_format="powerpoint97",
+                ext=ext,
+                is_disguised=False,
+                guidance_title=safe_tr("文件格式提示"),
+                guidance_message=safe_tr(
+                    "“{name}”是旧版二进制 PowerPoint 97–2003 演示文稿 (.ppt)。"
+                    "Lectern 原生支持 .pptx 演示文稿。"
+                    "请在 PowerPoint 或 LibreOffice 中将其另存为 .pptx 格式后再打开。"
+                ).format(name=name),
+            )
+
+        if app == "ledger" and ext in {".xls", ".xlt"}:
+            # If it starts with '<' (XML Spreadsheet 2003 or HTML table), allow it to pass to XMLSS/HTML parsers
+            if not header_prefix.startswith(b"<"):
+                return FileFormatInspection(
+                    is_ole=False,
+                    is_encrypted=False,
+                    ole_format="excel97",
+                    ext=ext,
+                    is_disguised=False,
+                    guidance_title=safe_tr("文件格式提示"),
+                    guidance_message=safe_tr(
+                        "“{name}”是旧版二进制 Excel 97–2003 工作簿 (.xls)。"
+                        "Ledger 原生支持 .xlsx、.xlsm、.csv、.tsv 和 XML 电子表格。"
+                        "请在 Excel 或 LibreOffice 中将其另存为 .xlsx 格式后再打开。"
+                    ).format(name=name),
+                )
+
+        return FileFormatInspection(
+            is_ole=False,
+            is_encrypted=False,
+            ole_format="none",
+            ext=ext,
+            is_disguised=False,
+        )
+
+    ole_fmt = detect_ole_format(path_or_bytes)
+    is_enc = (ole_fmt == "encrypted_ooxml")
+    if is_enc:
+        return FileFormatInspection(
+            is_ole=True,
+            is_encrypted=True,
+            ole_format=ole_fmt,
+            ext=ext,
+            is_disguised=False,
+        )
+
+    # It is an unencrypted legacy OLE binary file
+    app = (expected_app or "").lower().strip()
+    is_disguised = False
+    guidance_title = safe_tr("文件格式提示")
+    guidance_msg = None
+
+    # Modern OOXML extensions
+    ooxml_word_exts = {".docx", ".docm", ".dotx"}
+    ooxml_excel_exts = {".xlsx", ".xlsm", ".xltx"}
+    ooxml_ppt_exts = {".pptx", ".ppsx", ".potx"}
+
+    if app == "quire":
+        if ole_fmt == "powerpoint97":
+            guidance_msg = safe_tr(
+                "“{name}”是 PowerPoint 97–2003 演示文稿，而非 Word 文档。Quire 仅支持打开文字处理文档。"
+            ).format(name=name)
+        elif ole_fmt == "excel97":
+            guidance_msg = safe_tr(
+                "“{name}”是 Excel 97–2003 工作簿，而非 Word 文档。Quire 仅支持打开文字处理文档。"
+            ).format(name=name)
+        elif ext in ooxml_word_exts or (ext and ext not in {".doc", ".dot"}):
+            is_disguised = True
+            guidance_msg = safe_tr(
+                "“{name}”是旧版二进制 Word 97–2003 文档 (.doc)，但扩展名为 {ext}。"
+                "请先在 Word、Pages、Google 文档或 LibreOffice 中将其另存为 .docx 格式。"
+            ).format(name=name, ext=ext or safe_tr("其他"))
+        else:
+            guidance_msg = safe_tr(
+                "“{name}”是旧版二进制 Word 97–2003 文档 (.doc)。"
+                "Quire 原生支持 .docx、.html、.rtf、.md 和纯文本文件。"
+                "请在 Word 或 LibreOffice 中将其另存为 .docx 格式后再打开。"
+            ).format(name=name)
+
+    elif app == "ledger":
+        if ole_fmt == "word97":
+            guidance_msg = safe_tr(
+                "“{name}”是 Word 97–2003 文档，而非 Excel 工作簿。Ledger 仅支持打开电子表格文件。"
+            ).format(name=name)
+        elif ole_fmt == "powerpoint97":
+            guidance_msg = safe_tr(
+                "“{name}”是 PowerPoint 97–2003 演示文稿，而非 Excel 工作簿。Ledger 仅支持打开电子表格文件。"
+            ).format(name=name)
+        elif ext in ooxml_excel_exts or (ext and ext not in {".xls", ".xlt"}):
+            is_disguised = True
+            guidance_msg = safe_tr(
+                "“{name}”是旧版二进制 Excel 97–2003 工作簿 (.xls)，但扩展名为 {ext}。"
+                "请先在 Excel 或 LibreOffice 中将其另存为 .xlsx 格式。"
+            ).format(name=name, ext=ext or safe_tr("其他"))
+        else:
+            guidance_msg = safe_tr(
+                "“{name}”是旧版二进制 Excel 97–2003 工作簿 (.xls)。"
+                "Ledger 原生支持 .xlsx、.xlsm、.csv、.tsv 和 XML 电子表格。"
+                "请在 Excel 或 LibreOffice 中将其另存为 .xlsx 格式后再打开。"
+            ).format(name=name)
+
+    elif app == "lectern":
+        if ole_fmt == "word97":
+            guidance_msg = safe_tr(
+                "“{name}”是 Word 97–2003 文档，而非 PowerPoint 演示文稿。Lectern 仅支持打开演示文稿。"
+            ).format(name=name)
+        elif ole_fmt == "excel97":
+            guidance_msg = safe_tr(
+                "“{name}”是 Excel 97–2003 工作簿，而非 PowerPoint 演示文稿。Lectern 仅支持打开演示文稿。"
+            ).format(name=name)
+        elif ext in ooxml_ppt_exts or (ext and ext not in {".ppt", ".pps", ".pot"}):
+            is_disguised = True
+            guidance_msg = safe_tr(
+                "“{name}”是旧版二进制 PowerPoint 97–2003 演示文稿 (.ppt)，但扩展名为 {ext}。"
+                "请先在 PowerPoint、Keynote、Google 幻灯片或 LibreOffice 中将其另存为 .pptx 格式。"
+            ).format(name=name, ext=ext or safe_tr("其他"))
+        else:
+            guidance_msg = safe_tr(
+                "“{name}”是旧版二进制 PowerPoint 97–2003 演示文稿 (.ppt)。"
+                "Lectern 原生支持 .pptx 演示文稿。"
+                "请在 PowerPoint 或 LibreOffice 中将其另存为 .pptx 格式后再打开。"
+            ).format(name=name)
+
+    else:
+        guidance_msg = safe_tr(
+            "“{name}”是旧版二进制 Office 97–2003 文件，当前模块无法直接读取。"
+            "请先在现代 Office 软件中将其转换为新版 Open XML 格式后再打开。"
+        ).format(name=name)
+
+    return FileFormatInspection(
+        is_ole=True,
+        is_encrypted=False,
+        ole_format=ole_fmt,
+        ext=ext,
+        is_disguised=is_disguised,
+        guidance_title=guidance_title,
+        guidance_message=guidance_msg,
+    )
 
 
 def _decrypt_agile(info: bytes, pkg: bytes, passcode: str) -> bytes:

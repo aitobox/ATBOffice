@@ -2005,7 +2005,7 @@ class LecternWindow(BaseOfficeWindow):
         return safe_tr(
             "所有支持的格式 (*.pptx *.ppsx *.potx);;"
             "PowerPoint 演示文稿 (*.pptx *.ppsx *.potx);;"
-            "PowerPoint 97-2003 演示文稿 (*.ppt);;"
+            "PowerPoint 97-2003 演示文稿 (*.ppt *.pps *.pot);;"
             "所有文件 (*.*)"
         )
 
@@ -2028,9 +2028,6 @@ class LecternWindow(BaseOfficeWindow):
 
     def do_open(self, path: Path) -> bool:
         """Parse and load Lectern presentation from disk with transactional rollback."""
-        from atboffice.ui.shell.base_window import FileOpenWarningHandled
-        from atboffice.vfs.crypto import is_encrypted_package
-
         if path.stat().st_size == 0:
             from atboffice.modules.presentation.models.presentation import Presentation
 
@@ -2040,28 +2037,8 @@ class LecternWindow(BaseOfficeWindow):
 
         ext = path.suffix.lower()
 
-        # Check binary magic header
-        header = b""
-        try:
-            with open(path, "rb") as f:
-                header = f.read(512)
-        except Exception as e:
-            raise e
-
-        is_cfb = len(header) >= 8 and header[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
-
-        # 1. Check if legacy binary .ppt
-        if ext in {".ppt", ".pps", ".pot"} or (is_cfb and not is_encrypted_package(path)):
-            QMessageBox.warning(
-                self,
-                safe_tr("文件格式提示"),
-                safe_tr(
-                    "“{name}”是旧版二进制 PowerPoint 97–2003 演示文稿 (.ppt)。"
-                    "Lectern 原生支持 .pptx 演示文稿。"
-                    "请在 PowerPoint 或 LibreOffice 中将其另存为 .pptx 格式后再打开。"
-                ).format(name=path.name),
-            )
-            raise FileOpenWarningHandled("Legacy binary .ppt is not supported")
+        # 1. Check if legacy or disguised binary presentation
+        self.check_legacy_or_disguised_file(path, "lectern")
 
         # 2. Check for encrypted package
         decrypted_bytes, is_enc = self.try_decrypt_if_encrypted(path)

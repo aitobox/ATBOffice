@@ -387,3 +387,123 @@ def test_recent_files_not_updated_on_failed_open(qtbot, tmp_path: Path):
     entries = wm.recent_files.get_entries()
     assert not any(Path(e.path) == corrupt_file.resolve() for e in entries)
 
+
+def test_quire_disguised_doc_as_docx_rejected_with_guidance(qtbot, monkeypatch, tmp_path: Path):
+    """Quire must reject legacy binary .doc masquerading as .docx with tailored guidance."""
+    from tests.unit.vfs.test_ole_detection import _create_mock_cfb_with_stream_name
+
+    disguised = tmp_path / "fake.docx"
+    disguised.write_bytes(_create_mock_cfb_with_stream_name("WordDocument"))
+
+    win = QuireWindow()
+    qtbot.addWidget(win)
+
+    orig_path = tmp_path / "original.docx"
+    win.current_file_path = orig_path
+    win.set_modified(True)
+    initial_title = win.windowTitle()
+    win.maybe_save_prompt = lambda: True
+
+    dialogs: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        QMessageBox,
+        "warning",
+        lambda parent, title, text, *args, **kwargs: dialogs.append((title, text)),
+    )
+
+    success = win.open_file(disguised)
+    assert success is False
+    assert win.current_file_path == orig_path
+    assert win.is_modified is True
+    assert win.windowTitle() == initial_title
+    assert len(dialogs) >= 1
+    assert any(".docx" in text.lower() and ".doc" in text.lower() for _, text in dialogs)
+
+
+def test_ledger_disguised_xls_as_xlsx_rejected_with_guidance(qtbot, monkeypatch, tmp_path: Path):
+    """Ledger must reject legacy binary .xls masquerading as .xlsx with tailored guidance."""
+    from tests.unit.vfs.test_ole_detection import _create_mock_cfb_with_stream_name
+
+    disguised = tmp_path / "fake.xlsx"
+    disguised.write_bytes(_create_mock_cfb_with_stream_name("Workbook"))
+
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    orig_path = tmp_path / "original.xlsx"
+    win.current_file_path = orig_path
+    win.set_modified(True)
+    initial_title = win.windowTitle()
+    win.maybe_save_prompt = lambda: True
+
+    dialogs: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        QMessageBox,
+        "warning",
+        lambda parent, title, text, *args, **kwargs: dialogs.append((title, text)),
+    )
+
+    success = win.open_file(disguised)
+    assert success is False
+    assert win.current_file_path == orig_path
+    assert win.is_modified is True
+    assert win.windowTitle() == initial_title
+    assert len(dialogs) >= 1
+    assert any(".xlsx" in text.lower() and ".xls" in text.lower() for _, text in dialogs)
+
+
+def test_lectern_disguised_ppt_as_pptx_rejected_with_guidance(qtbot, monkeypatch, tmp_path: Path):
+    """Lectern must reject legacy binary .ppt masquerading as .pptx with tailored guidance."""
+    from tests.unit.vfs.test_ole_detection import _create_mock_cfb_with_stream_name
+
+    disguised = tmp_path / "fake.pptx"
+    disguised.write_bytes(_create_mock_cfb_with_stream_name("PowerPoint Document"))
+
+    win = LecternWindow()
+    qtbot.addWidget(win)
+
+    orig_path = tmp_path / "original.pptx"
+    win.current_file_path = orig_path
+    win.set_modified(True)
+    initial_title = win.windowTitle()
+    win.maybe_save_prompt = lambda: True
+
+    dialogs: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        QMessageBox,
+        "warning",
+        lambda parent, title, text, *args, **kwargs: dialogs.append((title, text)),
+    )
+
+    success = win.open_file(disguised)
+    assert success is False
+    assert win.current_file_path == orig_path
+    assert win.is_modified is True
+    assert win.windowTitle() == initial_title
+    assert len(dialogs) >= 1
+    assert any(".pptx" in text.lower() and ".ppt" in text.lower() for _, text in dialogs)
+
+
+def test_ledger_non_cfb_xmlss_with_xls_ext_accepted(qtbot, tmp_path: Path):
+    """Ledger must accept XML Spreadsheet 2003 files even if named with .xls extension."""
+    xmlss_content = (
+        '<?xml version="1.0"?>\n'
+        '<?mso-application progid="Excel.Sheet"?>\n'
+        '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"\n'
+        ' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n'
+        ' <Worksheet ss:Name="Sheet1">\n'
+        '  <Table>\n'
+        '   <Row><Cell><Data ss:Type="String">HelloXMLSS</Data></Cell></Row>\n'
+        '  </Table>\n'
+        ' </Worksheet>\n'
+        '</Workbook>'
+    )
+    xmlss_file = tmp_path / "legacy_named.xls"
+    xmlss_file.write_text(xmlss_content, encoding="utf-8")
+
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+    assert win.open_file(xmlss_file) is True
+    assert win.current_file_path == xmlss_file.resolve()
+
+

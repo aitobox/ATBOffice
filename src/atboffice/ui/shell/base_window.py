@@ -180,6 +180,22 @@ class BaseOfficeWindow(QMainWindow):
                 raise FileOpenWarningHandled("Incorrect password") from err
             raise
 
+    def check_legacy_or_disguised_file(self, path: Path, app_name: str) -> None:
+        """Inspect file format and handle legacy 97-2003 or disguised binary documents.
+
+        Raises:
+            FileOpenWarningHandled: If the file is an unsupported legacy or disguised binary document
+                and an informative warning dialog has been presented to the user.
+        """
+        from atboffice.vfs.crypto import inspect_file_format
+
+        inspection = inspect_file_format(path, expected_app=app_name)
+        if inspection.should_reject:
+            title = inspection.guidance_title or safe_tr("文件格式提示")
+            msg = inspection.guidance_message or safe_tr("不支持的旧版二进制文件格式。")
+            QMessageBox.warning(self, title, msg)
+            raise FileOpenWarningHandled(f"Legacy or disguised binary file rejected: {path.name}")
+
     def open_file_dialog(self) -> bool:
         """Present standard file dialog to select and open a document."""
         if os.environ.get("PYTEST_CURRENT_TEST") and isinstance(

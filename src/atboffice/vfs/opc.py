@@ -225,6 +225,23 @@ def preserve_unmodified_parts(
     return preserved
 
 
+class OleCompoundFileError(ValueError):
+    """Raised when an OLE compound document is supplied where an OPC/ZIP package is expected."""
+
+    def __init__(
+        self,
+        message: str = "This file is a binary Office 97–2003 file or encrypted package, not an Office Open XML package.",
+        *,
+        is_encrypted: bool = False,
+        ole_format: str = "none",
+        raw_bytes: bytes = b"",
+    ) -> None:
+        super().__init__(message)
+        self.is_encrypted = is_encrypted
+        self.ole_format = ole_format
+        self.raw_bytes = raw_bytes
+
+
 class SourcePackage:
     """Immutable inspection wrapper over an OOXML / OPC ZIP container."""
 
@@ -258,6 +275,22 @@ class SourcePackage:
         try:
             buf = io.BytesIO(data)
             if not zipfile.is_zipfile(buf):
+                from atboffice.vfs.crypto import detect_ole_format, is_ole_compound_file
+
+                if is_ole_compound_file(data):
+                    ole_fmt = detect_ole_format(data)
+                    is_enc = (ole_fmt == "encrypted_ooxml")
+                    msg = (
+                        "This file is password-protected."
+                        if is_enc
+                        else "This is a binary Office 97–2003 file, not an Office Open XML package."
+                    )
+                    raise OleCompoundFileError(
+                        msg,
+                        is_encrypted=is_enc,
+                        ole_format=ole_fmt,
+                        raw_bytes=data,
+                    )
                 raise ValueError("Not a valid ZIP/OPC package (header mismatch)")
             buf.seek(0)
             with zipfile.ZipFile(buf, "r") as zf:
