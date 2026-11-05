@@ -546,13 +546,13 @@ class StartCenterWindow(BaseOfficeWindow):
                     safe_tr("会议纪要"),
                     safe_tr("议程与待办跟进"),
                     "📝",
-                    lambda: WindowManager.get_instance().open_quire(),
+                    lambda: WindowManager.get_instance().open_quire(template_id="minutes"),
                 ),
                 (
                     safe_tr("工作报告"),
                     safe_tr("周报/月报结构"),
                     "📊",
-                    lambda: WindowManager.get_instance().open_quire(),
+                    lambda: WindowManager.get_instance().open_quire(template_id="report"),
                 ),
             ],
         )
@@ -572,13 +572,13 @@ class StartCenterWindow(BaseOfficeWindow):
                     safe_tr("月度收支预算"),
                     safe_tr("收支明细与结余"),
                     "💰",
-                    lambda: WindowManager.get_instance().open_ledger(),
+                    lambda: WindowManager.get_instance().open_ledger(template_id="budget"),
                 ),
                 (
                     safe_tr("项目甘特计划"),
                     safe_tr("里程碑与阶段进度"),
                     "📅",
-                    lambda: WindowManager.get_instance().open_ledger(),
+                    lambda: WindowManager.get_instance().open_ledger(template_id="tasks"),
                 ),
             ],
         )
@@ -598,13 +598,13 @@ class StartCenterWindow(BaseOfficeWindow):
                     safe_tr("商业计划路演"),
                     safe_tr("融资提案框架"),
                     "💡",
-                    lambda: WindowManager.get_instance().open_lectern(),
+                    lambda: WindowManager.get_instance().open_lectern(template_id="status"),
                 ),
                 (
                     safe_tr("技术方案汇报"),
                     safe_tr("架构与流程图示"),
                     "📐",
-                    lambda: WindowManager.get_instance().open_lectern(),
+                    lambda: WindowManager.get_instance().open_lectern(template_id="meeting"),
                 ),
             ],
         )
