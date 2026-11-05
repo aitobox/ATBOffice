@@ -2032,9 +2032,9 @@ class LecternWindow(BaseOfficeWindow):
         from atboffice.vfs.crypto import is_encrypted_package
 
         if path.stat().st_size == 0:
-            from atboffice.modules.presentation.models.presentation import Presentation, Slide
+            from atboffice.modules.presentation.models.presentation import Presentation
 
-            candidate_pres = Presentation(slides=[Slide()])
+            candidate_pres = Presentation.create_new()
             self.presentation_view.load_presentation(candidate_pres)
             return True
 
