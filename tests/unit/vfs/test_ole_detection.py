@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-import io
 from pathlib import Path
 
 import pytest
 
 from atboffice.vfs.crypto import (
     CFB_SIGNATURE,
-    FileFormatInspection,
     detect_ole_format,
     encrypt_package,
     inspect_file_format,
-    is_encrypted_package,
     is_ole_compound_file,
 )
 from atboffice.vfs.opc import OleCompoundFileError, SourcePackage

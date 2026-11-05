@@ -12,13 +12,13 @@ Supports:
 from __future__ import annotations
 
 import base64
-from dataclasses import dataclass
 import hashlib
 import hmac
 import math
 import os
 import struct
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
@@ -590,7 +590,7 @@ class FileFormatInspection:
 
     is_ole: bool
     is_encrypted: bool
-    ole_format: str  # "word97", "excel97", "powerpoint97", "encrypted_ooxml", "legacy_binary", "none"
+    ole_format: str  # word97, excel97, powerpoint97, encrypted_ooxml, legacy_binary, none
     ext: str
     is_disguised: bool
     guidance_title: str | None = None
@@ -643,17 +643,25 @@ def detect_ole_format(data: bytes | str | Path) -> str:
         except Exception:
             pass
 
-        # 2. Fallback heuristic: UTF-16LE substring probe in the first 1MB (aligned with .vibeoffice zip.js)
+        # 2. Fallback heuristic: UTF-16LE substring probe in the first 1MB
+        # (aligned with .vibeoffice zip.js)
         probe_limit = min(len(raw), 1 << 20)
         probe_bytes = raw[:probe_limit]
 
-        if b"E\x00n\x00c\x00r\x00y\x00p\x00t\x00e\x00d\x00P\x00a\x00c\x00k\x00a\x00g\x00e\x00" in probe_bytes:
+        enc_probe = "EncryptedPackage".encode("utf-16le")
+        doc_probe = "WordDocument".encode("utf-16le")
+        xls_probe = "Workbook".encode("utf-16le")
+        book_probe = "Book".encode("utf-16le")
+        ppt_probe = "PowerPoint Document".encode("utf-16le")
+        user_probe = "Current User".encode("utf-16le")
+
+        if enc_probe in probe_bytes:
             return "encrypted_ooxml"
-        if b"W\x00o\x00r\x00d\x00D\x00o\x00c\x00u\x00m\x00e\x00n\x00t\x00" in probe_bytes:
+        if doc_probe in probe_bytes:
             return "word97"
-        if b"W\x00o\x00r\x00k\x00b\x00o\x00o\x00k\x00" in probe_bytes or b"B\x00o\x00o\x00k\x00" in probe_bytes:
+        if xls_probe in probe_bytes or book_probe in probe_bytes:
             return "excel97"
-        if b"P\x00o\x00w\x00e\x00r\x00P\x00o\x00i\x00n\x00t\x00 \x00D\x00o\x00c\x00u\x00m\x00e\x00n\x00t\x00" in probe_bytes or b"C\x00u\x00r\x00r\x00e\x00n\x00t\x00 \x00U\x00s\x00e\x00r\x00" in probe_bytes:
+        if ppt_probe in probe_bytes or user_probe in probe_bytes:
             return "powerpoint97"
 
         return "legacy_binary"
@@ -722,7 +730,7 @@ def inspect_file_format(
             )
 
         if app == "ledger" and ext in {".xls", ".xlt"}:
-            # If it starts with '<' (XML Spreadsheet 2003 or HTML table), allow it to pass to XMLSS/HTML parsers
+            # If it starts with '<' (XMLSS or HTML table), allow it to pass to XMLSS/HTML parsers
             if not header_prefix.startswith(b"<"):
                 return FileFormatInspection(
                     is_ole=False,
@@ -771,11 +779,13 @@ def inspect_file_format(
     if app == "quire":
         if ole_fmt == "powerpoint97":
             guidance_msg = safe_tr(
-                "“{name}”是 PowerPoint 97–2003 演示文稿，而非 Word 文档。Quire 仅支持打开文字处理文档。"
+                "“{name}”是 PowerPoint 97–2003 演示文稿，而非 Word 文档。"
+                "Quire 仅支持打开文字处理文档。"
             ).format(name=name)
         elif ole_fmt == "excel97":
             guidance_msg = safe_tr(
-                "“{name}”是 Excel 97–2003 工作簿，而非 Word 文档。Quire 仅支持打开文字处理文档。"
+                "“{name}”是 Excel 97–2003 工作簿，而非 Word 文档。"
+                "Quire 仅支持打开文字处理文档。"
             ).format(name=name)
         elif ext in ooxml_word_exts or (ext and ext not in {".doc", ".dot"}):
             is_disguised = True
@@ -793,11 +803,13 @@ def inspect_file_format(
     elif app == "ledger":
         if ole_fmt == "word97":
             guidance_msg = safe_tr(
-                "“{name}”是 Word 97–2003 文档，而非 Excel 工作簿。Ledger 仅支持打开电子表格文件。"
+                "“{name}”是 Word 97–2003 文档，而非 Excel 工作簿。"
+                "Ledger 仅支持打开电子表格文件。"
             ).format(name=name)
         elif ole_fmt == "powerpoint97":
             guidance_msg = safe_tr(
-                "“{name}”是 PowerPoint 97–2003 演示文稿，而非 Excel 工作簿。Ledger 仅支持打开电子表格文件。"
+                "“{name}”是 PowerPoint 97–2003 演示文稿，而非 Excel 工作簿。"
+                "Ledger 仅支持打开电子表格文件。"
             ).format(name=name)
         elif ext in ooxml_excel_exts or (ext and ext not in {".xls", ".xlt"}):
             is_disguised = True
@@ -815,11 +827,13 @@ def inspect_file_format(
     elif app == "lectern":
         if ole_fmt == "word97":
             guidance_msg = safe_tr(
-                "“{name}”是 Word 97–2003 文档，而非 PowerPoint 演示文稿。Lectern 仅支持打开演示文稿。"
+                "“{name}”是 Word 97–2003 文档，而非 PowerPoint 演示文稿。"
+                "Lectern 仅支持打开演示文稿。"
             ).format(name=name)
         elif ole_fmt == "excel97":
             guidance_msg = safe_tr(
-                "“{name}”是 Excel 97–2003 工作簿，而非 PowerPoint 演示文稿。Lectern 仅支持打开演示文稿。"
+                "“{name}”是 Excel 97–2003 工作簿，而非 PowerPoint 演示文稿。"
+                "Lectern 仅支持打开演示文稿。"
             ).format(name=name)
         elif ext in ooxml_ppt_exts or (ext and ext not in {".ppt", ".pps", ".pot"}):
             is_disguised = True

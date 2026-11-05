@@ -184,8 +184,8 @@ class BaseOfficeWindow(QMainWindow):
         """Inspect file format and handle legacy 97-2003 or disguised binary documents.
 
         Raises:
-            FileOpenWarningHandled: If the file is an unsupported legacy or disguised binary document
-                and an informative warning dialog has been presented to the user.
+            FileOpenWarningHandled: If the file is an unsupported legacy or disguised
+                binary document and an informative warning dialog has been presented.
         """
         from atboffice.vfs.crypto import inspect_file_format
 

@@ -230,7 +230,10 @@ class OleCompoundFileError(ValueError):
 
     def __init__(
         self,
-        message: str = "This file is a binary Office 97–2003 file or encrypted package, not an Office Open XML package.",
+        message: str = (
+            "This file is a binary Office 97–2003 file or encrypted package, "
+            "not an Office Open XML package."
+        ),
         *,
         is_encrypted: bool = False,
         ole_format: str = "none",
