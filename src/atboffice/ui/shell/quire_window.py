@@ -656,7 +656,7 @@ class QuireWindow(BaseOfficeWindow):
             "富文本格式 (*.rtf);;"
             "Markdown 文档 (*.md *.markdown);;"
             "纯文本文件 (*.txt);;"
-            "Word 97-2003 文档 (*.doc);;"
+            "Word 97-2003 文档 (*.doc *.dot);;"
             "所有文件 (*.*)"
         )
 
@@ -679,9 +679,6 @@ class QuireWindow(BaseOfficeWindow):
 
     def do_open(self, path: Path) -> bool:
         """Parse and load Quire document from disk with transactional rollback."""
-        from atboffice.ui.shell.base_window import FileOpenWarningHandled
-        from atboffice.vfs.crypto import is_encrypted_package
-
         if path.stat().st_size == 0:
             from atboffice.modules.writer.models.document import Document, Paragraph
 
@@ -692,28 +689,8 @@ class QuireWindow(BaseOfficeWindow):
 
         ext = path.suffix.lower()
 
-        # Check binary magic header
-        header = b""
-        try:
-            with open(path, "rb") as f:
-                header = f.read(512)
-        except Exception as e:
-            raise e
-
-        is_cfb = len(header) >= 8 and header[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
-
-        # 1. Check if legacy binary .doc
-        if ext in {".doc", ".dot"} or (is_cfb and not is_encrypted_package(path)):
-            QMessageBox.warning(
-                self,
-                safe_tr("文件格式提示"),
-                safe_tr(
-                    "“{name}”是旧版二进制 Word 97–2003 文档 (.doc)。"
-                    "Quire 原生支持 .docx、.html、.rtf、.md 和纯文本文件。"
-                    "请在 Word 或 LibreOffice 中将其另存为 .docx 格式后再打开。"
-                ).format(name=path.name),
-            )
-            raise FileOpenWarningHandled("Legacy binary .doc is not supported")
+        # 1. Check if legacy or disguised binary document
+        self.check_legacy_or_disguised_file(path, "quire")
 
         # 2. Check for encrypted package
         decrypted_bytes, is_enc = self.try_decrypt_if_encrypted(path)
