@@ -443,13 +443,9 @@ class LedgerWindow(BaseOfficeWindow):
             read_csv(path, model=new_sheet, delimiter=delimiter)
             candidate_wb = WorkbookModel(sheets=[new_sheet])
         elif ext in {".xml", ".xmlss"} or (ext in {".xls", ".xlt"} and is_xml_markup):
-            from atboffice.modules.spreadsheet.io.xmlss_io import read_xmlss
-            from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
-            from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
+            from atboffice.modules.spreadsheet.io.xmlss_io import read_xmlss_workbook
 
-            new_sheet = SheetDataModel(name="Sheet1")
-            read_xmlss(path.read_bytes(), model=new_sheet)
-            candidate_wb = WorkbookModel(sheets=[new_sheet])
+            candidate_wb = read_xmlss_workbook(path.read_bytes())
         else:
             return False
 
