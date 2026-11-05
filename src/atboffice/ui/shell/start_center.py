@@ -6,6 +6,7 @@ import logging
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import (

@@ -11,7 +11,7 @@ from atboffice.modules.presentation.templates.base import (
 
 
 def _init_presentation(design: str, size: tuple[float, float] = (960.0, 540.0)) -> Presentation:
-    """Create a new presentation with the specified design, 16:9 widescreen dimensions, and blank slides."""
+    """Create a new presentation with the specified design and blank slides."""
     w, h = size
     pres = Presentation.create_new(design_key=design, w=w, h=h, empty=True)
     pres.props["title"] = ""

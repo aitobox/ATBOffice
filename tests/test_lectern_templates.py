@@ -33,7 +33,9 @@ def test_invalid_template_id_raises_key_error():
 
 
 def test_status_template():
-    """Verify Project Status Report template: 7 slides, blueprint design, chevron SmartArt, milestones table."""
+    """Verify Project Status Report template: 7 slides, blueprint design,
+    chevron SmartArt, and milestones table.
+    """
     pres = build_lectern_template("status")
     assert isinstance(pres, Presentation)
     assert len(pres.slides) == 7

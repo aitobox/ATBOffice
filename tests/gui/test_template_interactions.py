@@ -1,8 +1,7 @@
 """End-to-end GUI tests for StartCenter and TaskPane template interactions."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QDialog
@@ -69,7 +68,8 @@ def test_templates_dialog_app_filter_and_selection(qtbot):
 
     # First item should be selected by default and preview updated
     assert dlg.get_selected_template_id() is not None
-    assert "项目状态汇报" in dlg.lbl_preview_title.text() or "Status" in dlg.lbl_preview_title.text()
+    title_text = dlg.lbl_preview_title.text()
+    assert "项目状态汇报" in title_text or "Status" in title_text
     assert dlg.btn_create.isEnabled()
 
     # Select second item
@@ -87,9 +87,10 @@ def test_task_pane_templates_action_in_lectern_window(qtbot):
     win = LecternWindow()
     qtbot.addWidget(win)
 
-    # Mock TemplatesDialog returning Accepted with 'meeting' template
-    with patch("atboffice.ui.dialogs.templates_dialog.TemplatesDialog.exec", return_value=QDialog.DialogCode.Accepted), \
-         patch("atboffice.ui.dialogs.templates_dialog.TemplatesDialog.get_selected_template_id", return_value="meeting"):
+    dlg_exec = "atboffice.ui.dialogs.templates_dialog.TemplatesDialog.exec"
+    dlg_id = "atboffice.ui.dialogs.templates_dialog.TemplatesDialog.get_selected_template_id"
+    with patch(dlg_exec, return_value=QDialog.DialogCode.Accepted), \
+         patch(dlg_id, return_value="meeting"):
         win._on_task_pane_action("templates")
 
     assert win.active_template is not None
@@ -103,8 +104,10 @@ def test_task_pane_templates_action_in_quire_window(qtbot):
     win = QuireWindow()
     qtbot.addWidget(win)
 
-    with patch("atboffice.ui.dialogs.templates_dialog.TemplatesDialog.exec", return_value=QDialog.DialogCode.Accepted), \
-         patch("atboffice.ui.dialogs.templates_dialog.TemplatesDialog.get_selected_template_id", return_value="memo"):
+    dlg_exec = "atboffice.ui.dialogs.templates_dialog.TemplatesDialog.exec"
+    dlg_id = "atboffice.ui.dialogs.templates_dialog.TemplatesDialog.get_selected_template_id"
+    with patch(dlg_exec, return_value=QDialog.DialogCode.Accepted), \
+         patch(dlg_id, return_value="memo"):
         win._on_task_pane_action("templates")
 
     assert win.active_template is not None
@@ -117,8 +120,10 @@ def test_task_pane_templates_action_in_ledger_window(qtbot):
     win = LedgerWindow()
     qtbot.addWidget(win)
 
-    with patch("atboffice.ui.dialogs.templates_dialog.TemplatesDialog.exec", return_value=QDialog.DialogCode.Accepted), \
-         patch("atboffice.ui.dialogs.templates_dialog.TemplatesDialog.get_selected_template_id", return_value="budget"):
+    dlg_exec = "atboffice.ui.dialogs.templates_dialog.TemplatesDialog.exec"
+    dlg_id = "atboffice.ui.dialogs.templates_dialog.TemplatesDialog.get_selected_template_id"
+    with patch(dlg_exec, return_value=QDialog.DialogCode.Accepted), \
+         patch(dlg_id, return_value="budget"):
         win._on_task_pane_action("templates")
 
     assert win.active_template is not None
@@ -131,7 +136,8 @@ def test_task_pane_templates_action_cancelled_leaves_state_intact(qtbot):
     win = LecternWindow()
     qtbot.addWidget(win)
 
-    with patch("atboffice.ui.dialogs.templates_dialog.TemplatesDialog.exec", return_value=QDialog.DialogCode.Rejected):
+    dlg_exec = "atboffice.ui.dialogs.templates_dialog.TemplatesDialog.exec"
+    with patch(dlg_exec, return_value=QDialog.DialogCode.Rejected):
         win._on_task_pane_action("templates")
 
     assert win.active_template is None

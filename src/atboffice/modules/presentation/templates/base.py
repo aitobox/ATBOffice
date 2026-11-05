@@ -6,7 +6,6 @@ import copy
 import uuid
 from typing import Any
 
-from atboffice.modules.presentation.models.designs import build_design
 from atboffice.modules.presentation.models.presentation import Presentation
 from atboffice.modules.presentation.models.shape import Shape
 from atboffice.modules.presentation.models.slide import Slide, Transition, create_slide
