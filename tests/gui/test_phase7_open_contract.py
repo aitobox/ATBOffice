@@ -57,7 +57,11 @@ def test_quire_legacy_doc_rejected_with_guidance(qtbot, monkeypatch, tmp_path: P
 
 
 def test_ledger_legacy_xls_rejected_with_guidance(qtbot, monkeypatch, tmp_path: Path):
-    """Ledger must reject legacy binary .xls with clear guidance and preserve state."""
+    """Ledger must reject legacy binary .xls with clear guidance when reader is unavailable."""
+    monkeypatch.setattr(
+        "atboffice.modules.spreadsheet.io.xls_reader.is_xls_supported",
+        lambda: False,
+    )
     xls_file = Path("tests/docs/excel/xls/libreoffice__AutoFilter.xls")
     if not xls_file.exists():
         xls_file = tmp_path / "legacy.xls"
@@ -91,6 +95,28 @@ def test_ledger_legacy_xls_rejected_with_guidance(qtbot, monkeypatch, tmp_path: 
     assert win.windowTitle() == initial_title
     assert len(dialogs) >= 1
     assert any("xls" in text.lower() or "xlsx" in text.lower() for _, text in dialogs)
+
+
+def test_ledger_legacy_xls_opened_with_reader(qtbot, monkeypatch, tmp_path: Path):
+    """Ledger successfully imports .xls workbook when reader is available."""
+    xls_file = Path("tests/docs/excel/xls/libreoffice__AutoFilter.xls")
+    if not xls_file.exists():
+        xls_file = tmp_path / "test.xls"
+        xls_file.write_bytes(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 512)
+
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+
+    orig_path = tmp_path / "original.xlsx"
+    win.current_file_path = orig_path
+    win.set_modified(False)
+    win.maybe_save_prompt = lambda: True
+
+    success = win.open_file(xls_file)
+    assert success is True
+    assert win.current_file_path == xls_file.resolve()
+    assert win.is_modified is False
+    assert len(win.spreadsheet_view.workbook.sheets) >= 1
 
 
 def test_lectern_legacy_ppt_rejected_with_guidance(qtbot, monkeypatch, tmp_path: Path):

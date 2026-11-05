@@ -365,7 +365,7 @@ class LedgerWindow(BaseOfficeWindow):
     def get_file_filter(self) -> str:
         """Return file filter pattern for Ledger save/open dialogs."""
         return safe_tr(
-            "所有支持的格式 (*.xlsx *.xlsm *.csv *.tsv *.xml *.xmlss);;"
+            "所有支持的格式 (*.xlsx *.xlsm *.xls *.xlt *.csv *.tsv *.xml *.xmlss);;"
             "Excel 工作簿 (*.xlsx *.xlsm);;"
             "CSV 逗号分隔文本 (*.csv);;"
             "TSV 制表符分隔文本 (*.tsv);;"
@@ -410,12 +410,6 @@ class LedgerWindow(BaseOfficeWindow):
 
         ext = path.suffix.lower()
 
-        # 1. Check if legacy or disguised binary workbook
-        self.check_legacy_or_disguised_file(path, "ledger")
-
-        # 2. Check for encrypted package
-        decrypted_bytes, is_enc = self.try_decrypt_if_encrypted(path)
-
         # Check if file has XML/HTML markup header (like XML Spreadsheet 2003)
         is_xml_markup = False
         try:
@@ -425,6 +419,18 @@ class LedgerWindow(BaseOfficeWindow):
                     is_xml_markup = True
         except Exception:
             pass
+
+        from atboffice.modules.spreadsheet.io.xls_reader import is_xls_supported, read_xls
+        from atboffice.ui.shell.base_window import FileOpenWarningHandled
+
+        is_binary_xls = (ext in {".xls", ".xlt"}) and not is_xml_markup
+        allow_excel97 = is_binary_xls and is_xls_supported()
+
+        # 1. Check if legacy or disguised binary workbook
+        self.check_legacy_or_disguised_file(path, "ledger", allow_excel97=allow_excel97)
+
+        # 2. Check for encrypted package
+        decrypted_bytes, is_enc = self.try_decrypt_if_encrypted(path)
 
         # 3. Parse into candidate workbook
         candidate_wb = None
@@ -446,6 +452,26 @@ class LedgerWindow(BaseOfficeWindow):
             from atboffice.modules.spreadsheet.io.xmlss_io import read_xmlss_workbook
 
             candidate_wb = read_xmlss_workbook(path.read_bytes())
+        elif is_binary_xls:
+            if not is_xls_supported():
+                self.check_legacy_or_disguised_file(path, "ledger", allow_excel97=False)
+                return False
+            try:
+                candidate_wb = read_xls(path)
+            except PermissionError as p_err:
+                QMessageBox.warning(
+                    self,
+                    safe_tr("文件已加密"),
+                    safe_tr(
+                        "“{name}”包含密码保护或加密。旧版加密格式无法直接打开，请在"
+                        " Excel 中解密或保存为现代 .xlsx 格式。"
+                    ).format(name=path.name),
+                )
+                raise FileOpenWarningHandled(f"Encrypted XLS workbook: {path.name}") from p_err
+            except Exception:
+                # Fall back to standard conversion guidance
+                self.check_legacy_or_disguised_file(path, "ledger", allow_excel97=False)
+                return False
         else:
             return False
 
@@ -464,6 +490,15 @@ class LedgerWindow(BaseOfficeWindow):
             except Exception:
                 pass
             raise bind_err
+
+        if is_binary_xls:
+            self.status_bar.showMessage(
+                safe_tr(
+                    "已成功导入 Excel 97–2003 (.xls) 工作簿。"
+                    "旧版格式不支持所有现代功能，建议另存为 .xlsx 格式。"
+                ),
+                10000,
+            )
 
         return True
 
