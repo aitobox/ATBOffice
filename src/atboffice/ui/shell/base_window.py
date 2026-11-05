@@ -180,7 +180,9 @@ class BaseOfficeWindow(QMainWindow):
                 raise FileOpenWarningHandled("Incorrect password") from err
             raise
 
-    def check_legacy_or_disguised_file(self, path: Path, app_name: str) -> None:
+    def check_legacy_or_disguised_file(
+        self, path: Path, app_name: str, allow_excel97: bool = False
+    ) -> None:
         """Inspect file format and handle legacy 97-2003 or disguised binary documents.
 
         Raises:
@@ -189,7 +191,9 @@ class BaseOfficeWindow(QMainWindow):
         """
         from atboffice.vfs.crypto import inspect_file_format
 
-        inspection = inspect_file_format(path, expected_app=app_name)
+        inspection = inspect_file_format(
+            path, expected_app=app_name, allow_excel97=allow_excel97
+        )
         if inspection.should_reject:
             title = inspection.guidance_title or safe_tr("文件格式提示")
             msg = inspection.guidance_message or safe_tr("不支持的旧版二进制文件格式。")

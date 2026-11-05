@@ -677,6 +677,7 @@ def is_encrypted_package(data: bytes | str | Path) -> bool:
 def inspect_file_format(
     path_or_bytes: bytes | str | Path,
     expected_app: str | None = None,
+    allow_excel97: bool = False,
 ) -> FileFormatInspection:
     """Inspect file header, OLE streams, and extension to provide accurate guidance."""
     from atboffice.core.i18n import safe_tr
@@ -732,6 +733,14 @@ def inspect_file_format(
         if app == "ledger" and ext in {".xls", ".xlt"}:
             # If it starts with '<' (XMLSS or HTML table), allow it to pass to XMLSS/HTML parsers
             if not header_prefix.startswith(b"<"):
+                if allow_excel97:
+                    return FileFormatInspection(
+                        is_ole=False,
+                        is_encrypted=False,
+                        ole_format="excel97",
+                        ext=ext,
+                        is_disguised=False,
+                    )
                 return FileFormatInspection(
                     is_ole=False,
                     is_encrypted=False,
@@ -818,11 +827,12 @@ def inspect_file_format(
                 "请先在 Excel 或 LibreOffice 中将其另存为 .xlsx 格式。"
             ).format(name=name, ext=ext or safe_tr("其他"))
         else:
-            guidance_msg = safe_tr(
-                "“{name}”是旧版二进制 Excel 97–2003 工作簿 (.xls)。"
-                "Ledger 原生支持 .xlsx、.xlsm、.csv、.tsv 和 XML 电子表格。"
-                "请在 Excel 或 LibreOffice 中将其另存为 .xlsx 格式后再打开。"
-            ).format(name=name)
+            if not allow_excel97:
+                guidance_msg = safe_tr(
+                    "“{name}”是旧版二进制 Excel 97–2003 工作簿 (.xls)。"
+                    "Ledger 原生支持 .xlsx、.xlsm、.csv、.tsv 和 XML 电子表格。"
+                    "请在 Excel 或 LibreOffice 中将其另存为 .xlsx 格式后再打开。"
+                ).format(name=name)
 
     elif app == "lectern":
         if ole_fmt == "word97":
