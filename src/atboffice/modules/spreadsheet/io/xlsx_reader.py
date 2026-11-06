@@ -543,7 +543,22 @@ def _parse_worksheet(
     af = _find_child(root, "autoFilter")
     if af is not None:
         sheet.extra["auto_filter_xml"] = ET.tostring(af, encoding="utf-8").decode("utf-8")
-        sheet.auto_filter = dict(af.attrib)
+        ref_str = _attr(af, "ref")
+        if ref_str:
+            rg = parse_range(ref_str)
+            if rg is not None:
+                from atboffice.modules.spreadsheet.models.filter_model import AutoFilter
+
+                sheet.auto_filter = AutoFilter(
+                    r1=rg["r1"],
+                    c1=rg["c1"],
+                    r2=rg["r2"],
+                    c2=rg["c2"],
+                )
+            else:
+                sheet.auto_filter = None
+        else:
+            sheet.auto_filter = None
 
     # 0b. Sheet Views (Freeze panes & Zoom)
     svs_el = _find_child(root, "sheetViews")

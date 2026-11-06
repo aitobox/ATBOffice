@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -74,6 +75,9 @@ if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.views.editor_controller import (
         EditorController,
     )
+
+
+logger = logging.getLogger(__name__)
 
 
 def safe_tr(text: str) -> str:
@@ -494,8 +498,13 @@ class GridViewport(QAbstractScrollArea):
                     return HitResult(HitZone.BORDER, row=hit_r, col=hit_c)
 
         # 4.5 AutoFilter Button area
-        if getattr(self.model, "auto_filter", None) is not None:
-            af = self.model.auto_filter
+        af = getattr(self.model, "auto_filter", None)
+        if (
+            af is not None
+            and hasattr(af, "r1")
+            and hasattr(af, "c1")
+            and hasattr(af, "c2")
+        ):
             r1 = af.r1
             row_y = (
                 self.col_header_height
@@ -606,6 +615,15 @@ class GridViewport(QAbstractScrollArea):
     # -------------------------------------------------------------------------
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self.viewport())
+        try:
+            self._render_paint_event(painter, event)
+        except Exception:
+            logger.exception("Unexpected error during GridViewport.paintEvent")
+        finally:
+            if painter.isActive():
+                painter.end()
+
+    def _render_paint_event(self, painter: QPainter, event: QPaintEvent) -> None:
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
 
         scroll_x = self.horizontalScrollBar().value()
@@ -1056,8 +1074,13 @@ class GridViewport(QAbstractScrollArea):
             painter.restore()
 
         # 5.6 Draw AutoFilter Buttons
-        if getattr(self.model, "auto_filter", None) is not None:
-            af = self.model.auto_filter
+        af = getattr(self.model, "auto_filter", None)
+        if (
+            af is not None
+            and hasattr(af, "r1")
+            and hasattr(af, "c1")
+            and hasattr(af, "c2")
+        ):
             r1 = af.r1
             if start_row <= r1 <= end_row:
                 painter.save()
@@ -1094,8 +1117,12 @@ class GridViewport(QAbstractScrollArea):
 
                     # Downward arrow triangle
                     col_offset = c - af.c1
+                    cols = getattr(af, "cols", {})
                     has_active_crit = (
-                        col_offset in af.cols and af.cols[col_offset].has_criteria()
+                        isinstance(cols, dict)
+                        and col_offset in cols
+                        and hasattr(cols[col_offset], "has_criteria")
+                        and cols[col_offset].has_criteria()
                     )
                     arrow_color = (
                         QColor(0, 0, 255) if has_active_crit else QColor(0, 0, 0)
@@ -4654,9 +4681,14 @@ class GridViewport(QAbstractScrollArea):
 
     def _open_filter_dropdown(self, col: int) -> None:
         """Open the AutoFilter dropdown popup for the specified column."""
-        if getattr(self.model, "auto_filter", None) is None:
+        af = getattr(self.model, "auto_filter", None)
+        if (
+            af is None
+            or not hasattr(af, "r1")
+            or not hasattr(af, "c1")
+            or not hasattr(af, "c2")
+        ):
             return
-        af = self.model.auto_filter
         from atboffice.modules.spreadsheet.models.filter_model import (
             apply_auto_filter,
             clear_auto_filter,
@@ -4723,7 +4755,9 @@ class GridViewport(QAbstractScrollArea):
         )
 
         if getattr(self.model, "auto_filter", None) is not None:
-            clear_auto_filter(self.model, self.model.auto_filter)
+            af = self.model.auto_filter
+            if hasattr(af, "r1"):
+                clear_auto_filter(self.model, af)
             self.model.auto_filter = None
             self._update_scrollbars()
             self.viewport().update()
