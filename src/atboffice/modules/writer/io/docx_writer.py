@@ -74,6 +74,15 @@ ET.register_namespace("m", NS_M)
 ET.register_namespace("wp", NS_WP)
 ET.register_namespace("a", NS_A)
 ET.register_namespace("pic", NS_PIC)
+ET.register_namespace("wps", "http://schemas.microsoft.com/office/word/2010/wordprocessingShape")
+ET.register_namespace("wpg", "http://schemas.microsoft.com/office/word/2010/wordprocessingGroup")
+ET.register_namespace("mc", "http://schemas.openxmlformats.org/markup-compatibility/2006")
+ET.register_namespace("v", "urn:schemas-microsoft-com:vml")
+ET.register_namespace("o", "urn:schemas-microsoft-com:office:office")
+ET.register_namespace("w10", "urn:schemas-microsoft-com:office:word")
+ET.register_namespace("w14", "http://schemas.microsoft.com/office/word/2010/wordml")
+ET.register_namespace("w15", "http://schemas.microsoft.com/office/word/2012/wordml")
+
 
 
 def _w(tag: str) -> str:
@@ -200,6 +209,7 @@ class DocxWriter:
         existing_settings_id = None
         existing_fonts_id = None
 
+        existing_hf_rels: dict[str, Relationship] = {}
         if self.source_pkg is not None:
             for r in self.source_pkg.get_relationships("word/document.xml"):
                 if r.type == REL_STYLES:
@@ -208,8 +218,8 @@ class DocxWriter:
                     existing_settings_id = r.id
                 elif r.type == REL_FONTS:
                     existing_fonts_id = r.id
-                # Skip existing header/footer rels as they will be re-added
-                if r.type in (REL_HEADER, REL_FOOTER):
+                elif r.type in (REL_HEADER, REL_FOOTER):
+                    existing_hf_rels[r.id] = r
                     continue
                 self.rels.append(r)
 
@@ -217,6 +227,9 @@ class DocxWriter:
         for r in self.rels:
             if r.id.startswith("rId") and r.id[3:].isdigit():
                 max_id = max(max_id, int(r.id[3:]))
+        for r_id in existing_hf_rels:
+            if r_id.startswith("rId") and r_id[3:].isdigit():
+                max_id = max(max_id, int(r_id[3:]))
         self._next_r_id = max_id + 1
 
         # Add or preserve standard relationships
@@ -234,16 +247,33 @@ class DocxWriter:
             r_fonts = self._gen_r_id()
             self.rels.append(Relationship(id=r_fonts, type=REL_FONTS, target="fontTable.xml"))
 
-        # Map header/footer relationships
+        # Map header/footer relationships (preserve original targets and IDs if present in
+        # source_pkg)
         hf_id_map: dict[str, str] = {}
-        hf_idx = 1
+        hdr_idx = 1
+        ftr_idx = 1
+        used_targets = {r.target for r in existing_hf_rels.values()}
         for old_id, story in self.doc.hf.items():
-            new_id = self._gen_r_id()
             is_hdr = story.kind == "header"
             rel_type = REL_HEADER if is_hdr else REL_FOOTER
-            prefix = "header" if is_hdr else "footer"
-            target_name = f"{prefix}{hf_idx}.xml"
-            hf_idx += 1
+            if old_id in existing_hf_rels:
+                orig_rel = existing_hf_rels[old_id]
+                new_id = orig_rel.id
+                target_name = orig_rel.target
+            else:
+                new_id = self._gen_r_id()
+                if is_hdr:
+                    while f"header{hdr_idx}.xml" in used_targets:
+                        hdr_idx += 1
+                    target_name = f"header{hdr_idx}.xml"
+                    used_targets.add(target_name)
+                    hdr_idx += 1
+                else:
+                    while f"footer{ftr_idx}.xml" in used_targets:
+                        ftr_idx += 1
+                    target_name = f"footer{ftr_idx}.xml"
+                    used_targets.add(target_name)
+                    ftr_idx += 1
             self.rels.append(Relationship(id=new_id, type=rel_type, target=target_name))
             hf_id_map[old_id] = new_id
 
@@ -502,7 +532,11 @@ class DocxWriter:
             if isinstance(item, PictureItem) and item.raw_xml:
                 try:
                     elem = ET.fromstring(item.raw_xml)
-                    if elem.tag.endswith("AlternateContent") or elem.tag.endswith("drawing"):
+                    if (
+                        elem.tag.endswith("AlternateContent")
+                        or elem.tag.endswith("drawing")
+                        or elem.tag.endswith("pict")
+                    ):
                         r_elem = ET.SubElement(p_elem, _w("r"))
                         r_elem.append(elem)
                     else:
@@ -605,7 +639,19 @@ class DocxWriter:
         if isinstance(item, PictureItem):
             if item.raw_xml:
                 try:
-                    parent.append(ET.fromstring(item.raw_xml))
+                    elem = ET.fromstring(item.raw_xml)
+                    if (
+                        elem.tag.endswith("AlternateContent")
+                        or elem.tag.endswith("drawing")
+                        or elem.tag.endswith("pict")
+                    ):
+                        if parent.tag.endswith(("ins", "del", "hyperlink")):
+                            r_elem = ET.SubElement(parent, _w("r"))
+                            r_elem.append(elem)
+                        else:
+                            parent.append(elem)
+                    else:
+                        parent.append(elem)
                     return
                 except Exception:
                     pass
