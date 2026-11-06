@@ -2,13 +2,19 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
     tags:
       - '[0-9]+.[0-9]+.[0-9]+*'
       - 'v[0-9]+.[0-9]+.[0-9]+*'
       - 'test*'
   pull_request:
-    branches: ["**"]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
 
 jobs:
   matrix-prep:
@@ -30,6 +36,13 @@ jobs:
     name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
     needs: matrix-prep
     runs-on: ${{ matrix.os }}
+    if: |
+      github.event_name != 'push' || 
+      (
+        !startsWith(github.event.head_commit.message, 'Merge pull request') &&
+        !startsWith(github.event.head_commit.message, 'Merge branch') &&
+        !contains(github.event.head_commit.message, '(#')
+      )
     strategy:
       fail-fast: false
       matrix:
