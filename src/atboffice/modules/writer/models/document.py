@@ -192,6 +192,30 @@ class NoteRefItem(RunItem):
         self.custom_mark = custom_mark
 
 
+@dataclass
+class SdtStartItem(RunItem):
+    """Inline content control start marker."""
+
+    control: dict[str, Any] = field(default_factory=dict)
+
+    def __init__(
+        self, control: dict[str, Any] | None = None, r_pr: RunProperties | None = None
+    ) -> None:
+        super().__init__(t="sdts", r_pr=r_pr or RunProperties())
+        self.control = control or {}
+
+
+@dataclass
+class SdtEndItem(RunItem):
+    """Inline content control end marker."""
+
+    key: str = ""
+
+    def __init__(self, key: str = "", r_pr: RunProperties | None = None) -> None:
+        super().__init__(t="sdte", r_pr=r_pr or RunProperties())
+        self.key = key
+
+
 def ilen(item: RunItem) -> int:
     """Character position length of an inline run item."""
     if item.t == "text":
@@ -291,6 +315,8 @@ class Cell:
     id: int = field(default_factory=_next_nid)
     tc_pr: CellProperties = field(default_factory=CellProperties)
     blocks: list[Paragraph | Table] = field(default_factory=lambda: [Paragraph()])
+    sdts: list[dict[str, Any]] = field(default_factory=list)
+    sdte: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -300,6 +326,8 @@ class Row:
     id: int = field(default_factory=_next_nid)
     tr_pr: RowProperties = field(default_factory=RowProperties)
     cells: list[Cell] = field(default_factory=list)
+    sdts: list[dict[str, Any]] = field(default_factory=list)
+    sdte: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -310,6 +338,8 @@ class Table:
     tbl_pr: TableProperties = field(default_factory=TableProperties)
     grid: list[float] = field(default_factory=list)
     rows: list[Row] = field(default_factory=list)
+    sdts: list[dict[str, Any]] = field(default_factory=list)
+    sdte: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -338,6 +368,8 @@ class Document:
     comments: dict[str, Story] = field(default_factory=dict)
     settings: dict[str, Any] = field(default_factory=dict)
     props: dict[str, Any] = field(default_factory=dict)
+    losses: list[dict[str, Any]] = field(default_factory=list)
+    keep: dict[str, Any] = field(default_factory=dict)
     _idx: dict[int, dict[str, Any]] = field(default_factory=dict)
     _tbls: dict[int, dict[str, Any]] = field(default_factory=dict)
     _idx_dirty: bool = True

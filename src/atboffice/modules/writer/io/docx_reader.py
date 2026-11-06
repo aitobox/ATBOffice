@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import io
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -22,6 +23,8 @@ from atboffice.modules.writer.models.document import (
     Paragraph,
     Row,
     RunItem,
+    SdtEndItem,
+    SdtStartItem,
     Story,
     SymbolItem,
     TabItem,
@@ -42,13 +45,12 @@ from atboffice.modules.writer.models.drawing import (
 from atboffice.modules.writer.models.omml import parse_omml
 from atboffice.modules.writer.models.properties import (
     BorderProperties,
-    CellProperties,
     ColumnsProperties,
     DocGridProperties,
     IndentProperties,
     NumberingRef,
     ParagraphProperties,
-    RowProperties,
+    RevisionStamp,
     RunProperties,
     SectionProperties,
     ShadingProperties,
@@ -259,8 +261,69 @@ class DocxReader:
         self.doc_format = "docx"
         self.rels: dict[str, Relationship] = {}
         self.cur_rels: dict[str, Relationship] = {}
+        self._sdt_controls_map: dict[str, dict[str, Any]] = {}
         self.doc = Document()
         self.doc._source_pkg = source_pkg  # type: ignore[attr-defined]
+        self.doc.keep["source_pkg"] = source_pkg
+
+    def _parse_sdt_control(self, sdt_elem: ET.Element) -> dict[str, Any]:
+        """Extract content control (SDT) metadata and shell XML for roundtrip preservation."""
+        shell = ET.Element(sdt_elem.tag, dict(sdt_elem.attrib))
+        sdt_pr = _find_elem(sdt_elem, "sdtPr", W_NAMESPACES)
+        alias_val = ""
+        tag_val = ""
+        id_val = ""
+        ctrl_type = "richText"
+        data_binding: dict[str, Any] | None = None
+        if sdt_pr is not None:
+            shell.append(copy.deepcopy(sdt_pr))
+            alias_elem = _find_elem(sdt_pr, "alias", W_NAMESPACES)
+            if alias_elem is not None:
+                alias_val = _get_attr(alias_elem, "val", "") or ""
+            tag_elem = _find_elem(sdt_pr, "tag", W_NAMESPACES)
+            if tag_elem is not None:
+                tag_val = _get_attr(tag_elem, "val", "") or ""
+            id_elem = _find_elem(sdt_pr, "id", W_NAMESPACES)
+            if id_elem is not None:
+                id_val = _get_attr(id_elem, "val", "") or ""
+            for t in (
+                "text",
+                "date",
+                "dropDownList",
+                "comboBox",
+                "checkbox",
+                "picture",
+                "repeatingSection",
+                "repeatingSectionItem",
+            ):
+                if _find_elem(sdt_pr, t, W_NAMESPACES) is not None:
+                    ctrl_type = t
+                    break
+            db_elem = _find_elem(sdt_pr, "dataBinding", W_NAMESPACES)
+            if db_elem is not None:
+                data_binding = {
+                    "storeItemID": _get_attr(db_elem, "storeItemID", "") or "",
+                    "xpath": _get_attr(db_elem, "xpath", "") or "",
+                    "prefixMappings": _get_attr(db_elem, "prefixMappings", "") or "",
+                }
+        sdt_end_pr = _find_elem(sdt_elem, "sdtEndPr", W_NAMESPACES)
+        if sdt_end_pr is not None:
+            shell.append(copy.deepcopy(sdt_end_pr))
+        ET.SubElement(shell, f"{{{NS_W}}}sdtContent")
+        shell_xml = ET.tostring(shell, encoding="unicode")
+        key = f"sdt_{id(sdt_elem)}_{id_val or len(self.doc.keep.setdefault('controls', []))}"
+        ctrl = {
+            "key": key,
+            "shell_xml": shell_xml,
+            "alias": alias_val,
+            "tag": tag_val,
+            "id": id_val,
+            "type": ctrl_type,
+            "binding": data_binding,
+        }
+        self.doc.keep.setdefault("controls", []).append(ctrl)
+        self._sdt_controls_map[key] = ctrl
+        return ctrl
 
     def read(self) -> Document:
         """Parse the complete package and return the populated Document."""
@@ -635,14 +698,26 @@ class DocxReader:
             elif tag == "tbl":
                 tbl = self._parse_table(child)
                 blocks.append(tbl)
+            elif tag == "sdt":
+                control = self._parse_sdt_control(child)
+                sdt_content = _find_elem(child, "sdtContent", W_NAMESPACES)
+                n0 = len(blocks)
+                if sdt_content is not None:
+                    self._collect_blocks(sdt_content, blocks)
+                if len(blocks) == n0:
+                    empty_p = Paragraph()
+                    blocks.append(empty_p)
+                owned = blocks[n0:]
+                first = owned[0]
+                last = owned[-1]
+                first_pr = first.p_pr if isinstance(first, Paragraph) else first.tbl_pr
+                last_pr = last.p_pr if isinstance(last, Paragraph) else last.tbl_pr
+                first_pr.sdts.insert(0, control)
+                last_pr.sdte.append(control["key"])
             elif tag in (
-                "sdt", "sdtContent", "customXml", "ins", "del", "smartTag", "moveTo", "moveFrom"
+                "sdtContent", "customXml", "ins", "del", "smartTag", "moveTo", "moveFrom"
             ):
-                sdt_content = (
-                    _find_elem(child, "sdtContent", W_NAMESPACES) if tag == "sdt" else None
-                )
-                target = sdt_content if sdt_content is not None else child
-                self._collect_blocks(target, blocks)
+                self._collect_blocks(child, blocks)
             elif tag == "sectPr":
                 self.doc.sect = self._parse_sect_pr(child)
 
@@ -652,6 +727,24 @@ class DocxReader:
         p_pr_elem = _find_elem(p_elem, "pPr", W_NAMESPACES)
         if p_pr_elem is not None:
             p.p_pr = self._parse_p_pr(p_pr_elem)
+            # Check for paragraph mark styling and revisions in pPr/rPr
+            r_pr_elem = _find_elem(p_pr_elem, "rPr", W_NAMESPACES)
+            if r_pr_elem is not None:
+                p.r_pr = self._parse_r_pr(r_pr_elem)
+                ins_elem = _find_elem(r_pr_elem, "ins", W_NAMESPACES)
+                if ins_elem is not None:
+                    p.mark_ins = RevisionStamp(
+                        id=int(_get_attr(ins_elem, "id", "0") or "0"),
+                        author=_get_attr(ins_elem, "author", "Author") or "Author",
+                        date=_get_attr(ins_elem, "date", "") or "",
+                    )
+                del_elem = _find_elem(r_pr_elem, "del", W_NAMESPACES)
+                if del_elem is not None:
+                    p.mark_del = RevisionStamp(
+                        id=int(_get_attr(del_elem, "id", "0") or "0"),
+                        author=_get_attr(del_elem, "author", "Author") or "Author",
+                        date=_get_attr(del_elem, "date", "") or "",
+                    )
             # Check for section properties attached to paragraph
             sect_elem = _find_elem(p_pr_elem, "sectPr", W_NAMESPACES)
             if sect_elem is not None:
@@ -750,24 +843,45 @@ class DocxReader:
                     if choice is None:
                         choice = _find_elem(child, "Fallback")
                     target_container = choice if choice is not None else child
+                    start_len = len(runs)
                     for mc_child in target_container:
                         self._parse_inline_element(mc_child, runs, r_pr, link_info)
+                    raw_alt_xml = ET.tostring(child, encoding="unicode")
+                    for r_idx in range(start_len, len(runs)):
+                        if isinstance(runs[r_idx], PictureItem):
+                            runs[r_idx].raw_xml = raw_alt_xml
 
         elif tag in ("ins", "del", "moveTo", "moveFrom"):
+            stamp = RevisionStamp(
+                id=int(_get_attr(elem, "id", "0") or "0"),
+                author=_get_attr(elem, "author", "Author") or "Author",
+                date=_get_attr(elem, "date", "") or "",
+            )
+            rev_r_pr = copy.copy(inherited_r_pr or RunProperties())
+            if tag in ("ins", "moveTo"):
+                rev_r_pr.ins = stamp
+            else:
+                rev_r_pr.del_rev = stamp
+
             for child in elem:
                 c_tag = _local_tag(child)
                 if c_tag in ("t", "delText"):
-                    r_item = TextItem(
-                        text=child.text or "", r_pr=inherited_r_pr or RunProperties()
-                    )
+                    r_item = TextItem(text=child.text or "", r_pr=rev_r_pr)
                     runs.append(r_item)
                 else:
-                    self._parse_inline_element(child, runs, inherited_r_pr, link_info)
+                    self._parse_inline_element(child, runs, rev_r_pr, link_info)
 
-        elif tag in ("sdt", "sdtContent", "customXml", "smartTag", "dir", "bdo"):
-            sdt_content = _find_elem(elem, "sdtContent", W_NAMESPACES) if tag == "sdt" else None
+        elif tag == "sdt":
+            control = self._parse_sdt_control(elem)
+            runs.append(SdtStartItem(control=control))
+            sdt_content = _find_elem(elem, "sdtContent", W_NAMESPACES)
             target = sdt_content if sdt_content is not None else elem
             for child in target:
+                self._parse_inline_element(child, runs, inherited_r_pr, link_info)
+            runs.append(SdtEndItem(key=control["key"]))
+
+        elif tag in ("sdtContent", "customXml", "smartTag", "dir", "bdo"):
+            for child in elem:
                 self._parse_inline_element(child, runs, inherited_r_pr, link_info)
 
         elif tag == "hyperlink":
@@ -830,8 +944,13 @@ class DocxReader:
             if choice is None:
                 choice = _find_elem(elem, "Fallback")
             target_container = choice if choice is not None else elem
+            start_len = len(runs)
             for child in target_container:
                 self._parse_inline_element(child, runs, inherited_r_pr, link_info)
+            raw_alt_xml = ET.tostring(elem, encoding="unicode")
+            for r_idx in range(start_len, len(runs)):
+                if isinstance(runs[r_idx], PictureItem):
+                    runs[r_idx].raw_xml = raw_alt_xml
 
     def _parse_p_pr(self, p_pr_elem: ET.Element) -> ParagraphProperties:
         """Parse <w:pPr> element into ParagraphProperties."""
@@ -997,10 +1116,17 @@ class DocxReader:
             t = _local_tag(child)
             if t == "tr":
                 rows.append(child)
-            elif t in ("sdt", "sdtContent", "customXml"):
-                sc = _find_elem(child, "sdtContent", W_NAMESPACES) if t == "sdt" else None
-                target = sc if sc is not None else child
-                rows.extend(self._collect_table_rows(target))
+            elif t == "sdt":
+                control = self._parse_sdt_control(child)
+                sc = _find_elem(child, "sdtContent", W_NAMESPACES)
+                if sc is not None:
+                    inner_rows = self._collect_table_rows(sc)
+                    if inner_rows:
+                        inner_rows[0].attrib["__sdt_start__"] = control["key"]
+                        inner_rows[-1].attrib["__sdt_end__"] = control["key"]
+                        rows.extend(inner_rows)
+            elif t in ("sdtContent", "customXml"):
+                rows.extend(self._collect_table_rows(child))
         return rows
 
     def _collect_row_cells(self, elem: ET.Element) -> list[ET.Element]:
@@ -1009,10 +1135,17 @@ class DocxReader:
             t = _local_tag(child)
             if t == "tc":
                 cells.append(child)
-            elif t in ("sdt", "sdtContent", "customXml"):
-                sc = _find_elem(child, "sdtContent", W_NAMESPACES) if t == "sdt" else None
-                target = sc if sc is not None else child
-                cells.extend(self._collect_row_cells(target))
+            elif t == "sdt":
+                control = self._parse_sdt_control(child)
+                sc = _find_elem(child, "sdtContent", W_NAMESPACES)
+                if sc is not None:
+                    inner_cells = self._collect_row_cells(sc)
+                    if inner_cells:
+                        inner_cells[0].attrib["__sdt_start__"] = control["key"]
+                        inner_cells[-1].attrib["__sdt_end__"] = control["key"]
+                        cells.extend(inner_cells)
+            elif t in ("sdtContent", "customXml"):
+                cells.extend(self._collect_row_cells(child))
         return cells
 
     def _parse_table(self, tbl_elem: ET.Element) -> Table:
@@ -1076,9 +1209,17 @@ class DocxReader:
         rows: list[Row] = []
         for tr_elem in self._collect_table_rows(tbl_elem):
             row = Row()
+            if "__sdt_start__" in tr_elem.attrib:
+                key = tr_elem.attrib.pop("__sdt_start__")
+                ctrl = self._sdt_controls_map.get(key)
+                if ctrl:
+                    row.tr_pr.sdts.insert(0, ctrl)
+            if "__sdt_end__" in tr_elem.attrib:
+                key = tr_elem.attrib.pop("__sdt_end__")
+                row.tr_pr.sdte.append(key)
             tr_pr_elem = _find_elem(tr_elem, "trPr", W_NAMESPACES)
             if tr_pr_elem is not None:
-                tr_pr = RowProperties()
+                tr_pr = row.tr_pr
                 h_elem = _find_elem(tr_pr_elem, "trHeight", W_NAMESPACES)
                 if h_elem is not None:
                     tr_pr.h = _twips_to_pt(_get_attr(h_elem, "val", "0"))
@@ -1087,15 +1228,22 @@ class DocxReader:
                     tr_pr.tbl_header = True
                 if _find_elem(tr_pr_elem, "cantSplit", W_NAMESPACES) is not None:
                     tr_pr.cant_split = True
-                row.tr_pr = tr_pr
 
             # Table Cells
             cells: list[Cell] = []
             for tc_elem in self._collect_row_cells(tr_elem):
                 cell = Cell()
+                if "__sdt_start__" in tc_elem.attrib:
+                    key = tc_elem.attrib.pop("__sdt_start__")
+                    ctrl = self._sdt_controls_map.get(key)
+                    if ctrl:
+                        cell.tc_pr.sdts.insert(0, ctrl)
+                if "__sdt_end__" in tc_elem.attrib:
+                    key = tc_elem.attrib.pop("__sdt_end__")
+                    cell.tc_pr.sdte.append(key)
                 tc_pr_elem = _find_elem(tc_elem, "tcPr", W_NAMESPACES)
                 if tc_pr_elem is not None:
-                    tc_pr = CellProperties()
+                    tc_pr = cell.tc_pr
                     w_elem = _find_elem(tc_pr_elem, "tcW", W_NAMESPACES)
                     if w_elem is not None:
                         tc_pr.w = _twips_to_pt(_get_attr(w_elem, "w", "0"))
@@ -1409,6 +1557,7 @@ class DocxReader:
             image_part=image_part,
             alt_text=alt_text or name or "Embedded Object",
             crop=crop,
+            raw_xml=ET.tostring(elem, encoding="unicode"),
         )
         runs.append(pic)
 

@@ -208,6 +208,8 @@ class ParagraphProperties:
     num: NumberingRef | None = None
     borders: dict[str, Any] = field(default_factory=dict)
     chg: RevisionStamp | None = None
+    sdts: list[dict[str, Any]] = field(default_factory=list)
+    sdte: list[str] = field(default_factory=list)
 
     @property
     def style_id(self) -> str:
@@ -361,6 +363,8 @@ class TableProperties:
     cell_mar: dict[str, float] = field(
         default_factory=lambda: {"t": 0.0, "b": 0.0, "l": 5.4, "r": 5.4}
     )
+    sdts: list[dict[str, Any]] = field(default_factory=list)
+    sdte: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -371,6 +375,8 @@ class RowProperties:
     h_rule: str = "auto"  # "auto", "exact", "atLeast"
     tbl_header: bool = False
     cant_split: bool = False
+    sdts: list[dict[str, Any]] = field(default_factory=list)
+    sdte: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -385,6 +391,8 @@ class CellProperties:
     borders: dict[str, BorderProperties] = field(default_factory=dict)
     shd: ShadingProperties = field(default_factory=ShadingProperties)
     tc_mar: dict[str, float] = field(default_factory=dict)
+    sdts: list[dict[str, Any]] = field(default_factory=list)
+    sdte: list[str] = field(default_factory=list)
 
     @property
     def span(self) -> int:

@@ -691,7 +691,26 @@ class QuireWindow(BaseOfficeWindow):
         if ext in {".docx", ".docm", ".dotx"}:
             from atboffice.modules.writer.io.docx_writer import write_docx
 
-            write_docx(self.writer_view.canvas_view.doc, path)
+            doc = self.writer_view.canvas_view.doc
+            if getattr(doc, "losses", None):
+                from PySide6.QtWidgets import QMessageBox
+
+                loss_items = "\n".join(f"- {loss}" for loss in doc.losses[:5])
+                msg = safe_tr(
+                    "该文档包含当前版本尚未完全支持的高级格式或特性。保存可能导致以下内容丢失：\n\n{losses}\n\n是否仍要继续保存？"
+                ).format(losses=loss_items)
+                title = safe_tr("格式兼容性警告")
+                reply = QMessageBox.warning(
+                    self,
+                    title,
+                    msg,
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No,
+                )
+                if reply != QMessageBox.StandardButton.Yes:
+                    return False
+
+            write_docx(doc, path)
             return True
         path.touch(exist_ok=True)
         return True
