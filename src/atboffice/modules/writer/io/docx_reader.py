@@ -124,6 +124,27 @@ CT_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.docume
 CT_DOCM = "application/vnd.ms-word.document.macroEnabled.main+xml"
 CT_DOTX = "application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml"
 
+STRICT_TO_TRANSITIONAL: dict[str, str] = {
+    "http://purl.oclc.org/ooxml/wordprocessingml/main": NS_W,
+    "http://purl.oclc.org/ooxml/officeDocument/relationships": NS_R,
+    "http://purl.oclc.org/ooxml/officeDocument/math": NS_M,
+    "http://purl.oclc.org/ooxml/drawingml/wordprocessingDrawing": NS_WP,
+    "http://purl.oclc.org/ooxml/drawingml/main": NS_A,
+    "http://purl.oclc.org/ooxml/drawingml/picture": NS_PIC,
+    "http://purl.oclc.org/ooxml/drawingml/chart": "http://schemas.openxmlformats.org/drawingml/2006/chart",
+    "http://purl.oclc.org/ooxml/drawingml/diagram": "http://schemas.openxmlformats.org/drawingml/2006/diagram",
+}
+
+
+def normalize_strict_namespaces(xml_str: str | None) -> str | None:
+    """Normalize ISO/IEC 29500 Strict OpenXML namespace URIs to ECMA-376 Transitional."""
+    if not xml_str or "http://purl.oclc.org/ooxml/" not in xml_str:
+        return xml_str
+    for strict_ns, trans_ns in STRICT_TO_TRANSITIONAL.items():
+        xml_str = xml_str.replace(strict_ns, trans_ns)
+    return xml_str
+
+
 
 def _local_tag(elem: ET.Element | str) -> str:
     """Extract tag name stripped of namespace or Clark notation."""
@@ -331,7 +352,7 @@ class DocxReader:
         if sdt_end_pr is not None:
             shell.append(copy.deepcopy(sdt_end_pr))
         ET.SubElement(shell, f"{{{NS_W}}}sdtContent")
-        shell_xml = ET.tostring(shell, encoding="unicode")
+        shell_xml = normalize_strict_namespaces(ET.tostring(shell, encoding="unicode"))
         key = f"sdt_{id(sdt_elem)}_{id_val or len(self.doc.keep.setdefault('controls', []))}"
         ctrl = {
             "key": key,
@@ -694,6 +715,13 @@ class DocxReader:
             raise ValueError(f"Package missing main document part: {self.main_path}")
 
         root = ET.fromstring(self.pkg.read_part(self.main_path))
+        bg_elem = _find_elem(root, "background", W_NAMESPACES)
+        if bg_elem is not None:
+            self.doc.keep["background"] = {
+                "attrib": dict(bg_elem.attrib),
+                "raw_xml": normalize_strict_namespaces(ET.tostring(bg_elem, encoding="unicode")),
+            }
+
         body = _find_elem(root, "body", W_NAMESPACES)
         if body is None:
             raise ValueError(
@@ -867,7 +895,8 @@ class DocxReader:
                     start_len = len(runs)
                     for mc_child in target_container:
                         self._parse_inline_element(mc_child, runs, r_pr, link_info)
-                    raw_alt_xml = ET.tostring(child, encoding="unicode")
+                    raw_str = ET.tostring(child, encoding="unicode")
+                    raw_alt_xml = normalize_strict_namespaces(raw_str)
                     for r_idx in range(start_len, len(runs)):
                         if isinstance(runs[r_idx], PictureItem):
                             runs[r_idx].raw_xml = raw_alt_xml
@@ -968,7 +997,7 @@ class DocxReader:
             start_len = len(runs)
             for child in target_container:
                 self._parse_inline_element(child, runs, inherited_r_pr, link_info)
-            raw_alt_xml = ET.tostring(elem, encoding="unicode")
+            raw_alt_xml = normalize_strict_namespaces(ET.tostring(elem, encoding="unicode"))
             for r_idx in range(start_len, len(runs)):
                 if isinstance(runs[r_idx], PictureItem):
                     runs[r_idx].raw_xml = raw_alt_xml
@@ -1048,6 +1077,8 @@ class DocxReader:
                 p_pr.keep_lines = _bool_val(child, True)
             elif tag == "pageBreakBefore":
                 p_pr.page_break_before = _bool_val(child, True)
+            elif tag == "framePr":
+                p_pr.frame_pr = dict(child.attrib)
             elif tag == "widowControl":
                 p_pr.widow_control = _bool_val(child, True)
             elif tag == "outlineLvl":
@@ -1574,7 +1605,7 @@ class DocxReader:
             image_part=image_part,
             alt_text=alt_text or name or "Embedded Object",
             crop=crop,
-            raw_xml=ET.tostring(elem, encoding="unicode"),
+            raw_xml=normalize_strict_namespaces(ET.tostring(elem, encoding="unicode")),
         )
         runs.append(pic)
 
@@ -1667,7 +1698,7 @@ class DocxReader:
     ) -> None:
         """Parse legacy VML <w:pict> image and shape elements."""
         rels = self.cur_rels if self.cur_rels else self.rels
-        raw_xml = ET.tostring(elem, encoding="unicode")
+        raw_xml = normalize_strict_namespaces(ET.tostring(elem, encoding="unicode"))
         start_len = len(runs)
         vml_shape_tags = {
             "shape",

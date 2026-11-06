@@ -16,6 +16,8 @@ from atboffice.modules.writer.models.properties import RunProperties
 
 NS_M = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 NS_W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+NS_STRICT_M = "http://purl.oclc.org/ooxml/officeDocument/math"
+NS_STRICT_W = "http://purl.oclc.org/ooxml/wordprocessingml/main"
 
 # Styled alphabet code point base offsets and exception maps
 _HOLES = {
@@ -609,6 +611,11 @@ def parse_omml(elem_or_xml: ET.Element | str) -> OfficeMathItem:
         root = elem_or_xml
         try:
             raw_str = ET.tostring(root, encoding="unicode")
+            if raw_str and NS_STRICT_M in raw_str:
+                raw_str = (
+                    raw_str.replace(NS_STRICT_M, NS_M)
+                    .replace(NS_STRICT_W, NS_W)
+                )
         except Exception:
             raw_str = None
 
@@ -776,7 +783,13 @@ def serialize_omml(item: OfficeMathItem) -> ET.Element:
     """Serialize OfficeMathItem back to standard OOXML <m:oMath> or <m:oMathPara> Element."""
     if item.raw_xml:
         try:
-            return ET.fromstring(item.raw_xml)
+            raw = item.raw_xml
+            if NS_STRICT_M in raw:
+                raw = (
+                    raw.replace(NS_STRICT_M, NS_M)
+                    .replace(NS_STRICT_W, NS_W)
+                )
+            return ET.fromstring(raw)
         except Exception:
             pass
 

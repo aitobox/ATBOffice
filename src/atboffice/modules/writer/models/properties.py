@@ -207,6 +207,7 @@ class ParagraphProperties:
     tabs: list[TabStop] = field(default_factory=list)
     num: NumberingRef | None = None
     borders: dict[str, Any] = field(default_factory=dict)
+    frame_pr: dict[str, str] | None = None
     chg: RevisionStamp | None = None
     sdts: list[dict[str, Any]] = field(default_factory=list)
     sdte: list[str] = field(default_factory=list)
