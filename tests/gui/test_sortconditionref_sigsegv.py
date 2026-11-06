@@ -85,25 +85,43 @@ def test_grid_viewport_defensive_against_malformed_autofilter(qapp: QApplication
 
 
 def test_isolated_subprocess_capture():
-    """Verify offscreen document capture tool runs in separate process without SIGSEGV."""
-    script_path = Path(".agents/skills/atb-office-diff/scripts/capture_doc_atboffice.py")
+    """Verify offscreen document loading and event loop runs in separate process without SIGSEGV."""
     doc_path = Path("tests/docs/excel/xlsx/libreoffice__sortconditionref.xlsx")
-    out_dir = Path("/tmp/atb-sort-test-verify")
+    assert doc_path.exists(), f"Sample file not found: {doc_path}"
 
-    cmd = [
-        sys.executable,
-        str(script_path),
-        "--file",
-        str(doc_path),
-        "--out",
-        str(out_dir),
-    ]
+    code = (
+        "import os\n"
+        "import sys\n"
+        "os.environ['QT_QPA_PLATFORM'] = 'offscreen'\n"
+        "from atboffice.core.app import create_application\n"
+        "from atboffice.core.window_manager import WindowManager\n"
+        "app = create_application(['test_runner', '-platform', 'offscreen'])\n"
+        "wm = WindowManager.get_instance()\n"
+        "win = wm.open_ledger(sys.argv[1])\n"
+        "assert win is not None, 'Failed to open ledger window'\n"
+        "win.resize(1440, 900)\n"
+        "win.show()\n"
+        "for _ in range(10):\n"
+        "    app.processEvents()\n"
+        "cw = win.centralWidget()\n"
+        "target = cw if cw is not None else win\n"
+        "pix = target.grab()\n"
+        "assert not pix.isNull(), 'Grabbed null pixmap'\n"
+        "print('SUCCESS_CAPTURED')\n"
+    )
 
     merged_env = os.environ.copy()
     merged_env["PYTHONPATH"] = "src"
     merged_env["PYTHONFAULTHANDLER"] = "1"
 
+    cmd = [
+        sys.executable,
+        "-c",
+        code,
+        str(doc_path.resolve()),
+    ]
+
     res = subprocess.run(cmd, env=merged_env, capture_output=True, text=True)
     msg = f"Process crashed or failed with code {res.returncode}:\n{res.stderr}\n{res.stdout}"
     assert res.returncode == 0, msg
-    assert "captured" in res.stdout
+    assert "SUCCESS_CAPTURED" in res.stdout
