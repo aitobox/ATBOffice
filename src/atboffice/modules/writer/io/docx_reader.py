@@ -138,7 +138,7 @@ STRICT_TO_TRANSITIONAL: dict[str, str] = {
 
 def normalize_strict_namespaces(xml_str: str | None) -> str | None:
     """Normalize ISO/IEC 29500 Strict OpenXML namespace URIs to ECMA-376 Transitional."""
-    if not xml_str or "purl.oclc.org" not in xml_str:
+    if not xml_str or "http://purl.oclc.org/ooxml/" not in xml_str:
         return xml_str
     for strict_ns, trans_ns in STRICT_TO_TRANSITIONAL.items():
         xml_str = xml_str.replace(strict_ns, trans_ns)
