@@ -72,6 +72,27 @@ NS_XML = "http://www.w3.org/XML/1998/namespace"
 NS_V = "urn:schemas-microsoft-com:vml"
 NS_O = "urn:schemas-microsoft-com:office:office"
 NS_W10 = "urn:schemas-microsoft-com:office:word"
+NS_MC = "http://schemas.openxmlformats.org/markup-compatibility/2006"
+NS_W14 = "http://schemas.microsoft.com/office/word/2010/wordml"
+NS_W15 = "http://schemas.microsoft.com/office/word/2012/wordml"
+NS_WPS = "http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
+NS_WPG = "http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"
+
+ET.register_namespace("w", NS_W)
+ET.register_namespace("r", NS_R)
+ET.register_namespace("m", NS_M)
+ET.register_namespace("wp", NS_WP)
+ET.register_namespace("a", NS_A)
+ET.register_namespace("pic", NS_PIC)
+ET.register_namespace("wps", NS_WPS)
+ET.register_namespace("wpg", NS_WPG)
+ET.register_namespace("mc", NS_MC)
+ET.register_namespace("v", NS_V)
+ET.register_namespace("o", NS_O)
+ET.register_namespace("w10", NS_W10)
+ET.register_namespace("w14", NS_W14)
+ET.register_namespace("w15", NS_W15)
+
 
 # Dual Transitional & Strict Namespaces Sets (ISO/IEC 29500 & ECMA-376)
 W_NAMESPACES = {
@@ -1540,11 +1561,7 @@ class DocxReader:
                     except ValueError:
                         rotation = 0.0
             elif tag == "txbxContent":
-                for p_elem in gd:
-                    if _local_tag(p_elem) == "p":
-                        for c in p_elem.iter():
-                            if _local_tag(c) == "t" and c.text:
-                                runs.append(TextItem(text=c.text, r_pr=r_pr or RunProperties()))
+                pass
 
         pic = PictureItem(
             id=doc_id,
@@ -1650,9 +1667,23 @@ class DocxReader:
     ) -> None:
         """Parse legacy VML <w:pict> image and shape elements."""
         rels = self.cur_rels if self.cur_rels else self.rels
+        raw_xml = ET.tostring(elem, encoding="unicode")
+        start_len = len(runs)
+        vml_shape_tags = {
+            "shape",
+            "rect",
+            "roundrect",
+            "oval",
+            "line",
+            "polyline",
+            "group",
+            "image",
+            "arc",
+            "curve",
+        }
         for shape in elem.iter():
             tag = _local_tag(shape)
-            if tag in ("shape", "rect"):
+            if tag in vml_shape_tags:
                 style_str = _get_attr(shape, "style", "")
                 props = self._parse_vml_style(style_str)
 
@@ -1698,17 +1729,20 @@ class DocxReader:
                     r_pr=r_pr or RunProperties(),
                     image_part=image_part,
                     alt_text=alt_text,
+                    raw_xml=raw_xml,
                 )
                 runs.append(pic)
 
-        # Check for nested textbox content <w:txbxContent> inside VML shapes
-        for txbx in _findall_elems(elem, "txbxContent", W_NAMESPACES):
-            for child in txbx:
-                c_tag = _local_tag(child)
-                if c_tag == "p":
-                    p = self._parse_paragraph(child)
-                    for item in p.runs:
-                        runs.append(item)
+        # If no specific shape matched inside <w:pict>, retain the entire pict raw XML
+        # in a fallback PictureItem
+        if len(runs) == start_len:
+            pic = PictureItem(
+                width=0.0,
+                height=0.0,
+                r_pr=r_pr or RunProperties(),
+                raw_xml=raw_xml,
+            )
+            runs.append(pic)
 
     def _parse_vml_style(self, style_str: str) -> dict[str, Any]:
         """Parse CSS-like style string from VML elements into numerical point values."""

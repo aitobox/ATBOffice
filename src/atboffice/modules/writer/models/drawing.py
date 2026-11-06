@@ -155,6 +155,31 @@ class DrawingObject(RunItem):
         self.raw_data = raw_data or {}
         self.raw_xml = raw_xml
 
+    def plain_text(self) -> str:
+        """Extract plain text from embedded textbox content if present."""
+        if not self.raw_xml or "txbxContent" not in self.raw_xml:
+            return ""
+        try:
+            import re
+            import xml.etree.ElementTree as ET
+
+            xml_str = self.raw_xml
+            if "Fallback" in xml_str:
+                xml_str = re.sub(
+                    r"<[^>]*Fallback\b.*?</[^>]*Fallback>", "", xml_str, flags=re.DOTALL
+                )
+
+            root = ET.fromstring(xml_str)
+            texts: list[str] = []
+            for elem in root.iter():
+                tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+                if tag == "t" and elem.text:
+                    texts.append(elem.text)
+            return "".join(texts)
+        except Exception:
+            return ""
+
+
 
 @dataclass
 class PictureItem(DrawingObject):
