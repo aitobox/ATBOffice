@@ -609,6 +609,11 @@ def parse_omml(elem_or_xml: ET.Element | str) -> OfficeMathItem:
         root = elem_or_xml
         try:
             raw_str = ET.tostring(root, encoding="unicode")
+            if raw_str and "purl.oclc.org" in raw_str:
+                raw_str = (
+                    raw_str.replace("http://purl.oclc.org/ooxml/officeDocument/math", NS_M)
+                    .replace("http://purl.oclc.org/ooxml/wordprocessingml/main", NS_W)
+                )
         except Exception:
             raw_str = None
 
@@ -776,7 +781,13 @@ def serialize_omml(item: OfficeMathItem) -> ET.Element:
     """Serialize OfficeMathItem back to standard OOXML <m:oMath> or <m:oMathPara> Element."""
     if item.raw_xml:
         try:
-            return ET.fromstring(item.raw_xml)
+            raw = item.raw_xml
+            if "purl.oclc.org" in raw:
+                raw = (
+                    raw.replace("http://purl.oclc.org/ooxml/officeDocument/math", NS_M)
+                    .replace("http://purl.oclc.org/ooxml/wordprocessingml/main", NS_W)
+                )
+            return ET.fromstring(raw)
         except Exception:
             pass
 

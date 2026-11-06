@@ -7,6 +7,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
+from atboffice.modules.writer.io.docx_reader import normalize_strict_namespaces
 from atboffice.modules.writer.models.document import (
     BookmarkEndItem,
     BookmarkStartItem,
@@ -279,6 +280,25 @@ class DocxWriter:
 
         # Build Document XML
         root = ET.Element(_w("document"))
+
+        # Serialize document background if preserved
+        bg_info = self.doc.keep.get("background")
+        if bg_info:
+            raw_xml = bg_info.get("raw_xml")
+            if raw_xml:
+                try:
+                    norm_raw = normalize_strict_namespaces(raw_xml) or raw_xml
+                    bg_el = ET.fromstring(norm_raw)
+                    root.append(bg_el)
+                except Exception:
+                    bg_el = ET.SubElement(root, _w("background"))
+                    for k, v in bg_info.get("attrib", {}).items():
+                        bg_el.set(k if k.startswith("{") else _w(k), v)
+            else:
+                bg_el = ET.SubElement(root, _w("background"))
+                for k, v in bg_info.get("attrib", {}).items():
+                    bg_el.set(k if k.startswith("{") else _w(k), v)
+
         body = ET.SubElement(root, _w("body"))
 
         # Serialize main story blocks with block SDT wrapping
@@ -394,6 +414,17 @@ class DocxWriter:
 
         if p_pr.page_break_before:
             ET.SubElement(p_pr_elem, _w("pageBreakBefore"))
+
+        if getattr(p_pr, "frame_pr", None) is not None:
+            fp = ET.SubElement(p_pr_elem, _w("framePr"))
+            for k, v in p_pr.frame_pr.items():
+                if k.startswith("{"):
+                    fp.set(k, v)
+                elif ":" in k:
+                    prefix, local = k.split(":", 1)
+                    fp.set(_w(local) if prefix == "w" else k, v)
+                else:
+                    fp.set(_w(k), v)
 
         if not p_pr.widow_control:
             widow = ET.SubElement(p_pr_elem, _w("widowControl"))
@@ -531,7 +562,8 @@ class DocxWriter:
             # 2. Check for PictureItem with raw_xml
             if isinstance(item, PictureItem) and item.raw_xml:
                 try:
-                    elem = ET.fromstring(item.raw_xml)
+                    raw = normalize_strict_namespaces(item.raw_xml) or item.raw_xml
+                    elem = ET.fromstring(raw)
                     if (
                         elem.tag.endswith("AlternateContent")
                         or elem.tag.endswith("drawing")
@@ -639,7 +671,8 @@ class DocxWriter:
         if isinstance(item, PictureItem):
             if item.raw_xml:
                 try:
-                    elem = ET.fromstring(item.raw_xml)
+                    raw = normalize_strict_namespaces(item.raw_xml) or item.raw_xml
+                    elem = ET.fromstring(raw)
                     if (
                         elem.tag.endswith("AlternateContent")
                         or elem.tag.endswith("drawing")
