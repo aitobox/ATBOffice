@@ -438,6 +438,13 @@ def _parse_styles(zip_file: zipfile.ZipFile, styles_path: str) -> list[FormatDel
                         delta.indent = int(indent)
                     except ValueError:
                         pass
+                ro = _attr(align_el, "readingOrder")
+                if ro == "1":
+                    delta.text_direction = "ltr"
+                elif ro == "2":
+                    delta.text_direction = "rtl"
+                elif ro == "0":
+                    delta.text_direction = "context"
 
             deltas.append(delta)
 
