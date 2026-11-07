@@ -24,6 +24,8 @@ from atboffice.modules.presentation.views.text_editor import (
     calculate_autofit_scale,
     calculate_shape_autofit_size,
     clamp_outline_level,
+    measure_text_body_height,
+    solve_norm_autofit_scale,
 )
 
 __all__ = [
@@ -42,4 +44,6 @@ __all__ = [
     "calculate_autofit_scale",
     "calculate_shape_autofit_size",
     "clamp_outline_level",
+    "measure_text_body_height",
+    "solve_norm_autofit_scale",
 ]

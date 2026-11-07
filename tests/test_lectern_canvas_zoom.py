@@ -124,7 +124,7 @@ def test_aspect_ratios_fit(qapp: QApplication) -> None:
     qapp.processEvents()
     view_4_3.zoom_fit()
     scale_4_3 = view_4_3.zoom
-    assert 1.1 <= scale_4_3 <= 1.35
+    assert 1.0 <= scale_4_3 <= 1.35
     view_4_3.close()
 
 

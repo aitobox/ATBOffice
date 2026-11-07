@@ -1992,6 +1992,11 @@ class PptxReader:
         level = 0
         algn_val = None
         bullet = BulletInfo(type="none")
+        mar_l_val = None
+        indent_val = None
+        ln_spc = None
+        spc_bef = None
+        spc_aft = None
 
         if p_pr is not None:
             lvl_val = _get_attr(p_pr, "lvl")
@@ -2002,6 +2007,35 @@ class PptxReader:
                     level = 0
 
             algn_val = _get_attr(p_pr, "algn")
+
+            mar_l_str = _get_attr(p_pr, "marL")
+            if mar_l_str is not None:
+                mar_l_val = emu_to_pt(mar_l_str)
+
+            indent_str = _get_attr(p_pr, "indent")
+            if indent_str is not None:
+                indent_val = emu_to_pt(indent_str)
+
+            def _parse_spacing(spc_elem: ET.Element | None) -> dict[str, float] | None:
+                if spc_elem is None:
+                    return None
+                pct_elem = _get_child(spc_elem, "spcPct")
+                if pct_elem is not None:
+                    try:
+                        return {"pct": float(_get_attr(pct_elem, "val", 0)) / 1000.0}
+                    except (ValueError, TypeError):
+                        return None
+                pts_elem = _get_child(spc_elem, "spcPts")
+                if pts_elem is not None:
+                    try:
+                        return {"pts": float(_get_attr(pts_elem, "val", 0)) / 100.0}
+                    except (ValueError, TypeError):
+                        return None
+                return None
+
+            ln_spc = _parse_spacing(_get_child(p_pr, "lnSpc"))
+            spc_bef = _parse_spacing(_get_child(p_pr, "spcBef"))
+            spc_aft = _parse_spacing(_get_child(p_pr, "spcAft"))
 
             bu_char = _get_child(p_pr, "buChar")
             if bu_char is not None:
@@ -2018,6 +2052,16 @@ class PptxReader:
         props: dict[str, Any] = {}
         if algn_val:
             props["algn"] = algn_val
+        if mar_l_val is not None:
+            props["marL"] = mar_l_val
+        if indent_val is not None:
+            props["indent"] = indent_val
+        if ln_spc:
+            props["lnSpc"] = ln_spc
+        if spc_bef:
+            props["spcBef"] = spc_bef
+        if spc_aft:
+            props["spcAft"] = spc_aft
         if bullet and bullet.type != "none":
             props["bu"] = bullet.to_dict()
 
