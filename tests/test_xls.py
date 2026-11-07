@@ -206,7 +206,7 @@ def test_ledger_window_disguised_file_rejected(qtbot, monkeypatch, tmp_path: Pat
 
 
 def test_read_xls_sparse_poi_51535_correctness_and_budget():
-    """Verify poi__51535.xls (65536x256 sparse) parses correctly and within strict performance budget."""
+    """Verify poi__51535.xls (65536x256 sparse) parses within strict performance budget."""
     import time
 
     sample = Path("tests/docs/excel/xls/poi__51535.xls")

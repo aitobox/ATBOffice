@@ -5,7 +5,6 @@ Measures parse time and peak memory for real and synthetic sparse/dense workbook
 
 from __future__ import annotations
 
-import io
 import time
 import tracemalloc
 from pathlib import Path
@@ -15,16 +14,20 @@ from atboffice.modules.spreadsheet.io.xls_reader import read_xls
 REAL_SAMPLE = Path("tests/docs/excel/xls/poi__51535.xls")
 
 
-def run_benchmark_on_source(name: str, source: str | Path | bytes, iterations: int = 3) -> dict[str, float]:
+def run_benchmark_on_source(
+    name: str,
+    source: str | Path | bytes,
+    iterations: int = 3,
+) -> dict[str, float]:
     times: list[float] = []
     peak_mems: list[float] = []
 
     for _ in range(iterations):
         tracemalloc.start()
         t0 = time.perf_counter()
-        wb = read_xls(source)
+        _ = read_xls(source)
         t1 = time.perf_counter()
-        current, peak = tracemalloc.get_traced_memory()
+        _, peak = tracemalloc.get_traced_memory()
         tracemalloc.stop()
 
         times.append(t1 - t0)
@@ -42,7 +45,10 @@ def run_benchmark_on_source(name: str, source: str | Path | bytes, iterations: i
         "max_sec": max_t,
         "avg_peak_mb": avg_mem,
     }
-    print(f"[{name}] {iterations} runs: min={min_t:.4f}s, avg={avg_t:.4f}s, max={max_t:.4f}s, peak_mem={avg_mem:.2f}MB")
+    print(
+        f"[{name}] {iterations} runs: min={min_t:.4f}s, avg={avg_t:.4f}s, "
+        f"max={max_t:.4f}s, peak_mem={avg_mem:.2f}MB"
+    )
     return result
 
 

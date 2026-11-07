@@ -361,7 +361,8 @@ def read_xls(
             if has_raw_arrays:
                 row_types = raw_cell_types[r]
                 # High-speed row emptiness test:
-                # If row_types is array.array('B') of length ncols, tobytes() is a single C memcmp against zero_bytes
+                # If row_types is array.array('B') of length ncols, tobytes() is
+                # a single C memcmp against zero_bytes
                 if isinstance(row_types, array.array) and len(row_types) == ncols:
                     if row_types.tobytes() == zero_bytes:
                         continue
@@ -384,7 +385,9 @@ def read_xls(
                 for c in range(ncols):
                     cell = sheet.cell(r, c)
                     ctype = cell.ctype
-                    if ctype in (xlrd.XL_CELL_EMPTY, xlrd.XL_CELL_BLANK) and not (ctype == xlrd.XL_CELL_BLANK and has_formatting):
+                    if ctype == xlrd.XL_CELL_EMPTY:
+                        continue
+                    if ctype == xlrd.XL_CELL_BLANK and not has_formatting:
                         continue
                     cell_data = _extract_cell_data(
                         book, sheet, r, c, ctype, cell.value, datemode, has_formatting
