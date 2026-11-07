@@ -669,15 +669,10 @@ class LedgerWindow(BaseOfficeWindow):
         if act_underline:
             act_underline.setChecked(bool(cell.underline))
 
-        align_h = cell.align_h or "general"
-        if align_h == "general":
-            is_left = not isinstance(cell.value, (int, float))
-            is_center = False
-            is_right = isinstance(cell.value, (int, float))
-        else:
-            is_left = align_h == "left"
-            is_center = align_h == "center"
-            is_right = align_h == "right"
+        eff_h = cell.get_effective_align_h()
+        is_left = eff_h == "left"
+        is_center = eff_h == "center"
+        is_right = eff_h == "right"
 
         act_left = self.action_registry.get_action("alignLeft")
         if act_left:
@@ -2323,13 +2318,14 @@ class LedgerWindow(BaseOfficeWindow):
                                 painter.setFont(f)
                                 painter.setPen(QPen(QColor(cell.fg_color or "#000000")))
 
+                                eff_h = cell.get_effective_align_h()
                                 align_flag = Qt.AlignmentFlag.AlignVCenter
-                                if cell.align_h == "center":
+                                if eff_h == "center":
                                     align_flag |= Qt.AlignmentFlag.AlignHCenter
-                                elif cell.align_h == "right" or isinstance(
-                                    cell.value, (int, float)
-                                ):
+                                elif eff_h == "right":
                                     align_flag |= Qt.AlignmentFlag.AlignRight
+                                elif eff_h == "justify":
+                                    align_flag |= Qt.AlignmentFlag.AlignJustify
                                 else:
                                     align_flag |= Qt.AlignmentFlag.AlignLeft
 
