@@ -1,5 +1,8 @@
 """Unit tests for Quire dynamic multi-page pagination & flow engine (Issue #25)."""
 
+from pathlib import Path
+
+from atboffice.modules.writer.io.docx_reader import read_docx
 from atboffice.modules.writer.layout.pagination import (
     PaginationResult,
     format_number,
@@ -405,8 +408,18 @@ def test_section_breaks_continuous_space_exhausted():
 def test_section_breaks_continuous_multi_column():
     """Verify continuous section break can switch to multi-column layout on same page."""
     doc = Document()
-    sect1 = SectionProperties(pg_w=612.0, pg_h=792.0, cols=ColumnsProperties(num=1), sect_type="nextPage")
-    sect2 = SectionProperties(pg_w=612.0, pg_h=792.0, cols=ColumnsProperties(num=2, space=20.0), sect_type="continuous")
+    sect1 = SectionProperties(
+        pg_w=612.0,
+        pg_h=792.0,
+        cols=ColumnsProperties(num=1),
+        sect_type="nextPage",
+    )
+    sect2 = SectionProperties(
+        pg_w=612.0,
+        pg_h=792.0,
+        cols=ColumnsProperties(num=2, space=20.0),
+        sect_type="continuous",
+    )
 
     p1 = Paragraph(runs=[TextItem(text="One column intro text")], sect=sect1)
     p2 = Paragraph(runs=[TextItem(text="Two columns body text")])
@@ -422,10 +435,7 @@ def test_section_breaks_continuous_multi_column():
 
 
 def test_fdo52208_document_regression():
-    """Regression test for libreoffice__fdo52208.docx: continuous section should remain on page 1."""
-    from pathlib import Path
-    from atboffice.modules.writer.io.docx_reader import read_docx
-
+    """Regression test: continuous section in fdo52208 should remain on page 1."""
     doc_path = Path("tests/docs/word/docx/libreoffice__fdo52208.docx")
     if not doc_path.exists():
         return

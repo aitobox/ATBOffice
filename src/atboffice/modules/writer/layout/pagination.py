@@ -531,7 +531,13 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
                 and abs(sect.pg_h - prev_sect.pg_h) < 1.0
             )
 
-            if s_type == "continuous" and same_geom and ctx.current_page and not ctx.current_page.is_blank:
+            is_valid_continuous = (
+                s_type == "continuous"
+                and same_geom
+                and ctx.current_page
+                and not ctx.current_page.is_blank
+            )
+            if is_valid_continuous:
                 bottom_y = ctx.get_current_region_bottom()
                 avail_h = ctx.current_page.body_height - bottom_y
                 if avail_h >= 20.0:
