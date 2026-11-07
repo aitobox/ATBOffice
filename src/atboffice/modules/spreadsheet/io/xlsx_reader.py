@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import logging
 import re
 import xml.etree.ElementTree as ET
 import zipfile
@@ -35,6 +36,8 @@ from atboffice.modules.spreadsheet.views.object_layer import (
     FloatingObject,
 )
 from atboffice.vfs.opc import SourcePackage
+
+logger = logging.getLogger(__name__)
 
 # Builtin OOXML number formats (ECMA-376 Part 1 §18.8.30)
 BUILTIN_NUMFMTS: dict[int, str] = {

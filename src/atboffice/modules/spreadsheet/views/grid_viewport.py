@@ -688,7 +688,9 @@ class GridViewport(QAbstractScrollArea):
         main_r2 = max(main_r1, end_row)
         main_c1 = max(fz_c, start_col)
         main_c2 = max(main_c1, end_col)
-        main_clip = QRect(x0 + fz_c_w, y0 + fz_r_h, max(0, vw - x0 - fz_c_w), max(0, vh - y0 - fz_r_h))
+        main_clip = QRect(
+            x0 + fz_c_w, y0 + fz_r_h, max(0, vw - x0 - fz_c_w), max(0, vh - y0 - fz_r_h)
+        )
         panes.append((main_r1, main_r2, main_c1, main_c2, scroll_x, scroll_y, main_clip))
 
         # Top frozen pane (pinned vertically, scrolls horizontally)

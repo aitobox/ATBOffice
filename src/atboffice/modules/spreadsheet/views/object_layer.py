@@ -576,6 +576,7 @@ class SpreadsheetObjectLayer(QWidget):
         elif obj.kind == "chart":
             try:
                 from PySide6.QtCore import QRectF
+
                 from atboffice.modules.presentation.chart.model import ChartData
                 from atboffice.modules.presentation.chart.painter import ChartPainter
 

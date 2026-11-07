@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import io
 import zipfile
-import xml.etree.ElementTree as ET
-import pytest
-from PySide6.QtCore import QPoint, QRect, Qt
-from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
+
+from PySide6.QtCore import QRect, Qt
+from PySide6.QtGui import QPainter, QPixmap
 
 from atboffice.modules.presentation.chart.model import ChartData, SeriesData
 from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
@@ -142,19 +141,27 @@ class TestXlsxReaderGraphicFrameChart:
                 "[Content_Types].xml",
                 '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                 '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n'
-                '  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n'
+                '  <Default Extension="rels" '
+                'ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n'
                 '  <Default Extension="xml" ContentType="application/xml"/>\n'
-                '  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>\n'
-                '  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>\n'
-                '  <Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>\n'
-                '  <Override PartName="/xl/charts/chart1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>\n'
+                '  <Override PartName="/xl/workbook.xml" '
+                'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>\n'
+                '  <Override PartName="/xl/worksheets/sheet1.xml" '
+                'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>\n'
+                '  <Override PartName="/xl/drawings/drawing1.xml" '
+                'ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>\n'
+                '  <Override PartName="/xl/charts/chart1.xml" '
+                'ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>\n'
                 "</Types>",
             )
             zf.writestr(
                 "_rels/.rels",
                 '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                 '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
-                '  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>\n'
+                '  <Relationship Id="rId1" '
+                'Type="http://schemas.openxmlformats.org/'
+                'officeDocument/2006/relationships/officeDocument" '
+                'Target="xl/workbook.xml"/>\n'
                 "</Relationships>",
             )
             zf.writestr(
@@ -169,7 +176,10 @@ class TestXlsxReaderGraphicFrameChart:
                 "xl/_rels/workbook.xml.rels",
                 '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                 '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
-                '  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>\n'
+                '  <Relationship Id="rId1" '
+                'Type="http://schemas.openxmlformats.org/'
+                'officeDocument/2006/relationships/worksheet" '
+                'Target="worksheets/sheet1.xml"/>\n'
                 "</Relationships>",
             )
             zf.writestr(
@@ -185,18 +195,28 @@ class TestXlsxReaderGraphicFrameChart:
                 "xl/worksheets/_rels/sheet1.xml.rels",
                 '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                 '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
-                '  <Relationship Id="rIdDrw1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>\n'
+                '  <Relationship Id="rIdDrw1" '
+                'Type="http://schemas.openxmlformats.org/'
+                'officeDocument/2006/relationships/drawing" '
+                'Target="../drawings/drawing1.xml"/>\n'
                 "</Relationships>",
             )
             zf.writestr(
                 "xl/drawings/drawing1.xml",
                 '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-                '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" '
+                '<xdr:wsDr '
+                'xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" '
                 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
                 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">\n'
                 '  <xdr:twoCellAnchor editAs="twoCell">\n'
-                '    <xdr:from><xdr:col>2</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>2</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>\n'
-                '    <xdr:to><xdr:col>8</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>12</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>\n'
+                '    <xdr:from>\n'
+                '      <xdr:col>2</xdr:col><xdr:colOff>0</xdr:colOff>\n'
+                '      <xdr:row>2</xdr:row><xdr:rowOff>0</xdr:rowOff>\n'
+                '    </xdr:from>\n'
+                '    <xdr:to>\n'
+                '      <xdr:col>8</xdr:col><xdr:colOff>0</xdr:colOff>\n'
+                '      <xdr:row>12</xdr:row><xdr:rowOff>0</xdr:rowOff>\n'
+                '    </xdr:to>\n'
                 '    <xdr:graphicFrame macro="">\n'
                 '      <xdr:nvGraphicFramePr>\n'
                 '        <xdr:cNvPr id="2" name="Revenue Chart"/>\n'
@@ -204,8 +224,11 @@ class TestXlsxReaderGraphicFrameChart:
                 '      </xdr:nvGraphicFramePr>\n'
                 '      <xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>\n'
                 '      <a:graphic>\n'
-                '        <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">\n'
-                '          <c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="rIdChart1"/>\n'
+                '        <a:graphicData '
+                'uri="http://schemas.openxmlformats.org/drawingml/2006/chart">\n'
+                '          <c:chart '
+                'xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" '
+                'r:id="rIdChart1"/>\n'
                 '        </a:graphicData>\n'
                 '      </a:graphic>\n'
                 '    </xdr:graphicFrame>\n'
@@ -217,7 +240,9 @@ class TestXlsxReaderGraphicFrameChart:
                 "xl/drawings/_rels/drawing1.xml.rels",
                 '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                 '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
-                '  <Relationship Id="rIdChart1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart1.xml"/>\n'
+                '  <Relationship Id="rIdChart1" '
+                'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" '
+                'Target="../charts/chart1.xml"/>\n'
                 "</Relationships>",
             )
             zf.writestr(
@@ -226,7 +251,8 @@ class TestXlsxReaderGraphicFrameChart:
                 '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" '
                 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">\n'
                 '  <c:chart>\n'
-                '    <c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Quarterly Revenue</a:t></a:r></a:p></c:rich></c:tx></c:title>\n'
+                '    <c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r>'
+                '<a:t>Quarterly Revenue</a:t></a:r></a:p></c:rich></c:tx></c:title>\n'
                 '    <c:plotArea>\n'
                 '      <c:barChart>\n'
                 '        <c:barDir val="col"/>\n'
@@ -235,8 +261,12 @@ class TestXlsxReaderGraphicFrameChart:
                 '          <c:idx val="0"/>\n'
                 '          <c:order val="0"/>\n'
                 '          <c:tx><c:v>Sales</c:v></c:tx>\n'
-                '          <c:cat><c:strLit><c:ptCount val="2"/><c:pt idx="0"><c:v>2025</c:v></c:pt><c:pt idx="1"><c:v>2026</c:v></c:pt></c:strLit></c:cat>\n'
-                '          <c:val><c:numLit><c:ptCount val="2"/><c:pt idx="0"><c:v>500</c:v></c:pt><c:pt idx="1"><c:v>800</c:v></c:pt></c:numLit></c:val>\n'
+                '          <c:cat><c:strLit><c:ptCount val="2"/>'
+                '<c:pt idx="0"><c:v>2025</c:v></c:pt>'
+                '<c:pt idx="1"><c:v>2026</c:v></c:pt></c:strLit></c:cat>\n'
+                '          <c:val><c:numLit><c:ptCount val="2"/>'
+                '<c:pt idx="0"><c:v>500</c:v></c:pt>'
+                '<c:pt idx="1"><c:v>800</c:v></c:pt></c:numLit></c:val>\n'
                 '        </c:ser>\n'
                 '      </c:barChart>\n'
                 '    </c:plotArea>\n'
