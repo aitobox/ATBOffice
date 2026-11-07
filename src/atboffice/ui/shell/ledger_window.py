@@ -477,6 +477,9 @@ class LedgerWindow(BaseOfficeWindow):
                 return False
             try:
                 candidate_wb = read_xls(path)
+            except InterruptedError:
+                self.status_bar.showMessage(safe_tr("已取消打开工作簿。"), 5000)
+                return False
             except PermissionError as p_err:
                 QMessageBox.warning(
                     self,

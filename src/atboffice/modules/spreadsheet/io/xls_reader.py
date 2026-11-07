@@ -7,7 +7,9 @@ merged ranges, and styling into WorkbookModel and SheetDataModel.
 
 from __future__ import annotations
 
+import array
 import datetime
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, BinaryIO
 
@@ -91,15 +93,143 @@ def _map_border_style(book: Any, line_style: int, color_index: int) -> BorderSty
     return BorderStyle(style=style, color=color)
 
 
+def _extract_cell_data(
+    book: Any,
+    sheet: Any,
+    r: int,
+    c: int,
+    ctype: int,
+    raw_val: Any,
+    datemode: int,
+    has_formatting: bool,
+) -> CellData | None:
+    """Extract and style a single cell from raw xlrd row values."""
+    if ctype == xlrd.XL_CELL_EMPTY:
+        return None
+    if ctype == xlrd.XL_CELL_BLANK and not has_formatting:
+        return None
+
+    value: Any = None
+    format_code = "General"
+
+    if ctype == xlrd.XL_CELL_TEXT:
+        value = str(raw_val)
+    elif ctype == xlrd.XL_CELL_NUMBER:
+        try:
+            fval = float(raw_val)
+            value = int(fval) if fval.is_integer() else fval
+        except (ValueError, TypeError):
+            value = raw_val
+    elif ctype == xlrd.XL_CELL_BOOLEAN:
+        value = bool(raw_val)
+    elif ctype == xlrd.XL_CELL_DATE:
+        try:
+            dt = xlrd.xldate_as_datetime(raw_val, datemode)
+            if dt.time() == datetime.time(0, 0, 0):
+                value = dt.strftime("%Y-%m-%d")
+                format_code = "YYYY-MM-DD"
+            else:
+                value = dt.strftime("%Y-%m-%d %H:%M:%S")
+                format_code = "YYYY-MM-DD HH:MM:SS"
+        except Exception:
+            value = raw_val
+    elif ctype == xlrd.XL_CELL_ERROR:
+        value = xlrd.error_text_from_code.get(raw_val, "#ERROR!")
+    elif ctype == xlrd.XL_CELL_BLANK:
+        value = None
+    else:
+        value = raw_val
+
+    cell_data = CellData(value=value, format_code=format_code)
+
+    if has_formatting:
+        try:
+            xf_idx = sheet.cell_xf_index(r, c)
+            xf = book.xf_list[xf_idx]
+            font = book.font_list[xf.font_index]
+
+            # Number format
+            if format_code == "General":
+                fmt_obj = book.format_map.get(xf.format_key)
+                if fmt_obj and fmt_obj.format_str:
+                    cell_data.format_code = fmt_obj.format_str
+
+            # Font styles
+            cell_data.bold = bool(getattr(font, "bold", 0))
+            cell_data.italic = bool(getattr(font, "italic", 0))
+            cell_data.underline = bool(getattr(font, "underlined", 0))
+            cell_data.strike = bool(getattr(font, "struck_out", 0))
+            if getattr(font, "name", None):
+                cell_data.font_family = font.name
+            if getattr(font, "height", None):
+                cell_data.font_size = max(6, int(round(font.height / 20.0)))
+
+            fg_color = _rgb_from_color_index(book, getattr(font, "colour_index", 0))
+            if fg_color:
+                cell_data.fg_color = fg_color
+
+            # Background
+            bg = getattr(xf, "background", None)
+            if bg:
+                bg_cidx = getattr(bg, "background_colour_index", 0)
+                bg_color = _rgb_from_color_index(book, bg_cidx)
+                if bg_color:
+                    cell_data.bg_color = bg_color
+
+            # Alignment
+            align = getattr(xf, "alignment", None)
+            if align:
+                cell_data.align_h = _map_hor_align(getattr(align, "hor_align", 0))
+                cell_data.align_v = _map_vert_align(getattr(align, "vert_align", 2))
+                cell_data.wrap_text = bool(getattr(align, "text_wrapped", 0))
+                cell_data.indent = int(getattr(align, "indent_level", 0))
+
+            # Borders
+            border = getattr(xf, "border", None)
+            if border:
+                cell_data.border_left = _map_border_style(
+                    book, border.left_line_style, border.left_colour_index
+                )
+                cell_data.border_right = _map_border_style(
+                    book, border.right_line_style, border.right_colour_index
+                )
+                cell_data.border_top = _map_border_style(
+                    book, border.top_line_style, border.top_colour_index
+                )
+                cell_data.border_bottom = _map_border_style(
+                    book, border.bottom_line_style, border.bottom_colour_index
+                )
+        except Exception:
+            pass
+
+    if ctype == xlrd.XL_CELL_BLANK:
+        has_custom_style = bool(
+            cell_data.bg_color
+            or cell_data.border_left
+            or cell_data.border_right
+            or cell_data.border_top
+            or cell_data.border_bottom
+            or cell_data.format_code != "General"
+        )
+        if not has_custom_style:
+            return None
+
+    return cell_data
+
+
 def read_xls(
     source: str | Path | bytes | BinaryIO,
     workbook: WorkbookModel | None = None,
+    cancel_check: Callable[[], bool] | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> WorkbookModel:
     """Read a binary Excel 97-2003 (.xls) workbook into a WorkbookModel.
 
     Args:
         source: File path, raw bytes, or binary stream of an .xls file.
         workbook: Existing WorkbookModel to populate. If None, a new instance is created.
+        cancel_check: Optional callable returning True to abort loading mid-way.
+        progress_callback: Optional callable receiving (current_sheet, total_sheets).
 
     Returns:
         WorkbookModel containing the imported worksheets and cell data.
@@ -108,6 +238,7 @@ def read_xls(
         RuntimeError: If xlrd is not installed in the environment.
         PermissionError: If the workbook is password protected / encrypted.
         ValueError: If the file is not a valid BIFF workbook or is corrupted.
+        InterruptedError: If cancel_check returns True during processing.
     """
     if not HAS_XLRD or xlrd is None:
         raise RuntimeError("xlrd is not installed in the current environment.")
@@ -169,6 +300,11 @@ def read_xls(
         return wb
 
     for sheet_idx in range(num_sheets):
+        if cancel_check and cancel_check():
+            raise InterruptedError("XLS read cancelled by user.")
+        if progress_callback:
+            progress_callback(sheet_idx, num_sheets)
+
         sheet = book.sheet_by_index(sheet_idx)
         sheet_name = sheet.name or f"Sheet{sheet_idx + 1}"
         sheet_model = SheetDataModel(name=sheet_name)
@@ -203,110 +339,62 @@ def read_xls(
             if getattr(rowinfo, "hidden", 0):
                 sheet_model.geometry.hidden_rows.add(row_idx)
 
-        # 4. Cell data extraction
+        # 4. Cell data extraction (high-speed sparse traversal)
         nrows = sheet.nrows
         ncols = sheet.ncols
         datemode = getattr(book, "datemode", 0)
 
-        for r in range(nrows):
-            for c in range(ncols):
-                cell = sheet.cell(r, c)
-                ctype = cell.ctype
+        zero_bytes = b"\x00" * ncols if ncols > 0 else b""
+        raw_cell_types = getattr(sheet, "_cell_types", None)
+        raw_cell_values = getattr(sheet, "_cell_values", None)
+        has_raw_arrays = (
+            raw_cell_types is not None
+            and raw_cell_values is not None
+            and isinstance(raw_cell_types, list)
+            and len(raw_cell_types) >= nrows
+        )
 
-                if ctype in (xlrd.XL_CELL_EMPTY, xlrd.XL_CELL_BLANK):
+        for r in range(nrows):
+            if cancel_check and (r & 1023 == 0) and cancel_check():
+                raise InterruptedError("XLS read cancelled by user.")
+
+            if has_raw_arrays:
+                row_types = raw_cell_types[r]
+                # High-speed row emptiness test:
+                # If row_types is array.array('B') of length ncols, tobytes() is a single C memcmp against zero_bytes
+                if isinstance(row_types, array.array) and len(row_types) == ncols:
+                    if row_types.tobytes() == zero_bytes:
+                        continue
+                elif not any(row_types):
                     continue
 
-                value: Any = None
-                format_code = "General"
-
-                if ctype == xlrd.XL_CELL_TEXT:
-                    value = str(cell.value)
-                elif ctype == xlrd.XL_CELL_NUMBER:
-                    fval = float(cell.value)
-                    value = int(fval) if fval.is_integer() else fval
-                elif ctype == xlrd.XL_CELL_BOOLEAN:
-                    value = bool(cell.value)
-                elif ctype == xlrd.XL_CELL_DATE:
-                    try:
-                        dt = xlrd.xldate_as_datetime(cell.value, datemode)
-                        if dt.time() == datetime.time(0, 0, 0):
-                            value = dt.strftime("%Y-%m-%d")
-                            format_code = "YYYY-MM-DD"
-                        else:
-                            value = dt.strftime("%Y-%m-%d %H:%M:%S")
-                            format_code = "YYYY-MM-DD HH:MM:SS"
-                    except Exception:
-                        value = cell.value
-                elif ctype == xlrd.XL_CELL_ERROR:
-                    value = xlrd.error_text_from_code.get(cell.value, "#ERROR!")
-                else:
-                    value = cell.value
-
-                # 5. Cell styles & formatting
-                cell_data = CellData(value=value, format_code=format_code)
-
-                if has_formatting:
-                    try:
-                        xf_idx = sheet.cell_xf_index(r, c)
-                        xf = book.xf_list[xf_idx]
-                        font = book.font_list[xf.font_index]
-
-                        # Number format
-                        if format_code == "General":
-                            fmt_obj = book.format_map.get(xf.format_key)
-                            if fmt_obj and fmt_obj.format_str:
-                                cell_data.format_code = fmt_obj.format_str
-
-                        # Font styles
-                        cell_data.bold = bool(getattr(font, "bold", 0))
-                        cell_data.italic = bool(getattr(font, "italic", 0))
-                        cell_data.underline = bool(getattr(font, "underlined", 0))
-                        cell_data.strike = bool(getattr(font, "struck_out", 0))
-                        if getattr(font, "name", None):
-                            cell_data.font_family = font.name
-                        if getattr(font, "height", None):
-                            cell_data.font_size = max(6, int(round(font.height / 20.0)))
-
-                        fg_color = _rgb_from_color_index(book, getattr(font, "colour_index", 0))
-                        if fg_color:
-                            cell_data.fg_color = fg_color
-
-                        # Background
-                        bg = getattr(xf, "background", None)
-                        if bg:
-                            bg_cidx = getattr(bg, "background_colour_index", 0)
-                            bg_color = _rgb_from_color_index(book, bg_cidx)
-                            if bg_color:
-                                cell_data.bg_color = bg_color
-
-                        # Alignment
-                        align = getattr(xf, "alignment", None)
-                        if align:
-                            cell_data.align_h = _map_hor_align(getattr(align, "hor_align", 0))
-                            cell_data.align_v = _map_vert_align(getattr(align, "vert_align", 2))
-                            cell_data.wrap_text = bool(getattr(align, "text_wrapped", 0))
-                            cell_data.indent = int(getattr(align, "indent_level", 0))
-
-                        # Borders
-                        border = getattr(xf, "border", None)
-                        if border:
-                            cell_data.border_left = _map_border_style(
-                                book, border.left_line_style, border.left_colour_index
-                            )
-                            cell_data.border_right = _map_border_style(
-                                book, border.right_line_style, border.right_colour_index
-                            )
-                            cell_data.border_top = _map_border_style(
-                                book, border.top_line_style, border.top_colour_index
-                            )
-                            cell_data.border_bottom = _map_border_style(
-                                book, border.bottom_line_style, border.bottom_colour_index
-                            )
-                    except Exception:
-                        pass
-
-                sheet_model.set_cell(r, c, cell_data)
+                row_vals = raw_cell_values[r]
+                for c, ctype in enumerate(row_types):
+                    if ctype == xlrd.XL_CELL_EMPTY:
+                        continue
+                    if ctype == xlrd.XL_CELL_BLANK and not has_formatting:
+                        continue
+                    raw_val = row_vals[c] if c < len(row_vals) else None
+                    cell_data = _extract_cell_data(
+                        book, sheet, r, c, ctype, raw_val, datemode, has_formatting
+                    )
+                    if cell_data is not None:
+                        sheet_model.set_cell(r, c, cell_data)
+            else:
+                for c in range(ncols):
+                    cell = sheet.cell(r, c)
+                    ctype = cell.ctype
+                    if ctype in (xlrd.XL_CELL_EMPTY, xlrd.XL_CELL_BLANK) and not (ctype == xlrd.XL_CELL_BLANK and has_formatting):
+                        continue
+                    cell_data = _extract_cell_data(
+                        book, sheet, r, c, ctype, cell.value, datemode, has_formatting
+                    )
+                    if cell_data is not None:
+                        sheet_model.set_cell(r, c, cell_data)
 
         wb.add_sheet(name=sheet_name, sheet=sheet_model)
+
+    if progress_callback:
+        progress_callback(num_sheets, num_sheets)
 
     return wb

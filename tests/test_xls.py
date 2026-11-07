@@ -203,3 +203,92 @@ def test_ledger_window_disguised_file_rejected(qtbot, monkeypatch, tmp_path: Pat
     assert success is False
     assert len(dialogs) >= 1
     assert any("word" in text.lower() for _, text in dialogs)
+
+
+def test_read_xls_sparse_poi_51535_correctness_and_budget():
+    """Verify poi__51535.xls (65536x256 sparse) parses correctly and within strict performance budget."""
+    import time
+
+    sample = Path("tests/docs/excel/xls/poi__51535.xls")
+    assert sample.exists()
+
+    t0 = time.perf_counter()
+    wb = read_xls(sample)
+    duration = time.perf_counter() - t0
+
+    # Strict budget: Must complete in under 1.0s (baseline was 17s)
+    assert duration < 1.0, f"Parse took {duration:.2f}s, exceeding 1.0s budget"
+
+    assert len(wb.sheets) == 3
+    s0 = wb.sheets[0]
+    assert s0.name == "Sheet1"
+
+    # Verify corner cells values
+    assert s0.get_cell_value(0, 0) == "Top Left Cell"
+    assert s0.get_cell_value(0, 255) == "Top Right Cell"
+    assert s0.get_cell_value(65535, 0) == "Bottom Left Cell"
+    assert s0.get_cell_value(65535, 255) == "Bottom Right Cell"
+
+    # Verify sparsity: total loaded cells in sheet 0 is exactly 4
+    assert len(s0.cells) == 4
+    assert s0.get_cell(1, 1) is None
+    assert s0.get_cell(1000, 50) is None
+
+
+def test_read_xls_cancellation():
+    """Verify read_xls halts and raises InterruptedError when cancel_check triggers."""
+    sample = Path("tests/docs/excel/xls/poi__51535.xls")
+    assert sample.exists()
+
+    # Cancel immediately
+    with pytest.raises(InterruptedError, match="cancelled"):
+        read_xls(sample, cancel_check=lambda: True)
+
+    # Cancel after a few rows
+    counter = {"count": 0}
+
+    def cancel_after_some():
+        counter["count"] += 1
+        return counter["count"] > 2
+
+    with pytest.raises(InterruptedError, match="cancelled"):
+        read_xls(sample, cancel_check=cancel_after_some)
+
+
+def test_read_xls_progress_callback():
+    """Verify progress_callback receives valid progression updates."""
+    sample = Path("tests/docs/excel/xls/libreoffice__AutoFilter.xls")
+    assert sample.exists()
+
+    progress_ticks: list[tuple[int, int]] = []
+
+    def on_progress(cur: int, total: int) -> None:
+        progress_ticks.append((cur, total))
+
+    wb = read_xls(sample, progress_callback=on_progress)
+    assert len(wb.sheets) == 3
+    assert len(progress_ticks) >= 3
+    # Final tick should indicate completion
+    assert progress_ticks[-1] == (3, 3)
+
+
+def test_ledger_window_open_xls_cancellation_handled(qtbot, monkeypatch):
+    """Verify LedgerWindow handles InterruptedError gracefully without error dialogs."""
+    sample = Path("tests/docs/excel/xls/poi__tile-range-test.xls")
+    assert sample.exists()
+
+    import atboffice.modules.spreadsheet.io.xls_reader as mod
+
+    def mock_read_xls_cancelled(*args, **kwargs):
+        raise InterruptedError("User cancelled import")
+
+    monkeypatch.setattr(mod, "read_xls", mock_read_xls_cancelled)
+
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+    win.maybe_save_prompt = lambda: True
+
+    success = win.open_file(sample)
+    assert success is False
+    assert "取消" in win.status_bar.currentMessage()
+
