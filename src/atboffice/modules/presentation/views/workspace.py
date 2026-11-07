@@ -22,6 +22,7 @@ from PySide6.QtGui import (
     QPainter,
     QPen,
     QPixmap,
+    QResizeEvent,
     QShortcut,
 )
 from PySide6.QtWidgets import (
@@ -1287,12 +1288,41 @@ class LecternWorkspace(QWidget):
             item = self.thumbnail_list.item(idx)
             item.setIcon(QIcon(pixmap))
 
+    @property
+    def is_auto_fit(self) -> bool:
+        """Return whether canvas view is in auto-fit mode."""
+        return getattr(self.canvas_view, "is_auto_fit", True)
+
+    def set_zoom(self, zoom: float) -> None:
+        """Set zoom scale on canvas view (deactivating auto-fit)."""
+        self.canvas_view.set_zoom(zoom, auto_fit=False)
+
+    def fit_to_window(self) -> None:
+        """Fit slide canvas to current viewport."""
+        self.canvas_view.zoom_fit()
+
+    def zoom_in(self) -> None:
+        """Zoom in on slide canvas."""
+        self.canvas_view.zoom_in()
+
+    def zoom_out(self) -> None:
+        """Zoom out on slide canvas."""
+        self.canvas_view.zoom_out()
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        if hasattr(self, "canvas_view") and self.canvas_view.is_auto_fit:
+            self.canvas_view.zoom_fit()
+
     def _refresh_active_slide(self) -> None:
         if self.presentation.slides:
             cur = self.current_slide
             self.scene.load_slide(cur)
             self.notes_pane.set_plain_text(cur.notes, emit_signal=False)
-            self.canvas_view.zoom_fit()
+            if self.canvas_view.is_auto_fit:
+                self.canvas_view.zoom_fit()
+            else:
+                self.canvas_view.set_zoom(self.canvas_view.zoom, auto_fit=False)
             if hasattr(self, "transition_pane"):
                 self.transition_pane.set_slide(cur)
             if hasattr(self, "animation_pane"):

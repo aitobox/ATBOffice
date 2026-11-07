@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QPainter, QPen, QResizeEvent, QShowEvent
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import (
     QComboBox,
@@ -82,6 +82,14 @@ class LecternWindow(BaseOfficeWindow):
 
         if hasattr(ws, "left_pane") and ws.left_pane is not None:
             ws.left_pane.currentChanged.connect(self._on_left_pane_tab_changed)
+
+        if hasattr(ws, "canvas_view") and ws.canvas_view is not None:
+            if hasattr(ws.canvas_view, "zoom_changed"):
+                ws.canvas_view.zoom_changed.connect(self._on_canvas_zoom_changed)
+            if hasattr(ws.canvas_view, "auto_fit_changed"):
+                ws.canvas_view.auto_fit_changed.connect(
+                    lambda _: self._on_canvas_zoom_changed(ws.canvas_view.zoom)
+                )
 
         # 6. Load file or set initial document title
         if file_path is not None:
@@ -1653,6 +1661,47 @@ class LecternWindow(BaseOfficeWindow):
         except ValueError:
             if hasattr(ws, "fit_to_window"):
                 ws.fit_to_window()
+
+    def _on_canvas_zoom_changed(self, zoom: float) -> None:
+        """Synchronize zoom combobox when canvas zoom level changes."""
+        if getattr(self, "_syncing_toolbars", False):
+            return
+        if not hasattr(self, "zoom_combo") or not self.zoom_combo:
+            return
+        ws = getattr(self.presentation_view, "workspace", None)
+        is_fit = getattr(ws, "is_auto_fit", False)
+        self._syncing_toolbars = True
+        try:
+            if is_fit:
+                self.zoom_combo.setCurrentText(safe_tr("适合比例"))
+            else:
+                self.zoom_combo.setCurrentText(f"{int(round(zoom * 100))}%")
+        finally:
+            self._syncing_toolbars = False
+
+    def fit_to_window(self) -> None:
+        """Fit presentation canvas into current workspace viewport."""
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and hasattr(ws, "fit_to_window"):
+            ws.fit_to_window()
+
+    def set_zoom(self, zoom: float) -> None:
+        """Set zoom scale on presentation canvas."""
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and hasattr(ws, "set_zoom"):
+            ws.set_zoom(zoom)
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and hasattr(ws, "is_auto_fit") and ws.is_auto_fit:
+            ws.fit_to_window()
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and hasattr(ws, "is_auto_fit") and ws.is_auto_fit:
+            ws.fit_to_window()
 
     def _on_font_color_selected(self, color_hex: str) -> None:
         """Apply font color to selected text."""

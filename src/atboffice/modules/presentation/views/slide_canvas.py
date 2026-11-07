@@ -11,6 +11,8 @@ from PySide6.QtGui import (
     QKeyEvent,
     QPainter,
     QPen,
+    QResizeEvent,
+    QShowEvent,
     QWheelEvent,
 )
 from PySide6.QtWidgets import (
@@ -635,6 +637,9 @@ class SlideScene(QGraphicsScene):
 class SlideCanvasView(QGraphicsView):
     """QGraphicsView displaying the SlideScene with zoom, context menu, and keyboard controls."""
 
+    zoom_changed = Signal(float)
+    auto_fit_changed = Signal(bool)
+
     def __init__(
         self,
         scene: SlideScene | None = None,
@@ -645,7 +650,8 @@ class SlideCanvasView(QGraphicsView):
         self.setScene(self._scene)
 
         self._active_card: CommentCardWidget | None = None
-        self.zoom = 1.0
+        self.zoom: float = 1.0
+        self._auto_fit: bool = True
         self.setRenderHints(
             QPainter.RenderHint.Antialiasing
             | QPainter.RenderHint.TextAntialiasing
@@ -656,6 +662,11 @@ class SlideCanvasView(QGraphicsView):
             QGraphicsView.ViewportUpdateMode.FullViewportUpdate
         )
         self.retranslate_ui()
+
+    @property
+    def is_auto_fit(self) -> bool:
+        """Whether canvas is currently in auto-fit (fit to window) mode."""
+        return self._auto_fit
 
     def update_tool_cursor(self) -> None:
         """Update viewport cursor according to active scene drawing tool."""
@@ -670,28 +681,51 @@ class SlideCanvasView(QGraphicsView):
             self._scene.set_drawing_tool(tool)
         self.update_tool_cursor()
 
-    def set_zoom(self, zoom: float) -> None:
+    def set_zoom(self, zoom: float, auto_fit: bool = False) -> None:
         """Set zoom scale (clamped between 0.1 and 4.0)."""
+        if not auto_fit and self._auto_fit:
+            self._auto_fit = False
+            self.auto_fit_changed.emit(False)
+
         clamped = max(0.1, min(zoom, 4.0))
+        changed = abs(self.zoom - clamped) > 1e-4
         self.zoom = clamped
         self.resetTransform()
         self.scale(self.zoom, self.zoom)
+        if changed:
+            self.zoom_changed.emit(self.zoom)
 
     def zoom_in(self) -> None:
-        self.set_zoom(self.zoom * 1.25)
+        self.set_zoom(self.zoom * 1.25, auto_fit=False)
 
     def zoom_out(self) -> None:
-        self.set_zoom(self.zoom * 0.8)
+        self.set_zoom(self.zoom * 0.8, auto_fit=False)
 
     def zoom_fit(self) -> None:
         """Fit slide canvas into current viewport."""
+        if not self._auto_fit:
+            self._auto_fit = True
+            self.auto_fit_changed.emit(True)
+
         vw = float(self.viewport().width())
         vh = float(self.viewport().height())
-        if vw > 0 and vh > 0:
-            margin = 32.0
-            scale_x = (vw - margin) / self._scene.slide_width
-            scale_y = (vh - margin) / self._scene.slide_height
-            self.set_zoom(min(scale_x, scale_y))
+        margin = 32.0
+        sw = float(getattr(self._scene, "slide_width", 960.0) or 960.0)
+        sh = float(getattr(self._scene, "slide_height", 540.0) or 540.0)
+        if vw > margin and vh > margin and sw > 0.0 and sh > 0.0:
+            scale_x = (vw - margin) / sw
+            scale_y = (vh - margin) / sh
+            self.set_zoom(min(scale_x, scale_y), auto_fit=True)
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        if self._auto_fit:
+            self.zoom_fit()
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        if self._auto_fit:
+            self.zoom_fit()
 
     def retranslate_ui(self) -> None:
         """Update internationalized tooltip and accessible descriptions."""
