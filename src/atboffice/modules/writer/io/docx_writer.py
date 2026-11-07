@@ -834,6 +834,32 @@ class DocxWriter:
             w_elem.set(_w("w"), str(pt_to_dxa(tbl.tbl_pr.w)))
             w_elem.set(_w("type"), tbl.tbl_pr.w_type)
 
+        # Table Cell Margins (w:tblCellMar)
+        if tbl.tbl_pr.cell_mar:
+            mar_elem = ET.SubElement(tbl_pr_elem, _w("tblCellMar"))
+            for side, tag_name in (
+                ("t", "top"),
+                ("l", "left"),
+                ("b", "bottom"),
+                ("r", "right"),
+            ):
+                if side in tbl.tbl_pr.cell_mar:
+                    side_elem = ET.SubElement(mar_elem, _w(tag_name))
+                    side_elem.set(_w("w"), str(pt_to_dxa(tbl.tbl_pr.cell_mar[side])))
+                    side_elem.set(_w("type"), "dxa")
+
+        # Table Borders (w:tblBorders)
+        if tbl.tbl_pr.borders:
+            bds_elem = ET.SubElement(tbl_pr_elem, _w("tblBorders"))
+            for b_tag in ("top", "left", "bottom", "right", "insideH", "insideV"):
+                if b_tag in tbl.tbl_pr.borders:
+                    bp = tbl.tbl_pr.borders[b_tag]
+                    b_el = ET.SubElement(bds_elem, _w(b_tag))
+                    b_el.set(_w("val"), bp.val)
+                    b_el.set(_w("sz"), str(int(round(bp.sz * 8.0))))
+                    b_el.set(_w("space"), "0")
+                    b_el.set(_w("color"), _clean_hex(bp.color) or "auto")
+
         # Table Grid
         if tbl.grid:
             grid_elem = ET.SubElement(tbl_elem, _w("tblGrid"))
@@ -917,6 +943,32 @@ class DocxWriter:
                     shd.set(_w("val"), tc_pr.shd.val)
                     shd.set(_w("color"), _clean_hex(tc_pr.shd.color) or "auto")
                     shd.set(_w("fill"), _clean_hex(tc_pr.shd.fill) or "auto")
+
+                # Cell Margins (w:tcMar)
+                if tc_pr.tc_mar:
+                    mar_elem = ET.SubElement(tc_pr_elem, _w("tcMar"))
+                    for side, tag_name in (
+                        ("t", "top"),
+                        ("l", "left"),
+                        ("b", "bottom"),
+                        ("r", "right"),
+                    ):
+                        if side in tc_pr.tc_mar:
+                            side_elem = ET.SubElement(mar_elem, _w(tag_name))
+                            side_elem.set(_w("w"), str(pt_to_dxa(tc_pr.tc_mar[side])))
+                            side_elem.set(_w("type"), "dxa")
+
+                # Cell Borders (w:tcBorders)
+                if tc_pr.borders:
+                    bds_elem = ET.SubElement(tc_pr_elem, _w("tcBorders"))
+                    for b_tag in ("top", "left", "bottom", "right"):
+                        if b_tag in tc_pr.borders:
+                            bp = tc_pr.borders[b_tag]
+                            b_el = ET.SubElement(bds_elem, _w(b_tag))
+                            b_el.set(_w("val"), bp.val)
+                            b_el.set(_w("sz"), str(int(round(bp.sz * 8.0))))
+                            b_el.set(_w("space"), "0")
+                            b_el.set(_w("color"), _clean_hex(bp.color) or "auto")
 
                 # Cell Blocks
                 self._serialize_block_sequence(tc_elem, cell.blocks, hf_id_map)

@@ -301,17 +301,20 @@ class CaretController(QObject):
                                 frag_y = page.body_top + col.top + frag.top
                                 for rl in tl.rows:
                                     for cl in rl.cells:
+                                        mar_l = getattr(cl, "mar_l", 5.4)
+                                        mar_t = getattr(cl, "mar_t", 0.0)
+                                        cell_inner_x = frag_x + cl.x + mar_l
+                                        cur_p_y = frag_y + cl.y + cl.content_offset_y + mar_t
                                         for block, playout in zip(
                                             cl.cell.blocks, cl.paragraphs_layout
                                         ):
+                                            p_top = cur_p_y + playout.effective_space_before
                                             if (
                                                 isinstance(block, Paragraph)
                                                 and block.id == target_pid
                                             ):
-                                                cell_inner_x = frag_x + cl.x + 5.4
-                                                cell_inner_y = frag_y + cl.y + cl.content_offset_y
                                                 for line in playout.lines:
-                                                    line_y = cell_inner_y + line.top
+                                                    line_y = p_top + line.top
                                                     line_h = max(line.height, 14.0)
                                                     if not line.portions:
                                                         return (
@@ -342,10 +345,18 @@ class CaretController(QObject):
                                                                 sub = max(
                                                                     0, target_off - po.char_offset
                                                                 )
+                                                                is_b = getattr(
+                                                                    po, "bold", False
+                                                                )
+                                                                is_i = getattr(
+                                                                    po, "italic", False
+                                                                )
                                                                 x += measure_text_width(
                                                                     po.text[:sub],
                                                                     po.font_size,
                                                                     po.font_family,
+                                                                    bold=is_b,
+                                                                    italic=is_i,
                                                                 )
                                                                 return (
                                                                     p_idx,
@@ -353,6 +364,11 @@ class CaretController(QObject):
                                                                     line_h,
                                                                 )
                                                         return p_idx, QPointF(x, line_y), line_h
+                                            cur_p_y = (
+                                                p_top
+                                                + playout.height
+                                                + playout.effective_space_after
+                                            )
                             continue
                         if frag.paragraph.id != target_pid:
                             continue

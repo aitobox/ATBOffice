@@ -229,6 +229,28 @@ class WriterCanvasView(QAbstractScrollArea):
         """Convert canvas pixels to document logical points."""
         return px / (self.pt_to_px_ratio * self._zoom)
 
+    def _get_border_pen(self, bp: Any, zoom: float) -> QPen | None:
+        """Resolve a QPen for a BorderProperties object under active zoom."""
+        if not bp or getattr(bp, "val", "none") in ("none", "nil", "hidden", "", None):
+            return None
+        val = str(bp.val).lower()
+        sz_pt = max(0.5, float(getattr(bp, "sz", 0.5) or 0.5))
+        pen_w = max(1.0, sz_pt * self.pt_to_px_ratio * zoom)
+        color_val = getattr(bp, "color", "auto") or "auto"
+        if color_val in ("auto", "none", ""):
+            color = QColor(120, 120, 120)
+        else:
+            hex_c = color_val if color_val.startswith("#") else f"#{color_val}"
+            color = QColor(hex_c)
+        pen = QPen(color, pen_w)
+        if "dash" in val:
+            pen.setStyle(Qt.PenStyle.DashLine)
+        elif "dot" in val:
+            pen.setStyle(Qt.PenStyle.DotLine)
+        else:
+            pen.setStyle(Qt.PenStyle.SolidLine)
+        return pen
+
     def total_canvas_size(self) -> QSize:
         """Compute the total bounding size (in px) of all pages stacked vertically."""
         if not self.pagination or not self.pagination.pages:
@@ -557,16 +579,57 @@ class WriterCanvasView(QAbstractScrollArea):
                                     )
                                     painter.fillRect(cell_rect, QColor(hex_fill))
 
-                                # Border
-                                painter.setPen(QPen(QColor(120, 120, 120), 1.0))
-                                painter.drawRect(cell_rect)
+                                # Borders
+                                bds = getattr(cl, "borders", {}) or {}
+                                has_explicit_borders = any(
+                                    getattr(b, "val", "none")
+                                    not in ("none", "nil", "hidden", "", None)
+                                    for b in bds.values()
+                                )
+                                if has_explicit_borders:
+                                    top_p = self._get_border_pen(bds.get("top"), self._zoom)
+                                    if top_p:
+                                        painter.setPen(top_p)
+                                        painter.drawLine(
+                                            QPointF(cell_rect.left(), cell_rect.top()),
+                                            QPointF(cell_rect.right(), cell_rect.top()),
+                                        )
+                                    bot_p = self._get_border_pen(bds.get("bottom"), self._zoom)
+                                    if bot_p:
+                                        painter.setPen(bot_p)
+                                        painter.drawLine(
+                                            QPointF(cell_rect.left(), cell_rect.bottom()),
+                                            QPointF(cell_rect.right(), cell_rect.bottom()),
+                                        )
+                                    left_p = self._get_border_pen(bds.get("left"), self._zoom)
+                                    if left_p:
+                                        painter.setPen(left_p)
+                                        painter.drawLine(
+                                            QPointF(cell_rect.left(), cell_rect.top()),
+                                            QPointF(cell_rect.left(), cell_rect.bottom()),
+                                        )
+                                    right_p = self._get_border_pen(bds.get("right"), self._zoom)
+                                    if right_p:
+                                        painter.setPen(right_p)
+                                        painter.drawLine(
+                                            QPointF(cell_rect.right(), cell_rect.top()),
+                                            QPointF(cell_rect.right(), cell_rect.bottom()),
+                                        )
+                                else:
+                                    # Fallback default subtle table grid boundary
+                                    painter.setPen(QPen(QColor(180, 180, 180), 1.0))
+                                    painter.drawRect(cell_rect)
 
-                                # Cell text content
-                                cell_inner_x = frag_x + cl.x + 5.4
-                                cell_inner_y = frag_y + cl.y + cl.content_offset_y
+                                # Cell text content with margins and multi-paragraph layout
+                                mar_l = getattr(cl, "mar_l", 5.4)
+                                mar_t = getattr(cl, "mar_t", 0.0)
+                                cell_inner_x = frag_x + cl.x + mar_l
+                                cur_p_y = frag_y + cl.y + cl.content_offset_y + mar_t
+
                                 for playout in cl.paragraphs_layout:
+                                    p_top = cur_p_y + playout.effective_space_before
                                     for line in playout.lines:
-                                        line_y = cell_inner_y + line.top
+                                        line_y = p_top + line.top
                                         cur_x = cell_inner_x + line.indent_left
                                         for po in line.portions:
                                             po_w = po.width
@@ -575,6 +638,10 @@ class WriterCanvasView(QAbstractScrollArea):
                                                 font_size_pt = po.font_size or 12.0
                                                 font = QFont(font_family)
                                                 font.setPointSizeF(font_size_pt * self._zoom)
+                                                if getattr(po, "bold", False):
+                                                    font.setBold(True)
+                                                if getattr(po, "italic", False):
+                                                    font.setItalic(True)
                                                 painter.setFont(font)
                                                 x_px = page_rect.left() + self.pt_to_px(cur_x)
                                                 y_px = page_rect.top() + self.pt_to_px(line_y)
@@ -619,6 +686,7 @@ class WriterCanvasView(QAbstractScrollArea):
                                                     painter, po.data, x_px, baseline_px, self._zoom
                                                 )
                                             cur_x += po_w
+                                    cur_p_y = p_top + playout.height + playout.effective_space_after
                         continue
 
                     frag_top = page.body_top + col.top + frag.top

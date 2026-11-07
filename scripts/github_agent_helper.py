@@ -138,8 +138,10 @@ def cmd_rank_issues(args):
             continue
         if concurrency_mode == "parallel" and "in-progress" in norm_labels:
             continue
-        # Skip epic container issues if marked with label 'epic'
-        if "epic" in label_names and not issue.get("title", "").startswith("[Ledger]"):
+        # Skip epic container issues if marked with label 'epic' or title starts with [Epic]
+        title_lower = issue.get("title", "").strip().lower()
+        is_epic = "epic" in label_names or title_lower.startswith("[epic]")
+        if is_epic and not issue.get("title", "").startswith("[Ledger]"):
             continue
         filtered.append(issue)
 
