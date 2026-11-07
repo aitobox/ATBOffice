@@ -266,10 +266,15 @@ class EditorController(QObject):
 
         align = Qt.AlignmentFlag.AlignLeft
         if cell is not None:
-            if cell.align_h == "center":
+            eff_h = cell.get_effective_align_h()
+            if eff_h == "center":
                 align = Qt.AlignmentFlag.AlignCenter
-            elif cell.align_h == "right":
+            elif eff_h == "right":
                 align = Qt.AlignmentFlag.AlignRight
+            elif eff_h == "justify":
+                align = Qt.AlignmentFlag.AlignJustify
+            else:
+                align = Qt.AlignmentFlag.AlignLeft
         self.in_cell_editor.setAlignment(align)
 
     def reposition_editor(self) -> None:

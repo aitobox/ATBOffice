@@ -922,8 +922,15 @@ class GridViewport(QAbstractScrollArea):
                 text = self.model.get_formatted_text(r, c)
                 text_w = fm.horizontalAdvance(text)
 
-                # Right-overflow calculation
-                span = self.calculate_overflow_span(r, c, text_w, col_w)
+                eff_h = cell.get_effective_align_h()
+                eff_v = cell.get_effective_align_v()
+
+                # Right-overflow calculation: in Excel, only left-aligned text
+                # can overflow to the right
+                if eff_h == "left":
+                    span = self.calculate_overflow_span(r, c, text_w, col_w)
+                else:
+                    span = 1
                 span_w = sum(
                     self.geometry_mapper.col_size(c + i) for i in range(span)
                 )
@@ -949,18 +956,25 @@ class GridViewport(QAbstractScrollArea):
                 )
                 painter.setPen(text_color)
 
-                # Alignment
-                align_flag = (
-                    Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
-                )
-                if cell.align_h == "center":
-                    align_flag = (
-                        Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignHCenter
-                    )
-                elif cell.align_h == "right":
-                    align_flag = (
-                        Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight
-                    )
+                # Vertical alignment
+                if eff_v == "top":
+                    v_flag = Qt.AlignmentFlag.AlignTop
+                elif eff_v == "bottom" and row_h > 26:
+                    v_flag = Qt.AlignmentFlag.AlignBottom
+                else:
+                    v_flag = Qt.AlignmentFlag.AlignVCenter
+
+                # Horizontal alignment
+                if eff_h == "center":
+                    h_flag = Qt.AlignmentFlag.AlignHCenter
+                elif eff_h == "right":
+                    h_flag = Qt.AlignmentFlag.AlignRight
+                elif eff_h == "justify":
+                    h_flag = Qt.AlignmentFlag.AlignJustify
+                else:
+                    h_flag = Qt.AlignmentFlag.AlignLeft
+
+                align_flag = v_flag | h_flag
 
                 text_rect = QRect(col_x + 3, row_y, span_w - 6, row_h)
                 painter.drawText(text_rect, align_flag, text)

@@ -321,6 +321,7 @@ class StyleManager:
             or cell.text_rotation
             or cell.shrink_to_fit
             or cell.indent
+            or (cell.text_direction and cell.text_direction != "context")
         )
 
         if not (has_font or has_fill or has_border or has_num_fmt or has_align):
@@ -354,6 +355,11 @@ class StyleManager:
 
         align_key = None
         if has_align:
+            ro_val = None
+            if cell.text_direction == "ltr":
+                ro_val = "1"
+            elif cell.text_direction == "rtl":
+                ro_val = "2"
             align_key = (
                 cell.align_h if cell.align_h != "general" else None,
                 cell.align_v if cell.align_v != "bottom" else None,
@@ -361,6 +367,7 @@ class StyleManager:
                 bool(cell.shrink_to_fit),
                 int(cell.text_rotation or 0),
                 int(cell.indent or 0),
+                ro_val,
             )
 
         xf_key = (font_id, fill_id, border_id, num_fmt_id, align_key)
@@ -451,7 +458,7 @@ class StyleManager:
             align_k = xf["align"]
             align_attrs = []
             if align_k:
-                h, v, wrap, shrink, rot, ind = align_k
+                h, v, wrap, shrink, rot, ind, ro = align_k
                 if h:
                     align_attrs.append(f'horizontal="{h}"')
                 if v:
@@ -464,6 +471,8 @@ class StyleManager:
                     align_attrs.append(f'textRotation="{rot}"')
                 if ind:
                     align_attrs.append(f'indent="{ind}"')
+                if ro:
+                    align_attrs.append(f'readingOrder="{ro}"')
 
             if align_attrs:
                 attrs.append('applyAlignment="1"')
