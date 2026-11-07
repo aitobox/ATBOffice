@@ -1,12 +1,12 @@
 """GUI tests verifying spreadsheet grid viewport alignment rendering and editor behavior."""
 
 import datetime
+
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetDataModel
+from atboffice.modules.spreadsheet.views.editor_controller import EditorController
 from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport
-from atboffice.modules.spreadsheet.views.editor_controller import EditorController, EditorMode
 
 
 def test_grid_viewport_rendering_alignment(qtbot):

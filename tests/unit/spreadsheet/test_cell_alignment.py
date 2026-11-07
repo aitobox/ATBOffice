@@ -2,7 +2,6 @@
 
 import datetime
 from decimal import Decimal
-import pytest
 
 from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetDataModel
 
@@ -80,7 +79,9 @@ class TestCellAlignmentResolution:
         assert cell_err_right.get_effective_align_h() == "right"
 
     def test_rtl_text_direction(self):
-        """RTL text direction should align General text to the right, while preserving numbers and explicit alignment."""
+        """RTL text direction should align General text to the right,
+        while preserving numbers and explicit alignment.
+        """
         # Normal text in RTL becomes right-aligned
         cell_rtl_text = CellData(value="مرحبا", align_h="general", text_direction="rtl")
         assert cell_rtl_text.get_effective_align_h() == "right"

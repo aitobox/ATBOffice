@@ -925,7 +925,8 @@ class GridViewport(QAbstractScrollArea):
                 eff_h = cell.get_effective_align_h()
                 eff_v = cell.get_effective_align_v()
 
-                # Right-overflow calculation: in Excel, only left-aligned text can overflow to the right
+                # Right-overflow calculation: in Excel, only left-aligned text
+                # can overflow to the right
                 if eff_h == "left":
                     span = self.calculate_overflow_span(r, c, text_w, col_w)
                 else:
