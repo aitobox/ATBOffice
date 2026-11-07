@@ -2086,7 +2086,9 @@ class LecternWindow(BaseOfficeWindow):
         """Serialize Lectern presentation to destination path."""
         path.parent.mkdir(parents=True, exist_ok=True)
         ext = path.suffix.lower()
-        if ext in {".pptx", ".ppsx", ".potx"}:
+        if ext in {".ppt", ".pps", ".pot"}:
+            return False
+        if ext in {".pptx", ".pptm", ".ppsx", ".potx"}:
             from atboffice.modules.presentation.io.pptx_writer import write_pptx
 
             write_pptx(self.presentation, path)

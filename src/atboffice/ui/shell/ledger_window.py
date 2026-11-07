@@ -89,6 +89,7 @@ class LedgerWindow(BaseOfficeWindow):
         self._setup_toolbars()
 
         # 5.1 Full Screen Bar and View Mode State
+        self.is_read_only_import: bool = False
         self._is_fullscreen_mode: bool = False
         self._prev_view_mode: str = "normal"
         self._saved_toolbars_visible: list[tuple[Any, bool]] = []
@@ -390,14 +391,43 @@ class LedgerWindow(BaseOfficeWindow):
             return False
         from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 
+        self.is_read_only_import = False
         self.spreadsheet_view.workbook = WorkbookModel()
         return True
+
+    def save_file(
+        self,
+        file_path: str | Path | None = None,
+        confirm_overwrite: bool = True,
+    ) -> bool:
+        """Save workbook while enforcing read-only constraint on imported .xls/.xlt files."""
+        if isinstance(file_path, bool):
+            file_path = None
+
+        target = Path(file_path).resolve() if file_path is not None else self.current_file_path
+        if target is not None and target.suffix.lower() in {".xls", ".xlt"}:
+            QMessageBox.warning(
+                self,
+                safe_tr("只读导入格式"),
+                safe_tr(
+                    "“{name}”是旧版 Excel 97–2003 (.xls) 格式，仅支持只读导入，"
+                    "不支持直接覆盖保存。\n请使用“另存为”将其保存为现代 .xlsx 格式。"
+                ).format(name=target.name),
+            )
+            return False
+
+        saved = super().save_file(file_path, confirm_overwrite=confirm_overwrite)
+        if saved:
+            self.is_read_only_import = False
+        return saved
 
     def do_save(self, path: Path) -> bool:
         """Serialize Ledger workbook to destination path."""
         path.parent.mkdir(parents=True, exist_ok=True)
         ext = path.suffix.lower()
-        if ext in {".xlsx", ".xlsm"}:
+        if ext in {".xls", ".xlt"}:
+            return False
+        if ext in {".xlsx", ".xlsm", ".xltx"}:
             from atboffice.modules.spreadsheet.io.xlsx_writer import write_xlsx
 
             write_xlsx(self.spreadsheet_view.workbook, path)
@@ -425,6 +455,7 @@ class LedgerWindow(BaseOfficeWindow):
             candidate_wb = WorkbookModel(sheets=[SheetDataModel(name="Sheet1")])
             self.spreadsheet_view.workbook = candidate_wb
             self.spreadsheet_view.grid.viewport().update()
+            self.is_read_only_import = False
             return True
 
         ext = path.suffix.lower()
@@ -433,8 +464,11 @@ class LedgerWindow(BaseOfficeWindow):
         is_xml_markup = False
         try:
             with open(path, "rb") as f:
-                lead = f.read(64).lstrip()
-                if lead.startswith(b"<") or lead.startswith(b"\xef\xbb\xbf<"):
+                raw_lead = f.read(64)
+                if raw_lead.startswith(b"\xef\xbb\xbf"):
+                    raw_lead = raw_lead[3:]
+                lead = raw_lead.lstrip()
+                if lead.startswith((b"<", b"\xff\xfe<\x00", b"\xfe\xff\x00<")):
                     is_xml_markup = True
         except Exception:
             pass
@@ -453,7 +487,7 @@ class LedgerWindow(BaseOfficeWindow):
 
         # 3. Parse into candidate workbook
         candidate_wb = None
-        if ext in {".xlsx", ".xlsm"} or is_enc:
+        if ext in {".xlsx", ".xlsm", ".xltx"} or is_enc:
             from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
 
             source = decrypted_bytes if is_enc and decrypted_bytes is not None else path
@@ -490,10 +524,8 @@ class LedgerWindow(BaseOfficeWindow):
                     ).format(name=path.name),
                 )
                 raise FileOpenWarningHandled(f"Encrypted XLS workbook: {path.name}") from p_err
-            except Exception:
-                # Fall back to standard conversion guidance
-                self.check_legacy_or_disguised_file(path, "ledger", allow_excel97=False)
-                return False
+            except Exception as exc:
+                raise ValueError(f"Corrupt or unreadable XLS workbook: {exc}") from exc
         else:
             return False
 
@@ -513,11 +545,12 @@ class LedgerWindow(BaseOfficeWindow):
                 pass
             raise bind_err
 
+        self.is_read_only_import = bool(is_binary_xls)
         if is_binary_xls:
             self.status_bar.showMessage(
                 safe_tr(
-                    "已成功导入 Excel 97–2003 (.xls) 工作簿。"
-                    "旧版格式不支持所有现代功能，建议另存为 .xlsx 格式。"
+                    "已成功导入 Excel 97–2003 (.xls) 工作簿（只读导入模式）。"
+                    "旧版格式不支持直接覆盖保存，建议另存为 .xlsx 格式。"
                 ),
                 10000,
             )

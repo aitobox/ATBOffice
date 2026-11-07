@@ -29,12 +29,27 @@ class WindowManager(QObject):
 
     # Extension routing lookup tables
     QUIRE_EXTENSIONS: frozenset[str] = frozenset(
-        {".docx", ".doc", ".odt", ".rtf", ".txt", ".html", ".htm"}
+        {
+            ".docx",
+            ".docm",
+            ".dotx",
+            ".doc",
+            ".dot",
+            ".odt",
+            ".rtf",
+            ".txt",
+            ".md",
+            ".markdown",
+            ".html",
+            ".htm",
+        }
     )
     LEDGER_EXTENSIONS: frozenset[str] = frozenset(
-        {".xlsx", ".xls", ".csv", ".tsv", ".ods"}
+        {".xlsx", ".xlsm", ".xltx", ".xls", ".xlt", ".csv", ".tsv", ".xml", ".xmlss", ".ods"}
     )
-    LECTERN_EXTENSIONS: frozenset[str] = frozenset({".pptx", ".ppt", ".odp"})
+    LECTERN_EXTENSIONS: frozenset[str] = frozenset(
+        {".pptx", ".pptm", ".ppsx", ".potx", ".ppt", ".pps", ".pot", ".odp"}
+    )
 
     def __init__(self, parent: QObject | None = None) -> None:
         """Initialize WindowManager instance."""
@@ -70,7 +85,7 @@ class WindowManager(QObject):
         return set(self._active_windows)
 
     def detect_app_type(self, path: str | Path) -> str:
-        """Determine module routing key from file extension.
+        """Determine module routing key from file extension and content header.
 
         Args:
             path: Target file path or filename.
@@ -81,7 +96,36 @@ class WindowManager(QObject):
         if not path:
             return "generic"
 
-        ext = Path(path).suffix.lower()
+        p = Path(path)
+        ext = p.suffix.lower()
+
+        # Content sniffing for XML/HTML disguised files (.xml, .xls, .xlt, .doc, .dot)
+        if ext in {".xml", ".xls", ".xlt", ".doc", ".dot"} and p.exists() and p.is_file():
+            try:
+                with open(p, "rb") as f:
+                    head_bytes = f.read(512)
+                if head_bytes.startswith(b"\xef\xbb\xbf"):
+                    head_bytes = head_bytes[3:]
+                stripped = head_bytes.lstrip()
+                if stripped.startswith((b"<", b"\xff\xfe<\x00", b"\xfe\xff\x00<")):
+                    head_text = head_bytes.decode("utf-8", errors="ignore").lower()
+                    if (
+                        "urn:schemas-microsoft-com:office:spreadsheet" in head_text
+                        or "excel.sheet" in head_text
+                        or "<workbook" in head_text
+                        or "<ss:workbook" in head_text
+                    ):
+                        return "ledger"
+                    if (
+                        "word.document" in head_text
+                        or "<w:worddocument" in head_text
+                        or "<html" in head_text
+                        or "<!doctype html" in head_text
+                    ):
+                        return "quire"
+            except Exception:
+                pass
+
         if ext in self.QUIRE_EXTENSIONS:
             return "quire"
         if ext in self.LEDGER_EXTENSIONS:
@@ -181,7 +225,7 @@ class WindowManager(QObject):
         try:
             from atboffice.ui.shell.quire_window import QuireWindow
 
-            win = QuireWindow(file_path=path)
+            win = QuireWindow(file_path=None)
         except (ImportError, Exception) as exc:
             logger.debug(
                 "QuireWindow not yet available, falling back to BaseOfficeWindow: %s",
@@ -197,9 +241,9 @@ class WindowManager(QObject):
 
         if path is not None:
             resolved = Path(path).resolve()
-            if win.current_file_path != resolved:
-                win.open_file(path)
-            self.recent_files.add_file(resolved, "quire")
+            opened = win.open_file(path)
+            if opened and win.current_file_path == resolved:
+                self.recent_files.add_file(resolved, "quire")
 
         self.register_window(win)
         win.show()
@@ -225,7 +269,7 @@ class WindowManager(QObject):
         try:
             from atboffice.ui.shell.ledger_window import LedgerWindow
 
-            win = LedgerWindow(file_path=path)
+            win = LedgerWindow(file_path=None)
         except (ImportError, Exception) as exc:
             logger.debug(
                 "LedgerWindow not yet available, falling back to BaseOfficeWindow: %s",
@@ -241,9 +285,9 @@ class WindowManager(QObject):
 
         if path is not None:
             resolved = Path(path).resolve()
-            if win.current_file_path != resolved:
-                win.open_file(path)
-            self.recent_files.add_file(resolved, "ledger")
+            opened = win.open_file(path)
+            if opened and win.current_file_path == resolved:
+                self.recent_files.add_file(resolved, "ledger")
 
         self.register_window(win)
         win.show()
@@ -269,7 +313,7 @@ class WindowManager(QObject):
         try:
             from atboffice.ui.shell.lectern_window import LecternWindow
 
-            win = LecternWindow(file_path=path)
+            win = LecternWindow(file_path=None)
         except (ImportError, Exception) as exc:
             logger.debug(
                 "LecternWindow not yet available, falling back to BaseOfficeWindow: %s",
@@ -285,9 +329,9 @@ class WindowManager(QObject):
 
         if path is not None:
             resolved = Path(path).resolve()
-            if win.current_file_path != resolved:
-                win.open_file(path)
-            self.recent_files.add_file(resolved, "lectern")
+            opened = win.open_file(path)
+            if opened and win.current_file_path == resolved:
+                self.recent_files.add_file(resolved, "lectern")
 
         self.register_window(win)
         win.show()
