@@ -1,6 +1,5 @@
 """Unit and regression tests for Lectern slide canvas auto-fit and zoom controls."""
 
-from pathlib import Path
 from PySide6.QtCore import QSize
 from PySide6.QtWidgets import QApplication
 
@@ -12,7 +11,7 @@ from atboffice.ui.shell.lectern_window import LecternWindow
 
 
 def test_slide_canvas_view_defensive_zoom_fit(qapp: QApplication) -> None:
-    """Ensure SlideCanvasView does not compute negative or 0.1 clamped zoom on tiny/pre-layout viewports."""
+    """Ensure SlideCanvasView avoids negative or 0.1 clamped zoom on tiny viewports."""
     scene = SlideScene(slide_width=960.0, slide_height=540.0)
     view = SlideCanvasView(scene=scene)
     # Simulate pre-layout widget where viewport is tiny (< margin 32)

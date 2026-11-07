@@ -75,7 +75,7 @@ def cmd_status_table(args):
             for item in raw_labels
         ]
         status = "pending"
-        lower_labels = [l.lower().replace(" ", "") for l in label_names]
+        lower_labels = [lbl.lower().replace(" ", "") for lbl in label_names]
         if "in-progress" in lower_labels:
             status = "**in-progress**"
         elif "in-pr" in lower_labels:
