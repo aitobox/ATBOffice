@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import logging
 import re
 import xml.etree.ElementTree as ET
 import zipfile
@@ -35,6 +36,8 @@ from atboffice.modules.spreadsheet.views.object_layer import (
     FloatingObject,
 )
 from atboffice.vfs.opc import SourcePackage
+
+logger = logging.getLogger(__name__)
 
 # Builtin OOXML number formats (ECMA-376 Part 1 §18.8.30)
 BUILTIN_NUMFMTS: dict[int, str] = {
@@ -918,9 +921,10 @@ def _parse_worksheet_drawings(
             to_pt.row = int(r_el.text) if r_el is not None and r_el.text else 0
             to_pt.row_off = (int(ro_el.text) // 9525) if ro_el is not None and ro_el.text else 0
 
-        # Check for pic or sp
+        # Check for pic or sp or graphicFrame
         pic_el = _find_child(anchor_el, "pic")
         sp_el = _find_child(anchor_el, "sp")
+        gf_el = _find_child(anchor_el, "graphicFrame")
 
         if pic_el is not None:
             obj_id = 1
@@ -1081,6 +1085,60 @@ def _parse_worksheet_drawings(
                 font_size=font_sz,
                 font_family=font_fam,
                 z_index=len(sheet.drawings),
+            )
+            sheet.drawings.append(obj)
+
+        elif gf_el is not None:
+            obj_id = 1
+            obj_name = "Chart"
+            chart_dict: dict[str, Any] | None = None
+
+            nv_gf = _find_child(gf_el, "nvGraphicFramePr")
+            if nv_gf is not None:
+                c_nv = _find_child(nv_gf, "cNvPr")
+                if c_nv is not None:
+                    id_val = _attr(c_nv, "id")
+                    if id_val and id_val.isdigit():
+                        obj_id = int(id_val)
+                    obj_name = _attr(c_nv, "name", "Chart") or "Chart"
+
+            graphic_el = _find_child(gf_el, "graphic")
+            if graphic_el is not None:
+                graphic_data = _find_child(graphic_el, "graphicData")
+                if graphic_data is not None:
+                    chart_el = _find_child(graphic_data, "chart")
+                    if chart_el is not None:
+                        r_id = _attr(chart_el, "id")
+                        if not r_id:
+                            for k, v in chart_el.attrib.items():
+                                if k.endswith("}id") or k == "id":
+                                    r_id = v
+                                    break
+                        if r_id and r_id in drw_rels:
+                            chart_target = drw_rels[r_id][1]
+                            if chart_target in zip_file.namelist():
+                                try:
+                                    from atboffice.modules.presentation.chart.io import (
+                                        parse_chart_xml,
+                                    )
+
+                                    chart_bytes = zip_file.read(chart_target)
+                                    parsed_chart = parse_chart_xml(chart_bytes)
+                                    chart_dict = parsed_chart.to_dict()
+                                except Exception:
+                                    logger.warning(
+                                        "Failed to parse chart XML %s", chart_target
+                                    )
+
+            obj = FloatingObject(
+                id=obj_id,
+                name=obj_name,
+                kind="chart",
+                anchor_type=anchor_type,
+                from_point=from_pt,
+                to_point=to_pt,
+                z_index=len(sheet.drawings),
+                chart_data=chart_dict,
             )
             sheet.drawings.append(obj)
 
