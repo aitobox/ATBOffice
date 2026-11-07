@@ -61,7 +61,10 @@ def resolve_cell_borders(
     num_rows: int,
     num_cols: int,
 ) -> dict[str, BorderProperties]:
-    """Resolve cascading borders for a cell (outer borders vs insideH/insideV and cell-level overrides)."""
+    """Resolve cascading borders for a cell.
+
+    Handles outer borders vs insideH/insideV and cell-level overrides.
+    """
     tb = tbl_borders or {}
     own = cell_borders or {}
 

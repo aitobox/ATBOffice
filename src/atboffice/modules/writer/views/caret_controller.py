@@ -345,12 +345,18 @@ class CaretController(QObject):
                                                                 sub = max(
                                                                     0, target_off - po.char_offset
                                                                 )
+                                                                is_b = getattr(
+                                                                    po, "bold", False
+                                                                )
+                                                                is_i = getattr(
+                                                                    po, "italic", False
+                                                                )
                                                                 x += measure_text_width(
                                                                     po.text[:sub],
                                                                     po.font_size,
                                                                     po.font_family,
-                                                                    bold=getattr(po, "bold", False),
-                                                                    italic=getattr(po, "italic", False),
+                                                                    bold=is_b,
+                                                                    italic=is_i,
                                                                 )
                                                                 return (
                                                                     p_idx,
@@ -358,7 +364,11 @@ class CaretController(QObject):
                                                                     line_h,
                                                                 )
                                                         return p_idx, QPointF(x, line_y), line_h
-                                            cur_p_y = p_top + playout.height + playout.effective_space_after
+                                            cur_p_y = (
+                                                p_top
+                                                + playout.height
+                                                + playout.effective_space_after
+                                            )
                             continue
                         if frag.paragraph.id != target_pid:
                             continue

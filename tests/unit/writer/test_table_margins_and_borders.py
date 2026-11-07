@@ -2,18 +2,15 @@
 
 import tempfile
 from pathlib import Path
+
 import pytest
-from PySide6.QtGui import QFont, QFontMetricsF
 from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.writer.io import read_docx, write_docx
 from atboffice.modules.writer.layout.portions import (
-    layout_paragraph,
-    measure_char_width,
     measure_text_width,
 )
 from atboffice.modules.writer.layout.table_layout import (
-    CellLayout,
     layout_table,
     resolve_cell_borders,
 )
@@ -153,7 +150,8 @@ def test_cell_vertical_alignment_offsets():
 
 
 def test_docx_roundtrip_table_margins_and_borders():
-    """Verify that tblCellMar, tblBorders, tcMar, and tcBorders survive docx read/write roundtrip."""
+    """Verify that tblCellMar, tblBorders, tcMar, and tcBorders survive docx read/write.
+    """
     doc = Document()
     tbl = Table(
         grid=[120.0, 120.0],
