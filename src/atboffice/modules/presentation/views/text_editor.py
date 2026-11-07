@@ -326,7 +326,7 @@ def solve_norm_autofit_scale(
     low = min_scale
     high = max_scale
     best_scale = min_scale
-    best_red = 0.0
+    best_red = min(0.20, max(0.0, (1.0 - min_scale) * 0.4))
 
     for _ in range(12):  # 12 iterations gives precision < 0.0002
         mid = (low + high) / 2.0

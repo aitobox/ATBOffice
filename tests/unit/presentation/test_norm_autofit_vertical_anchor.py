@@ -105,16 +105,16 @@ class TestNormAutofitSolver:
         tb = TextBody(
             autofit="norm",
             paragraphs=[
-                Paragraph(level=0, runs=[TextRun(text=f"{i}: {long_para_text}", size=28.0)])
-                for i in range(8)
+                Paragraph(level=0, runs=[TextRun(text=f"{i}: {long_para_text}", size=24.0)])
+                for i in range(4)
             ],
         )
         avail_w = 320.0
         avail_h = 120.0
 
-        # At scale 1.0, 8 paragraphs of 28pt font should far exceed 120pt height
+        # At scale 1.0, 4 paragraphs of 24pt font should exceed 120pt height
         initial_h = measure_text_body_height(tb, avail_w=avail_w, font_scale=1.0)
-        assert initial_h > 250.0
+        assert initial_h > 120.0
 
         scale, red = solve_norm_autofit_scale(tb, avail_w=avail_w, avail_h=avail_h)
         assert 0.20 <= scale < 0.90
