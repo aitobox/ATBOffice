@@ -53,6 +53,39 @@ def cmd_set_state(args):
     print(f"State updated to {state.get('state')}")
 
 
+def cmd_status_table(args):
+    data = sys.stdin.read()
+    if not data.strip():
+        print("No issues found.")
+        return
+
+    issues = json.loads(data)
+    if not issues:
+        print("No issues found.")
+        return
+
+    print("| # | Title | Labels | Status |")
+    print("|---|-------|--------|--------|")
+    for issue in issues:
+        num = issue.get("number")
+        title = issue.get("title", "").replace("|", "\\|")
+        raw_labels = issue.get("labels") or []
+        label_names = [
+            (item.get("name", "") if isinstance(item, dict) else str(item))
+            for item in raw_labels
+        ]
+        status = "pending"
+        lower_labels = [l.lower().replace(" ", "") for l in label_names]
+        if "in-progress" in lower_labels:
+            status = "**in-progress**"
+        elif "in-pr" in lower_labels:
+            status = "in-pr"
+        elif "blocked" in lower_labels:
+            status = "blocked"
+
+        print(f"| #{num} | {title} | {', '.join(label_names)} | {status} |")
+
+
 def cmd_rank_issues(args):
     cfg = get_config()
     labels_cfg = cfg.get("labels", {})
@@ -66,6 +99,7 @@ def cmd_rank_issues(args):
         return
 
     issues = json.loads(data)
+    concurrency_mode = getattr(args, "concurrency_mode", "serial") or "serial"
 
     # 1. Serial Gate: If ANY issue is currently in-progress, exit immediately
     in_progress = []
@@ -78,7 +112,7 @@ def cmd_rank_issues(args):
         if "in-progress" in labels:
             in_progress.append(issue)
 
-    if in_progress:
+    if concurrency_mode == "serial" and in_progress:
         active = in_progress[0]
         msg = (
             f"SERIAL_GUARD_BLOCKED: Issue #{active.get('number')} "
@@ -101,6 +135,8 @@ def cmd_rank_issues(args):
         ]
         norm_labels = [name.replace(" ", "") for name in label_names]
         if "in-pr" in norm_labels:
+            continue
+        if concurrency_mode == "parallel" and "in-progress" in norm_labels:
             continue
         # Skip epic container issues if marked with label 'epic'
         if "epic" in label_names and not issue.get("title", "").startswith("[Ledger]"):
@@ -154,7 +190,11 @@ def main():
     sp_set.add_argument("--json-data", type=str)
     sp_set.set_defaults(func=cmd_set_state)
 
+    sp_table = subparsers.add_parser("status-table")
+    sp_table.set_defaults(func=cmd_status_table)
+
     sp_rank = subparsers.add_parser("rank-issues")
+    sp_rank.add_argument("--concurrency-mode", choices=["serial", "parallel"], default="serial")
     sp_rank.set_defaults(func=cmd_rank_issues)
 
     args = parser.parse_args()
