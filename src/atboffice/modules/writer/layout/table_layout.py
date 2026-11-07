@@ -45,6 +45,43 @@ class CellLayout:
     v_align: str = "top"
     content_offset_y: float = 0.0
     content_height: float = 0.0
+    mar_t: float = 0.0
+    mar_b: float = 0.0
+    mar_l: float = 5.4
+    mar_r: float = 5.4
+
+
+def resolve_cell_borders(
+    tbl_borders: dict[str, BorderProperties] | None,
+    cell_borders: dict[str, BorderProperties] | None,
+    row_idx: int,
+    col_idx: int,
+    rowspan: int,
+    span: int,
+    num_rows: int,
+    num_cols: int,
+) -> dict[str, BorderProperties]:
+    """Resolve cascading borders for a cell (outer borders vs insideH/insideV and cell-level overrides)."""
+    tb = tbl_borders or {}
+    own = cell_borders or {}
+
+    def pick(side: str, outer_key: str, inner_key: str, is_outer: bool) -> BorderProperties:
+        if side in own:
+            return own[side]
+        if is_outer:
+            if outer_key in tb:
+                return tb[outer_key]
+        else:
+            if inner_key in tb:
+                return tb[inner_key]
+        return BorderProperties(val="none")
+
+    return {
+        "top": pick("top", "top", "insideH", row_idx == 0),
+        "bottom": pick("bottom", "bottom", "insideH", row_idx + rowspan >= num_rows),
+        "left": pick("left", "left", "insideV", col_idx == 0),
+        "right": pick("right", "right", "insideV", col_idx + span >= num_cols),
+    }
 
 
 @dataclass
@@ -129,10 +166,18 @@ def layout_table(
             c0 = entry.col_idx
             c1 = min(len(col_xs) - 1, c0 + entry.span)
             cell_w = col_xs[c1] - col_xs[c0]
-            inner_w = max(10.0, cell_w - mar_l - mar_r)
+
+            # Cascade per-cell margin: tc_mar overrides tbl_cell_mar
+            tc_mar = entry.cell.tc_pr.tc_mar or {}
+            c_mar_l = float(tc_mar.get("l", mar_l))
+            c_mar_r = float(tc_mar.get("r", mar_r))
+            c_mar_t = float(tc_mar.get("t", mar_t))
+            c_mar_b = float(tc_mar.get("b", mar_b))
+
+            inner_w = max(10.0, cell_w - c_mar_l - c_mar_r)
 
             p_layouts: list[ParagraphLayout] = []
-            cur_p_y = mar_t
+            cur_p_y = c_mar_t
             for block in entry.cell.blocks:
                 if isinstance(block, Paragraph):
                     playout = layout_paragraph(
@@ -142,10 +187,25 @@ def layout_table(
                         doc=doc,
                     )
                     p_layouts.append(playout)
-                    cur_p_y += playout.height + playout.space_before + playout.space_after
+                    cur_p_y += (
+                        playout.height
+                        + playout.effective_space_before
+                        + playout.effective_space_after
+                    )
 
-            total_h = cur_p_y + mar_b
+            total_h = cur_p_y + c_mar_b
             cell_content_heights[id(entry.cell)] = total_h
+
+            resolved_bds = resolve_cell_borders(
+                tbl_borders=table.tbl_pr.borders,
+                cell_borders=entry.cell.tc_pr.borders,
+                row_idx=r_idx,
+                col_idx=c0,
+                rowspan=entry.rowspan,
+                span=entry.span,
+                num_rows=num_rows,
+                num_cols=len(resolved_grid),
+            )
 
             cl = CellLayout(
                 cell=entry.cell,
@@ -156,10 +216,14 @@ def layout_table(
                 width=cell_w,
                 height=total_h,
                 paragraphs_layout=p_layouts,
-                borders=dict(entry.cell.tc_pr.borders),
+                borders=resolved_bds,
                 shd=copy.deepcopy(entry.cell.tc_pr.shd),
                 v_align=entry.cell.tc_pr.v_align or "top",
                 content_height=total_h,
+                mar_t=c_mar_t,
+                mar_b=c_mar_b,
+                mar_l=c_mar_l,
+                mar_r=c_mar_r,
             )
             cell_layouts_grid[r_idx][c0] = cl
 

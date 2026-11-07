@@ -189,6 +189,8 @@ class Portion:
     descent: float = 0.0
     font_size: float = 12.0
     font_family: str = "Times New Roman"
+    bold: bool = False
+    italic: bool = False
     counts_for_height: bool = True
     char_offset: int = 0
     length: int = 0
@@ -236,8 +238,37 @@ class ParagraphLayout:
 # Measurement & Metric Functions
 # ---------------------------------------------------------------------------
 
+_fm_cache: dict[tuple[str, float, bool, bool], Any] = {}
 
-def measure_char_width(ch: str, font_size: float, font_family: str) -> float:
+
+def _get_font_metrics(
+    font_family: str, font_size: float, bold: bool = False, italic: bool = False
+) -> Any:
+    """Retrieve cached QFontMetricsF if a GUI application instance is active."""
+    try:
+        from PySide6.QtGui import QFont, QFontMetricsF, QGuiApplication
+
+        if QGuiApplication.instance() is None:
+            return None
+        key = (get_font_key(font_family), float(font_size), bool(bold), bool(italic))
+        if key in _fm_cache:
+            return _fm_cache[key]
+        f = QFont(font_family)
+        f.setPointSizeF(font_size)
+        if bold:
+            f.setBold(True)
+        if italic:
+            f.setItalic(True)
+        fm = QFontMetricsF(f)
+        _fm_cache[key] = fm
+        return fm
+    except Exception:
+        return None
+
+
+def measure_char_width(
+    ch: str, font_size: float, font_family: str, bold: bool = False, italic: bool = False
+) -> float:
     """Deterministic, high-precision character width calculation in points."""
     if is_cjk_char(ch):
         # East Asian CJK full-width glyph is 1.0 em
@@ -261,12 +292,18 @@ def measure_char_width(ch: str, font_size: float, font_family: str) -> float:
     return font_size * 0.50
 
 
-def measure_text_width(text: str, font_size: float, font_family: str) -> float:
+def measure_text_width(
+    text: str, font_size: float, font_family: str, bold: bool = False, italic: bool = False
+) -> float:
     """Calculate the total layout width of a string in points."""
-    return sum(measure_char_width(c, font_size, font_family) for c in text)
+    return sum(
+        measure_char_width(c, font_size, font_family, bold=bold, italic=italic) for c in text
+    )
 
 
-def compute_font_metrics(font_size: float, font_family: str) -> tuple[float, float]:
+def compute_font_metrics(
+    font_size: float, font_family: str, bold: bool = False, italic: bool = False
+) -> tuple[float, float]:
     """Calculate (ascent, descent) in points according to standard typographic ratios."""
     # Standard typographic baseline: ascent ~ 80%, descent ~ 20%
     ascent = round(font_size * 0.80, 2)
@@ -371,7 +408,9 @@ def decompose_paragraph_to_portions(
                         while pos < len(line_str) and line_str[pos] in (" ", "\u00a0"):
                             pos += 1
                         blanks = line_str[start:pos]
-                        w = measure_text_width(blanks, font_sz, font_family)
+                        w = measure_text_width(
+                            blanks, font_sz, font_family, bold=bool(r_pr.b), italic=bool(r_pr.i)
+                        )
                         # OpenOffice #i3952: blanks do not count for raising line height
                         portions.append(
                             Portion(
@@ -382,6 +421,8 @@ def decompose_paragraph_to_portions(
                                 descent=0.0,
                                 font_size=font_sz,
                                 font_family=font_family,
+                                bold=bool(r_pr.b),
+                                italic=bool(r_pr.i),
                                 counts_for_height=False,
                                 char_offset=char_offset + start,
                                 length=len(blanks),
@@ -389,7 +430,12 @@ def decompose_paragraph_to_portions(
                         )
                     elif is_cjk_char(ch):
                         # CJK characters can break individually
-                        ascent, descent = compute_font_metrics(font_sz, r_pr.font_ea or font_family)
+                        ascent, descent = compute_font_metrics(
+                            font_sz,
+                            r_pr.font_ea or font_family,
+                            bold=bool(r_pr.b),
+                            italic=bool(r_pr.i),
+                        )
                         w = font_sz
                         portions.append(
                             Portion(
@@ -400,6 +446,8 @@ def decompose_paragraph_to_portions(
                                 descent=descent,
                                 font_size=font_sz,
                                 font_family=r_pr.font_ea or font_family,
+                                bold=bool(r_pr.b),
+                                italic=bool(r_pr.i),
                                 counts_for_height=True,
                                 char_offset=char_offset + pos,
                                 length=1,
@@ -416,8 +464,12 @@ def decompose_paragraph_to_portions(
                         ):
                             pos += 1
                         word = line_str[start:pos]
-                        w = measure_text_width(word, font_sz, font_family)
-                        ascent, descent = compute_font_metrics(font_sz, font_family)
+                        w = measure_text_width(
+                            word, font_sz, font_family, bold=bool(r_pr.b), italic=bool(r_pr.i)
+                        )
+                        ascent, descent = compute_font_metrics(
+                            font_sz, font_family, bold=bool(r_pr.b), italic=bool(r_pr.i)
+                        )
                         portions.append(
                             Portion(
                                 type=PortionType.TEXT,
@@ -427,6 +479,8 @@ def decompose_paragraph_to_portions(
                                 descent=descent,
                                 font_size=font_sz,
                                 font_family=font_family,
+                                bold=bool(r_pr.b),
+                                italic=bool(r_pr.i),
                                 counts_for_height=True,
                                 char_offset=char_offset + start,
                                 length=len(word),
