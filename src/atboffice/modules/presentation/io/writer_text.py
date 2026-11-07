@@ -98,6 +98,19 @@ def bullet_to_xml(
     return xml
 
 
+def _spc_to_xml(spc_val: dict[str, Any] | None, tag: str) -> str:
+    """Serialize spacing specification to DrawingML XML element."""
+    if not spc_val or not isinstance(spc_val, dict):
+        return ""
+    if "pts" in spc_val and spc_val["pts"] is not None:
+        pts_val = int(round(float(spc_val["pts"]) * 100.0))
+        return f'<{tag}><a:spcPts val="{pts_val}"/></{tag}>'
+    if "pct" in spc_val and spc_val["pct"] is not None:
+        pct_val = int(round(float(spc_val["pct"]) * 1000.0))
+        return f'<{tag}><a:spcPct val="{pct_val}"/></{tag}>'
+    return ""
+
+
 def paragraph_to_xml(
     para: Paragraph,
     design: DesignTemplate | None = None,
@@ -120,9 +133,19 @@ def paragraph_to_xml(
     p_attr_str = f" {' '.join(p_attrs)}" if p_attrs else ""
     bu_xml = bullet_to_xml(props.get("bu"), design=design)
 
+    kids = ""
+    if "lnSpc" in props:
+        kids += _spc_to_xml(props["lnSpc"], "a:lnSpc")
+    if "spcBef" in props:
+        kids += _spc_to_xml(props["spcBef"], "a:spcBef")
+    if "spcAft" in props:
+        kids += _spc_to_xml(props["spcAft"], "a:spcAft")
+    if bu_xml:
+        kids += bu_xml
+
     p_pr_xml = ""
-    if p_attr_str or bu_xml:
-        p_pr_xml = f"<a:pPr{p_attr_str}>{bu_xml}</a:pPr>"
+    if p_attr_str or kids:
+        p_pr_xml = f"<a:pPr{p_attr_str}>{kids}</a:pPr>"
 
     runs_xml: list[str] = []
     for r in para.runs:

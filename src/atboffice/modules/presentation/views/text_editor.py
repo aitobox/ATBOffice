@@ -46,8 +46,29 @@ PROP_BULLET_CHAR = QTextFormat.Property.UserProperty + 3
 PROP_TEXT_SHADOW = QTextFormat.Property.UserProperty + 4
 
 STANDARD_FONT_SIZES = [
-    8.0, 9.0, 10.0, 11.0, 12.0, 14.0, 16.0, 18.0, 20.0,
-    24.0, 28.0, 32.0, 36.0, 40.0, 44.0, 48.0, 54.0, 60.0, 66.0, 72.0, 80.0, 88.0, 96.0,
+    8.0,
+    9.0,
+    10.0,
+    11.0,
+    12.0,
+    14.0,
+    16.0,
+    18.0,
+    20.0,
+    24.0,
+    28.0,
+    32.0,
+    36.0,
+    40.0,
+    44.0,
+    48.0,
+    54.0,
+    60.0,
+    66.0,
+    72.0,
+    80.0,
+    88.0,
+    96.0,
 ]
 
 
@@ -140,6 +161,199 @@ def calculate_shape_autofit_size(
     return round(w, 2), round(h, 2)
 
 
+def measure_text_body_height(
+    text_body: TextBody,
+    avail_w: float,
+    font_scale: float = 1.0,
+    ln_spc_reduction: float = 0.0,
+) -> float:
+    """Measure the rendered height of a TextBody at a given scale and line reduction."""
+    if not text_body or text_body.is_empty() or avail_w <= 0.0:
+        return 0.0
+
+    app = QApplication.instance()
+    if app is None:
+        try:
+            import sys
+
+            app = QApplication(sys.argv if sys.argv else [""])
+        except Exception:
+            pass
+
+    doc = QTextDocument()
+    doc.setDocumentMargin(0.0)
+    doc.setTextWidth(max(10.0, avail_w))
+
+    cursor = QTextCursor(doc)
+    cursor.beginEditBlock()
+
+    paragraphs = text_body.paragraphs if text_body.paragraphs else [Paragraph(level=0)]
+    for p_idx, para in enumerate(paragraphs):
+        if p_idx > 0:
+            cursor.insertBlock()
+
+        level = clamp_outline_level(para.level)
+        block_fmt = QTextBlockFormat()
+
+        # Alignment
+        algn = para.props.get("algn", "l")
+        if algn == "ctr":
+            block_fmt.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        elif algn == "r":
+            block_fmt.setAlignment(Qt.AlignmentFlag.AlignRight)
+        elif algn == "just":
+            block_fmt.setAlignment(Qt.AlignmentFlag.AlignJustify)
+        else:
+            block_fmt.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        mar_l = (
+            para.props.get("marL", BODY_MARL[level]) if "marL" in para.props else BODY_MARL[level]
+        ) * font_scale
+        indent = (
+            para.props.get("indent", BODY_INDENT[level])
+            if "indent" in para.props
+            else BODY_INDENT[level]
+        ) * font_scale
+        block_fmt.setLeftMargin(mar_l)
+        block_fmt.setTextIndent(indent)
+
+        # Line spacing & reduction
+        first_run_sz = (
+            para.runs[0].size
+            if (para.runs and para.runs[0].size is not None)
+            else BODY_SIZES[level]
+        ) * font_scale
+        ln_spc = para.props.get("lnSpc")
+        if ln_spc and isinstance(ln_spc, dict):
+            if "pct" in ln_spc and ln_spc["pct"] is not None:
+                ln_pct = float(ln_spc["pct"]) / 100.0
+                factor = max(0.5, ln_pct * (1.0 - ln_spc_reduction))
+                block_fmt.setLineHeight(
+                    factor * 100.0,
+                    QTextBlockFormat.LineHeightTypes.ProportionalHeight.value,
+                )
+            elif "pts" in ln_spc and ln_spc["pts"] is not None:
+                ln_pts = max(4.0, float(ln_spc["pts"]) * (1.0 - ln_spc_reduction) * font_scale)
+                block_fmt.setLineHeight(
+                    ln_pts,
+                    QTextBlockFormat.LineHeightTypes.FixedHeight.value,
+                )
+        elif ln_spc_reduction > 0.0:
+            factor = max(0.5, 1.0 - ln_spc_reduction)
+            block_fmt.setLineHeight(
+                factor * 100.0,
+                QTextBlockFormat.LineHeightTypes.ProportionalHeight.value,
+            )
+
+        # Spacing before / after
+        if p_idx > 0:
+            spc_bef = para.props.get("spcBef")
+            if spc_bef and isinstance(spc_bef, dict):
+                if "pts" in spc_bef and spc_bef["pts"] is not None:
+                    block_fmt.setTopMargin(float(spc_bef["pts"]) * font_scale)
+                elif "pct" in spc_bef and spc_bef["pct"] is not None:
+                    block_fmt.setTopMargin((float(spc_bef["pct"]) / 100.0) * first_run_sz)
+
+        spc_aft = para.props.get("spcAft")
+        if spc_aft and isinstance(spc_aft, dict):
+            if "pts" in spc_aft and spc_aft["pts"] is not None:
+                block_fmt.setBottomMargin(float(spc_aft["pts"]) * font_scale)
+            elif "pct" in spc_aft and spc_aft["pct"] is not None:
+                block_fmt.setBottomMargin((float(spc_aft["pct"]) / 100.0) * first_run_sz)
+
+        cursor.setBlockFormat(block_fmt)
+
+        # Bullet prefix
+        bu_info = para.props.get("bu")
+        bu_type = bu_info.get("t", "none") if isinstance(bu_info, dict) else "none"
+        bu_char = (
+            bu_info.get("ch", BODY_BULLETS[level])
+            if isinstance(bu_info, dict)
+            else BODY_BULLETS[level]
+        )
+
+        runs = para.runs if para.runs else [TextRun()]
+        for r_idx, run in enumerate(runs):
+            char_fmt = QTextCharFormat()
+            fam = run.font or "Tahoma"
+            if hasattr(char_fmt, "setFontFamilies"):
+                char_fmt.setFontFamilies([fam])
+            else:
+                char_fmt.setFontFamily(fam)
+
+            sz = (run.size if run.size is not None else BODY_SIZES[level]) * font_scale
+            char_fmt.setFontPointSize(max(1.0, sz))
+            if run.bold:
+                char_fmt.setFontWeight(QFont.Weight.Bold)
+            if run.italic:
+                char_fmt.setFontItalic(True)
+
+            prefix = ""
+            if r_idx == 0 and bu_type == "char" and bu_char:
+                prefix = f"{bu_char} "
+
+            cursor.insertText(prefix + run.text, char_fmt)
+
+    cursor.endEditBlock()
+    return float(doc.size().height())
+
+
+def solve_norm_autofit_scale(
+    text_body: TextBody,
+    avail_w: float,
+    avail_h: float,
+    min_scale: float = 0.20,
+    max_scale: float = 1.0,
+    tolerance: float = 1.0,
+) -> tuple[float, float]:
+    """Calculate the precise normAutofit fontScale and lnSpcReduction.
+
+    Preserves relative font sizes across all paragraphs and runs.
+    Uses binary search measurement with QTextDocument (documentMargin=0.0).
+
+    Returns:
+        tuple (font_scale, ln_spc_reduction)
+    """
+    if not text_body or text_body.is_empty() or avail_h <= 0.0 or avail_w <= 0.0:
+        return 1.0, 0.0
+
+    # 1. Check if it already fits at 1.0
+    h_at_1 = measure_text_body_height(text_body, avail_w, font_scale=1.0, ln_spc_reduction=0.0)
+    if h_at_1 <= avail_h + tolerance:
+        return 1.0, 0.0
+
+    # 2. Binary search for optimal font scale
+    low = min_scale
+    high = max_scale
+    best_scale = min_scale
+    best_red = 0.0
+
+    for _ in range(12):  # 12 iterations gives precision < 0.0002
+        mid = (low + high) / 2.0
+        ln_red = min(0.20, max(0.0, (1.0 - mid) * 0.4))
+        h = measure_text_body_height(text_body, avail_w, font_scale=mid, ln_spc_reduction=ln_red)
+        if h <= avail_h + tolerance:
+            best_scale = mid
+            best_red = ln_red
+            low = mid
+        else:
+            high = mid
+
+    final_scale = max(min_scale, math.floor(best_scale * 1000.0) / 1000.0)
+    final_red = max(0.0, min(0.20, round(best_red, 3)))
+    while final_scale > min_scale:
+        h = measure_text_body_height(
+            text_body, avail_w, font_scale=final_scale, ln_spc_reduction=final_red
+        )
+        if h <= avail_h + tolerance:
+            break
+        final_scale = max(min_scale, round(final_scale - 0.005, 3))
+
+    if final_scale >= 0.99:
+        return 1.0, 0.0
+    return final_scale, final_red
+
+
 def resolve_color(color_name: str | None) -> QColor:
     """Resolve color name or hex code to QColor."""
     if not color_name:
@@ -199,13 +413,28 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         self.document().contentsChanged.connect(self._on_contents_changed)
 
     def _sync_geometry_from_shape(self) -> None:
-        """Update editor position and bounds matching shape insets."""
+        """Update editor position and bounds matching shape insets and vertical anchor."""
         w = max(10.0, self.model.w)
+        h = max(10.0, self.model.h)
         insets = self.model.text.insets if self.model.text else (7.2, 3.6, 7.2, 3.6)
         ins_l, ins_t, ins_r, ins_b = insets
 
         avail_w = max(10.0, w - ins_l - ins_r)
-        self.setPos(ins_l, ins_t)
+        avail_h = max(10.0, h - ins_t - ins_b)
+
+        doc = self.document()
+        doc.setDocumentMargin(0.0)
+        doc.setTextWidth(avail_w)
+
+        doc_h = doc.size().height()
+        dy = 0.0
+        anchor = self.model.text.anchor if self.model.text else "t"
+        if anchor == "ctr":
+            dy = max(0.0, (avail_h - doc_h) / 2.0)
+        elif anchor == "b":
+            dy = max(0.0, avail_h - doc_h)
+
+        self.setPos(ins_l, ins_t + dy)
         self.setTextWidth(avail_w)
 
     # ------------------------------------------------------------------
@@ -222,12 +451,31 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         if not text_body or text_body.is_empty():
             return
 
+        app = QApplication.instance()
+        if app is None:
+            try:
+                import sys
+
+                app = QApplication(sys.argv if sys.argv else [""])
+            except Exception:
+                pass
+
         doc = QTextDocument()
+        doc.setDocumentMargin(0.0)
         avail_w = max(10.0, text_rect.width())
         avail_h = max(10.0, text_rect.height())
         doc.setTextWidth(avail_w)
 
-        font_scale = text_body.font_scale or 1.0
+        font_scale = text_body.font_scale if text_body.font_scale else 1.0
+        ln_spc_red = text_body.ln_spc_reduction if text_body.ln_spc_reduction else 0.0
+
+        if text_body.autofit == "norm":
+            solved_scale, solved_red = solve_norm_autofit_scale(text_body, avail_w, avail_h)
+            # If font_scale is default (1.0) or solved_scale indicates overflow, use solved scale
+            if abs(font_scale - 1.0) < 0.001 or solved_scale < font_scale:
+                font_scale = solved_scale
+                ln_spc_red = max(ln_spc_red, solved_red)
+
         cursor = QTextCursor(doc)
         cursor.beginEditBlock()
 
@@ -262,6 +510,51 @@ class ShapeTextEditorItem(QGraphicsTextItem):
             ) * font_scale
             block_fmt.setLeftMargin(mar_l)
             block_fmt.setTextIndent(indent)
+
+            # Line spacing & line spacing reduction
+            first_run_sz = (
+                para.runs[0].size
+                if (para.runs and para.runs[0].size is not None)
+                else BODY_SIZES[level]
+            ) * font_scale
+            ln_spc = para.props.get("lnSpc")
+            if ln_spc and isinstance(ln_spc, dict):
+                if "pct" in ln_spc and ln_spc["pct"] is not None:
+                    ln_pct = float(ln_spc["pct"]) / 100.0
+                    factor = max(0.5, ln_pct * (1.0 - ln_spc_red))
+                    block_fmt.setLineHeight(
+                        factor * 100.0,
+                        QTextBlockFormat.LineHeightTypes.ProportionalHeight.value,
+                    )
+                elif "pts" in ln_spc and ln_spc["pts"] is not None:
+                    ln_pts = max(4.0, float(ln_spc["pts"]) * (1.0 - ln_spc_red) * font_scale)
+                    block_fmt.setLineHeight(
+                        ln_pts,
+                        QTextBlockFormat.LineHeightTypes.FixedHeight.value,
+                    )
+            elif ln_spc_red > 0.0:
+                factor = max(0.5, 1.0 - ln_spc_red)
+                block_fmt.setLineHeight(
+                    factor * 100.0,
+                    QTextBlockFormat.LineHeightTypes.ProportionalHeight.value,
+                )
+
+            # Spacing before / after
+            if p_idx > 0:
+                spc_bef = para.props.get("spcBef")
+                if spc_bef and isinstance(spc_bef, dict):
+                    if "pts" in spc_bef and spc_bef["pts"] is not None:
+                        block_fmt.setTopMargin(float(spc_bef["pts"]) * font_scale)
+                    elif "pct" in spc_bef and spc_bef["pct"] is not None:
+                        block_fmt.setTopMargin((float(spc_bef["pct"]) / 100.0) * first_run_sz)
+
+            spc_aft = para.props.get("spcAft")
+            if spc_aft and isinstance(spc_aft, dict):
+                if "pts" in spc_aft and spc_aft["pts"] is not None:
+                    block_fmt.setBottomMargin(float(spc_aft["pts"]) * font_scale)
+                elif "pct" in spc_aft and spc_aft["pct"] is not None:
+                    block_fmt.setBottomMargin((float(spc_aft["pct"]) / 100.0) * first_run_sz)
+
             cursor.setBlockFormat(block_fmt)
 
             # Bullet
@@ -283,7 +576,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                     char_fmt.setFontFamily(fam)
 
                 sz = (run.size if run.size is not None else BODY_SIZES[level]) * font_scale
-                char_fmt.setFontPointSize(sz)
+                char_fmt.setFontPointSize(max(1.0, sz))
                 if run.bold:
                     char_fmt.setFontWeight(QFont.Weight.Bold)
                 if run.italic:
@@ -311,7 +604,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
             dy = max(0.0, avail_h - doc_h)
 
         painter.translate(text_rect.x(), text_rect.y() + dy)
-        doc.drawContents(painter, QRectF(0.0, 0.0, avail_w, avail_h))
+        doc.drawContents(painter, QRectF(0.0, 0.0, avail_w, max(avail_h, doc_h)))
         painter.restore()
 
     # ------------------------------------------------------------------
@@ -321,8 +614,10 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         """Populate QTextDocument from a TextBody model."""
         tb = text_body or TextBody.create_empty()
         font_scale = tb.font_scale if tb else 1.0
+        ln_spc_red = tb.ln_spc_reduction if tb else 0.0
 
         doc = self.document()
+        doc.setDocumentMargin(0.0)
         doc.clear()
 
         cursor = QTextCursor(doc)
@@ -362,6 +657,50 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                 block_fmt.setAlignment(Qt.AlignmentFlag.AlignJustify)
             else:
                 block_fmt.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+            # Line spacing & line spacing reduction
+            first_run_sz = (
+                para.runs[0].size
+                if (para.runs and para.runs[0].size is not None)
+                else BODY_SIZES[level]
+            ) * font_scale
+            ln_spc = para.props.get("lnSpc")
+            if ln_spc and isinstance(ln_spc, dict):
+                if "pct" in ln_spc and ln_spc["pct"] is not None:
+                    ln_pct = float(ln_spc["pct"]) / 100.0
+                    factor = max(0.5, ln_pct * (1.0 - ln_spc_red))
+                    block_fmt.setLineHeight(
+                        factor * 100.0,
+                        QTextBlockFormat.LineHeightTypes.ProportionalHeight.value,
+                    )
+                elif "pts" in ln_spc and ln_spc["pts"] is not None:
+                    ln_pts = max(4.0, float(ln_spc["pts"]) * (1.0 - ln_spc_red) * font_scale)
+                    block_fmt.setLineHeight(
+                        ln_pts,
+                        QTextBlockFormat.LineHeightTypes.FixedHeight.value,
+                    )
+            elif ln_spc_red > 0.0:
+                factor = max(0.5, 1.0 - ln_spc_red)
+                block_fmt.setLineHeight(
+                    factor * 100.0,
+                    QTextBlockFormat.LineHeightTypes.ProportionalHeight.value,
+                )
+
+            # Spacing before / after
+            if p_idx > 0:
+                spc_bef = para.props.get("spcBef")
+                if spc_bef and isinstance(spc_bef, dict):
+                    if "pts" in spc_bef and spc_bef["pts"] is not None:
+                        block_fmt.setTopMargin(float(spc_bef["pts"]) * font_scale)
+                    elif "pct" in spc_bef and spc_bef["pct"] is not None:
+                        block_fmt.setTopMargin((float(spc_bef["pct"]) / 100.0) * first_run_sz)
+
+            spc_aft = para.props.get("spcAft")
+            if spc_aft and isinstance(spc_aft, dict):
+                if "pts" in spc_aft and spc_aft["pts"] is not None:
+                    block_fmt.setBottomMargin(float(spc_aft["pts"]) * font_scale)
+                elif "pct" in spc_aft and spc_aft["pct"] is not None:
+                    block_fmt.setBottomMargin((float(spc_aft["pct"]) / 100.0) * first_run_sz)
 
             # Bullets
             bu_info = para.props.get("bu")
@@ -426,6 +765,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         paragraphs: list[Paragraph] = []
         doc = self.document()
 
+        p_idx = 0
         block = doc.begin()
         while block.isValid():
             block_fmt = block.blockFormat()
@@ -447,6 +787,11 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                 algn = "l"
 
             props: dict[str, Any] = {"algn": algn}
+            if orig_tb and p_idx < len(orig_tb.paragraphs):
+                orig_p = orig_tb.paragraphs[p_idx]
+                for k in ("lnSpc", "spcBef", "spcAft", "marL", "indent"):
+                    if k in orig_p.props:
+                        props[k] = orig_p.props[k]
 
             bu_type = block_fmt.property(PROP_BULLET_TYPE) or "none"
             bu_char = block_fmt.property(PROP_BULLET_CHAR) or BODY_BULLETS[level]
@@ -488,8 +833,10 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                 runs = []
 
             paragraphs.append(Paragraph(level=level, props=props, runs=runs))
+            p_idx += 1
             block = block.next()
 
+        ln_spc_reduction = orig_tb.ln_spc_reduction if orig_tb else 0.0
         return TextBody(
             anchor=anchor,
             wrap=wrap,
@@ -498,6 +845,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
             paragraphs=paragraphs,
             vert=vert,
             font_scale=font_scale,
+            ln_spc_reduction=ln_spc_reduction,
         )
 
     # ------------------------------------------------------------------
@@ -764,12 +1112,21 @@ class ShapeTextEditorItem(QGraphicsTextItem):
 
         if af_mode == "norm":
             cur_scale = self.model.text.font_scale if self.model.text else 1.0
-            new_scale = calculate_autofit_scale(need_h, avail_h, cur_scale)
-            if abs(new_scale - cur_scale) > 0.01:
+            cur_red = self.model.text.ln_spc_reduction if self.model.text else 0.0
+            avail_w = max(10.0, self.model.w - ins_l - ins_r)
+            if self.model.text:
+                new_scale, new_red = solve_norm_autofit_scale(self.model.text, avail_w, avail_h)
+            else:
+                new_scale = calculate_autofit_scale(need_h, avail_h, cur_scale)
+                new_red = 0.0
+
+            if abs(new_scale - cur_scale) > 0.005 or abs(new_red - cur_red) > 0.005:
                 if self.model.text:
                     self.model.text.font_scale = new_scale
+                    self.model.text.ln_spc_reduction = new_red
                 # Re-scale document fonts
-                self._rescale_document(new_scale / cur_scale)
+                if cur_scale > 0.001:
+                    self._rescale_document(new_scale / cur_scale)
         elif af_mode == "shape":
             avail_w = self.document().idealWidth()
             new_w, new_h = calculate_shape_autofit_size(
