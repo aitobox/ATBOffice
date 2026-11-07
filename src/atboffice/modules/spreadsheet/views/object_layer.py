@@ -8,6 +8,7 @@ anchoring and DrawingML synchronization.
 from __future__ import annotations
 
 import copy
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any
@@ -34,6 +35,9 @@ if TYPE_CHECKING:
         SheetDataModel,
         SheetGeometry,
     )
+
+
+logger = logging.getLogger(__name__)
 
 
 def safe_tr(text: str) -> str:
@@ -115,6 +119,7 @@ class FloatingObject:
     image_data: bytes | None = None
     image_mime: str = "image/png"
     z_index: int = 0
+    chart_data: dict[str, Any] | None = None
 
     def clone(self) -> FloatingObject:
         """Create a deep copy of this floating object."""
@@ -122,7 +127,7 @@ class FloatingObject:
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize object metadata to dictionary."""
-        return {
+        d = {
             "id": self.id,
             "name": self.name,
             "kind": self.kind,
@@ -141,6 +146,9 @@ class FloatingObject:
             "image_mime": self.image_mime,
             "z_index": self.z_index,
         }
+        if self.chart_data is not None:
+            d["chart_data"] = self.chart_data
+        return d
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> FloatingObject:
@@ -169,6 +177,7 @@ class FloatingObject:
             font_family=str(data.get("font_family", "Calibri")),
             image_mime=str(data.get("image_mime", "image/png")),
             z_index=int(data.get("z_index", 0)),
+            chart_data=data.get("chart_data"),
         )
 
 
@@ -179,8 +188,13 @@ def object_to_rect(
     scroll_y: int = 0,
     row_header_width: int = 46,
     col_header_height: int = 22,
+    freeze_rows: int = 0,
+    freeze_cols: int = 0,
 ) -> QRect:
     """Calculate widget viewport bounding rectangle for a floating object."""
+    eff_sx = 0 if (freeze_cols > 0 and obj.from_point.col < freeze_cols) else scroll_x
+    eff_sy = 0 if (freeze_rows > 0 and obj.from_point.row < freeze_rows) else scroll_y
+
     if obj.anchor_type == AnchorType.TWO_CELL:
         # Sheet relative X and Y
         x1 = geometry.col_pos(obj.from_point.col) + obj.from_point.col_off
@@ -192,8 +206,8 @@ def object_to_rect(
         min_x, max_x = min(x1, x2), max(x1, x2)
         min_y, max_y = min(y1, y2), max(y1, y2)
 
-        vx = row_header_width + min_x - scroll_x
-        vy = col_header_height + min_y - scroll_y
+        vx = row_header_width + min_x - eff_sx
+        vy = col_header_height + min_y - eff_sy
         vw = max(4, max_x - min_x)
         vh = max(4, max_y - min_y)
         return QRect(int(vx), int(vy), int(vw), int(vh))
@@ -201,8 +215,8 @@ def object_to_rect(
     elif obj.anchor_type == AnchorType.ONE_CELL:
         x1 = geometry.col_pos(obj.from_point.col) + obj.from_point.col_off
         y1 = geometry.row_pos(obj.from_point.row) + obj.from_point.row_off
-        vx = row_header_width + x1 - scroll_x
-        vy = col_header_height + y1 - scroll_y
+        vx = row_header_width + x1 - eff_sx
+        vy = col_header_height + y1 - eff_sy
         _, _, w, h = obj.abs_rect
         return QRect(int(vx), int(vy), int(max(4, w)), int(max(4, h)))
 
@@ -372,6 +386,8 @@ class SpreadsheetObjectLayer(QWidget):
             scroll_y=self.scroll_y,
             row_header_width=self.row_header_width,
             col_header_height=self.col_header_height,
+            freeze_rows=getattr(self.model, "freeze_rows", 0) if self.model else 0,
+            freeze_cols=getattr(self.model, "freeze_cols", 0) if self.model else 0,
         )
 
     def _get_handles(self, rect: QRect) -> dict[HandleType, QRect]:
@@ -558,13 +574,28 @@ class SpreadsheetObjectLayer(QWidget):
             else:
                 painter.drawRect(rect)
         elif obj.kind == "chart":
-            painter.drawRect(rect)
-            # Placeholder chart indicator
-            painter.drawText(
-                rect,
-                int(Qt.AlignmentFlag.AlignCenter),
-                f"[Chart: {obj.name}]",
-            )
+            try:
+                from PySide6.QtCore import QRectF
+                from atboffice.modules.presentation.chart.model import ChartData
+                from atboffice.modules.presentation.chart.painter import ChartPainter
+
+                if obj.chart_data:
+                    cdata = (
+                        ChartData.from_dict(obj.chart_data)
+                        if isinstance(obj.chart_data, dict)
+                        else obj.chart_data
+                    )
+                else:
+                    cdata = ChartData.create_sample()
+                ChartPainter.paint_chart(painter, cdata, QRectF(rect))
+            except Exception:
+                logger.exception("Failed to render chart via ChartPainter, falling back")
+                painter.drawRect(rect)
+                painter.drawText(
+                    rect,
+                    int(Qt.AlignmentFlag.AlignCenter),
+                    f"[Chart: {obj.name}]",
+                )
 
         # Draw textbox or shape text
         if obj.text:

@@ -420,13 +420,22 @@ class GridViewport(QAbstractScrollArea):
         scroll_x = self.horizontalScrollBar().value()
         scroll_y = self.verticalScrollBar().value()
 
+        fz_r = self.freeze_rows
+        fz_c = self.freeze_cols
+        fz_r_h = self.geometry_mapper.row_pos(fz_r) if fz_r > 0 else 0
+        fz_c_w = self.geometry_mapper.col_pos(fz_c) if fz_c > 0 else 0
+
         # 1. Corner box
         if x < self.row_header_width and y < self.col_header_height:
             return HitResult(HitZone.CORNER)
 
         # 2. Column Header area
         if y < self.col_header_height:
-            sheet_x = scroll_x + (x - self.row_header_width)
+            x_rel = x - self.row_header_width
+            if fz_c > 0 and x_rel < fz_c_w:
+                sheet_x = x_rel
+            else:
+                sheet_x = scroll_x + x_rel
             col = self.geometry_mapper.find_col_at(sheet_x)
             col_end = self.geometry_mapper.col_pos(col) + self.geometry_mapper.col_size(col)
             # Check resize boundary (+/- 3px)
@@ -438,7 +447,11 @@ class GridViewport(QAbstractScrollArea):
 
         # 3. Row Header area
         if x < self.row_header_width:
-            sheet_y = scroll_y + (y - self.col_header_height)
+            y_rel = y - self.col_header_height
+            if fz_r > 0 and y_rel < fz_r_h:
+                sheet_y = y_rel
+            else:
+                sheet_y = scroll_y + y_rel
             row = self.geometry_mapper.find_row_at(sheet_y)
             row_end = self.geometry_mapper.row_pos(row) + self.geometry_mapper.row_size(row)
             if abs(sheet_y - row_end) <= 2:
@@ -461,26 +474,12 @@ class GridViewport(QAbstractScrollArea):
                 pr.min_r == 0 and pr.max_r >= self.geometry_mapper.max_rows - 1
             )
 
-            bx1 = (
-                self.row_header_width
-                + self.geometry_mapper.col_pos(pr.min_c)
-                - scroll_x
-            )
-            bx2 = (
-                self.row_header_width
-                + self.geometry_mapper.col_pos(pr.max_c + 1)
-                - scroll_x
-            )
-            by1 = (
-                self.col_header_height
-                + self.geometry_mapper.row_pos(pr.min_r)
-                - scroll_y
-            )
-            by2 = (
-                self.col_header_height
-                + self.geometry_mapper.row_pos(pr.max_r + 1)
-                - scroll_y
-            )
+            r_tl = self.cell_rect(pr.min_r, pr.min_c)
+            r_br = self.cell_rect(pr.max_r, pr.max_c)
+            bx1 = r_tl.left()
+            by1 = r_tl.top()
+            bx2 = r_br.right() + 1
+            by2 = r_br.bottom() + 1
 
             # AutoFill Handle has priority (+/- 5px at bottom-right)
             if abs(x - bx2) <= 5 and abs(y - by2) <= 5:
@@ -491,10 +490,12 @@ class GridViewport(QAbstractScrollArea):
                 on_v = (abs(x - bx1) <= 2 or abs(x - bx2) <= 2) and (by1 - 2 <= y <= by2 + 2)
                 on_h = (abs(y - by1) <= 2 or abs(y - by2) <= 2) and (bx1 - 2 <= x <= bx2 + 2)
                 if on_v or on_h:
-                    sheet_x = max(0, scroll_x + (x - self.row_header_width))
-                    sheet_y = max(0, scroll_y + (y - self.col_header_height))
-                    hit_r = self.geometry_mapper.find_row_at(sheet_y)
-                    hit_c = self.geometry_mapper.find_col_at(sheet_x)
+                    x_rel = x - self.row_header_width
+                    y_rel = y - self.col_header_height
+                    sx = x_rel if (fz_c > 0 and x_rel < fz_c_w) else max(0, scroll_x + x_rel)
+                    sy = y_rel if (fz_r > 0 and y_rel < fz_r_h) else max(0, scroll_y + y_rel)
+                    hit_r = self.geometry_mapper.find_row_at(sy)
+                    hit_c = self.geometry_mapper.find_col_at(sx)
                     return HitResult(HitZone.BORDER, row=hit_r, col=hit_c)
 
         # 4.5 AutoFilter Button area
@@ -506,29 +507,33 @@ class GridViewport(QAbstractScrollArea):
             and hasattr(af, "c2")
         ):
             r1 = af.r1
-            row_y = (
-                self.col_header_height
-                + self.geometry_mapper.row_pos(r1)
-                - scroll_y
-            )
+            r_af_top = self.cell_rect(r1, af.c1)
+            row_y = r_af_top.top()
             row_h = self.geometry_mapper.row_size(r1)
             btn_size = min(16, max(12, row_h - 2))
             if row_y <= y <= row_y + row_h:
                 for c in range(af.c1, af.c2 + 1):
-                    col_x = (
-                        self.row_header_width
-                        + self.geometry_mapper.col_pos(c)
-                        - scroll_x
-                    )
-                    col_w = self.geometry_mapper.col_size(c)
+                    c_cell_rect = self.cell_rect(r1, c)
+                    col_x = c_cell_rect.left()
+                    col_w = c_cell_rect.width()
                     bx = col_x + col_w - btn_size - 1
                     by = row_y + row_h - btn_size - 1
                     if bx <= x <= bx + btn_size and by <= y <= by + btn_size:
                         return HitResult(HitZone.FILTER_BUTTON, row=r1, col=c)
 
         # 5. Cell area
-        sheet_x = scroll_x + (x - self.row_header_width)
-        sheet_y = scroll_y + (y - self.col_header_height)
+        x_rel = x - self.row_header_width
+        y_rel = y - self.col_header_height
+        if fz_c > 0 and x_rel < fz_c_w:
+            sheet_x = x_rel
+        else:
+            sheet_x = scroll_x + x_rel
+
+        if fz_r > 0 and y_rel < fz_r_h:
+            sheet_y = y_rel
+        else:
+            sheet_y = scroll_y + y_rel
+
         row = self.geometry_mapper.find_row_at(sheet_y)
         col = self.geometry_mapper.find_col_at(sheet_x)
         return HitResult(HitZone.CELL, row=row, col=col)
@@ -585,27 +590,48 @@ class GridViewport(QAbstractScrollArea):
         vw = max(1, self.viewport().width() - self.row_header_width)
         vh = max(1, self.viewport().height() - self.col_header_height)
 
+        fz_r = self.freeze_rows
+        fz_c = self.freeze_cols
+        fz_r_h = self.geometry_mapper.row_pos(fz_r) if fz_r > 0 else 0
+        fz_c_w = self.geometry_mapper.col_pos(fz_c) if fz_c > 0 else 0
+
         cell_top = self.geometry_mapper.row_pos(r)
         cell_bottom = cell_top + self.geometry_mapper.row_size(r)
         cell_left = self.geometry_mapper.col_pos(c)
         cell_right = cell_left + self.geometry_mapper.col_size(c)
 
-        if cell_top < scroll_y:
-            self.verticalScrollBar().setValue(cell_top)
-        elif cell_bottom > scroll_y + vh:
-            self.verticalScrollBar().setValue(cell_bottom - vh)
+        if fz_r > 0 and r < fz_r:
+            # Pinned row: already visible at the top
+            pass
+        else:
+            if cell_top < scroll_y + fz_r_h:
+                self.verticalScrollBar().setValue(max(0, cell_top - fz_r_h))
+            elif cell_bottom > scroll_y + vh:
+                self.verticalScrollBar().setValue(cell_bottom - vh)
 
-        if cell_left < scroll_x:
-            self.horizontalScrollBar().setValue(cell_left)
-        elif cell_right > scroll_x + vw:
-            self.horizontalScrollBar().setValue(cell_right - vw)
+        if fz_c > 0 and c < fz_c:
+            # Pinned column: already visible at the left
+            pass
+        else:
+            if cell_left < scroll_x + fz_c_w:
+                self.horizontalScrollBar().setValue(max(0, cell_left - fz_c_w))
+            elif cell_right > scroll_x + vw:
+                self.horizontalScrollBar().setValue(cell_right - vw)
 
     def cell_rect(self, r: int, c: int) -> QRect:
         """Return the visible QRect coordinates for cell (r, c) within the viewport."""
         scroll_x = self.horizontalScrollBar().value()
         scroll_y = self.verticalScrollBar().value()
-        x = self.geometry_mapper.col_pos(c) - scroll_x + self.row_header_width
-        y = self.geometry_mapper.row_pos(r) - scroll_y + self.col_header_height
+        if self.freeze_cols > 0 and c < self.freeze_cols:
+            x = self.row_header_width + self.geometry_mapper.col_pos(c)
+        else:
+            x = self.row_header_width + self.geometry_mapper.col_pos(c) - scroll_x
+
+        if self.freeze_rows > 0 and r < self.freeze_rows:
+            y = self.col_header_height + self.geometry_mapper.row_pos(r)
+        else:
+            y = self.col_header_height + self.geometry_mapper.row_pos(r) - scroll_y
+
         w = self.geometry_mapper.col_size(c)
         h = self.geometry_mapper.row_size(r)
         return QRect(x, y, w, h)
@@ -648,36 +674,135 @@ class GridViewport(QAbstractScrollArea):
             vh - self.col_header_height,
         )
 
+        # 2. Panes Partitioning (Corner, Top, Left, Main)
+        fz_r = self.freeze_rows
+        fz_c = self.freeze_cols
+        fz_r_h = self.geometry_mapper.row_pos(fz_r) if fz_r > 0 else 0
+        fz_c_w = self.geometry_mapper.col_pos(fz_c) if fz_c > 0 else 0
+        x0 = self.row_header_width
+        y0 = self.col_header_height
+
+        panes: list[tuple[int, int, int, int, int, int, QRect]] = []
+        # Main scrollable pane (always present)
+        main_r1 = max(fz_r, start_row)
+        main_r2 = max(main_r1, end_row)
+        main_c1 = max(fz_c, start_col)
+        main_c2 = max(main_c1, end_col)
+        main_clip = QRect(x0 + fz_c_w, y0 + fz_r_h, max(0, vw - x0 - fz_c_w), max(0, vh - y0 - fz_r_h))
+        panes.append((main_r1, main_r2, main_c1, main_c2, scroll_x, scroll_y, main_clip))
+
+        # Top frozen pane (pinned vertically, scrolls horizontally)
+        if fz_r > 0:
+            top_clip = QRect(x0 + fz_c_w, y0, max(0, vw - x0 - fz_c_w), fz_r_h)
+            panes.append((0, fz_r - 1, main_c1, main_c2, scroll_x, 0, top_clip))
+
+        # Left frozen pane (pinned horizontally, scrolls vertically)
+        if fz_c > 0:
+            left_clip = QRect(x0, y0 + fz_r_h, fz_c_w, max(0, vh - y0 - fz_r_h))
+            panes.append((main_r1, main_r2, 0, fz_c - 1, 0, scroll_y, left_clip))
+
+        # Corner frozen pane (pinned both horizontally and vertically)
+        if fz_r > 0 and fz_c > 0:
+            corner_clip = QRect(x0, y0, fz_c_w, fz_r_h)
+            panes.append((0, fz_r - 1, 0, fz_c - 1, 0, 0, corner_clip))
+
+        for pr_start, pr_end, pc_start, pc_end, psx, psy, p_clip in panes:
+            if p_clip.width() <= 0 or p_clip.height() <= 0:
+                continue
+            self._paint_pane(painter, pr_start, pr_end, pc_start, pc_end, psx, psy, p_clip)
+
+        # 5.10 Draw Audit Tracer Arrows
+        self._paint_audit_arrows(painter, cell_clip, scroll_x, scroll_y)
+
+        # 5.11 Draw Freeze Panes Split Lines
+        if self.freeze_rows > 0:
+            frozen_y = y0 + fz_r_h
+            painter.save()
+            painter.setPen(QPen(QColor(128, 128, 128), 2))
+            painter.drawLine(x0, frozen_y, vw, frozen_y)
+            painter.restore()
+
+        if self.freeze_cols > 0:
+            frozen_x = x0 + fz_c_w
+            painter.save()
+            painter.setPen(QPen(QColor(128, 128, 128), 2))
+            painter.drawLine(frozen_x, y0, frozen_x, vh)
+            painter.restore()
+
+        # 5.12 Draw Page Break Preview overlay & watermarks if active
+        self._paint_page_break_preview(
+            painter, cell_clip, scroll_x, scroll_y, vw, vh
+        )
+
+        # 6. Draw Fixed Headers (Column Headers, Row Headers, Corner)
+        self._paint_headers(
+            painter, start_row, end_row, start_col, end_col, scroll_x, scroll_y, vw, vh
+        )
+
+        # 7. Draw Resize Guide Line (on top of headers and grid)
+        if (
+            self._drag_mode == HitZone.COL_RESIZE
+            and self._resize_preview_pos is not None
+        ):
+            painter.save()
+            guide_pen = QPen(QColor(0, 0, 0), 1, Qt.PenStyle.DashLine)
+            painter.setPen(guide_pen)
+            painter.drawLine(self._resize_preview_pos, 0, self._resize_preview_pos, vh)
+            painter.restore()
+        elif (
+            self._drag_mode == HitZone.ROW_RESIZE
+            and self._resize_preview_pos is not None
+        ):
+            painter.save()
+            guide_pen = QPen(QColor(0, 0, 0), 1, Qt.PenStyle.DashLine)
+            painter.setPen(guide_pen)
+            painter.drawLine(0, self._resize_preview_pos, vw, self._resize_preview_pos)
+            painter.restore()
+
+    def _paint_pane(
+        self,
+        painter: QPainter,
+        pr_start: int,
+        pr_end: int,
+        pc_start: int,
+        pc_end: int,
+        psx: int,
+        psy: int,
+        pane_clip: QRect,
+    ) -> None:
+        """Render gridlines, selection, cells, and indicators for a single pane."""
+        vw = self.width()
+        vh = self.height()
         # 2. Draw Selection Overlays
         painter.save()
-        painter.setClipRect(cell_clip)
+        painter.setClipRect(pane_clip)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(self.COLOR_SELECTION))
 
         for rg in self.selection.ranges:
-            if rg.max_r < start_row or rg.min_r > end_row:
+            if rg.max_r < pr_start or rg.min_r > pr_end:
                 continue
-            if rg.max_c < start_col or rg.min_c > end_col:
+            if rg.max_c < pc_start or rg.min_c > pc_end:
                 continue
             x1 = (
                 self.row_header_width
                 + self.geometry_mapper.col_pos(rg.min_c)
-                - scroll_x
+                - psx
             )
             y1 = (
                 self.col_header_height
                 + self.geometry_mapper.row_pos(rg.min_r)
-                - scroll_y
+                - psy
             )
             x2 = (
                 self.row_header_width
                 + self.geometry_mapper.col_pos(rg.max_c + 1)
-                - scroll_x
+                - psx
             )
             y2 = (
                 self.col_header_height
                 + self.geometry_mapper.row_pos(rg.max_r + 1)
-                - scroll_y
+                - psy
             )
             painter.drawRect(QRect(x1, y1, x2 - x1, y2 - y1))
         painter.restore()
@@ -685,27 +810,27 @@ class GridViewport(QAbstractScrollArea):
         # 2b. Draw AutoFill Drag Preview Rectangle
         if self._fill_preview_range is not None:
             painter.save()
-            painter.setClipRect(cell_clip)
+            painter.setClipRect(pane_clip)
             pr = self._fill_preview_range
             px1 = (
                 self.row_header_width
                 + self.geometry_mapper.col_pos(pr.min_c)
-                - scroll_x
+                - psx
             )
             py1 = (
                 self.col_header_height
                 + self.geometry_mapper.row_pos(pr.min_r)
-                - scroll_y
+                - psy
             )
             px2 = (
                 self.row_header_width
                 + self.geometry_mapper.col_pos(pr.max_c + 1)
-                - scroll_x
+                - psx
             )
             py2 = (
                 self.col_header_height
                 + self.geometry_mapper.row_pos(pr.max_r + 1)
-                - scroll_y
+                - psy
             )
             dash_pen = QPen(QColor(128, 128, 128), 2, Qt.PenStyle.DashLine)
             painter.setPen(dash_pen)
@@ -719,27 +844,27 @@ class GridViewport(QAbstractScrollArea):
             and self._move_preview_range != self._move_src_range
         ):
             painter.save()
-            painter.setClipRect(cell_clip)
+            painter.setClipRect(pane_clip)
             pr = self._move_preview_range
             px1 = (
                 self.row_header_width
                 + self.geometry_mapper.col_pos(pr.min_c)
-                - scroll_x
+                - psx
             )
             py1 = (
                 self.col_header_height
                 + self.geometry_mapper.row_pos(pr.min_r)
-                - scroll_y
+                - psy
             )
             px2 = (
                 self.row_header_width
                 + self.geometry_mapper.col_pos(pr.max_c + 1)
-                - scroll_x
+                - psx
             )
             py2 = (
                 self.col_header_height
                 + self.geometry_mapper.row_pos(pr.max_r + 1)
-                - scroll_y
+                - psy
             )
             move_pen = QPen(self.COLOR_ACTIVE_BORDER, 2, Qt.PenStyle.DashLine)
             painter.setPen(move_pen)
@@ -749,44 +874,44 @@ class GridViewport(QAbstractScrollArea):
 
         # 3. Draw Gridlines
         painter.save()
-        painter.setClipRect(cell_clip)
+        painter.setClipRect(pane_clip)
         painter.setPen(QPen(self.COLOR_GRIDLINE, 1))
 
         # Vertical gridlines
-        for c in range(start_col, end_col + 2):
+        for c in range(pc_start, pc_end + 2):
             x = (
                 self.row_header_width
                 + self.geometry_mapper.col_pos(c)
-                - scroll_x
+                - psx
             )
             painter.drawLine(x, self.col_header_height, x, vh)
 
         # Horizontal gridlines
-        for r in range(start_row, end_row + 2):
+        for r in range(pr_start, pr_end + 2):
             y = (
                 self.col_header_height
                 + self.geometry_mapper.row_pos(r)
-                - scroll_y
+                - psy
             )
             painter.drawLine(self.row_header_width, y, vw, y)
         painter.restore()
 
         # 4. Draw Cell Contents (with right-overflow)
         painter.save()
-        painter.setClipRect(cell_clip)
+        painter.setClipRect(pane_clip)
         fm = QFontMetrics(self.font())
 
-        for r in range(start_row, end_row + 1):
+        for r in range(pr_start, pr_end + 1):
             row_y = (
                 self.col_header_height
                 + self.geometry_mapper.row_pos(r)
-                - scroll_y
+                - psy
             )
             row_h = self.geometry_mapper.row_size(r)
             if row_h <= 0:
                 continue
 
-            for c in range(start_col, end_col + 1):
+            for c in range(pc_start, pc_end + 1):
                 cell = self.model.get_cell(r, c)
                 if cell is None:
                     continue
@@ -794,7 +919,7 @@ class GridViewport(QAbstractScrollArea):
                 col_x = (
                     self.row_header_width
                     + self.geometry_mapper.col_pos(c)
-                    - scroll_x
+                    - psx
                 )
                 col_w = self.geometry_mapper.col_size(c)
                 if col_w <= 0:
@@ -984,18 +1109,18 @@ class GridViewport(QAbstractScrollArea):
 
         # 5. Draw Active Cell 2px Border & AutoFill Handle
         painter.save()
-        painter.setClipRect(cell_clip)
+        painter.setClipRect(pane_clip)
         ar, ac = self.selection.active_cell
-        if start_row <= ar <= end_row and start_col <= ac <= end_col:
+        if pr_start <= ar <= pr_end and pc_start <= ac <= pc_end:
             ax = (
                 self.row_header_width
                 + self.geometry_mapper.col_pos(ac)
-                - scroll_x
+                - psx
             )
             ay = (
                 self.col_header_height
                 + self.geometry_mapper.row_pos(ar)
-                - scroll_y
+                - psy
             )
             aw = self.geometry_mapper.col_size(ac)
             ah = self.geometry_mapper.row_size(ar)
@@ -1009,13 +1134,13 @@ class GridViewport(QAbstractScrollArea):
             fx = (
                 self.row_header_width
                 + self.geometry_mapper.col_pos(pr.max_c + 1)
-                - scroll_x
+                - psx
                 - 3
             )
             fy = (
                 self.col_header_height
                 + self.geometry_mapper.row_pos(pr.max_r + 1)
-                - scroll_y
+                - psy
                 - 3
             )
             painter.fillRect(fx - 1, fy - 1, 7, 7, Qt.GlobalColor.white)
@@ -1052,17 +1177,17 @@ class GridViewport(QAbstractScrollArea):
             and self.editor_controller.highlights
         ):
             painter.save()
-            painter.setClipRect(cell_clip)
+            painter.setClipRect(pane_clip)
             for hl in self.editor_controller.highlights:
                 hx = (
                     self.row_header_width
                     + self.geometry_mapper.col_pos(hl.c1)
-                    - scroll_x
+                    - psx
                 )
                 hy = (
                     self.col_header_height
                     + self.geometry_mapper.row_pos(hl.r1)
-                    - scroll_y
+                    - psy
                 )
                 hw = sum(
                     self.geometry_mapper.col_size(c)
@@ -1096,22 +1221,22 @@ class GridViewport(QAbstractScrollArea):
             and hasattr(af, "c2")
         ):
             r1 = af.r1
-            if start_row <= r1 <= end_row:
+            if pr_start <= r1 <= pr_end:
                 painter.save()
-                painter.setClipRect(cell_clip)
+                painter.setClipRect(pane_clip)
                 row_y = (
                     self.col_header_height
                     + self.geometry_mapper.row_pos(r1)
-                    - scroll_y
+                    - psy
                 )
                 row_h = self.geometry_mapper.row_size(r1)
                 btn_size = min(16, max(12, row_h - 2))
 
-                for c in range(max(start_col, af.c1), min(end_col, af.c2) + 1):
+                for c in range(max(pc_start, af.c1), min(pc_end, af.c2) + 1):
                     col_x = (
                         self.row_header_width
                         + self.geometry_mapper.col_pos(c)
-                        - scroll_x
+                        - psx
                     )
                     col_w = self.geometry_mapper.col_size(c)
                     if col_w <= btn_size:
@@ -1159,24 +1284,24 @@ class GridViewport(QAbstractScrollArea):
         circles = getattr(self.model, "invalid_circles", [])
         if circles:
             painter.save()
-            painter.setClipRect(cell_clip)
+            painter.setClipRect(pane_clip)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
             circle_pen = QPen(QColor(255, 0, 0), 1.5)
             painter.setPen(circle_pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
 
             for cr, cc in circles:
-                if cr < start_row or cr > end_row or cc < start_col or cc > end_col:
+                if cr < pr_start or cr > pr_end or cc < pc_start or cc > pc_end:
                     continue
                 cx = (
                     self.row_header_width
                     + self.geometry_mapper.col_pos(cc)
-                    - scroll_x
+                    - psx
                 )
                 cy = (
                     self.col_header_height
                     + self.geometry_mapper.row_pos(cr)
-                    - scroll_y
+                    - psy
                 )
                 cw = self.geometry_mapper.col_size(cc)
                 ch = self.geometry_mapper.row_size(cr)
@@ -1189,23 +1314,23 @@ class GridViewport(QAbstractScrollArea):
         comments = getattr(self.model, "comments", {})
         if comments:
             painter.save()
-            painter.setClipRect(cell_clip)
+            painter.setClipRect(pane_clip)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(QColor(255, 0, 0)))
             s = 6
             for cr, cc in comments.keys():
-                if cr < start_row or cr > end_row or cc < start_col or cc > end_col:
+                if cr < pr_start or cr > pr_end or cc < pc_start or cc > pc_end:
                     continue
                 cx = (
                     self.row_header_width
                     + self.geometry_mapper.col_pos(cc)
-                    - scroll_x
+                    - psx
                 )
                 cy = (
                     self.col_header_height
                     + self.geometry_mapper.row_pos(cr)
-                    - scroll_y
+                    - psy
                 )
                 cw = self.geometry_mapper.col_size(cc)
                 ch = self.geometry_mapper.row_size(cr)
@@ -1224,21 +1349,21 @@ class GridViewport(QAbstractScrollArea):
         show_all = getattr(self.model, "show_all_comments", False)
         if comments:
             painter.save()
-            painter.setClipRect(cell_clip)
+            painter.setClipRect(pane_clip)
             for (cr, cc), cm in comments.items():
                 if not (cm.visible or show_all):
                     continue
-                if cr < start_row or cr > end_row or cc < start_col or cc > end_col:
+                if cr < pr_start or cr > pr_end or cc < pc_start or cc > pc_end:
                     continue
                 cx = (
                     self.row_header_width
                     + self.geometry_mapper.col_pos(cc)
-                    - scroll_x
+                    - psx
                 )
                 cy = (
                     self.col_header_height
                     + self.geometry_mapper.row_pos(cr)
-                    - scroll_y
+                    - psy
                 )
                 cw = self.geometry_mapper.col_size(cc)
                 ch = self.geometry_mapper.row_size(cr)
@@ -1275,59 +1400,6 @@ class GridViewport(QAbstractScrollArea):
                 )
             painter.restore()
 
-        # 5.10 Draw Audit Tracer Arrows
-        self._paint_audit_arrows(painter, cell_clip, scroll_x, scroll_y)
-
-        # 5.11 Draw Freeze Panes Split Lines
-        if self.freeze_rows > 0:
-            frozen_y = (
-                self.col_header_height
-                + self.geometry_mapper.row_pos(self.freeze_rows)
-            )
-            painter.save()
-            painter.setPen(QPen(QColor(0, 0, 0), 2))
-            painter.drawLine(self.row_header_width, frozen_y, vw, frozen_y)
-            painter.restore()
-
-        if self.freeze_cols > 0:
-            frozen_x = (
-                self.row_header_width
-                + self.geometry_mapper.col_pos(self.freeze_cols)
-            )
-            painter.save()
-            painter.setPen(QPen(QColor(0, 0, 0), 2))
-            painter.drawLine(frozen_x, self.col_header_height, frozen_x, vh)
-            painter.restore()
-
-        # 5.12 Draw Page Break Preview overlay & watermarks if active
-        self._paint_page_break_preview(
-            painter, cell_clip, scroll_x, scroll_y, vw, vh
-        )
-
-        # 6. Draw Fixed Headers (Column Headers, Row Headers, Corner)
-        self._paint_headers(
-            painter, start_row, end_row, start_col, end_col, scroll_x, scroll_y, vw, vh
-        )
-
-        # 7. Draw Resize Guide Line (on top of headers and grid)
-        if (
-            self._drag_mode == HitZone.COL_RESIZE
-            and self._resize_preview_pos is not None
-        ):
-            painter.save()
-            guide_pen = QPen(QColor(0, 0, 0), 1, Qt.PenStyle.DashLine)
-            painter.setPen(guide_pen)
-            painter.drawLine(self._resize_preview_pos, 0, self._resize_preview_pos, vh)
-            painter.restore()
-        elif (
-            self._drag_mode == HitZone.ROW_RESIZE
-            and self._resize_preview_pos is not None
-        ):
-            painter.save()
-            guide_pen = QPen(QColor(0, 0, 0), 1, Qt.PenStyle.DashLine)
-            painter.setPen(guide_pen)
-            painter.drawLine(0, self._resize_preview_pos, vw, self._resize_preview_pos)
-            painter.restore()
 
     def _paint_page_break_preview(
         self,
@@ -1458,19 +1530,8 @@ class GridViewport(QAbstractScrollArea):
         cur_sheet = getattr(self.model, "name", "Sheet1")
 
         def cell_center(r: int, c: int) -> QPointF:
-            cx = (
-                self.row_header_width
-                + self.geometry_mapper.col_pos(c)
-                - scroll_x
-            )
-            cy = (
-                self.col_header_height
-                + self.geometry_mapper.row_pos(r)
-                - scroll_y
-            )
-            cw = self.geometry_mapper.col_size(c)
-            ch = self.geometry_mapper.row_size(r)
-            return QPointF(cx + cw / 2.0, cy + ch / 2.0)
+            cr = self.cell_rect(r, c)
+            return QPointF(cr.center().x() + 0.5, cr.center().y() + 0.5)
 
         def draw_arrow_head(p_from: QPointF, p_to: QPointF, color: QColor) -> None:
             angle = math.atan2(p_to.y() - p_from.y(), p_to.x() - p_from.x())
@@ -1594,6 +1655,11 @@ class GridViewport(QAbstractScrollArea):
         vh: int,
     ) -> None:
         """Render column headers, row headers, and corner box."""
+        fz_r = self.freeze_rows
+        fz_c = self.freeze_cols
+        fz_r_h = self.geometry_mapper.row_pos(fz_r) if fz_r > 0 else 0
+        fz_c_w = self.geometry_mapper.col_pos(fz_c) if fz_c > 0 else 0
+
         # A. Top-Left Corner Box
         painter.fillRect(
             0,
@@ -1617,16 +1683,19 @@ class GridViewport(QAbstractScrollArea):
         painter.drawPolygon(corner_poly)
 
         # B. Column Headers (A, B, C...)
+        # B1. Scrollable Column Headers (clipped to right of frozen cols)
         painter.save()
         painter.setClipRect(
             QRect(
-                self.row_header_width,
+                self.row_header_width + fz_c_w,
                 0,
-                vw - self.row_header_width,
+                max(0, vw - self.row_header_width - fz_c_w),
                 self.col_header_height,
             )
         )
         for c in range(start_col, end_col + 1):
+            if fz_c > 0 and c < fz_c:
+                continue
             cx = (
                 self.row_header_width
                 + self.geometry_mapper.col_pos(c)
@@ -1660,17 +1729,60 @@ class GridViewport(QAbstractScrollArea):
             )
         painter.restore()
 
+        # B2. Frozen Column Headers (pinned)
+        if fz_c > 0:
+            painter.save()
+            painter.setClipRect(
+                QRect(
+                    self.row_header_width,
+                    0,
+                    fz_c_w,
+                    self.col_header_height,
+                )
+            )
+            for c in range(0, fz_c):
+                cx = self.row_header_width + self.geometry_mapper.col_pos(c)
+                cw = self.geometry_mapper.col_size(c)
+                if cw <= 0:
+                    continue
+
+                is_sel = self.selection.is_col_selected(c)
+                bg = self.COLOR_HDR_SEL_BG if is_sel else self.COLOR_HDR_BG
+                painter.fillRect(cx, 0, cw, self.col_header_height, bg)
+
+                painter.setPen(QPen(self.COLOR_HDR_BORDER, 1))
+                painter.drawLine(
+                    cx + cw, 0, cx + cw, self.col_header_height
+                )
+                painter.drawLine(
+                    cx,
+                    self.col_header_height - 1,
+                    cx + cw,
+                    self.col_header_height - 1,
+                )
+
+                painter.setPen(self.COLOR_HDR_TEXT)
+                painter.drawText(
+                    QRect(cx, 0, cw, self.col_header_height),
+                    Qt.AlignmentFlag.AlignCenter,
+                    col_name(c),
+                )
+            painter.restore()
+
         # C. Row Headers (1, 2, 3...)
+        # C1. Scrollable Row Headers (clipped to below frozen rows)
         painter.save()
         painter.setClipRect(
             QRect(
                 0,
-                self.col_header_height,
+                self.col_header_height + fz_r_h,
                 self.row_header_width,
-                vh - self.col_header_height,
+                max(0, vh - self.col_header_height - fz_r_h),
             )
         )
         for r in range(start_row, end_row + 1):
+            if fz_r > 0 and r < fz_r:
+                continue
             ry = (
                 self.col_header_height
                 + self.geometry_mapper.row_pos(r)
@@ -1703,6 +1815,65 @@ class GridViewport(QAbstractScrollArea):
                 str(r + 1),
             )
         painter.restore()
+
+        # C2. Frozen Row Headers (pinned)
+        if fz_r > 0:
+            painter.save()
+            painter.setClipRect(
+                QRect(
+                    0,
+                    self.col_header_height,
+                    self.row_header_width,
+                    fz_r_h,
+                )
+            )
+            for r in range(0, fz_r):
+                ry = self.col_header_height + self.geometry_mapper.row_pos(r)
+                rh = self.geometry_mapper.row_size(r)
+                if rh <= 0:
+                    continue
+
+                is_sel = self.selection.is_row_selected(r)
+                bg = self.COLOR_HDR_SEL_BG if is_sel else self.COLOR_HDR_BG
+                painter.fillRect(0, ry, self.row_header_width, rh, bg)
+
+                painter.setPen(QPen(self.COLOR_HDR_BORDER, 1))
+                painter.drawLine(
+                    0, ry + rh, self.row_header_width, ry + rh
+                )
+                painter.drawLine(
+                    self.row_header_width - 1,
+                    ry,
+                    self.row_header_width - 1,
+                    ry + rh,
+                )
+
+                painter.setPen(self.COLOR_HDR_TEXT)
+                painter.drawText(
+                    QRect(0, ry, self.row_header_width - 4, rh),
+                    Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
+                    str(r + 1),
+                )
+            painter.restore()
+
+        # D. Freeze Dividers across headers
+        if fz_c > 0:
+            painter.save()
+            painter.setPen(QPen(QColor(128, 128, 128), 2))
+            painter.drawLine(
+                self.row_header_width + fz_c_w, 0,
+                self.row_header_width + fz_c_w, self.col_header_height
+            )
+            painter.restore()
+
+        if fz_r > 0:
+            painter.save()
+            painter.setPen(QPen(QColor(128, 128, 128), 2))
+            painter.drawLine(
+                0, self.col_header_height + fz_r_h,
+                self.row_header_width, self.col_header_height + fz_r_h
+            )
+            painter.restore()
 
     # -------------------------------------------------------------------------
     # Mouse Interaction Subsystem & Drag Lifecycle
