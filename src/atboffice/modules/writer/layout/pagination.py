@@ -307,6 +307,14 @@ class _PaginationContext:
             return self.current_region.columns[self.current_col_idx]
         return self.current_region.columns[-1]
 
+    def get_current_region_bottom(self) -> float:
+        """Return the bottom y position of the current page's content in body coordinates."""
+        if not self.current_page or not self.current_page.regions:
+            return 0.0
+        reg = self.current_page.regions[-1]
+        max_col_bottom = max((col.used_height for col in reg.columns), default=0.0)
+        return reg.top + max_col_bottom
+
     def start_page(
         self,
         sect_idx: int,
@@ -380,7 +388,7 @@ class _PaginationContext:
         height: float,
     ) -> PageRegion:
         body_w = self.current_page.body_width if self.current_page else sect.pg_w
-        num_cols = getattr(sect.cols, "n", 1) or 1
+        num_cols = getattr(sect.cols, "num", None) or getattr(sect.cols, "n", 1) or 1
         col_space = getattr(sect.cols, "space", 36.0) or 36.0
         total_space = (num_cols - 1) * col_space
         col_w = max(10.0, (body_w - total_space) / num_cols)
@@ -506,11 +514,58 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
     for si, sec_info in enumerate(ctx.sect_list):
         sect = sec_info["sect"]
         start_num = getattr(sect.pg_num, "start", None) if getattr(sect, "pg_num", None) else None
-        if start_num is not None:
-            ctx.page_number = start_num
 
-        first_of_section = True
-        ctx.start_page(si, sect, first_of_section=first_of_section)
+        if si == 0:
+            if start_num is not None:
+                ctx.page_number = start_num
+            ctx.start_page(si, sect, first_of_section=True)
+        else:
+            prev_sect = ctx.sect_list[si - 1]["sect"]
+            s_type = (
+                getattr(sect, "sect_type", None)
+                or getattr(sect, "type", "nextPage")
+                or "nextPage"
+            )
+            same_geom = (
+                abs(sect.pg_w - prev_sect.pg_w) < 1.0
+                and abs(sect.pg_h - prev_sect.pg_h) < 1.0
+            )
+
+            is_valid_continuous = (
+                s_type == "continuous"
+                and same_geom
+                and ctx.current_page
+                and not ctx.current_page.is_blank
+            )
+            if is_valid_continuous:
+                bottom_y = ctx.get_current_region_bottom()
+                avail_h = ctx.current_page.body_height - bottom_y
+                if avail_h >= 20.0:
+                    ctx.start_region(si, sect, top=bottom_y, height=avail_h)
+                else:
+                    if start_num is not None:
+                        ctx.page_number = start_num
+                    ctx.start_page(si, sect, first_of_section=True)
+            elif s_type == "nextColumn":
+                if ctx.current_region and ctx.current_col_idx + 1 < len(ctx.current_region.columns):
+                    ctx.current_col_idx += 1
+                else:
+                    if start_num is not None:
+                        ctx.page_number = start_num
+                    ctx.start_page(si, sect, first_of_section=True)
+            elif s_type in ("oddPage", "evenPage"):
+                next_pno = ctx.page_number
+                if s_type == "oddPage" and (next_pno % 2 == 0):
+                    ctx.start_page(si - 1, prev_sect, first_of_section=False, is_blank=True)
+                elif s_type == "evenPage" and (next_pno % 2 != 0):
+                    ctx.start_page(si - 1, prev_sect, first_of_section=False, is_blank=True)
+                if start_num is not None:
+                    ctx.page_number = start_num
+                ctx.start_page(si, sect, first_of_section=True)
+            else:  # "nextPage"
+                if start_num is not None:
+                    ctx.page_number = start_num
+                ctx.start_page(si, sect, first_of_section=True)
 
         from_idx = sec_info["from"]
         to_idx = sec_info["to"]
@@ -689,30 +744,17 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
 
             b_idx += 1
 
-        # Check section break parity for next section
-        if si + 1 < len(ctx.sect_list):
-            next_sect = ctx.sect_list[si + 1]["sect"]
-            s_type = (
-                getattr(next_sect, "sect_type", None)
-                or getattr(next_sect, "type", "nextPage")
-                or "nextPage"
-            )
-            # The next page number that would be assigned:
-            next_pno = ctx.page_number
-            if s_type == "oddPage" and (next_pno % 2 == 0):
-                ctx.start_page(si, sect, first_of_section=False, is_blank=True)
-            elif s_type == "evenPage" and (next_pno % 2 != 0):
-                ctx.start_page(si, sect, first_of_section=False, is_blank=True)
-            elif s_type == "continuous":
-                col = ctx.current_column()
-                if col and (col.height - col.used_height >= 24.0):
-                    pass
-
     total_pgs = len(ctx.pages)
     sec_pages: list[int] = [0] * len(ctx.sect_list)
     for pg in ctx.pages:
+        seen_secs: set[int] = set()
         if 0 <= pg.section_index < len(sec_pages):
-            sec_pages[pg.section_index] += 1
+            seen_secs.add(pg.section_index)
+        for reg in pg.regions:
+            if 0 <= reg.section_index < len(sec_pages):
+                seen_secs.add(reg.section_index)
+        for s_idx in seen_secs:
+            sec_pages[s_idx] += 1
 
     dur = (time.perf_counter() - t0) * 1000.0
     return PaginationResult(

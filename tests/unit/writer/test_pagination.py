@@ -1,5 +1,8 @@
 """Unit tests for Quire dynamic multi-page pagination & flow engine (Issue #25)."""
 
+from pathlib import Path
+
+from atboffice.modules.writer.io.docx_reader import read_docx
 from atboffice.modules.writer.layout.pagination import (
     PaginationResult,
     format_number,
@@ -16,6 +19,7 @@ from atboffice.modules.writer.models.document import (
     TextItem,
 )
 from atboffice.modules.writer.models.properties import (
+    ColumnsProperties,
     ParagraphProperties,
     SectionProperties,
 )
@@ -333,3 +337,122 @@ def test_dynamic_page_number_fields():
     assert res.total_pages == 2
     assert res.pages[0].page_number == 1
     assert res.pages[1].page_number == 2
+
+
+def test_section_breaks_continuous_same_page():
+    """Verify continuous section break keeps content on the same page in separate regions."""
+    doc = Document()
+    sect1 = SectionProperties(pg_w=612.0, pg_h=792.0, sect_type="nextPage")
+    sect2 = SectionProperties(pg_w=612.0, pg_h=792.0, sect_type="continuous")
+
+    p1 = Paragraph(runs=[TextItem(text="Section 1 para 1")], sect=sect1)
+    p2 = Paragraph(runs=[TextItem(text="Section 2 continuous para 1")])
+    doc.sect = sect2
+    doc.main.blocks = [p1, p2]
+
+    res = paginate_document(doc)
+    assert res.total_pages == 1
+    page = res.pages[0]
+    assert len(page.regions) == 2
+    assert page.regions[0].columns[0].fragments[0].paragraph == p1
+    assert page.regions[1].columns[0].fragments[0].paragraph == p2
+    assert page.regions[1].top > page.regions[0].top
+
+
+def test_section_breaks_continuous_diff_geometry():
+    """Verify continuous section break forces new page if paper width or height differs."""
+    doc = Document()
+    sect1 = SectionProperties(pg_w=612.0, pg_h=792.0, sect_type="nextPage")
+    sect2 = SectionProperties(pg_w=792.0, pg_h=612.0, sect_type="continuous")  # Different size
+
+    p1 = Paragraph(runs=[TextItem(text="Section 1 portrait")], sect=sect1)
+    p2 = Paragraph(runs=[TextItem(text="Section 2 landscape continuous")])
+    doc.sect = sect2
+    doc.main.blocks = [p1, p2]
+
+    res = paginate_document(doc)
+    assert res.total_pages == 2
+    assert res.pages[0].width == 612.0
+    assert res.pages[1].width == 792.0
+
+
+def test_section_breaks_continuous_space_exhausted():
+    """Verify continuous section break starts a new page when available space is < 20 pt."""
+    doc = Document()
+    doc.sect.pg_w = 400.0
+    doc.sect.pg_h = 100.0
+    doc.sect.mt = 20.0
+    doc.sect.mb = 20.0
+    # Available body height: 60 pt
+
+    sect1 = SectionProperties(pg_w=400.0, pg_h=100.0, mt=20.0, mb=20.0, sect_type="nextPage")
+    sect2 = SectionProperties(pg_w=400.0, pg_h=100.0, mt=20.0, mb=20.0, sect_type="continuous")
+
+    # Long text filling the 60 pt of page 1 and leaving < 20 pt on the last page of section 1
+    paras1 = [
+        Paragraph(runs=[TextItem(text="Line 1 filling space. " * 3)]),
+        Paragraph(runs=[TextItem(text="Line 2 filling space. " * 3)]),
+        Paragraph(runs=[TextItem(text="Line 3 filling space. " * 5)], sect=sect1),
+    ]
+    p2 = Paragraph(runs=[TextItem(text="Continuous section content")])
+    doc.sect = sect2
+    doc.main.blocks = [*paras1, p2]
+
+    res = paginate_document(doc)
+    # Since page 2 was exhausted (avail_h < 20 pt), sect2 continuous should be pushed to page 3
+    assert res.total_pages >= 3
+    # p2 should be placed on a subsequent page in its own region
+    assert res.pages[-1].regions[0].columns[0].fragments[0].paragraph == p2
+
+
+def test_section_breaks_continuous_multi_column():
+    """Verify continuous section break can switch to multi-column layout on same page."""
+    doc = Document()
+    sect1 = SectionProperties(
+        pg_w=612.0,
+        pg_h=792.0,
+        cols=ColumnsProperties(num=1),
+        sect_type="nextPage",
+    )
+    sect2 = SectionProperties(
+        pg_w=612.0,
+        pg_h=792.0,
+        cols=ColumnsProperties(num=2, space=20.0),
+        sect_type="continuous",
+    )
+
+    p1 = Paragraph(runs=[TextItem(text="One column intro text")], sect=sect1)
+    p2 = Paragraph(runs=[TextItem(text="Two columns body text")])
+    doc.sect = sect2
+    doc.main.blocks = [p1, p2]
+
+    res = paginate_document(doc)
+    assert res.total_pages == 1
+    page = res.pages[0]
+    assert len(page.regions) == 2
+    assert len(page.regions[0].columns) == 1
+    assert len(page.regions[1].columns) == 2
+
+
+def test_fdo52208_document_regression():
+    """Regression test: continuous section in fdo52208 should remain on page 1."""
+    doc_path = Path("tests/docs/word/docx/libreoffice__fdo52208.docx")
+    if not doc_path.exists():
+        return
+
+    doc = read_docx(str(doc_path))
+    res = paginate_document(doc)
+    # The document must have 1 page and the second paragraph must be on page 1
+    assert res.total_pages == 1
+    page = res.pages[0]
+    # Check that the text 'second para, still on the first page' is present on page 1
+    found_text = False
+    for reg in page.regions:
+        for col in reg.columns:
+            for frag in col.fragments:
+                if frag.paragraph and hasattr(frag.paragraph, "runs"):
+                    for r in frag.paragraph.runs:
+                        if "second para, still on the first page" in getattr(r, "text", ""):
+                            found_text = True
+    assert found_text is True
+
