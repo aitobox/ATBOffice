@@ -302,7 +302,7 @@ def solve_norm_autofit_scale(
     text_body: TextBody,
     avail_w: float,
     avail_h: float,
-    min_scale: float = 0.20,
+    min_scale: float = 0.25,
     max_scale: float = 1.0,
     tolerance: float = 1.0,
 ) -> tuple[float, float]:
@@ -1114,11 +1114,10 @@ class ShapeTextEditorItem(QGraphicsTextItem):
             cur_scale = self.model.text.font_scale if self.model.text else 1.0
             cur_red = self.model.text.ln_spc_reduction if self.model.text else 0.0
             avail_w = max(10.0, self.model.w - ins_l - ins_r)
-            if self.model.text:
-                new_scale, new_red = solve_norm_autofit_scale(self.model.text, avail_w, avail_h)
-            else:
+            cur_tb = self.to_text_body()
+            new_scale, new_red = solve_norm_autofit_scale(cur_tb, avail_w, avail_h)
+            if new_scale >= 0.99 and need_h > avail_h:
                 new_scale = calculate_autofit_scale(need_h, avail_h, cur_scale)
-                new_red = 0.0
 
             if abs(new_scale - cur_scale) > 0.005 or abs(new_red - cur_red) > 0.005:
                 if self.model.text:
