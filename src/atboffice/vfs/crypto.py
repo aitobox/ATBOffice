@@ -696,24 +696,32 @@ def inspect_file_format(
         header_prefix = b""
         try:
             raw_sample = _to_bytes(path_or_bytes)[:64]
+            if raw_sample.startswith(b"\xef\xbb\xbf"):
+                raw_sample = raw_sample[3:]
             header_prefix = raw_sample.lstrip()
         except Exception:
             pass
 
+        is_xml_or_html = header_prefix.startswith(
+            (b"<", b"\xff\xfe<\x00", b"\xfe\xff\x00<")
+        )
+        is_rtf_header = header_prefix.startswith(b"{\\rtf")
+
         if app == "quire" and ext in {".doc", ".dot"}:
-            return FileFormatInspection(
-                is_ole=False,
-                is_encrypted=False,
-                ole_format="word97",
-                ext=ext,
-                is_disguised=False,
-                guidance_title=safe_tr("文件格式提示"),
-                guidance_message=safe_tr(
-                    "“{name}”是旧版二进制 Word 97–2003 文档 (.doc)。"
-                    "Quire 原生支持 .docx、.html、.rtf、.md 和纯文本文件。"
-                    "请在 Word 或 LibreOffice 中将其另存为 .docx 格式后再打开。"
-                ).format(name=name),
-            )
+            if not (is_xml_or_html or is_rtf_header):
+                return FileFormatInspection(
+                    is_ole=False,
+                    is_encrypted=False,
+                    ole_format="word97",
+                    ext=ext,
+                    is_disguised=False,
+                    guidance_title=safe_tr("文件格式提示"),
+                    guidance_message=safe_tr(
+                        "“{name}”是旧版二进制 Word 97–2003 文档 (.doc)。"
+                        "Quire 原生支持 .docx、.html、.rtf、.md 和纯文本文件。"
+                        "请在 Word 或 LibreOffice 中将其另存为 .docx 格式后再打开。"
+                    ).format(name=name),
+                )
 
         if app == "lectern" and ext in {".ppt", ".pps", ".pot"}:
             return FileFormatInspection(
@@ -732,7 +740,7 @@ def inspect_file_format(
 
         if app == "ledger" and ext in {".xls", ".xlt"}:
             # If it starts with '<' (XMLSS or HTML table), allow it to pass to XMLSS/HTML parsers
-            if not header_prefix.startswith(b"<"):
+            if not is_xml_or_html:
                 if allow_excel97:
                     return FileFormatInspection(
                         is_ole=False,

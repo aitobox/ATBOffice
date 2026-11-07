@@ -472,6 +472,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "encrypted"
+    },
+    "real_open": {
+      "expected_outcome": "cancelled",
+      "rejection_kind": "encrypted_cancelled",
+      "dispatched_format": "docx",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -491,6 +498,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -510,6 +524,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -529,6 +550,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -548,6 +576,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -567,6 +602,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -586,6 +628,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -605,6 +654,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -624,6 +680,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -643,6 +706,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -662,6 +732,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -681,6 +758,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -700,6 +784,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -719,6 +810,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -738,6 +836,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -757,6 +862,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -776,6 +888,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -795,6 +914,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -814,6 +940,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -833,6 +966,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -852,6 +992,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -871,6 +1018,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -890,6 +1044,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -909,6 +1070,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -928,6 +1096,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -947,6 +1122,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_doc",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -1403,6 +1585,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "corrupt"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "corrupt",
+      "dispatched_format": "xlsx",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -1441,6 +1630,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1460,6 +1656,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "corrupt",
+      "dispatched_format": "legacy_xls",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -1479,6 +1682,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1498,6 +1708,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1517,6 +1734,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1536,6 +1760,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "corrupt",
+      "dispatched_format": "legacy_xls",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -1555,6 +1786,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1574,6 +1812,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1593,6 +1838,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1612,6 +1864,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1631,6 +1890,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xmlss",
+      "read_only": false,
+      "render": "ok"
     }
   },
   {
@@ -1650,6 +1916,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1669,6 +1942,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1688,6 +1968,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1707,6 +1994,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1726,6 +2020,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1745,6 +2046,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1764,6 +2072,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1783,6 +2098,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1802,6 +2124,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1821,6 +2150,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1840,6 +2176,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1859,6 +2202,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1878,6 +2228,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -1897,6 +2254,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "imported",
+      "rejection_kind": null,
+      "dispatched_format": "xls_binary",
+      "read_only": true,
+      "render": "ok"
     }
   },
   {
@@ -2391,6 +2755,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2410,6 +2781,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2429,6 +2807,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2448,6 +2833,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2467,6 +2859,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2486,6 +2885,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2505,6 +2911,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2524,6 +2937,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2543,6 +2963,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2562,6 +2989,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2581,6 +3015,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2600,6 +3041,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2619,6 +3067,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2638,6 +3093,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2657,6 +3119,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2676,6 +3145,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2695,6 +3171,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2714,6 +3197,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2733,6 +3223,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2752,6 +3249,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2771,6 +3275,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2790,6 +3301,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2809,6 +3327,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2828,6 +3353,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   },
   {
@@ -2847,6 +3379,13 @@
       "render": "skip",
       "roundtrip": "skip",
       "expected_status": "unsupported_format"
+    },
+    "real_open": {
+      "expected_outcome": "rejected",
+      "rejection_kind": "unsupported_format",
+      "dispatched_format": "legacy_ppt",
+      "read_only": false,
+      "render": "skip"
     }
   }
 ]

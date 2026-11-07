@@ -683,6 +683,8 @@ class QuireWindow(BaseOfficeWindow):
         """Serialize Quire document to destination path."""
         path.parent.mkdir(parents=True, exist_ok=True)
         ext = path.suffix.lower()
+        if ext in {".doc", ".dot"}:
+            return False
         if ext in {".html", ".htm"}:
             from atboffice.modules.writer.io.html_io import write_html
 
@@ -727,6 +729,21 @@ class QuireWindow(BaseOfficeWindow):
 
         ext = path.suffix.lower()
 
+        is_xml_or_html = False
+        is_rtf_header = False
+        try:
+            with open(path, "rb") as f:
+                raw_lead = f.read(64)
+                if raw_lead.startswith(b"\xef\xbb\xbf"):
+                    raw_lead = raw_lead[3:]
+                lead = raw_lead.lstrip()
+                if lead.startswith((b"<", b"\xff\xfe<\x00", b"\xfe\xff\x00<")):
+                    is_xml_or_html = True
+                elif lead.startswith(b"{\\rtf"):
+                    is_rtf_header = True
+        except Exception:
+            pass
+
         # 1. Check if legacy or disguised binary document
         self.check_legacy_or_disguised_file(path, "quire")
 
@@ -735,11 +752,11 @@ class QuireWindow(BaseOfficeWindow):
 
         # 3. Parse candidate document
         candidate_doc = None
-        if ext in {".html", ".htm"}:
+        if ext in {".html", ".htm"} or (ext in {".doc", ".dot", ".xml"} and is_xml_or_html):
             from atboffice.modules.writer.io.html_io import read_html
 
             candidate_doc = read_html(path)
-        elif ext == ".rtf":
+        elif ext == ".rtf" or (ext in {".doc", ".dot"} and is_rtf_header):
             from atboffice.modules.writer.io.rtf_io import RtfReader
 
             candidate_doc = RtfReader().read(path.read_bytes())
