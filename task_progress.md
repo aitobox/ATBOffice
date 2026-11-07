@@ -1,29 +1,27 @@
-# Task Progress: Issue #290 - [office-diff] 调查并修复 sortconditionref.xlsx 离屏事件循环段错误
+# Task Progress: Issue #289 - [office-diff] 修复 Word 连续分节错误分页
 
 ## Status Overview
-- Total Chunks: 4
-- Completed Chunks: 4
+- Total Chunks: 3
+- Completed Chunks: 3
 - Current Chunk: Completed
 
 ## Roadmap & Milestones
-- [x] Chunk 1: Root cause analysis & crash reproduction (Task 1)
-- [x] Chunk 2: Model parser & Viewport defensive safeguards (Task 2)
-- [x] Chunk 3: Regression test suite & capture validation (Task 3)
-- [x] Chunk 4: Full suite verification & grill-me audit (Tasks 4 & 5)
+- [x] Chunk 1: TDD 单元测试集构建 (`tests/unit/writer/test_pagination.py`)
+- [x] Chunk 2: 核心排版引擎连续分节推进逻辑重构 (`src/atboffice/modules/writer/layout/pagination.py`)
+- [x] Chunk 3: 验证、全量回归与 Grill-Me 压力审查
 
 ## Execution Log
-### Chunk 1: Root cause analysis & crash reproduction
-- Executed: Reproduced SIGSEGV in isolated script; identified `AttributeError: 'dict' object has no attribute 'r1'` in `paintEvent` leading to dangling QPainter and backing store crash.
+### Chunk 1: TDD 单元测试集构建
+- Executed: Added comprehensive TDD unit tests for continuous section page reuse, geometry change forced page breaks, space exhaustion (<20pt), multi-column transitions, and libreoffice__fdo52208.docx regression.
+- Verification: pytest verified failure before implementation (Red phase).
 - Status: Completed
 
-### Chunk 2: Model parser & Viewport defensive safeguards
-- Executed: Parsed `<autoFilter>` into `AutoFilter(r1, c1, r2, c2)` in `xlsx_reader.py`. Added defensive guards around `af.r1`, `af.c1`, `af.cols` in `grid_viewport.py`. Wrapped `paintEvent` in `try...finally` ensuring `painter.end()`.
+### Chunk 2: 核心排版引擎连续分节推进逻辑重构
+- Executed: Refactored `_execute_single_pagination_pass` in `src/atboffice/modules/writer/layout/pagination.py` to support `continuous` section same-page region reuse, added `get_current_region_bottom()` to `_PaginationContext`, fixed `ColumnsProperties` attribute lookup (`num` / `n`), and cleaned up legacy dead code.
+- Verification: All 15 tests in `tests/unit/writer/test_pagination.py` passed (Green phase).
 - Status: Completed
 
-### Chunk 3: Regression test suite & capture validation
-- Executed: Created `tests/gui/test_sortconditionref_sigsegv.py` covering model parsing, event loop painting, malformed autofilter resilience, and subprocess offscreen capture.
-- Status: Completed
-
-### Chunk 4: Full suite verification & grill-me audit
-- Executed: Verified all checks in ruff and pytest suites pass cleanly. Offscreen capture generates valid snapshot without errors.
+### Chunk 3: 验证、全量回归与 Grill-Me 压力审查
+- Executed: Verified against 275 writer unit and GUI tests with 100% pass rate. Verified `libreoffice__fdo52208.docx` renders text on page 1 with total_pages=1.
+- Verification: 275 passed in 10.12s.
 - Status: Completed
