@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import datetime
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
 from atboffice.drawing.numfmt import format_value
@@ -73,6 +75,63 @@ class CellData:
         import copy
 
         return copy.copy(self)
+
+    def get_effective_align_h(self) -> str:
+        """Resolve effective horizontal alignment for this cell according to Excel rules."""
+        h = (self.align_h or "").strip().lower()
+        if h and h != "general":
+            return h
+
+        val = self.value
+        if val is None or val == "":
+            return "left"
+
+        # Check errors
+        if isinstance(val, str):
+            v_upper = val.strip().upper()
+            if (
+                v_upper in {
+                    "#NULL!",
+                    "#DIV/0!",
+                    "#VALUE!",
+                    "#REF!",
+                    "#NAME?",
+                    "#NUM!",
+                    "#N/A",
+                    "#SPILL!",
+                    "#CALC!",
+                    "#GETTING_DATA",
+                }
+                or (val.startswith("#") and (val.endswith("!") or val.endswith("?")))
+            ):
+                return "center"
+            if v_upper in ("TRUE", "FALSE"):
+                return "center"
+
+        # Check booleans (must check before int since bool is subclass of int)
+        if isinstance(val, bool):
+            return "center"
+
+        # Check dates/times
+        if isinstance(val, (datetime.date, datetime.datetime, datetime.time)):
+            return "right"
+
+        # Check numeric
+        if isinstance(val, (int, float, Decimal)):
+            return "right"
+
+        # RTL text direction
+        if (self.text_direction or "").lower() == "rtl":
+            return "right"
+
+        return "left"
+
+    def get_effective_align_v(self) -> str:
+        """Resolve effective vertical alignment: 'top', 'center', 'bottom'."""
+        v = (self.align_v or "").strip().lower()
+        if v in ("top", "center", "bottom"):
+            return v
+        return "bottom"
 
 
 @dataclass
@@ -479,3 +538,10 @@ class SheetDataModel:
             return ""
         res = format_value(cell.value, cell.format_code)
         return res.text
+
+    def get_effective_alignment(self, r: int, c: int) -> tuple[str, str]:
+        """Return (align_h, align_v) for cell at (r, c)."""
+        cell = self.cells.get((r, c))
+        if cell is None:
+            return ("left", "bottom")
+        return (cell.get_effective_align_h(), cell.get_effective_align_v())
