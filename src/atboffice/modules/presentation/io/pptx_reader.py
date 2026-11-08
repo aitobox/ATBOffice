@@ -165,6 +165,7 @@ class LayoutInfo:
     decorations: list[Shape] = field(default_factory=list)
     bg: Fill | None = None
     show_master: bool = True
+    layout_type: str = ""
 
 
 def _guide_env(w: float, h: float) -> dict[str, float]:
@@ -483,6 +484,22 @@ class PptxReader:
 
         if layout_info and layout_info.master:
             m_info = layout_info.master
+            if layout_info.layout_type:
+                from atboffice.modules.presentation.models.layouts import LAYOUTS
+
+                ox_to_key = {lyt.ox: lyt.key for lyt in LAYOUTS}
+                slide.layout = ox_to_key.get(layout_info.layout_type, "text")
+            else:
+                ph_types = [p.type for p in layout_info.placeholders]
+                if "ctrTitle" in ph_types:
+                    slide.layout = "title"
+                elif "title" in ph_types:
+                    slide.layout = "text" if len(ph_types) > 1 else "titleOnly"
+                elif not ph_types:
+                    slide.layout = "blank"
+                else:
+                    slide.layout = "content"
+
             if m_info.design is None:
                 d_stem = Path(m_info.master_path).stem
                 d_colors = next(iter(self.themes.values()), ColorScheme())
@@ -497,6 +514,16 @@ class PptxReader:
                     for ld in layout_info.decorations:
                         if ld not in all_decos:
                             all_decos.append(ld)
+
+                concrete_ph: dict[str, tuple[float, float, float, float]] = {}
+                for p in m_info.placeholders:
+                    if p.xfrm:
+                        concrete_ph[p.type] = (p.xfrm[0], p.xfrm[1], p.xfrm[2], p.xfrm[3])
+                if layout_info:
+                    for p in layout_info.placeholders:
+                        if p.xfrm and p.type not in concrete_ph:
+                            concrete_ph[p.type] = (p.xfrm[0], p.xfrm[1], p.xfrm[2], p.xfrm[3])
+
                 m_info.design = DesignTemplate(
                     id=f"dsn_{d_stem}",
                     key=d_stem,
@@ -505,6 +532,12 @@ class PptxReader:
                     fonts=d_fonts,
                     bg=d_bg,
                     decorations=all_decos,
+                    placeholder_frames=concrete_ph,
+                    text_styles={
+                        "title": m_info.title_style,
+                        "body": m_info.body_style,
+                        "other": m_info.other_style,
+                    },
                 )
                 pres.designs[m_info.design.id] = m_info.design
             slide.design_id = m_info.design.id
@@ -1507,6 +1540,7 @@ class PptxReader:
                         l_bg = self._parse_fill(bg_pr)
 
             show_master = _get_attr(l_xml, "showMasterSp") != "0"
+            l_type = _get_attr(l_xml, "type", "") or ""
 
             info = LayoutInfo(
                 layout_path=layout_path,
@@ -1515,6 +1549,7 @@ class PptxReader:
                 decorations=l_decos,
                 bg=l_bg,
                 show_master=show_master,
+                layout_type=l_type,
             )
             self._layouts[layout_path] = info
             return info
@@ -2045,9 +2080,17 @@ class PptxReader:
                 bullet = BulletInfo(type="auto", char="1.")
 
         runs: list[Run] = []
-        for r_elem in _get_children(p_elem, "r"):
-            r = self._parse_run(r_elem)
-            runs.append(r)
+        for child in p_elem:
+            ltag = _local_tag(child.tag)
+            if ltag == "r":
+                runs.append(self._parse_run(child))
+            elif ltag == "fld":
+                fld_type = _get_attr(child, "type", "") or ""
+                r = self._parse_run(child)
+                r.field = fld_type
+                runs.append(r)
+            elif ltag == "br":
+                runs.append(Run(text="\n"))
 
         props: dict[str, Any] = {}
         if algn_val:

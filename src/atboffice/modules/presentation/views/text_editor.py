@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QMenu,
 )
 
+from atboffice.modules.presentation.models.placeholder_resolver import evaluate_field_text
 from atboffice.modules.presentation.models.text import (
     BODY_BULLETS,
     BODY_INDENT,
@@ -446,6 +447,8 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         text_body: TextBody,
         text_rect: QRectF,
         color_resolver: Any = resolve_color,
+        slide_index: int = 0,
+        presentation: Any = None,
     ) -> None:
         """Render formatted multiline text for static canvas painting."""
         if not text_body or text_body.is_empty():
@@ -591,7 +594,8 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                 if r_idx == 0 and bu_type == "char" and bu_char:
                     prefix = f"{bu_char} "
 
-                cursor.insertText(prefix + run.text, char_fmt)
+                display_text = evaluate_field_text(run, slide_index, presentation)
+                cursor.insertText(prefix + display_text, char_fmt)
 
         cursor.endEditBlock()
 

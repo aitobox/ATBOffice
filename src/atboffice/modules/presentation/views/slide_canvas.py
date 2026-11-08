@@ -26,6 +26,10 @@ from PySide6.QtWidgets import (
 )
 
 from atboffice.modules.presentation.models.comment import Comment
+from atboffice.modules.presentation.models.placeholder_resolver import (
+    apply_cascading_placeholder_styles,
+    resolve_unoverridden_placeholders,
+)
 from atboffice.modules.presentation.models.shape import Fill, Line, Shape
 from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.models.text import TextBody
@@ -100,18 +104,42 @@ class SlideScene(QGraphicsScene):
         self._items_by_id.clear()
         self._comment_items.clear()
 
-        # Add master decorations behind slide shapes if not hide_master
-        if self.presentation and not getattr(slide, "hide_master", False):
-            design = self.presentation.get_design_for_slide(slide)
-            if design and getattr(design, "decorations", None):
-                for d_idx, d_sh in enumerate(design.decorations):
-                    d_item = ShapeGraphicsItem(d_sh)
-                    d_item.setZValue(-100.0 + d_idx)
-                    d_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False)
-                    d_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
-                    self.addItem(d_item)
+        design = (
+            self.presentation.get_design_for_slide(slide)
+            if self.presentation
+            else None
+        )
 
+        # Add master decorations behind slide shapes if not hide_master
+        if self.presentation and not getattr(slide, "hide_master", False) and design:
+            is_title = getattr(slide, "layout", "text") == "title"
+            if is_title and getattr(design, "title_decorations", None):
+                decos = design.title_decorations
+            else:
+                decos = getattr(design, "decorations", None) or []
+            for d_idx, d_sh in enumerate(decos):
+                d_item = ShapeGraphicsItem(d_sh)
+                d_item.setZValue(-100.0 + d_idx)
+                d_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False)
+                d_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+                self.addItem(d_item)
+
+        # 1. Unoverridden layout and master placeholders
+        if self.presentation and design:
+            unoverridden = resolve_unoverridden_placeholders(slide, self.presentation)
+            for u_idx, u_sh in enumerate(unoverridden):
+                u_item = ShapeGraphicsItem(u_sh)
+                setattr(u_item, "_is_inherited_placeholder", True)
+                u_item.setZValue(-10.0 + u_idx)
+                u_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+                self.addItem(u_item)
+                self._items_by_id[u_sh.id] = u_item
+
+        # 2. Slide shapes
         for idx, sh in enumerate(slide.shapes):
+            if sh.placeholder and design:
+                apply_cascading_placeholder_styles(sh, design)
+
             if sh.is_chart:
                 from atboffice.modules.presentation.views.chart_item import ChartGraphicsItem
 
@@ -893,3 +921,7 @@ class SlideCanvasView(QGraphicsView):
             event.accept()
         else:
             super().wheelEvent(event)
+
+
+# Alias for backward compatibility
+SlideCanvas = SlideScene
