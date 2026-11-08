@@ -472,6 +472,9 @@ class PptxReader:
 
         # Parse media timing from <p:timing>
         timing_elem = _get_child(slide_xml, "timing")
+        if timing_elem is not None:
+            slide.has_timing = True
+            slide.raw_timing_xml = ET.tostring(timing_elem, encoding="unicode")
         timing_map = self._parse_slide_media_timing(timing_elem)
 
         # Resolve layout for this slide

@@ -121,6 +121,14 @@ def timing_to_xml(slide: Slide, resolved_ids: dict[str, str]) -> str:
     animations = getattr(slide, "animations", []) or []
 
     if not media_shapes and not animations:
+        if getattr(slide, "raw_timing_xml", None):
+            return slide.raw_timing_xml
+        if getattr(slide, "has_timing", False):
+            return (
+                "<p:timing><p:tnLst><p:par>"
+                '<p:cTn id="1" dur="indefinite" restart="never" nodeType="tmRoot"/>'
+                "</p:par></p:tnLst></p:timing>"
+            )
         return ""
 
     nodes = []
