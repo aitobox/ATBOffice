@@ -22,12 +22,69 @@ if str(repo_root / "src") not in sys.path:
 if str(repo_root) not in sys.path:
     sys.path.insert(0, str(repo_root))
 
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from atboffice.core.app import create_application
 from atboffice.core.window_manager import WindowManager
 
+CDP_CANVAS_RECTS: dict[str, tuple[int, int]] = {
+    "excel": (1178, 798),
+    "powerpoint": (982, 745),
+    "word": (1178, 767),
+}
+
 LAST_DIALOG_ERROR: str | None = None
+
+
+def resolve_canvas_target(window: object, app_name: str) -> object:
+    """Isolate the exact document canvas boundaries in PySide6 to match CDP canvas rects."""
+    if app_name == "powerpoint" and hasattr(window, "presentation_view"):
+        ws = getattr(window.presentation_view, "workspace", None)
+        if ws and hasattr(ws, "canvas_view") and ws.canvas_view is not None:
+            cv = ws.canvas_view
+            return cv.viewport() if hasattr(cv, "viewport") else cv
+        return window.presentation_view
+
+    if app_name == "word" and hasattr(window, "writer_view"):
+        cv = getattr(window.writer_view, "canvas_view", None)
+        if cv and hasattr(cv, "viewport"):
+            return cv.viewport()
+        return window.writer_view
+
+    if app_name == "excel" and hasattr(window, "spreadsheet_view"):
+        grid = getattr(window.spreadsheet_view, "grid", None) or getattr(
+            window.spreadsheet_view, "grid_viewport", None
+        )
+        if grid and hasattr(grid, "viewport"):
+            return grid.viewport()
+        if hasattr(window.spreadsheet_view, "table_view") and hasattr(
+            window.spreadsheet_view.table_view, "viewport"
+        ):
+            return window.spreadsheet_view.table_view.viewport()
+        return window.spreadsheet_view
+
+    cw = getattr(window, "centralWidget", lambda: None)()
+    return cw if cw is not None else window
+
+
+def align_pixmap_to_canvas(pixmap: QPixmap, target_size: tuple[int, int]) -> QPixmap:
+    """Align a captured pixmap to the target CDP canvas bounding box dimensions."""
+    target_w, target_h = target_size
+    if target_w <= 0 or target_h <= 0:
+        return pixmap
+    if pixmap.width() == target_w and pixmap.height() == target_h:
+        return pixmap
+
+    aligned = QPixmap(target_w, target_h)
+    aligned.fill(Qt.GlobalColor.white)
+    painter = QPainter(aligned)
+    src_w = min(pixmap.width(), target_w)
+    src_h = min(pixmap.height(), target_h)
+    painter.drawPixmap(0, 0, pixmap, 0, 0, src_w, src_h)
+    painter.end()
+    return aligned
 
 
 def install_dialog_interceptors() -> None:
@@ -126,28 +183,30 @@ def capture_single_document(
             window.fit_to_window()
             drain_event_loop(5)
 
-        grab_target = None
-        if canvas_only:
-            if target.app == "powerpoint" and hasattr(window, "presentation_view"):
-                ws = getattr(window.presentation_view, "workspace", None)
-                if ws and hasattr(ws, "canvas_view") and ws.canvas_view is not None:
-                    grab_target = ws.canvas_view.viewport()
-            elif target.app == "word" and hasattr(window, "writer_view"):
-                cv = getattr(window.writer_view, "canvas_view", None)
-                if cv and hasattr(cv, "viewport"):
-                    grab_target = cv.viewport()
-                else:
-                    grab_target = window.writer_view
-            elif target.app == "excel" and hasattr(window, "spreadsheet_view"):
-                tv = getattr(window.spreadsheet_view, "table_view", None)
-                if tv and hasattr(tv, "viewport"):
-                    grab_target = tv.viewport()
-                else:
-                    grab_target = window.spreadsheet_view
+        # Determine target canvas bounding box size (from reference baseline if available)
+        target_size = CDP_CANVAS_RECTS.get(target.app, viewport_size)
+        for base_dir in [
+            repo_root / "screenshots" / "office_audit_20261106" / "vibeoffice",
+            repo_root / "screenshots" / "vibeoffice_docs",
+        ]:
+            cand_base = base_dir / target.app / f"{target.file}.png"
+            if cand_base.exists():
+                try:
+                    from PIL import Image
 
-        if grab_target is None:
-            cw = window.centralWidget()
-            grab_target = cw if cw is not None else window
+                    with Image.open(cand_base) as img:
+                        target_size = img.size
+                        break
+                except Exception:
+                    pass
+
+        if canvas_only:
+            grab_target = resolve_canvas_target(window, target.app)
+        else:
+            grab_target = resolve_canvas_target(window, target.app)
+            if grab_target is None:
+                cw = window.centralWidget()
+                grab_target = cw if cw is not None else window
 
         pixmap = grab_target.grab()
 
@@ -158,6 +217,8 @@ def capture_single_document(
                 status="empty_render",
                 error="Grabbed pixmap is null or zero-sized",
             )
+
+        pixmap = align_pixmap_to_canvas(pixmap, target_size)
 
         saved = pixmap.save(str(out_png), "PNG")
         if not saved:
