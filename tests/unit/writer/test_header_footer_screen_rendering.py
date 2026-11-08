@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import pytest
 from PySide6.QtCore import QPointF, QRectF
-from PySide6.QtGui import QColor, QFont, QImage, QPainter
+from PySide6.QtGui import QColor, QImage, QPainter
 from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.writer.layout.pagination import (
-    Page,
-    PageHeaderFooter,
     paginate_document,
 )
 from atboffice.modules.writer.models.document import (
@@ -46,7 +43,7 @@ class RecordingPainter(QPainter):
 
 
 def test_canvas_view_paints_header_and_footer_in_subdued_gray(qapp: QApplication) -> None:
-    """Verify that WriterCanvasView paints header and footer text on screen in #666666 subdued gray."""
+    """Verify that WriterCanvasView paints header and footer text on screen in subdued gray."""
     doc = Document()
     doc.sect.pg_w = 612.0
     doc.sect.pg_h = 792.0
@@ -164,7 +161,7 @@ def test_dynamic_page_number_fields_in_header_footer(qapp: QApplication) -> None
 
 
 def test_different_first_page_header_footer(qapp: QApplication) -> None:
-    """Verify different first page (w:titlePg) displays first page header on page 1 and default on page 2."""
+    """Verify different first page (w:titlePg) displays first page header on page 1."""
     doc = Document()
     doc.sect.pg_w = 612.0
     doc.sect.pg_h = 792.0
@@ -271,18 +268,16 @@ def test_header_footer_no_body_overlap() -> None:
     doc.sect.refs["ftr"]["default"] = "ftr_tall"
 
     # Header with 4 lines (~60 pt)
+    hdr_text = "Header Line 1\nHeader Line 2\nHeader Line 3\nHeader Line 4"
     doc.hf["hdr_tall"] = Story(
         kind="header",
-        blocks=[
-            Paragraph(runs=[TextItem(text="Header Line 1\nHeader Line 2\nHeader Line 3\nHeader Line 4")])
-        ],
+        blocks=[Paragraph(runs=[TextItem(text=hdr_text)])],
     )
     # Footer with 3 lines (~45 pt)
+    ftr_text = "Footer Line 1\nFooter Line 2\nFooter Line 3"
     doc.hf["ftr_tall"] = Story(
         kind="footer",
-        blocks=[
-            Paragraph(runs=[TextItem(text="Footer Line 1\nFooter Line 2\nFooter Line 3")])
-        ],
+        blocks=[Paragraph(runs=[TextItem(text=ftr_text)])],
     )
     doc.main.blocks = [Paragraph(runs=[TextItem(text="Document Body")])]
     reindex(doc)
@@ -295,8 +290,12 @@ def test_header_footer_no_body_overlap() -> None:
 
     # Header bottom must not exceed page.body_top
     header_bottom = page.header.y + page.header.height
-    assert page.body_top >= header_bottom, f"Overlap: body_top={page.body_top} < header_bottom={header_bottom}"
+    assert page.body_top >= header_bottom, (
+        f"Overlap: body_top={page.body_top} < header_bottom={header_bottom}"
+    )
 
     # Body bottom must not exceed footer.y
     body_bottom = page.body_top + page.body_height
-    assert page.footer.y >= body_bottom - 0.01, f"Overlap: footer.y={page.footer.y} < body_bottom={body_bottom}"
+    assert page.footer.y >= body_bottom - 0.01, (
+        f"Overlap: footer.y={page.footer.y} < body_bottom={body_bottom}"
+    )

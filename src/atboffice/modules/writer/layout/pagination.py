@@ -246,6 +246,7 @@ def _evaluate_hf_paragraph(
 ) -> Paragraph:
     """Clone and evaluate dynamic fields for a header/footer paragraph on the active page."""
     import copy
+
     from atboffice.modules.writer.models.document import (
         FieldBeginItem,
         FieldEndItem,
@@ -919,7 +920,8 @@ def paginate_document(doc: Document, max_passes: int = 2) -> PaginationResult:
     # Evaluate dynamic fields with Pass 1 geometry
     changed = update_fields(doc, res)
 
-    # Pass 2: Repaginate if field expansions occurred or if multi-page to stabilize header/footer page numbers
+    # Pass 2: Repaginate if field expansions occurred or if multi-page to stabilize
+    # header/footer page numbers
     has_hf = bool(doc.hf)
     if (changed or (has_hf and res.total_pages > 1)) and max_passes > 1:
         res2 = _execute_single_pagination_pass(doc)
