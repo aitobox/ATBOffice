@@ -17,30 +17,27 @@ import re
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QFont, QGuiApplication, QImage
+from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from atboffice.core.action_registry import ActionRegistry, ActionSpec
 from atboffice.deep.audit.core import CorpusExpectations, audit_corpus_file
-from atboffice.modules.presentation.io.pptx_reader import PptxReader
 from atboffice.modules.presentation.io.writer_slide import timing_to_xml
 from atboffice.modules.presentation.models.designs import build_design
 from atboffice.modules.presentation.models.layouts import layout_frames
-from atboffice.modules.presentation.models.slide import Slide, Transition
+from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.view import PresentationView
 from atboffice.modules.spreadsheet.models.conditional_format import (
     CFRule,
     DataBarRule,
-    ColorScaleRule,
 )
 from atboffice.modules.spreadsheet.models.sheet_model import RichTextRun
 from atboffice.modules.spreadsheet.view import SpreadsheetView
 from atboffice.modules.writer.models.document import Document, Paragraph, TextItem
 from atboffice.modules.writer.views.canvas_view import WriterCanvasView
-from scripts.office_diff.comparator import classify_similarity, compare_canvases, is_blank_canvas
+from scripts.office_diff.comparator import compare_canvases, is_blank_canvas
 from scripts.office_diff.corpus import load_expectations, partition_corpus
 
 
@@ -156,7 +153,7 @@ class TestVisualParitySignoff:
         assert avg_sim >= 90.0, f"Average visual similarity {avg_sim}% is below 90.0% target"
 
     def test_representative_visual_similarity_samples(self) -> None:
-        """Verify representative core documents across word, excel, powerpoint achieve high parity."""
+        """Verify representative core documents across word/excel/ppt achieve parity."""
         samples = [
             ("word", "libreoffice__tdf125881.docx", 0.85),
             ("excel", "libreoffice__cell-value.xlsx", 0.90),
