@@ -22,12 +22,14 @@ from PySide6.QtGui import (
     QFont,
     QFontMetricsF,
     QGuiApplication,
+    QImage,
     QKeyEvent,
     QMouseEvent,
     QPainter,
     QPainterPath,
     QPaintEvent,
     QPen,
+    QPixmap,
     QResizeEvent,
 )
 from PySide6.QtWidgets import (
@@ -60,6 +62,7 @@ from atboffice.modules.writer.models.document import (
     reindex,
     split_at,
 )
+from atboffice.modules.writer.models.drawing import PictureItem
 from atboffice.modules.writer.models.omml import OfficeMathItem
 from atboffice.modules.writer.models.properties import (
     IndentProperties,
@@ -156,6 +159,9 @@ class WriterCanvasView(QAbstractScrollArea):
         self._ruler_guide_x: float | None = None
         self._ruler_guide_y: float | None = None
 
+        # Inline & floating picture raster pixmap cache
+        self._pixmap_cache: dict[str, QPixmap] = {}
+
         # Connect controller signals
         self.controller.caret_changed.connect(self._on_caret_changed)
         self.controller.selection_changed.connect(self.viewport().update)
@@ -177,6 +183,7 @@ class WriterCanvasView(QAbstractScrollArea):
 
     def set_document(self, doc: Document) -> None:
         """Set a new document and repaginate."""
+        self._pixmap_cache.clear()
         self.doc = doc
         if not self.doc.main.blocks:
             self.doc.main.blocks.append(Paragraph())
@@ -554,6 +561,157 @@ class WriterCanvasView(QAbstractScrollArea):
         painter.drawPath(path)
         painter.setPen(old_pen)
 
+    def _resolve_pixmap(self, pic: Any) -> QPixmap | None:
+        """Resolve QPixmap for a PictureItem from cache, package, file, or raw data."""
+        cache_key = getattr(pic, "image_part", "") or str(id(pic))
+        if cache_key in self._pixmap_cache:
+            return self._pixmap_cache[cache_key]
+
+        # 1. Check raw_data dict
+        raw = getattr(pic, "raw_data", None)
+        if isinstance(raw, dict):
+            if "pixmap" in raw and isinstance(raw["pixmap"], QPixmap) and not raw["pixmap"].isNull():
+                self._pixmap_cache[cache_key] = raw["pixmap"]
+                return raw["pixmap"]
+            if "image" in raw and isinstance(raw["image"], QImage) and not raw["image"].isNull():
+                pm = QPixmap.fromImage(raw["image"])
+                self._pixmap_cache[cache_key] = pm
+                return pm
+            if "bytes" in raw and isinstance(raw["bytes"], (bytes, bytearray)):
+                pm = QPixmap()
+                if pm.loadFromData(raw["bytes"]) and not pm.isNull():
+                    self._pixmap_cache[cache_key] = pm
+                    return pm
+
+        # 2. Check source package parts
+        part_name = getattr(pic, "image_part", "") or ""
+        if part_name:
+            pkg = getattr(self.doc, "_source_pkg", None) or self.doc.keep.get("source_pkg")
+            if pkg is not None:
+                candidates = [part_name, part_name.lstrip("/"), f"word/{part_name.lstrip('/')}"]
+                for c in candidates:
+                    try:
+                        if hasattr(pkg, "has_part") and pkg.has_part(c):
+                            data = pkg.read_part(c)
+                            pm = QPixmap()
+                            if pm.loadFromData(data) and not pm.isNull():
+                                self._pixmap_cache[cache_key] = pm
+                                return pm
+                    except Exception:
+                        pass
+
+            # 3. Check local filesystem path
+            import os
+
+            if os.path.isfile(part_name):
+                pm = QPixmap(part_name)
+                if not pm.isNull():
+                    self._pixmap_cache[cache_key] = pm
+                    return pm
+
+            # 4. Check doc.keep media dictionary
+            media_dict = self.doc.keep.get("media", {})
+            if isinstance(media_dict, dict) and part_name in media_dict:
+                media_val = media_dict[part_name]
+                if isinstance(media_val, (bytes, bytearray)):
+                    pm = QPixmap()
+                    if pm.loadFromData(media_val) and not pm.isNull():
+                        self._pixmap_cache[cache_key] = pm
+                        return pm
+
+        return None
+
+    def _paint_picture(
+        self,
+        painter: QPainter,
+        pic: Any,
+        dest_rect: QRectF,
+        zoom: float = 1.0,
+        is_vector: bool = False,
+    ) -> None:
+        """Render a PictureItem onto the canvas with DPR awareness, cropping, and rotation."""
+        if dest_rect.width() <= 0 or dest_rect.height() <= 0:
+            return
+
+        pixmap = self._resolve_pixmap(pic)
+        if pixmap is not None and not pixmap.isNull():
+            painter.save()
+            try:
+                # Enable high-quality bilinear filtering for DPR scaling
+                painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+                painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+                # Device pixel ratio awareness
+                dpr = 1.0
+                if hasattr(self, "devicePixelRatioF"):
+                    try:
+                        dpr = float(self.devicePixelRatioF())
+                    except Exception:
+                        dpr = 1.0
+                elif painter.device() is not None and hasattr(painter.device(), "devicePixelRatioF"):
+                    try:
+                        dpr = float(painter.device().devicePixelRatioF())
+                    except Exception:
+                        dpr = 1.0
+
+                # Calculate source rect taking Crop into account
+                pw = float(pixmap.width())
+                ph = float(pixmap.height())
+                crop = getattr(pic, "crop", None)
+                if crop and (
+                    getattr(crop, "left", 0.0)
+                    or getattr(crop, "top", 0.0)
+                    or getattr(crop, "right", 0.0)
+                    or getattr(crop, "bottom", 0.0)
+                ):
+                    cl = max(0.0, float(getattr(crop, "left", 0.0) or 0.0))
+                    ct = max(0.0, float(getattr(crop, "top", 0.0) or 0.0))
+                    cr = max(0.0, float(getattr(crop, "right", 0.0) or 0.0))
+                    cb = max(0.0, float(getattr(crop, "bottom", 0.0) or 0.0))
+                    src_x = pw * cl
+                    src_y = ph * ct
+                    src_w = max(1.0, pw * max(0.01, 1.0 - cl - cr))
+                    src_h = max(1.0, ph * max(0.01, 1.0 - ct - cb))
+                    src_rect = QRectF(src_x, src_y, src_w, src_h)
+                else:
+                    src_rect = QRectF(0.0, 0.0, pw, ph)
+
+                # Handle rotation
+                rot = float(getattr(pic, "rotation", 0.0) or 0.0)
+                if rot != 0.0:
+                    center = dest_rect.center()
+                    painter.translate(center)
+                    painter.rotate(rot)
+                    draw_box = QRectF(
+                        -dest_rect.width() / 2.0,
+                        -dest_rect.height() / 2.0,
+                        dest_rect.width(),
+                        dest_rect.height(),
+                    )
+                    painter.drawPixmap(draw_box, pixmap, src_rect)
+                else:
+                    painter.drawPixmap(dest_rect, pixmap, src_rect)
+            finally:
+                painter.restore()
+        else:
+            # Fallback placeholder for missing or unresolvable image
+            painter.save()
+            try:
+                painter.fillRect(dest_rect, QColor("#F4F4F4"))
+                painter.setPen(QPen(QColor("#B0B0B0"), 1.0, Qt.PenStyle.DashLine))
+                painter.drawRect(dest_rect)
+                painter.setPen(QPen(QColor("#777777")))
+                font = QFont("Helvetica", max(7, int(9 * zoom)))
+                painter.setFont(font)
+                label = (
+                    getattr(pic, "alt_text", "")
+                    or getattr(pic, "name", "")
+                    or self.tr("Picture")
+                )
+                painter.drawText(dest_rect, Qt.AlignmentFlag.AlignCenter, label)
+            finally:
+                painter.restore()
+
     def _paint_header_footer(
         self,
         painter: QPainter,
@@ -641,11 +799,20 @@ class WriterCanvasView(QAbstractScrollArea):
                             painter.setPen(QPen(QColor("#666666"), 0.75 * self._zoom, pen_style))
                             painter.drawLine(p1, p2)
 
-                    elif po.type == PortionType.GRAPHIC and isinstance(po.data, OfficeMathItem):
+                    elif po.type == PortionType.GRAPHIC:
                         x_px = page_rect.left() + self.pt_to_px(cur_x)
                         y_px = page_rect.top() + self.pt_to_px(line_y)
                         baseline_px = y_px + self.pt_to_px(line.baseline)
-                        paint_math(painter, po.data, x_px, baseline_px, self._zoom)
+                        if isinstance(po.data, OfficeMathItem):
+                            paint_math(painter, po.data, x_px, baseline_px, self._zoom)
+                        elif isinstance(po.data, PictureItem) or getattr(po.data, "t", "") in (
+                            "picture",
+                            "img",
+                        ):
+                            pic_w_px = self.pt_to_px(po.width)
+                            pic_h_px = self.pt_to_px(po.ascent)
+                            dest_rect = QRectF(x_px, baseline_px - pic_h_px, pic_w_px, pic_h_px)
+                            self._paint_picture(painter, po.data, dest_rect, self._zoom)
 
                     cur_x += po_w
 
@@ -777,15 +944,28 @@ class WriterCanvasView(QAbstractScrollArea):
                                                                 baseline_px + 2.5,
                                                                 QColor(255, 0, 0),
                                                             )
-                                            elif po.type == PortionType.GRAPHIC and isinstance(
-                                                po.data, OfficeMathItem
-                                            ):
+                                            elif po.type == PortionType.GRAPHIC:
                                                 x_px = page_rect.left() + self.pt_to_px(cur_x)
                                                 y_px = page_rect.top() + self.pt_to_px(line_y)
                                                 baseline_px = y_px + self.pt_to_px(line.baseline)
-                                                paint_math(
-                                                    painter, po.data, x_px, baseline_px, self._zoom
-                                                )
+                                                if isinstance(po.data, OfficeMathItem):
+                                                    paint_math(
+                                                        painter, po.data, x_px, baseline_px, self._zoom
+                                                    )
+                                                elif isinstance(po.data, PictureItem) or getattr(
+                                                    po.data, "t", ""
+                                                ) in ("picture", "img"):
+                                                    pic_w_px = self.pt_to_px(po.width)
+                                                    pic_h_px = self.pt_to_px(po.ascent)
+                                                    dest_rect = QRectF(
+                                                        x_px,
+                                                        baseline_px - pic_h_px,
+                                                        pic_w_px,
+                                                        pic_h_px,
+                                                    )
+                                                    self._paint_picture(
+                                                        painter, po.data, dest_rect, self._zoom
+                                                    )
                                             cur_x += po_w
                                     cur_p_y = p_top + playout.height + playout.effective_space_after
                         continue
@@ -865,13 +1045,26 @@ class WriterCanvasView(QAbstractScrollArea):
                                         p2_u = QPointF(x_px + w_px, baseline_px + 2)
                                         painter.drawLine(p1_u, p2_u)
 
-                            elif po.type == PortionType.GRAPHIC and isinstance(
-                                po.data, OfficeMathItem
-                            ):
+                            elif po.type == PortionType.GRAPHIC:
                                 x_px = page_rect.left() + self.pt_to_px(cur_x)
                                 y_px = page_rect.top() + self.pt_to_px(line_y)
                                 baseline_px = y_px + self.pt_to_px(line.baseline)
-                                paint_math(painter, po.data, x_px, baseline_px, self._zoom)
+                                if isinstance(po.data, OfficeMathItem):
+                                    paint_math(painter, po.data, x_px, baseline_px, self._zoom)
+                                elif isinstance(po.data, PictureItem) or getattr(
+                                    po.data, "t", ""
+                                ) in ("picture", "img"):
+                                    pic_w_px = self.pt_to_px(po.width)
+                                    pic_h_px = self.pt_to_px(po.ascent)
+                                    dest_rect = QRectF(
+                                        x_px,
+                                        baseline_px - pic_h_px,
+                                        pic_w_px,
+                                        pic_h_px,
+                                    )
+                                    self._paint_picture(
+                                        painter, po.data, dest_rect, self._zoom
+                                    )
 
                             cur_x += po_w
 
@@ -934,8 +1127,15 @@ class WriterCanvasView(QAbstractScrollArea):
                             painter.setPen(pen)
                             baseline = line_y + line.baseline
                             painter.drawText(QPointF(cur_x, baseline), text_str)
-                        elif po.type == PortionType.GRAPHIC and isinstance(po.data, OfficeMathItem):
-                            paint_math(painter, po.data, cur_x, line_y + line.baseline, 1.0)
+                        elif po.type == PortionType.GRAPHIC:
+                            baseline = line_y + line.baseline
+                            if isinstance(po.data, OfficeMathItem):
+                                paint_math(painter, po.data, cur_x, baseline, 1.0)
+                            elif isinstance(po.data, PictureItem) or getattr(
+                                po.data, "t", ""
+                            ) in ("picture", "img"):
+                                dest_rect = QRectF(cur_x, baseline - po.ascent, po.width, po.ascent)
+                                self._paint_picture(painter, po.data, dest_rect, 1.0, is_vector=True)
                         cur_x += po_w
 
         # 2. Render Page Regions and Paragraphs/Tables
@@ -980,16 +1180,28 @@ class WriterCanvasView(QAbstractScrollArea):
                                                 painter.setPen(pen)
                                                 baseline = line_y + line.baseline
                                                 painter.drawText(QPointF(cur_x, baseline), po.text)
-                                            elif po.type == PortionType.GRAPHIC and isinstance(
-                                                po.data, OfficeMathItem
-                                            ):
-                                                paint_math(
-                                                    painter,
-                                                    po.data,
-                                                    cur_x,
-                                                    line_y + line.baseline,
-                                                    1.0,
-                                                )
+                                            elif po.type == PortionType.GRAPHIC:
+                                                baseline = line_y + line.baseline
+                                                if isinstance(po.data, OfficeMathItem):
+                                                    paint_math(
+                                                        painter,
+                                                        po.data,
+                                                        cur_x,
+                                                        baseline,
+                                                        1.0,
+                                                    )
+                                                elif isinstance(po.data, PictureItem) or getattr(
+                                                    po.data, "t", ""
+                                                ) in ("picture", "img"):
+                                                    dest_rect = QRectF(
+                                                        cur_x,
+                                                        baseline - po.ascent,
+                                                        po.width,
+                                                        po.ascent,
+                                                    )
+                                                    self._paint_picture(
+                                                        painter, po.data, dest_rect, 1.0, is_vector=True
+                                                    )
                                             cur_x += po_w
                         continue
 
@@ -1051,10 +1263,22 @@ class WriterCanvasView(QAbstractScrollArea):
                                             QPointF(cur_x + po_w, baseline + 1.5),
                                         )
 
-                            elif po.type == PortionType.GRAPHIC and isinstance(
-                                po.data, OfficeMathItem
-                            ):
-                                paint_math(painter, po.data, cur_x, line_y + line.baseline, 1.0)
+                            elif po.type == PortionType.GRAPHIC:
+                                baseline = line_y + line.baseline
+                                if isinstance(po.data, OfficeMathItem):
+                                    paint_math(painter, po.data, cur_x, baseline, 1.0)
+                                elif isinstance(po.data, PictureItem) or getattr(
+                                    po.data, "t", ""
+                                ) in ("picture", "img"):
+                                    dest_rect = QRectF(
+                                        cur_x,
+                                        baseline - po.ascent,
+                                        po.width,
+                                        po.ascent,
+                                    )
+                                    self._paint_picture(
+                                        painter, po.data, dest_rect, 1.0, is_vector=True
+                                    )
 
                             cur_x += po_w
 
@@ -1084,8 +1308,15 @@ class WriterCanvasView(QAbstractScrollArea):
                             painter.setPen(pen)
                             baseline = line_y + line.baseline
                             painter.drawText(QPointF(cur_x, baseline), text_str)
-                        elif po.type == PortionType.GRAPHIC and isinstance(po.data, OfficeMathItem):
-                            paint_math(painter, po.data, cur_x, line_y + line.baseline, 1.0)
+                        elif po.type == PortionType.GRAPHIC:
+                            baseline = line_y + line.baseline
+                            if isinstance(po.data, OfficeMathItem):
+                                paint_math(painter, po.data, cur_x, baseline, 1.0)
+                            elif isinstance(po.data, PictureItem) or getattr(
+                                po.data, "t", ""
+                            ) in ("picture", "img"):
+                                dest_rect = QRectF(cur_x, baseline - po.ascent, po.width, po.ascent)
+                                self._paint_picture(painter, po.data, dest_rect, 1.0, is_vector=True)
                         cur_x += po_w
 
     def _paint_selection(
