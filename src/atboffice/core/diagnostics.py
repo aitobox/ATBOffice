@@ -362,12 +362,27 @@ def install_default_crash_handler(log_dir: Path | str | None = None) -> CrashDia
     return _DEFAULT_CRASH_HANDLER
 
 
+_DRAINING_EVENT_LOOP: bool = False
+
+
 def drain_event_loop(max_iterations: int = 5) -> None:
-    """Drain pending Qt events and deferred deletions during window closing or shutdown."""
+    """Drain pending Qt events and deferred deletions during window closing or shutdown.
+
+    Protected with a re-entrancy guard to prevent recursive event loop spinning
+    when called during closeEvent, deferred deletions, or rapid lifecycle transitions.
+    """
+    global _DRAINING_EVENT_LOOP
+    if _DRAINING_EVENT_LOOP:
+        return
+
     app = QCoreApplication.instance()
     if app is None:
         return
 
-    for _ in range(max_iterations):
-        app.processEvents()
-        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    _DRAINING_EVENT_LOOP = True
+    try:
+        for _ in range(max(1, max_iterations)):
+            app.processEvents()
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    finally:
+        _DRAINING_EVENT_LOOP = False

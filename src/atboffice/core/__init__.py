@@ -6,6 +6,7 @@ from atboffice.core.recent_files import (
     RecentFilesManager,
     RecentItem,
 )
+from atboffice.core.recovery_service import RecoveryService
 from atboffice.core.settings import AppSettings, get_app_settings
 from atboffice.core.window_manager import WindowManager
 
@@ -15,6 +16,7 @@ __all__ = [
     "DEFAULT_STORAGE_PATH",
     "RecentFilesManager",
     "RecentItem",
+    "RecoveryService",
     "AppSettings",
     "get_app_settings",
     "WindowManager",
