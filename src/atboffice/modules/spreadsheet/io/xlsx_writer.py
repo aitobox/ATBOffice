@@ -13,6 +13,7 @@ from atboffice.modules.spreadsheet.models.pivot_model import write_pivots_to_pac
 from atboffice.modules.spreadsheet.models.sheet_model import (
     BorderStyle,
     CellData,
+    RichTextRun,
     SheetDataModel,
 )
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
@@ -108,18 +109,57 @@ class SharedStringsManager:
     """Manages unique shared strings for xl/sharedStrings.xml."""
 
     def __init__(self) -> None:
-        self.strings: list[str] = []
-        self.index_map: dict[str, int] = {}
+        self.strings: list[str | tuple[str, list[RichTextRun]]] = []
+        self.index_map: dict[Any, int] = {}
         self.total_count: int = 0
 
-    def add(self, s: str) -> int:
+    def add(self, s: str, runs: list[RichTextRun] | None = None) -> int:
         self.total_count += 1
-        idx = self.index_map.get(s)
+        has_runs = bool(
+            runs
+            and any(
+                r.font_family
+                or r.font_size
+                or r.bold
+                or r.italic
+                or r.underline
+                or r.strike
+                or r.fg_color
+                or r.vert_align
+                for r in runs
+            )
+        )
+        if has_runs and runs:
+            key = (
+                "rich",
+                s,
+                tuple(
+                    (
+                        r.text,
+                        r.font_family,
+                        r.font_size,
+                        r.bold,
+                        r.italic,
+                        r.underline,
+                        r.underline_style,
+                        r.strike,
+                        r.fg_color,
+                        r.vert_align,
+                    )
+                    for r in runs
+                ),
+            )
+            entry: str | tuple[str, list[RichTextRun]] = (s, list(runs))
+        else:
+            key = ("plain", s)
+            entry = s
+
+        idx = self.index_map.get(key)
         if idx is not None:
             return idx
         idx = len(self.strings)
-        self.strings.append(s)
-        self.index_map[s] = idx
+        self.strings.append(entry)
+        self.index_map[key] = idx
         return idx
 
     def to_xml(self) -> bytes:
@@ -129,9 +169,53 @@ class SharedStringsManager:
             XML_HEADER,
             f'<sst xmlns="{NS_MAIN}" count="{self.total_count}" uniqueCount="{len(self.strings)}">',
         ]
-        for s in self.strings:
-            truncated = s[:32767] if len(s) > 32767 else s
-            parts.append(f"<si>{_text_element(truncated)}</si>")
+        for entry in self.strings:
+            if isinstance(entry, tuple):
+                _, runs = entry
+                si_parts = ["<si>"]
+                for r in runs:
+                    rpr_parts: list[str] = []
+                    if r.font_family:
+                        rpr_parts.append(
+                            f'<rFont val="{_xml_escape(r.font_family)}"/>'
+                        )
+                    if r.bold:
+                        rpr_parts.append("<b/>")
+                    if r.italic:
+                        rpr_parts.append("<i/>")
+                    if r.strike:
+                        rpr_parts.append("<strike/>")
+                    if r.underline:
+                        u_style = r.underline_style or "single"
+                        if u_style == "single":
+                            rpr_parts.append("<u/>")
+                        else:
+                            rpr_parts.append(
+                                f'<u val="{_xml_escape(u_style)}"/>'
+                            )
+                    if r.font_size:
+                        rpr_parts.append(f'<sz val="{r.font_size}"/>')
+                    if r.fg_color:
+                        hex_col = _color_hex(r.fg_color)
+                        if hex_col:
+                            rpr_parts.append(f'<color rgb="{hex_col}"/>')
+                    if r.vert_align:
+                        rpr_parts.append(
+                            f'<vertAlign val="{_xml_escape(r.vert_align)}"/>'
+                        )
+
+                    rpr_xml = (
+                        f"<rPr>{''.join(rpr_parts)}</rPr>"
+                        if rpr_parts
+                        else ""
+                    )
+                    t_xml = _text_element(r.text)
+                    si_parts.append(f"<r>{rpr_xml}{t_xml}</r>")
+                si_parts.append("</si>")
+                parts.append("".join(si_parts))
+            else:
+                truncated = entry[:32767] if len(entry) > 32767 else entry
+                parts.append(f"<si>{_text_element(truncated)}</si>")
         parts.append("</sst>")
         return "".join(parts).encode("utf-8")
 
@@ -613,10 +697,10 @@ def _serialize_sheet_data(
                     ):
                         parts.append(f'<c r="{c_ref}"{s_attr} t="e"><v>{cell.value}</v></c>')
                     else:
-                        sst_id = sst_manager.add(cell.value)
+                        sst_id = sst_manager.add(cell.value, cell.rich_runs)
                         parts.append(f'<c r="{c_ref}"{s_attr} t="s"><v>{sst_id}</v></c>')
                 else:
-                    sst_id = sst_manager.add(str(cell.value))
+                    sst_id = sst_manager.add(str(cell.value), cell.rich_runs)
                     parts.append(f'<c r="{c_ref}"{s_attr} t="s"><v>{sst_id}</v></c>')
 
         parts.append("</row>")
