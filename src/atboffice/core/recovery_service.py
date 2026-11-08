@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import logging
 import os
-import shutil
 import tempfile
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QCoreApplication, QObject, QTimer
 
