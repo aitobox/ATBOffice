@@ -150,12 +150,25 @@ def relayout(group_shape: Shape, design: Any = None) -> None:
 
     new_kids: list[Shape] = []
     curr_seen: dict[str, int] = {}
+    node_shape_ids: dict[str, str] = {}
+    for s in shapes:
+        if s.get("role", "node") == "node":
+            it_id = s.get("itemId", "")
+            tag = f"{it_id}:node"
+            cnt = curr_seen.get(tag, 0) + 1
+            curr_seen[tag] = cnt
+            node_shape_ids[it_id] = id_map.get(f"{tag}:{cnt}") or f"s_{new_id()}"
+    curr_seen.clear()
+
     for s in shapes:
         item_id = s.get("itemId", "")
         role = s.get("role", "node")
         tag = f"{item_id}:{role}"
         curr_seen[tag] = curr_seen.get(tag, 0) + 1
-        kid_id = id_map.get(f"{tag}:{curr_seen[tag]}") or f"s_{new_id()}"
+        if role == "node" and item_id in node_shape_ids:
+            kid_id = node_shape_ids[item_id]
+        else:
+            kid_id = id_map.get(f"{tag}:{curr_seen[tag]}") or f"s_{new_id()}"
 
         p = paint_shape(s, sa)
         fill_dict = p.get("fill", {})
@@ -186,6 +199,17 @@ def relayout(group_shape: Shape, design: Any = None) -> None:
                 ]
             }
 
+        cxn_start = None
+        cxn_end = None
+        shape_type = "line" if role == "conn" or geom in ("line", "path", "straightConnector1") else "shape"
+        if role == "conn":
+            p_id = s.get("parentId")
+            c_id = s.get("itemId")
+            if p_id and p_id in node_shape_ids:
+                cxn_start = {"id": node_shape_ids[p_id], "idx": 1 if s.get("across") else 2}
+            if c_id and c_id in node_shape_ids:
+                cxn_end = {"id": node_shape_ids[c_id], "idx": 3 if s.get("across") else 0}
+
         tb_obj: TextBody | None = None
         if s.get("text"):
             text_info = s["text"]
@@ -213,7 +237,7 @@ def relayout(group_shape: Shape, design: Any = None) -> None:
 
         kid_shape = Shape(
             id=kid_id,
-            type="shape",
+            type=shape_type,
             name=f"{layout_id} {role}",
             geom=geom,
             x=s["x"],
@@ -226,6 +250,8 @@ def relayout(group_shape: Shape, design: Any = None) -> None:
             text=tb_obj,
             poly=poly,
             custom_path=custom_path,
+            cxn_start=cxn_start,
+            cxn_end=cxn_end,
             sa={"item": item_id, "role": role},
         )
         new_kids.append(kid_shape)

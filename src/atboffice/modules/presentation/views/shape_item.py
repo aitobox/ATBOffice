@@ -28,8 +28,10 @@ from PySide6.QtWidgets import (
 from atboffice.modules.presentation.models.shape import Shape
 from atboffice.modules.presentation.models.text import TextBody
 from atboffice.modules.presentation.views.geometry_helper import (
+    calculate_connector_route,
     create_shape_path,
     get_adjustment_handles,
+    get_shape_connection_sites,
 )
 
 if TYPE_CHECKING:
@@ -61,6 +63,8 @@ class HandleType:
     W = "w"
     ROTATE = "rot"
     ADJUST = "adj"
+    START = "start"
+    END = "end"
 
 
 class TransformHandleItem(QGraphicsItem):
@@ -86,7 +90,7 @@ class TransformHandleItem(QGraphicsItem):
         ht = self.handle_type
         if ht == HandleType.ROTATE:
             self.setCursor(Qt.CursorShape.PointingHandCursor)
-        elif ht == HandleType.ADJUST:
+        elif ht in (HandleType.ADJUST, HandleType.START, HandleType.END):
             self.setCursor(Qt.CursorShape.CrossCursor)
         elif ht in (HandleType.NW, HandleType.SE):
             self.setCursor(Qt.CursorShape.SizeFDiagCursor)
@@ -136,6 +140,12 @@ class TransformHandleItem(QGraphicsItem):
             path.lineTo(-s / 2.0, 0.0)
             path.closeSubpath()
             painter.drawPath(path)
+
+        elif self.handle_type in (HandleType.START, HandleType.END):
+            # Draw circular connector endpoint handle
+            painter.setPen(QPen(QColor(0, 102, 204), 1.5))
+            painter.setBrush(QBrush(QColor(51, 153, 255)))
+            painter.drawEllipse(r)
 
         else:
             # Standard sizing square handle
@@ -216,6 +226,13 @@ class ShapeGraphicsItem(QGraphicsObject):
             h.setParentItem(None)
         self._handles.clear()
 
+        # Connector endpoints
+        if self.model.is_connector:
+            self._handles.append(TransformHandleItem(HandleType.START, self))
+            self._handles.append(TransformHandleItem(HandleType.END, self))
+            self._position_handles()
+            return
+
         # 8 sizing handles
         for ht in [
             HandleType.NW,
@@ -245,6 +262,25 @@ class ShapeGraphicsItem(QGraphicsObject):
         w = max(1.0, self.model.w)
         h = max(1.0, self.model.h)
         adj = self.model.adj or {}
+
+        if self.model.is_connector:
+            p1 = adj.get("p1")
+            p2 = adj.get("p2")
+            if p1 and p2:
+                sx = float(p1[0]) - self.model.x
+                sy = float(p1[1]) - self.model.y
+                ex = float(p2[0]) - self.model.x
+                ey = float(p2[1]) - self.model.y
+            else:
+                sx, sy = 0.0, 0.0
+                ex, ey = w, h
+
+            for hd in self._handles:
+                if hd.handle_type == HandleType.START:
+                    hd.setPos(sx, sy)
+                elif hd.handle_type == HandleType.END:
+                    hd.setPos(ex, ey)
+            return
 
         for hd in self._handles:
             ht = hd.handle_type
@@ -411,11 +447,29 @@ class ShapeGraphicsItem(QGraphicsObject):
             self._paint_text(painter, w, h)
 
         # 4. Selection bounding ring
-        if self.isSelected():
+        if self.isSelected() and not self.model.is_connector:
             sel_pen = QPen(QColor(0, 120, 215, 180), 1.0, Qt.PenStyle.DashLine)
             painter.setPen(sel_pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(QRectF(0.0, 0.0, w, h))
+
+        # 5. Connection sites indicator during drag/hover
+        if getattr(self, "_show_connection_sites", False) and not self.model.is_connector:
+            highlight_idx = getattr(self, "_highlight_site_idx", None)
+            sites = get_shape_connection_sites(self.model.geom, w, h, self.model.adj)
+            painter.save()
+            for idx, (lx, ly) in enumerate(sites):
+                is_hl = idx == highlight_idx
+                r = 4.5 if is_hl else 3.0
+                dot_rect = QRectF(lx - r, ly - r, r * 2.0, r * 2.0)
+                if is_hl:
+                    painter.setPen(QPen(QColor(0, 150, 0), 1.5))
+                    painter.setBrush(QBrush(QColor(0, 230, 0)))
+                else:
+                    painter.setPen(QPen(QColor(0, 100, 200), 1.0))
+                    painter.setBrush(QBrush(QColor(255, 255, 255)))
+                painter.drawEllipse(dot_rect)
+            painter.restore()
 
     def _resolve_color(self, color_name: str | None) -> QColor:
         """Resolve color names or hex strings to QColor."""
@@ -936,8 +990,154 @@ class ShapeGraphicsItem(QGraphicsObject):
             # Update shape model coordinates
             self.model.x = round(new_pos.x(), 2)
             self.model.y = round(new_pos.y(), 2)
+            sc = self.scene()
+            if sc and hasattr(sc, "update_connected_connectors"):
+                sc.update_connected_connectors(self.model.id)
             self.geometryChanged.emit()
         return super().itemChange(change, value)
+
+    def get_connection_sites_scene(self) -> list[tuple[float, float]]:
+        """Return scene coordinates of standard connection sites for this shape."""
+        local_sites = get_shape_connection_sites(
+            self.model.geom, self.model.w, self.model.h, self.model.adj
+        )
+        scene_sites = []
+        for lx, ly in local_sites:
+            sp = self.mapToScene(QPointF(lx, ly))
+            scene_sites.append((sp.x(), sp.y()))
+        return scene_sites
+
+    def update_connector_endpoints(
+        self,
+        start_pt: tuple[float, float] | QPointF,
+        end_pt: tuple[float, float] | QPointF,
+        site1_idx: int | None = None,
+        site2_idx: int | None = None,
+    ) -> None:
+        """Update connector position, bounds, and route from scene endpoints."""
+        sx = start_pt.x() if isinstance(start_pt, QPointF) else start_pt[0]
+        sy = start_pt.y() if isinstance(start_pt, QPointF) else start_pt[1]
+        ex = end_pt.x() if isinstance(end_pt, QPointF) else end_pt[0]
+        ey = end_pt.y() if isinstance(end_pt, QPointF) else end_pt[1]
+
+        min_x = min(sx, ex)
+        min_y = min(sy, ey)
+        w = max(1.0, abs(ex - sx))
+        h = max(1.0, abs(ey - sy))
+
+        p1_local = (sx - min_x, sy - min_y)
+        p2_local = (ex - min_x, ey - min_y)
+
+        route = calculate_connector_route(
+            p1_local,
+            p2_local,
+            geom=self.model.geom,
+            site1_idx=site1_idx,
+            site2_idx=site2_idx,
+        )
+
+        self.prepareGeometryChange()
+        self.model.x = round(min_x, 2)
+        self.model.y = round(min_y, 2)
+        self.model.w = round(w, 2)
+        self.model.h = round(h, 2)
+        self.model.rot = 0.0
+        self.setPos(min_x, min_y)
+        self.setRotation(0.0)
+
+        adj = dict(self.model.adj or {})
+        adj["p1"] = [round(sx, 2), round(sy, 2)]
+        adj["p2"] = [round(ex, 2), round(ey, 2)]
+        adj["route"] = [[round(rx, 2), round(ry, 2)] for rx, ry in route]
+        if site1_idx is not None:
+            adj["site1"] = site1_idx
+        if site2_idx is not None:
+            adj["site2"] = site2_idx
+        self.model.adj = adj
+
+        self._position_handles()
+        self.update()
+        sc = self.scene()
+        if sc and hasattr(sc, "update_connected_connectors"):
+            sc.update_connected_connectors(self.model.id)
+        self.geometryChanged.emit()
+
+    def _do_drag_connector_endpoint(
+        self,
+        handle_type: str,
+        scene_pos: QPointF,
+        modifiers: Qt.KeyboardModifiers,
+    ) -> None:
+        """Handle interactive dragging of connector endpoints with magnetic snapping."""
+        is_start = handle_type == HandleType.START
+        adj = self.model.adj or {}
+
+        # 1. Determine anchor (other endpoint in scene coords)
+        p1 = adj.get("p1")
+        p2 = adj.get("p2")
+        if is_start:
+            if p2:
+                anchor_pt = QPointF(float(p2[0]), float(p2[1]))
+            else:
+                anchor_pt = QPointF(self.model.x + self.model.w, self.model.y + self.model.h)
+        else:
+            if p1:
+                anchor_pt = QPointF(float(p1[0]), float(p1[1]))
+            else:
+                anchor_pt = QPointF(self.model.x, self.model.y)
+
+        # 2. Magnetic snap detection against other shapes in scene
+        snap_threshold = 15.0
+        best_dist = snap_threshold
+        snapped_pos = scene_pos
+        snap_target: dict[str, Any] | None = None
+        target_item: ShapeGraphicsItem | None = None
+
+        sc = self.scene()
+        if sc:
+            for item in sc.items():
+                if isinstance(item, ShapeGraphicsItem) and item is not self and not item.model.is_connector:
+                    sites = item.get_connection_sites_scene()
+                    for idx, (sx, sy) in enumerate(sites):
+                        dist = math.hypot(scene_pos.x() - sx, scene_pos.y() - sy)
+                        if dist < best_dist:
+                            best_dist = dist
+                            snapped_pos = QPointF(sx, sy)
+                            snap_target = {"id": item.model.id, "idx": idx}
+                            target_item = item
+
+        # Clear previous hover highlights on all shapes and mark current target if any
+        if sc:
+            for item in sc.items():
+                if isinstance(item, ShapeGraphicsItem):
+                    setattr(item, "_highlight_site_idx", None)
+                    setattr(item, "_show_connection_sites", False)
+
+        if target_item and snap_target:
+            setattr(target_item, "_highlight_site_idx", snap_target["idx"])
+            setattr(target_item, "_show_connection_sites", True)
+            target_item.update()
+
+        # Save pending connection to commit on release
+        if is_start:
+            self._pending_cxn_start = snap_target
+            start_scene = snapped_pos
+            end_scene = anchor_pt
+            s_idx = snap_target["idx"] if snap_target else adj.get("site1")
+            e_idx = self.model.cxn_end.get("idx") if self.model.cxn_end else adj.get("site2")
+        else:
+            self._pending_cxn_end = snap_target
+            start_scene = anchor_pt
+            end_scene = snapped_pos
+            s_idx = self.model.cxn_start.get("idx") if self.model.cxn_start else adj.get("site1")
+            e_idx = snap_target["idx"] if snap_target else adj.get("site2")
+
+        self.update_connector_endpoints(
+            start_scene,
+            end_scene,
+            site1_idx=s_idx,
+            site2_idx=e_idx,
+        )
 
     # ------------------------------------------------------------------
     # Handle Drag Operations
@@ -959,7 +1159,9 @@ class ShapeGraphicsItem(QGraphicsObject):
         modifiers: Qt.KeyboardModifiers,
     ) -> None:
         ht = handle.handle_type
-        if ht == HandleType.ROTATE:
+        if ht in (HandleType.START, HandleType.END):
+            self._do_drag_connector_endpoint(ht, scene_pos, modifiers)
+        elif ht == HandleType.ROTATE:
             self._do_rotate(scene_pos, modifiers)
         elif ht == HandleType.ADJUST:
             self._do_adjust(handle.adjust_index, scene_pos)
@@ -967,8 +1169,25 @@ class ShapeGraphicsItem(QGraphicsObject):
             self._do_resize(ht, scene_pos, modifiers)
 
     def end_handle_drag(self, handle: TransformHandleItem) -> None:
+        ht = handle.handle_type
+        if ht == HandleType.START:
+            self.model.cxn_start = getattr(self, "_pending_cxn_start", None)
+        elif ht == HandleType.END:
+            self.model.cxn_end = getattr(self, "_pending_cxn_end", None)
+
+        sc = self.scene()
+        if sc:
+            for item in sc.items():
+                if isinstance(item, ShapeGraphicsItem):
+                    setattr(item, "_highlight_site_idx", None)
+                    setattr(item, "_show_connection_sites", False)
+                    item.update()
+
         self._position_handles()
         self.update()
+        sc = self.scene()
+        if sc and hasattr(sc, "update_connected_connectors"):
+            sc.update_connected_connectors(self.model.id)
         self.geometryChanged.emit()
 
     def _do_rotate(
@@ -1094,6 +1313,9 @@ class ShapeGraphicsItem(QGraphicsObject):
 
         self._position_handles()
         self.update()
+        sc = self.scene()
+        if sc and hasattr(sc, "update_connected_connectors"):
+            sc.update_connected_connectors(self.model.id)
         self.geometryChanged.emit()
 
     def update_from_model(self) -> None:

@@ -254,7 +254,24 @@ def shape_to_xml(
         if embed_rid:
             return picture_to_xml(shape, shape_id, embed_rid, design=design)
 
-    # 4. Standard Shapes & Text Boxes
+    # 4.1 Connectors (<p:cxnSp>)
+    if shape.is_connector and (shape.cxn_start or shape.cxn_end or shape.geom.startswith("straightConnector") or "bentConnector" in shape.geom or "curvedConnector" in shape.geom):
+        c_nv_pr = non_visual_properties_to_xml(shape_id, shape)
+        cxn_tags = []
+        if shape.cxn_start:
+            s_id = escape_xml(str(shape.cxn_start.get("id", "")))
+            s_idx = shape.cxn_start.get("idx", 0)
+            cxn_tags.append(f'<a:stCxn id="{s_id}" idx="{s_idx}"/>')
+        if shape.cxn_end:
+            e_id = escape_xml(str(shape.cxn_end.get("id", "")))
+            e_idx = shape.cxn_end.get("idx", 0)
+            cxn_tags.append(f'<a:endCxn id="{e_id}" idx="{e_idx}"/>')
+        c_nv_cxn_pr = f"<p:cNvCxnSpPr>{''.join(cxn_tags)}</p:cNvCxnSpPr>"
+        nv_cxn_sp_pr = f"<p:nvCxnSpPr>{c_nv_pr}{c_nv_cxn_pr}<p:nvPr/></p:nvCxnSpPr>"
+        sp_pr = shape_properties_to_xml(shape, design=design, tag="p:spPr")
+        return f"<p:cxnSp>{nv_cxn_sp_pr}{sp_pr}</p:cxnSp>"
+
+    # 4.2 Standard Shapes & Text Boxes
     is_tx_box = shape.type == "text" and not shape.placeholder
     sp_locks = (
         '<p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>'
