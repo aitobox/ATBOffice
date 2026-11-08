@@ -41,10 +41,12 @@ from PySide6.QtWidgets import (
 from atboffice.modules.writer.layout.math_layout import paint_math
 from atboffice.modules.writer.layout.pagination import (
     Page,
+    PageFootnoteArea,
     PageHeaderFooter,
     PaginationResult,
     paginate_document,
 )
+from atboffice.modules.writer.layout.wrap import FloatBox
 from atboffice.modules.writer.layout.portions import (
     Portion,
     PortionType,
@@ -822,11 +824,119 @@ class WriterCanvasView(QAbstractScrollArea):
 
                     cur_x += po_w
 
+    def _paint_float_box(
+        self,
+        painter: QPainter,
+        page_rect: QRectF,
+        page: Page,
+        fb: FloatBox,
+    ) -> None:
+        """Render a floating drawing, picture, or shape object on screen canvas."""
+        item = fb.item
+        if not item:
+            return
+        x_px = page_rect.left() + self.pt_to_px(fb.x)
+        y_px = page_rect.top() + self.pt_to_px(fb.y)
+        w_px = self.pt_to_px(fb.w)
+        h_px = self.pt_to_px(fb.h)
+        dest_rect = QRectF(x_px, y_px, w_px, h_px)
+
+        if isinstance(item, PictureItem) or getattr(item, "t", "") in ("picture", "img"):
+            self._paint_picture(painter, item, dest_rect, self._zoom)
+        else:
+            fill_color = getattr(item, "fill_color", None) or "#E8EEF5"
+            stroke_color = getattr(item, "stroke_color", None) or "#4A709C"
+            stroke_width = getattr(item, "stroke_width", 1.0) or 1.0
+
+            painter.save()
+            painter.setBrush(QColor(fill_color))
+            painter.setPen(QPen(QColor(stroke_color), self.pt_to_px(stroke_width)))
+            painter.drawRect(dest_rect)
+            painter.restore()
+
+    def _paint_float_box_vector(
+        self,
+        painter: QPainter,
+        page: Page,
+        fb: FloatBox,
+        origin_x: float = 0.0,
+        origin_y: float = 0.0,
+    ) -> None:
+        """Render a floating drawing object in vector point coordinates (e.g. printing/PDF)."""
+        item = fb.item
+        if not item:
+            return
+        x_pt = origin_x + fb.x
+        y_pt = origin_y + fb.y
+        dest_rect = QRectF(x_pt, y_pt, fb.w, fb.h)
+
+        if isinstance(item, PictureItem) or getattr(item, "t", "") in ("picture", "img"):
+            self._paint_picture(painter, item, dest_rect, 1.0, is_vector=True)
+        else:
+            fill_color = getattr(item, "fill_color", None) or "#E8EEF5"
+            stroke_color = getattr(item, "stroke_color", None) or "#4A709C"
+            stroke_width = getattr(item, "stroke_width", 1.0) or 1.0
+
+            painter.save()
+            painter.setBrush(QColor(fill_color))
+            painter.setPen(QPen(QColor(stroke_color), stroke_width))
+            painter.drawRect(dest_rect)
+            painter.restore()
+
+    def _paint_footnote_area(
+        self,
+        painter: QPainter,
+        page_rect: QRectF,
+        page: Page,
+        fn_area: PageFootnoteArea,
+    ) -> None:
+        """Render the 2-inch footnote separator rule and footnote paragraph text."""
+        # 1. Standard Word 2003 2-inch (144.0 pt) Footnote Separator Rule
+        sep_x = page_rect.left() + self.pt_to_px(page.body_left)
+        sep_y = page_rect.top() + self.pt_to_px(fn_area.y)
+        sep_w = self.pt_to_px(fn_area.separator_width)
+
+        sep_pen = QPen(QColor(0, 0, 0), max(0.75, self.pt_to_px(0.75)))
+        painter.setPen(sep_pen)
+        painter.drawLine(QPointF(sep_x, sep_y), QPointF(sep_x + sep_w, sep_y))
+
+        # 2. Footnote paragraph fragments
+        for frag in fn_area.fragments:
+            frag_top = fn_area.y + frag.top
+            for line in frag.lines:
+                line_y = frag_top + line.top
+                cur_x = page.body_left + line.indent_left
+                for po in line.portions:
+                    po_w = po.width
+                    if po.type == PortionType.TEXT and po.text:
+                        font_family = po.font_family or "Times New Roman"
+                        font_size_pt = po.font_size or 10.0
+                        font = QFont(font_family)
+                        font.setPointSizeF(font_size_pt * self._zoom)
+                        if getattr(po, "bold", False):
+                            font.setBold(True)
+                        if getattr(po, "italic", False):
+                            font.setItalic(True)
+                        painter.setFont(font)
+
+                        x_px = page_rect.left() + self.pt_to_px(cur_x)
+                        y_px = page_rect.top() + self.pt_to_px(line_y)
+                        baseline_px = y_px + self.pt_to_px(line.baseline)
+
+                        painter.setPen(QPen(QColor(0, 0, 0)))
+                        painter.drawText(QPointF(x_px, baseline_px), po.text)
+                    cur_x += po_w
+
     def _paint_page_content(self, painter: QPainter, page_rect: QRectF, page: Page) -> None:
         """Render lines, formatted portions, and table structures on a single page."""
         # 1. Render Header if present
         if page.header:
             self._paint_header_footer(painter, page_rect, page, page.header, is_header=True)
+
+        # 1.5. Render background floating shapes (behind == True)
+        for fb in getattr(page, "float_boxes", []):
+            if fb.behind:
+                self._paint_float_box(painter, page_rect, page, fb)
 
         # 2. Render Page Regions and Paragraphs/Tables
         for reg in page.regions:
@@ -1078,6 +1188,15 @@ class WriterCanvasView(QAbstractScrollArea):
 
                             cur_x += po_w
 
+        # 2.5. Render foreground floating shapes (behind == False)
+        for fb in getattr(page, "float_boxes", []):
+            if not fb.behind:
+                self._paint_float_box(painter, page_rect, page, fb)
+
+        # 2.6. Render Footnote Area if present
+        if getattr(page, "footnote_area", None) and page.footnote_area.fragments:
+            self._paint_footnote_area(painter, page_rect, page, page.footnote_area)
+
         # 3. Render Footer if present
         if page.footer:
             self._paint_header_footer(painter, page_rect, page, page.footer, is_header=False)
@@ -1151,6 +1270,11 @@ class WriterCanvasView(QAbstractScrollArea):
                                     painter, po.data, dest_rect, 1.0, is_vector=True
                                 )
                         cur_x += po_w
+
+        # 1.5. Render background floating shapes (behind == True)
+        for fb in getattr(page, "float_boxes", []):
+            if fb.behind:
+                self._paint_float_box_vector(painter, page, fb, origin_x, origin_y)
 
         # 2. Render Page Regions and Paragraphs/Tables
         for reg in page.regions:
@@ -1299,6 +1423,35 @@ class WriterCanvasView(QAbstractScrollArea):
                                     )
 
                             cur_x += po_w
+
+        # 2.5. Render foreground floating shapes (behind == False)
+        for fb in getattr(page, "float_boxes", []):
+            if not fb.behind:
+                self._paint_float_box_vector(painter, page, fb, origin_x, origin_y)
+
+        # 2.6. Render Footnote Area if present
+        if getattr(page, "footnote_area", None) and page.footnote_area.fragments:
+            fn_area = page.footnote_area
+            sep_x = origin_x + page.body_left
+            sep_y = origin_y + fn_area.y
+            sep_w = fn_area.separator_width
+            painter.setPen(QPen(QColor(0, 0, 0), 0.75))
+            painter.drawLine(QPointF(sep_x, sep_y), QPointF(sep_x + sep_w, sep_y))
+
+            for frag in fn_area.fragments:
+                frag_top = origin_y + fn_area.y + frag.top
+                for line in frag.lines:
+                    line_y = frag_top + line.top
+                    cur_x = origin_x + page.body_left + line.indent_left
+                    for po in line.portions:
+                        po_w = po.width
+                        if po.type == PortionType.TEXT and po.text:
+                            font, pen = _setup_font_and_pen(po, 10.0, "#000000")
+                            painter.setFont(font)
+                            painter.setPen(pen)
+                            baseline = line_y + line.baseline
+                            painter.drawText(QPointF(cur_x, baseline), po.text)
+                        cur_x += po_w
 
         # 3. Render Footer if present
         if page.footer:
