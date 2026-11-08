@@ -781,14 +781,22 @@ def _parse_worksheet(
                         val_str = v_el.text
 
                     parsed_value = _parse_cell_value(val_str, cell_type, sst)
-                    if cell_type == "s" and isinstance(parsed_value, SharedString) and parsed_value.rich_runs:
+                    if (
+                        cell_type == "s"
+                        and isinstance(parsed_value, SharedString)
+                        and parsed_value.rich_runs
+                    ):
                         cell_rich_runs = parsed_value.rich_runs
 
                 # Skip completely empty cells without formula or style
                 if parsed_value is None and formula_str is None and not style_idx_str:
                     continue
 
-                cell = CellData(value=parsed_value, formula=formula_str, rich_runs=cell_rich_runs)
+                cell = CellData(
+                    value=parsed_value,
+                    formula=formula_str,
+                    rich_runs=cell_rich_runs,
+                )
 
                 # Apply style delta
                 if style_idx_str:

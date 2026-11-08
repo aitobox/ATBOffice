@@ -587,7 +587,6 @@ class GridViewport(QAbstractScrollArea):
 
     def auto_fit_column(self, col: int) -> None:
         """Auto-fit column width to the widest content cell in the column."""
-        fm = QFontMetrics(self.font())
         max_width = 30  # Minimum column width
 
         # Measure width of cells in column
@@ -1133,14 +1132,26 @@ class GridViewport(QAbstractScrollArea):
 
                     # Font & color
                     font = QFont(cell.font_family, cell.font_size)
-                    is_bold = cf_res.bold if (cf_res and cf_res.bold is not None) else cell.bold
-                    is_italic = cf_res.italic if (cf_res and cf_res.italic is not None) else cell.italic
+                    is_bold = (
+                        cf_res.bold
+                        if (cf_res and cf_res.bold is not None)
+                        else cell.bold
+                    )
+                    is_italic = (
+                        cf_res.italic
+                        if (cf_res and cf_res.italic is not None)
+                        else cell.italic
+                    )
                     font.setBold(is_bold)
                     font.setItalic(is_italic)
                     font.setUnderline(cell.underline)
                     painter.setFont(font)
 
-                    text_col_str = cf_res.fg_color if (cf_res and cf_res.fg_color) else cell.fg_color
+                    text_col_str = (
+                        cf_res.fg_color
+                        if (cf_res and cf_res.fg_color)
+                        else cell.fg_color
+                    )
                     text_color = (
                         QColor(text_col_str)
                         if text_col_str

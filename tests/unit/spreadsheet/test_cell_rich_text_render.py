@@ -1,23 +1,20 @@
-"""Unit tests for in-cell rich text runs layout, multi-style mixing, sub/superscript, and OOXML roundtrip."""
+"""Unit tests for in-cell rich text runs layout, sub/superscript, and OOXML roundtrip."""
 
 from __future__ import annotations
 
 import io
-import sys
-import zipfile
 import xml.etree.ElementTree as ET
-import pytest
-from PySide6.QtCore import QPointF, QRect
+import zipfile
+
 from PySide6.QtGui import (
     QColor,
     QFont,
-    QFontMetrics,
     QFontMetricsF,
     QImage,
     QPainter,
 )
 
-from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx, _parse_rich_runs
+from atboffice.modules.spreadsheet.io.xlsx_reader import _parse_rich_runs, read_xlsx
 from atboffice.modules.spreadsheet.io.xlsx_writer import write_xlsx
 from atboffice.modules.spreadsheet.models.sheet_model import (
     CellData,
@@ -81,7 +78,7 @@ class TestRichTextModel:
 
 
 class TestRichTextRenderingAndLayout:
-    """Tests for GridViewport rich text layout, QFontMetricsF measurement, sub/superscript, and auto-fit."""
+    """Tests for GridViewport rich text layout, QFontMetricsF measurement, and sub/superscript."""
 
     def test_measure_rich_runs_width(self, qapp):
         viewport = GridViewport()
@@ -363,7 +360,12 @@ class TestOOXMLRoundtripRichText:
         # Cell A3: Multi-color and multi-style runs
         r_styles = [
             RichTextRun(text="Red Bold ", bold=True, fg_color="#FF0000"),
-            RichTextRun(text="Blue Underline", underline=True, underline_style="single", fg_color="#0000FF"),
+            RichTextRun(
+                text="Blue Underline",
+                underline=True,
+                underline_style="single",
+                fg_color="#0000FF",
+            ),
         ]
         sheet.set_cell(2, 0, CellData(value="Red Bold Blue Underline", rich_runs=r_styles))
 
