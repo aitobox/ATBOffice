@@ -11,8 +11,8 @@ Covers:
 from __future__ import annotations
 
 import pytest
-from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QColor, QKeyEvent
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.presentation.models.presentation import Presentation
@@ -22,7 +22,6 @@ from atboffice.modules.presentation.slideshow.presenter_view import PresenterCon
 from atboffice.modules.presentation.slideshow.slideshow_view import SlideInkStroke, SlideShowView
 from atboffice.modules.presentation.slideshow.transitions import (
     SlideTransitionPlayer,
-    get_transition_duration,
 )
 
 
@@ -75,12 +74,17 @@ def test_transition_player_lifecycle(qapp):
     progress_values: list[float] = []
     finished_called = False
 
+    def on_finished():
+        nonlocal finished_called
+        finished_called = True
+
     player.frameChanged.connect(progress_values.append)
-    player.finished.connect(lambda: globals().update(finished_called=True))
+    player.finished.connect(on_finished)
 
     # Test "none" transition finishes immediately
     player.play(Transition(type="none"))
     assert player.progress == 1.0
+    assert finished_called is True
 
     # Test active transition play and finish_now
     trans = Transition(type="fade", speed="fast")
@@ -147,7 +151,8 @@ def test_sequential_animation_progression_and_key_triggers(
     if view._anim_player.is_playing:
         view._anim_player.finish_now()
 
-    # Now on slide 1 with steps completed: next PageDown triggers slide transition to non-hidden slide (slide 3, index 3)
+    # Now on slide 1 with steps completed: next PageDown triggers slide transition
+    # to non-hidden slide (slide 3, index 3)
     pagedown_event = QKeyEvent(
         QKeyEvent.Type.KeyPress,
         Qt.Key.Key_PageDown,
