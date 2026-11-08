@@ -218,6 +218,8 @@ class Shape:
     chart: dict[str, Any] | None = None
     poly: list[list[float]] | None = None
     custom_path: dict[str, Any] | None = None
+    cxn_start: dict[str, Any] | None = None
+    cxn_end: dict[str, Any] | None = None
 
     def translate(self, dx: float, dy: float) -> None:
         self.x += dx
@@ -254,6 +256,19 @@ class Shape:
     @property
     def is_chart(self) -> bool:
         return self.type == "chart" or bool(self.chart)
+
+    @property
+    def is_connector(self) -> bool:
+        return self.type == "line" or self.geom in (
+            "line",
+            "straightConnector1",
+            "bentConnector2",
+            "bentConnector3",
+            "bentConnector4",
+            "bentConnector5",
+            "curvedConnector2",
+            "curvedConnector3",
+        )
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -297,6 +312,10 @@ class Shape:
             d["poly"] = [list(pt) for pt in self.poly]
         if self.custom_path:
             d["custom_path"] = copy.deepcopy(self.custom_path)
+        if self.cxn_start:
+            d["cxn_start"] = copy.deepcopy(self.cxn_start)
+        if self.cxn_end:
+            d["cxn_end"] = copy.deepcopy(self.cxn_end)
         return d
 
     @classmethod
@@ -327,4 +346,6 @@ class Shape:
             chart=copy.deepcopy(data.get("chart")),
             poly=[list(pt) for pt in data["poly"]] if "poly" in data and data["poly"] else None,
             custom_path=copy.deepcopy(data.get("custom_path")),
+            cxn_start=copy.deepcopy(data.get("cxn_start")) if data.get("cxn_start") else None,
+            cxn_end=copy.deepcopy(data.get("cxn_end")) if data.get("cxn_end") else None,
         )

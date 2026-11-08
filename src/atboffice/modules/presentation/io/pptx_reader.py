@@ -646,7 +646,7 @@ class PptxReader:
         """Parse shape, picture, table, or group element."""
         tag = _local_tag(elem.tag)
 
-        if tag == "sp":
+        if tag in ("sp", "cxnSp"):
             return self._parse_sp_element(
                 elem,
                 slide_path=slide_path,
@@ -672,8 +672,28 @@ class PptxReader:
     ) -> Shape:
         """Parse standard <p:sp> shape or text box."""
         nv_sp_pr = _get_child(elem, "nvSpPr")
+        if nv_sp_pr is None:
+            nv_sp_pr = _get_child(elem, "nvCxnSpPr")
         c_nv_pr = _get_child(nv_sp_pr, "cNvPr") if nv_sp_pr is not None else None
         nv_pr = _get_child(nv_sp_pr, "nvPr") if nv_sp_pr is not None else None
+
+        # Parse connector start/end points if present (<a:stCxn>, <a:endCxn>)
+        cxn_start = None
+        cxn_end = None
+        c_nv_cxn_pr = _get_child(nv_sp_pr, "cNvCxnSpPr") if nv_sp_pr is not None else None
+        if c_nv_cxn_pr is not None:
+            st_cxn = _get_child(c_nv_cxn_pr, "stCxn")
+            if st_cxn is not None:
+                cxn_start = {
+                    "id": _get_attr(st_cxn, "id", ""),
+                    "idx": int(_get_attr(st_cxn, "idx", "0") or 0),
+                }
+            end_cxn = _get_child(c_nv_cxn_pr, "endCxn")
+            if end_cxn is not None:
+                cxn_end = {
+                    "id": _get_attr(end_cxn, "id", ""),
+                    "idx": int(_get_attr(end_cxn, "idx", "0") or 0),
+                }
 
         shape_id = _get_attr(c_nv_pr, "id", f"sp_{id(elem)}")
         shape_name = _get_attr(c_nv_pr, "name", "Shape")
@@ -786,6 +806,21 @@ class PptxReader:
                         shape_type = "image"
                         break
 
+        if shape_type == "shape" and (
+            geom in (
+                "line",
+                "straightConnector1",
+                "bentConnector2",
+                "bentConnector3",
+                "bentConnector4",
+                "bentConnector5",
+                "curvedConnector2",
+                "curvedConnector3",
+            )
+            or bool(cxn_start or cxn_end)
+        ):
+            shape_type = "line"
+
         return Shape(
             id=shape_id or "sp_1",
             type=shape_type,
@@ -804,6 +839,8 @@ class PptxReader:
             media=media_key,
             media_item=media_item,
             custom_path=custom_path,
+            cxn_start=cxn_start,
+            cxn_end=cxn_end,
         )
 
     def _parse_pic_element(

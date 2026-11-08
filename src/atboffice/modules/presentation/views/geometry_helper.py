@@ -119,6 +119,14 @@ def create_shape_path(
     h = max(1.0, float(h))
     adj = adj or {}
 
+    if adj and "route" in adj and adj["route"]:
+        pts = adj["route"]
+        if len(pts) >= 2:
+            path.moveTo(float(pts[0][0]), float(pts[0][1]))
+            for pt in pts[1:]:
+                path.lineTo(float(pt[0]), float(pt[1]))
+            return path
+
     if (geom == "custom" or custom_path) and custom_path and "paths" in custom_path:
         for p_info in custom_path["paths"]:
             pw = float(p_info.get("w", w)) or w
@@ -237,12 +245,131 @@ def create_shape_path(
         path.lineTo(0.0, shaft_bot)
         path.closeSubpath()
 
-    elif geom == "line":
+    elif geom in ("line", "straightConnector1"):
         path.moveTo(0.0, 0.0)
         path.lineTo(w, h)
+
+    elif geom == "bentConnector2":
+        path.moveTo(0.0, 0.0)
+        path.lineTo(w, 0.0)
+        path.lineTo(w, h)
+
+    elif geom in ("bentConnector3", "bentConnector4", "bentConnector5"):
+        mid_x = w / 2.0
+        path.moveTo(0.0, 0.0)
+        path.lineTo(mid_x, 0.0)
+        path.lineTo(mid_x, h)
+        path.lineTo(w, h)
+
+    elif geom in ("curvedConnector2", "curvedConnector3"):
+        path.moveTo(0.0, 0.0)
+        path.cubicTo(w / 2.0, 0.0, w / 2.0, h, w, h)
 
     else:
         # Default rectangle
         path.addRect(0.0, 0.0, w, h)
 
     return path
+
+
+def get_shape_connection_sites(
+    geom: str,
+    w: float,
+    h: float,
+    adj: dict[str, Any] | None = None,
+) -> list[tuple[float, float]]:
+    """Return local coordinates of standard connection sites on shape perimeter.
+
+    Standard indexing follows Office DrawingML conventions:
+      Index 0: Top-center
+      Index 1: Right-center
+      Index 2: Bottom-center
+      Index 3: Left-center
+    """
+    w = max(1.0, float(w))
+    h = max(1.0, float(h))
+    adj = adj or {}
+
+    if geom == "triangle":
+        apex_x = (w * float(adj.get("adj", 50000))) / 100000.0
+        return [
+            (apex_x, 0.0),
+            ((w + apex_x) / 2.0, h / 2.0),
+            (w / 2.0, h),
+            (apex_x / 2.0, h / 2.0),
+        ]
+    elif geom == "diamond":
+        return [
+            (w / 2.0, 0.0),
+            (w, h / 2.0),
+            (w / 2.0, h),
+            (0.0, h / 2.0),
+        ]
+    elif geom in ("ellipse", "oval"):
+        return [
+            (w / 2.0, 0.0),
+            (w, h / 2.0),
+            (w / 2.0, h),
+            (0.0, h / 2.0),
+        ]
+    else:
+        # Default bounding box cardinal connection sites
+        return [
+            (w / 2.0, 0.0),      # 0: Top
+            (w, h / 2.0),        # 1: Right
+            (w / 2.0, h),        # 2: Bottom
+            (0.0, h / 2.0),      # 3: Left
+        ]
+
+
+def calculate_connector_route(
+    p1: tuple[float, float],
+    p2: tuple[float, float],
+    geom: str = "straightConnector1",
+    site1_idx: int | None = None,
+    site2_idx: int | None = None,
+) -> list[tuple[float, float]]:
+    """Calculate waypoints for connector routes between two points in scene coordinates.
+
+    Returns a list of (x, y) coordinates forming the route segments.
+    """
+    x1, y1 = p1
+    x2, y2 = p2
+
+    if geom in ("line", "straightConnector1"):
+        return [(x1, y1), (x2, y2)]
+
+    if geom == "bentConnector2":
+        # 1 bend: horizontal then vertical, or vertical then horizontal
+        if site1_idx in (0, 2):  # exits top or bottom
+            return [(x1, y1), (x1, y2), (x2, y2)]
+        else:  # exits left or right
+            return [(x1, y1), (x2, y1), (x2, y2)]
+
+    if geom in ("bentConnector3", "bentConnector4", "bentConnector5"):
+        # Elbow connector with 2 orthogonal bends
+        if site1_idx in (0, 2) and site2_idx in (0, 2):
+            # Both exit vertically
+            mid_y = (y1 + y2) / 2.0
+            return [(x1, y1), (x1, mid_y), (x2, mid_y), (x2, y2)]
+        elif site1_idx in (1, 3) and site2_idx in (1, 3):
+            # Both exit horizontally
+            mid_x = (x1 + x2) / 2.0
+            return [(x1, y1), (mid_x, y1), (mid_x, y2), (x2, y2)]
+        elif site1_idx in (0, 2):
+            # Exits vertically, enters horizontally
+            return [(x1, y1), (x1, y2), (x2, y2)]
+        elif site1_idx in (1, 3):
+            # Exits horizontally, enters vertically
+            return [(x1, y1), (x2, y1), (x2, y2)]
+        else:
+            # Fallback based on dominant axis
+            if abs(x2 - x1) >= abs(y2 - y1):
+                mid_x = (x1 + x2) / 2.0
+                return [(x1, y1), (mid_x, y1), (mid_x, y2), (x2, y2)]
+            else:
+                mid_y = (y1 + y2) / 2.0
+                return [(x1, y1), (x1, mid_y), (x2, mid_y), (x2, y2)]
+
+    # Default fallback
+    return [(x1, y1), (x2, y2)]

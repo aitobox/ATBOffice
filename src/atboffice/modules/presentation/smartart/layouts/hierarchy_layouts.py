@@ -128,6 +128,8 @@ def layout_tree(
                     "h": max(0.01, max(ys) - min(ys)),
                     "rot": 0.0,
                     "itemId": k.id,
+                    "parentId": it.id,
+                    "across": across,
                     "level": lvl + 1,
                     "styleLbl": "parChTrans1D2",
                     "colorIdx": 0,

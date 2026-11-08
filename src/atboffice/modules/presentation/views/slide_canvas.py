@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import uuid
 from typing import Any
 
@@ -219,6 +220,66 @@ class SlideScene(QGraphicsScene):
             item for item in self.selectedItems() if isinstance(item, ShapeGraphicsItem)
         ]
 
+    def update_connected_connectors(self, shape_id: str) -> None:
+        """Automatically recalculate connector endpoints and routes connected to shape_id."""
+        for item in list(self._items_by_id.values()):
+            if not getattr(item.model, "is_connector", False):
+                continue
+
+            cxn_start = item.model.cxn_start
+            cxn_end = item.model.cxn_end
+            if not cxn_start and not cxn_end:
+                continue
+
+            needs_update = False
+            adj = item.model.adj or {}
+
+            # Start point
+            s_pt = None
+            s_idx = None
+            if cxn_start:
+                s_shape_id = cxn_start.get("id")
+                s_idx = int(cxn_start.get("idx", 0))
+                target = self.get_shape_item(s_shape_id)
+                if target:
+                    sites = target.get_connection_sites_scene()
+                    if s_idx < len(sites):
+                        s_pt = sites[s_idx]
+                        if s_shape_id == shape_id:
+                            needs_update = True
+            if s_pt is None:
+                p1 = adj.get("p1")
+                s_pt = (float(p1[0]), float(p1[1])) if p1 else (item.model.x, item.model.y)
+
+            # End point
+            e_pt = None
+            e_idx = None
+            if cxn_end:
+                e_shape_id = cxn_end.get("id")
+                e_idx = int(cxn_end.get("idx", 0))
+                target = self.get_shape_item(e_shape_id)
+                if target:
+                    sites = target.get_connection_sites_scene()
+                    if e_idx < len(sites):
+                        e_pt = sites[e_idx]
+                        if e_shape_id == shape_id:
+                            needs_update = True
+            if e_pt is None:
+                p2 = adj.get("p2")
+                e_pt = (
+                    (float(p2[0]), float(p2[1]))
+                    if p2
+                    else (item.model.x + item.model.w, item.model.y + item.model.h)
+                )
+
+            if needs_update:
+                item.update_connector_endpoints(
+                    s_pt,
+                    e_pt,
+                    site1_idx=s_idx,
+                    site2_idx=e_idx,
+                )
+
     # ------------------------------------------------------------------
     # Background rendering (Slide paper & shadow)
     # ------------------------------------------------------------------
@@ -301,6 +362,34 @@ class SlideScene(QGraphicsScene):
                 text=TextBody.from_text(safe_tr("单击此处添加文本")),
             )
         elif kind == "line":
+            is_conn = geom in (
+                "straightConnector1",
+                "bentConnector2",
+                "bentConnector3",
+                "bentConnector4",
+                "bentConnector5",
+                "curvedConnector2",
+                "curvedConnector3",
+            )
+            cxn_start = None
+            cxn_end = None
+            snap_thresh = 15.0
+            for item in self._items_by_id.values():
+                if not getattr(item.model, "is_connector", False):
+                    sites = item.get_connection_sites_scene()
+                    for idx, (sx, sy) in enumerate(sites):
+                        if math.hypot(x0 - sx, y0 - sy) <= snap_thresh and not cxn_start:
+                            cxn_start = {"id": item.model.id, "idx": idx}
+                            x0, y0 = sx, sy
+                        if math.hypot(x1 - sx, y1 - sy) <= snap_thresh and not cxn_end:
+                            cxn_end = {"id": item.model.id, "idx": idx}
+                            x1, y1 = sx, sy
+
+            x = min(x0, x1)
+            y = min(y0, y1)
+            w = max(1.0, abs(x1 - x0))
+            h = max(1.0, abs(y1 - y0))
+
             if geom == "rightArrow" or tool.get("arrows") == "end":
                 w = max(w, 60.0)
                 h = max(h, 24.0)
@@ -317,19 +406,22 @@ class SlideScene(QGraphicsScene):
                     line=Line(color="#2E6B9E", width=1.0),
                 )
             else:
-                w = max(w, 60.0)
-                h = max(h, 2.0)
+                sh_geom = geom if is_conn else "line"
+                sh_name = "Connector" if is_conn else "Line"
                 new_sh = Shape(
                     id=shape_id,
                     type="line",
-                    geom="line",
-                    name="Line",
+                    geom=sh_geom,
+                    name=sh_name,
                     x=round(x, 2),
                     y=round(y, 2),
                     w=round(w, 2),
                     h=round(h, 2),
                     fill=Fill.none(),
                     line=Line(color="#000000", width=1.5),
+                    cxn_start=cxn_start,
+                    cxn_end=cxn_end,
+                    adj={"p1": [round(x0, 2), round(y0, 2)], "p2": [round(x1, 2), round(y1, 2)]},
                 )
         elif geom in ("ellipse", "oval"):
             w = max(w, 60.0)
