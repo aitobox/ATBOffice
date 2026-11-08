@@ -28,6 +28,7 @@ from PySide6.QtGui import (
     QFocusEvent,
     QFont,
     QFontMetrics,
+    QFontMetricsF,
     QKeyEvent,
     QMouseEvent,
     QPainter,
@@ -545,6 +546,45 @@ class GridViewport(QAbstractScrollArea):
             return (hit.row, hit.col)
         return None
 
+    def _measure_rich_runs_width(self, cell: CellData) -> float:
+        """Measure total horizontal width of rich text runs."""
+        runs = cell.rich_runs or []
+        if not runs:
+            return 0.0
+
+        max_line_w = 0.0
+        curr_line_w = 0.0
+
+        for r in runs:
+            fam = r.font_family or cell.font_family or "Arial"
+            sz = (
+                r.font_size
+                if r.font_size is not None
+                else (cell.font_size or 10)
+            )
+            if r.vert_align in ("subscript", "superscript"):
+                sz = max(1.0, sz * 0.7)
+
+            rf = QFont(fam, int(sz) if isinstance(sz, int) else round(sz))
+            if isinstance(sz, float):
+                rf.setPointSizeF(sz)
+            rf.setBold(r.bold if r.bold is not None else cell.bold)
+            rf.setItalic(r.italic if r.italic is not None else cell.italic)
+            rfm = QFontMetricsF(rf)
+
+            parts = r.text.split("\n")
+            for idx, part in enumerate(parts):
+                if idx > 0:
+                    if curr_line_w > max_line_w:
+                        max_line_w = curr_line_w
+                    curr_line_w = 0.0
+                curr_line_w += rfm.horizontalAdvance(part)
+
+        if curr_line_w > max_line_w:
+            max_line_w = curr_line_w
+
+        return max_line_w
+
     def auto_fit_column(self, col: int) -> None:
         """Auto-fit column width to the widest content cell in the column."""
         fm = QFontMetrics(self.font())
@@ -553,10 +593,19 @@ class GridViewport(QAbstractScrollArea):
         # Measure width of cells in column
         for (r, c), cell in self.model.cells.items():
             if c == col and cell.value is not None:
-                text = self.model.get_formatted_text(r, c)
-                w = fm.horizontalAdvance(text) + 12
+                if cell.rich_runs:
+                    w = self._measure_rich_runs_width(cell) + 12
+                else:
+                    text = self.model.get_formatted_text(r, c)
+                    cell_font = QFont(
+                        cell.font_family or self.font().family(),
+                        cell.font_size or 10,
+                    )
+                    cell_font.setBold(cell.bold)
+                    cell_font.setItalic(cell.italic)
+                    w = QFontMetrics(cell_font).horizontalAdvance(text) + 12
                 if w > max_width:
-                    max_width = w
+                    max_width = int(w)
 
         self.geometry_mapper.set_col_width(col, min(500, max_width))
         self._update_scrollbars()
@@ -1046,8 +1095,11 @@ class GridViewport(QAbstractScrollArea):
                 if cell.value is None or cell.value == "":
                     continue
 
-                text = self.model.get_formatted_text(r, c)
-                text_w = fm.horizontalAdvance(text)
+                if cell.rich_runs:
+                    text_w = int(self._measure_rich_runs_width(cell))
+                else:
+                    text = self.model.get_formatted_text(r, c)
+                    text_w = fm.horizontalAdvance(text)
 
                 eff_h = cell.get_effective_align_h()
                 eff_v = cell.get_effective_align_v()
@@ -1062,50 +1114,63 @@ class GridViewport(QAbstractScrollArea):
                     self.geometry_mapper.col_size(c + i) for i in range(span)
                 )
 
-                painter.save()
-                # Clip cell area
-                painter.setClipRect(QRect(col_x, row_y, span_w - 1, row_h - 1))
-
-                # Font & color
-                font = QFont(cell.font_family, cell.font_size)
-                is_bold = cf_res.bold if (cf_res and cf_res.bold is not None) else cell.bold
-                is_italic = cf_res.italic if (cf_res and cf_res.italic is not None) else cell.italic
-                font.setBold(is_bold)
-                font.setItalic(is_italic)
-                font.setUnderline(cell.underline)
-                painter.setFont(font)
-
-                text_col_str = cf_res.fg_color if (cf_res and cf_res.fg_color) else cell.fg_color
-                text_color = (
-                    QColor(text_col_str)
-                    if text_col_str
-                    else Qt.GlobalColor.black
-                )
-                painter.setPen(text_color)
-
-                # Vertical alignment
-                if eff_v == "top":
-                    v_flag = Qt.AlignmentFlag.AlignTop
-                elif eff_v == "bottom" and row_h > 26:
-                    v_flag = Qt.AlignmentFlag.AlignBottom
+                if cell.rich_runs:
+                    self._paint_rich_cell(
+                        painter,
+                        cell,
+                        col_x,
+                        row_y,
+                        span_w,
+                        row_h,
+                        eff_h,
+                        eff_v,
+                        cf_res,
+                    )
                 else:
-                    v_flag = Qt.AlignmentFlag.AlignVCenter
+                    painter.save()
+                    # Clip cell area
+                    painter.setClipRect(QRect(col_x, row_y, span_w - 1, row_h - 1))
 
-                # Horizontal alignment
-                if eff_h == "center":
-                    h_flag = Qt.AlignmentFlag.AlignHCenter
-                elif eff_h == "right":
-                    h_flag = Qt.AlignmentFlag.AlignRight
-                elif eff_h == "justify":
-                    h_flag = Qt.AlignmentFlag.AlignJustify
-                else:
-                    h_flag = Qt.AlignmentFlag.AlignLeft
+                    # Font & color
+                    font = QFont(cell.font_family, cell.font_size)
+                    is_bold = cf_res.bold if (cf_res and cf_res.bold is not None) else cell.bold
+                    is_italic = cf_res.italic if (cf_res and cf_res.italic is not None) else cell.italic
+                    font.setBold(is_bold)
+                    font.setItalic(is_italic)
+                    font.setUnderline(cell.underline)
+                    painter.setFont(font)
 
-                align_flag = v_flag | h_flag
+                    text_col_str = cf_res.fg_color if (cf_res and cf_res.fg_color) else cell.fg_color
+                    text_color = (
+                        QColor(text_col_str)
+                        if text_col_str
+                        else Qt.GlobalColor.black
+                    )
+                    painter.setPen(text_color)
 
-                text_rect = QRect(col_x + 3, row_y, span_w - 6, row_h)
-                painter.drawText(text_rect, align_flag, text)
-                painter.restore()
+                    # Vertical alignment
+                    if eff_v == "top":
+                        v_flag = Qt.AlignmentFlag.AlignTop
+                    elif eff_v == "bottom" and row_h > 26:
+                        v_flag = Qt.AlignmentFlag.AlignBottom
+                    else:
+                        v_flag = Qt.AlignmentFlag.AlignVCenter
+
+                    # Horizontal alignment
+                    if eff_h == "center":
+                        h_flag = Qt.AlignmentFlag.AlignHCenter
+                    elif eff_h == "right":
+                        h_flag = Qt.AlignmentFlag.AlignRight
+                    elif eff_h == "justify":
+                        h_flag = Qt.AlignmentFlag.AlignJustify
+                    else:
+                        h_flag = Qt.AlignmentFlag.AlignLeft
+
+                    align_flag = v_flag | h_flag
+
+                    text_rect = QRect(col_x + 3, row_y, span_w - 6, row_h)
+                    painter.drawText(text_rect, align_flag, text)
+                    painter.restore()
 
         painter.restore()
 
@@ -1401,6 +1466,175 @@ class GridViewport(QAbstractScrollArea):
                     display_text,
                 )
             painter.restore()
+
+    def _paint_rich_cell(
+        self,
+        painter: QPainter,
+        cell: CellData,
+        col_x: int,
+        row_y: int,
+        span_w: int,
+        row_h: int,
+        eff_h: str,
+        eff_v: str,
+        cf_res: Any = None,
+    ) -> None:
+        """Render in-cell rich text runs with mixed fonts, colors, sub/superscript, and wrapping."""
+        runs = cell.rich_runs or []
+        if not runs:
+            return
+
+        painter.save()
+        painter.setClipRect(QRect(col_x, row_y, span_w - 1, row_h - 1))
+
+        # Base font metrics for baseline calculation
+        base_font = QFont(cell.font_family or "Arial", cell.font_size or 10)
+        base_font.setBold(cell.bold)
+        base_font.setItalic(cell.italic)
+        base_font.setUnderline(cell.underline)
+        base_fm = QFontMetricsF(base_font)
+
+        avail_w = max(0.0, float(span_w - 6))
+
+        # 1. Break runs into lines (by explicit '\n' and wrapping if wrap_text)
+        # Each item in line: (QFont, QColor, vert_align, text, width)
+        lines: list[list[tuple[QFont, QColor, str | None, str, float]]] = []
+        curr_line: list[tuple[QFont, QColor, str | None, str, float]] = []
+        curr_line_w = 0.0
+
+        for r in runs:
+            fam = r.font_family or cell.font_family or "Arial"
+            sz = (
+                r.font_size
+                if r.font_size is not None
+                else (cell.font_size or 10)
+            )
+            vert = r.vert_align
+            if vert in ("subscript", "superscript"):
+                sz = max(1.0, sz * 0.7)
+
+            rf = QFont(fam, int(sz) if isinstance(sz, int) else round(sz))
+            if isinstance(sz, float):
+                rf.setPointSizeF(sz)
+
+            bold = (
+                r.bold
+                if r.bold is not None
+                else (
+                    cf_res.bold
+                    if (cf_res and cf_res.bold is not None)
+                    else cell.bold
+                )
+            )
+            italic = (
+                r.italic
+                if r.italic is not None
+                else (
+                    cf_res.italic
+                    if (cf_res and cf_res.italic is not None)
+                    else cell.italic
+                )
+            )
+            under = (
+                r.underline
+                if r.underline is not None
+                else cell.underline
+            )
+            strike = (
+                r.strike
+                if r.strike is not None
+                else cell.strike
+            )
+
+            rf.setBold(bold)
+            rf.setItalic(italic)
+            rf.setUnderline(under)
+            rf.setStrikeOut(strike)
+
+            col_str = (
+                r.fg_color
+                or (
+                    cf_res.fg_color
+                    if (cf_res and cf_res.fg_color)
+                    else cell.fg_color
+                )
+            )
+            rc = QColor(col_str) if col_str else Qt.GlobalColor.black
+
+            rfm = QFontMetricsF(rf)
+
+            text_parts = r.text.split("\n")
+            for idx, part in enumerate(text_parts):
+                if idx > 0:
+                    lines.append(curr_line)
+                    curr_line = []
+                    curr_line_w = 0.0
+
+                if not part:
+                    continue
+
+                if cell.wrap_text and avail_w > 0:
+                    words = part.split(" ")
+                    for w_idx, word in enumerate(words):
+                        token = (" " if w_idx > 0 else "") + word
+                        token_w = rfm.horizontalAdvance(token)
+                        if curr_line_w + token_w > avail_w and curr_line:
+                            lines.append(curr_line)
+                            curr_line = []
+                            curr_line_w = 0.0
+                            token = word
+                            token_w = rfm.horizontalAdvance(token)
+
+                        curr_line.append((rf, rc, vert, token, token_w))
+                        curr_line_w += token_w
+                else:
+                    part_w = rfm.horizontalAdvance(part)
+                    curr_line.append((rf, rc, vert, part, part_w))
+                    curr_line_w += part_w
+
+        if curr_line or not lines:
+            lines.append(curr_line)
+
+        # 2. Vertical layout & line heights
+        line_height = max(14.0, base_fm.lineSpacing())
+        total_block_h = len(lines) * line_height
+
+        if eff_v == "top":
+            start_y = row_y + 2.0
+        elif eff_v == "bottom" and row_h > 26:
+            start_y = row_y + row_h - total_block_h - 2.0
+        else:
+            start_y = row_y + max(2.0, (row_h - total_block_h) / 2.0)
+
+        # 3. Render each line
+        for l_idx, line in enumerate(lines):
+            line_w = sum(item[4] for item in line)
+
+            if eff_h == "center":
+                curr_x = col_x + 3.0 + max(0.0, (avail_w - line_w) / 2.0)
+            elif eff_h in ("right",):
+                curr_x = col_x + 3.0 + max(0.0, avail_w - line_w)
+            else:
+                curr_x = col_x + 3.0
+
+            line_baseline_y = start_y + l_idx * line_height + base_fm.ascent()
+
+            for rf, rc, vert, run_txt, run_w in line:
+                painter.setFont(rf)
+                painter.setPen(rc)
+
+                if vert == "subscript":
+                    offset_y = base_fm.descent() * 0.85
+                elif vert == "superscript":
+                    offset_y = -base_fm.ascent() * 0.38
+                else:
+                    offset_y = 0.0
+
+                pos = QPointF(curr_x, line_baseline_y + offset_y)
+                painter.drawText(pos, run_txt)
+                curr_x += run_w
+
+        painter.restore()
 
 
     def _paint_page_break_preview(

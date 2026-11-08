@@ -29,6 +29,28 @@ class CellComment:
 
 
 @dataclass
+class RichTextRun:
+    """Rich text run within a spreadsheet cell."""
+
+    text: str
+    font_family: str | None = None
+    font_size: float | None = None  # in points
+    bold: bool | None = None
+    italic: bool | None = None
+    underline: bool | None = None
+    underline_style: str | None = None
+    strike: bool | None = None
+    fg_color: str | None = None
+    vert_align: str | None = None  # "subscript", "superscript", "baseline", or None
+
+    def clone(self) -> RichTextRun:
+        """Create a shallow clone of this rich text run."""
+        import copy
+
+        return copy.copy(self)
+
+
+@dataclass
 class CellData:
     """Cell storage representation."""
 
@@ -70,11 +92,17 @@ class CellData:
     locked: bool = True
     hidden: bool = False
 
+    # Rich text runs
+    rich_runs: list[RichTextRun] | None = None
+
     def clone(self) -> CellData:
-        """Create a shallow clone of this cell data."""
+        """Create a clone of this cell data, including deep-cloning rich runs."""
         import copy
 
-        return copy.copy(self)
+        c = copy.copy(self)
+        if self.rich_runs is not None:
+            c.rich_runs = [r.clone() for r in self.rich_runs]
+        return c
 
     def get_effective_align_h(self) -> str:
         """Resolve effective horizontal alignment for this cell according to Excel rules."""

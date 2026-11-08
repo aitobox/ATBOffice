@@ -447,6 +447,15 @@ class EditorController(QObject):
                 cell = CellData(value=parsed_val, formula=None)
                 self.model.set_cell(r, c, cell)
             else:
+                # If cell has rich_runs and user commits unchanged text, preserve rich_runs
+                if cell.rich_runs is not None:
+                    runs_text = "".join(r.text for r in cell.rich_runs)
+                    if (
+                        text != runs_text
+                        and text != str(cell.value)
+                        and text != self.original_text
+                    ):
+                        cell.rich_runs = None
                 cell.value = parsed_val
                 cell.formula = None
 

@@ -26,6 +26,7 @@ from atboffice.modules.spreadsheet.models.sheet_model import (
     BorderStyle,
     CellData,
     FormatDelta,
+    RichTextRun,
     SheetDataModel,
 )
 from atboffice.modules.spreadsheet.models.validation import DataValidation
@@ -171,6 +172,114 @@ def _parse_rels(zip_file: zipfile.ZipFile, rels_path: str) -> dict[str, tuple[st
     return rels
 
 
+class SharedString(str):
+    """String subclass that optionally carries parsed RichTextRun formatting."""
+
+    rich_runs: list[RichTextRun] | None = None
+
+
+def _parse_rpr(rpr_el: ET.Element | None) -> dict[str, Any]:
+    """Parse <rPr> font and style properties for a rich text run."""
+    props: dict[str, Any] = {}
+    if rpr_el is None:
+        return props
+
+    font_el = _find_child(rpr_el, "rFont")
+    if font_el is None:
+        font_el = _find_child(rpr_el, "name")
+    if font_el is not None:
+        val = _attr(font_el, "val")
+        if val:
+            props["font_family"] = val
+
+    sz_el = _find_child(rpr_el, "sz")
+    if sz_el is not None:
+        val = _attr(sz_el, "val")
+        if val:
+            try:
+                props["font_size"] = float(val)
+            except ValueError:
+                pass
+
+    b_el = _find_child(rpr_el, "b")
+    if b_el is not None:
+        val = _attr(b_el, "val")
+        props["bold"] = val is None or val.strip().lower() in ("1", "true")
+
+    i_el = _find_child(rpr_el, "i")
+    if i_el is not None:
+        val = _attr(i_el, "val")
+        props["italic"] = val is None or val.strip().lower() in ("1", "true")
+
+    u_el = _find_child(rpr_el, "u")
+    if u_el is not None:
+        val = _attr(u_el, "val")
+        u_val = val if val is not None else "single"
+        if u_val != "none":
+            props["underline"] = True
+            props["underline_style"] = u_val
+
+    strike_el = _find_child(rpr_el, "strike")
+    if strike_el is not None:
+        val = _attr(strike_el, "val")
+        props["strike"] = val is None or val.strip().lower() in ("1", "true")
+
+    color_el = _find_child(rpr_el, "color")
+    if color_el is not None:
+        col = _norm_hex(_parse_color(color_el))
+        if col:
+            props["fg_color"] = col
+
+    va_el = _find_child(rpr_el, "vertAlign")
+    if va_el is not None:
+        val = _attr(va_el, "val")
+        if val and val.strip().lower() != "baseline":
+            props["vert_align"] = val.strip().lower()
+
+    return props
+
+
+def _parse_rich_runs(container_el: ET.Element) -> tuple[str, list[RichTextRun] | None]:
+    """Parse child <r> elements from <si> or <is> into (full_text, runs_list)."""
+    runs = _find_children(container_el, "r")
+    if not runs:
+        t_el = _find_child(container_el, "t")
+        text = _unescape_xml_text(t_el.text or "") if t_el is not None else ""
+        return text, None
+
+    parts: list[str] = []
+    rich_runs: list[RichTextRun] = []
+    has_any_styling = False
+
+    for r_el in runs:
+        t_el = _find_child(r_el, "t")
+        run_text = _unescape_xml_text(t_el.text or "") if t_el is not None else ""
+        parts.append(run_text)
+
+        rpr_el = _find_child(r_el, "rPr")
+        props = _parse_rpr(rpr_el)
+        if props:
+            has_any_styling = True
+
+        rich_runs.append(
+            RichTextRun(
+                text=run_text,
+                font_family=props.get("font_family"),
+                font_size=props.get("font_size"),
+                bold=props.get("bold"),
+                italic=props.get("italic"),
+                underline=props.get("underline"),
+                underline_style=props.get("underline_style"),
+                strike=props.get("strike"),
+                fg_color=props.get("fg_color"),
+                vert_align=props.get("vert_align"),
+            )
+        )
+
+    full_text = "".join(parts)
+    return full_text, rich_runs if (rich_runs and has_any_styling) else None
+
+
 def _parse_shared_strings(zip_file: zipfile.ZipFile, sst_path: str) -> list[str]:
     """Parse xl/sharedStrings.xml into a list of strings."""
     sst: list[str] = []
@@ -185,22 +294,11 @@ def _parse_shared_strings(zip_file: zipfile.ZipFile, sst_path: str) -> list[str]
         return sst
 
     for si in _find_children(root, "si"):
-        t_el = _find_child(si, "t")
-        if t_el is not None:
-            sst.append(_unescape_xml_text(t_el.text or ""))
-            continue
-
-        # Check for rich text runs <r><t>...</t></r>
-        runs = _find_children(si, "r")
+        text, runs = _parse_rich_runs(si)
+        s = SharedString(text)
         if runs:
-            parts = []
-            for r in runs:
-                rt = _find_child(r, "t")
-                if rt is not None and rt.text:
-                    parts.append(_unescape_xml_text(rt.text))
-            sst.append("".join(parts))
-        else:
-            sst.append("")
+            s.rich_runs = runs
+        sst.append(s)
 
     return sst
 
@@ -669,24 +767,28 @@ def _parse_worksheet(
 
                 # Parse value
                 val_str: str | None = None
+                cell_rich_runs: list[RichTextRun] | None = None
                 if cell_type == "inlineStr":
                     is_el = _find_child(c_el, "is")
                     if is_el is not None:
-                        t_el = _find_child(is_el, "t")
-                        if t_el is not None:
-                            val_str = t_el.text
+                        val_str, cell_rich_runs = _parse_rich_runs(is_el)
+                        parsed_value = val_str
+                    else:
+                        parsed_value = ""
                 else:
                     v_el = _find_child(c_el, "v")
                     if v_el is not None:
                         val_str = v_el.text
 
-                parsed_value = _parse_cell_value(val_str, cell_type, sst)
+                    parsed_value = _parse_cell_value(val_str, cell_type, sst)
+                    if cell_type == "s" and isinstance(parsed_value, SharedString) and parsed_value.rich_runs:
+                        cell_rich_runs = parsed_value.rich_runs
 
                 # Skip completely empty cells without formula or style
                 if parsed_value is None and formula_str is None and not style_idx_str:
                     continue
 
-                cell = CellData(value=parsed_value, formula=formula_str)
+                cell = CellData(value=parsed_value, formula=formula_str, rich_runs=cell_rich_runs)
 
                 # Apply style delta
                 if style_idx_str:

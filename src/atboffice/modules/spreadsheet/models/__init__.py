@@ -36,6 +36,7 @@ from atboffice.modules.spreadsheet.models.selection_model import (
 from atboffice.modules.spreadsheet.models.sheet_model import (
     CellComment,
     CellData,
+    RichTextRun,
     SheetDataModel,
     SheetGeometry,
 )
@@ -59,6 +60,7 @@ __all__ = [
     "CFVOType",
     "CellComment",
     "CellData",
+    "RichTextRun",
     "ColorScaleRule",
     "ConditionalFormat",
     "DataBarRule",
