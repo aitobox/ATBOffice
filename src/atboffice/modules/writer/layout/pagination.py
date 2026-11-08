@@ -26,14 +26,17 @@ from atboffice.modules.writer.layout.table_layout import (
     layout_table,
     split_table_for_page,
 )
+from atboffice.modules.writer.layout.wrap import FloatBox, resolve_float_box
 from atboffice.modules.writer.models.document import (
     BreakItem,
     Document,
+    NoteRefItem,
     Paragraph,
     Story,
     Table,
     sections,
 )
+from atboffice.modules.writer.models.drawing import WrapMode
 from atboffice.modules.writer.models.properties import (
     SectionProperties,
 )
@@ -161,6 +164,18 @@ class PageHeaderFooter:
 
 
 @dataclass
+class PageFootnoteArea:
+    """Footnote area located at the bottom of a page above the footer."""
+
+    y: float
+    height: float
+    separator_width: float = 144.0  # 2 inches = 144 points
+    separator_height: float = 14.0  # Standard height reservation for separator rule & gap
+    fragments: list[PageFragment] = field(default_factory=list)
+    note_ids: list[str] = field(default_factory=list)
+
+
+@dataclass
 class Page:
     """A complete physical page with dimensions, margins, and placed regions."""
 
@@ -180,6 +195,8 @@ class Page:
     header: PageHeaderFooter | None = None
     footer: PageHeaderFooter | None = None
     regions: list[PageRegion] = field(default_factory=list)
+    footnote_area: PageFootnoteArea | None = None
+    float_boxes: list[FloatBox] = field(default_factory=list)
     is_blank: bool = False
 
 
@@ -259,8 +276,7 @@ def _evaluate_hf_paragraph(
         isinstance(r, (FieldBeginItem, FieldEndItem, FieldSeparateItem)) for r in p.runs
     )
     has_tokens = any(
-        isinstance(r, TextItem) and r.text in ("PAGE", "NUMPAGES", "SECTIONPAGES")
-        for r in p.runs
+        isinstance(r, TextItem) and r.text in ("PAGE", "NUMPAGES", "SECTIONPAGES") for r in p.runs
     )
     if not has_fields and not has_tokens:
         return p
@@ -293,9 +309,7 @@ def _evaluate_hf_paragraph(
             start_repl = (fs_idx + 1) if fs_idx >= 0 else (fb_idx + 1)
             end_repl = i
 
-            runs_copy[start_repl:end_repl] = [
-                TextItem(text=eval_res, r_pr=fb_item.r_pr)
-            ]
+            runs_copy[start_repl:end_repl] = [TextItem(text=eval_res, r_pr=fb_item.r_pr)]
             i = start_repl + 1
             fb_idx = -1
             fs_idx = -1
@@ -428,8 +442,7 @@ class _PaginationContext:
             or self.doc.settings.get("evenOdd", False)
         )
         mirror = bool(
-            self.doc.settings.get("mirror", False)
-            or self.doc.settings.get("mirrorMargins", False)
+            self.doc.settings.get("mirror", False) or self.doc.settings.get("mirrorMargins", False)
         ) and (self.page_number % 2 == 0)
         ml = sect.mr if mirror else sect.ml
         mr = sect.ml if mirror else sect.mr
@@ -665,13 +678,10 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
         else:
             prev_sect = ctx.sect_list[si - 1]["sect"]
             s_type = (
-                getattr(sect, "sect_type", None)
-                or getattr(sect, "type", "nextPage")
-                or "nextPage"
+                getattr(sect, "sect_type", None) or getattr(sect, "type", "nextPage") or "nextPage"
             )
             same_geom = (
-                abs(sect.pg_w - prev_sect.pg_w) < 1.0
-                and abs(sect.pg_h - prev_sect.pg_h) < 1.0
+                abs(sect.pg_w - prev_sect.pg_w) < 1.0 and abs(sect.pg_h - prev_sect.pg_h) < 1.0
             )
 
             is_valid_continuous = (
@@ -779,13 +789,95 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
 
                 col_w = col.width if col else ctx.current_page.body_width
                 is_top = (col.used_height == 0.0) if col else True
+
+                # Accumulate floating drawings anchored to this paragraph
+                for run_item in getattr(p_seg, "runs", []):
+                    float_pr = getattr(run_item, "float_pr", None)
+                    if float_pr is not None and getattr(float_pr, "wrap", None) not in (
+                        WrapMode.INLINE,
+                        "inline",
+                        None,
+                    ):
+                        cl = col.left if col else 0.0
+                        cw = col.width if col else ctx.current_page.body_width
+                        para_top_y = (col.used_height if col else 0.0) + sect.mt
+                        fb = resolve_float_box(
+                            item=run_item,
+                            page_dims=(sect.pg_w, sect.pg_h),
+                            margin_dims=(sect.ml, sect.mr, sect.mt, sect.mb),
+                            col_dims=(cl, cw),
+                            para_top=para_top_y,
+                        )
+                        if not any(
+                            existing.item is run_item for existing in ctx.current_page.float_boxes
+                        ):
+                            ctx.current_page.float_boxes.append(fb)
+
                 p_layout = layout_paragraph(
                     p=p_seg,
                     container_width=col_w,
                     section_props=sect,
                     doc=doc,
                     is_page_top=is_top,
+                    float_boxes=ctx.current_page.float_boxes,
+                    y_offset=(col.used_height if col else 0.0) + sect.mt,
+                    col_left=(col.left if col else 0.0) + sect.ml,
                 )
+
+                # Check if paragraph has footnote references and calculate needed space
+                fn_refs_in_p = [
+                    r
+                    for r in getattr(p_seg, "runs", [])
+                    if isinstance(r, NoteRefItem) and r.kind == "fn"
+                ]
+                if fn_refs_in_p and col and col.fragments:
+                    needed_fn_h = 0.0
+                    for fn_ref in fn_refs_in_p:
+                        fn_id = str(fn_ref.note_id)
+                        if fn_id in doc.fn:
+                            already_on_page = (
+                                ctx.current_page.footnote_area is not None
+                                and fn_id in ctx.current_page.footnote_area.note_ids
+                            )
+                            if not already_on_page:
+                                fn_story = doc.fn[fn_id]
+                                if (
+                                    ctx.current_page.footnote_area is None
+                                    or not ctx.current_page.footnote_area.fragments
+                                ):
+                                    needed_fn_h += 14.0
+                                for fn_b in getattr(fn_story, "blocks", []):
+                                    if isinstance(fn_b, Paragraph):
+                                        fn_pl = layout_paragraph(
+                                            p=fn_b,
+                                            container_width=ctx.current_page.body_width,
+                                            section_props=sect,
+                                            doc=doc,
+                                        )
+                                        needed_fn_h += (
+                                            fn_pl.height + fn_pl.space_before + fn_pl.space_after
+                                        )
+                                    elif isinstance(fn_b, str):
+                                        needed_fn_h += 14.0
+
+                    avail_h_now = col.height - col.used_height
+                    if (
+                        p_layout.height + p_layout.effective_space_before + needed_fn_h
+                        > avail_h_now
+                    ):
+                        ctx.advance_column_or_page(si, sect)
+                        col = ctx.current_column()
+                        is_top = True
+                        p_layout = layout_paragraph(
+                            p=p_seg,
+                            container_width=col.width if col else ctx.current_page.body_width,
+                            section_props=sect,
+                            doc=doc,
+                            is_page_top=is_top,
+                            float_boxes=ctx.current_page.float_boxes,
+                            y_offset=(col.used_height if col else 0.0) + sect.mt,
+                            col_left=(col.left if col else 0.0) + sect.ml,
+                        )
 
                 lines_to_place = list(p_layout.lines)
                 line_offset = 0
@@ -860,6 +952,71 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
                     )
                     col.fragments.append(frag)
                     col.used_height += frag_h + sp_before
+
+                    # Check if placed lines contain footnote references and commit them
+                    placed_fn_refs = [
+                        po.data
+                        for ln in placed_lines
+                        for po in ln.portions
+                        if isinstance(getattr(po, "data", None), NoteRefItem)
+                        and po.data.kind == "fn"
+                    ]
+                    for fn_item in placed_fn_refs:
+                        fn_id = str(fn_item.note_id)
+                        if fn_id in doc.fn:
+                            if ctx.current_page.footnote_area is None:
+                                ctx.current_page.footnote_area = PageFootnoteArea(
+                                    y=0.0,
+                                    height=0.0,
+                                    separator_width=144.0,
+                                )
+                            if fn_id not in ctx.current_page.footnote_area.note_ids:
+                                fn_story = doc.fn[fn_id]
+                                fn_cur_y = (
+                                    14.0
+                                    if not ctx.current_page.footnote_area.fragments
+                                    else ctx.current_page.footnote_area.height
+                                )
+                                fn_added_h = (
+                                    14.0 if not ctx.current_page.footnote_area.fragments else 0.0
+                                )
+                                for fn_b in getattr(fn_story, "blocks", []):
+                                    if isinstance(fn_b, Paragraph):
+                                        fn_pl = layout_paragraph(
+                                            p=fn_b,
+                                            container_width=ctx.current_page.body_width,
+                                            section_props=sect,
+                                            doc=doc,
+                                        )
+                                        fn_frag = PageFragment(
+                                            paragraph=fn_b,
+                                            line_start_idx=0,
+                                            line_end_idx=len(fn_pl.lines),
+                                            lines=fn_pl.lines,
+                                            top=fn_cur_y + fn_pl.space_before,
+                                            height=fn_pl.height,
+                                            space_before=fn_pl.space_before,
+                                            space_after=fn_pl.space_after,
+                                        )
+                                        ctx.current_page.footnote_area.fragments.append(fn_frag)
+                                        h_inc = (
+                                            fn_pl.height + fn_pl.space_before + fn_pl.space_after
+                                        )
+                                        fn_cur_y += h_inc
+                                        fn_added_h += h_inc
+                                ctx.current_page.footnote_area.note_ids.append(fn_id)
+                                ctx.current_page.footnote_area.height += fn_added_h
+                                ctx.current_page.footnote_area.y = (
+                                    sect.pg_h - sect.mb - ctx.current_page.footnote_area.height
+                                )
+                                if col:
+                                    col.height = max(
+                                        10.0,
+                                        sect.pg_h
+                                        - sect.mt
+                                        - sect.mb
+                                        - ctx.current_page.footnote_area.height,
+                                    )
 
                     # Manage keepWithNext
                     if p_pr.keep_next and k == len(lines_to_place):

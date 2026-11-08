@@ -21,9 +21,11 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from atboffice.modules.writer.layout.wrap import FloatBox, calculate_line_segments
 from atboffice.modules.writer.models.document import (
     BreakItem,
     Document,
+    NoteRefItem,
     Paragraph,
     SymbolItem,
     TabItem,
@@ -614,6 +616,37 @@ def decompose_paragraph_to_portions(
                 )
                 char_offset += 1
 
+        elif isinstance(item, NoteRefItem):
+            ref_str = item.custom_mark or str(item.note_id or "")
+            if not ref_str:
+                ref_str = "*"
+            fn_font_sz = max(6.0, round(font_sz * 0.65, 2))
+            w = measure_text_width(
+                ref_str, fn_font_sz, font_family, bold=bool(r_pr.b), italic=bool(r_pr.i)
+            )
+            ascent, descent = compute_font_metrics(
+                fn_font_sz, font_family, bold=bool(r_pr.b), italic=bool(r_pr.i)
+            )
+            shift = round(font_sz * 0.35, 2)
+            portions.append(
+                Portion(
+                    type=PortionType.TEXT,
+                    text=ref_str,
+                    width=w,
+                    ascent=ascent + shift,
+                    descent=0.0,
+                    font_size=fn_font_sz,
+                    font_family=font_family,
+                    bold=bool(r_pr.b),
+                    italic=bool(r_pr.i),
+                    counts_for_height=True,
+                    char_offset=char_offset,
+                    length=len(ref_str),
+                    data=item,
+                )
+            )
+            char_offset += len(ref_str)
+
         else:
             # Inline graphic, shape, or custom object
             float_pr = getattr(item, "float_pr", None)
@@ -729,6 +762,9 @@ def layout_paragraph(
     doc: Document | None = None,
     prev_paragraph: Paragraph | None = None,
     is_page_top: bool = False,
+    float_boxes: list[FloatBox] | None = None,
+    y_offset: float = 0.0,
+    col_left: float = 0.0,
 ) -> ParagraphLayout:
     """Layout a paragraph into lines with OpenOffice portions and Word typography rules."""
     d = doc or Document()
@@ -748,12 +784,7 @@ def layout_paragraph(
     current_portions: list[Portion] = []
     current_width = 0.0
     line_idx = 0
-
-    def target_available_width() -> float:
-        return first_line_available if line_idx == 0 else subsequent_line_available
-
-    def target_indent_left() -> float:
-        return ind_left + (ind_first if line_idx == 0 else 0.0)
+    cur_line_top = 0.0
 
     # Paragraph mark metrics for empty lines & picture minimum heights
     mark_r_pr = getattr(p, "mark", None) or getattr(p, "r_pr", None)
@@ -763,10 +794,59 @@ def layout_paragraph(
     mark_line_factor = get_line_factor(mark_font)
     mark_natural_height = mark_sz * mark_line_factor
 
+    def get_line_constraints() -> tuple[float, float]:
+        nonlocal cur_line_top
+        base_avail = first_line_available if line_idx == 0 else subsequent_line_available
+        base_indent = ind_left + (ind_first if line_idx == 0 else 0.0)
+
+        if not float_boxes:
+            return base_avail, base_indent
+
+        est_h = mark_natural_height or 14.0
+        for _ in range(10):
+            line_abs_y = y_offset + cur_line_top
+            segs = calculate_line_segments(
+                col_left=col_left,
+                col_right=col_left + container_width,
+                y=line_abs_y,
+                line_height=est_h,
+                float_boxes=float_boxes,
+            )
+            if not segs:
+                overlapping_bottoms = [
+                    (fb.y + fb.h + fb.dist.bottom) - y_offset
+                    for fb in float_boxes
+                    if fb.wrap_mode == WrapMode.TOP_BOTTOM
+                    and (
+                        line_abs_y + est_h > fb.y - fb.dist.top
+                        and line_abs_y < fb.y + fb.h + fb.dist.bottom
+                    )
+                ]
+                if overlapping_bottoms:
+                    cur_line_top = max(cur_line_top, max(overlapping_bottoms))
+                else:
+                    cur_line_top += est_h
+            else:
+                chosen_seg = max(segs, key=lambda s: s[1] - s[0])
+                seg_w = max(10.0, chosen_seg[1] - chosen_seg[0])
+                seg_indent = max(0.0, chosen_seg[0] - col_left)
+                avail_w = max(10.0, min(base_avail, seg_w))
+                indent_l = seg_indent + base_indent
+                return avail_w, indent_l
+
+        return base_avail, base_indent
+
+    def target_available_width() -> float:
+        w, _ = get_line_constraints()
+        return w
+
+    def target_indent_left() -> float:
+        _, ind = get_line_constraints()
+        return ind
+
     def finalize_line(is_last: bool, is_hard: bool) -> LayoutLine:
-        nonlocal line_idx
-        avail_w = target_available_width()
-        indent_l = target_indent_left()
+        nonlocal line_idx, cur_line_top
+        avail_w, indent_l = get_line_constraints()
 
         # Trim trailing blank portions from line width calculation
         trimmed_portions = list(current_portions)
@@ -841,14 +921,15 @@ def layout_paragraph(
             ascent=ascent,
             descent=descent,
             baseline=round(baseline, 4),
-            top=0.0,
-            bottom=round(height, 4),
+            top=round(cur_line_top, 4),
+            bottom=round(cur_line_top + height, 4),
             is_last_line=is_last,
             is_hard_break=is_hard,
             indent_left=indent_l,
             indent_right=ind_right,
             extra_space_per_blank=extra_per_blank,
         )
+        cur_line_top += height
         line_idx += 1
         return line
 
@@ -1001,14 +1082,10 @@ def layout_paragraph(
         lines.append(finalize_line(is_last=True, is_hard=False))
 
     # Calculate vertical positions of lines
-    cur_y = 0.0
     for line in lines:
-        line.top = cur_y
-        line.bottom = cur_y + line.height
         line.baseline = line.top + line.baseline
-        cur_y += line.height
 
-    total_height = cur_y
+    total_height = max((line.bottom for line in lines), default=0.0)
     total_width = max((line.width for line in lines), default=0.0)
 
     # Word Spacing Collapse
