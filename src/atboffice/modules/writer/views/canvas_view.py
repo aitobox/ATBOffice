@@ -39,6 +39,7 @@ from PySide6.QtWidgets import (
 from atboffice.modules.writer.layout.math_layout import paint_math
 from atboffice.modules.writer.layout.pagination import (
     Page,
+    PageHeaderFooter,
     PaginationResult,
     paginate_document,
 )
@@ -553,8 +554,108 @@ class WriterCanvasView(QAbstractScrollArea):
         painter.drawPath(path)
         painter.setPen(old_pen)
 
+    def _paint_header_footer(
+        self,
+        painter: QPainter,
+        page_rect: QRectF,
+        page: Page,
+        hf: PageHeaderFooter | None,
+        is_header: bool,
+    ) -> None:
+        """Render header or footer text and portions on screen canvas in subdued gray."""
+        if not hf or not hf.fragments:
+            return
+
+        hf_top = hf.y
+        for frag in hf.fragments:
+            for line in frag.lines:
+                line_y = hf_top + line.top
+                cur_x = page.body_left + line.indent_left
+                for po in line.portions:
+                    po_w = po.width
+                    if po.type == PortionType.TEXT and po.text:
+                        text_str = po.text
+                        if text_str == "PAGE":
+                            from atboffice.modules.writer.layout.pagination import format_number
+                            text_str = format_number(page.page_number, page.page_number_format)
+                        elif text_str == "NUMPAGES":
+                            total_pgs = (
+                                len(self.pagination.pages)
+                                if (self.pagination and self.pagination.pages)
+                                else (page.index + 1)
+                            )
+                            text_str = str(total_pgs)
+
+                        font_family = po.font_family or "Times New Roman"
+                        font_size_pt = po.font_size or 10.0
+                        font = QFont(font_family)
+                        font.setPointSizeF(font_size_pt * self._zoom)
+                        if getattr(po, "bold", False):
+                            font.setBold(True)
+                        if getattr(po, "italic", False):
+                            font.setItalic(True)
+                        painter.setFont(font)
+
+                        x_px = page_rect.left() + self.pt_to_px(cur_x)
+                        y_px = page_rect.top() + self.pt_to_px(line_y)
+                        baseline_px = y_px + self.pt_to_px(line.baseline)
+
+                        # Subdued gray for screen view (#666666)
+                        painter.setPen(QPen(QColor("#666666")))
+                        painter.drawText(QPointF(x_px, baseline_px), text_str)
+
+                        if getattr(po, "underline", False):
+                            pen_u = QPen(QColor("#666666"), 0.75 * self._zoom)
+                            painter.setPen(pen_u)
+                            painter.drawLine(
+                                QPointF(x_px, baseline_px + 1.5 * self._zoom),
+                                QPointF(x_px + self.pt_to_px(po_w), baseline_px + 1.5 * self._zoom),
+                            )
+                        if getattr(po, "strikethrough", False):
+                            pen_s = QPen(QColor("#666666"), 0.75 * self._zoom)
+                            painter.setPen(pen_s)
+                            mid_y = baseline_px - (font_size_pt * self._zoom) * 0.3
+                            painter.drawLine(
+                                QPointF(x_px, mid_y),
+                                QPointF(x_px + self.pt_to_px(po_w), mid_y),
+                            )
+
+                    elif po.type == PortionType.TAB and po_w > 0:
+                        tab_data = getattr(po, "data", None)
+                        leader = getattr(tab_data, "leader", "none") if tab_data else "none"
+                        if leader and leader != "none":
+                            x_px = page_rect.left() + self.pt_to_px(cur_x)
+                            y_px = page_rect.top() + self.pt_to_px(line_y)
+                            baseline_px = y_px + self.pt_to_px(line.baseline)
+                            w_px = self.pt_to_px(po_w)
+                            p1 = QPointF(x_px, baseline_px)
+                            p2 = QPointF(x_px + w_px, baseline_px)
+                            pen_style = Qt.PenStyle.SolidLine
+                            if leader == "dot":
+                                pen_style = Qt.PenStyle.DotLine
+                            elif leader == "hyphen":
+                                pen_style = Qt.PenStyle.DashLine
+                            elif leader == "underscore":
+                                p1 = QPointF(x_px, baseline_px + 1.5 * self._zoom)
+                                p2 = QPointF(x_px + w_px, baseline_px + 1.5 * self._zoom)
+                            painter.setPen(QPen(QColor("#666666"), 0.75 * self._zoom, pen_style))
+                            painter.drawLine(p1, p2)
+
+                    elif po.type == PortionType.GRAPHIC and isinstance(po.data, OfficeMathItem):
+                        x_px = page_rect.left() + self.pt_to_px(cur_x)
+                        y_px = page_rect.top() + self.pt_to_px(line_y)
+                        baseline_px = y_px + self.pt_to_px(line.baseline)
+                        paint_math(painter, po.data, x_px, baseline_px, self._zoom)
+
+                    cur_x += po_w
+
     def _paint_page_content(self, painter: QPainter, page_rect: QRectF, page: Page) -> None:
         """Render lines, formatted portions, and table structures on a single page."""
+        # 1. Render Header if present
+        if page.header:
+            self._paint_header_footer(painter, page_rect, page, page.header, is_header=True)
+
+        # 2. Render Page Regions and Paragraphs/Tables
         for reg in page.regions:
             for col in reg.columns:
                 for frag in col.fragments:
@@ -774,6 +875,10 @@ class WriterCanvasView(QAbstractScrollArea):
 
                             cur_x += po_w
 
+        # 3. Render Footer if present
+        if page.footer:
+            self._paint_header_footer(painter, page_rect, page, page.footer, is_header=False)
+
     def render_page_to_painter(
         self,
         painter: QPainter,
@@ -813,11 +918,22 @@ class WriterCanvasView(QAbstractScrollArea):
                     for po in line.portions:
                         po_w = po.width
                         if po.type == PortionType.TEXT and po.text:
+                            text_str = po.text
+                            if text_str == "PAGE":
+                                from atboffice.modules.writer.layout.pagination import format_number
+                                text_str = format_number(page.page_number, page.page_number_format)
+                            elif text_str == "NUMPAGES":
+                                total_pgs = (
+                                    len(self.pagination.pages)
+                                    if (self.pagination and self.pagination.pages)
+                                    else (page.index + 1)
+                                )
+                                text_str = str(total_pgs)
                             font, pen = _setup_font_and_pen(po, 10.0, "#666666")
                             painter.setFont(font)
                             painter.setPen(pen)
                             baseline = line_y + line.baseline
-                            painter.drawText(QPointF(cur_x, baseline), po.text)
+                            painter.drawText(QPointF(cur_x, baseline), text_str)
                         elif po.type == PortionType.GRAPHIC and isinstance(po.data, OfficeMathItem):
                             paint_math(painter, po.data, cur_x, line_y + line.baseline, 1.0)
                         cur_x += po_w
@@ -952,11 +1068,22 @@ class WriterCanvasView(QAbstractScrollArea):
                     for po in line.portions:
                         po_w = po.width
                         if po.type == PortionType.TEXT and po.text:
+                            text_str = po.text
+                            if text_str == "PAGE":
+                                from atboffice.modules.writer.layout.pagination import format_number
+                                text_str = format_number(page.page_number, page.page_number_format)
+                            elif text_str == "NUMPAGES":
+                                total_pgs = (
+                                    len(self.pagination.pages)
+                                    if (self.pagination and self.pagination.pages)
+                                    else (page.index + 1)
+                                )
+                                text_str = str(total_pgs)
                             font, pen = _setup_font_and_pen(po, 10.0, "#666666")
                             painter.setFont(font)
                             painter.setPen(pen)
                             baseline = line_y + line.baseline
-                            painter.drawText(QPointF(cur_x, baseline), po.text)
+                            painter.drawText(QPointF(cur_x, baseline), text_str)
                         elif po.type == PortionType.GRAPHIC and isinstance(po.data, OfficeMathItem):
                             paint_math(painter, po.data, cur_x, line_y + line.baseline, 1.0)
                         cur_x += po_w
