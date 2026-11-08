@@ -43,9 +43,14 @@ class BaseOfficeWindow(QMainWindow):
         self.current_file_path: Path | None = None
         self.active_template: Any | None = None
         self._is_modified: bool = False
+        self._in_close_event: bool = False
+        self._is_closed: bool = False
         self.current_theme: str = "blue"
         self.task_pane_dock: Any | None = None
         self._document_metadata: Any | None = None
+        from atboffice.core.recovery_service import RecoveryService
+
+        self.recovery_service: RecoveryService = RecoveryService(self)
         if not hasattr(self, "app_name"):
             self.app_name: str = "ATBOffice"
         if not hasattr(self, "app_type"):
@@ -739,25 +744,78 @@ class BaseOfficeWindow(QMainWindow):
         if cw and hasattr(cw, "render_to_printer"):
             cw.render_to_printer(printer)
 
+    def cleanup_resources(self) -> None:
+        """Explicitly disconnect model/window signals and stop pending QTimer instances.
+
+        Called during window closing and prior to widget destruction to prevent
+        dangling references, deferred event loops from dispatching into dead widgets,
+        or background threads from lingering.
+        """
+        # 1. Stop recovery service autosave timer & background threads cleanly
+        if hasattr(self, "recovery_service") and self.recovery_service is not None:
+            try:
+                self.recovery_service.cleanup()
+            except Exception as exc:
+                logger.debug("Error cleaning up recovery service: %s", exc)
+
+        # 2. Stop all descendant QTimer instances in the window hierarchy
+        from PySide6.QtCore import QTimer
+
+        for timer in self.findChildren(QTimer):
+            try:
+                if timer.isActive():
+                    timer.stop()
+            except (RuntimeError, Exception):
+                pass
+
+        # 3. Cancel any in-progress view gestures or edits
+        cw = self.centralWidget()
+        if cw is not None:
+            grid = getattr(cw, "grid", None)
+            if grid is not None and hasattr(grid, "cancel_drag"):
+                try:
+                    grid.cancel_drag(why="api")
+                except Exception:
+                    pass
+            ec = getattr(cw, "editor_controller", None)
+            if ec is not None and hasattr(ec, "cancel_editing"):
+                try:
+                    ec.cancel_editing()
+                except Exception:
+                    pass
+            cleanup_hook = getattr(cw, "cleanup", None) or getattr(cw, "cleanup_resources", None)
+            if callable(cleanup_hook):
+                try:
+                    cleanup_hook()
+                except Exception:
+                    pass
+
+        # 4. Disconnect locale change listener
+        try:
+            get_i18n_manager().locale_changed.disconnect(self._on_locale_changed)
+        except Exception:
+            pass
+
     def closeEvent(self, event: QCloseEvent) -> None:
         """Intercept window close to prompt for unsaved changes and emit signal."""
+        if getattr(self, "_is_closed", False):
+            event.accept()
+            return
         if getattr(self, "_in_close_event", False):
             event.accept()
             return
+
         self._in_close_event = True
         try:
             if self.maybe_save_prompt():
+                self._is_closed = True
                 from atboffice.core.diagnostics import record_action
 
                 record_action("window_close_accepted", "base_window", {"app_name": self.app_name})
-                cw = self.centralWidget()
-                if cw is not None:
-                    grid = getattr(cw, "grid", None)
-                    if grid is not None and hasattr(grid, "cancel_drag"):
-                        grid.cancel_drag(why="api")
-                    ec = getattr(cw, "editor_controller", None)
-                    if ec is not None and hasattr(ec, "cancel_editing"):
-                        ec.cancel_editing()
+
+                # Perform thorough resource and timer cleanup BEFORE draining event loop
+                self.cleanup_resources()
+
                 event.accept()
                 self.window_closed.emit(self)
                 try:
