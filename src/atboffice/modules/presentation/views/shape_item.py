@@ -453,9 +453,26 @@ class ShapeGraphicsItem(QGraphicsObject):
         avail_h = max(10.0, h - ins_t - ins_b)
         text_rect = QRectF(ins_l, ins_t, avail_w, avail_h)
 
+        scene = self.scene()
+        slide_idx = 0
+        pres = None
+        if scene:
+            pres = getattr(scene, "presentation", None)
+            slide = getattr(scene, "slide", None)
+            if pres and slide and hasattr(pres, "slides") and slide in pres.slides:
+                try:
+                    slide_idx = pres.slides.index(slide)
+                except ValueError:
+                    slide_idx = 0
+
         from atboffice.modules.presentation.views.text_editor import ShapeTextEditorItem
         ShapeTextEditorItem.render_static_text(
-            painter, text_body, text_rect, self._resolve_color
+            painter,
+            text_body,
+            text_rect,
+            self._resolve_color,
+            slide_index=slide_idx,
+            presentation=pres,
         )
 
     def retranslate_ui(self) -> None:
