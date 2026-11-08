@@ -235,6 +235,85 @@ def get_hf_story(
     return None
 
 
+def _evaluate_hf_paragraph(
+    p: Paragraph,
+    doc: Document,
+    page_number: int,
+    total_pages: int,
+    page_number_format: str = "decimal",
+    section_index: int = 0,
+    section_pages: int = 1,
+) -> Paragraph:
+    """Clone and evaluate dynamic fields for a header/footer paragraph on the active page."""
+    import copy
+    from atboffice.modules.writer.models.document import (
+        FieldBeginItem,
+        FieldEndItem,
+        FieldSeparateItem,
+        TextItem,
+    )
+    from atboffice.modules.writer.models.field import FieldContext, evaluate_field
+
+    has_fields = any(
+        isinstance(r, (FieldBeginItem, FieldEndItem, FieldSeparateItem)) for r in p.runs
+    )
+    has_tokens = any(
+        isinstance(r, TextItem) and r.text in ("PAGE", "NUMPAGES", "SECTIONPAGES")
+        for r in p.runs
+    )
+    if not has_fields and not has_tokens:
+        return p
+
+    ctx = FieldContext(
+        page_number=page_number,
+        total_pages=total_pages,
+        section_index=section_index,
+        section_pages=section_pages,
+        page_number_format=page_number_format,
+    )
+
+    p_clone = copy.copy(p)
+    runs_copy = copy.deepcopy(p.runs)
+    fb_idx = -1
+    fs_idx = -1
+    i = 0
+    while i < len(runs_copy):
+        it = runs_copy[i]
+        if isinstance(it, FieldBeginItem):
+            fb_idx = i
+            fs_idx = -1
+        elif isinstance(it, FieldSeparateItem) and fb_idx >= 0:
+            fs_idx = i
+        elif isinstance(it, FieldEndItem) and fb_idx >= 0:
+            fb_item = runs_copy[fb_idx]
+            instr = fb_item.instr or fb_item.field_type or ""
+            eval_res = evaluate_field(instr, doc, ctx)
+
+            start_repl = (fs_idx + 1) if fs_idx >= 0 else (fb_idx + 1)
+            end_repl = i
+
+            runs_copy[start_repl:end_repl] = [
+                TextItem(text=eval_res, r_pr=fb_item.r_pr)
+            ]
+            i = start_repl + 1
+            fb_idx = -1
+            fs_idx = -1
+        elif isinstance(it, TextItem) and fb_idx < 0:
+            if it.text == "PAGE":
+                eval_res = evaluate_field("PAGE", doc, ctx)
+                runs_copy[i] = TextItem(text=eval_res, r_pr=it.r_pr)
+            elif it.text == "NUMPAGES":
+                eval_res = evaluate_field("NUMPAGES", doc, ctx)
+                runs_copy[i] = TextItem(text=eval_res, r_pr=it.r_pr)
+            elif it.text == "SECTIONPAGES":
+                eval_res = evaluate_field("SECTIONPAGES", doc, ctx)
+                runs_copy[i] = TextItem(text=eval_res, r_pr=it.r_pr)
+        i += 1
+
+    p_clone.runs = runs_copy
+    return p_clone
+
+
 def layout_hf_story(
     doc: Document,
     story: Story | None,
@@ -242,6 +321,11 @@ def layout_hf_story(
     body_width: float,
     kind: str,
     y: float,
+    page_number: int = 1,
+    total_pages: int = 1,
+    page_number_format: str = "decimal",
+    section_index: int = 0,
+    section_pages: int = 1,
 ) -> PageHeaderFooter:
     """Layout header or footer story and return PageHeaderFooter with computed height."""
     if not story or not story.blocks:
@@ -251,8 +335,17 @@ def layout_hf_story(
     cur_y = 0.0
     for block in story.blocks:
         if isinstance(block, Paragraph):
+            p_eval = _evaluate_hf_paragraph(
+                block,
+                doc,
+                page_number=page_number,
+                total_pages=total_pages,
+                page_number_format=page_number_format,
+                section_index=section_index,
+                section_pages=section_pages,
+            )
             p_layout = layout_paragraph(
-                p=block,
+                p=p_eval,
                 container_width=body_width,
                 section_props=sect,
                 doc=doc,
@@ -271,10 +364,16 @@ def layout_hf_story(
             fragments.append(frag)
             cur_y += h
 
+    actual_y = y
+    if kind == "footer":
+        actual_y = max(0.0, sect.pg_h - sect.ftr - cur_y)
+    elif kind == "header":
+        actual_y = sect.hdr
+
     return PageHeaderFooter(
         kind=kind,
         story=story,
-        y=y,
+        y=actual_y,
         width=body_width,
         height=cur_y,
         fragments=fragments,
@@ -323,8 +422,14 @@ class _PaginationContext:
         is_blank: bool = False,
     ) -> Page:
         pg_idx = len(self.pages)
-        even_odd = bool(self.doc.settings.get("evenOdd", False))
-        mirror = bool(self.doc.settings.get("mirror", False)) and (self.page_number % 2 == 0)
+        even_odd = bool(
+            self.doc.settings.get("evenAndOddHeaders", False)
+            or self.doc.settings.get("evenOdd", False)
+        )
+        mirror = bool(
+            self.doc.settings.get("mirror", False)
+            or self.doc.settings.get("mirrorMargins", False)
+        ) and (self.page_number % 2 == 0)
         ml = sect.mr if mirror else sect.ml
         mr = sect.ml if mirror else sect.mr
         ml += 0.0 if mirror else sect.gutter
@@ -339,9 +444,46 @@ class _PaginationContext:
         hdr_story = get_hf_story(self.sect_list, sect_idx, "hdr", page_type, self.doc.hf)
         ftr_story = get_hf_story(self.sect_list, sect_idx, "ftr", page_type, self.doc.hf)
 
-        hdr_layout = layout_hf_story(self.doc, hdr_story, sect, body_w, "header", sect.hdr)
+        total_pgs = (
+            self.doc._last_pagination.total_pages
+            if hasattr(self.doc, "_last_pagination") and self.doc._last_pagination
+            else max(1, len(self.pages) + 1)
+        )
+        sec_pages = (
+            self.doc._last_pagination.section_pages[sect_idx]
+            if hasattr(self.doc, "_last_pagination")
+            and self.doc._last_pagination
+            and sect_idx < len(self.doc._last_pagination.section_pages)
+            else 1
+        )
+
+        hdr_layout = layout_hf_story(
+            self.doc,
+            hdr_story,
+            sect,
+            body_w,
+            "header",
+            sect.hdr,
+            page_number=self.page_number,
+            total_pages=total_pgs,
+            page_number_format=pg_fmt,
+            section_index=sect_idx,
+            section_pages=sec_pages,
+        )
         ftr_y = max(0.0, sect.pg_h - sect.ftr)
-        ftr_layout = layout_hf_story(self.doc, ftr_story, sect, body_w, "footer", ftr_y)
+        ftr_layout = layout_hf_story(
+            self.doc,
+            ftr_story,
+            sect,
+            body_w,
+            "footer",
+            ftr_y,
+            page_number=self.page_number,
+            total_pages=total_pgs,
+            page_number_format=pg_fmt,
+            section_index=sect_idx,
+            section_pages=sec_pages,
+        )
 
         top = sect.mt
         bottom_gap = sect.mb
@@ -777,8 +919,9 @@ def paginate_document(doc: Document, max_passes: int = 2) -> PaginationResult:
     # Evaluate dynamic fields with Pass 1 geometry
     changed = update_fields(doc, res)
 
-    # Pass 2: Repaginate if field expansions occurred to stabilize page counts
-    if changed and max_passes > 1:
+    # Pass 2: Repaginate if field expansions occurred or if multi-page to stabilize header/footer page numbers
+    has_hf = bool(doc.hf)
+    if (changed or (has_hf and res.total_pages > 1)) and max_passes > 1:
         res2 = _execute_single_pagination_pass(doc)
         doc._last_pagination = res2  # type: ignore[attr-defined]
         update_fields(doc, res2)
