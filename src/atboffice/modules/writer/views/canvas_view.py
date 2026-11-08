@@ -570,9 +570,10 @@ class WriterCanvasView(QAbstractScrollArea):
         # 1. Check raw_data dict
         raw = getattr(pic, "raw_data", None)
         if isinstance(raw, dict):
-            if "pixmap" in raw and isinstance(raw["pixmap"], QPixmap) and not raw["pixmap"].isNull():
-                self._pixmap_cache[cache_key] = raw["pixmap"]
-                return raw["pixmap"]
+            if "pixmap" in raw and isinstance(raw["pixmap"], QPixmap):
+                if not raw["pixmap"].isNull():
+                    self._pixmap_cache[cache_key] = raw["pixmap"]
+                    return raw["pixmap"]
             if "image" in raw and isinstance(raw["image"], QImage) and not raw["image"].isNull():
                 pm = QPixmap.fromImage(raw["image"])
                 self._pixmap_cache[cache_key] = pm
@@ -648,11 +649,16 @@ class WriterCanvasView(QAbstractScrollArea):
                         dpr = float(self.devicePixelRatioF())
                     except Exception:
                         dpr = 1.0
-                elif painter.device() is not None and hasattr(painter.device(), "devicePixelRatioF"):
+                elif (
+                    painter.device() is not None
+                    and hasattr(painter.device(), "devicePixelRatioF")
+                ):
                     try:
                         dpr = float(painter.device().devicePixelRatioF())
                     except Exception:
                         dpr = 1.0
+                if dpr > 1.0 and hasattr(pixmap, "setDevicePixelRatio"):
+                    pixmap.setDevicePixelRatio(dpr)
 
                 # Calculate source rect taking Crop into account
                 pw = float(pixmap.width())
@@ -950,7 +956,11 @@ class WriterCanvasView(QAbstractScrollArea):
                                                 baseline_px = y_px + self.pt_to_px(line.baseline)
                                                 if isinstance(po.data, OfficeMathItem):
                                                     paint_math(
-                                                        painter, po.data, x_px, baseline_px, self._zoom
+                                                        painter,
+                                                        po.data,
+                                                        x_px,
+                                                        baseline_px,
+                                                        self._zoom,
                                                     )
                                                 elif isinstance(po.data, PictureItem) or getattr(
                                                     po.data, "t", ""
@@ -1134,8 +1144,12 @@ class WriterCanvasView(QAbstractScrollArea):
                             elif isinstance(po.data, PictureItem) or getattr(
                                 po.data, "t", ""
                             ) in ("picture", "img"):
-                                dest_rect = QRectF(cur_x, baseline - po.ascent, po.width, po.ascent)
-                                self._paint_picture(painter, po.data, dest_rect, 1.0, is_vector=True)
+                                dest_rect = QRectF(
+                                    cur_x, baseline - po.ascent, po.width, po.ascent
+                                )
+                                self._paint_picture(
+                                    painter, po.data, dest_rect, 1.0, is_vector=True
+                                )
                         cur_x += po_w
 
         # 2. Render Page Regions and Paragraphs/Tables
@@ -1200,7 +1214,11 @@ class WriterCanvasView(QAbstractScrollArea):
                                                         po.ascent,
                                                     )
                                                     self._paint_picture(
-                                                        painter, po.data, dest_rect, 1.0, is_vector=True
+                                                        painter,
+                                                        po.data,
+                                                        dest_rect,
+                                                        1.0,
+                                                        is_vector=True,
                                                     )
                                             cur_x += po_w
                         continue
@@ -1315,8 +1333,12 @@ class WriterCanvasView(QAbstractScrollArea):
                             elif isinstance(po.data, PictureItem) or getattr(
                                 po.data, "t", ""
                             ) in ("picture", "img"):
-                                dest_rect = QRectF(cur_x, baseline - po.ascent, po.width, po.ascent)
-                                self._paint_picture(painter, po.data, dest_rect, 1.0, is_vector=True)
+                                dest_rect = QRectF(
+                                    cur_x, baseline - po.ascent, po.width, po.ascent
+                                )
+                                self._paint_picture(
+                                    painter, po.data, dest_rect, 1.0, is_vector=True
+                                )
                         cur_x += po_w
 
     def _paint_selection(

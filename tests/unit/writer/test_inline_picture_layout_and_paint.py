@@ -1,12 +1,11 @@
-"""Unit tests for inline picture flow layout, line height/baseline measurement, and canvas painting (Issue #310)."""
+"""Unit tests for inline picture flow layout and canvas painting (Issue #310)."""
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication
 
-from atboffice.modules.writer.layout.pagination import paginate_document
 from atboffice.modules.writer.layout.portions import (
     PortionType,
     decompose_paragraph_to_portions,
@@ -36,7 +35,12 @@ class RecordingPixmapPainter(QPainter):
         self.drawn_texts: list[tuple[QRectF, str]] = []
 
     def drawPixmap(self, *args) -> None:  # type: ignore[override]
-        if len(args) >= 3 and isinstance(args[0], QRectF) and isinstance(args[1], QPixmap) and isinstance(args[2], QRectF):
+        if (
+            len(args) >= 3
+            and isinstance(args[0], QRectF)
+            and isinstance(args[1], QPixmap)
+            and isinstance(args[2], QRectF)
+        ):
             self.drawn_pixmaps.append((args[0], args[1], args[2]))
         super().drawPixmap(*args)
 
@@ -47,7 +51,7 @@ class RecordingPixmapPainter(QPainter):
 
 
 def test_decompose_inline_picture_to_portion() -> None:
-    """Verify decompose_paragraph_to_portions creates PortionType.GRAPHIC with correct dimensions."""
+    """Verify decompose creates PortionType.GRAPHIC with correct dimensions."""
     pic = PictureItem(width=120.0, height=80.0, image_part="word/media/image1.png")
     p = Paragraph(runs=[TextItem(text="Lead text "), pic, TextItem(text=" tail text")])
 
@@ -117,7 +121,7 @@ def test_picture_and_text_baseline_alignment() -> None:
 
 
 def test_inline_picture_line_wrapping() -> None:
-    """Verify horizontal advance and line wrap when multiple inline pictures exceed container width."""
+    """Verify line wrap when multiple inline pictures exceed container width."""
     pic1 = PictureItem(width=250.0, height=60.0)
     pic2 = PictureItem(width=250.0, height=70.0)
     p = Paragraph(runs=[pic1, pic2])
@@ -203,7 +207,9 @@ def test_canvas_paint_picture_with_crop_and_rotation(qapp: QApplication) -> None
 def test_canvas_paint_missing_picture_fallback(qapp: QApplication) -> None:
     """Verify missing picture does not crash and renders graceful placeholder."""
     doc = Document()
-    pic = PictureItem(width=60.0, height=40.0, image_part="missing.png", alt_text="Sample Missing Image")
+    pic = PictureItem(
+        width=60.0, height=40.0, image_part="missing.png", alt_text="Sample Missing Image"
+    )
     doc.main.blocks = [Paragraph(runs=[pic])]
     reindex(doc)
 
