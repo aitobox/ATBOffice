@@ -291,6 +291,8 @@ def test_presenter_console_dual_screen_sync(qapp, sample_presentation):
 
     # Slide navigation sync
     console.next_slide()
+    if audience.in_transition:
+        audience.finish_transition_now()
     assert audience.current_slide_index == 1
 
     audience.next_slide()

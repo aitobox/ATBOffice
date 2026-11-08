@@ -6,7 +6,7 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QObject, QPointF, QRectF, Qt, QTimeLine, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -856,3 +856,87 @@ def render_transition_frame(
     painter.setOpacity(p)
     painter.drawImage(QRectF(0, 0, w, h), img_to)
     painter.setOpacity(1.0)
+
+
+# ==============================================================================
+# 60 FPS Slide Transition Player
+# ==============================================================================
+
+
+class SlideTransitionPlayer(QObject):
+    """Smooth 60 FPS frame animation player for slide transitions using QTimeLine."""
+
+    frameChanged = Signal(float)  # Emits progress [0.0 .. 1.0]
+    finished = Signal()
+
+    def __init__(self, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self._timeline = QTimeLine(500, self)
+        self._timeline.setUpdateInterval(16)  # ~60 FPS
+        self._timeline.valueChanged.connect(self._on_timeline_value)
+        self._timeline.finished.connect(self._on_timeline_finished)
+        self._active_transition: Transition | None = None
+        self._progress: float = 0.0
+
+    @property
+    def is_playing(self) -> bool:
+        return self._timeline.state() == QTimeLine.State.Running
+
+    @property
+    def progress(self) -> float:
+        return self._progress
+
+    @property
+    def active_transition(self) -> Transition | None:
+        return self._active_transition
+
+    def play(self, trans: Transition | None, duration_ms: int | None = None) -> None:
+        """Start playing slide transition with 60 FPS interpolation."""
+        self.stop()
+        self._active_transition = trans
+        self._progress = 0.0
+        dur = duration_ms if duration_ms is not None else get_transition_duration(trans)
+        if not trans or trans.type == "none" or dur <= 0:
+            self._progress = 1.0
+            self.frameChanged.emit(1.0)
+            self.finished.emit()
+            return
+
+        self._timeline.setDuration(max(1, dur))
+        self._timeline.start()
+
+    def finish_now(self) -> None:
+        """Instantly skip active transition to completion."""
+        if not self.is_playing:
+            return
+        self._timeline.stop()
+        self._progress = 1.0
+        self.frameChanged.emit(1.0)
+        self.finished.emit()
+
+    def stop(self) -> None:
+        """Stop transition immediately without triggering finished signal."""
+        if self._timeline.state() == QTimeLine.State.Running:
+            self._timeline.stop()
+
+    def _on_timeline_value(self, val: float) -> None:
+        self._progress = max(0.0, min(1.0, val))
+        self.frameChanged.emit(self._progress)
+
+    def _on_timeline_finished(self) -> None:
+        self._progress = 1.0
+        self.finished.emit()
+
+
+__all__ = [
+    "TRANSITION_CATALOGUE",
+    "SlideTransitionPlayer",
+    "TransitionEffect",
+    "get_transition_duration",
+    "get_transition_name",
+    "list_transitions",
+    "render_slide_to_image",
+    "render_transition_frame",
+    "safe_tr",
+]
+
