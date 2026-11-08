@@ -201,7 +201,8 @@ def relayout(group_shape: Shape, design: Any = None) -> None:
 
         cxn_start = None
         cxn_end = None
-        shape_type = "line" if role == "conn" or geom in ("line", "path", "straightConnector1") else "shape"
+        is_line_geom = geom in ("line", "path", "straightConnector1")
+        shape_type = "line" if role == "conn" or is_line_geom else "shape"
         if role == "conn":
             p_id = s.get("parentId")
             c_id = s.get("itemId")

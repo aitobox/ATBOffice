@@ -255,7 +255,12 @@ def shape_to_xml(
             return picture_to_xml(shape, shape_id, embed_rid, design=design)
 
     # 4.1 Connectors (<p:cxnSp>)
-    if shape.is_connector and (shape.cxn_start or shape.cxn_end or shape.geom.startswith("straightConnector") or "bentConnector" in shape.geom or "curvedConnector" in shape.geom):
+    is_named_conn = (
+        shape.geom.startswith("straightConnector")
+        or "bentConnector" in shape.geom
+        or "curvedConnector" in shape.geom
+    )
+    if shape.is_connector and (shape.cxn_start or shape.cxn_end or is_named_conn):
         c_nv_pr = non_visual_properties_to_xml(shape_id, shape)
         cxn_tags = []
         if shape.cxn_start:

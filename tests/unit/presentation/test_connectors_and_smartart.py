@@ -8,21 +8,17 @@ from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.presentation.io.pptx_reader import PptxReader
 from atboffice.modules.presentation.io.writer_shapes import shape_to_xml
-from atboffice.modules.presentation.models.shape import Line, Shape
-from atboffice.modules.presentation.models.slide import Slide
+from atboffice.modules.presentation.models.shape import Shape
 from atboffice.modules.presentation.smartart.engine import (
-    SmartArtEngine,
     SmartArtItem,
     relayout,
     to_shapes,
 )
 from atboffice.modules.presentation.smartart.layouts.hierarchy_layouts import (
-    make_hierarchy,
     make_org_chart,
 )
 from atboffice.modules.presentation.smartart.layouts.process_layouts import (
     make_chevron,
-    make_process,
 )
 from atboffice.modules.presentation.views.geometry_helper import (
     calculate_connector_route,
@@ -191,21 +187,33 @@ class TestMagneticSnappingAndDynamicRecalculation:
         scene = SlideScene(slide_width=800.0, slide_height=600.0)
         # Target shape at (200, 200, 100, 60)
         # Site 3 (left center) is at (200, 230)
-        target = Shape(id="target_1", type="shape", geom="rect", x=200.0, y=200.0, w=100.0, h=60.0)
+        target = Shape(
+            id="target_1", type="shape", geom="rect", x=200.0, y=200.0, w=100.0, h=60.0
+        )
         scene.slide.shapes.append(target)
         target_item = ShapeGraphicsItem(target)
         scene.addItem(target_item)
         scene._items_by_id[target.id] = target_item
 
         # Connector at (50, 50, 80, 80)
-        conn = Shape(id="conn_1", type="line", geom="straightConnector1", x=50.0, y=50.0, w=80.0, h=80.0)
+        conn = Shape(
+            id="conn_1",
+            type="line",
+            geom="straightConnector1",
+            x=50.0,
+            y=50.0,
+            w=80.0,
+            h=80.0,
+        )
         scene.slide.shapes.append(conn)
         conn_item = ShapeGraphicsItem(conn)
         scene.addItem(conn_item)
         scene._items_by_id[conn.id] = conn_item
 
         # Drag end handle to (195, 232) -> within 15px snap radius of site 3 (200, 230)
-        conn_item._do_drag_connector_endpoint(HandleType.END, QPointF(195.0, 232.0), Qt.KeyboardModifier.NoModifier)
+        conn_item._do_drag_connector_endpoint(
+            HandleType.END, QPointF(195.0, 232.0), Qt.KeyboardModifier.NoModifier
+        )
 
         # Snapped to exact connection site
         p2 = conn.adj.get("p2")
@@ -261,7 +269,8 @@ class TestMagneticSnappingAndDynamicRecalculation:
         # Trigger automatic update
         scene.update_connected_connectors("B")
 
-        # Connector start remains at Shape A (150, 80) while end magnetically follows Shape B to (300, 280)
+        # Connector start remains at Shape A (150, 80)
+        # while end magnetically follows Shape B to (300, 280)
         assert conn.adj["p1"] == [150.0, 80.0]
         assert conn.adj["p2"] == [300.0, 280.0]
         assert conn.h == 200.0  # Height increased from 100 to 200 to accommodate move
@@ -315,6 +324,10 @@ class TestSmartArtBaseLayouts:
         assert chevrons[0]["x"] < chevrons[1]["x"] < chevrons[2]["x"]
 
     def test_smartart_relayout_and_to_shapes_with_connectors(self):
+        sa_def = {
+            "layout": "orgChart",
+            "items": [{"id": "r", "t": "Boss", "kids": [{"id": "k1", "t": "Worker"}]}],
+        }
         group_shape = Shape(
             id="g_sa",
             type="group",
@@ -323,7 +336,7 @@ class TestSmartArtBaseLayouts:
             y=50.0,
             w=600.0,
             h=400.0,
-            sa={"layout": "orgChart", "items": [{"id": "r", "t": "Boss", "kids": [{"id": "k1", "t": "Worker"}]}]},
+            sa=sa_def,
         )
         relayout(group_shape)
         assert len(group_shape.kids) >= 3  # Boss node, Worker node, connector

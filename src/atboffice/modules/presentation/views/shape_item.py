@@ -1096,7 +1096,11 @@ class ShapeGraphicsItem(QGraphicsObject):
         sc = self.scene()
         if sc:
             for item in sc.items():
-                if isinstance(item, ShapeGraphicsItem) and item is not self and not item.model.is_connector:
+                if (
+                    isinstance(item, ShapeGraphicsItem)
+                    and item is not self
+                    and not item.model.is_connector
+                ):
                     sites = item.get_connection_sites_scene()
                     for idx, (sx, sy) in enumerate(sites):
                         dist = math.hypot(scene_pos.x() - sx, scene_pos.y() - sy)
