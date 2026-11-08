@@ -175,6 +175,9 @@ class LecternWindow(BaseOfficeWindow):
         self.action_registry.set_handler("file_properties", self.show_document_properties_dialog)
         self.action_registry.set_handler("taskPane", self.toggle_task_pane)
         self.action_registry.set_handler("view_task_pane", self.toggle_task_pane)
+        self.action_registry.set_handler("slideLayout", self.open_slide_layout_pane)
+        self.action_registry.set_handler("slide_layout", self.open_slide_layout_pane)
+        self.action_registry.set_handler("format_slide_layout", self.open_slide_layout_pane)
 
         # 2. Edit & Clipboard
         self.action_registry.set_handler("cut", self.cut)
@@ -1322,7 +1325,7 @@ class LecternWindow(BaseOfficeWindow):
         self.show_status_message(safe_tr("打开幻灯片切换窗格"))
 
     def _setup_lectern_task_panes(self) -> None:
-        """Register Lectern specific task panes (Slide Design, Color Schemes, Animation Schemes)."""
+        """Register Lectern specific task panes (Layout, Design, Color, Animation)."""
         if not self.task_pane_dock:
             return
 
@@ -1330,10 +1333,12 @@ class LecternWindow(BaseOfficeWindow):
             AnimationSchemesPane,
             ColorSchemesPane,
             SlideDesignPane,
+            SlideLayoutPane,
         )
 
         pres = getattr(self.presentation_view, "presentation", None)
 
+        self.slide_layout_pane = SlideLayoutPane(presentation=pres, parent=self.task_pane_dock)
         self.slide_design_pane = SlideDesignPane(presentation=pres, parent=self.task_pane_dock)
         self.color_schemes_pane = ColorSchemesPane(presentation=pres, parent=self.task_pane_dock)
         self.animation_schemes_pane = AnimationSchemesPane(
@@ -1344,13 +1349,19 @@ class LecternWindow(BaseOfficeWindow):
         for pane in (self.slide_design_pane, self.color_schemes_pane, self.animation_schemes_pane):
             pane.navigate_pane.connect(self._on_task_pane_navigate)
 
-        # Wire design & scheme application
+        # Wire layout, design & scheme application
+        self.slide_layout_pane.layout_applied.connect(self._on_apply_slide_layout)
         self.slide_design_pane.apply_design_requested.connect(self._on_apply_design_template)
         self.color_schemes_pane.apply_color_scheme_requested.connect(self._on_apply_color_scheme)
         self.animation_schemes_pane.apply_animation_scheme_requested.connect(self._on_apply_animation_scheme)
         self.animation_schemes_pane.play_requested.connect(self._on_play_slide_animation)
         self.animation_schemes_pane.slide_show_requested.connect(self.start_slideshow_current)
 
+        self.task_pane_dock.register_pane(
+            "slide_layout",
+            safe_tr("幻灯片版式"),
+            self.slide_layout_pane,
+        )
         self.task_pane_dock.register_pane(
             "slide_design",
             safe_tr("幻灯片设计 - 设计模板"),
@@ -1366,6 +1377,19 @@ class LecternWindow(BaseOfficeWindow):
             safe_tr("幻灯片设计 - 动画方案"),
             self.animation_schemes_pane,
         )
+
+    def _on_apply_slide_layout(self, layout_key: str) -> None:
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws:
+            ws.apply_layout(layout_key)
+        self.show_status_message(safe_tr(f"已应用版式: {layout_key}"))
+
+    def open_slide_layout_pane(self) -> None:
+        """Open or activate the Slide Layout task pane."""
+        self.show_status_message(safe_tr("打开幻灯片版式窗格"))
+        if self.task_pane_dock is not None:
+            self.task_pane_dock.show()
+            self.task_pane_dock.show_pane("slide_layout")
 
     def _on_task_pane_navigate(self, target: str) -> None:
         if not self.task_pane_dock:
@@ -2472,6 +2496,8 @@ class LecternWindow(BaseOfficeWindow):
             self.btn_view_show.setToolTip(safe_tr("幻灯片放映 (Slide Show)"))
         if hasattr(self, "lbl_status_design") and self.lbl_status_design:
             self.lbl_status_design.setText(safe_tr("默认设计模板"))
+        if hasattr(self, "slide_layout_pane") and self.slide_layout_pane:
+            self.slide_layout_pane.retranslate_ui()
         if hasattr(self, "slide_design_pane") and self.slide_design_pane:
             self.slide_design_pane.retranslate_ui()
         if hasattr(self, "color_schemes_pane") and self.color_schemes_pane:

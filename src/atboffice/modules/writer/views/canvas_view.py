@@ -2077,6 +2077,56 @@ class WriterCanvasView(QAbstractScrollArea):
         """Set highlight fill color for selection."""
         self.format_range(lambda r: setattr(r, "highlight", color))
 
+    def get_current_style_id(self) -> str:
+        """Return the paragraph style ID at the current caret position."""
+        p = self.controller._paragraph_by_id(self.controller.pos.para_id)
+        if p and p.p_pr and p.p_pr.style:
+            return p.p_pr.style
+        return "Normal"
+
+    def apply_style(self, style_id: str) -> None:
+        """Apply a named style to the currently selected paragraph(s)."""
+        from atboffice.modules.writer.models.styles import builtin_styles
+
+        if style_id not in self.doc.styles:
+            b_styles = builtin_styles()
+            if style_id in b_styles:
+                self.doc.styles[style_id] = copy.deepcopy(b_styles[style_id])
+
+        paras = self._get_selected_paragraphs()
+        if not paras:
+            p = self.controller._paragraph_by_id(self.controller.pos.para_id)
+            if p is not None:
+                paras = [p]
+
+        for p in paras:
+            if p.p_pr is None:
+                p.p_pr = ParagraphProperties()
+            p.p_pr.style = style_id
+
+        self._on_formatting_applied()
+
+    def clear_formatting(self) -> None:
+        """Reset paragraph style to Normal and clear run character overrides."""
+        paras = self._get_selected_paragraphs()
+        if not paras:
+            p = self.controller._paragraph_by_id(self.controller.pos.para_id)
+            if p is not None:
+                paras = [p]
+
+        for p in paras:
+            if p.p_pr is not None:
+                p.p_pr.style = "Normal"
+                p.p_pr.jc = "left"
+                p.p_pr.num = None
+            if p.r_pr is not None:
+                p.r_pr = RunProperties()
+            for r in p.runs:
+                if getattr(r, "t", "") == "text":
+                    r.r_pr = RunProperties()
+
+        self._on_formatting_applied()
+
     def _on_formatting_applied(self) -> None:
         """Repaginate, re-render, and notify modification."""
         self.set_document(self.doc)
