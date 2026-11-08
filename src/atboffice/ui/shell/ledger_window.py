@@ -84,6 +84,7 @@ class LedgerWindow(BaseOfficeWindow):
 
         # 4. Initialize universal TaskPaneDock
         self.init_task_pane_dock(safe_tr("工作簿"))
+        self._setup_ledger_task_panes()
 
         # 5. Setup Office 2003 Luna toolbars
         self._setup_toolbars()
@@ -130,6 +131,8 @@ class LedgerWindow(BaseOfficeWindow):
         self.action_registry.set_handler("save", self.save_file)
         self.action_registry.set_handler("properties", self.show_document_properties_dialog)
         self.action_registry.set_handler("taskPane", self.toggle_task_pane)
+        self.action_registry.set_handler("watchPane", self.open_watch_pane)
+        self.action_registry.set_handler("watch_window_pane", self.open_watch_pane)
         self.action_registry.set_handler("cut", self.cut)
         self.action_registry.set_handler("copy", self.copy)
         self.action_registry.set_handler("paste", self.paste)
@@ -1712,6 +1715,60 @@ class LedgerWindow(BaseOfficeWindow):
         r, c = sel.active_cell
         self._watch_window.add_watch(sheet.name, r, c)
 
+    def _setup_ledger_task_panes(self) -> None:
+        """Register Ledger specific task panes (Watch Window)."""
+        if not self.task_pane_dock:
+            return
+
+        from atboffice.modules.spreadsheet.panes import WatchWindowPane
+
+        wb = getattr(self.spreadsheet_view, "workbook", None)
+        book_name = (
+            self.current_file_path.name
+            if getattr(self, "current_file_path", None)
+            else getattr(self, "default_doc_name", "Book1")
+        )
+
+        self.watch_pane = WatchWindowPane(
+            workbook=wb,
+            book_name=book_name,
+            parent=self.task_pane_dock,
+        )
+        self.watch_pane.navigate_requested.connect(self._on_watch_navigate)
+        self.watch_pane.add_watch_requested.connect(self._on_watch_pane_add_current)
+
+        self.spreadsheet_view.editor_controller.cell_committed.connect(
+            lambda *_: (
+                self.watch_pane.refresh_watches()
+                if hasattr(self, "watch_pane")
+                else None
+            )
+        )
+
+        self.task_pane_dock.register_pane(
+            "watch_window",
+            safe_tr("监视窗口"),
+            self.watch_pane,
+        )
+
+    def _on_watch_pane_add_current(self) -> None:
+        """Add current active cell to Watch Window task pane."""
+        if not hasattr(self, "watch_pane"):
+            return
+        sheet = self.spreadsheet_view.model
+        if not sheet:
+            return
+        r, c = self.spreadsheet_view.selection.active_cell
+        self.watch_pane.add_watch(sheet.name, r, c)
+        self.statusBar().showMessage(safe_tr(f"已添加到监视窗口: {sheet.name}!${cell_name(r, c)}"), 3000)
+
+    def open_watch_pane(self) -> None:
+        """Open or activate Watch Window task pane."""
+        if self.task_pane_dock is not None:
+            self.task_pane_dock.show()
+            self.task_pane_dock.show_pane("watch_window")
+        self.statusBar().showMessage(safe_tr("已打开公式监视任务窗格。"), 3000)
+
     def evaluate_formula(self) -> None:
         """Step-by-step formula evaluation dialog."""
         sheet = self.spreadsheet_view.model
@@ -2645,3 +2702,5 @@ class LedgerWindow(BaseOfficeWindow):
             self.menu_bar.retranslate_ui()
         if hasattr(self, "fullscreen_bar") and self.fullscreen_bar:
             self.fullscreen_bar.retranslate_ui()
+        if hasattr(self, "watch_pane") and self.watch_pane:
+            self.watch_pane.retranslate_ui()

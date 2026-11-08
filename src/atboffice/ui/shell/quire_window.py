@@ -105,6 +105,7 @@ class QuireWindow(BaseOfficeWindow):
 
         # 4. Initialize universal TaskPaneDock
         self.init_task_pane_dock(safe_tr("文档"))
+        self._setup_quire_task_panes()
 
         # Initialize Quire Left Navigation Dock (Document Map & Thumbnails)
         self.nav_dock = QuireNavDock(
@@ -185,6 +186,10 @@ class QuireWindow(BaseOfficeWindow):
 
         # Zoom & view
         self.action_registry.set_handler("taskPane", self.toggle_task_pane)
+        self.action_registry.set_handler("stylesPane", lambda: self.show_task_pane("styles"))
+        self.action_registry.set_handler(
+            "styles_and_formatting", lambda: self.show_task_pane("styles")
+        )
         self.action_registry.set_handler(
             "view_normal", lambda: self.switch_view_mode(ViewMode.NORMAL)
         )
@@ -1036,7 +1041,31 @@ class QuireWindow(BaseOfficeWindow):
         if hasattr(self, "nav_dock") and self.nav_dock.isVisible():
             p = canvas.controller._paragraph_by_id(para_id)
             self.nav_dock.doc_map_pane.sync_caret_para(p)
+        if hasattr(self, "styles_pane"):
+            self.styles_pane.update_current_style(canvas.get_current_style_id())
         self._sync_toolbar_states()
+
+    def _setup_quire_task_panes(self) -> None:
+        """Register Quire specific task panes (Styles and Formatting)."""
+        if not self.task_pane_dock:
+            return
+
+        from atboffice.modules.writer.panes import StylesAndFormattingPane
+
+        doc = getattr(self.writer_view.canvas_view, "doc", None)
+        self.styles_pane = StylesAndFormattingPane(doc=doc, parent=self.task_pane_dock)
+        self.styles_pane.apply_style_requested.connect(
+            self.writer_view.canvas_view.apply_style
+        )
+        self.styles_pane.clear_formatting_requested.connect(
+            self.writer_view.canvas_view.clear_formatting
+        )
+
+        self.task_pane_dock.register_pane(
+            "styles",
+            safe_tr("样式与格式"),
+            self.styles_pane,
+        )
 
     def switch_view_mode(self, mode: ViewMode | str) -> None:
         """Switch Quire view display mode (print, normal, web, reading, outline)."""
@@ -1434,6 +1463,8 @@ class QuireWindow(BaseOfficeWindow):
             retranslate_quire_toolbars(self.toolbars, safe_tr)
         if hasattr(self, "action_registry"):
             self.action_registry.retranslate_ui(safe_tr)
+        if hasattr(self, "styles_pane"):
+            self.styles_pane.retranslate_ui()
         if hasattr(self, "toolbar_standard"):
             self.toolbar_standard.setWindowTitle(safe_tr("常用"))
         if hasattr(self, "toolbar_formatting"):

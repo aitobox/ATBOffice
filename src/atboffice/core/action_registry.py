@@ -192,6 +192,9 @@ class ActionRegistry(QObject):
         if action is not None and action.isEnabled():
             action.trigger()
             return True
+        if action_id in self._handlers:
+            self._handlers[action_id]()
+            return True
         return False
 
     def _on_action_triggered(self, action_id: str) -> None:
