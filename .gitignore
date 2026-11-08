@@ -75,7 +75,5 @@ tests/docs/.corpus*/
 audit_report*.jsonl
 *.jsonl
 
-
-docs/clone/OFFICE_DOCS_DIFF.md
 agents
 screenshots
