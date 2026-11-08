@@ -1325,7 +1325,7 @@ class LecternWindow(BaseOfficeWindow):
         self.show_status_message(safe_tr("打开幻灯片切换窗格"))
 
     def _setup_lectern_task_panes(self) -> None:
-        """Register Lectern specific task panes (Slide Layout, Slide Design, Color Schemes, Animation Schemes)."""
+        """Register Lectern specific task panes (Layout, Design, Color, Animation)."""
         if not self.task_pane_dock:
             return
 

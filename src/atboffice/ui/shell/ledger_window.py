@@ -1760,7 +1760,8 @@ class LedgerWindow(BaseOfficeWindow):
             return
         r, c = self.spreadsheet_view.selection.active_cell
         self.watch_pane.add_watch(sheet.name, r, c)
-        self.statusBar().showMessage(safe_tr(f"已添加到监视窗口: {sheet.name}!${cell_name(r, c)}"), 3000)
+        cname = f"{sheet.name}!${cell_name(r, c)}"
+        self.statusBar().showMessage(safe_tr(f"已添加到监视窗口: {cname}"), 3000)
 
     def open_watch_pane(self) -> None:
         """Open or activate Watch Window task pane."""
