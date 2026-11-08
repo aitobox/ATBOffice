@@ -29,6 +29,7 @@ from atboffice.modules.writer.models.document import (
     TabItem,
     TextItem,
 )
+from atboffice.modules.writer.models.drawing import PictureItem, WrapMode
 from atboffice.modules.writer.models.omml import OfficeMathItem
 from atboffice.modules.writer.models.properties import (
     SectionProperties,
@@ -568,10 +569,60 @@ def decompose_paragraph_to_portions(
             )
             char_offset += 1
 
+        elif isinstance(item, PictureItem) or getattr(item, "t", "") in ("picture", "img"):
+            float_pr = getattr(item, "float_pr", None)
+            is_floating = float_pr is not None and getattr(float_pr, "wrap", None) not in (
+                WrapMode.INLINE,
+                "inline",
+                None,
+            )
+            if is_floating:
+                # Floating anchor: zero width in inline text stream
+                portions.append(
+                    Portion(
+                        type=PortionType.GRAPHIC,
+                        text="",
+                        width=0.0,
+                        ascent=0.0,
+                        descent=0.0,
+                        font_size=font_sz,
+                        font_family=font_family,
+                        counts_for_height=False,
+                        char_offset=char_offset,
+                        length=1,
+                        data=item,
+                    )
+                )
+                char_offset += 1
+            else:
+                w = float(getattr(item, "width", 0.0) or getattr(item, "w", 0.0) or 72.0)
+                h = float(getattr(item, "height", 0.0) or getattr(item, "h", 0.0) or 72.0)
+                portions.append(
+                    Portion(
+                        type=PortionType.GRAPHIC,
+                        text="",
+                        width=w,
+                        ascent=h,
+                        descent=0.0,
+                        font_size=font_sz,
+                        font_family=font_family,
+                        counts_for_height=True,
+                        char_offset=char_offset,
+                        length=1,
+                        data=item,
+                    )
+                )
+                char_offset += 1
+
         else:
             # Inline graphic, shape, or custom object
             float_pr = getattr(item, "float_pr", None)
-            if float_pr is not None:
+            is_floating = float_pr is not None and getattr(float_pr, "wrap", None) not in (
+                WrapMode.INLINE,
+                "inline",
+                None,
+            )
+            if is_floating:
                 # Floating anchor: zero width in inline text stream
                 portions.append(
                     Portion(
@@ -781,7 +832,7 @@ def layout_paragraph(
                 if has_only_pictures:
                     natural = max(natural, mark_natural_height)
                 height = natural
-                baseline = ascent
+                baseline = height if (has_only_pictures and height > ascent) else ascent
 
         line = LayoutLine(
             portions=current_portions,
