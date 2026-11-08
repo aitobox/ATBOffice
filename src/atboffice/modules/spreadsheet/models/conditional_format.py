@@ -79,6 +79,9 @@ class DataBarRule:
     min_len: float = 0.1
     max_len: float = 0.9
     show_value: bool = True
+    gradient: bool = True
+    border: bool = True
+    border_color: str | None = None
 
 
 @dataclass
@@ -359,12 +362,19 @@ def evaluate_cf_for_cell(sheet: SheetDataModel, r: int, c: int) -> CFResult | No
                         span = hi - lo
                         t = 1.0 if span == 0 else (num_val - lo) / span
                         frac = db.min_len + (db.max_len - db.min_len) * max(0.0, min(1.0, t))
+                        is_neg = num_val < 0
+                        bar_color = db.neg_color if is_neg else db.color
                         if result.data_bar is None:
                             result.data_bar = {
                                 "frac": frac,
-                                "color": db.color,
+                                "color": bar_color,
+                                "base_color": db.color,
                                 "neg_color": db.neg_color,
+                                "is_negative": is_neg,
                                 "show_value": db.show_value,
+                                "gradient": getattr(db, "gradient", True),
+                                "border": getattr(db, "border", True),
+                                "border_color": getattr(db, "border_color", None),
                             }
                             has_format = True
                 except (ValueError, TypeError):

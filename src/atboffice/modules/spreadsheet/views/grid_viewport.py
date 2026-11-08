@@ -30,6 +30,7 @@ from PySide6.QtGui import (
     QFontMetrics,
     QFontMetricsF,
     QKeyEvent,
+    QLinearGradient,
     QMouseEvent,
     QPainter,
     QPaintEvent,
@@ -203,6 +204,7 @@ class GridViewport(QAbstractScrollArea):
         self._view_mode: str = "normal"  # "normal" | "page_break"
         self._page_break_welcome_shown: bool = False
         self._zoom: float = 1.0
+        self._hover_comment_cell: tuple[int, int] | None = None
 
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
@@ -214,6 +216,26 @@ class GridViewport(QAbstractScrollArea):
 
         self._update_scrollbars()
         self.retranslate_ui()
+
+    @property
+    def hover_comment_cell(self) -> tuple[int, int] | None:
+        """Active hovered comment cell coordinates (row, col) or None."""
+        return self._hover_comment_cell
+
+    def show_comment_hover(self, r: int, c: int) -> None:
+        """Explicitly set or clear comment hover on cell (r, c)."""
+        if r < 0 or c < 0:
+            new_hover = None
+        else:
+            cm = (
+                self.model.get_comment(r, c)
+                if hasattr(self.model, "get_comment")
+                else None
+            )
+            new_hover = (r, c) if cm is not None else None
+        if self._hover_comment_cell != new_hover:
+            self._hover_comment_cell = new_hover
+            self.viewport().update()
 
     @property
     def view_mode(self) -> str:
@@ -1005,8 +1027,25 @@ class GridViewport(QAbstractScrollArea):
                     bar_frac = max(0.0, min(1.0, float(cf_res.data_bar.get("frac", 0.0))))
                     bar_color = QColor(str(cf_res.data_bar.get("color", "#638EC6")))
                     bar_w = int((col_w - 2) * bar_frac)
-                    if bar_w > 0:
-                        painter.fillRect(QRect(col_x + 1, row_y + 1, bar_w, row_h - 2), bar_color)
+                    bar_h = row_h - 2
+                    bx = col_x + 1
+                    by = row_y + 1
+                    if bar_w > 0 and bar_h > 0:
+                        is_gradient = cf_res.data_bar.get("gradient", True)
+                        if is_gradient:
+                            grad = QLinearGradient(bx, by, bx + bar_w, by)
+                            grad.setColorAt(0.0, bar_color)
+                            grad.setColorAt(1.0, QColor(255, 255, 255, 220))
+                            painter.fillRect(QRect(bx, by, bar_w, bar_h), QBrush(grad))
+                        else:
+                            painter.fillRect(QRect(bx, by, bar_w, bar_h), bar_color)
+
+                        # 1px border stroke around data bar
+                        if cf_res.data_bar.get("border", True):
+                            border_col = cf_res.data_bar.get("border_color")
+                            b_pen_color = QColor(border_col) if border_col else bar_color
+                            painter.setPen(QPen(b_pen_color, 1))
+                            painter.drawRect(QRect(bx, by, max(0, bar_w - 1), max(0, bar_h - 1)))
                     painter.restore()
 
                 # Cell borders
@@ -1092,6 +1131,9 @@ class GridViewport(QAbstractScrollArea):
                     painter.restore()
 
                 if cell.value is None or cell.value == "":
+                    continue
+
+                if cf_res and cf_res.data_bar and not cf_res.data_bar.get("show_value", True):
                     continue
 
                 if cell.rich_runs:
@@ -1423,13 +1465,14 @@ class GridViewport(QAbstractScrollArea):
                 painter.drawPolygon(poly)
             painter.restore()
 
-        # 5.9 Draw Visible Comments Callouts
+        # 5.9 Draw Visible and Hovered Comments Callouts
         show_all = getattr(self.model, "show_all_comments", False)
         if comments:
             painter.save()
             painter.setClipRect(pane_clip)
             for (cr, cc), cm in comments.items():
-                if not (cm.visible or show_all):
+                is_hovered = self._hover_comment_cell == (cr, cc)
+                if not (cm.visible or show_all or is_hovered):
                     continue
                 if cr < pr_start or cr > pr_end or cc < pc_start or cc > pc_end:
                     continue
@@ -1448,34 +1491,85 @@ class GridViewport(QAbstractScrollArea):
                 if cw <= 0 or ch <= 0:
                     continue
 
-                bx = cx + cw + 12
+                bx = cx + cw + 14
                 by = max(self.col_header_height + 2, cy - 6)
-                bw = 140
-                bh = 65
+                bw = int(getattr(cm, "w", 140) or 140)
+                bh = int(getattr(cm, "h", 65) or 65)
 
-                # Connecting line from cell top-right to note top-left
-                painter.setPen(QPen(QColor(0, 0, 0), 1))
-                painter.drawLine(cx + cw, cy, bx, by + 6)
+                # Connecting leader arrow pointing from card edge (bx, by + 8)
+                # to cell top-right corner (cx + cw, cy)
+                arrow_tip = QPoint(cx + cw, cy)
+                arrow_base = QPoint(bx, by + 8)
+                painter.setPen(QPen(QColor(60, 60, 60), 1))
+                painter.drawLine(arrow_base, arrow_tip)
+
+                # Leader arrow head pointing towards cell top-right corner
+                dx = arrow_tip.x() - arrow_base.x()
+                dy = arrow_tip.y() - arrow_base.y()
+                ang = math.atan2(dy, dx)
+                arrow_sz = 6.0
+                p_head1 = QPointF(
+                    arrow_tip.x() - arrow_sz * math.cos(ang - math.pi / 6),
+                    arrow_tip.y() - arrow_sz * math.sin(ang - math.pi / 6),
+                )
+                p_head2 = QPointF(
+                    arrow_tip.x() - arrow_sz * math.cos(ang + math.pi / 6),
+                    arrow_tip.y() - arrow_sz * math.sin(ang + math.pi / 6),
+                )
+                painter.setBrush(QBrush(QColor(60, 60, 60)))
+                painter.drawPolygon([arrow_tip, p_head1.toPoint(), p_head2.toPoint()])
+
+                # Drop shadow behind note box
+                painter.fillRect(bx + 3, by + 3, bw, bh, QColor(0, 0, 0, 45))
 
                 # Yellow note box
-                painter.fillRect(bx, by, bw, bh, QColor(255, 255, 225))
-                painter.setPen(QPen(QColor(128, 128, 128), 1))
+                note_bg = (
+                    QColor(cm.fill)
+                    if (getattr(cm, "fill", None) and QColor(cm.fill).isValid())
+                    else QColor(255, 255, 225)
+                )
+                painter.fillRect(bx, by, bw, bh, note_bg)
+                painter.setPen(QPen(QColor(160, 160, 160), 1))
                 painter.drawRect(bx, by, bw, bh)
 
                 # Text inside note
-                painter.setPen(QPen(QColor(0, 0, 0), 1))
                 note_font = QFont(self.font())
                 note_font.setPointSize(8)
-                painter.setFont(note_font)
-                text_rect = QRect(bx + 4, by + 4, bw - 8, bh - 8)
-                display_text = f"{cm.author}:\n{cm.text}" if cm.author else cm.text
-                painter.drawText(
-                    text_rect,
-                    Qt.AlignmentFlag.AlignTop
-                    | Qt.AlignmentFlag.AlignLeft
-                    | Qt.TextFlag.TextWordWrap,
-                    display_text,
-                )
+                bold_font = QFont(note_font)
+                bold_font.setBold(True)
+
+                inner_rect = QRect(bx + 6, by + 5, bw - 12, bh - 10)
+                painter.setPen(QPen(QColor(0, 0, 0), 1))
+                if cm.author and cm.author.strip():
+                    author_header = f"{cm.author.strip()}:"
+                    painter.setFont(bold_font)
+                    fm_bold = QFontMetrics(bold_font)
+                    author_h = fm_bold.height()
+                    painter.drawText(
+                        QRect(inner_rect.x(), inner_rect.y(), inner_rect.width(), author_h + 2),
+                        Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft,
+                        author_header,
+                    )
+                    body_y = inner_rect.y() + author_h + 3
+                    rem_h = max(0, inner_rect.bottom() - body_y)
+                    body_rect = QRect(inner_rect.x(), body_y, inner_rect.width(), rem_h)
+                    painter.setFont(note_font)
+                    painter.drawText(
+                        body_rect,
+                        Qt.AlignmentFlag.AlignTop
+                        | Qt.AlignmentFlag.AlignLeft
+                        | Qt.TextFlag.TextWordWrap,
+                        cm.text or "",
+                    )
+                else:
+                    painter.setFont(note_font)
+                    painter.drawText(
+                        inner_rect,
+                        Qt.AlignmentFlag.AlignTop
+                        | Qt.AlignmentFlag.AlignLeft
+                        | Qt.TextFlag.TextWordWrap,
+                        cm.text or "",
+                    )
             painter.restore()
 
     def _paint_rich_cell(
@@ -2553,13 +2647,14 @@ class GridViewport(QAbstractScrollArea):
             else:
                 self.viewport().setCursor(Qt.CursorShape.ArrowCursor)
 
-            # Check comment tooltip hover
+            # Check comment tooltip hover and callout card
             if hit.row is not None and hit.col is not None:
                 cm = (
                     self.model.get_comment(hit.row, hit.col)
                     if hasattr(self.model, "get_comment")
                     else None
                 )
+                new_hover = (hit.row, hit.col) if cm is not None else None
                 if cm:
                     tip_text = (
                         f"{cm.author}:\n{cm.text}" if cm.author else cm.text
@@ -2572,7 +2667,12 @@ class GridViewport(QAbstractScrollArea):
                 else:
                     QToolTip.hideText()
             else:
+                new_hover = None
                 QToolTip.hideText()
+
+            if self._hover_comment_cell != new_hover:
+                self._hover_comment_cell = new_hover
+                self.viewport().update()
             return
 
         # 1. Lost capture check: left button not pressed while in drag mode
@@ -2833,6 +2933,14 @@ class GridViewport(QAbstractScrollArea):
                 )
                 self.reveal(to_r1, to_c1)
                 self.viewport().update()
+
+    def leaveEvent(self, event: Any) -> None:
+        """Clear comment hover callout when mouse leaves the viewport."""
+        if self._hover_comment_cell is not None:
+            self._hover_comment_cell = None
+            self.viewport().update()
+        if event is not None:
+            super().leaveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         self._stop_auto_scroll()
