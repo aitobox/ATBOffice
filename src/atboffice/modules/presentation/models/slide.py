@@ -167,6 +167,8 @@ class Slide:
     hidden: bool = False
     bg: Fill | None = None
     hide_master: bool = False
+    has_timing: bool = False
+    raw_timing_xml: str | None = None
 
     def add_shape(self, shape: Shape) -> None:
         self.shapes.append(shape)

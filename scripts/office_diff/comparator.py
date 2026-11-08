@@ -9,16 +9,17 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QGuiApplication, QImage, QPainter
+from PySide6.QtGui import QColor, QImage, QPainter
+from PySide6.QtWidgets import QApplication
 
 from .models import DiffResult
 
 
-def ensure_gui_app() -> QGuiApplication:
-    """Ensure a QGuiApplication instance exists for QImage and QPainter operations."""
-    app = QGuiApplication.instance()
+def ensure_gui_app() -> QApplication:
+    """Ensure a QApplication instance exists for QImage, QPainter, and widget operations."""
+    app = QApplication.instance()
     if not app:
-        app = QGuiApplication(["office_diff_comparator", "-platform", "offscreen"])
+        app = QApplication(["office_diff_comparator", "-platform", "offscreen"])
     return app
 
 
@@ -60,15 +61,15 @@ def fit_to_canvas(img: QImage, target_w: int, target_h: int) -> QImage:
     return canvas
 
 
-def is_blank_canvas(img: QImage, tolerance: int = 2) -> bool:
+def is_blank_canvas(img: QImage, tolerance: int = 1) -> bool:
     """Check if image is essentially blank/monochrome (e.g. solid white or black)."""
     if img.isNull() or img.width() == 0 or img.height() == 0:
         return True
     w, h = img.width(), img.height()
-    # Sample a grid of 64 pixels
+    # Sample a fine grid of 1024 points (32x32)
     colors: list[int] = []
-    step_x = max(1, w // 8)
-    step_y = max(1, h // 8)
+    step_x = max(1, w // 32)
+    step_y = max(1, h // 32)
     for y in range(0, h, step_y):
         for x in range(0, w, step_x):
             rgb = img.pixel(x, y)
