@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from PySide6.QtCore import QPoint, Qt
-from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QImage, QPainter
 
 from atboffice.modules.spreadsheet.models.conditional_format import (
     CFVO,
@@ -17,7 +17,6 @@ from atboffice.modules.spreadsheet.models.conditional_format import (
     mix_colors,
 )
 from atboffice.modules.spreadsheet.models.sheet_model import (
-    CellComment,
     CellData,
     SheetDataModel,
 )

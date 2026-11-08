@@ -1496,7 +1496,8 @@ class GridViewport(QAbstractScrollArea):
                 bw = int(getattr(cm, "w", 140) or 140)
                 bh = int(getattr(cm, "h", 65) or 65)
 
-                # Connecting leader arrow pointing from card edge (bx, by + 8) to cell top-right corner (cx + cw, cy)
+                # Connecting leader arrow pointing from card edge (bx, by + 8)
+                # to cell top-right corner (cx + cw, cy)
                 arrow_tip = QPoint(cx + cw, cy)
                 arrow_base = QPoint(bx, by + 8)
                 painter.setPen(QPen(QColor(60, 60, 60), 1))
@@ -1550,7 +1551,8 @@ class GridViewport(QAbstractScrollArea):
                         author_header,
                     )
                     body_y = inner_rect.y() + author_h + 3
-                    body_rect = QRect(inner_rect.x(), body_y, inner_rect.width(), max(0, inner_rect.bottom() - body_y))
+                    rem_h = max(0, inner_rect.bottom() - body_y)
+                    body_rect = QRect(inner_rect.x(), body_y, inner_rect.width(), rem_h)
                     painter.setFont(note_font)
                     painter.drawText(
                         body_rect,
