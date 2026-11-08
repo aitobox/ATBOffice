@@ -607,7 +607,10 @@ class PresenterConsole(QMainWindow):
 
     def _on_timer_tick(self) -> None:
         self.clock_label.setText(time.strftime("%H:%M:%S"))
-        if self.is_timer_running:
+        if self.audience_view is not None and hasattr(self.audience_view, "elapsed_seconds"):
+            self.elapsed_seconds = self.audience_view.elapsed_seconds
+            self._update_timer_display()
+        elif self.is_timer_running:
             self.elapsed_seconds += 1
             self._update_timer_display()
 
@@ -620,6 +623,8 @@ class PresenterConsole(QMainWindow):
     def toggle_timer(self) -> None:
         """Pause or resume elapsed presentation timer."""
         self.is_timer_running = not self.is_timer_running
+        if self.audience_view is not None and hasattr(self.audience_view, "is_timer_running"):
+            self.audience_view.is_timer_running = self.is_timer_running
         if self.is_timer_running:
             self.btn_pause_timer.setText("❚❚")
             self.btn_pause_timer.setToolTip(safe_tr("暂停计时"))
@@ -630,16 +635,27 @@ class PresenterConsole(QMainWindow):
     def reset_timer(self) -> None:
         """Reset elapsed presentation timer to zero."""
         self.elapsed_seconds = 0
+        if self.audience_view is not None and hasattr(self.audience_view, "reset_timer"):
+            self.audience_view.reset_timer()
+        self._update_timer_display()
+
+    def _on_audience_timer_ticked(self, seconds: int) -> None:
+        """Receive synchronized timer tick from audience view."""
+        self.elapsed_seconds = seconds
         self._update_timer_display()
 
     def next_slide(self) -> None:
-        """Navigate to next slide."""
-        if self.current_slide_index < len(self.presentation.slides) - 1:
+        """Navigate to next slide or trigger sequential animation step."""
+        if self.audience_view is not None:
+            self.audience_view.next_slide()
+        elif self.current_slide_index < len(self.presentation.slides) - 1:
             self.goto_slide(self.current_slide_index + 1)
 
     def prev_slide(self) -> None:
-        """Navigate to previous slide."""
-        if self.current_slide_index > 0:
+        """Navigate to previous slide or rewind sequential animation step."""
+        if self.audience_view is not None:
+            self.audience_view.prev_slide()
+        elif self.current_slide_index > 0:
             self.goto_slide(self.current_slide_index - 1)
 
     def goto_slide(self, index: int, sync_audience: bool = True) -> None:
@@ -653,8 +669,6 @@ class PresenterConsole(QMainWindow):
         if sync_audience and self.audience_view is not None:
             if self.audience_view.current_slide_index != index:
                 self.audience_view.goto_slide(index)
-                if getattr(self.audience_view, "in_transition", False):
-                    self.audience_view.finish_transition_now()
 
     def _load_current_slide(self) -> None:
         if not self.presentation.slides:
@@ -686,8 +700,18 @@ class PresenterConsole(QMainWindow):
         )
 
     def _load_next_slide_preview(self) -> None:
-        next_idx = self.current_slide_index + 1
-        if next_idx < len(self.presentation.slides):
+        next_idx = None
+        if self.audience_view is not None and hasattr(self.audience_view, "get_next_slide_index"):
+            next_idx = self.audience_view.get_next_slide_index()
+        elif self.current_slide_index + 1 < len(self.presentation.slides):
+            cand = self.current_slide_index + 1
+            while cand < len(self.presentation.slides):
+                if not self.presentation.slides[cand].hidden:
+                    next_idx = cand
+                    break
+                cand += 1
+
+        if next_idx is not None and 0 <= next_idx < len(self.presentation.slides):
             next_slide = self.presentation.slides[next_idx]
             prefix = safe_tr("下一张")
             suffix = f"{safe_tr('幻灯片')} {next_idx + 1}"
@@ -778,10 +802,18 @@ class PresenterConsole(QMainWindow):
         if self.audience_view is not None:
             self.audience_view.slideChanged.connect(self._on_audience_slide_changed)
             self.audience_view.showEnded.connect(self.close)
+            if hasattr(self.audience_view, "timerTicked"):
+                self.audience_view.timerTicked.connect(self._on_audience_timer_ticked)
+            if hasattr(self.audience_view, "elapsed_seconds"):
+                self.elapsed_seconds = self.audience_view.elapsed_seconds
+                self._update_timer_display()
 
     def _on_audience_slide_changed(self, new_idx: int) -> None:
         if self.current_slide_index != new_idx:
             self.goto_slide(new_idx, sync_audience=False)
+        else:
+            self._load_current_slide()
+            self._load_next_slide_preview()
 
     def _swap_screens(self) -> None:
         """Swap displays between presenter console and audience window."""
@@ -831,6 +863,11 @@ class PresenterConsole(QMainWindow):
         if self.audience_view is not None:
             self.audience_view.end_show()
         self.close()
+
+    def closeEvent(self, event: Any) -> None:
+        if hasattr(self, "_timer_1s"):
+            self._timer_1s.stop()
+        super().closeEvent(event)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         k = event.key()

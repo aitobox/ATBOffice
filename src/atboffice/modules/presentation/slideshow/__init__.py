@@ -12,6 +12,7 @@ from atboffice.modules.presentation.slideshow.presenter_view import (
 from atboffice.modules.presentation.slideshow.slideshow_view import SlideShowView
 from atboffice.modules.presentation.slideshow.transitions import (
     TRANSITION_CATALOGUE,
+    SlideTransitionPlayer,
     TransitionEffect,
     get_transition_duration,
     get_transition_name,
@@ -27,6 +28,7 @@ __all__ = [
     "PresenterConsole",
     "PresenterView",
     "SlideShowView",
+    "SlideTransitionPlayer",
     "TRANSITION_CATALOGUE",
     "TransitionEffect",
     "get_transition_duration",

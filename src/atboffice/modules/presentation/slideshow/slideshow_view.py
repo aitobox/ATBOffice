@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
@@ -36,6 +35,7 @@ from atboffice.modules.presentation.slideshow.animations import (
 )
 from atboffice.modules.presentation.slideshow.slide_hud import SlideShowHud
 from atboffice.modules.presentation.slideshow.transitions import (
+    SlideTransitionPlayer,
     get_transition_duration,
     render_slide_to_image,
     render_transition_frame,
@@ -67,6 +67,7 @@ class SlideShowView(QWidget):
 
     slideChanged = Signal(int)
     showEnded = Signal()
+    timerTicked = Signal(int)
 
     def __init__(
         self,
@@ -78,7 +79,6 @@ class SlideShowView(QWidget):
         super().__init__(parent)
         self.presentation = presentation
         self.is_active = True
-        self.in_transition = False
         self.is_ended = False
         self.blank_color: QColor | str | None = None
         self.goto_buf: str = ""
@@ -104,15 +104,23 @@ class SlideShowView(QWidget):
         # Pre-render cache
         self._cache: dict[int, QImage] = {}
 
-        # Transition animation state
-        self._anim_timer = QTimer(self)
-        self._anim_timer.setInterval(16)  # ~60 FPS
-        self._anim_timer.timeout.connect(self._on_anim_frame)
-        self._anim_t0: float = 0.0
-        self._anim_dur: int = 500
+        # 60 FPS Transition Player
+        self.transition_player = SlideTransitionPlayer(self)
+        self.transition_player.frameChanged.connect(self._on_transition_frame)
+        self.transition_player.finished.connect(self._on_transition_finished)
         self._img_prev: QImage | None = None
         self._img_curr: QImage | None = None
         self._active_transition: Transition | None = None
+
+        # Presentation clock & live elapsed timer
+        self.elapsed_seconds: int = 0
+        self.is_timer_running: bool = True
+        self._presentation_timer = QTimer(self)
+        self._presentation_timer.setInterval(1000)
+        self._presentation_timer.timeout.connect(self._on_presentation_timer_tick)
+        self._presentation_timer.start()
+
+        self._presenter_console: Any | None = None
 
         # Auto-advance timing
         self._auto_timer = QTimer(self)
@@ -177,6 +185,51 @@ class SlideShowView(QWidget):
         idx = self.current_slide_index
         if 0 <= idx < len(self.presentation.slides):
             return self.presentation.slides[idx]
+        return None
+
+    @property
+    def in_transition(self) -> bool:
+        return self.transition_player.is_playing
+
+    @in_transition.setter
+    def in_transition(self, val: bool) -> None:
+        if not val and self.transition_player.is_playing:
+            self.transition_player.finish_now()
+
+    def _on_presentation_timer_tick(self) -> None:
+        if self.is_active and self.is_timer_running:
+            self.elapsed_seconds += 1
+            self.timerTicked.emit(self.elapsed_seconds)
+
+    def pause_timer(self) -> None:
+        self.is_timer_running = False
+
+    def resume_timer(self) -> None:
+        self.is_timer_running = True
+
+    def reset_timer(self) -> None:
+        self.elapsed_seconds = 0
+        self.timerTicked.emit(0)
+
+    def get_next_slide_index(self) -> int | None:
+        """Return index of next slide in sequence, respecting hidden and loop settings."""
+        next_pos = self.slide_pos + 1
+        while next_pos < len(self.order):
+            s_idx = self.order[next_pos]
+            if 0 <= s_idx < len(self.presentation.slides):
+                if not self.presentation.slides[s_idx].hidden:
+                    return s_idx
+            next_pos += 1
+
+        if self.presentation.show.loop and len(self.order) > 0:
+            loop_pos = 0
+            while loop_pos < len(self.order):
+                s_idx = self.order[loop_pos]
+                if 0 <= s_idx < len(self.presentation.slides):
+                    if not self.presentation.slides[s_idx].hidden:
+                        return s_idx
+                loop_pos += 1
+
         return None
 
     # --------------------------------------------------------------------------
@@ -414,13 +467,10 @@ class SlideShowView(QWidget):
         dur = get_transition_duration(trans)
 
         if trans.type != "none" and dur > 0:
-            self.in_transition = True
             self._active_transition = trans
-            self._anim_dur = dur
-            self._anim_t0 = time.monotonic()
-            self._anim_timer.start()
+            self.transition_player.play(trans, dur)
         else:
-            self.in_transition = False
+            self._active_transition = None
             self._img_prev = None
             self.update()
             self._schedule_auto_advance()
@@ -429,23 +479,22 @@ class SlideShowView(QWidget):
 
     def finish_transition_now(self) -> None:
         """Instantly complete the active transition animation."""
-        self._anim_timer.stop()
-        self.in_transition = False
+        if self.transition_player.is_playing:
+            self.transition_player.finish_now()
+        else:
+            self._img_prev = None
+            self.update()
+            self._schedule_auto_advance()
+
+    def _on_transition_frame(self, progress: float) -> None:
+        """Advance transition animation frame from 60 FPS player."""
+        self.update()
+
+    def _on_transition_finished(self) -> None:
+        """Invoked when slide transition finishes."""
         self._img_prev = None
         self.update()
         self._schedule_auto_advance()
-
-    def _on_anim_frame(self) -> None:
-        """Advance transition animation frame."""
-        if not self.in_transition:
-            self._anim_timer.stop()
-            return
-
-        elapsed_ms = (time.monotonic() - self._anim_t0) * 1000.0
-        if elapsed_ms >= self._anim_dur:
-            self.finish_transition_now()
-        else:
-            self.update()
 
     def _schedule_auto_advance(self) -> None:
         """Schedule automatic slide transition if configured."""
@@ -470,16 +519,38 @@ class SlideShowView(QWidget):
             self.blank_color = target
         self.update()
 
+    def show_presenter_view(self) -> Any:
+        """Open or activate the Presenter View console synchronized with this slideshow."""
+        from atboffice.modules.presentation.slideshow.presenter_view import PresenterConsole
+
+        if self._presenter_console is not None:
+            self._presenter_console.show()
+            self._presenter_console.raise_()
+            self._presenter_console.activateWindow()
+            return self._presenter_console
+
+        self._presenter_console = PresenterConsole(
+            presentation=self.presentation,
+            start_slide_index=self.current_slide_index,
+            audience_view=self,
+        )
+        self._presenter_console.show()
+        return self._presenter_console
+
     def end_show(self) -> None:
         """Close slide show view and exit presentation mode."""
         if not self.is_active:
             return
-        self._anim_timer.stop()
+        self.transition_player.stop()
         self._anim_player.stop()
         self._auto_timer.stop()
         self._idle_timer.stop()
+        self._presentation_timer.stop()
         self.is_active = False
         self.showEnded.emit()
+        if self._presenter_console is not None:
+            self._presenter_console.close()
+            self._presenter_console = None
         self.close()
 
     # --------------------------------------------------------------------------
@@ -731,6 +802,9 @@ class SlideShowView(QWidget):
 
         menu.addSeparator()
 
+        act_presenter = menu.addAction(safe_tr("显示演讲者视图 (&V)"))
+        act_presenter.triggered.connect(self.show_presenter_view)
+
         act_end = menu.addAction(safe_tr("结束放映 (&E)"))
         act_end.triggered.connect(self.end_show)
 
@@ -789,8 +863,7 @@ class SlideShowView(QWidget):
 
             # 4. Render transition frame or current slide
             if self.in_transition and self._img_prev and self._img_curr:
-                elapsed_ms = (time.monotonic() - self._anim_t0) * 1000.0
-                progress = min(1.0, elapsed_ms / float(self._anim_dur))
+                progress = self.transition_player.progress
 
                 # Render transition onto an offscreen buffer at stage size
                 frame_img = QImage(int(sw), int(sh), QImage.Format.Format_ARGB32_Premultiplied)
@@ -816,7 +889,7 @@ class SlideShowView(QWidget):
                 painter.drawImage(stage_rect, self._img_curr)
 
             # Draw ink annotation strokes for current slide
-            strokes = self.ink_strokes.get(self._curr_idx, [])
+            strokes = self.ink_strokes.get(self.current_slide_index, [])
             if strokes:
                 scale_x = sw / pw
                 scale_y = sh / ph
