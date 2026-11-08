@@ -46,12 +46,12 @@ from atboffice.modules.writer.layout.pagination import (
     PaginationResult,
     paginate_document,
 )
-from atboffice.modules.writer.layout.wrap import FloatBox
 from atboffice.modules.writer.layout.portions import (
     Portion,
     PortionType,
     measure_text_width,
 )
+from atboffice.modules.writer.layout.wrap import FloatBox
 from atboffice.modules.writer.models.document import (
     Document,
     Paragraph,
@@ -651,9 +651,8 @@ class WriterCanvasView(QAbstractScrollArea):
                         dpr = float(self.devicePixelRatioF())
                     except Exception:
                         dpr = 1.0
-                elif (
-                    painter.device() is not None
-                    and hasattr(painter.device(), "devicePixelRatioF")
+                elif painter.device() is not None and hasattr(
+                    painter.device(), "devicePixelRatioF"
                 ):
                     try:
                         dpr = float(painter.device().devicePixelRatioF())
@@ -712,9 +711,7 @@ class WriterCanvasView(QAbstractScrollArea):
                 font = QFont("Helvetica", max(7, int(9 * zoom)))
                 painter.setFont(font)
                 label = (
-                    getattr(pic, "alt_text", "")
-                    or getattr(pic, "name", "")
-                    or self.tr("Picture")
+                    getattr(pic, "alt_text", "") or getattr(pic, "name", "") or self.tr("Picture")
                 )
                 painter.drawText(dest_rect, Qt.AlignmentFlag.AlignCenter, label)
             finally:
@@ -743,6 +740,7 @@ class WriterCanvasView(QAbstractScrollArea):
                         text_str = po.text
                         if text_str == "PAGE":
                             from atboffice.modules.writer.layout.pagination import format_number
+
                             text_str = format_number(page.page_number, page.page_number_format)
                         elif text_str == "NUMPAGES":
                             total_pgs = (
@@ -1182,9 +1180,7 @@ class WriterCanvasView(QAbstractScrollArea):
                                         pic_w_px,
                                         pic_h_px,
                                     )
-                                    self._paint_picture(
-                                        painter, po.data, dest_rect, self._zoom
-                                    )
+                                    self._paint_picture(painter, po.data, dest_rect, self._zoom)
 
                             cur_x += po_w
 
@@ -1243,6 +1239,7 @@ class WriterCanvasView(QAbstractScrollArea):
                             text_str = po.text
                             if text_str == "PAGE":
                                 from atboffice.modules.writer.layout.pagination import format_number
+
                                 text_str = format_number(page.page_number, page.page_number_format)
                             elif text_str == "NUMPAGES":
                                 total_pgs = (
@@ -1260,12 +1257,11 @@ class WriterCanvasView(QAbstractScrollArea):
                             baseline = line_y + line.baseline
                             if isinstance(po.data, OfficeMathItem):
                                 paint_math(painter, po.data, cur_x, baseline, 1.0)
-                            elif isinstance(po.data, PictureItem) or getattr(
-                                po.data, "t", ""
-                            ) in ("picture", "img"):
-                                dest_rect = QRectF(
-                                    cur_x, baseline - po.ascent, po.width, po.ascent
-                                )
+                            elif isinstance(po.data, PictureItem) or getattr(po.data, "t", "") in (
+                                "picture",
+                                "img",
+                            ):
+                                dest_rect = QRectF(cur_x, baseline - po.ascent, po.width, po.ascent)
                                 self._paint_picture(
                                     painter, po.data, dest_rect, 1.0, is_vector=True
                                 )
@@ -1466,6 +1462,7 @@ class WriterCanvasView(QAbstractScrollArea):
                             text_str = po.text
                             if text_str == "PAGE":
                                 from atboffice.modules.writer.layout.pagination import format_number
+
                                 text_str = format_number(page.page_number, page.page_number_format)
                             elif text_str == "NUMPAGES":
                                 total_pgs = (
@@ -1483,12 +1480,11 @@ class WriterCanvasView(QAbstractScrollArea):
                             baseline = line_y + line.baseline
                             if isinstance(po.data, OfficeMathItem):
                                 paint_math(painter, po.data, cur_x, baseline, 1.0)
-                            elif isinstance(po.data, PictureItem) or getattr(
-                                po.data, "t", ""
-                            ) in ("picture", "img"):
-                                dest_rect = QRectF(
-                                    cur_x, baseline - po.ascent, po.width, po.ascent
-                                )
+                            elif isinstance(po.data, PictureItem) or getattr(po.data, "t", "") in (
+                                "picture",
+                                "img",
+                            ):
+                                dest_rect = QRectF(cur_x, baseline - po.ascent, po.width, po.ascent)
                                 self._paint_picture(
                                     painter, po.data, dest_rect, 1.0, is_vector=True
                                 )

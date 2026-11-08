@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from atboffice.modules.writer.layout.wrap import FloatBox, calculate_line_segments
 from atboffice.modules.writer.models.document import (
     BreakItem,
     Document,
@@ -36,7 +37,6 @@ from atboffice.modules.writer.models.properties import (
     SectionProperties,
 )
 from atboffice.modules.writer.models.styles import resolve_p_props, resolve_r_props
-from atboffice.modules.writer.layout.wrap import FloatBox, calculate_line_segments
 
 # ---------------------------------------------------------------------------
 # Font Line Factors (Single-space line height as multiple of font size)
@@ -817,7 +817,10 @@ def layout_paragraph(
                     (fb.y + fb.h + fb.dist.bottom) - y_offset
                     for fb in float_boxes
                     if fb.wrap_mode == WrapMode.TOP_BOTTOM
-                    and (line_abs_y + est_h > fb.y - fb.dist.top and line_abs_y < fb.y + fb.h + fb.dist.bottom)
+                    and (
+                        line_abs_y + est_h > fb.y - fb.dist.top
+                        and line_abs_y < fb.y + fb.h + fb.dist.bottom
+                    )
                 ]
                 if overlapping_bottoms:
                     cur_line_top = max(cur_line_top, max(overlapping_bottoms))

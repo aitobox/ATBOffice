@@ -276,8 +276,7 @@ def _evaluate_hf_paragraph(
         isinstance(r, (FieldBeginItem, FieldEndItem, FieldSeparateItem)) for r in p.runs
     )
     has_tokens = any(
-        isinstance(r, TextItem) and r.text in ("PAGE", "NUMPAGES", "SECTIONPAGES")
-        for r in p.runs
+        isinstance(r, TextItem) and r.text in ("PAGE", "NUMPAGES", "SECTIONPAGES") for r in p.runs
     )
     if not has_fields and not has_tokens:
         return p
@@ -310,9 +309,7 @@ def _evaluate_hf_paragraph(
             start_repl = (fs_idx + 1) if fs_idx >= 0 else (fb_idx + 1)
             end_repl = i
 
-            runs_copy[start_repl:end_repl] = [
-                TextItem(text=eval_res, r_pr=fb_item.r_pr)
-            ]
+            runs_copy[start_repl:end_repl] = [TextItem(text=eval_res, r_pr=fb_item.r_pr)]
             i = start_repl + 1
             fb_idx = -1
             fs_idx = -1
@@ -445,8 +442,7 @@ class _PaginationContext:
             or self.doc.settings.get("evenOdd", False)
         )
         mirror = bool(
-            self.doc.settings.get("mirror", False)
-            or self.doc.settings.get("mirrorMargins", False)
+            self.doc.settings.get("mirror", False) or self.doc.settings.get("mirrorMargins", False)
         ) and (self.page_number % 2 == 0)
         ml = sect.mr if mirror else sect.ml
         mr = sect.ml if mirror else sect.mr
@@ -682,13 +678,10 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
         else:
             prev_sect = ctx.sect_list[si - 1]["sect"]
             s_type = (
-                getattr(sect, "sect_type", None)
-                or getattr(sect, "type", "nextPage")
-                or "nextPage"
+                getattr(sect, "sect_type", None) or getattr(sect, "type", "nextPage") or "nextPage"
             )
             same_geom = (
-                abs(sect.pg_w - prev_sect.pg_w) < 1.0
-                and abs(sect.pg_h - prev_sect.pg_h) < 1.0
+                abs(sect.pg_w - prev_sect.pg_w) < 1.0 and abs(sect.pg_h - prev_sect.pg_h) < 1.0
             )
 
             is_valid_continuous = (
@@ -862,15 +855,16 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
                                             doc=doc,
                                         )
                                         needed_fn_h += (
-                                            fn_pl.height
-                                            + fn_pl.space_before
-                                            + fn_pl.space_after
+                                            fn_pl.height + fn_pl.space_before + fn_pl.space_after
                                         )
                                     elif isinstance(fn_b, str):
                                         needed_fn_h += 14.0
 
                     avail_h_now = col.height - col.used_height
-                    if p_layout.height + p_layout.effective_space_before + needed_fn_h > avail_h_now:
+                    if (
+                        p_layout.height + p_layout.effective_space_before + needed_fn_h
+                        > avail_h_now
+                    ):
                         ctx.advance_column_or_page(si, sect)
                         col = ctx.current_column()
                         is_top = True
@@ -984,9 +978,7 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
                                     else ctx.current_page.footnote_area.height
                                 )
                                 fn_added_h = (
-                                    14.0
-                                    if not ctx.current_page.footnote_area.fragments
-                                    else 0.0
+                                    14.0 if not ctx.current_page.footnote_area.fragments else 0.0
                                 )
                                 for fn_b in getattr(fn_story, "blocks", []):
                                     if isinstance(fn_b, Paragraph):
@@ -1008,18 +1000,14 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
                                         )
                                         ctx.current_page.footnote_area.fragments.append(fn_frag)
                                         h_inc = (
-                                            fn_pl.height
-                                            + fn_pl.space_before
-                                            + fn_pl.space_after
+                                            fn_pl.height + fn_pl.space_before + fn_pl.space_after
                                         )
                                         fn_cur_y += h_inc
                                         fn_added_h += h_inc
                                 ctx.current_page.footnote_area.note_ids.append(fn_id)
                                 ctx.current_page.footnote_area.height += fn_added_h
                                 ctx.current_page.footnote_area.y = (
-                                    sect.pg_h
-                                    - sect.mb
-                                    - ctx.current_page.footnote_area.height
+                                    sect.pg_h - sect.mb - ctx.current_page.footnote_area.height
                                 )
                                 if col:
                                     col.height = max(

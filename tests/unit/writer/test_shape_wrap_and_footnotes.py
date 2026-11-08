@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
-from PySide6.QtCore import QPointF, QRectF
-from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPixmap
+from PySide6.QtGui import QColor, QPainter, QPixmap
 
 from atboffice.modules.writer.layout.pagination import (
-    Page,
-    PageFootnoteArea,
     paginate_document,
 )
 from atboffice.modules.writer.layout.portions import (
@@ -33,7 +29,6 @@ from atboffice.modules.writer.models.drawing import (
     WrapMode,
     WrapSide,
 )
-from atboffice.modules.writer.models.properties import SectionProperties
 
 
 def test_note_ref_item_portion_decomposition():
@@ -57,7 +52,7 @@ def test_note_ref_item_portion_decomposition():
 
 
 def test_floating_shape_square_and_top_bottom_wrap():
-    """Verify paragraph lines wrap around square obstacles and push down for top/bottom obstacles."""
+    """Verify paragraph lines wrap around square obstacles and push down for obstacles."""
     # 1. Square wrap obstacle
     fb_square = FloatBox(
         x=150.0,
@@ -84,7 +79,9 @@ def test_floating_shape_square_and_top_bottom_wrap():
 
     # At least one line within vertical span of fb_square [15.0, 65.0] must avoid the obstacle
     wrapped_lines = [
-        ln for ln in p_layout_sq.lines if (10.0 + ln.top + ln.height > 15.0 and 10.0 + ln.top < 65.0)
+        ln
+        for ln in p_layout_sq.lines
+        if (10.0 + ln.top + ln.height > 15.0 and 10.0 + ln.top < 65.0)
     ]
     assert len(wrapped_lines) > 0
     # Line width must be constrained by the obstacle (smaller than container width)
@@ -125,7 +122,12 @@ def test_footnote_space_reservation_and_pagination():
     )
 
     doc.main.blocks = [
-        Paragraph(runs=[TextItem(text="Body paragraph referencing footnote 1."), NoteRefItem(kind="fn", note_id="1")]),
+        Paragraph(
+            runs=[
+                TextItem(text="Body paragraph referencing footnote 1."),
+                NoteRefItem(kind="fn", note_id="1"),
+            ]
+        ),
         Paragraph(runs=[TextItem(text="Another regular paragraph in the body.")]),
     ]
 
@@ -167,8 +169,18 @@ def test_footnote_overflow_to_next_page():
         Paragraph(runs=[TextItem(text="Line 1 of body text.")]),
         Paragraph(runs=[TextItem(text="Line 2 of body text.")]),
         Paragraph(runs=[TextItem(text="Line 3 of body text.")]),
-        Paragraph(runs=[TextItem(text="Line 4 of body text with note 1."), NoteRefItem(kind="fn", note_id="1")]),
-        Paragraph(runs=[TextItem(text="Line 5 of body text with note 2."), NoteRefItem(kind="fn", note_id="2")]),
+        Paragraph(
+            runs=[
+                TextItem(text="Line 4 of body text with note 1."),
+                NoteRefItem(kind="fn", note_id="1"),
+            ]
+        ),
+        Paragraph(
+            runs=[
+                TextItem(text="Line 5 of body text with note 2."),
+                NoteRefItem(kind="fn", note_id="2"),
+            ]
+        ),
         Paragraph(runs=[TextItem(text="Line 6 of body text.")]),
     ]
 
@@ -178,7 +190,7 @@ def test_footnote_overflow_to_next_page():
 
 
 def test_canvas_view_paint_footnotes_and_shapes(qtbot):
-    """Verify WriterCanvasView paints footnote separator rule, footnote text, and floating shapes without errors."""
+    """Verify WriterCanvasView paints footnote separator rule, footnote text, and shapes."""
     from atboffice.modules.writer.views.canvas_view import WriterCanvasView
 
     doc = Document()
@@ -199,8 +211,16 @@ def test_canvas_view_paint_footnotes_and_shapes(qtbot):
     )
 
     doc.main.blocks = [
-        Paragraph(runs=[TextItem(text="Paragraph with floating pic:"), pic, NoteRefItem(kind="fn", note_id="1")]),
-        Paragraph(runs=[TextItem(text="Follow-up paragraph wrapping nicely around floating objects.")]),
+        Paragraph(
+            runs=[
+                TextItem(text="Paragraph with floating pic:"),
+                pic,
+                NoteRefItem(kind="fn", note_id="1"),
+            ]
+        ),
+        Paragraph(
+            runs=[TextItem(text="Follow-up paragraph wrapping nicely around floating objects.")]
+        ),
     ]
 
     view = WriterCanvasView(doc=doc)
