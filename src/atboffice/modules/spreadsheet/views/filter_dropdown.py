@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QCoreApplication, Qt, Signal
 from PySide6.QtWidgets import (
@@ -95,7 +95,8 @@ class Top10FilterDialog(QDialog):
 
 
 class FilterDropdownPopup(QWidget):
-    """Popup drop-down widget for AutoFilter with quick sort, top 10, custom, and searchable checkable list."""
+    """Popup drop-down widget for AutoFilter with quick sort, top 10,
+    custom, and searchable checkable list."""
 
     filter_applied = Signal(object)  # ColumnFilter
     filter_cleared = Signal()

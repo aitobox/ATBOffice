@@ -30,11 +30,9 @@ from atboffice.modules.spreadsheet.dialogs.paste_special_dialog import (
 )
 from atboffice.modules.spreadsheet.models.selection_model import SelectionRange
 from atboffice.modules.spreadsheet.models.sheet_model import (
-    CellComment,
     CellData,
     SheetDataModel,
 )
-from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 from atboffice.modules.spreadsheet.views.editor_controller import EditorController
 from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport
 
