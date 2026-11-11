@@ -47,6 +47,8 @@ class BaseOfficeWindow(QMainWindow):
         self._is_closed: bool = False
         self.current_theme: str = "blue"
         self.task_pane_dock: Any | None = None
+        self.clipboard_pane: Any | None = None
+        self.command_search_box: Any | None = None
         self._document_metadata: Any | None = None
         from atboffice.core.recovery_service import RecoveryService
 
@@ -834,14 +836,65 @@ class BaseOfficeWindow(QMainWindow):
         from PySide6.QtCore import Qt
 
         from atboffice.ui.components.task_pane import TaskPaneDock
+        from atboffice.ui.panes.clipboard_pane import ClipboardTaskPane
 
         if self.task_pane_dock is None:
             self.task_pane_dock = TaskPaneDock(self)
             self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.task_pane_dock)
             self.task_pane_dock.action_requested.connect(self._on_task_pane_action)
             self.task_pane_dock.visibilityChanged.connect(self._on_task_pane_visibility_changed)
+
+            # Register 24-item Office Clipboard Task Pane
+            self.clipboard_pane = ClipboardTaskPane(parent=self.task_pane_dock)
+            self.clipboard_pane.item_clicked.connect(self._on_clipboard_item_clicked)
+            self.clipboard_pane.paste_all_requested.connect(self._on_clipboard_paste_all)
+            self.task_pane_dock.register_pane(
+                "clipboard", safe_tr("剪贴板"), self.clipboard_pane
+            )
+
             self.task_pane_dock.hide()
         return self.task_pane_dock
+
+    def init_command_search_box(self) -> Any:
+        """Initialize and attach universal CommandSearchBox to top right of menu bar."""
+        if getattr(self, "command_search_box", None) is None:
+            from PySide6.QtCore import Qt
+
+            from atboffice.ui.components.command_search_box import CommandSearchBox
+
+            reg = getattr(self, "action_registry", None)
+            if (
+                reg is None
+                and hasattr(self, "menu_bar")
+                and hasattr(self.menu_bar, "action_registry")
+            ):
+                reg = self.menu_bar.action_registry
+
+            self.command_search_box = CommandSearchBox(action_registry=reg, parent=self)
+            if hasattr(self, "menu_bar") and self.menu_bar is not None:
+                self.menu_bar.setCornerWidget(self.command_search_box, Qt.Corner.TopRightCorner)
+            elif self.menuBar() is not None:
+                self.menuBar().setCornerWidget(self.command_search_box, Qt.Corner.TopRightCorner)
+
+        return self.command_search_box
+
+    def _on_clipboard_item_clicked(self, item: Any) -> None:
+        """Handle click on single clipboard item by executing paste."""
+        self.paste()
+
+    def _on_clipboard_paste_all(self, items: list[Any]) -> None:
+        """Handle Paste All by executing paste for all clippings."""
+        for item in items:
+            if hasattr(self, "clipboard_pane") and self.clipboard_pane is not None:
+                self.clipboard_pane.paste_item(item)
+            else:
+                self.paste()
+
+    def open_clipboard_pane(self) -> None:
+        """Open or activate the Office Clipboard task pane."""
+        if self.task_pane_dock is not None:
+            self.task_pane_dock.show()
+            self.task_pane_dock.show_pane("clipboard")
 
     def toggle_task_pane(self, pane_id: str | None = None) -> None:
         """Toggle or switch active task pane."""
@@ -928,3 +981,7 @@ class BaseOfficeWindow(QMainWindow):
         self.update_window_title()
         if self.task_pane_dock is not None:
             self.task_pane_dock.retranslate_ui()
+        if getattr(self, "command_search_box", None) is not None:
+            self.command_search_box.retranslate_ui()
+        if getattr(self, "clipboard_pane", None) is not None:
+            self.clipboard_pane.retranslate_ui()
