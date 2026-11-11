@@ -194,6 +194,10 @@ class Portion:
     font_family: str = "Times New Roman"
     bold: bool = False
     italic: bool = False
+    color: str | None = None
+    underline: str = "none"
+    highlight: str | None = None
+    rtl: bool = False
     counts_for_height: bool = True
     char_offset: int = 0
     length: int = 0
@@ -222,6 +226,13 @@ class LayoutLine:
     indent_left: float = 0.0
     indent_right: float = 0.0
     extra_space_per_blank: float = 0.0
+    is_rtl: bool = False
+    jc: str = "left"
+
+    @property
+    def baseline_offset(self) -> float:
+        """Return baseline vertical offset relative to line.top."""
+        return self.baseline - self.top
 
 
 @dataclass
@@ -299,6 +310,8 @@ def measure_text_width(
     text: str, font_size: float, font_family: str, bold: bool = False, italic: bool = False
 ) -> float:
     """Calculate the total layout width of a string in points."""
+    if not text:
+        return 0.0
     return sum(
         measure_char_width(c, font_size, font_family, bold=bold, italic=italic) for c in text
     )
@@ -367,8 +380,100 @@ def decompose_paragraph_to_portions(
     """Decompose a Paragraph into atomic portions (Text, Blank, Tab, Break, Graphic)."""
     portions: list[Portion] = []
     d = doc or Document()
-    _ = resolve_p_props(d, p)
+    p_pr = resolve_p_props(d, p)
     char_offset = 0
+
+    # Numbering & Bullet Portion Synthesis
+    num = getattr(p_pr, "num", None)
+    if num is not None and getattr(d, "numbering", None):
+        nums_map = d.numbering.get("nums", {})
+        num_entry = nums_map.get(str(num.id))
+        if num_entry:
+            abs_id = num_entry.get("abs")
+            abs_entry = d.numbering.get("abs", {}).get(str(abs_id), {})
+            levels = abs_entry.get("levels", [])
+            lvl_idx = num.lvl if num.lvl is not None else 0
+            if 0 <= lvl_idx < len(levels):
+                lvl = levels[lvl_idx]
+                fmt = lvl.get("fmt", "bullet")
+                txt = lvl.get("text", "")
+                r_pr = lvl.get("r_pr")
+                font_f = r_pr.font if (r_pr and r_pr.font) else "Wingdings"
+                font_s = r_pr.sz if (r_pr and r_pr.sz) else 10.0
+                color = r_pr.color if (r_pr and r_pr.color) else "#000000"
+
+                if fmt == "bullet":
+                    glyph = txt if txt else "•"
+                elif fmt == "decimal":
+                    start_val = lvl.get("start", 1)
+                    glyph = (
+                        txt.replace(f"%{lvl_idx + 1}", str(start_val))
+                        if txt
+                        else f"{start_val}."
+                    )
+                elif fmt == "lowerLetter":
+                    glyph = txt.replace(f"%{lvl_idx+1}", "a") if txt else "a."
+                elif fmt == "upperLetter":
+                    glyph = txt.replace(f"%{lvl_idx+1}", "A") if txt else "A."
+                elif fmt == "lowerRoman":
+                    glyph = txt.replace(f"%{lvl_idx+1}", "i") if txt else "i."
+                elif fmt == "upperRoman":
+                    glyph = txt.replace(f"%{lvl_idx+1}", "I") if txt else "I."
+                else:
+                    glyph = txt if txt else "•"
+
+                w_glyph = measure_text_width(glyph, font_s, font_f)
+                b_ascent, b_descent = compute_font_metrics(font_s, font_f)
+                portions.append(
+                    Portion(
+                        type=PortionType.TEXT,
+                        text=glyph,
+                        width=w_glyph,
+                        ascent=b_ascent,
+                        descent=b_descent,
+                        font_size=font_s,
+                        font_family=font_f,
+                        color=color,
+                        counts_for_height=True,
+                        char_offset=0,
+                        length=len(glyph),
+                    )
+                )
+                char_offset += len(glyph)
+                suff = lvl.get("suff", "tab")
+                if suff == "tab":
+                    portions.append(
+                        Portion(
+                            type=PortionType.TAB,
+                            text="\t",
+                            width=0.0,
+                            ascent=0.0,
+                            descent=0.0,
+                            font_size=font_s,
+                            font_family=font_f,
+                            counts_for_height=False,
+                            char_offset=char_offset,
+                            length=1,
+                        )
+                    )
+                    char_offset += 1
+                elif suff == "space":
+                    sp_w = measure_text_width(" ", font_s, font_f)
+                    portions.append(
+                        Portion(
+                            type=PortionType.BLANK,
+                            text=" ",
+                            width=sp_w,
+                            ascent=b_ascent,
+                            descent=b_descent,
+                            font_size=font_s,
+                            font_family=font_f,
+                            counts_for_height=False,
+                            char_offset=char_offset,
+                            length=1,
+                        )
+                    )
+                    char_offset += 1
 
     for item in p.runs:
         r_pr = resolve_r_props(d, p, item)
@@ -426,6 +531,10 @@ def decompose_paragraph_to_portions(
                                 font_family=font_family,
                                 bold=bool(r_pr.b),
                                 italic=bool(r_pr.i),
+                                color=r_pr.color,
+                                underline=getattr(r_pr, "u", "none"),
+                                highlight=getattr(r_pr, "highlight", None),
+                                rtl=bool(getattr(r_pr, "rtl", False)),
                                 counts_for_height=False,
                                 char_offset=char_offset + start,
                                 length=len(blanks),
@@ -451,6 +560,10 @@ def decompose_paragraph_to_portions(
                                 font_family=r_pr.font_ea or font_family,
                                 bold=bool(r_pr.b),
                                 italic=bool(r_pr.i),
+                                color=r_pr.color,
+                                underline=getattr(r_pr, "u", "none"),
+                                highlight=getattr(r_pr, "highlight", None),
+                                rtl=bool(getattr(r_pr, "rtl", False)),
                                 counts_for_height=True,
                                 char_offset=char_offset + pos,
                                 length=1,
@@ -484,6 +597,10 @@ def decompose_paragraph_to_portions(
                                 font_family=font_family,
                                 bold=bool(r_pr.b),
                                 italic=bool(r_pr.i),
+                                color=r_pr.color,
+                                underline=getattr(r_pr, "u", "none"),
+                                highlight=getattr(r_pr, "highlight", None),
+                                rtl=bool(getattr(r_pr, "rtl", False)),
                                 counts_for_height=True,
                                 char_offset=char_offset + start,
                                 length=len(word),
@@ -777,6 +894,24 @@ def layout_paragraph(
     ind_right = p_pr.ind.right
     ind_first = p_pr.ind.first_line
 
+    # Inherit indents from numbering level if not explicitly defined
+    num = getattr(p_pr, "num", None)
+    if num is not None and getattr(d, "numbering", None):
+        nums_map = d.numbering.get("nums", {})
+        num_entry = nums_map.get(str(num.id))
+        if num_entry:
+            abs_id = num_entry.get("abs")
+            abs_entry = d.numbering.get("abs", {}).get(str(abs_id), {})
+            levels = abs_entry.get("levels", [])
+            lvl_idx = num.lvl if num.lvl is not None else 0
+            if 0 <= lvl_idx < len(levels):
+                lvl = levels[lvl_idx]
+                lvl_ind = lvl.get("ind", {})
+                if ind_left == 0.0 and lvl_ind.get("l") is not None:
+                    ind_left = float(lvl_ind["l"])
+                if ind_first == 0.0 and lvl_ind.get("fl") is not None:
+                    ind_first = float(lvl_ind["fl"])
+
     first_line_available = max(10.0, container_width - ind_left - ind_right - ind_first)
     subsequent_line_available = max(10.0, container_width - ind_left - ind_right)
 
@@ -855,16 +990,25 @@ def layout_paragraph(
 
         actual_content_width = sum(p.width for p in trimmed_portions)
 
-        # Handle Justification (jc == 'both')
+        # Handle Justification (jc == 'both') and Horizontal Alignment (center / right)
         slack = max(0.0, avail_w - actual_content_width)
         extra_per_blank = 0.0
+        is_bidi = bool(getattr(p_pr, "bidi", False))
+        resolved_jc = "left"
         if p_pr.jc in ("both", "distribute") and not is_last and trimmed_portions:
+            resolved_jc = "both"
             blank_portions = [pt for pt in trimmed_portions if pt.type == PortionType.BLANK]
             if blank_portions:
                 extra_per_blank = slack / float(len(blank_portions))
                 for pt in blank_portions:
                     pt.width += extra_per_blank
                 actual_content_width = avail_w
+        elif p_pr.jc == "center":
+            resolved_jc = "center"
+            indent_l += slack / 2.0
+        elif p_pr.jc == "right" or (p_pr.jc in ("both", "distribute") and is_last and is_bidi):
+            resolved_jc = "right"
+            indent_l += slack
 
         # Line height & baseline calculations
         counting = [pt for pt in trimmed_portions if pt.counts_for_height]
@@ -928,6 +1072,8 @@ def layout_paragraph(
             indent_left=indent_l,
             indent_right=ind_right,
             extra_space_per_blank=extra_per_blank,
+            is_rtl=bool(getattr(p_pr, "bidi", False)),
+            jc=resolved_jc,
         )
         cur_line_top += height
         line_idx += 1
@@ -949,7 +1095,11 @@ def layout_paragraph(
         if pt.type == PortionType.TAB:
             # Tab advance
             cur_x = target_indent_left() + current_width
-            next_x, tab_obj = find_next_tab_stop(cur_x, target_indent_left(), p_pr.tabs)
+            if line_idx == 0 and ind_first < 0.0 and cur_x < ind_left:
+                next_x = ind_left
+                tab_obj = None
+            else:
+                next_x, tab_obj = find_next_tab_stop(cur_x, target_indent_left(), p_pr.tabs)
             pt.data = tab_obj
             align = getattr(tab_obj, "align", "left") if tab_obj else "left"
             if align == "right":
@@ -1008,6 +1158,48 @@ def layout_paragraph(
                         current_width = 0.0
                         continue
 
+            # Trailing whitespace over margin per Word rules
+            if pt.type == PortionType.BLANK:
+                all_remaining_blank = all(
+                    rem_pt.type == PortionType.BLANK
+                    for rem_pt in portions[idx:]
+                    if rem_pt.type != PortionType.BREAK
+                )
+                if all_remaining_blank:
+                    # Retain trailing blanks hanging over margin without forcing line wrap
+                    current_portions.append(pt)
+                    current_width += pt.width
+                    idx += 1
+                    continue
+                else:
+                    # Space before wrapped word stays on current line
+                    current_portions.append(pt)
+                    lines.append(finalize_line(is_last=False, is_hard=False))
+                    current_portions = []
+                    current_width = 0.0
+                    idx += 1
+                    continue
+
+            # Keep contiguous non-CJK word portions atomic across run style changes
+            roll_back = 0
+            if pt.type == PortionType.TEXT and pt.text and not is_cjk_char(pt.text[0]):
+                for prev in reversed(current_portions):
+                    if (
+                        prev.type == PortionType.TEXT
+                        and prev.text
+                        and not is_cjk_char(prev.text[-1])
+                    ):
+                        roll_back += 1
+                    else:
+                        break
+            if 0 < roll_back < len(current_portions):
+                current_portions = current_portions[:-roll_back]
+                lines.append(finalize_line(is_last=False, is_hard=False))
+                current_portions = []
+                current_width = 0.0
+                idx -= roll_back
+                continue
+
             # Wrap to next line
             lines.append(finalize_line(is_last=False, is_hard=False))
             current_portions = []
@@ -1028,14 +1220,18 @@ def layout_paragraph(
             sub_chars: list[str] = []
             sub_w = 0.0
             for c in pt.text:
-                cw = measure_char_width(c, pt.font_size, pt.font_family)
+                cw = measure_text_width(
+                    c, pt.font_size, pt.font_family, bold=pt.bold, italic=pt.italic
+                )
                 if sub_chars and (sub_w + cw > avail_w):
                     break
                 sub_chars.append(c)
                 sub_w += cw
             if not sub_chars:
                 sub_chars = [pt.text[0]]
-                sub_w = measure_char_width(pt.text[0], pt.font_size, pt.font_family)
+                sub_w = measure_text_width(
+                    pt.text[0], pt.font_size, pt.font_family, bold=pt.bold, italic=pt.italic
+                )
 
             head_text = "".join(sub_chars)
             tail_text = pt.text[len(sub_chars) :]
@@ -1048,6 +1244,12 @@ def layout_paragraph(
                 descent=pt.descent,
                 font_size=pt.font_size,
                 font_family=pt.font_family,
+                bold=pt.bold,
+                italic=pt.italic,
+                color=pt.color,
+                underline=pt.underline,
+                highlight=pt.highlight,
+                rtl=pt.rtl,
                 counts_for_height=pt.counts_for_height,
                 char_offset=pt.char_offset,
                 length=len(head_text),
@@ -1055,11 +1257,19 @@ def layout_paragraph(
             tail_pt = Portion(
                 type=pt.type,
                 text=tail_text,
-                width=measure_text_width(tail_text, pt.font_size, pt.font_family),
+                width=measure_text_width(
+                    tail_text, pt.font_size, pt.font_family, bold=pt.bold, italic=pt.italic
+                ),
                 ascent=pt.ascent,
                 descent=pt.descent,
                 font_size=pt.font_size,
                 font_family=pt.font_family,
+                bold=pt.bold,
+                italic=pt.italic,
+                color=pt.color,
+                underline=pt.underline,
+                highlight=pt.highlight,
+                rtl=pt.rtl,
                 counts_for_height=pt.counts_for_height,
                 char_offset=pt.char_offset + len(head_text),
                 length=len(tail_text),

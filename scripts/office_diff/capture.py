@@ -208,6 +208,18 @@ def capture_single_document(
                 cw = window.centralWidget()
                 grab_target = cw if cw is not None else window
 
+        if grab_target is not None and target.app == "word":
+            for _ in range(3):
+                drain_event_loop(3)
+                cur_vw, cur_vh = grab_target.width(), grab_target.height()
+                if (cur_vw, cur_vh) == target_size:
+                    break
+                window.resize(
+                    window.width() + (target_size[0] - cur_vw),
+                    window.height() + (target_size[1] - cur_vh),
+                )
+                drain_event_loop(3)
+
         pixmap = grab_target.grab()
 
         if pixmap.isNull() or pixmap.width() == 0 or pixmap.height() == 0:

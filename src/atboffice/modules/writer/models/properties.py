@@ -208,6 +208,8 @@ class ParagraphProperties:
     num: NumberingRef | None = None
     borders: dict[str, Any] = field(default_factory=dict)
     frame_pr: dict[str, str] | None = None
+    bidi: bool | None = None
+    jc_explicit: bool = field(default=False, repr=False, compare=False)
     chg: RevisionStamp | None = None
     sdts: list[dict[str, Any]] = field(default_factory=list)
     sdte: list[str] = field(default_factory=list)
@@ -271,6 +273,7 @@ class RunProperties:
     spacing: float = 0.0
     lang: str = "en-US"
     lang_ea: str = "zh-CN"
+    rtl: bool = False
     link: dict[str, Any] | None = None
     ins: RevisionStamp | None = None
     del_rev: RevisionStamp | None = None

@@ -184,6 +184,8 @@ class SpellEngine:
         return res
 
     def _check_word_raw(self, w: str) -> bool:
+        if self.loaded_lang == "en_US" and not w.isascii():
+            return True
         lw = w.lower()
         if lw in self.custom_dict or lw in self.ignored_all:
             return True

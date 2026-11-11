@@ -38,7 +38,103 @@ class FloatBox:
     dist: WrapDist
     z_index: int = 0
     behind: bool = False
-    item: DrawingObject | None = None
+    item: Any = None
+    lines: list[Any] = field(default_factory=list)
+
+
+def resolve_frame_box(
+    p: Any,
+    fp: dict[str, str],
+    page_dims: tuple[float, float],
+    margin_dims: tuple[float, float, float, float],
+    col_dims: tuple[float, float],
+    para_top: float,
+) -> FloatBox:
+    """Calculate absolute page coordinates for a paragraph frame (framePr)."""
+    pw, ph = page_dims
+    ml, mr, mt, mb = margin_dims
+    cl, cw = col_dims
+
+    # Width: twips to pt
+    w_val = fp.get("w") or fp.get("w:w")
+    w = float(w_val) / 20.0 if w_val else (cw if cw > 0 else pw - ml - mr)
+
+    # Height: twips to pt
+    h_val = fp.get("h") or fp.get("w:h")
+    h = float(h_val) / 20.0 if h_val else 0.0
+
+    # Padding / distance
+    h_sp = float(fp.get("hSpace", "0") or "0") / 20.0
+    v_sp = float(fp.get("vSpace", "0") or "0") / 20.0
+    dist = WrapDist(top=v_sp, bottom=v_sp, left=h_sp, right=h_sp)
+
+    # Horizontal anchor: page, margin, column, text
+    h_anchor = fp.get("hAnchor") or "column"
+    if h_anchor == "page":
+        ref_x = 0.0
+        ref_w = pw
+    elif h_anchor == "margin":
+        ref_x = ml
+        ref_w = pw - ml - mr
+    else:  # "column", "text"
+        ref_x = cl + ml
+        ref_w = cw
+
+    # Horizontal position
+    x_val = fp.get("x") or fp.get("w:x")
+    x_align = fp.get("xAlign") or fp.get("w:xAlign")
+    if x_val is not None:
+        x = ref_x + float(x_val) / 20.0
+    elif x_align == "center":
+        x = ref_x + max(0.0, (ref_w - w) / 2.0)
+    elif x_align == "right":
+        x = ref_x + max(0.0, ref_w - w)
+    else:
+        x = ref_x
+
+    # Vertical anchor: page, margin, text
+    v_anchor = fp.get("vAnchor") or "text"
+    if v_anchor == "page":
+        ref_y = 0.0
+        ref_h = ph
+    elif v_anchor == "margin":
+        ref_y = mt
+        ref_h = ph - mt - mb
+    else:  # "text"
+        ref_y = para_top
+        ref_h = ph - para_top - mb
+
+    # Vertical position
+    y_val = fp.get("y") or fp.get("w:y")
+    y_align = fp.get("yAlign") or fp.get("w:yAlign")
+    if y_val is not None:
+        y = ref_y + float(y_val) / 20.0
+    elif y_align == "center":
+        y = ref_y + max(0.0, (ref_h - h) / 2.0)
+    elif y_align == "bottom":
+        y = ref_y + max(0.0, ref_h - h)
+    else:
+        y = ref_y
+
+    wrap_str = fp.get("wrap", "around")
+    if wrap_str == "none":
+        wrap_mode = WrapMode.IN_FRONT
+    elif wrap_str == "notBeside":
+        wrap_mode = WrapMode.TOP_BOTTOM
+    else:
+        wrap_mode = WrapMode.SQUARE
+
+    return FloatBox(
+        x=x,
+        y=y,
+        w=w,
+        h=h,
+        wrap_mode=wrap_mode,
+        side=WrapSide.BOTH,
+        dist=dist,
+        item=p,
+        lines=[],
+    )
 
 
 def resolve_float_box(

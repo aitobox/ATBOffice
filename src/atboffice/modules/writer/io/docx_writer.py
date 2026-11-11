@@ -417,14 +417,18 @@ class DocxWriter:
 
         if getattr(p_pr, "frame_pr", None) is not None:
             fp = ET.SubElement(p_pr_elem, _w("framePr"))
+            seen_locals = set()
             for k, v in p_pr.frame_pr.items():
-                if k.startswith("{"):
-                    fp.set(k, v)
+                if "}" in k:
+                    local = k.split("}", 1)[-1]
                 elif ":" in k:
-                    prefix, local = k.split(":", 1)
-                    fp.set(_w(local) if prefix == "w" else k, v)
+                    local = k.split(":", 1)[-1]
                 else:
-                    fp.set(_w(k), v)
+                    local = k
+                if local in seen_locals:
+                    continue
+                seen_locals.add(local)
+                fp.set(_w(local), str(v))
 
         if not p_pr.widow_control:
             widow = ET.SubElement(p_pr_elem, _w("widowControl"))

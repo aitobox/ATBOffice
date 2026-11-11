@@ -235,8 +235,11 @@ def merge_p_props(
 
     if over.style != "Normal":
         res.style = over.style
-    if over.jc != "left":
+    if over.jc != "left" or getattr(over, "jc_explicit", False):
         res.jc = over.jc
+        res.jc_explicit = True
+    if getattr(over, "bidi", None) is not None:
+        res.bidi = over.bidi
     if over.keep_next:
         res.keep_next = True
     if over.keep_lines:
@@ -277,6 +280,13 @@ def merge_p_props(
     # Numbering
     if over.num is not None:
         res.num = copy.deepcopy(over.num)
+
+    # Frame properties (framePr)
+    if over.frame_pr is not None:
+        if res.frame_pr is None:
+            res.frame_pr = copy.deepcopy(over.frame_pr)
+        else:
+            res.frame_pr.update(copy.deepcopy(over.frame_pr))
 
     return res
 
@@ -321,6 +331,8 @@ def merge_r_props(base: RunProperties, over: RunProperties | None) -> RunPropert
         res.kern = over.kern
     if over.spacing != 0.0:
         res.spacing = over.spacing
+    if getattr(over, "rtl", False):
+        res.rtl = True
 
     return res
 
@@ -337,6 +349,8 @@ def resolve_p_props(doc: Any, para: Any, context: Any = None) -> ParagraphProper
 
     # Direct paragraph formatting
     base = merge_p_props(base, getattr(para, "p_pr", None))
+    if getattr(base, "bidi", False) and not getattr(base, "jc_explicit", False):
+        base.jc = "right"
     return base
 
 
