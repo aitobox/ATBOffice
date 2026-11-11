@@ -56,6 +56,7 @@ class CellData:
 
     value: Any = None
     formula: str | None = None
+    cached_value: Any = None
     format_code: str = "General"
     bold: bool = False
     italic: bool = False
@@ -104,13 +105,41 @@ class CellData:
             c.rich_runs = [r.clone() for r in self.rich_runs]
         return c
 
+    def get_display_value(self) -> Any:
+        """Return display value, prioritizing cached_value on formula/external error or None."""
+        val = self.value
+        if (
+            val is None
+            or val == ""
+            or (
+                isinstance(val, str)
+                and (
+                    val in {
+                        "#NULL!",
+                        "#DIV/0!",
+                        "#VALUE!",
+                        "#REF!",
+                        "#NAME?",
+                        "#NUM!",
+                        "#N/A",
+                        "#SPILL!",
+                        "#CALC!",
+                        "#GETTING_DATA",
+                    }
+                    or (val.startswith("#") and (val.endswith("!") or val.endswith("?")))
+                )
+            )
+        ) and self.cached_value is not None:
+            return self.cached_value
+        return val
+
     def get_effective_align_h(self) -> str:
         """Resolve effective horizontal alignment for this cell according to Excel rules."""
         h = (self.align_h or "").strip().lower()
         if h and h != "general":
             return h
 
-        val = self.value
+        val = self.get_display_value()
         if val is None or val == "":
             return "left"
 
@@ -558,13 +587,17 @@ class SheetDataModel:
         cell = self.cells.get((r, c))
         if cell is None:
             return True
-        return cell.value is None or cell.value == ""
+        val = cell.get_display_value()
+        return val is None or val == ""
 
     def get_formatted_text(self, r: int, c: int) -> str:
         cell = self.cells.get((r, c))
-        if cell is None or cell.value is None or cell.value == "":
+        if cell is None:
             return ""
-        res = format_value(cell.value, cell.format_code)
+        val = cell.get_display_value()
+        if val is None or val == "":
+            return ""
+        res = format_value(val, cell.format_code)
         return res.text
 
     def get_effective_alignment(self, r: int, c: int) -> tuple[str, str]:

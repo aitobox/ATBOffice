@@ -528,7 +528,7 @@ class DependencyGraph:
     ) -> CycleReport:
         """Scan all formula cells across all sheets in workbook, detect cycles, and recompute."""
         from atboffice.modules.spreadsheet.calc.context import EvalContext
-        from atboffice.modules.spreadsheet.calc.errors import CYCLE, VALUE
+        from atboffice.modules.spreadsheet.calc.errors import CYCLE, VALUE, is_error
         from atboffice.modules.spreadsheet.calc.evaluator import evaluate
 
         if ctx is None:
@@ -582,9 +582,21 @@ class DependencyGraph:
                     ctx.current_row = addr.r
                     ctx.current_col = addr.c
                     try:
-                        cell.value = evaluate(cell.formula, ctx)
+                        res = evaluate(cell.formula, ctx)
+                        is_err = is_error(res) or (
+                            isinstance(res, str)
+                            and res.startswith("#")
+                            and (res.endswith("!") or res.endswith("?"))
+                        )
+                        if is_err and getattr(cell, "cached_value", None) is not None:
+                            cell.value = cell.cached_value
+                        else:
+                            cell.value = res
                     except Exception:
-                        cell.value = VALUE
+                        if getattr(cell, "cached_value", None) is not None:
+                            cell.value = cell.cached_value
+                        else:
+                            cell.value = VALUE
 
         return cycle_report
 
@@ -598,7 +610,7 @@ class DependencyGraph:
     ) -> RecalcPlan:
         """Invalidate and recalculate downstream dependents when cell (sheet, r, c) changes."""
         from atboffice.modules.spreadsheet.calc.context import EvalContext
-        from atboffice.modules.spreadsheet.calc.errors import CYCLE, VALUE
+        from atboffice.modules.spreadsheet.calc.errors import CYCLE, VALUE, is_error
         from atboffice.modules.spreadsheet.calc.evaluator import evaluate
 
         if ctx is None:
@@ -634,8 +646,20 @@ class DependencyGraph:
                     ctx.current_row = addr.r
                     ctx.current_col = addr.c
                     try:
-                        cell.value = evaluate(cell.formula, ctx)
+                        res = evaluate(cell.formula, ctx)
+                        is_err = is_error(res) or (
+                            isinstance(res, str)
+                            and res.startswith("#")
+                            and (res.endswith("!") or res.endswith("?"))
+                        )
+                        if is_err and getattr(cell, "cached_value", None) is not None:
+                            cell.value = cell.cached_value
+                        else:
+                            cell.value = res
                     except Exception:
-                        cell.value = VALUE
+                        if getattr(cell, "cached_value", None) is not None:
+                            cell.value = cell.cached_value
+                        else:
+                            cell.value = VALUE
 
         return plan
