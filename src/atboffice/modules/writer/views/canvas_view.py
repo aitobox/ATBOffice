@@ -163,6 +163,10 @@ class WriterCanvasView(QAbstractScrollArea):
         self._ruler_guide_x: float | None = None
         self._ruler_guide_y: float | None = None
 
+        # Undo/Redo transaction stack
+        self._undo_stack: list[dict[str, Any]] = []
+        self._redo_stack: list[dict[str, Any]] = []
+
         # Inline & floating picture raster pixmap cache
         self._pixmap_cache: dict[str, QPixmap] = {}
 
@@ -188,6 +192,8 @@ class WriterCanvasView(QAbstractScrollArea):
     def set_document(self, doc: Document) -> None:
         """Set a new document and repaginate."""
         self._pixmap_cache.clear()
+        self._undo_stack.clear()
+        self._redo_stack.clear()
         self.doc = doc
         if not self.doc.main.blocks:
             self.doc.main.blocks.append(Paragraph())
@@ -201,6 +207,74 @@ class WriterCanvasView(QAbstractScrollArea):
         self.pagination = self.controller.pagination
         self._update_scroll_ranges()
         self.viewport().update()
+
+    # -----------------------------------------------------------------------
+    # Undo / Redo Transaction Engine
+    # -----------------------------------------------------------------------
+
+    def push_undo_command(self, cmd: dict[str, Any]) -> None:
+        """Push an undoable command onto the undo stack and clear redo stack."""
+        self._undo_stack.append(cmd)
+        self._redo_stack.clear()
+        self.controller.document_modified.emit()
+
+    def can_undo(self) -> bool:
+        """Return True if there are actions that can be undone."""
+        return bool(self._undo_stack)
+
+    def can_redo(self) -> bool:
+        """Return True if there are undone actions that can be redone."""
+        return bool(self._redo_stack)
+
+    def undo(self) -> bool:
+        """Undo the last editing or formatting command."""
+        if not self._undo_stack:
+            return False
+        cmd = self._undo_stack.pop()
+        self._redo_stack.append(cmd)
+        self._apply_command_state(cmd, is_undo=True)
+        return True
+
+    def redo(self) -> bool:
+        """Redo the last undone command."""
+        if not self._redo_stack:
+            return False
+        cmd = self._redo_stack.pop()
+        self._undo_stack.append(cmd)
+        self._apply_command_state(cmd, is_undo=False)
+        return True
+
+    def _apply_command_state(self, cmd: dict[str, Any], is_undo: bool) -> None:
+        """Apply the before or after state of a transaction command."""
+        import copy
+
+        state = cmd["before"] if is_undo else cmd["after"]
+        cmd_type = cmd.get("type")
+
+        if cmd_type == "paragraph_indent":
+            p = self.controller._paragraph_by_id(cmd["para_id"])
+            if p:
+                p.indent_left = state.get("indent_left", p.indent_left)
+                p.indent_first = state.get("indent_first", p.indent_first)
+                p.indent_right = state.get("indent_right", p.indent_right)
+        elif cmd_type == "paragraph_tabs":
+            p = self.controller._paragraph_by_id(cmd["para_id"])
+            if p:
+                p.p_pr.tabs = copy.deepcopy(state)
+        elif cmd_type == "section_margins":
+            sect = cmd.get("sect")
+            if sect:
+                if "ml" in state:
+                    sect.ml = state["ml"]
+                if "mr" in state:
+                    sect.mr = state["mr"]
+                if "mt" in state:
+                    sect.mt = state["mt"]
+                if "mb" in state:
+                    sect.mb = state["mb"]
+
+        self.controller.repaginate_and_refresh()
+        self.controller.document_modified.emit()
 
     def _on_caret_changed(self) -> None:
         self.caret_moved.emit(self.controller.pos.para_id, self.controller.pos.offset)

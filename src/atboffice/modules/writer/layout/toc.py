@@ -237,6 +237,11 @@ def insert_or_update_toc(
     pagination_result: PaginationResult | None = None,
 ) -> list[Paragraph]:
     """Insert or update Table of Contents paragraphs in document main story."""
+    from atboffice.modules.writer.models.document import reindex
+
+    if not doc.main.paras and doc.main.blocks:
+        reindex(doc)
+
     toc_blocks = build_toc(doc, instr, pagination_result)
     if not toc_blocks:
         return []

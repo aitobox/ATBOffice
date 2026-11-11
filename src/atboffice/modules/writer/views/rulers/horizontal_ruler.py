@@ -75,13 +75,16 @@ class HorizontalRuler(QWidget):
         self._active_sect: SectionProperties | None = None
         self._active_canvas: WriterCanvasView | None = None
 
-        # Drag state
+        # Drag & Undo state
         self._drag_kind: str | None = None
         self._drag_start_x: float = 0.0
         self._drag_current_x: float = 0.0
         self._drag_current_y: float = 0.0
         self._drag_tab_index: int = -1
         self._active_selector_kind: TabKind = TabKind.LEFT
+        self._orig_indents: tuple[float, float, float] | None = None
+        self._orig_tabs: list[TabStop] | None = None
+        self._orig_margins: tuple[float, float] | None = None
 
         self.retranslate_ui()
 
@@ -411,6 +414,14 @@ class HorizontalRuler(QWidget):
             super().mousePressEvent(event)
             return
 
+        import copy
+
+        p = self._active_para
+        self._orig_indents = (p.indent_left, p.indent_first, p.indent_right) if p else None
+        self._orig_tabs = copy.deepcopy(p.p_pr.tabs) if p else None
+        sect = self._active_sect
+        self._orig_margins = (sect.ml, sect.mr) if sect else None
+
         x = float(event.position().x())
         y = float(event.position().y())
         text_l = self.text_left_ruler()
@@ -563,6 +574,51 @@ class HorizontalRuler(QWidget):
 
         self.indent_changed.emit(p.indent_left, p.indent_first, p.indent_right)
 
+        # Record undo commands if changes were committed
+        if self._active_canvas:
+            import copy
+
+            if kind in ("first", "hang", "left", "right") and self._orig_indents is not None:
+                new_indents = (p.indent_left, p.indent_first, p.indent_right)
+                if new_indents != self._orig_indents:
+                    self._active_canvas.push_undo_command({
+                        "type": "paragraph_indent",
+                        "para_id": p.id,
+                        "before": {
+                            "indent_left": self._orig_indents[0],
+                            "indent_first": self._orig_indents[1],
+                            "indent_right": self._orig_indents[2],
+                        },
+                        "after": {
+                            "indent_left": p.indent_left,
+                            "indent_first": p.indent_first,
+                            "indent_right": p.indent_right,
+                        },
+                    })
+            elif kind in ("tab", "new_tab") and self._orig_tabs is not None:
+                if p.p_pr.tabs != self._orig_tabs:
+                    self._active_canvas.push_undo_command({
+                        "type": "paragraph_tabs",
+                        "para_id": p.id,
+                        "before": copy.deepcopy(self._orig_tabs),
+                        "after": copy.deepcopy(p.p_pr.tabs),
+                    })
+            elif kind in ("margin_left", "margin_right") and self._active_sect and self._orig_margins is not None:
+                new_margins = (self._active_sect.ml, self._active_sect.mr)
+                if new_margins != self._orig_margins:
+                    self._active_canvas.push_undo_command({
+                        "type": "section_margins",
+                        "sect": self._active_sect,
+                        "before": {
+                            "ml": self._orig_margins[0],
+                            "mr": self._orig_margins[1],
+                        },
+                        "after": {
+                            "ml": self._active_sect.ml,
+                            "mr": self._active_sect.mr,
+                        },
+                    })
+
         # Trigger repagination and view refresh on attached canvas
         if self._active_canvas:
             self._active_canvas.controller.repaginate_and_refresh()
@@ -570,6 +626,14 @@ class HorizontalRuler(QWidget):
 
         self.update()
         event.accept()
+
+    def open_tabs_dialog(self) -> None:
+        """Programmatically trigger tabs dialog request."""
+        self.tabs_dialog_requested.emit()
+
+    def open_page_setup_dialog(self) -> None:
+        """Programmatically trigger page setup dialog request."""
+        self.page_setup_requested.emit()
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
         x = float(event.position().x())
