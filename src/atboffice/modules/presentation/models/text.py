@@ -245,6 +245,7 @@ class TextBody:
     """Text container for shapes and placeholders."""
 
     anchor: str = "t"  # "t", "ctr", "b"
+    anchor_ctr: bool = False
     wrap: bool = True
     autofit: str = "none"  # "none", "norm", "shape"
     insets: tuple[float, float, float, float] = (7.2, 3.6, 7.2, 3.6)  # left, top, right, bottom pt
@@ -252,6 +253,7 @@ class TextBody:
     vert: str | None = None  # None or "vert"
     font_scale: float = 1.0  # Dynamic font scale factor (AutoFit)
     ln_spc_reduction: float = 0.0  # Line spacing reduction factor (AutoFit)
+    has_explicit_font_scale: bool = False
 
     @property
     def plain_text(self) -> str:
@@ -293,6 +295,10 @@ class TextBody:
             "ins": list(self.insets),
             "ps": [p.to_dict() for p in self.paragraphs],
         }
+        if self.anchor_ctr:
+            d["anchorCtr"] = True
+        if self.has_explicit_font_scale:
+            d["hasExplicitFontScale"] = True
         if abs(self.font_scale - 1.0) > 0.001:
             d["fontScale"] = self.font_scale
         if self.ln_spc_reduction > 0.001:
@@ -308,8 +314,11 @@ class TextBody:
         ins = tuple(data.get("ins", [7.2, 3.6, 7.2, 3.6]))
         font_scale = float(data.get("fontScale", 1.0))
         ln_spc_red = float(data.get("lnSpcReduction", 0.0))
+        anchor_ctr = bool(data.get("anchorCtr", False))
+        has_explicit_fs = bool(data.get("hasExplicitFontScale", "fontScale" in data))
         return cls(
             anchor=data.get("anchor", "t"),
+            anchor_ctr=anchor_ctr,
             wrap=bool(data.get("wrap", True)),
             autofit=data.get("autofit", "none"),
             insets=(float(ins[0]), float(ins[1]), float(ins[2]), float(ins[3])),
@@ -317,4 +326,5 @@ class TextBody:
             vert=data.get("vert"),
             font_scale=font_scale,
             ln_spc_reduction=ln_spc_red,
+            has_explicit_font_scale=has_explicit_fs,
         )

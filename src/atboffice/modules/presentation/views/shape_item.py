@@ -574,6 +574,11 @@ class ShapeGraphicsItem(QGraphicsObject):
         poster_bytes = None
         if m_item and m_item.poster_bytes:
             poster_bytes = m_item.poster_bytes
+        elif self.model.media:
+            sc = self.scene()
+            if sc and hasattr(sc, "presentation") and sc.presentation:
+                media_map = sc.presentation.props.get("_media_map", {})
+                poster_bytes = media_map.get(self.model.media)
 
         if poster_bytes:
             qimg = QImage.fromData(poster_bytes)
@@ -602,7 +607,7 @@ class ShapeGraphicsItem(QGraphicsObject):
                 painter.drawRect(bg_rect)
 
         # 2. Multimedia Playback Controls Overlay
-        if m_item:
+        if m_item and (getattr(m_item, "is_video", False) or getattr(m_item, "is_audio", False)):
             self._paint_playback_controls(painter, w, h)
 
     def _draw_speaker_icon(self, painter: QPainter, w: float, h: float) -> None:

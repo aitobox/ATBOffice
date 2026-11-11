@@ -17,6 +17,7 @@ from PySide6.QtGui import (
     QTextCursor,
     QTextDocument,
     QTextFormat,
+    QTextOption,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -473,16 +474,21 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         ln_spc_red = text_body.ln_spc_reduction if text_body.ln_spc_reduction else 0.0
 
         if text_body.autofit == "norm":
-            solved_scale, solved_red = solve_norm_autofit_scale(text_body, avail_w, avail_h)
-            # If font_scale is default (1.0) or solved_scale indicates overflow, use solved scale
-            if abs(font_scale - 1.0) < 0.001 or solved_scale < font_scale:
-                font_scale = solved_scale
-                ln_spc_red = max(ln_spc_red, solved_red)
+            if getattr(text_body, "has_explicit_font_scale", False) or (0.0 < font_scale < 0.999):
+                # Honor explicit font scale and line spacing reduction stored in PPTX
+                pass
+            else:
+                solved_scale, solved_red = solve_norm_autofit_scale(text_body, avail_w, avail_h)
+                # If font_scale is default (1.0) or solved_scale indicates overflow, use solved scale
+                if abs(font_scale - 1.0) < 0.001 or solved_scale < font_scale:
+                    font_scale = solved_scale
+                    ln_spc_red = max(ln_spc_red, solved_red)
 
         cursor = QTextCursor(doc)
         cursor.beginEditBlock()
 
         paragraphs = text_body.paragraphs if text_body.paragraphs else [Paragraph(level=0)]
+        prev_spc_aft = 0.0
         for p_idx, para in enumerate(paragraphs):
             if p_idx > 0:
                 cursor.insertBlock()
@@ -501,20 +507,36 @@ class ShapeTextEditorItem(QGraphicsTextItem):
             else:
                 block_fmt.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
-            mar_l = (
-                para.props.get("marL", BODY_MARL[level])
-                if "marL" in para.props
-                else BODY_MARL[level]
-            ) * font_scale
-            indent = (
-                para.props.get("indent", BODY_INDENT[level])
-                if "indent" in para.props
-                else BODY_INDENT[level]
-            ) * font_scale
-            block_fmt.setLeftMargin(mar_l)
-            block_fmt.setTextIndent(indent)
+            # Bullet info & margins
+            bu_info = para.props.get("bu")
+            bu_type = bu_info.get("t", "none") if isinstance(bu_info, dict) else "none"
+            bu_char = (
+                bu_info.get("ch", BODY_BULLETS[level])
+                if isinstance(bu_info, dict)
+                else BODY_BULLETS[level]
+            )
+            has_bullet = (bu_type == "char" and bool(bu_char))
 
-            # Line spacing & line spacing reduction
+            if has_bullet:
+                mar_l = (
+                    para.props.get("marL", BODY_MARL[level])
+                    if "marL" in para.props
+                    else BODY_MARL[level]
+                ) * font_scale
+                indent = (
+                    para.props.get("indent", BODY_INDENT[level])
+                    if "indent" in para.props
+                    else BODY_INDENT[level]
+                ) * font_scale
+                block_fmt.setLeftMargin(mar_l)
+                block_fmt.setTextIndent(indent)
+                block_fmt.setTabPositions([QTextOption.Tab(mar_l, QTextOption.TabType.LeftTab)])
+            else:
+                mar_l = float(para.props.get("marL", 0.0)) * font_scale
+                block_fmt.setLeftMargin(mar_l)
+                block_fmt.setTextIndent(0.0)
+
+            # Line spacing & line spacing reduction (matching .vibeoffice default 1.2x factor in FixedHeight)
             first_run_sz = (
                 para.runs[0].size
                 if (para.runs and para.runs[0].size is not None)
@@ -524,10 +546,10 @@ class ShapeTextEditorItem(QGraphicsTextItem):
             if ln_spc and isinstance(ln_spc, dict):
                 if "pct" in ln_spc and ln_spc["pct"] is not None:
                     ln_pct = float(ln_spc["pct"]) / 100.0
-                    factor = max(0.5, ln_pct * (1.0 - ln_spc_red))
+                    factor = max(0.3, ln_pct * 1.2 * (1.0 - ln_spc_red))
                     block_fmt.setLineHeight(
-                        factor * 100.0,
-                        QTextBlockFormat.LineHeightTypes.ProportionalHeight.value,
+                        max(4.0, first_run_sz * factor),
+                        QTextBlockFormat.LineHeightTypes.FixedHeight.value,
                     )
                 elif "pts" in ln_spc and ln_spc["pts"] is not None:
                     ln_pts = max(4.0, float(ln_spc["pts"]) * (1.0 - ln_spc_red) * font_scale)
@@ -536,38 +558,42 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                         QTextBlockFormat.LineHeightTypes.FixedHeight.value,
                     )
             elif ln_spc_red > 0.0:
-                factor = max(0.5, 1.0 - ln_spc_red)
+                factor = max(0.3, 1.2 * (1.0 - ln_spc_red))
                 block_fmt.setLineHeight(
-                    factor * 100.0,
-                    QTextBlockFormat.LineHeightTypes.ProportionalHeight.value,
+                    max(4.0, first_run_sz * factor),
+                    QTextBlockFormat.LineHeightTypes.FixedHeight.value,
+                )
+            else:
+                block_fmt.setLineHeight(
+                    max(4.0, first_run_sz * 1.2),
+                    QTextBlockFormat.LineHeightTypes.FixedHeight.value,
                 )
 
-            # Spacing before / after
-            if p_idx > 0:
-                spc_bef = para.props.get("spcBef")
-                if spc_bef and isinstance(spc_bef, dict):
-                    if "pts" in spc_bef and spc_bef["pts"] is not None:
-                        block_fmt.setTopMargin(float(spc_bef["pts"]) * font_scale)
-                    elif "pct" in spc_bef and spc_bef["pct"] is not None:
-                        block_fmt.setTopMargin((float(spc_bef["pct"]) / 100.0) * first_run_sz)
+            # Spacing before / after with CSS margin collapsing
+            curr_spc_bef = 0.0
+            spc_bef = para.props.get("spcBef")
+            if spc_bef and isinstance(spc_bef, dict):
+                if "pts" in spc_bef and spc_bef["pts"] is not None:
+                    curr_spc_bef = float(spc_bef["pts"]) * font_scale
+                elif "pct" in spc_bef and spc_bef["pct"] is not None:
+                    curr_spc_bef = (float(spc_bef["pct"]) / 100.0) * first_run_sz
 
+            curr_spc_aft = 0.0
             spc_aft = para.props.get("spcAft")
             if spc_aft and isinstance(spc_aft, dict):
                 if "pts" in spc_aft and spc_aft["pts"] is not None:
-                    block_fmt.setBottomMargin(float(spc_aft["pts"]) * font_scale)
+                    curr_spc_aft = float(spc_aft["pts"]) * font_scale
                 elif "pct" in spc_aft and spc_aft["pct"] is not None:
-                    block_fmt.setBottomMargin((float(spc_aft["pct"]) / 100.0) * first_run_sz)
+                    curr_spc_aft = (float(spc_aft["pct"]) / 100.0) * first_run_sz
+
+            if p_idx > 0:
+                block_fmt.setTopMargin(max(prev_spc_aft, curr_spc_bef))
+            else:
+                block_fmt.setTopMargin(0.0)
+            block_fmt.setBottomMargin(0.0)
+            prev_spc_aft = curr_spc_aft
 
             cursor.setBlockFormat(block_fmt)
-
-            # Bullet
-            bu_info = para.props.get("bu")
-            bu_type = bu_info.get("t", "none") if isinstance(bu_info, dict) else "none"
-            bu_char = (
-                bu_info.get("ch", BODY_BULLETS[level])
-                if isinstance(bu_info, dict)
-                else BODY_BULLETS[level]
-            )
 
             runs = para.runs if para.runs else [TextRun()]
             for r_idx, run in enumerate(runs):
@@ -579,7 +605,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                     char_fmt.setFontFamily(fam)
 
                 sz = (run.size if run.size is not None else BODY_SIZES[level]) * font_scale
-                char_fmt.setFontPointSize(max(1.0, sz))
+                char_fmt.setFontPointSize(max(1.0, sz * 72.0 / 96.0))
                 if run.bold:
                     char_fmt.setFontWeight(QFont.Weight.Bold)
                 if run.italic:
@@ -591,8 +617,8 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                 char_fmt.setForeground(color_resolver(run.color))
 
                 prefix = ""
-                if r_idx == 0 and bu_type == "char" and bu_char:
-                    prefix = f"{bu_char} "
+                if r_idx == 0 and has_bullet:
+                    prefix = f"{bu_char}\t"
 
                 display_text = evaluate_field_text(run, slide_index, presentation)
                 cursor.insertText(prefix + display_text, char_fmt)
@@ -662,7 +688,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
             else:
                 block_fmt.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
-            # Line spacing & line spacing reduction
+            # Line spacing & line spacing reduction (matching .vibeoffice default 1.2x factor)
             first_run_sz = (
                 para.runs[0].size
                 if (para.runs and para.runs[0].size is not None)
@@ -672,7 +698,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
             if ln_spc and isinstance(ln_spc, dict):
                 if "pct" in ln_spc and ln_spc["pct"] is not None:
                     ln_pct = float(ln_spc["pct"]) / 100.0
-                    factor = max(0.5, ln_pct * (1.0 - ln_spc_red))
+                    factor = max(0.3, ln_pct * 1.2 * (1.0 - ln_spc_red))
                     block_fmt.setLineHeight(
                         factor * 100.0,
                         QTextBlockFormat.LineHeightTypes.ProportionalHeight.value,
@@ -684,9 +710,14 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                         QTextBlockFormat.LineHeightTypes.FixedHeight.value,
                     )
             elif ln_spc_red > 0.0:
-                factor = max(0.5, 1.0 - ln_spc_red)
+                factor = max(0.3, 1.2 * (1.0 - ln_spc_red))
                 block_fmt.setLineHeight(
                     factor * 100.0,
+                    QTextBlockFormat.LineHeightTypes.ProportionalHeight.value,
+                )
+            else:
+                block_fmt.setLineHeight(
+                    120.0,
                     QTextBlockFormat.LineHeightTypes.ProportionalHeight.value,
                 )
 
