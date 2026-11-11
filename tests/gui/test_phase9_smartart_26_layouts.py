@@ -41,13 +41,11 @@ from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.panes.smartart_pane import (
     SmartArtPane,
     SmartArtRowEdit,
-    SmartArtTextPane,
 )
 from atboffice.modules.presentation.smartart.engine import (
     SmartArtEngine,
     SmartArtItem,
     relayout,
-    to_shapes,
 )
 from atboffice.modules.presentation.smartart.io import (
     colors_xml,
@@ -87,15 +85,11 @@ from atboffice.modules.presentation.smartart.layouts import (
     make_vertical_bullet,
 )
 from atboffice.modules.presentation.smartart.styles import (
-    DEFAULT_COLORS,
-    DEFAULT_STYLE,
     PALETTES,
     STYLE_GROUPS,
     STYLES,
     color_spec,
-    mix_hex,
     paint_shape,
-    style_info,
     style_lang,
     style_refs,
 )
@@ -238,7 +232,7 @@ class TestSmartArtStylesAndPalettes:
 
         assert len(STYLES) == 13
         for s in STYLES:
-            sid, sname, refs, slang = s[0], s[1], s[2], s[3]
+            sid, _sname, refs, slang = s[0], s[1], s[2], s[3]
             assert slang in ("fill", "outline", "tint")
             assert len(refs) == 3
             assert style_lang(sid) == slang
@@ -254,11 +248,15 @@ class TestSmartArtStylesAndPalettes:
         }
 
         # Filled style
-        p_filled = paint_shape(shape_node, {"layout": "process", "colors": "ocean", "style": "moderate"})
+        p_filled = paint_shape(
+            shape_node, {"layout": "process", "colors": "ocean", "style": "moderate"}
+        )
         assert p_filled["fill"]["t"] == "solid"
 
         # Outlined style
-        p_outline = paint_shape(shape_node, {"layout": "process", "colors": "ocean", "style": "outline"})
+        p_outline = paint_shape(
+            shape_node, {"layout": "process", "colors": "ocean", "style": "outline"}
+        )
         assert p_outline["fill"]["c"] == "#FFFFFF"
         assert p_outline["line"]["c"] != ""
 
@@ -280,7 +278,9 @@ class TestSmartArtTextPaneInteractive:
         edit.item_key_pressed.connect(lambda act, ev: actions.append(act))
 
         # 1. Return/Enter -> after
-        ev_enter = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier)
+        ev_enter = QKeyEvent(
+            QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier
+        )
         edit.keyPressEvent(ev_enter)
         assert actions[-1] == "after"
 
@@ -290,18 +290,24 @@ class TestSmartArtTextPaneInteractive:
         assert actions[-1] == "demote"
 
         # 3. Shift+Tab -> promote
-        ev_shift_tab = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Tab, Qt.KeyboardModifier.ShiftModifier)
+        ev_shift_tab = QKeyEvent(
+            QEvent.Type.KeyPress, Qt.Key.Key_Tab, Qt.KeyboardModifier.ShiftModifier
+        )
         edit.keyPressEvent(ev_shift_tab)
         assert actions[-1] == "promote"
 
         # 4. Backtab -> promote
-        ev_backtab = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Backtab, Qt.KeyboardModifier.NoModifier)
+        ev_backtab = QKeyEvent(
+            QEvent.Type.KeyPress, Qt.Key.Key_Backtab, Qt.KeyboardModifier.NoModifier
+        )
         edit.keyPressEvent(ev_backtab)
         assert actions[-1] == "promote"
 
         # 5. Backspace on empty -> remove
         edit.setText("")
-        ev_bs = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Backspace, Qt.KeyboardModifier.NoModifier)
+        ev_bs = QKeyEvent(
+            QEvent.Type.KeyPress, Qt.Key.Key_Backspace, Qt.KeyboardModifier.NoModifier
+        )
         edit.keyPressEvent(ev_bs)
         assert actions[-1] == "remove"
 
@@ -369,7 +375,6 @@ class TestSmartArtTextPaneInteractive:
 
         # 3. Demote newly added node
         new_row = pane.row_inputs[1]
-        new_id = new_row.item_id
         new_row.item_key_pressed.emit("demote", None)
         # Should now be a child of Alpha
         assert len(diag_shape.sa["items"]) == 2

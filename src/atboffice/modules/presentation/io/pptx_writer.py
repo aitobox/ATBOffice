@@ -311,25 +311,35 @@ class PptxWriter:
                                 self._diagram_counter += 1
                                 slide_num = "".join(ch for ch in slide_part if ch.isdigit()) or "1"
                                 diag_tag = f"diag_s{slide_num}_{self._diagram_counter}"
-                                d_xml = data_xml(target_shape.sa, key=diag_tag).encode("utf-8")
-                                l_xml = layout_xml(target_shape.sa.get("layout", "process")).encode("utf-8")
-                                c_xml = colors_xml(target_shape.sa.get("colors", "ocean")).encode("utf-8")
-                                q_xml = style_xml(target_shape.sa.get("style", "moderate")).encode("utf-8")
+                                sa_data = target_shape.sa
+                                l_name = sa_data.get("layout", "process")
+                                c_name = sa_data.get("colors", "ocean")
+                                s_name = sa_data.get("style", "moderate")
+                                d_xml = data_xml(sa_data, key=diag_tag).encode("utf-8")
+                                l_xml = layout_xml(l_name).encode("utf-8")
+                                c_xml = colors_xml(c_name).encode("utf-8")
+                                q_xml = style_xml(s_name).encode("utf-8")
 
                                 d_part = f"ppt/diagrams/data_{diag_tag}.xml"
                                 l_part = f"ppt/diagrams/layout_{diag_tag}.xml"
                                 c_part = f"ppt/diagrams/colors_{diag_tag}.xml"
                                 q_part = f"ppt/diagrams/quickStyle_{diag_tag}.xml"
 
-                                self.pkg_writer.replace_part(d_part, d_xml, content_type=CT_DIAGRAM_DATA)
-                                self.pkg_writer.replace_part(l_part, l_xml, content_type=CT_DIAGRAM_LAYOUT)
-                                self.pkg_writer.replace_part(c_part, c_xml, content_type=CT_DIAGRAM_COLORS)
-                                self.pkg_writer.replace_part(q_part, q_xml, content_type=CT_DIAGRAM_STYLE)
+                                pw = self.pkg_writer
+                                pw.replace_part(d_part, d_xml, content_type=CT_DIAGRAM_DATA)
+                                pw.replace_part(l_part, l_xml, content_type=CT_DIAGRAM_LAYOUT)
+                                pw.replace_part(c_part, c_xml, content_type=CT_DIAGRAM_COLORS)
+                                pw.replace_part(q_part, q_xml, content_type=CT_DIAGRAM_STYLE)
 
-                                dm_rid = slide_rels.add(REL_DIAGRAM_DATA, f"../diagrams/data_{diag_tag}.xml")
-                                lo_rid = slide_rels.add(REL_DIAGRAM_LAYOUT, f"../diagrams/layout_{diag_tag}.xml")
-                                cs_rid = slide_rels.add(REL_DIAGRAM_COLORS, f"../diagrams/colors_{diag_tag}.xml")
-                                qs_rid = slide_rels.add(REL_DIAGRAM_STYLE, f"../diagrams/quickStyle_{diag_tag}.xml")
+                                dm_target = f"../diagrams/data_{diag_tag}.xml"
+                                lo_target = f"../diagrams/layout_{diag_tag}.xml"
+                                cs_target = f"../diagrams/colors_{diag_tag}.xml"
+                                qs_target = f"../diagrams/quickStyle_{diag_tag}.xml"
+
+                                dm_rid = slide_rels.add(REL_DIAGRAM_DATA, dm_target)
+                                lo_rid = slide_rels.add(REL_DIAGRAM_LAYOUT, lo_target)
+                                cs_rid = slide_rels.add(REL_DIAGRAM_COLORS, cs_target)
+                                qs_rid = slide_rels.add(REL_DIAGRAM_STYLE, qs_target)
 
                                 media_cache[shape_id] = {
                                     "dm": dm_rid,
@@ -630,25 +640,35 @@ class PptxWriter:
                                 self._diagram_counter += 1
                                 slide_num = "".join(ch for ch in slide_part if ch.isdigit()) or "1"
                                 diag_tag = f"diag_s{slide_num}_{self._diagram_counter}"
-                                d_xml = data_xml(target_shape.sa, key=diag_tag).encode("utf-8")
-                                l_xml = layout_xml(target_shape.sa.get("layout", "process")).encode("utf-8")
-                                c_xml = colors_xml(target_shape.sa.get("colors", "ocean")).encode("utf-8")
-                                q_xml = style_xml(target_shape.sa.get("style", "moderate")).encode("utf-8")
+                                sa_data = target_shape.sa
+                                l_name = sa_data.get("layout", "process")
+                                c_name = sa_data.get("colors", "ocean")
+                                s_name = sa_data.get("style", "moderate")
+                                d_xml = data_xml(sa_data, key=diag_tag).encode("utf-8")
+                                l_xml = layout_xml(l_name).encode("utf-8")
+                                c_xml = colors_xml(c_name).encode("utf-8")
+                                q_xml = style_xml(s_name).encode("utf-8")
 
                                 d_part = f"ppt/diagrams/data_{diag_tag}.xml"
                                 l_part = f"ppt/diagrams/layout_{diag_tag}.xml"
                                 c_part = f"ppt/diagrams/colors_{diag_tag}.xml"
                                 q_part = f"ppt/diagrams/quickStyle_{diag_tag}.xml"
 
-                                self.pkg_writer.replace_part(d_part, d_xml, content_type=CT_DIAGRAM_DATA)
-                                self.pkg_writer.replace_part(l_part, l_xml, content_type=CT_DIAGRAM_LAYOUT)
-                                self.pkg_writer.replace_part(c_part, c_xml, content_type=CT_DIAGRAM_COLORS)
-                                self.pkg_writer.replace_part(q_part, q_xml, content_type=CT_DIAGRAM_STYLE)
+                                pw = self.pkg_writer
+                                pw.replace_part(d_part, d_xml, content_type=CT_DIAGRAM_DATA)
+                                pw.replace_part(l_part, l_xml, content_type=CT_DIAGRAM_LAYOUT)
+                                pw.replace_part(c_part, c_xml, content_type=CT_DIAGRAM_COLORS)
+                                pw.replace_part(q_part, q_xml, content_type=CT_DIAGRAM_STYLE)
 
-                                dm_rid = slide_rels.add(REL_DIAGRAM_DATA, f"../diagrams/data_{diag_tag}.xml")
-                                lo_rid = slide_rels.add(REL_DIAGRAM_LAYOUT, f"../diagrams/layout_{diag_tag}.xml")
-                                cs_rid = slide_rels.add(REL_DIAGRAM_COLORS, f"../diagrams/colors_{diag_tag}.xml")
-                                qs_rid = slide_rels.add(REL_DIAGRAM_STYLE, f"../diagrams/quickStyle_{diag_tag}.xml")
+                                dm_target = f"../diagrams/data_{diag_tag}.xml"
+                                lo_target = f"../diagrams/layout_{diag_tag}.xml"
+                                cs_target = f"../diagrams/colors_{diag_tag}.xml"
+                                qs_target = f"../diagrams/quickStyle_{diag_tag}.xml"
+
+                                dm_rid = slide_rels.add(REL_DIAGRAM_DATA, dm_target)
+                                lo_rid = slide_rels.add(REL_DIAGRAM_LAYOUT, lo_target)
+                                cs_rid = slide_rels.add(REL_DIAGRAM_COLORS, cs_target)
+                                qs_rid = slide_rels.add(REL_DIAGRAM_STYLE, qs_target)
 
                                 media_cache[shape_id] = {
                                     "dm": dm_rid,

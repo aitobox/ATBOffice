@@ -5,8 +5,6 @@ Supports 13 color palettes and 3 visual style families (Filled, Outlined, Tinted
 
 from __future__ import annotations
 
-from typing import Any
-
 from atboffice.modules.presentation.smartart.palettes import (
     DEFAULT_COLORS,
     DEFAULT_STYLE,

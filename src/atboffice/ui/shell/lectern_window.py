@@ -1489,7 +1489,11 @@ class LecternWindow(BaseOfficeWindow):
         self.show_status_message(safe_tr("打开智能图示窗格"))
         if self.task_pane_dock is not None:
             if hasattr(self, "smartart_pane") and self.smartart_pane is not None:
-                diag = shape if shape is not None and hasattr(shape, "sa") else self._get_active_diagram_shape()
+                diag = (
+                    shape
+                    if shape is not None and hasattr(shape, "sa")
+                    else self._get_active_diagram_shape()
+                )
                 self.smartart_pane.set_diagram(diag)
             self.task_pane_dock.show()
             self.task_pane_dock.show_pane("smartart_pane")
