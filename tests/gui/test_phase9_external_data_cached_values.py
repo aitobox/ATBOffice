@@ -2,19 +2,17 @@
 
 import os
 from pathlib import Path
-import pytest
 
-from PySide6.QtCore import Qt
+import pytest
 from PySide6.QtWidgets import QApplication
 
-from atboffice.modules.spreadsheet.calc.context import EvalContext
 from atboffice.modules.spreadsheet.calc.dag import DependencyGraph
 from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
 from atboffice.modules.spreadsheet.models.selection_model import SelectionModel
 from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetDataModel
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport
-from atboffice.modules.spreadsheet.views.object_layer import AnchorType, FloatingObject
+from atboffice.modules.spreadsheet.views.object_layer import AnchorType
 
 
 @pytest.fixture(scope="module")
@@ -49,7 +47,12 @@ def test_sheet_model_get_formatted_text_prioritizes_cached_value():
     sheet = SheetDataModel(name="TestSheet")
 
     # 1. Cell with None value but cached_value present
-    cell1 = CellData(value=None, formula="[ExtBook.xlsx]Sheet!B2", cached_value=123.456, format_code="0.00")
+    cell1 = CellData(
+        value=None,
+        formula="[ExtBook.xlsx]Sheet!B2",
+        cached_value=123.456,
+        format_code="0.00",
+    )
     sheet.set_cell(0, 0, cell1)
     assert sheet.get_formatted_text(0, 0) == "123.46"
 

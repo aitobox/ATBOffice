@@ -613,7 +613,11 @@ class GridViewport(QAbstractScrollArea):
 
         # Measure width of cells in column
         for (r, c), cell in self.model.cells.items():
-            disp_val = cell.get_display_value() if hasattr(cell, "get_display_value") else cell.value
+            disp_val = (
+                cell.get_display_value()
+                if hasattr(cell, "get_display_value")
+                else cell.value
+            )
             if c == col and disp_val is not None:
                 if cell.rich_runs:
                     w = self._measure_rich_runs_width(cell) + 12
@@ -1131,7 +1135,11 @@ class GridViewport(QAbstractScrollArea):
                         )
                     painter.restore()
 
-                disp_val = cell.get_display_value() if hasattr(cell, "get_display_value") else cell.value
+                disp_val = (
+                    cell.get_display_value()
+                    if hasattr(cell, "get_display_value")
+                    else cell.value
+                )
                 if disp_val is None or disp_val == "":
                     continue
 

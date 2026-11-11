@@ -106,7 +106,7 @@ class CellData:
         return c
 
     def get_display_value(self) -> Any:
-        """Return effective display value, prioritizing cached_value on formula/external error or None."""
+        """Return display value, prioritizing cached_value on formula/external error or None."""
         val = self.value
         if (
             val is None
