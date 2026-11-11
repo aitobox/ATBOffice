@@ -310,6 +310,89 @@ def translate(text: str, dr: int, dc: int) -> str:
         return text
 
 
+def transpose_formula(
+    text: str, src_r: int, src_c: int, target_r: int, target_c: int
+) -> str:
+    """Transpose relative formula references written for (src_r, src_c) to (target_r, target_c)."""
+    from atboffice.modules.spreadsheet.calc.parser import parse, to_text
+
+    try:
+        ast = parse(text)
+
+        def mapper(n: ASTNode) -> ASTNode | None:
+            if isinstance(n, CellRefNode):
+                if n.ra and n.ca:
+                    return n
+                res = copy.copy(n)
+                if not n.ra and not n.ca:
+                    dr = n.r - src_r
+                    dc = n.c - src_c
+                    nr = target_r + dc
+                    nc = target_c + dr
+                    if nr < 0 or nr >= MAXR or nc < 0 or nc >= MAXC:
+                        return ref_err(n)
+                    res.r = nr
+                    res.c = nc
+                    return res
+                if n.ra and not n.ca:
+                    # Row absolute, Col relative
+                    dc = n.c - src_c
+                    nr = target_r + dc
+                    nc = n.r
+                    if nr < 0 or nr >= MAXR or nc < 0 or nc >= MAXC:
+                        return ref_err(n)
+                    res.r = nr
+                    res.c = nc
+                    res.ra = False
+                    res.ca = True
+                    return res
+                if not n.ra and n.ca:
+                    # Row relative, Col absolute
+                    dr = n.r - src_r
+                    nr = n.c
+                    nc = target_c + dr
+                    if nr < 0 or nr >= MAXR or nc < 0 or nc >= MAXC:
+                        return ref_err(n)
+                    res.r = nr
+                    res.c = nc
+                    res.ra = True
+                    res.ca = False
+                    return res
+                return res
+
+            if isinstance(n, AreaRefNode):
+                res = copy.copy(n)
+                if n.kind != "cols" and n.kind != "rows":
+                    dr1 = n.r1 - src_r if not n.ra1 else 0
+                    dc1 = n.c1 - src_c if not n.ca1 else 0
+                    dr2 = n.r2 - src_r if not n.ra2 else 0
+                    dc2 = n.c2 - src_c if not n.ca2 else 0
+
+                    nr1 = (target_r + dc1) if not n.ra1 else n.r1
+                    nc1 = (target_c + dr1) if not n.ca1 else n.c1
+                    nr2 = (target_r + dc2) if not n.ra2 else n.r2
+                    nc2 = (target_c + dr2) if not n.ca2 else n.c2
+
+                    r_min, r_max = min(nr1, nr2), max(nr1, nr2)
+                    c_min, c_max = min(nc1, nc2), max(nc1, nc2)
+
+                    if r_min < 0 or r_max >= MAXR or c_min < 0 or c_max >= MAXC:
+                        return ref_err(n)
+
+                    res.r1, res.r2 = r_min, r_max
+                    res.c1, res.c2 = c_min, c_max
+                    return res
+                return None
+
+            return None
+
+        shifted = map_ast(ast, mapper)
+        prefix = "=" if text.startswith("=") else ""
+        return prefix + to_text(shifted if shifted is not None else ast)
+    except Exception:
+        return translate(text, target_r - src_r, target_c - src_c)
+
+
 # ---------------------------------------------------- Structural Adjustments
 
 

@@ -55,7 +55,8 @@ class PasteSpecialDialog(QDialog):
         self.rb_formats = QRadioButton(safe_tr("格式(&T)"), self.grp_paste)
         self.rb_comments = QRadioButton(safe_tr("批注(&C)"), self.grp_paste)
         self.rb_validation = QRadioButton(safe_tr("有效性验证(&N)"), self.grp_paste)
-        self.rb_no_borders = QRadioButton(safe_tr("所有使用源主题的单元(&X)"), self.grp_paste)
+        self.rb_all_theme = QRadioButton(safe_tr("所有使用源主题的单元(&H)"), self.grp_paste)
+        self.rb_no_borders = QRadioButton(safe_tr("除边框外的所有内容(&X)"), self.grp_paste)
         self.rb_col_widths = QRadioButton(safe_tr("列宽(&W)"), self.grp_paste)
         self.rb_formulas_nf = QRadioButton(safe_tr("公式和数字格式(&R)"), self.grp_paste)
         self.rb_values_nf = QRadioButton(safe_tr("值和数字格式(&U)"), self.grp_paste)
@@ -69,14 +70,17 @@ class PasteSpecialDialog(QDialog):
             (self.rb_formats, "formats"),
             (self.rb_comments, "comments"),
             (self.rb_validation, "validation"),
+            (self.rb_all_theme, "allTheme"),
             (self.rb_no_borders, "noBorders"),
             (self.rb_col_widths, "colWidths"),
             (self.rb_formulas_nf, "formulasNF"),
             (self.rb_values_nf, "valuesNF"),
         ]
-        for idx, (rb, _) in enumerate(paste_radios):
+        self._paste_map: dict[QRadioButton, str] = {}
+        for idx, (rb, key) in enumerate(paste_radios):
             self.btn_group_paste.addButton(rb, idx)
             paste_layout.addWidget(rb)
+            self._paste_map[rb] = key
 
         groups_layout.addWidget(self.grp_paste)
 
@@ -103,9 +107,11 @@ class PasteSpecialDialog(QDialog):
             (self.rb_op_mul, "mul"),
             (self.rb_op_div, "div"),
         ]
-        for idx, (rb, _) in enumerate(op_radios):
+        self._op_map: dict[QRadioButton, str] = {}
+        for idx, (rb, key) in enumerate(op_radios):
             self.btn_group_op.addButton(rb, idx)
             op_layout.addWidget(rb)
+            self._op_map[rb] = key
         op_layout.addStretch()
 
         groups_layout.addWidget(self.grp_op)
@@ -147,33 +153,33 @@ class PasteSpecialDialog(QDialog):
     @property
     def selected_what(self) -> str:
         """Selected paste mode string."""
-        mapping = {
-            0: "all",
-            1: "formulas",
-            2: "values",
-            3: "formats",
-            4: "comments",
-            5: "validation",
-            6: "noBorders",
-            7: "colWidths",
-            8: "formulasNF",
-            9: "valuesNF",
-        }
-        btn_id = self.btn_group_paste.checkedId()
-        return mapping.get(btn_id, "all")
+        btn = self.btn_group_paste.checkedButton()
+        if btn is not None and btn in self._paste_map:
+            return self._paste_map[btn]
+        return "all"
 
     @property
     def selected_operation(self) -> str:
         """Selected arithmetic operation string."""
-        mapping = {
-            0: "none",
-            1: "add",
-            2: "sub",
-            3: "mul",
-            4: "div",
-        }
-        btn_id = self.btn_group_op.checkedId()
-        return mapping.get(btn_id, "none")
+        btn = self.btn_group_op.checkedButton()
+        if btn is not None and btn in self._op_map:
+            return self._op_map[btn]
+        return "none"
+
+    def set_selected_what(self, what: str) -> None:
+        """Programmatically select paste mode."""
+        for rb, key in self._paste_map.items():
+            if key == what or (what in ("allExceptBorders", "no_borders") and key == "noBorders"):
+                rb.setChecked(True)
+                break
+
+    def set_selected_operation(self, op: str) -> None:
+        """Programmatically select operation mode."""
+        norm_op = {"subtract": "sub", "multiply": "mul", "divide": "div"}.get(op, op)
+        for rb, key in self._op_map.items():
+            if key == norm_op:
+                rb.setChecked(True)
+                break
 
     @property
     def is_skip_blanks(self) -> bool:
@@ -213,7 +219,8 @@ class PasteSpecialDialog(QDialog):
         self.rb_formats.setText(safe_tr("格式(&T)"))
         self.rb_comments.setText(safe_tr("批注(&C)"))
         self.rb_validation.setText(safe_tr("有效性验证(&N)"))
-        self.rb_no_borders.setText(safe_tr("所有使用源主题的单元(&X)"))
+        self.rb_all_theme.setText(safe_tr("所有使用源主题的单元(&H)"))
+        self.rb_no_borders.setText(safe_tr("除边框外的所有内容(&X)"))
         self.rb_col_widths.setText(safe_tr("列宽(&W)"))
         self.rb_formulas_nf.setText(safe_tr("公式和数字格式(&R)"))
         self.rb_values_nf.setText(safe_tr("值和数字格式(&U)"))
