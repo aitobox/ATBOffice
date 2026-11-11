@@ -11,22 +11,20 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, QEvent, QPoint, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QAction, QIcon, QKeySequence, QShortcut
+from PySide6.QtCore import QCoreApplication, QEvent, QPoint, Qt, Signal
+from PySide6.QtGui import QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
-    QLabel,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QSizePolicy,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from atboffice.core.action_registry import ActionRegistry, ActionSpec
+from atboffice.core.action_registry import ActionRegistry
 from atboffice.ui.icons import get_office_icon
 
 if TYPE_CHECKING:

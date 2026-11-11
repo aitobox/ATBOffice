@@ -13,19 +13,17 @@ Tests:
 from __future__ import annotations
 
 import time
+
 from PySide6.QtCore import QMimeData, Qt
-from PySide6.QtGui import QAction, QGuiApplication, QKeySequence
-from PySide6.QtWidgets import QMainWindow, QWidget
+from PySide6.QtGui import QGuiApplication
 
 from atboffice.core.action_registry import ActionRegistry, ActionSpec
 from atboffice.ui.components.command_search_box import (
     CommandSearchBox,
-    CommandSearchResult,
 )
 from atboffice.ui.panes.clipboard_pane import (
-    ClipItem,
-    ClipItemWidget,
     ClipboardTaskPane,
+    ClipItem,
 )
 from atboffice.ui.shell.base_window import BaseOfficeWindow
 from atboffice.ui.shell.mac_menu import setup_mac_menu
@@ -153,7 +151,7 @@ def test_command_search_box_fuzzy_and_synonyms(qtbot):
             ActionSpec(id="file_save", label="保存", shortcut="Ctrl+S", tip="保存文件"),
             ActionSpec(id="edit_copy", label="复制", shortcut="Ctrl+C", tip="复制到剪贴板"),
             ActionSpec(id="edit_paste", label="粘贴", shortcut="Ctrl+V", tip="从剪贴板粘贴"),
-            ActionSpec(id="math_sum", label="自动求和", shortcut="Alt+=", tip="计算所选单元格的总和"),
+            ActionSpec(id="math_sum", label="自动求和", shortcut="Alt+=", tip="求和"),
             ActionSpec(id="tbl_insert", label="插入表格", shortcut=None, tip="创建新表格"),
         ]
     )
@@ -216,7 +214,7 @@ def test_command_search_box_navigation_and_execution(qtbot):
 
 
 def test_base_office_window_integration(qtbot):
-    """Verify BaseOfficeWindow mounts CommandSearchBox to menu bar and registers ClipboardTaskPane."""
+    """Verify BaseOfficeWindow mounts CommandSearchBox and registers ClipboardTaskPane."""
     win = BaseOfficeWindow()
     qtbot.addWidget(win)
 

@@ -12,8 +12,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QEvent, QMimeData, QPoint, QSize, Qt, Signal
-from PySide6.QtGui import QAction, QClipboard, QCursor, QGuiApplication, QIcon
+from PySide6.QtCore import QCoreApplication, QMimeData, Qt, Signal
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,

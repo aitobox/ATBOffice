@@ -603,7 +603,11 @@ class HorizontalRuler(QWidget):
                         "before": copy.deepcopy(self._orig_tabs),
                         "after": copy.deepcopy(p.p_pr.tabs),
                     })
-            elif kind in ("margin_left", "margin_right") and self._active_sect and self._orig_margins is not None:
+            elif (
+                kind in ("margin_left", "margin_right")
+                and self._active_sect
+                and self._orig_margins is not None
+            ):
                 new_margins = (self._active_sect.ml, self._active_sect.mr)
                 if new_margins != self._orig_margins:
                     self._active_canvas.push_undo_command({
