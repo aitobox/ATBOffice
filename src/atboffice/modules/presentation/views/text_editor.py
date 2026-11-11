@@ -479,7 +479,8 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                 pass
             else:
                 solved_scale, solved_red = solve_norm_autofit_scale(text_body, avail_w, avail_h)
-                # If font_scale is default (1.0) or solved_scale indicates overflow, use solved scale
+                # If font_scale is default (1.0) or solved_scale indicates overflow,
+                # use solved scale
                 if abs(font_scale - 1.0) < 0.001 or solved_scale < font_scale:
                     font_scale = solved_scale
                     ln_spc_red = max(ln_spc_red, solved_red)
@@ -536,7 +537,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                 block_fmt.setLeftMargin(mar_l)
                 block_fmt.setTextIndent(0.0)
 
-            # Line spacing & line spacing reduction (matching .vibeoffice default 1.2x factor in FixedHeight)
+            # Line spacing & reduction (matching .vibeoffice 1.2x factor in FixedHeight)
             first_run_sz = (
                 para.runs[0].size
                 if (para.runs and para.runs[0].size is not None)

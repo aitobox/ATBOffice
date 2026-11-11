@@ -21,7 +21,7 @@ from atboffice.modules.presentation.io import read_pptx
 from atboffice.modules.presentation.io.pptx_reader import PptxReader
 from atboffice.modules.presentation.models.text import Paragraph, TextBody, TextRun
 from atboffice.modules.presentation.views.slide_canvas import SlideCanvasView, SlideScene
-from atboffice.modules.presentation.views.text_editor import ShapeTextEditorItem, solve_norm_autofit_scale
+from atboffice.modules.presentation.views.text_editor import solve_norm_autofit_scale
 
 PPTX_PATH = Path("tests/docs/powerpoint/pptx/libreoffice__TextFittingComparisonWithMSO_3.pptx")
 
@@ -123,7 +123,15 @@ def test_lst_style_parsing_and_paragraph_inheritance() -> None:
 def test_solve_norm_autofit_scale() -> None:
     """Verify solve_norm_autofit_scale produces reasonable scale factors when text overflows."""
     long_paras = [
-        Paragraph(level=0, runs=[TextRun(text=f"Line {i} with a substantial amount of text that overflows the box", size=36.0)])
+        Paragraph(
+            level=0,
+            runs=[
+                TextRun(
+                    text=f"Line {i} with a substantial amount of text that overflows the box",
+                    size=36.0,
+                )
+            ],
+        )
         for i in range(20)
     ]
     tb = TextBody(paragraphs=long_paras, autofit="norm")
@@ -140,7 +148,7 @@ def test_slide_canvas_view_scrollbars_disabled(qapp: QApplication) -> None:
 
 
 def test_mso3_text_fitting_document_load(qapp: QApplication) -> None:
-    """Verify libreoffice__TextFittingComparisonWithMSO_3.pptx loads with correct autofit and renders."""
+    """Verify TextFittingComparisonWithMSO_3.pptx loads with correct autofit and renders."""
     if not PPTX_PATH.exists():
         pytest.skip(f"Test presentation {PPTX_PATH} not found")
 
