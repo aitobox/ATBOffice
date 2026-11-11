@@ -205,6 +205,7 @@ class GridViewport(QAbstractScrollArea):
         self._page_break_welcome_shown: bool = False
         self._zoom: float = 1.0
         self._hover_comment_cell: tuple[int, int] | None = None
+        self.last_status_message: str = ""
 
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
@@ -4670,6 +4671,24 @@ class GridViewport(QAbstractScrollArea):
         cmd = self._undo_stack.pop()
         self._redo_stack.append(cmd)
         action = cmd.get("action")
+        if action == "filter":
+            from atboffice.modules.spreadsheet.models.filter_model import (
+                ColumnFilter,
+                apply_auto_filter,
+            )
+
+            af = cmd["af"]
+            af.cols = {
+                c: ColumnFilter(**(vars(cf) if hasattr(cf, "__dict__") else cf))
+                if isinstance(cf, ColumnFilter)
+                else cf
+                for c, cf in cmd["before_cols"].items()
+            }
+            apply_auto_filter(self.model, af)
+            self._update_filter_status(af)
+            self._update_scrollbars()
+            self.viewport().update()
+            return
         if action == "col_resize":
             for c, sz in cmd["before_sizes"].items():
                 self.geometry_mapper.set_col_width(c, sz)
@@ -4728,6 +4747,24 @@ class GridViewport(QAbstractScrollArea):
         cmd = self._redo_stack.pop()
         self._undo_stack.append(cmd)
         action = cmd.get("action")
+        if action == "filter":
+            from atboffice.modules.spreadsheet.models.filter_model import (
+                ColumnFilter,
+                apply_auto_filter,
+            )
+
+            af = cmd["af"]
+            af.cols = {
+                c: ColumnFilter(**(vars(cf) if hasattr(cf, "__dict__") else cf))
+                if isinstance(cf, ColumnFilter)
+                else cf
+                for c, cf in cmd["after_cols"].items()
+            }
+            apply_auto_filter(self.model, af)
+            self._update_filter_status(af)
+            self._update_scrollbars()
+            self.viewport().update()
+            return
         if action == "col_resize":
             for c, sz in cmd["after_sizes"].items():
                 self.geometry_mapper.set_col_width(c, sz)
@@ -5229,6 +5266,110 @@ class GridViewport(QAbstractScrollArea):
             if hasattr(top, "set_modified"):
                 top.set_modified(True)
 
+    def _update_filter_status(self, af: Any) -> None:
+        """Calculate visible vs total records and show in status bar."""
+        if not af or not getattr(af, "cols", None):
+            msg = ""
+        else:
+            has_active = any(crit.has_criteria() for crit in af.cols.values())
+            if not has_active:
+                msg = ""
+            else:
+                total = max(0, af.r2 - af.r1)
+                vis = sum(
+                    1
+                    for r in range(af.r1 + 1, af.r2 + 1)
+                    if r not in self.model.geometry.hidden_rows
+                )
+                msg = f"{vis} of {total} records found"
+
+        self.last_status_message = msg
+        win = self.window()
+        if hasattr(win, "statusBar") and win.statusBar():
+            if msg:
+                win.statusBar().showMessage(msg, 5000)
+            else:
+                win.statusBar().clearMessage()
+
+    def _apply_column_filter(self, af: Any, col: int, crit: Any) -> None:
+        """Apply column filter criteria, record undo snapshot, and update status bar."""
+        from atboffice.modules.spreadsheet.models.filter_model import (
+            ColumnFilter,
+            apply_auto_filter,
+        )
+
+        before_cols = {
+            c: ColumnFilter(**(vars(cf) if hasattr(cf, "__dict__") else cf))
+            if isinstance(cf, ColumnFilter)
+            else cf
+            for c, cf in af.cols.items()
+        }
+
+        col_offset = col - af.c1
+        af.cols[col_offset] = crit
+        apply_auto_filter(self.model, af)
+
+        after_cols = {
+            c: ColumnFilter(**(vars(cf) if hasattr(cf, "__dict__") else cf))
+            if isinstance(cf, ColumnFilter)
+            else cf
+            for c, cf in af.cols.items()
+        }
+
+        self._undo_stack.append(
+            {
+                "action": "filter",
+                "af": af,
+                "col": col,
+                "before_cols": before_cols,
+                "after_cols": after_cols,
+            }
+        )
+        self._redo_stack.clear()
+
+        self._update_filter_status(af)
+        self._update_scrollbars()
+        self.viewport().update()
+
+    def _clear_column_filter(self, af: Any, col: int) -> None:
+        """Clear filter for a column, record undo snapshot, and update status bar."""
+        from atboffice.modules.spreadsheet.models.filter_model import (
+            ColumnFilter,
+            clear_auto_filter,
+        )
+
+        before_cols = {
+            c: ColumnFilter(**(vars(cf) if hasattr(cf, "__dict__") else cf))
+            if isinstance(cf, ColumnFilter)
+            else cf
+            for c, cf in af.cols.items()
+        }
+
+        col_offset = col - af.c1
+        clear_auto_filter(self.model, af, col_offset)
+
+        after_cols = {
+            c: ColumnFilter(**(vars(cf) if hasattr(cf, "__dict__") else cf))
+            if isinstance(cf, ColumnFilter)
+            else cf
+            for c, cf in af.cols.items()
+        }
+
+        self._undo_stack.append(
+            {
+                "action": "filter",
+                "af": af,
+                "col": col,
+                "before_cols": before_cols,
+                "after_cols": after_cols,
+            }
+        )
+        self._redo_stack.clear()
+
+        self._update_filter_status(af)
+        self._update_scrollbars()
+        self.viewport().update()
+
     def _open_filter_dropdown(self, col: int) -> None:
         """Open the AutoFilter dropdown popup for the specified column."""
         af = getattr(self.model, "auto_filter", None)
@@ -5240,28 +5381,13 @@ class GridViewport(QAbstractScrollArea):
         ):
             return
         from atboffice.modules.spreadsheet.models.filter_model import (
-            apply_auto_filter,
-            clear_auto_filter,
             sort_sheet_range,
         )
         from atboffice.modules.spreadsheet.views.filter_dropdown import (
-            FilterDropdown,
+            FilterDropdownPopup,
         )
 
-        dropdown = FilterDropdown(self.model, af, col, self.viewport())
-
-        def on_applied(crit: Any) -> None:
-            col_offset = col - af.c1
-            af.cols[col_offset] = crit
-            apply_auto_filter(self.model, af)
-            self._update_scrollbars()
-            self.viewport().update()
-
-        def on_cleared() -> None:
-            col_offset = col - af.c1
-            clear_auto_filter(self.model, af, col_offset)
-            self._update_scrollbars()
-            self.viewport().update()
+        dropdown = FilterDropdownPopup(self.model, af, col, self.viewport())
 
         def on_sort(desc: bool) -> None:
             sort_sheet_range(
@@ -5275,8 +5401,8 @@ class GridViewport(QAbstractScrollArea):
             )
             self.viewport().update()
 
-        dropdown.filter_applied.connect(on_applied)
-        dropdown.filter_cleared.connect(on_cleared)
+        dropdown.filter_applied.connect(lambda crit: self._apply_column_filter(af, col, crit))
+        dropdown.filter_cleared.connect(lambda: self._clear_column_filter(af, col))
         dropdown.sort_requested.connect(on_sort)
 
         # Position popup directly under the cell
@@ -5309,6 +5435,10 @@ class GridViewport(QAbstractScrollArea):
             if hasattr(af, "r1"):
                 clear_auto_filter(self.model, af)
             self.model.auto_filter = None
+            self.last_status_message = ""
+            win = self.window()
+            if hasattr(win, "statusBar") and win.statusBar():
+                win.statusBar().clearMessage()
             self._update_scrollbars()
             self.viewport().update()
             return
