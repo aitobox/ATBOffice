@@ -172,6 +172,17 @@ class CommentRangeEnd(RunItem):
 
 
 @dataclass
+class CommentRefItem(RunItem):
+    """Comment reference marker."""
+
+    comment_id: str | int = 0
+
+    def __init__(self, comment_id: str | int = 0, r_pr: RunProperties | None = None) -> None:
+        super().__init__(t="cr", r_pr=r_pr or RunProperties())
+        self.comment_id = comment_id
+
+
+@dataclass
 class NoteRefItem(RunItem):
     """Footnote or endnote reference item."""
 
@@ -344,11 +355,16 @@ class Table:
 
 @dataclass
 class Story:
-    """A story container (main body, header, footer, footnote, endnote, textbox)."""
+    """A story container (main body, header, footer, footnote, endnote, textbox, comment)."""
 
     kind: str = "main"
     blocks: list[Paragraph | Table] = field(default_factory=list)
     paras: list[Paragraph] = field(default_factory=list)
+    id: str = ""
+    author: str = ""
+    initials: str = ""
+    date: str = ""
+    parent_id: str = ""
 
 
 @dataclass
@@ -373,6 +389,7 @@ class Document:
     _idx: dict[int, dict[str, Any]] = field(default_factory=dict)
     _tbls: dict[int, dict[str, Any]] = field(default_factory=dict)
     _idx_dirty: bool = True
+    hide_spelling_errors: bool = False
 
     def __post_init__(self) -> None:
         if not self.styles:

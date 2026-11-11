@@ -31,6 +31,8 @@ from PySide6.QtGui import (
     QPen,
     QPixmap,
     QResizeEvent,
+    QTextLayout,
+    QTextOption,
 )
 from PySide6.QtWidgets import (
     QAbstractScrollArea,
@@ -108,8 +110,8 @@ def safe_tr(text: str) -> str:
     return QCoreApplication.translate("WriterCanvasView", text)
 
 
-# Standard Word 2003 visual styling constants
-COLOR_WORKSPACE_BG = QColor(140, 140, 140)  # Classic neutral gray workspace
+# Standard Word 2003 visual styling constants matching .vibeoffice looks
+COLOR_WORKSPACE_BG = QColor(144, 151, 163)  # Classic neutral gray workspace (#9097A3)
 COLOR_PAGE_PAPER = QColor(255, 255, 255)  # Pure white paper sheet
 COLOR_PAGE_BORDER = QColor(112, 112, 112)  # 1px border around page
 COLOR_SHADOW_DARK = QColor(58, 58, 58, 160)  # Classic drop shadow (dark core)
@@ -261,17 +263,24 @@ class WriterCanvasView(QAbstractScrollArea):
             pen.setStyle(Qt.PenStyle.SolidLine)
         return pen
 
+    def _comment_gutter_px(self) -> float:
+        """Reserve right-margin gutter for comment balloons when comments exist in print view."""
+        if self.view_mode == ViewMode.PRINT and getattr(self.doc, "comments", None):
+            return 230.0 * self._zoom
+        return 0.0
+
     def total_canvas_size(self) -> QSize:
         """Compute the total bounding size (in px) of all pages stacked vertically."""
         if not self.pagination or not self.pagination.pages:
             return QSize(800, 600)
 
         max_w = 0.0
-        total_h = 24.0  # Top padding
+        total_h = 33.0  # Top padding aligning page top border (y=33) with baseline captures
         gap_px = self.pt_to_px(self.page_gap_pt)
+        gutter_px = self._comment_gutter_px()
 
         for page in self.pagination.pages:
-            w_px = self.pt_to_px(page.width)
+            w_px = self.pt_to_px(page.width) + gutter_px
             h_px = self.pt_to_px(page.height)
             if w_px > max_w:
                 max_w = w_px
@@ -324,12 +333,13 @@ class WriterCanvasView(QAbstractScrollArea):
 
         vp_width = max(float(self.viewport().width()), float(self.total_canvas_size().width()))
         gap_px = self.pt_to_px(self.page_gap_pt)
-        cur_y = 24.0
+        gutter_px = self._comment_gutter_px()
+        cur_y = 33.0
 
         for idx, page in enumerate(self.pagination.pages):
             w_px = self.pt_to_px(page.width)
             h_px = self.pt_to_px(page.height)
-            x_px = max(24.0, (vp_width - w_px) / 2.0)
+            x_px = max(0.0, (vp_width - gutter_px - w_px) / 2.0)
 
             if idx == page_idx:
                 return QRectF(x_px, cur_y, w_px, h_px)
@@ -469,6 +479,9 @@ class WriterCanvasView(QAbstractScrollArea):
 
             # 5. Paint Document Content (Text Lines & Portions)
             self._paint_page_content(painter, rect_vp, page)
+
+            # 5.1 Paint Comment Balloons & Range Annotations
+            self._paint_comments(painter, rect_vp, page)
 
         # 6. Paint Blinking Caret
         if self.hasFocus() and self.controller.caret_visible:
@@ -762,7 +775,7 @@ class WriterCanvasView(QAbstractScrollArea):
 
                         x_px = page_rect.left() + self.pt_to_px(cur_x)
                         y_px = page_rect.top() + self.pt_to_px(line_y)
-                        baseline_px = y_px + self.pt_to_px(line.baseline)
+                        baseline_px = y_px + self.pt_to_px(line.baseline - line.top)
 
                         # Subdued gray for screen view (#666666)
                         painter.setPen(QPen(QColor("#666666")))
@@ -790,7 +803,7 @@ class WriterCanvasView(QAbstractScrollArea):
                         if leader and leader != "none":
                             x_px = page_rect.left() + self.pt_to_px(cur_x)
                             y_px = page_rect.top() + self.pt_to_px(line_y)
-                            baseline_px = y_px + self.pt_to_px(line.baseline)
+                            baseline_px = y_px + self.pt_to_px(line.baseline - line.top)
                             w_px = self.pt_to_px(po_w)
                             p1 = QPointF(x_px, baseline_px)
                             p2 = QPointF(x_px + w_px, baseline_px)
@@ -808,7 +821,7 @@ class WriterCanvasView(QAbstractScrollArea):
                     elif po.type == PortionType.GRAPHIC:
                         x_px = page_rect.left() + self.pt_to_px(cur_x)
                         y_px = page_rect.top() + self.pt_to_px(line_y)
-                        baseline_px = y_px + self.pt_to_px(line.baseline)
+                        baseline_px = y_px + self.pt_to_px(line.baseline - line.top)
                         if isinstance(po.data, OfficeMathItem):
                             paint_math(painter, po.data, x_px, baseline_px, self._zoom)
                         elif isinstance(po.data, PictureItem) or getattr(po.data, "t", "") in (
@@ -821,6 +834,199 @@ class WriterCanvasView(QAbstractScrollArea):
                             self._paint_picture(painter, po.data, dest_rect, self._zoom)
 
                     cur_x += po_w
+
+    def _build_portion_font(self, po: Any) -> tuple[QFont, QColor]:
+        """Construct styled QFont and QColor for a layout portion under active zoom."""
+        font_family = getattr(po, "font_family", None) or "Times New Roman"
+        font_size_pt = getattr(po, "font_size", None) or 12.0
+        font = QFont(font_family)
+        font.setPointSizeF(font_size_pt * self._zoom)
+        if getattr(po, "bold", False):
+            font.setBold(True)
+        if getattr(po, "italic", False):
+            font.setItalic(True)
+        color_str = getattr(po, "color", None) or "#000000"
+        if color_str == "auto":
+            color_str = "#000000"
+        return font, QColor(color_str)
+
+    def _draw_spellcheck_for_text(
+        self,
+        painter: QPainter,
+        font: QFont,
+        text: str,
+        x_px: float,
+        baseline_px: float,
+    ) -> None:
+        """Draw wavy red spellcheck underlines for misspelled tokens in text."""
+        fm = QFontMetricsF(font)
+        for w, w_start, w_end in self.spell_engine.tokenize_words(text):
+            if not self.spell_engine.is_valid_word(w):
+                w_x1 = x_px + fm.horizontalAdvance(text[:w_start])
+                w_x2 = x_px + fm.horizontalAdvance(text[:w_end])
+                self._draw_wavy_line(
+                    painter, w_x1, w_x2, baseline_px + 2.5, QColor(255, 0, 0)
+                )
+
+    def _paint_line_portions(
+        self,
+        painter: QPainter,
+        page_rect: QRectF,
+        line: Any,
+        start_x_pt: float,
+        line_y_pt: float,
+        check_spell: bool = True,
+    ) -> None:
+        """Render line portions with RTL BiDi, style coalescing, tabs, graphics, and spellcheck."""
+        y_px = page_rect.top() + self.pt_to_px(line_y_pt)
+        baseline_px = y_px + self.pt_to_px(line.baseline - line.top)
+        should_spell = (
+            check_spell
+            and not getattr(self.doc, "hide_spelling_errors", False)
+            and self.spell_engine.is_enabled("spelling/check_as_you_type", True)
+        )
+
+        # RTL BiDi lines: draw unified text via QTextLayout for natural Unicode BiDi shaping
+        if getattr(line, "is_rtl", False):
+            trimmed = list(line.portions)
+            while trimmed and trimmed[-1].type == PortionType.BLANK:
+                trimmed.pop()
+            text_pts = [po for po in trimmed if po.type in (PortionType.TEXT, PortionType.BLANK)]
+            if text_pts and len(text_pts) == len(trimmed):
+                full_text = "".join(po.text for po in text_pts)
+                if full_text:
+                    rep_po = next(
+                        (po for po in text_pts if po.type == PortionType.TEXT), text_pts[0]
+                    )
+                    font, pen_col = self._build_portion_font(rep_po)
+                    painter.setFont(font)
+                    painter.setPen(QPen(pen_col))
+                    tl = QTextLayout(full_text, font)
+                    opt = QTextOption(Qt.AlignmentFlag.AlignRight)
+                    opt.setTextDirection(Qt.LayoutDirection.RightToLeft)
+                    tl.setTextOption(opt)
+                    tl.beginLayout()
+                    box_w_px = max(20.0, self.pt_to_px(max(line.width, 10.0)) + 8.0)
+                    tline = tl.createLine()
+                    if tline.isValid():
+                        tline.setLineWidth(box_w_px)
+                    tl.endLayout()
+                    if tline.isValid():
+                        right_px = page_rect.left() + self.pt_to_px(start_x_pt + line.width)
+                        left_px = right_px - box_w_px
+                        tline.draw(painter, QPointF(left_px, baseline_px - tline.ascent()))
+                        return
+
+        portions = line.portions
+        extra_blank = getattr(line, "extra_space_per_blank", 0.0)
+        can_coalesce = math.isclose(extra_blank, 0.0, abs_tol=1e-6)
+
+        # For justified pure-text lines, distribute actual Qt visual slack across blanks so
+        # font substitution differences (e.g. missing Calibri -> system font) never overlap words.
+        if not can_coalesce and portions:
+            trimmed_j = list(portions)
+            while trimmed_j and trimmed_j[-1].type == PortionType.BLANK:
+                trimmed_j.pop()
+            if trimmed_j and all(
+                p.type in (PortionType.TEXT, PortionType.BLANK) for p in trimmed_j
+            ):
+                target_w_px = self.pt_to_px(line.width)
+                word_adv_px: list[float] = []
+                blank_indices: list[int] = []
+                for p_i, pt in enumerate(trimmed_j):
+                    if pt.type == PortionType.BLANK:
+                        blank_indices.append(p_i)
+                        word_adv_px.append(0.0)
+                    else:
+                        f, _ = self._build_portion_font(pt)
+                        word_adv_px.append(QFontMetricsF(f).horizontalAdvance(pt.text))
+                total_words_px = sum(word_adv_px)
+                if blank_indices:
+                    per_blank_px = max(2.5, (target_w_px - total_words_px) / len(blank_indices))
+                    cur_px = page_rect.left() + self.pt_to_px(start_x_pt)
+                    for p_i, pt in enumerate(trimmed_j):
+                        if pt.type == PortionType.BLANK:
+                            cur_px += per_blank_px
+                        elif pt.text:
+                            font, pen_col = self._build_portion_font(pt)
+                            painter.setFont(font)
+                            painter.setPen(QPen(pen_col))
+                            painter.drawText(QPointF(cur_px, baseline_px), pt.text)
+                            if should_spell:
+                                self._draw_spellcheck_for_text(
+                                    painter, font, pt.text, cur_px, baseline_px
+                                )
+                            cur_px += word_adv_px[p_i]
+                    return
+
+        cur_px = page_rect.left() + self.pt_to_px(start_x_pt)
+        line_jc = getattr(line, "jc", "left")
+        if can_coalesce and line_jc in ("center", "right") and portions:
+            trimmed_a = list(portions)
+            while trimmed_a and trimmed_a[-1].type == PortionType.BLANK:
+                trimmed_a.pop()
+            if trimmed_a and all(
+                p.type in (PortionType.TEXT, PortionType.BLANK) for p in trimmed_a
+            ):
+                qt_w_px = 0.0
+                for pt in trimmed_a:
+                    if pt.text:
+                        f, _ = self._build_portion_font(pt)
+                        qt_w_px += QFontMetricsF(f).horizontalAdvance(pt.text)
+                layout_w_px = self.pt_to_px(line.width)
+                if line_jc == "center":
+                    cur_px += (layout_w_px - qt_w_px) / 2.0
+                else:
+                    cur_px += layout_w_px - qt_w_px
+
+        for po in portions:
+            po_w_px = self.pt_to_px(po.width)
+            if po.type == PortionType.TEXT and po.text:
+                font, pen_col = self._build_portion_font(po)
+                painter.setFont(font)
+                painter.setPen(QPen(pen_col))
+                painter.drawText(QPointF(cur_px, baseline_px), po.text)
+                if should_spell:
+                    self._draw_spellcheck_for_text(painter, font, po.text, cur_px, baseline_px)
+                cur_px += QFontMetricsF(font).horizontalAdvance(po.text)
+                continue
+            if po.type == PortionType.BLANK and po.text:
+                if can_coalesce:
+                    font, _ = self._build_portion_font(po)
+                    cur_px += QFontMetricsF(font).horizontalAdvance(po.text)
+                else:
+                    cur_px += po_w_px
+                continue
+            if po.type == PortionType.TAB and po.width > 0:
+                tab_data = getattr(po, "data", None)
+                leader = getattr(tab_data, "leader", "none") if tab_data else "none"
+                if leader and leader != "none":
+                    p1 = QPointF(cur_px, baseline_px)
+                    p2 = QPointF(cur_px + po_w_px, baseline_px)
+                    if leader == "dot":
+                        painter.setPen(QPen(QColor(100, 100, 100), 1.0, Qt.PenStyle.DotLine))
+                        painter.drawLine(p1, p2)
+                    elif leader == "hyphen":
+                        painter.setPen(QPen(QColor(100, 100, 100), 1.0, Qt.PenStyle.DashLine))
+                        painter.drawLine(p1, p2)
+                    elif leader == "underscore":
+                        painter.setPen(QPen(QColor(100, 100, 100), 1.0, Qt.PenStyle.SolidLine))
+                        painter.drawLine(
+                            QPointF(cur_px, baseline_px + 2),
+                            QPointF(cur_px + po_w_px, baseline_px + 2),
+                        )
+            elif po.type == PortionType.GRAPHIC:
+                if isinstance(po.data, OfficeMathItem):
+                    paint_math(painter, po.data, cur_px, baseline_px, self._zoom)
+                elif isinstance(po.data, PictureItem) or getattr(po.data, "t", "") in (
+                    "picture",
+                    "img",
+                ):
+                    pic_h_px = self.pt_to_px(po.ascent)
+                    dest_rect = QRectF(cur_px, baseline_px - pic_h_px, po_w_px, pic_h_px)
+                    self._paint_picture(painter, po.data, dest_rect, self._zoom)
+
+            cur_px += po_w_px
 
     def _paint_float_box(
         self,
@@ -838,6 +1044,15 @@ class WriterCanvasView(QAbstractScrollArea):
         w_px = self.pt_to_px(fb.w)
         h_px = self.pt_to_px(fb.h)
         dest_rect = QRectF(x_px, y_px, w_px, h_px)
+
+        if fb.lines:
+            for line in fb.lines:
+                line_y = fb.y + line.top
+                cur_x = fb.x + line.indent_left
+                self._paint_line_portions(
+                    painter, page_rect, line, cur_x, line_y, check_spell=False
+                )
+            return
 
         if isinstance(item, PictureItem) or getattr(item, "t", "") in ("picture", "img"):
             self._paint_picture(painter, item, dest_rect, self._zoom)
@@ -868,6 +1083,31 @@ class WriterCanvasView(QAbstractScrollArea):
         y_pt = origin_y + fb.y
         dest_rect = QRectF(x_pt, y_pt, fb.w, fb.h)
 
+        if fb.lines:
+            for line in fb.lines:
+                line_y = origin_y + fb.y + line.top
+                cur_x = origin_x + fb.x + line.indent_left
+                for po in line.portions:
+                    po_w = po.width
+                    if po.type == PortionType.TEXT and po.text:
+                        font_family = po.font_family or "Times New Roman"
+                        font_size_pt = po.font_size or 12.0
+                        font = QFont(font_family)
+                        font.setPointSizeF(font_size_pt)
+                        if getattr(po, "bold", False):
+                            font.setBold(True)
+                        if getattr(po, "italic", False):
+                            font.setItalic(True)
+                        painter.setFont(font)
+                        color_str = getattr(po, "color", None) or "#000000"
+                        if color_str == "auto":
+                            color_str = "#000000"
+                        painter.setPen(QPen(QColor(color_str)))
+                        baseline = line_y + (line.baseline - line.top)
+                        painter.drawText(QPointF(cur_x, baseline), po.text)
+                    cur_x += po_w
+            return
+
         if isinstance(item, PictureItem) or getattr(item, "t", "") in ("picture", "img"):
             self._paint_picture(painter, item, dest_rect, 1.0, is_vector=True)
         else:
@@ -880,6 +1120,166 @@ class WriterCanvasView(QAbstractScrollArea):
             painter.setPen(QPen(QColor(stroke_color), stroke_width))
             painter.drawRect(dest_rect)
             painter.restore()
+
+    def _author_comment_color(self, author: str) -> QColor:
+        """Return deterministic author color matching .vibeoffice review palette."""
+        palette = (
+            "#B5382B",
+            "#1F5EA8",
+            "#2A7B4F",
+            "#7B3E94",
+            "#B36B00",
+            "#0E7490",
+        )
+        key = author or "Author"
+        idx = sum(ord(ch) for ch in key) % len(palette)
+        return QColor(palette[idx])
+
+    def _paint_comments(self, painter: QPainter, page_rect: QRectF, page: Page) -> None:
+        """Render comment range highlights, margin connector lines, and callout balloons."""
+        if not getattr(self, "doc", None) or not getattr(self.doc, "comments", None):
+            return
+
+        comments_dict = self.doc.comments
+        if not comments_dict:
+            return
+
+        # Compute 1-based document comment order matching RV.commentNumber
+        comment_order: dict[str, int] = {}
+        order_idx = 1
+        for b in getattr(self.doc.main, "blocks", []):
+            if hasattr(b, "runs"):
+                for item in b.runs:
+                    c_id = getattr(item, "comment_id", None)
+                    if c_id is not None:
+                        cid_s = str(c_id)
+                        if cid_s in comments_dict and cid_s not in comment_order:
+                            comment_order[cid_s] = order_idx
+                            order_idx += 1
+
+        placed_balloons: list[tuple[str, float]] = []
+        placed_set: set[str] = set()
+        for reg in page.regions:
+            for col in reg.columns:
+                for frag in col.fragments:
+                    if frag.paragraph is None:
+                        continue
+                    runs = getattr(frag.paragraph, "runs", [])
+                    frag_top = page.body_top + col.top + frag.top
+                    for item in runs:
+                        c_id = getattr(item, "comment_id", None)
+                        if c_id is not None and str(c_id) in comments_dict:
+                            cid_str = str(c_id)
+                            if cid_str not in placed_set:
+                                anchor_y = frag_top + (frag.lines[0].top if frag.lines else 0.0)
+                                placed_balloons.append((cid_str, anchor_y))
+                                placed_set.add(cid_str)
+                                for k, st in comments_dict.items():
+                                    if (
+                                        getattr(st, "parent_id", "") == cid_str
+                                        and k not in placed_set
+                                    ):
+                                        placed_balloons.append((k, anchor_y))
+                                        placed_set.add(k)
+
+        if not placed_balloons:
+            return
+
+        painter.save()
+        balloon_w_px = 200.0 * self._zoom
+        balloon_h_px = 42.0 * self._zoom
+        balloon_x_px = page_rect.right() + 12.0 * self._zoom
+        prev_bottom_px = page_rect.top()
+
+        for cid_str, anchor_y_pt in placed_balloons:
+            story = comments_dict[cid_str]
+            anchor_y_px = page_rect.top() + self.pt_to_px(anchor_y_pt)
+            balloon_y_px = max(anchor_y_px - 2.0, prev_bottom_px + 4.0)
+            prev_bottom_px = balloon_y_px + balloon_h_px
+
+            border_col = self._author_comment_color(getattr(story, "author", ""))
+            bg_col = QColor(
+                int(border_col.red() * 0.15 + 255 * 0.85),
+                int(border_col.green() * 0.15 + 255 * 0.85),
+                int(border_col.blue() * 0.15 + 255 * 0.85),
+            )
+
+            # Orthogonal dashed connector from right margin to balloon
+            connector_pen = QPen(border_col, 1.0, Qt.PenStyle.DashLine)
+            painter.setPen(connector_pen)
+            line_start_x = page_rect.right() - self.pt_to_px(10.0)
+            line_y = anchor_y_px + 10.0
+            mid_y = balloon_y_px + 8.0
+            if abs(line_y - mid_y) > 2.0:
+                elbow_x = page_rect.right() + 2.0
+                painter.drawLine(QPointF(line_start_x, line_y), QPointF(elbow_x, line_y))
+                painter.drawLine(QPointF(elbow_x, line_y), QPointF(elbow_x, mid_y))
+                painter.drawLine(QPointF(elbow_x, mid_y), QPointF(balloon_x_px, mid_y))
+            else:
+                painter.drawLine(QPointF(line_start_x, mid_y), QPointF(balloon_x_px, mid_y))
+
+            # Balloon box
+            balloon_rect = QRectF(balloon_x_px, balloon_y_px, balloon_w_px, balloon_h_px)
+            painter.setBrush(bg_col)
+            painter.setPen(QPen(border_col, 1.0))
+            painter.drawRoundedRect(balloon_rect, 4.0, 4.0)
+
+            # Balloon text: Header (initials + 1-based number + reply tag)
+            header_font = QFont("Tahoma")
+            header_font.setPointSizeF(7.5 * self._zoom)
+            header_font.setBold(True)
+            painter.setFont(header_font)
+            painter.setPen(QPen(QColor(0, 0, 0)))
+
+            num_val = comment_order.get(cid_str)
+            if num_val is None:
+                try:
+                    num_val = int(cid_str) + 1
+                except ValueError:
+                    num_val = 1
+            initials = story.initials or story.author or ""
+            is_reply = bool(getattr(story, "parent_id", ""))
+            suffix = " (reply):" if is_reply else ":"
+            head_text = f"Comment [{initials}{num_val}]{suffix}"
+            painter.drawText(
+                QRectF(
+                    balloon_rect.left() + 5.0,
+                    balloon_rect.top() + 3.0,
+                    balloon_w_px - 10.0,
+                    14.0,
+                ),
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                head_text,
+            )
+
+            # Balloon body text
+            body_text = ""
+            for b in getattr(story, "blocks", []):
+                if isinstance(b, Paragraph):
+                    body_text = "".join(r.text for r in b.runs if hasattr(r, "text"))
+                    if body_text:
+                        break
+            if body_text:
+                body_font = QFont("Tahoma")
+                body_font.setPointSizeF(7.5 * self._zoom)
+                painter.setFont(body_font)
+                painter.setPen(QPen(QColor(0, 0, 0)))
+                painter.drawText(
+                    QRectF(
+                        balloon_rect.left() + 5.0,
+                        balloon_rect.top() + 17.0,
+                        balloon_w_px - 10.0,
+                        balloon_h_px - 19.0,
+                    ),
+                    (
+                        Qt.AlignmentFlag.AlignLeft
+                        | Qt.AlignmentFlag.AlignTop
+                        | Qt.TextFlag.TextWordWrap
+                    ),
+                    body_text[:80],
+                )
+
+        painter.restore()
 
     def _paint_footnote_area(
         self,
@@ -919,7 +1319,7 @@ class WriterCanvasView(QAbstractScrollArea):
 
                         x_px = page_rect.left() + self.pt_to_px(cur_x)
                         y_px = page_rect.top() + self.pt_to_px(line_y)
-                        baseline_px = y_px + self.pt_to_px(line.baseline)
+                        baseline_px = y_px + self.pt_to_px(line.baseline - line.top)
 
                         painter.setPen(QPen(QColor(0, 0, 0)))
                         painter.drawText(QPointF(x_px, baseline_px), po.text)
@@ -1027,7 +1427,9 @@ class WriterCanvasView(QAbstractScrollArea):
                                                 painter.setFont(font)
                                                 x_px = page_rect.left() + self.pt_to_px(cur_x)
                                                 y_px = page_rect.top() + self.pt_to_px(line_y)
-                                                baseline_px = y_px + self.pt_to_px(line.baseline)
+                                                baseline_px = y_px + self.pt_to_px(
+                                                    line.baseline_offset
+                                                )
                                                 painter.setPen(QPen(QColor(0, 0, 0)))
                                                 painter.drawText(
                                                     QPointF(x_px, baseline_px), po.text
@@ -1061,7 +1463,9 @@ class WriterCanvasView(QAbstractScrollArea):
                                             elif po.type == PortionType.GRAPHIC:
                                                 x_px = page_rect.left() + self.pt_to_px(cur_x)
                                                 y_px = page_rect.top() + self.pt_to_px(line_y)
-                                                baseline_px = y_px + self.pt_to_px(line.baseline)
+                                                baseline_px = y_px + self.pt_to_px(
+                                                    line.baseline_offset
+                                                )
                                                 if isinstance(po.data, OfficeMathItem):
                                                     paint_math(
                                                         painter,
@@ -1092,97 +1496,9 @@ class WriterCanvasView(QAbstractScrollArea):
                     for line in frag.lines:
                         line_y = frag_top + line.top
                         cur_x = page.body_left + col.left + line.indent_left
-
-                        for po in line.portions:
-                            po_w = po.width
-                            if po.type == PortionType.TEXT and po.text:
-                                # Font setup
-                                font_family = po.font_family or "Times New Roman"
-                                font_size_pt = po.font_size or 12.0
-
-                                font = QFont(font_family)
-                                font.setPointSizeF(font_size_pt * self._zoom)
-                                painter.setFont(font)
-
-                                # Calculate portion rect on viewport
-                                x_px = page_rect.left() + self.pt_to_px(cur_x)
-                                y_px = page_rect.top() + self.pt_to_px(line_y)
-                                baseline_px = y_px + self.pt_to_px(line.baseline)
-
-                                # Draw text string
-                                painter.setPen(QPen(QColor(0, 0, 0)))
-                                painter.drawText(
-                                    QPointF(x_px, baseline_px),
-                                    po.text,
-                                )
-                                if (
-                                    self.spell_engine.is_enabled("spelling/check_as_you_type", True)
-                                    and po.text
-                                ):
-                                    fm = QFontMetricsF(font)
-                                    for (
-                                        w,
-                                        w_start,
-                                        w_end,
-                                    ) in self.spell_engine.tokenize_words(po.text):
-                                        if not self.spell_engine.is_valid_word(w):
-                                            w_x1 = x_px + fm.horizontalAdvance(po.text[:w_start])
-                                            w_x2 = x_px + fm.horizontalAdvance(po.text[:w_end])
-                                            self._draw_wavy_line(
-                                                painter,
-                                                w_x1,
-                                                w_x2,
-                                                baseline_px + 2.5,
-                                                QColor(255, 0, 0),
-                                            )
-                            elif po.type == PortionType.TAB and po_w > 0:
-                                tab_data = getattr(po, "data", None)
-                                leader = getattr(tab_data, "leader", "none") if tab_data else "none"
-                                if leader and leader != "none":
-                                    x_px = page_rect.left() + self.pt_to_px(cur_x)
-                                    y_px = page_rect.top() + self.pt_to_px(line_y)
-                                    baseline_px = y_px + self.pt_to_px(line.baseline)
-                                    w_px = self.pt_to_px(po_w)
-
-                                    p1 = QPointF(x_px, baseline_px)
-                                    p2 = QPointF(x_px + w_px, baseline_px)
-                                    if leader == "dot":
-                                        pen = QPen(QColor(100, 100, 100), 1.0, Qt.PenStyle.DotLine)
-                                        painter.setPen(pen)
-                                        painter.drawLine(p1, p2)
-                                    elif leader == "hyphen":
-                                        pen = QPen(QColor(100, 100, 100), 1.0, Qt.PenStyle.DashLine)
-                                        painter.setPen(pen)
-                                        painter.drawLine(p1, p2)
-                                    elif leader == "underscore":
-                                        pen = QPen(
-                                            QColor(100, 100, 100), 1.0, Qt.PenStyle.SolidLine
-                                        )
-                                        painter.setPen(pen)
-                                        p1_u = QPointF(x_px, baseline_px + 2)
-                                        p2_u = QPointF(x_px + w_px, baseline_px + 2)
-                                        painter.drawLine(p1_u, p2_u)
-
-                            elif po.type == PortionType.GRAPHIC:
-                                x_px = page_rect.left() + self.pt_to_px(cur_x)
-                                y_px = page_rect.top() + self.pt_to_px(line_y)
-                                baseline_px = y_px + self.pt_to_px(line.baseline)
-                                if isinstance(po.data, OfficeMathItem):
-                                    paint_math(painter, po.data, x_px, baseline_px, self._zoom)
-                                elif isinstance(po.data, PictureItem) or getattr(
-                                    po.data, "t", ""
-                                ) in ("picture", "img"):
-                                    pic_w_px = self.pt_to_px(po.width)
-                                    pic_h_px = self.pt_to_px(po.ascent)
-                                    dest_rect = QRectF(
-                                        x_px,
-                                        baseline_px - pic_h_px,
-                                        pic_w_px,
-                                        pic_h_px,
-                                    )
-                                    self._paint_picture(painter, po.data, dest_rect, self._zoom)
-
-                            cur_x += po_w
+                        self._paint_line_portions(
+                            painter, page_rect, line, cur_x, line_y, check_spell=True
+                        )
 
         # 2.5. Render foreground floating shapes (behind == False)
         for fb in getattr(page, "float_boxes", []):
@@ -1251,10 +1567,10 @@ class WriterCanvasView(QAbstractScrollArea):
                             font, pen = _setup_font_and_pen(po, 10.0, "#666666")
                             painter.setFont(font)
                             painter.setPen(pen)
-                            baseline = line_y + line.baseline
+                            baseline = line_y + (line.baseline - line.top)
                             painter.drawText(QPointF(cur_x, baseline), text_str)
                         elif po.type == PortionType.GRAPHIC:
-                            baseline = line_y + line.baseline
+                            baseline = line_y + (line.baseline - line.top)
                             if isinstance(po.data, OfficeMathItem):
                                 paint_math(painter, po.data, cur_x, baseline, 1.0)
                             elif isinstance(po.data, PictureItem) or getattr(po.data, "t", "") in (
@@ -1312,10 +1628,10 @@ class WriterCanvasView(QAbstractScrollArea):
                                                 font, pen = _setup_font_and_pen(po, 12.0, "#000000")
                                                 painter.setFont(font)
                                                 painter.setPen(pen)
-                                                baseline = line_y + line.baseline
+                                                baseline = line_y + (line.baseline - line.top)
                                                 painter.drawText(QPointF(cur_x, baseline), po.text)
                                             elif po.type == PortionType.GRAPHIC:
-                                                baseline = line_y + line.baseline
+                                                baseline = line_y + (line.baseline - line.top)
                                                 if isinstance(po.data, OfficeMathItem):
                                                     paint_math(
                                                         painter,
@@ -1354,7 +1670,7 @@ class WriterCanvasView(QAbstractScrollArea):
                                 font, pen = _setup_font_and_pen(po, 12.0, "#000000")
                                 painter.setFont(font)
                                 painter.setPen(pen)
-                                baseline = line_y + line.baseline
+                                baseline = line_y + (line.baseline - line.top)
                                 painter.drawText(QPointF(cur_x, baseline), po.text)
 
                                 if getattr(po, "underline", False):
@@ -1367,7 +1683,11 @@ class WriterCanvasView(QAbstractScrollArea):
                                 if getattr(po, "strikethrough", False):
                                     pen_s = QPen(pen.color(), 0.75)
                                     painter.setPen(pen_s)
-                                    mid_y = line_y + line.baseline - (po.font_size or 12.0) * 0.3
+                                    mid_y = (
+                                        line_y
+                                        + line.baseline_offset
+                                        - (po.font_size or 12.0) * 0.3
+                                    )
                                     painter.drawLine(
                                         QPointF(cur_x, mid_y),
                                         QPointF(cur_x + po_w, mid_y),
@@ -1376,7 +1696,7 @@ class WriterCanvasView(QAbstractScrollArea):
                                 tab_data = getattr(po, "data", None)
                                 leader = getattr(tab_data, "leader", "none") if tab_data else "none"
                                 if leader and leader != "none":
-                                    baseline = line_y + line.baseline
+                                    baseline = line_y + (line.baseline - line.top)
                                     p1 = QPointF(cur_x, baseline)
                                     p2 = QPointF(cur_x + po_w, baseline)
                                     if leader == "dot":
@@ -1402,7 +1722,7 @@ class WriterCanvasView(QAbstractScrollArea):
                                         )
 
                             elif po.type == PortionType.GRAPHIC:
-                                baseline = line_y + line.baseline
+                                baseline = line_y + (line.baseline - line.top)
                                 if isinstance(po.data, OfficeMathItem):
                                     paint_math(painter, po.data, cur_x, baseline, 1.0)
                                 elif isinstance(po.data, PictureItem) or getattr(
@@ -1445,7 +1765,7 @@ class WriterCanvasView(QAbstractScrollArea):
                             font, pen = _setup_font_and_pen(po, 10.0, "#000000")
                             painter.setFont(font)
                             painter.setPen(pen)
-                            baseline = line_y + line.baseline
+                            baseline = line_y + (line.baseline - line.top)
                             painter.drawText(QPointF(cur_x, baseline), po.text)
                         cur_x += po_w
 
@@ -1474,10 +1794,10 @@ class WriterCanvasView(QAbstractScrollArea):
                             font, pen = _setup_font_and_pen(po, 10.0, "#666666")
                             painter.setFont(font)
                             painter.setPen(pen)
-                            baseline = line_y + line.baseline
+                            baseline = line_y + (line.baseline - line.top)
                             painter.drawText(QPointF(cur_x, baseline), text_str)
                         elif po.type == PortionType.GRAPHIC:
-                            baseline = line_y + line.baseline
+                            baseline = line_y + (line.baseline - line.top)
                             if isinstance(po.data, OfficeMathItem):
                                 paint_math(painter, po.data, cur_x, baseline, 1.0)
                             elif isinstance(po.data, PictureItem) or getattr(po.data, "t", "") in (

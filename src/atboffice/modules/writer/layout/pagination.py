@@ -13,6 +13,7 @@ This module implements:
 
 from __future__ import annotations
 
+import copy
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -26,7 +27,7 @@ from atboffice.modules.writer.layout.table_layout import (
     layout_table,
     split_table_for_page,
 )
-from atboffice.modules.writer.layout.wrap import FloatBox, resolve_float_box
+from atboffice.modules.writer.layout.wrap import FloatBox, resolve_float_box, resolve_frame_box
 from atboffice.modules.writer.models.document import (
     BreakItem,
     Document,
@@ -662,6 +663,83 @@ def _update_dynamic_fields(
     return update_fields(doc, p_res)
 
 
+def _balance_multicolumn_region(region: PageRegion | None) -> None:
+    """Balance line fragments across columns in a multi-column region before section breaks."""
+    if region is None or len(region.columns) < 2:
+        return
+    all_items: list[tuple[Paragraph, LayoutLine]] = []
+    for col in region.columns:
+        for frag in col.fragments:
+            if frag.paragraph is not None and frag.lines:
+                for line in frag.lines:
+                    all_items.append((frag.paragraph, line))
+            elif frag.table_layout is not None:
+                return
+
+    if not all_items:
+        return
+
+    n_cols = len(region.columns)
+    total_h = sum(line.height for _, line in all_items)
+    if total_h <= 0.0:
+        return
+
+    target_h = total_h / float(n_cols)
+
+    for col in region.columns:
+        col.fragments = []
+        col.used_height = 0.0
+
+    col_idx = 0
+    cur_p: Paragraph | None = None
+    cur_p_lines: list[LayoutLine] = []
+    cur_frag_top = 0.0
+
+    def flush_frag() -> None:
+        nonlocal cur_p, cur_p_lines, cur_frag_top
+        if cur_p is not None and cur_p_lines:
+            frag_h = sum(ln.height for ln in cur_p_lines)
+            frag = PageFragment(
+                paragraph=cur_p,
+                line_start_idx=0,
+                line_end_idx=len(cur_p_lines),
+                lines=list(cur_p_lines),
+                top=cur_frag_top,
+                height=frag_h,
+            )
+            region.columns[col_idx].fragments.append(frag)
+            region.columns[col_idx].used_height += frag_h
+            cur_p_lines = []
+            cur_frag_top = region.columns[col_idx].used_height
+
+    for idx, (p, line) in enumerate(all_items):
+        col = region.columns[col_idx]
+        col_accum = col.used_height + sum(ln.height for ln in cur_p_lines) + line.height
+        if (
+            col_idx + 1 < n_cols
+            and col_accum > target_h
+            and (cur_p_lines or col.fragments)
+        ):
+            flush_frag()
+            col_idx += 1
+            cur_p = None
+            cur_frag_top = 0.0
+
+        if p is not cur_p:
+            flush_frag()
+            cur_p = p
+            cur_frag_top = region.columns[col_idx].used_height
+
+        l_copy = copy.copy(line)
+        local_baseline = line.baseline - line.top
+        l_copy.top = sum(ln.height for ln in cur_p_lines)
+        l_copy.bottom = l_copy.top + l_copy.height
+        l_copy.baseline = l_copy.top + local_baseline
+        cur_p_lines.append(l_copy)
+
+    flush_frag()
+
+
 def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
     """Execute complete multi-page pagination for a Document without field backfill."""
     t0 = time.perf_counter()
@@ -691,6 +769,7 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
                 and not ctx.current_page.is_blank
             )
             if is_valid_continuous:
+                _balance_multicolumn_region(ctx.current_region)
                 bottom_y = ctx.get_current_region_bottom()
                 avail_h = ctx.current_page.body_height - bottom_y
                 if avail_h >= 20.0:
@@ -789,6 +868,37 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
 
                 col_w = col.width if col else ctx.current_page.body_width
                 is_top = (col.used_height == 0.0) if col else True
+
+                # Floating paragraph frame (framePr)
+                if p_pr.frame_pr is not None:
+                    cl = col.left if col else 0.0
+                    cw = col.width if col else ctx.current_page.body_width
+                    para_top_y = (col.used_height if col else 0.0) + sect.mt
+                    fb = resolve_frame_box(
+                        p=p_seg,
+                        fp=p_pr.frame_pr,
+                        page_dims=(sect.pg_w, sect.pg_h),
+                        margin_dims=(sect.ml, sect.mr, sect.mt, sect.mb),
+                        col_dims=(cl, cw),
+                        para_top=para_top_y,
+                    )
+                    p_layout = layout_paragraph(
+                        p=p_seg,
+                        container_width=fb.w,
+                        section_props=sect,
+                        doc=doc,
+                        is_page_top=True,
+                    )
+                    fb.lines = p_layout.lines
+                    fb.h = max(fb.h, p_layout.height)
+                    ctx.current_page.float_boxes.append(fb)
+                    if (
+                        fb.wrap_mode == WrapMode.TOP_BOTTOM
+                        and p_pr.frame_pr.get("vAnchor") == "text"
+                        and col
+                    ):
+                        col.used_height += fb.h + fb.dist.bottom
+                    continue
 
                 # Accumulate floating drawings anchored to this paragraph
                 for run_item in getattr(p_seg, "runs", []):
@@ -939,6 +1049,16 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
                             continue
 
                     placed_lines = lines_to_place[:k]
+                    if placed_lines and placed_lines[0].top != 0.0:
+                        first_top = placed_lines[0].top
+                        rebased_lines: list[LayoutLine] = []
+                        for ln in placed_lines:
+                            ln_copy = copy.copy(ln)
+                            ln_copy.top -= first_top
+                            ln_copy.bottom -= first_top
+                            ln_copy.baseline -= first_top
+                            rebased_lines.append(ln_copy)
+                        placed_lines = rebased_lines
                     frag_h = sum(ln.height for ln in placed_lines)
                     frag = PageFragment(
                         paragraph=block,  # Keep reference to original block
@@ -1043,6 +1163,9 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
                 continue
 
             b_idx += 1
+
+        if ctx.current_region and len(ctx.current_region.columns) > 1:
+            _balance_multicolumn_region(ctx.current_region)
 
     total_pgs = len(ctx.pages)
     sec_pages: list[int] = [0] * len(ctx.sect_list)

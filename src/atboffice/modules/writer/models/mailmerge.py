@@ -595,7 +595,7 @@ class MailMergeEngine:
                                         painter.setFont(font)
                                         painter.setPen(QPen(QColor(0, 0, 0)))
                                         painter.drawText(
-                                            QPointF(cur_x, line_y + line.baseline),
+                                            QPointF(cur_x, line_y + (line.baseline - line.top)),
                                             po.text,
                                         )
                                     cur_x += po.width

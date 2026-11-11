@@ -15,6 +15,7 @@ from atboffice.modules.writer.models.document import (
     Cell,
     CommentRangeEnd,
     CommentRangeStart,
+    CommentRefItem,
     Document,
     FieldBeginItem,
     FieldEndItem,
@@ -379,6 +380,8 @@ class DocxReader:
         self._parse_headers_footers()
         self._parse_footnotes()
         self._parse_endnotes()
+        self._parse_comments()
+        self.doc.hide_spelling_errors = True
         self.doc._doc_format = self.doc_format  # type: ignore[attr-defined]
         return self.doc
 
@@ -861,6 +864,9 @@ class DocxReader:
                 elif c_tag == "endnoteReference":
                     n_id = _get_attr(child, "id", "0") or "0"
                     runs.append(NoteRefItem(kind="en", note_id=n_id, r_pr=r_pr))
+                elif c_tag == "commentReference":
+                    c_id = _get_attr(child, "id", "0") or "0"
+                    runs.append(CommentRefItem(comment_id=str(c_id), r_pr=r_pr))
                 elif c_tag == "bookmarkStart":
                     name = _get_attr(child, "name", "")
                     b_id = int(_get_attr(child, "id", "0") or "0")
@@ -978,6 +984,10 @@ class DocxReader:
             c_id = _get_attr(elem, "id", "0") or "0"
             runs.append(CommentRangeEnd(comment_id=c_id))
 
+        elif tag == "commentReference":
+            c_id = _get_attr(elem, "id", "0") or "0"
+            runs.append(CommentRefItem(comment_id=str(c_id)))
+
         elif tag == "fldSimple":
             instr = _get_attr(elem, "instr", "")
             runs.append(FieldBeginItem(instr=instr))
@@ -1005,6 +1015,7 @@ class DocxReader:
     def _parse_p_pr(self, p_pr_elem: ET.Element) -> ParagraphProperties:
         """Parse <w:pPr> element into ParagraphProperties."""
         p_pr = ParagraphProperties()
+        raw_jc: str | None = None
         for child in p_pr_elem:
             tag = _local_tag(child)
             if tag == "pStyle":
@@ -1014,6 +1025,7 @@ class DocxReader:
             elif tag == "jc":
                 jc_val = _get_attr(child, "val")
                 if jc_val:
+                    raw_jc = jc_val
                     jc_map = {
                         "start": "left",
                         "end": "right",
@@ -1025,6 +1037,9 @@ class DocxReader:
                         "distribute": "distribute",
                     }
                     p_pr.jc = jc_map.get(jc_val, "left")
+                    p_pr.jc_explicit = True
+            elif tag == "bidi":
+                p_pr.bidi = _bool_val(child, True)
             elif tag == "spacing":
                 b = _twips_to_pt(_get_attr(child, "before"))
                 a = _twips_to_pt(_get_attr(child, "after"))
@@ -1078,7 +1093,15 @@ class DocxReader:
             elif tag == "pageBreakBefore":
                 p_pr.page_break_before = _bool_val(child, True)
             elif tag == "framePr":
-                p_pr.frame_pr = dict(child.attrib)
+                fp: dict[str, str] = dict(child.attrib)
+                for k, v in list(child.attrib.items()):
+                    local_k = (
+                        k.split("}", 1)[1]
+                        if k.startswith("{")
+                        else (k.split(":", 1)[1] if ":" in k else k)
+                    )
+                    fp[local_k] = v
+                p_pr.frame_pr = fp
             elif tag == "widowControl":
                 p_pr.widow_control = _bool_val(child, True)
             elif tag == "outlineLvl":
@@ -1103,6 +1126,8 @@ class DocxReader:
                     leader = _get_attr(tab_elem, "leader", "none")
                     tabs.append(TabStop(pos=pos, align=align, leader=leader))
                 p_pr.tabs = tabs
+        if p_pr.bidi and raw_jc in ("start", "end"):
+            p_pr.jc = "right" if raw_jc == "start" else "left"
         return p_pr
 
     def _parse_r_pr(self, r_pr_elem: ET.Element) -> RunProperties:
@@ -1160,6 +1185,8 @@ class DocxReader:
                 ea_lang = _get_attr(child, "eastAsia")
                 if ea_lang:
                     r_pr.lang_ea = ea_lang
+            elif tag == "rtl":
+                r_pr.rtl = _bool_val(child, True)
         return r_pr
 
     def _collect_table_rows(self, elem: ET.Element) -> list[ET.Element]:
@@ -1507,6 +1534,73 @@ class DocxReader:
                 if not blocks:
                     blocks.append(Paragraph())
                 self.doc.en[en_id] = Story(kind="endnote", blocks=blocks)
+        except Exception:
+            pass
+
+    def _parse_comments(self) -> None:
+        """Parse word/comments.xml and word/commentsExtended.xml into doc.comments."""
+        cm_path = self._rel_target("comments") or "word/comments.xml"
+        if not self.pkg.has_part(cm_path):
+            return
+
+        ex_parent_by_para: dict[str, str] = {}
+        ex_path = self._rel_target("commentsExtended") or "word/commentsExtended.xml"
+        if self.pkg.has_part(ex_path):
+            try:
+                ex_root = ET.fromstring(self.pkg.read_part(ex_path))
+                for ex in ex_root:
+                    if _local_tag(ex) != "commentEx":
+                        continue
+                    pid = _get_attr(ex, "paraId")
+                    ppid = _get_attr(ex, "paraIdParent")
+                    if pid and ppid:
+                        ex_parent_by_para[pid] = ppid
+            except Exception:
+                pass
+
+        para_owner: dict[str, str] = {}
+        comment_para_ids: dict[str, list[str]] = {}
+        try:
+            root = ET.fromstring(self.pkg.read_part(cm_path))
+            for cm in root:
+                if _local_tag(cm) != "comment":
+                    continue
+                cm_id = _get_attr(cm, "id")
+                if cm_id is None:
+                    continue
+                cid_str = str(cm_id)
+                author = _get_attr(cm, "author", "Unknown") or "Unknown"
+                initials = _get_attr(cm, "initials", "") or ""
+                date = _get_attr(cm, "date", "") or ""
+                pids: list[str] = []
+                for elem in cm.iter():
+                    if _local_tag(elem) == "p":
+                        pid = _get_attr(elem, "paraId")
+                        if pid:
+                            para_owner[pid] = cid_str
+                            pids.append(pid)
+                comment_para_ids[cid_str] = pids
+
+                blocks: list[Paragraph | Table] = []
+                self._collect_blocks(cm, blocks)
+                if not blocks:
+                    blocks.append(Paragraph())
+                story = Story(
+                    kind="cmt",
+                    blocks=blocks,
+                    id=cid_str,
+                    author=author,
+                    initials=initials,
+                    date=date,
+                )
+                self.doc.comments[cid_str] = story
+
+            for cid_str, pids in comment_para_ids.items():
+                for pid in pids:
+                    parent_para = ex_parent_by_para.get(pid)
+                    if parent_para and parent_para in para_owner:
+                        self.doc.comments[cid_str].parent_id = para_owner[parent_para]
+                        break
         except Exception:
             pass
 
