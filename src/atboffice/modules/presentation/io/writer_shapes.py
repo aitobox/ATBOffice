@@ -185,6 +185,32 @@ def media_picture_to_xml(
     return f"<p:pic>{nv_pic_pr}{blip_fill}{sp_pr}</p:pic>"
 
 
+def diagram_frame_to_xml(
+    shape: Shape,
+    shape_id: str,
+    dm_rid: str,
+    lo_rid: str,
+    qs_rid: str,
+    cs_rid: str,
+) -> str:
+    """Serialize SmartArt Diagram shape to PresentationML <p:graphicFrame>."""
+    c_nv_pr = non_visual_properties_to_xml(shape_id, shape)
+    c_nv_gframe = '<p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr>'
+    nv_pr = placeholder_nv_to_xml(shape)
+    nv_graphic_frame = f"<p:nvGraphicFramePr>{c_nv_pr}{c_nv_gframe}{nv_pr}</p:nvGraphicFramePr>"
+    xfrm_xml = transform_to_xml(shape, "p:xfrm")
+    graphic = (
+        "<a:graphic>"
+        '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram">'
+        f'<dgm:relIds xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" '
+        f'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
+        f'r:dm="{dm_rid}" r:lo="{lo_rid}" r:qs="{qs_rid}" r:cs="{cs_rid}"/>'
+        "</a:graphicData>"
+        "</a:graphic>"
+    )
+    return f"<p:graphicFrame>{nv_graphic_frame}{xfrm_xml}{graphic}</p:graphicFrame>"
+
+
 def shape_to_xml(
     shape: Shape,
     id_resolver: Callable[[str], str],
@@ -194,6 +220,15 @@ def shape_to_xml(
 ) -> str:
     """Serialize any Shape model into compliant PresentationML XML."""
     shape_id = id_resolver(shape.id)
+
+    # 0. SmartArt Diagram GraphicFrame
+    if (shape.is_diagram or bool(shape.sa)) and media_resolver:
+        dm_rid = media_resolver(f"diagram_dm:{shape.id}")
+        lo_rid = media_resolver(f"diagram_lo:{shape.id}")
+        qs_rid = media_resolver(f"diagram_qs:{shape.id}")
+        cs_rid = media_resolver(f"diagram_cs:{shape.id}")
+        if dm_rid and lo_rid:
+            return diagram_frame_to_xml(shape, shape_id, dm_rid, lo_rid, qs_rid, cs_rid)
 
     # 1. Group Shapes
     if shape.type == "group":

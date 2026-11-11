@@ -351,6 +351,7 @@ class LecternWindow(BaseOfficeWindow):
         self.action_registry.set_handler("diagramMoveDown", lambda: self._on_diagram_move("down"))
         self.action_registry.set_handler("diagramReset", self._on_diagram_reset)
         self.action_registry.set_handler("diagramToShapes", self._on_diagram_to_shapes)
+        self.action_registry.set_handler("diagramTextPane", self.show_smartart_pane)
 
         # 11. Tables and Borders Toolbar
         self.action_registry.set_handler("tableMergeCells", self.table_merge_cells)
@@ -1334,6 +1335,7 @@ class LecternWindow(BaseOfficeWindow):
             ColorSchemesPane,
             SlideDesignPane,
             SlideLayoutPane,
+            SmartArtPane,
         )
 
         pres = getattr(self.presentation_view, "presentation", None)
@@ -1344,6 +1346,9 @@ class LecternWindow(BaseOfficeWindow):
         self.animation_schemes_pane = AnimationSchemesPane(
             presentation=pres, parent=self.task_pane_dock
         )
+        self.smartart_pane = SmartArtPane(presentation=pres, parent=self.task_pane_dock)
+        self.smartart_pane.diagram_changed.connect(self._on_smartart_diagram_changed)
+        self.smartart_pane.converted_to_shapes.connect(self._on_smartart_converted)
 
         # Wire navigation between panes
         for pane in (self.slide_design_pane, self.color_schemes_pane, self.animation_schemes_pane):
@@ -1376,6 +1381,11 @@ class LecternWindow(BaseOfficeWindow):
             "animation_schemes",
             safe_tr("幻灯片设计 - 动画方案"),
             self.animation_schemes_pane,
+        )
+        self.task_pane_dock.register_pane(
+            "smartart_pane",
+            safe_tr("IntelliArt 智能图示"),
+            self.smartart_pane,
         )
 
     def _on_apply_slide_layout(self, layout_key: str) -> None:
@@ -1473,6 +1483,32 @@ class LecternWindow(BaseOfficeWindow):
         if self.task_pane_dock is not None:
             self.task_pane_dock.show()
             self.task_pane_dock.show_pane("animation_schemes")
+
+    def show_smartart_pane(self, shape: Any = None) -> None:
+        """Open or activate the IntelliArt SmartArt task pane."""
+        self.show_status_message(safe_tr("打开智能图示窗格"))
+        if self.task_pane_dock is not None:
+            if hasattr(self, "smartart_pane") and self.smartart_pane is not None:
+                diag = shape if shape is not None and hasattr(shape, "sa") else self._get_active_diagram_shape()
+                self.smartart_pane.set_diagram(diag)
+            self.task_pane_dock.show()
+            self.task_pane_dock.show_pane("smartart_pane")
+
+    def _on_smartart_diagram_changed(self, shape: Any) -> None:
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and hasattr(ws, "scene") and ws.scene and hasattr(ws, "current_slide"):
+            ws.scene.load_slide(ws.current_slide)
+            if hasattr(shape, "id") and hasattr(ws.scene, "get_shape_item"):
+                item = ws.scene.get_shape_item(shape.id)
+                if item:
+                    item.setSelected(True)
+        self.set_modified(True)
+
+    def _on_smartart_converted(self, shape: Any) -> None:
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws and hasattr(ws, "scene") and ws.scene and hasattr(ws, "current_slide"):
+            ws.scene.load_slide(ws.current_slide)
+        self.set_modified(True)
 
     def open_action_settings_dialog(self) -> None:
         from atboffice.modules.presentation.dialogs import ActionSettingsDialog
@@ -2051,6 +2087,11 @@ class LecternWindow(BaseOfficeWindow):
                 "is_wordart": is_wordart,
             }
         )
+        if hasattr(self, "smartart_pane") and self.smartart_pane is not None:
+            if is_diagram:
+                diag = self._get_active_diagram_shape()
+                if diag and getattr(diag, "sa", None) and self.smartart_pane.current_shape != diag:
+                    self.smartart_pane.set_diagram(diag)
         self._sync_toolbar_states()
 
     def _on_left_pane_tab_changed(self, index: int) -> None:

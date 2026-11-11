@@ -4,10 +4,13 @@ from atboffice.modules.presentation.panes.animation_schemes_pane import Animatio
 from atboffice.modules.presentation.panes.color_schemes_pane import ColorSchemesPane
 from atboffice.modules.presentation.panes.slide_design_pane import SlideDesignPane
 from atboffice.modules.presentation.panes.slide_layout_pane import SlideLayoutPane
+from atboffice.modules.presentation.panes.smartart_pane import SmartArtPane, SmartArtTextPane
 
 __all__ = [
     "SlideLayoutPane",
     "SlideDesignPane",
     "ColorSchemesPane",
     "AnimationSchemesPane",
+    "SmartArtPane",
+    "SmartArtTextPane",
 ]
