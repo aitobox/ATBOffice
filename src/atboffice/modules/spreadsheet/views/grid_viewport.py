@@ -56,6 +56,7 @@ from atboffice.modules.spreadsheet.calc.references import (
     range_name,
     ref_err,
     translate,
+    transpose_formula,
 )
 from atboffice.modules.spreadsheet.calc.tokens import CellRefNode
 from atboffice.modules.spreadsheet.models.conditional_format import (
@@ -3321,6 +3322,17 @@ class GridViewport(QAbstractScrollArea):
             self.open_format_cells_dialog()
             return
 
+        # Ctrl+Alt+V / Cmd+Alt+V to open Paste Special dialog
+        if (
+            modifiers
+            & (
+                Qt.KeyboardModifier.ControlModifier
+                | Qt.KeyboardModifier.MetaModifier
+            )
+        ) and bool(modifiers & Qt.KeyboardModifier.AltModifier) and key == Qt.Key.Key_V:
+            self.paste_special()
+            return
+
         # F2 to start editing
         if key == Qt.Key.Key_F2:
             if (
@@ -3908,12 +3920,40 @@ class GridViewport(QAbstractScrollArea):
             for c in range(eff_range.min_c, eff_range.max_c + 1)
         }
 
+        copied_merges: list[dict[str, int]] = []
+        for m in getattr(self.model, "merges", []):
+            if hasattr(m, "min_r"):
+                mr1, mc1, mr2, mc2 = m.min_r, m.min_c, m.max_r, m.max_c
+            elif isinstance(m, (tuple, list)) and len(m) == 4:
+                mr1, mc1, mr2, mc2 = m[0], m[1], m[2], m[3]
+            elif isinstance(m, dict):
+                mr1, mc1, mr2, mc2 = m.get("r1", 0), m.get("c1", 0), m.get("r2", 0), m.get("c2", 0)
+            else:
+                continue
+            if mr1 >= pr.min_r and mr2 <= pr.max_r and mc1 >= pr.min_c and mc2 <= pr.max_c:
+                copied_merges.append({
+                    "r1": mr1 - pr.min_r,
+                    "c1": mc1 - pr.min_c,
+                    "r2": mr2 - pr.min_r,
+                    "c2": mc2 - pr.min_c,
+                })
+
+        copied_comments: dict[tuple[int, int], Any] = {}
+        if hasattr(self.model, "comments"):
+            for (cr, cc), cm in self.model.comments.items():
+                if pr.min_r <= cr <= pr.max_r and pr.min_c <= cc <= pr.max_c:
+                    copied_comments[(cr - pr.min_r, cc - pr.min_c)] = (
+                        CellComment(**cm.__dict__) if hasattr(cm, "__dict__") else cm
+                    )
+
         self._internal_clipboard = {
             "range": pr,
             "effective_range": eff_range,
             "h": eff_range.max_r - eff_range.min_r + 1,
             "w": eff_range.max_c - eff_range.min_c + 1,
             "col_widths": col_widths,
+            "merges": copied_merges,
+            "comments": copied_comments,
             "cells": {
                 (r - pr.min_r, c - pr.min_c): (
                     self.model.get_cell(r, c).clone()
@@ -4183,6 +4223,8 @@ class GridViewport(QAbstractScrollArea):
                 "h": h,
                 "w": w,
                 "col_widths": {},
+                "merges": [],
+                "comments": {},
                 "cells": cells,
                 "is_cut": False,
             }
@@ -4198,39 +4240,95 @@ class GridViewport(QAbstractScrollArea):
         transpose = bool(options.get("transpose", False))
         skip_blanks = bool(options.get("skip_blanks", False))
         what = options.get("what") or options.get("type") or "all"
-        op = options.get("op") or options.get("operation") or "none"
+        raw_op = options.get("op") or options.get("operation") or "none"
+        op = {
+            "subtract": "sub",
+            "multiply": "mul",
+            "divide": "div",
+        }.get(raw_op, raw_op)
+        if op not in ("add", "sub", "mul", "div"):
+            op = "none"
+
         is_link = bool(
             options.get("link", False)
-            or options.get("type") == "paste_link"
-            or options.get("what") == "paste_link"
+            or what in ("paste_link", "link")
         )
 
         dest_h = src_w if transpose else src_h
         dest_w = src_h if transpose else src_w
+        pr = self.selection.primary_range
+        sel_h = pr.max_r - pr.min_r + 1
+        sel_w = pr.max_c - pr.min_c + 1
         ar, ac = self.selection.active_cell
+
+        # Selection tiling: if user selected multiple cells that form a multiple of source block
+        if (sel_h > 1 or sel_w > 1) and (sel_h % dest_h == 0 and sel_w % dest_w == 0):
+            tile_h = sel_h
+            tile_w = sel_w
+            start_r = pr.min_r
+            start_c = pr.min_c
+        else:
+            tile_h = dest_h
+            tile_w = dest_w
+            start_r = ar
+            start_c = ac
 
         # Special case: Column widths only
         if what == "colWidths":
-            for j in range(dest_w):
-                src_j = j if not transpose else 0
-                width = col_widths.get(src_j)
+            for j in range(tile_w):
+                src_j = j % dest_w
+                src_col_idx = 0 if transpose else src_j
+                width = col_widths.get(src_col_idx)
                 if width is not None:
-                    self.geometry_mapper.set_col_width(ac + j, width)
-                    self.model.geometry.set_col_width(ac + j, width)
+                    self.geometry_mapper.set_col_width(start_c + j, width)
+                    self.model.geometry.set_col_width(start_c + j, width)
             self._commit_undo(before_state, action="paste_special")
+            self.viewport().update()
             return
 
-        take_val = what in ("all", "values", "valuesNF")
-        take_formula = what in ("all", "formulas", "noBorders", "formulasNF")
-        take_format = what in ("all", "formats", "noBorders")
+        take_val = what in ("all", "values", "valuesNF", "allTheme")
+        take_formula = what in (
+            "all",
+            "formulas",
+            "noBorders",
+            "allExceptBorders",
+            "formulasNF",
+            "allTheme",
+        )
+        take_format = what in (
+            "all",
+            "formats",
+            "noBorders",
+            "allExceptBorders",
+            "allTheme",
+        )
         take_nf = what in ("formulasNF", "valuesNF")
 
-        for dr in range(dest_h):
-            for dc in range(dest_w):
-                si, sj = (dc, dr) if transpose else (dr, dc)
-                src_cell = src_cells.get((si, sj))
-                target_r = ar + dr
-                target_c = ac + dc
+        def to_num(val: Any) -> float | int | None:
+            if val is None or val == "":
+                return 0
+            if isinstance(val, (int, float)):
+                return val
+            try:
+                s = str(val).strip()
+                return float(s) if "." in s else int(s)
+            except ValueError:
+                return None
+
+        for dr in range(tile_h):
+            for dc in range(tile_w):
+                block_r = dr % dest_h
+                block_c = dc % dest_w
+                if transpose:
+                    src_i = block_c
+                    src_j = block_r
+                else:
+                    src_i = block_r
+                    src_j = block_c
+
+                src_cell = src_cells.get((src_i, src_j))
+                target_r = start_r + dr
+                target_c = start_c + dc
 
                 if skip_blanks and (
                     src_cell is None
@@ -4245,8 +4343,8 @@ class GridViewport(QAbstractScrollArea):
                 new_cell = curr_cell.clone() if curr_cell else CellData()
 
                 if is_link:
-                    src_abs_r = src_range.min_r + si
-                    src_abs_c = src_range.min_c + sj
+                    src_abs_r = src_range.min_r + src_i
+                    src_abs_c = src_range.min_c + src_j
                     sheet_name = getattr(self.model, "name", "")
                     sheet_ref = f"{sheet_name}!" if sheet_name else ""
                     ref_str = cell_name(src_abs_r, src_abs_c, False, False)
@@ -4256,8 +4354,8 @@ class GridViewport(QAbstractScrollArea):
                     continue
 
                 if what == "comments":
-                    src_abs_r = src_range.min_r + si
-                    src_abs_c = src_range.min_c + sj
+                    src_abs_r = src_range.min_r + src_i
+                    src_abs_c = src_range.min_c + src_j
                     cm = self.model.get_comment(src_abs_r, src_abs_c)
                     if cm:
                         self.model.set_comment(
@@ -4266,8 +4364,8 @@ class GridViewport(QAbstractScrollArea):
                     continue
 
                 if what == "validation":
-                    src_abs_r = src_range.min_r + si
-                    src_abs_c = src_range.min_c + sj
+                    src_abs_r = src_range.min_r + src_i
+                    src_abs_c = src_range.min_c + src_j
                     dv = self.model.get_validation_at(src_abs_r, src_abs_c)
                     if dv and hasattr(self.model, "add_data_validation"):
                         self.model.add_data_validation(dv)
@@ -4278,22 +4376,44 @@ class GridViewport(QAbstractScrollArea):
                     src_f = src_cell.formula if (src_cell and take_formula) else None
 
                     if src_f is not None:
-                        shift_r = target_r - (src_range.min_r + si)
-                        shift_c = target_c - (src_range.min_c + sj)
-                        src_f = translate(src_f, shift_r, shift_c)
+                        src_abs_r = src_range.min_r + src_i
+                        src_abs_c = src_range.min_c + src_j
+                        if transpose:
+                            src_f = transpose_formula(
+                                src_f, src_abs_r, src_abs_c, target_r, target_c
+                            )
+                        else:
+                            shift_r = target_r - src_abs_r
+                            shift_c = target_c - src_abs_c
+                            src_f = translate(src_f, shift_r, shift_c)
 
-                    if op and op != "none":
+                    if op != "none":
                         cur_v = curr_cell.value if curr_cell else None
-                        base_num = cur_v if isinstance(cur_v, (int, float)) else 0
-                        val_num = src_v if isinstance(src_v, (int, float)) else 0
-                        if op == "add":
-                            src_v = base_num + val_num
-                        elif op in ("sub", "subtract"):
-                            src_v = base_num - val_num
-                        elif op in ("mul", "multiply"):
-                            src_v = base_num * val_num
-                        elif op in ("div", "divide"):
-                            src_v = "#DIV/0!" if val_num == 0 else base_num / val_num
+                        base_num = to_num(cur_v)
+                        val_num = to_num(src_v)
+
+                        if base_num is not None and val_num is not None:
+                            if op == "add":
+                                src_v = base_num + val_num
+                            elif op == "sub":
+                                src_v = base_num - val_num
+                            elif op == "mul":
+                                src_v = base_num * val_num
+                            elif op == "div":
+                                if val_num == 0:
+                                    src_v = "#DIV/0!"
+                                else:
+                                    if (
+                                        isinstance(base_num, int)
+                                        and isinstance(val_num, int)
+                                        and base_num % val_num == 0
+                                    ):
+                                        src_v = base_num // val_num
+                                    else:
+                                        src_v = base_num / val_num
+                        elif val_num is not None and val_num == 0 and op == "div":
+                            src_v = "#DIV/0!"
+
                         src_f = None
 
                     new_cell.value = src_v
@@ -4310,7 +4430,7 @@ class GridViewport(QAbstractScrollArea):
                     new_cell.align_h = src_cell.align_h
                     new_cell.align_v = src_cell.align_v
                     new_cell.format_code = src_cell.format_code
-                    if what != "noBorders":
+                    if what not in ("noBorders", "allExceptBorders"):
                         new_cell.border_top = src_cell.border_top
                         new_cell.border_bottom = src_cell.border_bottom
                         new_cell.border_left = src_cell.border_left
@@ -4321,7 +4441,54 @@ class GridViewport(QAbstractScrollArea):
 
                 self.model.set_cell(target_r, target_c, new_cell)
 
+        # Merges
+        copied_merges = self._internal_clipboard.get("merges", [])
+        if copied_merges and (
+            what in ("all", "formats", "allTheme", "noBorders", "allExceptBorders")
+        ):
+            new_merges = list(self.model.merges)
+            for r0 in range(start_r, start_r + tile_h, dest_h):
+                for c0 in range(start_c, start_c + tile_w, dest_w):
+                    for m in copied_merges:
+                        if transpose:
+                            tr_rg = SelectionRange(
+                                r0 + m["c1"],
+                                c0 + m["r1"],
+                                r0 + m["c2"],
+                                c0 + m["r2"],
+                            )
+                        else:
+                            tr_rg = SelectionRange(
+                                r0 + m["r1"],
+                                c0 + m["c1"],
+                                r0 + m["r2"],
+                                c0 + m["c2"],
+                            )
+                        new_merges.append(tr_rg)
+            self.model.merges = new_merges
+
+        # Comments
+        copied_comments = self._internal_clipboard.get("comments", {})
+        if copied_comments and (what in ("all", "comments")):
+            for (ci, cj), cm in copied_comments.items():
+                for r0 in range(start_r, start_r + tile_h, dest_h):
+                    for c0 in range(start_c, start_c + tile_w, dest_w):
+                        if transpose:
+                            target_cr = r0 + cj
+                            target_cc = c0 + ci
+                        else:
+                            target_cr = r0 + ci
+                            target_cc = c0 + cj
+                        self.model.set_comment(
+                            target_cr, target_cc, cm.text, cm.author, cm.visible
+                        )
+
+        self.selection.select_cell(start_r, start_c)
+        if tile_h > 1 or tile_w > 1:
+            self.selection.extend_to(start_r + tile_h - 1, start_c + tile_w - 1)
+
         self._commit_undo(before_state, action="paste_special")
+        self.viewport().update()
 
     def clear_contents(self) -> None:
         """Clear values and formulas in the current selection with sparse optimization."""
