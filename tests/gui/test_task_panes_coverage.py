@@ -10,7 +10,8 @@ Verifies:
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QLabel
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QLabel, QMainWindow
 
 from atboffice.modules.presentation.panes import SlideLayoutPane
 from atboffice.modules.spreadsheet.panes import WatchWindowPane
@@ -23,17 +24,18 @@ from atboffice.ui.shell.quire_window import QuireWindow
 
 def test_task_pane_header_dropdown_switching(qtbot):
     """Verify task pane header dropdown lists all module panels and switches active pane."""
-    dock = TaskPaneDock()
-    qtbot.addWidget(dock)
+    win = QMainWindow()
+    qtbot.addWidget(win)
+    dock = TaskPaneDock(win)
+    win.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
 
-    p_styles = QLabel("Styles Pane")
-    p_layout = QLabel("Layout Pane")
-    p_watch = QLabel("Watch Pane")
+    p_styles = QLabel("Styles Pane", dock)
+    p_layout = QLabel("Layout Pane", dock)
+    p_watch = QLabel("Watch Pane", dock)
 
     dock.register_pane("styles", "样式与格式", p_styles)
     dock.register_pane("slide_layout", "幻灯片版式", p_layout)
     dock.register_pane("watch_window", "监视窗口", p_watch)
-
     items = dock._build_menu_items()
     pane_ids = [item[0] for item in items]
     assert "getting-started" in pane_ids
@@ -62,6 +64,7 @@ def test_task_pane_header_dropdown_switching(qtbot):
     assert dock.current_pane_id() == "slide_layout"
     dock.go_back()
     assert dock.current_pane_id() == "styles"
+    win.close()
 
 
 def test_quire_styles_and_formatting_pane(qtbot):
