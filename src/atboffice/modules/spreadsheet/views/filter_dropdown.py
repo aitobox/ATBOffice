@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QCoreApplication, Qt, Signal
 from PySide6.QtWidgets import (
@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QPushButton,
@@ -83,9 +84,18 @@ class Top10FilterDialog(QDialog):
         is_percent = bool(self.combo_kind.currentData())
         return (is_top, count, is_percent)
 
+    def retranslate_ui(self) -> None:
+        """Retranslate dialog text."""
+        self.setWindowTitle(safe_tr("Top 10 AutoFilter"))
+        self.label_show.setText(safe_tr("Show"))
+        self.combo_top_bottom.setItemText(0, safe_tr("Top"))
+        self.combo_top_bottom.setItemText(1, safe_tr("Bottom"))
+        self.combo_kind.setItemText(0, safe_tr("Items"))
+        self.combo_kind.setItemText(1, safe_tr("Percent"))
 
-class FilterDropdown(QWidget):
-    """Popup drop-down widget for AutoFilter with quick sort, top 10, custom, and checkable list."""
+
+class FilterDropdownPopup(QWidget):
+    """Popup drop-down widget for AutoFilter with quick sort, top 10, custom, and searchable checkable list."""
 
     filter_applied = Signal(object)  # ColumnFilter
     filter_cleared = Signal()
@@ -110,7 +120,7 @@ class FilterDropdown(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         self.setStyleSheet(
             """
-            FilterDropdown {
+            FilterDropdownPopup, FilterDropdown {
                 background-color: #ECE9D8;
                 border: 1px solid #7F9DB9;
                 font-family: Arial, sans-serif;
@@ -125,6 +135,12 @@ class FilterDropdown(QWidget):
             QPushButton.action-btn:hover {
                 background-color: #316AC5;
                 color: white;
+            }
+            QLineEdit.search-edit {
+                background: white;
+                border: 1px solid #7F9DB9;
+                padding: 2px 4px;
+                font-size: 11px;
             }
             QListWidget {
                 background: white;
@@ -174,6 +190,13 @@ class FilterDropdown(QWidget):
         sep2.setFrameShape(QFrame.Shape.HLine)
         sep2.setFrameShadow(QFrame.Shadow.Sunken)
         main_layout.addWidget(sep2)
+
+        # Search edit box
+        self.search_edit = QLineEdit(self)
+        self.search_edit.setProperty("class", "search-edit")
+        self.search_edit.setPlaceholderText(safe_tr("搜索..."))
+        self.search_edit.textChanged.connect(self._on_search_text_changed)
+        main_layout.addWidget(self.search_edit)
 
         # 2. Checkable unique values list
         self.list_widget = QListWidget(self)
@@ -237,9 +260,11 @@ class FilterDropdown(QWidget):
         self._updating_checks = False
 
     def _extract_unique_values(self) -> tuple[list[str], bool]:
-        """Extract unique displayed cell texts and presence of blanks in this column."""
-        seen = set()
-        unique: list[str] = []
+        """Extract unique displayed cell texts and presence of blanks in this column,
+        sorting numbers numerically and strings alphabetically (matching Excel and .vibeoffice).
+        """
+        nums: dict[str, float] = {}
+        texts: dict[str, str] = {}
         has_blanks = False
 
         for r in range(self.af.r1 + 1, self.af.r2 + 1):
@@ -248,12 +273,59 @@ class FilterDropdown(QWidget):
             if is_blank(val) or not text.strip():
                 has_blanks = True
             else:
-                if text not in seen:
-                    seen.add(text)
-                    unique.append(text)
+                if isinstance(val, (int, float)):
+                    if text not in nums:
+                        nums[text] = float(val)
+                else:
+                    lower = text.lower()
+                    if lower not in texts:
+                        texts[lower] = text
 
-        unique.sort()
+        sorted_nums = sorted(nums.items(), key=lambda x: x[1])
+        sorted_texts = sorted(texts.values(), key=lambda s: s.lower())
+        unique = [item[0] for item in sorted_nums] + sorted_texts
         return unique, has_blanks
+
+    def _on_search_text_changed(self, text: str) -> None:
+        """Filter unique value items in list widget matching query in real time."""
+        query = text.strip().lower()
+        if query:
+            self.item_select_all.setText(safe_tr("(Select All Search Results)"))
+            for item, val_str in self.value_items:
+                matched = query in val_str.lower()
+                item.setHidden(not matched)
+            if self.blank_item is not None:
+                blank_text = safe_tr("(Blanks)").lower()
+                matched = query in blank_text or query in "(blanks)"
+                self.blank_item.setHidden(not matched)
+        else:
+            self.item_select_all.setText(safe_tr("(Select All)"))
+            for item, _ in self.value_items:
+                item.setHidden(False)
+            if self.blank_item is not None:
+                self.blank_item.setHidden(False)
+
+        self._update_select_all_state()
+
+    def _update_select_all_state(self) -> None:
+        """Update select_all check state based on current visible items."""
+        visible_items = [v_item for v_item, _ in self.value_items if not v_item.isHidden()]
+        if self.blank_item is not None and not self.blank_item.isHidden():
+            visible_items.append(self.blank_item)
+
+        if not visible_items:
+            self.item_select_all.setCheckState(Qt.CheckState.Unchecked)
+            return
+
+        all_checked = all(it.checkState() == Qt.CheckState.Checked for it in visible_items)
+        none_checked = all(it.checkState() == Qt.CheckState.Unchecked for it in visible_items)
+
+        if all_checked:
+            self.item_select_all.setCheckState(Qt.CheckState.Checked)
+        elif none_checked:
+            self.item_select_all.setCheckState(Qt.CheckState.Unchecked)
+        else:
+            self.item_select_all.setCheckState(Qt.CheckState.PartiallyChecked)
 
     def _on_item_changed(self, item: QListWidgetItem) -> None:
         if self._updating_checks:
@@ -262,23 +334,14 @@ class FilterDropdown(QWidget):
 
         if item == self.item_select_all:
             state = self.item_select_all.checkState()
+            # If search is active, only toggle visible items
             for v_item, _ in self.value_items:
-                v_item.setCheckState(state)
-            if self.blank_item is not None:
+                if not v_item.isHidden():
+                    v_item.setCheckState(state)
+            if self.blank_item is not None and not self.blank_item.isHidden():
                 self.blank_item.setCheckState(state)
         else:
-            # Check if all are checked
-            all_checked = all(
-                v_item.checkState() == Qt.CheckState.Checked for v_item, _ in self.value_items
-            )
-            if self.blank_item is not None:
-                all_checked = all_checked and (
-                    self.blank_item.checkState() == Qt.CheckState.Checked
-                )
-
-            self.item_select_all.setCheckState(
-                Qt.CheckState.Checked if all_checked else Qt.CheckState.Unchecked
-            )
+            self._update_select_all_state()
 
         self._updating_checks = False
 
@@ -337,8 +400,16 @@ class FilterDropdown(QWidget):
         self.close()
 
     def _on_apply_checked(self) -> None:
-        # If select all is checked, it's equivalent to clearing filter for this column
-        if self.item_select_all.checkState() == Qt.CheckState.Checked:
+        # If all values are checked and no search is filtering them, it clears filter
+        all_checked = all(
+            v_item.checkState() == Qt.CheckState.Checked for v_item, _ in self.value_items
+        )
+        if self.blank_item is not None:
+            all_checked = all_checked and (
+                self.blank_item.checkState() == Qt.CheckState.Checked
+            )
+
+        if all_checked and not self.search_edit.text().strip():
             self.filter_cleared.emit()
             self.close()
             return
@@ -358,3 +429,24 @@ class FilterDropdown(QWidget):
         )
         self.filter_applied.emit(crit)
         self.close()
+
+    def retranslate_ui(self) -> None:
+        """Update all UI text for the current language."""
+        self.btn_sort_asc.setText(safe_tr("(Sort Ascending)"))
+        self.btn_sort_desc.setText(safe_tr("(Sort Descending)"))
+        self.btn_all.setText(safe_tr("(All)"))
+        self.btn_top10.setText(safe_tr("(Top 10...)"))
+        self.btn_custom.setText(safe_tr("(Custom...)"))
+        self.search_edit.setPlaceholderText(safe_tr("搜索..."))
+        if self.search_edit.text().strip():
+            self.item_select_all.setText(safe_tr("(Select All Search Results)"))
+        else:
+            self.item_select_all.setText(safe_tr("(Select All)"))
+        if self.blank_item is not None:
+            self.blank_item.setText(safe_tr("(Blanks)"))
+        self.btn_ok.setText(safe_tr("OK"))
+        self.btn_cancel.setText(safe_tr("Cancel"))
+
+
+# Backward compatibility alias
+FilterDropdown = FilterDropdownPopup
