@@ -37,6 +37,14 @@ from atboffice.modules.writer.models.properties import (
     SectionProperties,
 )
 from atboffice.modules.writer.models.styles import resolve_p_props, resolve_r_props
+from atboffice.utils.font_metrics import (
+    compute_font_metrics as calibrated_font_metrics,
+    get_font_metric,
+    get_line_factor as calibrated_line_factor,
+    get_space_em as calibrated_space_em,
+    is_cjk_font,
+    normalize_font_key,
+)
 
 # ---------------------------------------------------------------------------
 # Font Line Factors (Single-space line height as multiple of font size)
@@ -134,35 +142,17 @@ def is_cjk_char(ch: str) -> bool:
 
 def get_font_key(name: str) -> str:
     """Normalize font family name to lowercase key."""
-    n = str(name or "").replace('"', "").replace("'", "").strip().lower()
-    # Chinese aliases
-    aliases = {
-        "宋体": "simsun",
-        "新宋体": "nsimsun",
-        "黑体": "simhei",
-        "楷体": "kaiti",
-        "仿宋": "fangsong",
-        "微软雅黑": "microsoft yahei",
-        "等线": "dengxian",
-        "ｍｓ 明朝": "ms mincho",
-        "游明朝": "yu mincho",
-        "游ゴシック": "yu gothic",
-        "メイリオ": "meiryo",
-        "맑은 고딕": "malgun gothic",
-    }
-    return aliases.get(n, n)
+    return normalize_font_key(name)
 
 
 def get_line_factor(font_family: str) -> float:
     """Return line height factor for a given font family."""
-    key = get_font_key(font_family)
-    return FONT_LINE_FACTORS.get(key, 1.17)
+    return calibrated_line_factor(font_family)
 
 
 def get_space_em(font_family: str) -> float:
     """Return standard space width as a fraction of font size (em)."""
-    key = get_font_key(font_family)
-    return LATIN_SPACE_EM.get(key, 0.25)
+    return calibrated_space_em(font_family)
 
 
 # ---------------------------------------------------------------------------
@@ -320,11 +310,8 @@ def measure_text_width(
 def compute_font_metrics(
     font_size: float, font_family: str, bold: bool = False, italic: bool = False
 ) -> tuple[float, float]:
-    """Calculate (ascent, descent) in points according to standard typographic ratios."""
-    # Standard typographic baseline: ascent ~ 80%, descent ~ 20%
-    ascent = round(font_size * 0.80, 2)
-    descent = round(font_size * 0.20, 2)
-    return ascent, descent
+    """Calculate (ascent, descent) in points using calibrated font parameters."""
+    return calibrated_font_metrics(font_size, font_family, bold=bold, italic=italic)
 
 
 # ---------------------------------------------------------------------------
@@ -1035,10 +1022,14 @@ def layout_paragraph(
             if has_only_pictures:
                 natural = max(natural, mark_natural_height)
             height = max(line_mult, natural)
-            baseline = ascent
+            half_leading = max(0.0, (height - (ascent + descent)) / 2.0)
+            baseline = ascent + half_leading
         else:
             # Auto line spacing
-            if sect.doc_grid.type in ("lines", "linesAndChars"):
+            if (
+                sect.doc_grid.type in ("lines", "linesAndChars", "snapToChars")
+                and sect.doc_grid.line_pitch > 0
+            ):
                 # East Asian line grid snapping
                 dominant_font = counting[0].font_family if counting else mark_font
                 max_sz = max((pt.font_size for pt in counting), default=mark_sz)
@@ -1052,11 +1043,22 @@ def layout_paragraph(
                 top_padding = max(0.0, (height - natural_line) / 2.0)
                 baseline = top_padding + ascent
             else:
-                natural = (ascent + descent) * line_mult
+                dominant_font = counting[0].font_family if counting else mark_font
+                dominant_sz = counting[0].font_size if counting else mark_sz
+                factor = get_line_factor(dominant_font)
+                natural_font_line = dominant_sz * factor
+                content_h = ascent + descent
+                single_h = max(content_h, natural_font_line)
+                natural = single_h * line_mult
                 if has_only_pictures:
                     natural = max(natural, mark_natural_height)
                 height = natural
-                baseline = height if (has_only_pictures and height > ascent) else ascent
+                half_leading = max(0.0, (height - (ascent + descent)) / 2.0)
+                baseline = (
+                    height
+                    if (has_only_pictures and height > ascent)
+                    else (ascent + half_leading)
+                )
 
         line = LayoutLine(
             portions=current_portions,
