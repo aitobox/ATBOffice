@@ -1188,26 +1188,60 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
     )
 
 
-def paginate_document(doc: Document, max_passes: int = 2) -> PaginationResult:
-    """Execute multi-page pagination with dynamic field evaluation and two-pass verification."""
+def paginate_document(doc: Document, max_passes: int = 4) -> PaginationResult:
+    """Execute multi-page pagination with dynamic field evaluation and convergence loop.
+
+    Iterates through pagination and dynamic field updates (PAGE, NUMPAGES, SECTIONPAGES,
+    SECTION, DATE, TIME, TOC/PAGEREF) until layout geometry and field values stabilize,
+    preventing circular layout oscillation loops.
+    """
     t0 = time.perf_counter()
+    from atboffice.modules.writer.models.document import reindex
     from atboffice.modules.writer.models.field import update_fields
+
+    if not doc.main.paras and doc.main.blocks:
+        reindex(doc)
+
+    seen_signatures: set[tuple[int, tuple[int, ...]]] = set()
 
     # Pass 1: Initial layout
     res = _execute_single_pagination_pass(doc)
     doc._last_pagination = res  # type: ignore[attr-defined]
 
-    # Evaluate dynamic fields with Pass 1 geometry
-    changed = update_fields(doc, res)
+    current_pass = 1
+    while current_pass < max_passes:
+        # Evaluate dynamic fields with current pagination geometry
+        changed = update_fields(doc, res)
 
-    # Pass 2: Repaginate if field expansions occurred or if multi-page to stabilize
-    # header/footer page numbers
-    has_hf = bool(doc.hf)
-    if (changed or (has_hf and res.total_pages > 1)) and max_passes > 1:
-        res2 = _execute_single_pagination_pass(doc)
-        doc._last_pagination = res2  # type: ignore[attr-defined]
-        update_fields(doc, res2)
-        res = res2
+        has_hf = bool(doc.hf)
+        needs_hf_stabilization = has_hf and res.total_pages > 1 and current_pass == 1
+
+        if not changed and not needs_hf_stabilization:
+            # Layout and dynamic fields have converged
+            break
+
+        sig = (res.total_pages, tuple(res.section_pages))
+        if sig in seen_signatures:
+            # Circular layout loop detected across passes; break oscillation
+            break
+        seen_signatures.add(sig)
+
+        # Repaginate with updated dynamic field text
+        res_next = _execute_single_pagination_pass(doc)
+        doc._last_pagination = res_next  # type: ignore[attr-defined]
+        current_pass += 1
+
+        # Check if geometry stabilized
+        if (
+            res_next.total_pages == res.total_pages
+            and res_next.section_pages == res.section_pages
+        ):
+            changed_final = update_fields(doc, res_next)
+            res = res_next
+            if not changed_final:
+                break
+        else:
+            res = res_next
 
     res.duration_ms = (time.perf_counter() - t0) * 1000.0
     return res

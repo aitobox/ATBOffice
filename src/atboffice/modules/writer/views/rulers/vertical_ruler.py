@@ -65,6 +65,7 @@ class VerticalRuler(QWidget):
         # Drag state
         self._drag_kind: str | None = None  # "top" | "bottom"
         self._drag_start_y: float = 0.0
+        self._orig_margins: tuple[float, float] | None = None
 
         self.retranslate_ui()
 
@@ -272,6 +273,10 @@ class VerticalRuler(QWidget):
             super().mousePressEvent(event)
             return
 
+        self._orig_margins = (
+            (self._active_sect.mt, self._active_sect.mb) if self._active_sect else None
+        )
+
         y = float(event.position().y())
         text_t = self.text_top_ruler()
         text_b = self.text_bottom_ruler()
@@ -334,12 +339,32 @@ class VerticalRuler(QWidget):
                 self._active_sect.mb = round(max(18.0, self._active_sect.mb - dy_pt), 2)
                 self.margin_changed.emit("bottom", self._active_sect.mb)
 
+        if self._active_canvas and self._active_sect and self._orig_margins is not None:
+            new_margins = (self._active_sect.mt, self._active_sect.mb)
+            if new_margins != self._orig_margins:
+                self._active_canvas.push_undo_command({
+                    "type": "section_margins",
+                    "sect": self._active_sect,
+                    "before": {
+                        "mt": self._orig_margins[0],
+                        "mb": self._orig_margins[1],
+                    },
+                    "after": {
+                        "mt": self._active_sect.mt,
+                        "mb": self._active_sect.mb,
+                    },
+                })
+
         if self._active_canvas:
             self._active_canvas.controller.repaginate_and_refresh()
             self.update_geometry_from_canvas()
 
         self.update()
         event.accept()
+
+    def open_page_setup_dialog(self) -> None:
+        """Programmatically trigger page setup dialog request."""
+        self.page_setup_requested.emit()
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
         self.page_setup_requested.emit()

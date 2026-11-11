@@ -700,7 +700,7 @@ def evaluate_field(
                 for reg in pg.regions:
                     for col in reg.columns:
                         for fr in col.fragments:
-                            if fr.paragraph == b.p:
+                            if fr.paragraph and (fr.paragraph == b.p or fr.paragraph.id == b.p.id):
                                 target_page_num = pg.page_number
                                 found = True
                                 break
@@ -767,6 +767,11 @@ def update_fields(
 
     Returns True if any field's cached text was modified.
     """
+    from atboffice.modules.writer.models.document import reindex
+
+    if not doc.main.paras and doc.main.blocks:
+        reindex(doc)
+
     total_pages = pagination_result.total_pages if pagination_result else 1
     sec_pages_list = pagination_result.section_pages if pagination_result else [total_pages]
 

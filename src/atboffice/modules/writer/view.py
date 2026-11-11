@@ -101,6 +101,9 @@ class WriterView(QWidget):
         self.tab_selector.tab_kind_changed.connect(self.h_ruler.set_tab_selector_kind)
         self.h_ruler.attach_canvas(self.canvas_view)
         self.v_ruler.attach_canvas(self.canvas_view)
+        self.h_ruler.tabs_dialog_requested.connect(self._on_tabs_dialog_requested)
+        self.h_ruler.page_setup_requested.connect(self._on_page_setup_requested)
+        self.v_ruler.page_setup_requested.connect(self._on_page_setup_requested)
 
         # Wire canvas scroll, zoom, and cursor movements to rulers
         self.canvas_view.horizontalScrollBar().valueChanged.connect(self.h_ruler.update_scroll)
@@ -163,6 +166,75 @@ class WriterView(QWidget):
         self.h_ruler.update_geometry_from_canvas()
         self.v_ruler.update_geometry_from_canvas()
         self.review_pane.refresh_items()
+
+    def _on_tabs_dialog_requested(self) -> None:
+        """Open classic Tabs dialog on ruler double-click."""
+        from atboffice.modules.writer.dialogs.tabs_dialog import TabsDialog
+
+        p = self.h_ruler._active_para
+        cur_tabs = p.p_pr.tabs if p else []
+        def_tab = 36.0
+        if hasattr(self.canvas_view.doc, "settings") and hasattr(
+            self.canvas_view.doc.settings, "def_tab"
+        ):
+            def_tab = float(self.canvas_view.doc.settings.def_tab)
+
+        dlg = TabsDialog(parent=self, tabs=cur_tabs, default_tab=def_tab)
+        if dlg.exec():
+            new_tabs = dlg.get_tabs()
+            if p and self.canvas_view:
+                import copy
+
+                old_tabs = copy.deepcopy(p.p_pr.tabs)
+                p.p_pr.tabs = copy.deepcopy(new_tabs)
+                self.canvas_view.push_undo_command({
+                    "type": "paragraph_tabs",
+                    "para_id": p.id,
+                    "before": old_tabs,
+                    "after": copy.deepcopy(new_tabs),
+                })
+                self.h_ruler.tab_stops_changed.emit(p.p_pr.tabs)
+                self.canvas_view.controller.repaginate_and_refresh()
+                self.h_ruler.update_geometry_from_canvas()
+
+    def _on_page_setup_requested(self) -> None:
+        """Open Page Setup dialog on ruler double-click."""
+        from atboffice.modules.writer.dialogs.page_setup import PageSetupDialog
+
+        sect = self.h_ruler._active_sect or self.canvas_view.doc.sect
+        if not sect:
+            return
+
+        old_state = {"ml": sect.ml, "mr": sect.mr, "mt": sect.mt, "mb": sect.mb}
+        dlg = PageSetupDialog(sect=sect, parent=self)
+        if dlg.exec():
+            new_state = {"ml": sect.ml, "mr": sect.mr, "mt": sect.mt, "mb": sect.mb}
+            if self.canvas_view and new_state != old_state:
+                self.canvas_view.push_undo_command({
+                    "type": "section_margins",
+                    "sect": sect,
+                    "before": old_state,
+                    "after": new_state,
+                })
+                self.canvas_view.controller.repaginate_and_refresh()
+                self.h_ruler.update_geometry_from_canvas()
+                self.v_ruler.update_geometry_from_canvas()
+
+    def undo(self) -> bool:
+        """Undo last action in canvas view."""
+        return self.canvas_view.undo()
+
+    def redo(self) -> bool:
+        """Redo last action in canvas view."""
+        return self.canvas_view.redo()
+
+    def can_undo(self) -> bool:
+        """Return True if undo is available."""
+        return self.canvas_view.can_undo()
+
+    def can_redo(self) -> bool:
+        """Return True if redo is available."""
+        return self.canvas_view.can_redo()
 
     def _on_review_item_activated(self, para: Paragraph, start: int, end: int) -> None:
         """Focus and position caret on activated review item."""
@@ -402,3 +474,7 @@ class WriterView(QWidget):
         rec = self.mailmerge_engine.step(self.canvas_view.doc, delta)
         self.canvas_view.update()
         return rec
+
+
+# QuireView alias for WriterView
+QuireView = WriterView
