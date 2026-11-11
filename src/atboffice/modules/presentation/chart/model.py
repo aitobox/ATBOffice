@@ -7,18 +7,18 @@ from dataclasses import dataclass, field
 from typing import Any
 
 CH_PALETTE = [
+    "#4F81BD",
+    "#C0504D",
+    "#9BBB59",
+    "#8064A2",
+    "#4BACC6",
+    "#F79646",
     "#4472C4",
     "#ED7D31",
     "#A5A5A5",
     "#FFC000",
     "#5B9BD5",
     "#70AD47",
-    "#264478",
-    "#9E480E",
-    "#636363",
-    "#997300",
-    "#255E91",
-    "#43682B",
 ]
 
 # 17 DrawingML chart types

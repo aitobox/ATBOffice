@@ -247,7 +247,7 @@ def parse_chart_xml(xml_content: str | bytes) -> ChartData:
         tag_name = child.tag.split("}")[-1]
         if tag_name.endswith("Chart"):
             chart_type_elem = child
-            if tag_name == "barChart":
+            if tag_name in ("barChart", "bar3DChart"):
                 bar_dir = child.find("c:barDir", ns)
                 grouping = child.find("c:grouping", ns)
                 grp_val = grouping.get("val") if grouping is not None else "clustered"
@@ -264,10 +264,10 @@ def parse_chart_xml(xml_content: str | bytes) -> ChartData:
                         else "colStacked" if grp_val == "stacked"
                         else "col"
                     )
-            elif tag_name == "lineChart":
+            elif tag_name in ("lineChart", "line3DChart"):
                 marker_elem = child.find("c:marker", ns)
                 kind = "lineMarkers" if marker_elem is not None else "line"
-            elif tag_name == "areaChart":
+            elif tag_name in ("areaChart", "area3DChart"):
                 grouping = child.find("c:grouping", ns)
                 grp_val = grouping.get("val") if grouping is not None else "standard"
                 kind = (
@@ -275,7 +275,7 @@ def parse_chart_xml(xml_content: str | bytes) -> ChartData:
                     else "areaStacked" if grp_val == "stacked"
                     else "area"
                 )
-            elif tag_name == "pieChart":
+            elif tag_name in ("pieChart", "pie3DChart", "ofPieChart"):
                 kind = "pie"
             elif tag_name == "doughnutChart":
                 kind = "doughnut"

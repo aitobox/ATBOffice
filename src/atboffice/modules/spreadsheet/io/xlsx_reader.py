@@ -691,6 +691,26 @@ def _parse_worksheet(
                     except ValueError:
                         pass
 
+    # 0c. Sheet format (default row height & default col width)
+    sfp = _find_child(root, "sheetFormatPr")
+    if sfp is not None:
+        def_row_h = _attr(sfp, "defaultRowHeight")
+        if def_row_h:
+            try:
+                # points to pixels: pt * 96 / 72 = pt / 0.75
+                h_px = int(round(float(def_row_h) / 0.75))
+                if h_px > 0:
+                    sheet.geometry.default_row_height = h_px
+                    sheet.extra["default_row_height"] = h_px
+            except ValueError:
+                pass
+        def_col_w = _attr(sfp, "defaultColWidth")
+        if def_col_w:
+            try:
+                sheet.extra["default_col_width"] = float(def_col_w)
+            except ValueError:
+                pass
+
     # 1. Custom column widths & hidden columns
     cols_el = _find_child(root, "cols")
     if cols_el is not None:
@@ -704,7 +724,11 @@ def _parse_worksheet(
                 try:
                     c1 = max(0, int(min_c_str) - 1)
                     c2 = max(c1, int(max_c_str) - 1)
-                    w_px = int(float(width_str) * 8) if width_str else None
+                    w_px = (
+                        int(float(width_str) * 8)
+                        if width_str
+                        else None
+                    )
 
                     for c in range(c1, min(c2 + 1, sheet.geometry.max_cols)):
                         if w_px is not None:
@@ -792,9 +816,11 @@ def _parse_worksheet(
                 if parsed_value is None and formula_str is None and not style_idx_str:
                     continue
 
+                cached_val = parsed_value if formula_str is not None else None
                 cell = CellData(
                     value=parsed_value,
                     formula=formula_str,
+                    cached_value=cached_val,
                     rich_runs=cell_rich_runs,
                 )
 
@@ -1001,11 +1027,34 @@ def _parse_worksheet_drawings(
         if tag not in ("twoCellAnchor", "oneCellAnchor", "absoluteAnchor"):
             continue
 
-        edit_as_str = _attr(anchor_el, "editAs", "twoCell")
-        try:
-            anchor_type = AnchorType(edit_as_str)
-        except ValueError:
-            anchor_type = AnchorType.TWO_CELL
+        abs_rect = (0, 0, 120, 80)
+        if tag == "oneCellAnchor":
+            anchor_type = AnchorType.ONE_CELL
+            ext_el = _find_child(anchor_el, "ext")
+            if ext_el is not None:
+                cx_str = _attr(ext_el, "cx", "0")
+                cy_str = _attr(ext_el, "cy", "0")
+                try:
+                    abs_w = max(4, int(cx_str) // 9525)
+                    abs_h = max(4, int(cy_str) // 9525)
+                    abs_rect = (0, 0, abs_w, abs_h)
+                except ValueError:
+                    pass
+        elif tag == "absoluteAnchor":
+            anchor_type = AnchorType.ABSOLUTE
+            pos_el = _find_child(anchor_el, "pos")
+            ext_el = _find_child(anchor_el, "ext")
+            pos_x = int(_attr(pos_el, "x", "0")) // 9525 if pos_el is not None else 0
+            pos_y = int(_attr(pos_el, "y", "0")) // 9525 if pos_el is not None else 0
+            abs_w = int(_attr(ext_el, "cx", "0")) // 9525 if ext_el is not None else 120
+            abs_h = int(_attr(ext_el, "cy", "0")) // 9525 if ext_el is not None else 80
+            abs_rect = (pos_x, pos_y, max(4, abs_w), max(4, abs_h))
+        else:
+            edit_as_str = _attr(anchor_el, "editAs", "twoCell")
+            try:
+                anchor_type = AnchorType(edit_as_str)
+            except ValueError:
+                anchor_type = AnchorType.TWO_CELL
 
         from_pt = CellAnchorPoint()
         from_el = _find_child(anchor_el, "from")
@@ -1075,6 +1124,7 @@ def _parse_worksheet_drawings(
                 anchor_type=anchor_type,
                 from_point=from_pt,
                 to_point=to_pt,
+                abs_rect=abs_rect,
                 image_data=img_bytes,
                 image_mime=img_mime,
                 z_index=len(sheet.drawings),
@@ -1187,6 +1237,7 @@ def _parse_worksheet_drawings(
                 anchor_type=anchor_type,
                 from_point=from_pt,
                 to_point=to_pt,
+                abs_rect=abs_rect,
                 fill_color=fill_col,
                 line_color=line_col,
                 line_width=line_w,
@@ -1247,6 +1298,7 @@ def _parse_worksheet_drawings(
                 anchor_type=anchor_type,
                 from_point=from_pt,
                 to_point=to_pt,
+                abs_rect=abs_rect,
                 z_index=len(sheet.drawings),
                 chart_data=chart_dict,
             )
