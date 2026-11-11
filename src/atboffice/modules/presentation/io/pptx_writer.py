@@ -96,6 +96,7 @@ class PptxWriter:
         )
         self._media_counter = 1
         self._chart_counter = 1
+        self._diagram_counter = 0
 
     def _resolve_main_content_type(self) -> str:
         if self.format == "ppsx":
@@ -299,6 +300,56 @@ class PptxWriter:
                         else:
                             return info["file"]
 
+                    if media_key.startswith("diagram_"):
+                        prefix, shape_id = media_key.split(":", 1)
+                        diag_kind = prefix.split("_", 1)[1]
+                        if shape_id not in media_cache:
+                            target_shape = next(
+                                (sh for sh in slide.shapes if sh.id == shape_id), None
+                            )
+                            if target_shape and getattr(target_shape, "sa", None):
+                                self._diagram_counter += 1
+                                slide_num = "".join(ch for ch in slide_part if ch.isdigit()) or "1"
+                                diag_tag = f"diag_s{slide_num}_{self._diagram_counter}"
+                                sa_data = target_shape.sa
+                                l_name = sa_data.get("layout", "process")
+                                c_name = sa_data.get("colors", "ocean")
+                                s_name = sa_data.get("style", "moderate")
+                                d_xml = data_xml(sa_data, key=diag_tag).encode("utf-8")
+                                l_xml = layout_xml(l_name).encode("utf-8")
+                                c_xml = colors_xml(c_name).encode("utf-8")
+                                q_xml = style_xml(s_name).encode("utf-8")
+
+                                d_part = f"ppt/diagrams/data_{diag_tag}.xml"
+                                l_part = f"ppt/diagrams/layout_{diag_tag}.xml"
+                                c_part = f"ppt/diagrams/colors_{diag_tag}.xml"
+                                q_part = f"ppt/diagrams/quickStyle_{diag_tag}.xml"
+
+                                pw = self.pkg_writer
+                                pw.replace_part(d_part, d_xml, content_type=CT_DIAGRAM_DATA)
+                                pw.replace_part(l_part, l_xml, content_type=CT_DIAGRAM_LAYOUT)
+                                pw.replace_part(c_part, c_xml, content_type=CT_DIAGRAM_COLORS)
+                                pw.replace_part(q_part, q_xml, content_type=CT_DIAGRAM_STYLE)
+
+                                dm_target = f"../diagrams/data_{diag_tag}.xml"
+                                lo_target = f"../diagrams/layout_{diag_tag}.xml"
+                                cs_target = f"../diagrams/colors_{diag_tag}.xml"
+                                qs_target = f"../diagrams/quickStyle_{diag_tag}.xml"
+
+                                dm_rid = slide_rels.add(REL_DIAGRAM_DATA, dm_target)
+                                lo_rid = slide_rels.add(REL_DIAGRAM_LAYOUT, lo_target)
+                                cs_rid = slide_rels.add(REL_DIAGRAM_COLORS, cs_target)
+                                qs_rid = slide_rels.add(REL_DIAGRAM_STYLE, qs_target)
+
+                                media_cache[shape_id] = {
+                                    "dm": dm_rid,
+                                    "lo": lo_rid,
+                                    "cs": cs_rid,
+                                    "qs": qs_rid,
+                                }
+                        if shape_id in media_cache:
+                            return media_cache[shape_id].get(diag_kind, "")
+
                     if media_key.startswith("chart:"):
                         chart_id = media_key.split(":", 1)[1]
                         c_idx = self._chart_counter
@@ -377,32 +428,6 @@ class PptxWriter:
             resolver = make_media_resolver(s_rels)
             s_xml = slide_to_xml(slide, design=self.primary_design, media_resolver=resolver)
             self.pkg_writer.replace_part(slide_part, s_xml.encode("utf-8"), content_type=CT_SLIDE)
-
-            # SmartArt diagram parts
-            diag_idx = 0
-            for sh in slide.shapes:
-                if sh.is_diagram and sh.sa:
-                    diag_idx += 1
-                    diag_tag = f"diag_s{i}_{diag_idx}"
-                    d_xml = data_xml(sh.sa, key=diag_tag).encode("utf-8")
-                    l_xml = layout_xml(sh.sa.get("layout", "process")).encode("utf-8")
-                    c_xml = colors_xml(sh.sa.get("colors", "ocean")).encode("utf-8")
-                    q_xml = style_xml(sh.sa.get("style", "moderate")).encode("utf-8")
-
-                    d_part = f"ppt/diagrams/data_{diag_tag}.xml"
-                    l_part = f"ppt/diagrams/layout_{diag_tag}.xml"
-                    c_part = f"ppt/diagrams/colors_{diag_tag}.xml"
-                    q_part = f"ppt/diagrams/quickStyle_{diag_tag}.xml"
-
-                    self.pkg_writer.replace_part(d_part, d_xml, content_type=CT_DIAGRAM_DATA)
-                    self.pkg_writer.replace_part(l_part, l_xml, content_type=CT_DIAGRAM_LAYOUT)
-                    self.pkg_writer.replace_part(c_part, c_xml, content_type=CT_DIAGRAM_COLORS)
-                    self.pkg_writer.replace_part(q_part, q_xml, content_type=CT_DIAGRAM_STYLE)
-
-                    s_rels.add(REL_DIAGRAM_DATA, f"../diagrams/data_{diag_tag}.xml")
-                    s_rels.add(REL_DIAGRAM_LAYOUT, f"../diagrams/layout_{diag_tag}.xml")
-                    s_rels.add(REL_DIAGRAM_COLORS, f"../diagrams/colors_{diag_tag}.xml")
-                    s_rels.add(REL_DIAGRAM_STYLE, f"../diagrams/quickStyle_{diag_tag}.xml")
 
             # Speaker Notes
             if slide.notes and slide.notes.strip():
@@ -598,8 +623,62 @@ class PptxWriter:
             else:
                 s_rels.add(REL_SLIDE_LAYOUT, "../slideLayouts/slideLayout1.xml")
 
+            slide_part = part_name
+
             def make_media_resolver(slide_rels: RelationshipBuilder):
+                media_cache: dict[str, dict[str, str]] = {}
+
                 def media_resolver(media_key: str) -> str:
+                    if media_key.startswith("diagram_"):
+                        prefix, shape_id = media_key.split(":", 1)
+                        diag_kind = prefix.split("_", 1)[1]
+                        if shape_id not in media_cache:
+                            target_shape = next(
+                                (sh for sh in slide.shapes if sh.id == shape_id), None
+                            )
+                            if target_shape and getattr(target_shape, "sa", None):
+                                self._diagram_counter += 1
+                                slide_num = "".join(ch for ch in slide_part if ch.isdigit()) or "1"
+                                diag_tag = f"diag_s{slide_num}_{self._diagram_counter}"
+                                sa_data = target_shape.sa
+                                l_name = sa_data.get("layout", "process")
+                                c_name = sa_data.get("colors", "ocean")
+                                s_name = sa_data.get("style", "moderate")
+                                d_xml = data_xml(sa_data, key=diag_tag).encode("utf-8")
+                                l_xml = layout_xml(l_name).encode("utf-8")
+                                c_xml = colors_xml(c_name).encode("utf-8")
+                                q_xml = style_xml(s_name).encode("utf-8")
+
+                                d_part = f"ppt/diagrams/data_{diag_tag}.xml"
+                                l_part = f"ppt/diagrams/layout_{diag_tag}.xml"
+                                c_part = f"ppt/diagrams/colors_{diag_tag}.xml"
+                                q_part = f"ppt/diagrams/quickStyle_{diag_tag}.xml"
+
+                                pw = self.pkg_writer
+                                pw.replace_part(d_part, d_xml, content_type=CT_DIAGRAM_DATA)
+                                pw.replace_part(l_part, l_xml, content_type=CT_DIAGRAM_LAYOUT)
+                                pw.replace_part(c_part, c_xml, content_type=CT_DIAGRAM_COLORS)
+                                pw.replace_part(q_part, q_xml, content_type=CT_DIAGRAM_STYLE)
+
+                                dm_target = f"../diagrams/data_{diag_tag}.xml"
+                                lo_target = f"../diagrams/layout_{diag_tag}.xml"
+                                cs_target = f"../diagrams/colors_{diag_tag}.xml"
+                                qs_target = f"../diagrams/quickStyle_{diag_tag}.xml"
+
+                                dm_rid = slide_rels.add(REL_DIAGRAM_DATA, dm_target)
+                                lo_rid = slide_rels.add(REL_DIAGRAM_LAYOUT, lo_target)
+                                cs_rid = slide_rels.add(REL_DIAGRAM_COLORS, cs_target)
+                                qs_rid = slide_rels.add(REL_DIAGRAM_STYLE, qs_target)
+
+                                media_cache[shape_id] = {
+                                    "dm": dm_rid,
+                                    "lo": lo_rid,
+                                    "cs": cs_rid,
+                                    "qs": qs_rid,
+                                }
+                        if shape_id in media_cache:
+                            return media_cache[shape_id].get(diag_kind, "")
+
                     media_map = self.pres.props.get("_media_map", {})
                     raw_bytes = media_map.get(media_key)
                     if raw_bytes is None and os.path.exists(media_key):

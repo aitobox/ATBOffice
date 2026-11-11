@@ -16,6 +16,7 @@ from .io import (
     layout_xml,
     style_xml,
 )
+from .styles import STYLE_GROUPS, color_spec, paint_shape
 from .text_pane import SmartArtTextPane
 
 __all__ = [
@@ -26,6 +27,9 @@ __all__ = [
     "CATEGORIES",
     "PALETTES",
     "STYLES",
+    "STYLE_GROUPS",
+    "color_spec",
+    "paint_shape",
     "relayout",
     "to_shapes",
     "data_xml",
