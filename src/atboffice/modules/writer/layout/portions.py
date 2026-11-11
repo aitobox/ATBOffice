@@ -39,10 +39,14 @@ from atboffice.modules.writer.models.properties import (
 from atboffice.modules.writer.models.styles import resolve_p_props, resolve_r_props
 from atboffice.utils.font_metrics import (
     compute_font_metrics as calibrated_font_metrics,
-    get_font_metric,
+)
+from atboffice.utils.font_metrics import (
     get_line_factor as calibrated_line_factor,
+)
+from atboffice.utils.font_metrics import (
     get_space_em as calibrated_space_em,
-    is_cjk_font,
+)
+from atboffice.utils.font_metrics import (
     normalize_font_key,
 )
 
@@ -394,18 +398,16 @@ def decompose_paragraph_to_portions(
                 elif fmt == "decimal":
                     start_val = lvl.get("start", 1)
                     glyph = (
-                        txt.replace(f"%{lvl_idx + 1}", str(start_val))
-                        if txt
-                        else f"{start_val}."
+                        txt.replace(f"%{lvl_idx + 1}", str(start_val)) if txt else f"{start_val}."
                     )
                 elif fmt == "lowerLetter":
-                    glyph = txt.replace(f"%{lvl_idx+1}", "a") if txt else "a."
+                    glyph = txt.replace(f"%{lvl_idx + 1}", "a") if txt else "a."
                 elif fmt == "upperLetter":
-                    glyph = txt.replace(f"%{lvl_idx+1}", "A") if txt else "A."
+                    glyph = txt.replace(f"%{lvl_idx + 1}", "A") if txt else "A."
                 elif fmt == "lowerRoman":
-                    glyph = txt.replace(f"%{lvl_idx+1}", "i") if txt else "i."
+                    glyph = txt.replace(f"%{lvl_idx + 1}", "i") if txt else "i."
                 elif fmt == "upperRoman":
-                    glyph = txt.replace(f"%{lvl_idx+1}", "I") if txt else "I."
+                    glyph = txt.replace(f"%{lvl_idx + 1}", "I") if txt else "I."
                 else:
                     glyph = txt if txt else "•"
 
@@ -1055,9 +1057,7 @@ def layout_paragraph(
                 height = natural
                 half_leading = max(0.0, (height - (ascent + descent)) / 2.0)
                 baseline = (
-                    height
-                    if (has_only_pictures and height > ascent)
-                    else (ascent + half_leading)
+                    height if (has_only_pictures and height > ascent) else (ascent + half_leading)
                 )
 
         line = LayoutLine(

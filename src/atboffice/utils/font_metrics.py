@@ -7,9 +7,7 @@ fonts (Carlito, Caladea, Gelasio, Liberation / Tinos / Arimo) as specified in
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
-from typing import Any
 
 
 @dataclass(frozen=True)

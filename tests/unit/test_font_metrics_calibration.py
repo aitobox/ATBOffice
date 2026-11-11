@@ -5,17 +5,11 @@ from __future__ import annotations
 import pytest
 
 from atboffice.modules.writer.layout.portions import (
-    LayoutLine,
     PortionType,
     compute_font_metrics,
-    compute_grid_line_height,
-    get_font_key,
-    get_line_factor,
-    get_space_em,
     layout_paragraph,
 )
 from atboffice.modules.writer.models.document import (
-    Document,
     Paragraph,
     TextItem,
 )
@@ -28,8 +22,6 @@ from atboffice.modules.writer.models.properties import (
 )
 from atboffice.utils.font_metrics import (
     DEFAULT_FONT_METRIC,
-    FONT_METRICS_CALIBRATION,
-    FontMetricData,
     get_font_metric,
     is_cjk_font,
     normalize_font_key,
@@ -133,9 +125,7 @@ def test_line_layout_half_leading_baseline():
                 r_pr=RunProperties(sz=12.0, font="Calibri"),
             )
         ],
-        p_pr=ParagraphProperties(
-            sp=SpacingProperties(line=1.0, line_rule="auto")
-        ),
+        p_pr=ParagraphProperties(sp=SpacingProperties(line=1.0, line_rule="auto")),
     )
     layout = layout_paragraph(p, container_width=500.0)
     assert len(layout.lines) == 1
@@ -168,9 +158,7 @@ def test_mixed_western_cjk_baseline_coherence():
                 r_pr=RunProperties(sz=14.0, font="Times New Roman", font_ea="SimSun"),
             ),
         ],
-        p_pr=ParagraphProperties(
-            sp=SpacingProperties(line=1.0, line_rule="auto")
-        ),
+        p_pr=ParagraphProperties(sp=SpacingProperties(line=1.0, line_rule="auto")),
     )
     layout = layout_paragraph(p, container_width=600.0)
     assert len(layout.lines) == 1
@@ -187,9 +175,7 @@ def test_mixed_western_cjk_baseline_coherence():
 
 def test_east_asian_line_grid_snapping_15_6_and_18():
     """Verify line grid pitch snapping on 15.6pt and 18pt grids."""
-    sect_15_6 = SectionProperties(
-        doc_grid=DocGridProperties(type="lines", line_pitch=15.6)
-    )
+    sect_15_6 = SectionProperties(doc_grid=DocGridProperties(type="lines", line_pitch=15.6))
     p = Paragraph(
         runs=[
             TextItem(
@@ -197,18 +183,14 @@ def test_east_asian_line_grid_snapping_15_6_and_18():
                 r_pr=RunProperties(sz=10.5, font="SimSun"),
             )
         ],
-        p_pr=ParagraphProperties(
-            sp=SpacingProperties(line=1.5, line_rule="auto")
-        ),
+        p_pr=ParagraphProperties(sp=SpacingProperties(line=1.5, line_rule="auto")),
     )
     layout = layout_paragraph(p, container_width=500.0, section_props=sect_15_6)
     assert len(layout.lines) == 1
     # 1.5 lines on 15.6pt grid = 23.4pt
     assert pytest.approx(layout.lines[0].height, 0.05) == 23.4
 
-    sect_18 = SectionProperties(
-        doc_grid=DocGridProperties(type="lines", line_pitch=18.0)
-    )
+    sect_18 = SectionProperties(doc_grid=DocGridProperties(type="lines", line_pitch=18.0))
     layout_18 = layout_paragraph(p, container_width=500.0, section_props=sect_18)
     assert len(layout_18.lines) == 1
     # 1.5 lines on 18.0pt grid = 27.0pt
