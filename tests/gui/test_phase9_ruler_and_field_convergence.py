@@ -6,52 +6,37 @@ Verifies:
 3. Interactive tab stop addition, moving, and deletion (drag off ruler > 18px) with Undo/Redo.
 4. Horizontal and vertical page margin dragging with guidelines and Undo/Redo.
 5. Double-click interactions triggering TabsDialog and PageSetupDialog.
-6. Multi-pass dynamic field convergence (PAGE, NUMPAGES, DATE, TIME, TOC/PAGEREF) and oscillation guards.
+6. Dynamic field convergence (PAGE, NUMPAGES, DATE, TIME, TOC) and oscillation guards.
 """
 
-import copy
 import datetime
+
 import pytest
 from PySide6.QtCore import QEvent, QPointF, Qt
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.writer.layout.pagination import (
-    PaginationResult,
     paginate_document,
 )
 from atboffice.modules.writer.layout.toc import insert_or_update_toc
 from atboffice.modules.writer.models.document import (
     Document,
     FieldBeginItem,
-    FieldEndItem,
-    FieldSeparateItem,
     Paragraph,
-    Story,
     TextItem,
 )
 from atboffice.modules.writer.models.field import (
-    FieldContext,
     ensure_para_bookmark,
-    evaluate_field,
     insert_field,
-    update_fields,
 )
 from atboffice.modules.writer.models.properties import (
     ParagraphProperties,
-    RunProperties,
-    SectionProperties,
-    TabStop,
 )
-from atboffice.modules.writer.view import QuireView
 from atboffice.modules.writer.views.canvas_view import WriterCanvasView
 from atboffice.modules.writer.views.ruler import (
     HorizontalRuler,
-    RulerUnit,
-    TabKind,
-    TabSelectorWidget,
     VerticalRuler,
-    snap_to_grid,
 )
 
 
@@ -474,7 +459,10 @@ def test_dynamic_fields_date_time_and_toc_convergence():
     for p in doc.main.paras:
         if (p.p_pr.style or "").upper().startswith("TOC"):
             for idx, item in enumerate(p.runs):
-                if isinstance(item, FieldBeginItem) and "PAGEREF" in (item.instr or item.field_type):
+                is_pageref = isinstance(item, FieldBeginItem) and "PAGEREF" in (
+                    item.instr or item.field_type
+                )
+                if is_pageref:
                     # Check text item between fs and fe
                     for inner in p.runs[idx:]:
                         if isinstance(inner, TextItem) and inner.text.isdigit():

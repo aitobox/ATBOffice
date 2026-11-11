@@ -937,4 +937,10 @@ def setup_mac_menu(window: QMainWindow, app_type: str = "generic") -> MacMenuBar
     """Configure native macOS menu bar on the given window."""
     menu_bar = MacMenuBar(window, app_type=app_type)
     window.setMenuBar(menu_bar)
+    if hasattr(window, "init_command_search_box"):
+        search_box = window.init_command_search_box()
+        if search_box is not None:
+            from PySide6.QtCore import Qt
+
+            menu_bar.setCornerWidget(search_box, Qt.Corner.TopRightCorner)
     return menu_bar

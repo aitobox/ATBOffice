@@ -518,4 +518,13 @@ class TaskPaneDock(QDockWidget):
             self._registry["new"].title = safe_tr("新建")
             if hasattr(self.pane_new, "retranslate_ui"):
                 self.pane_new.retranslate_ui()
+        if "clipboard" in self._registry:
+            self._registry["clipboard"].title = safe_tr("剪贴板")
+            w = self._registry["clipboard"].widget
+            if hasattr(w, "retranslate_ui"):
+                w.retranslate_ui()
+        standard_ids = ("getting-started", "new", "clipboard")
+        for entry in self._registry.values():
+            if hasattr(entry.widget, "retranslate_ui") and entry.pane_id not in standard_ids:
+                entry.widget.retranslate_ui()
         self._render()
