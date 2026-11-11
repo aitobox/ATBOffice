@@ -292,6 +292,11 @@ class SmartArtTextPane(QWidget):
             item = self.rows_layout.takeAt(0)
             widget = item.widget()
             if widget:
+                try:
+                    widget.removeEventFilter(self)
+                except Exception:
+                    pass
+                widget.setParent(None)
                 widget.deleteLater()
         self.row_inputs.clear()
 
@@ -482,3 +487,7 @@ class SmartArtTextPane(QWidget):
             self.active_item_id = watched.item_id
             self.item_selected.emit(watched.item_id)
         return super().eventFilter(watched, event)
+
+    def closeEvent(self, event: Any) -> None:
+        self._clear_rows()
+        super().closeEvent(event)

@@ -329,8 +329,9 @@ class TestSmartArtTextPaneInteractive:
         edit.keyPressEvent(ev_down)
         assert actions[-1] == "down"
 
-    def test_text_pane_lifecycle_and_two_way_sync(self, qapp: QApplication) -> None:
+    def test_text_pane_lifecycle_and_two_way_sync(self, qtbot) -> None:
         pane = SmartArtPane()
+        qtbot.addWidget(pane)
         pane.retranslate_ui()
 
         # Build diagram Shape
@@ -403,6 +404,7 @@ class TestSmartArtTextPaneInteractive:
         assert len(converted) == 1
         assert diag_shape.sa is None
         assert pane.current_shape is None
+        pane.close()
 
 
 # ============================================================================
