@@ -468,7 +468,7 @@ class PptxReader:
         rel_map = {r.id: r for r in slide_rels}
 
         slide_id = Path(slide_path).stem
-        slide = Slide(id=slide_id, layout="text")
+        slide = Slide(id=slide_id, layout="text", is_imported=True)
 
         # Parse media timing from <p:timing>
         timing_elem = _get_child(slide_xml, "timing")
@@ -958,6 +958,13 @@ class PptxReader:
                 playback=pb,
                 original_element=media_tag_name or "videoFile",
             )
+        elif poster_bytes:
+            media_item = MediaItem(
+                media_type="image",
+                media_path=poster_path or "",
+                poster_path=poster_path,
+                poster_bytes=poster_bytes,
+            )
 
         media_key = poster_path or (media_item.media_path if media_item else None)
 
@@ -1379,7 +1386,7 @@ class PptxReader:
             return None, None
 
     def _parse_style_levels(self, style_elem: ET.Element | None) -> dict[int, dict[str, Any]]:
-        """Parse paragraph and run styles for levels 1..9 from a txStyles element."""
+        """Parse paragraph and run styles for levels 1..9 from a txStyles or lstStyle element."""
         levels: dict[int, dict[str, Any]] = {}
         if style_elem is None:
             return levels
@@ -1391,6 +1398,48 @@ class PptxReader:
             algn = _get_attr(lvl_elem, "algn")
             if algn:
                 props["algn"] = algn
+            mar_l = _get_attr(lvl_elem, "marL")
+            if mar_l is not None:
+                props["marL"] = emu_to_pt(mar_l)
+            indent = _get_attr(lvl_elem, "indent")
+            if indent is not None:
+                props["indent"] = emu_to_pt(indent)
+
+            def _parse_spacing(spc_elem: ET.Element | None) -> dict[str, float] | None:
+                if spc_elem is None:
+                    return None
+                pct_elem = _get_child(spc_elem, "spcPct")
+                if pct_elem is not None:
+                    try:
+                        return {"pct": float(_get_attr(pct_elem, "val", 0)) / 1000.0}
+                    except (ValueError, TypeError):
+                        return None
+                pts_elem = _get_child(spc_elem, "spcPts")
+                if pts_elem is not None:
+                    try:
+                        return {"pts": float(_get_attr(pts_elem, "val", 0)) / 100.0}
+                    except (ValueError, TypeError):
+                        return None
+                return None
+
+            ln_spc = _parse_spacing(_get_child(lvl_elem, "lnSpc"))
+            if ln_spc:
+                props["lnSpc"] = ln_spc
+            spc_bef = _parse_spacing(_get_child(lvl_elem, "spcBef"))
+            if spc_bef:
+                props["spcBef"] = spc_bef
+            spc_aft = _parse_spacing(_get_child(lvl_elem, "spcAft"))
+            if spc_aft:
+                props["spcAft"] = spc_aft
+
+            bu_char = _get_child(lvl_elem, "buChar")
+            if bu_char is not None:
+                props["bu"] = {"t": "char", "ch": _get_attr(bu_char, "char", "•") or "•"}
+            elif _get_child(lvl_elem, "buAutoNum") is not None:
+                props["bu"] = {"t": "auto", "ch": "1."}
+            elif _get_child(lvl_elem, "buNone") is not None:
+                props["bu"] = {"t": "none"}
+
             def_r_pr = _get_child(lvl_elem, "defRPr")
             if def_r_pr is not None:
                 sz = _get_attr(def_r_pr, "sz")
@@ -1653,6 +1702,38 @@ class PptxReader:
         lp_paras = lp.text_body.paragraphs if (lp and lp.text_body) else []
         mp_paras = mp.text_body.paragraphs if (mp and mp.text_body) else []
 
+        # Inherit bodyPr properties if missing on shape text_body
+        lp_tb = lp.text_body if lp else None
+        mp_tb = mp.text_body if mp else None
+
+        if text_body.anchor == "t":
+            if lp_tb and lp_tb.anchor != "t":
+                text_body.anchor = lp_tb.anchor
+            elif mp_tb and mp_tb.anchor != "t":
+                text_body.anchor = mp_tb.anchor
+
+        if not text_body.anchor_ctr:
+            if lp_tb and lp_tb.anchor_ctr:
+                text_body.anchor_ctr = True
+            elif mp_tb and mp_tb.anchor_ctr:
+                text_body.anchor_ctr = True
+
+        if text_body.autofit == "none":
+            if lp_tb and lp_tb.autofit != "none":
+                text_body.autofit = lp_tb.autofit
+            elif mp_tb and mp_tb.autofit != "none":
+                text_body.autofit = mp_tb.autofit
+
+        if not text_body.has_explicit_font_scale:
+            if lp_tb and lp_tb.has_explicit_font_scale:
+                text_body.font_scale = lp_tb.font_scale
+                text_body.ln_spc_reduction = lp_tb.ln_spc_reduction
+                text_body.has_explicit_font_scale = True
+            elif mp_tb and mp_tb.has_explicit_font_scale:
+                text_body.font_scale = mp_tb.font_scale
+                text_body.ln_spc_reduction = mp_tb.ln_spc_reduction
+                text_body.has_explicit_font_scale = True
+
         for p in text_body.paragraphs:
             lvl = p.level
             lp_p = next((x for x in lp_paras if x.level == lvl), lp_paras[0] if lp_paras else None)
@@ -1667,6 +1748,57 @@ class PptxReader:
                     p.props["algn"] = mp_p.props["algn"]
                 elif "algn" in lvl_style:
                     p.props["algn"] = lvl_style["algn"]
+
+            # Bullet
+            if "bu" not in p.props:
+                if lp_p and "bu" in lp_p.props:
+                    p.props["bu"] = copy.deepcopy(lp_p.props["bu"])
+                elif mp_p and "bu" in mp_p.props:
+                    p.props["bu"] = copy.deepcopy(mp_p.props["bu"])
+                elif "bu" in lvl_style:
+                    p.props["bu"] = copy.deepcopy(lvl_style["bu"])
+
+            # Left margin and indent
+            if "marL" not in p.props:
+                if lp_p and "marL" in lp_p.props:
+                    p.props["marL"] = lp_p.props["marL"]
+                elif mp_p and "marL" in mp_p.props:
+                    p.props["marL"] = mp_p.props["marL"]
+                elif "marL" in lvl_style:
+                    p.props["marL"] = lvl_style["marL"]
+
+            if "indent" not in p.props:
+                if lp_p and "indent" in lp_p.props:
+                    p.props["indent"] = lp_p.props["indent"]
+                elif mp_p and "indent" in mp_p.props:
+                    p.props["indent"] = mp_p.props["indent"]
+                elif "indent" in lvl_style:
+                    p.props["indent"] = lvl_style["indent"]
+
+            # Spacing
+            if "lnSpc" not in p.props:
+                if lp_p and "lnSpc" in lp_p.props:
+                    p.props["lnSpc"] = copy.deepcopy(lp_p.props["lnSpc"])
+                elif mp_p and "lnSpc" in mp_p.props:
+                    p.props["lnSpc"] = copy.deepcopy(mp_p.props["lnSpc"])
+                elif "lnSpc" in lvl_style:
+                    p.props["lnSpc"] = copy.deepcopy(lvl_style["lnSpc"])
+
+            if "spcBef" not in p.props:
+                if lp_p and "spcBef" in lp_p.props:
+                    p.props["spcBef"] = copy.deepcopy(lp_p.props["spcBef"])
+                elif mp_p and "spcBef" in mp_p.props:
+                    p.props["spcBef"] = copy.deepcopy(mp_p.props["spcBef"])
+                elif "spcBef" in lvl_style:
+                    p.props["spcBef"] = copy.deepcopy(lvl_style["spcBef"])
+
+            if "spcAft" not in p.props:
+                if lp_p and "spcAft" in lp_p.props:
+                    p.props["spcAft"] = copy.deepcopy(lp_p.props["spcAft"])
+                elif mp_p and "spcAft" in mp_p.props:
+                    p.props["spcAft"] = copy.deepcopy(mp_p.props["spcAft"])
+                elif "spcAft" in lvl_style:
+                    p.props["spcAft"] = copy.deepcopy(lvl_style["spcAft"])
 
             lp_r = lp_p.runs[0] if (lp_p and lp_p.runs) else None
             mp_r = mp_p.runs[0] if (mp_p and mp_p.runs) else None
@@ -2009,10 +2141,12 @@ class PptxReader:
         insets = (7.2, 3.6, 7.2, 3.6)
         wrap = True
         anchor = "t"
+        anchor_ctr = False
         autofit = "none"
 
         font_scale = 1.0
         ln_spc_red = 0.0
+        has_explicit_font_scale = False
         if body_pr is not None:
             l_ins = emu_to_pt(_get_attr(body_pr, "lIns"), default=7.2)
             t_ins = emu_to_pt(_get_attr(body_pr, "tIns"), default=3.6)
@@ -2022,7 +2156,16 @@ class PptxReader:
 
             anchor_val = _get_attr(body_pr, "anchor")
             if anchor_val:
-                anchor = anchor_val
+                if anchor_val in ("just", "dist"):
+                    anchor = "ctr"
+                elif anchor_val in ("t", "ctr", "b"):
+                    anchor = anchor_val
+                else:
+                    anchor = anchor_val
+
+            anchor_ctr_val = _get_attr(body_pr, "anchorCtr")
+            if anchor_ctr_val in ("1", "true", "True"):
+                anchor_ctr = True
 
             wrap_val = _get_attr(body_pr, "wrap")
             if wrap_val == "none":
@@ -2034,21 +2177,43 @@ class PptxReader:
                 fs_attr = _get_attr(norm_elem, "fontScale")
                 if fs_attr:
                     try:
-                        font_scale = float(fs_attr) / 100000.0
+                        font_scale = max(0.01, min(1.0, float(fs_attr) / 100000.0))
+                        has_explicit_font_scale = True
                     except ValueError:
                         font_scale = 1.0
                 ls_attr = _get_attr(norm_elem, "lnSpcReduction")
                 if ls_attr:
                     try:
-                        ln_spc_red = float(ls_attr) / 100000.0
+                        ln_spc_red = max(0.0, min(1.0, float(ls_attr) / 100000.0))
                     except ValueError:
                         ln_spc_red = 0.0
             elif _get_child(body_pr, "spAutoFit") is not None:
                 autofit = "shape"
 
+        lst_style_elem = _get_child(tx_body, "lstStyle")
+        lst_styles = (
+            self._parse_style_levels(lst_style_elem)
+            if lst_style_elem is not None
+            else {}
+        )
+
         paragraphs: list[Paragraph] = []
         for p_elem in _get_children(tx_body, "p"):
             p = self._parse_paragraph(p_elem)
+            if lst_styles:
+                lvl_style = lst_styles.get(p.level) or lst_styles.get(0) or {}
+                for k in ("algn", "marL", "indent", "bu", "lnSpc", "spcBef", "spcAft"):
+                    if k not in p.props and k in lvl_style:
+                        p.props[k] = copy.deepcopy(lvl_style[k])
+                for r in p.runs:
+                    if r.size is None and "sz" in lvl_style:
+                        r.size = lvl_style["sz"]
+                    if r.font is None and "font" in lvl_style:
+                        r.font = lvl_style["font"]
+                    if r.color is None and "color" in lvl_style:
+                        r.color = lvl_style["color"]
+                    if not r.bold and lvl_style.get("b"):
+                        r.bold = True
             paragraphs.append(p)
 
         return TextBody(
@@ -2056,9 +2221,11 @@ class PptxReader:
             insets=insets,
             wrap=wrap,
             anchor=anchor,
+            anchor_ctr=anchor_ctr,
             autofit=autofit,
             font_scale=font_scale,
             ln_spc_reduction=ln_spc_red,
+            has_explicit_font_scale=has_explicit_font_scale,
         )
 
     def _parse_paragraph(self, p_elem: ET.Element) -> Paragraph:

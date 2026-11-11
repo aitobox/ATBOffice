@@ -213,34 +213,36 @@ def resolve_unoverridden_placeholders(
     )
 
     # 1. Unoverridden Layout Placeholders (title, body, subTitle, obj, etc.)
-    frames = layout_frames(slide.layout, design)
-    for fr in frames:
-        fr_type = fr["type"]
-        fr_idx = fr.get("idx", 0)
-        if (fr_type, fr_idx) not in existing_ph_keys and fr_type not in existing_types:
-            from atboffice.modules.presentation.models.layouts import make_placeholder
+    # Imported slides from file do not synthesize missing layout placeholders
+    if not getattr(slide, "is_imported", False):
+        frames = layout_frames(slide.layout, design)
+        for fr in frames:
+            fr_type = fr["type"]
+            fr_idx = fr.get("idx", 0)
+            if (fr_type, fr_idx) not in existing_ph_keys and fr_type not in existing_types:
+                from atboffice.modules.presentation.models.layouts import make_placeholder
 
-            sh = make_placeholder(fr, design)
-            # Set prompt text if empty
-            prompt = PROMPTS.get(fr_type, "")
-            if prompt and (not sh.text or sh.text.is_empty()):
-                sh.text = TextBody(
-                    anchor="ctr" if fr_type in ("title", "ctrTitle") else "t",
-                    wrap=True,
-                    paragraphs=[
-                        Paragraph(
-                            level=0,
-                            runs=[
-                                TextRun(
-                                    text=prompt,
-                                    color=getattr(design.colors, "lt2", "#808080"),
-                                )
-                            ],
-                        )
-                    ],
-                )
-            apply_cascading_placeholder_styles(sh, design)
-            unoverridden.append(sh)
+                sh = make_placeholder(fr, design)
+                # Set prompt text if empty
+                prompt = PROMPTS.get(fr_type, "")
+                if prompt and (not sh.text or sh.text.is_empty()):
+                    sh.text = TextBody(
+                        anchor="ctr" if fr_type in ("title", "ctrTitle") else "t",
+                        wrap=True,
+                        paragraphs=[
+                            Paragraph(
+                                level=0,
+                                runs=[
+                                    TextRun(
+                                        text=prompt,
+                                        color=getattr(design.colors, "lt2", "#808080"),
+                                    )
+                                ],
+                            )
+                        ],
+                    )
+                apply_cascading_placeholder_styles(sh, design)
+                unoverridden.append(sh)
 
     # 2. Master Header / Footer Placeholders (dt, ftr, sldNum)
     if not getattr(slide, "hide_master", False):

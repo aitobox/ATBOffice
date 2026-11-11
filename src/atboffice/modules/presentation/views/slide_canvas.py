@@ -18,6 +18,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QApplication,
+    QFrame,
     QGraphicsItem,
     QGraphicsScene,
     QGraphicsSceneMouseEvent,
@@ -284,8 +285,8 @@ class SlideScene(QGraphicsScene):
     # Background rendering (Slide paper & shadow)
     # ------------------------------------------------------------------
     def drawBackground(self, painter: QPainter, rect: QRectF) -> None:
-        # Fill whole canvas workspace with neutral gray
-        painter.fillRect(rect, QColor("#EBEBEB"))
+        # Fill whole canvas workspace with workspace color (matching .vibeoffice --work: #B7C6E2)
+        painter.fillRect(rect, QColor("#B7C6E2"))
 
         slide_rect = QRectF(0.0, 0.0, self.slide_width, self.slide_height)
 
@@ -781,6 +782,9 @@ class SlideCanvasView(QGraphicsView):
         self.setViewportUpdateMode(
             QGraphicsView.ViewportUpdateMode.FullViewportUpdate
         )
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setFrameShape(QFrame.Shape.NoFrame)
         self.retranslate_ui()
 
     @property
@@ -829,13 +833,14 @@ class SlideCanvasView(QGraphicsView):
 
         vw = float(self.viewport().width())
         vh = float(self.viewport().height())
-        margin = 32.0
+        margin = max(16.0, min(40.0, vw * 0.04))
         sw = float(getattr(self._scene, "slide_width", 960.0) or 960.0)
         sh = float(getattr(self._scene, "slide_height", 540.0) or 540.0)
-        if vw > margin and vh > margin and sw > 0.0 and sh > 0.0:
-            scale_x = (vw - margin) / sw
-            scale_y = (vh - margin) / sh
+        if vw > margin * 2.0 and vh > margin * 2.0 and sw > 0.0 and sh > 0.0:
+            scale_x = (vw - margin * 2.0) / sw
+            scale_y = (vh - margin * 2.0) / sh
             self.set_zoom(min(scale_x, scale_y), auto_fit=True)
+            self.centerOn(sw / 2.0, sh / 2.0)
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)

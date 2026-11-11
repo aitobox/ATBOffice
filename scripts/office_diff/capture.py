@@ -208,16 +208,22 @@ def capture_single_document(
                 cw = window.centralWidget()
                 grab_target = cw if cw is not None else window
 
-        if grab_target is not None and target.app == "word":
-            for _ in range(3):
+        if grab_target is not None and target.app in ("word", "powerpoint"):
+            expected_canvas_size = (
+                (target_size[0], 648) if target.app == "powerpoint" else target_size
+            )
+            for _ in range(4):
                 drain_event_loop(3)
                 cur_vw, cur_vh = grab_target.width(), grab_target.height()
-                if (cur_vw, cur_vh) == target_size:
+                if (cur_vw, cur_vh) == expected_canvas_size:
                     break
                 window.resize(
-                    window.width() + (target_size[0] - cur_vw),
-                    window.height() + (target_size[1] - cur_vh),
+                    window.width() + (expected_canvas_size[0] - cur_vw),
+                    window.height() + (expected_canvas_size[1] - cur_vh),
                 )
+                drain_event_loop(3)
+            if hasattr(window, "fit_to_window"):
+                window.fit_to_window()
                 drain_event_loop(3)
 
         pixmap = grab_target.grab()
