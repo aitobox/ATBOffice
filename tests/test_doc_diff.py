@@ -309,3 +309,101 @@ def test_cdp_canvas_rects_and_viewport_isolation():
     assert resolve_canvas_target(w, "excel") == "central_widget"
     assert resolve_canvas_target(w, "powerpoint") == "central_widget"
 
+
+def test_filled_rectangle_vs_blank_below_cosmetic_minor(tmp_path):
+    from PySide6.QtGui import QPainter
+
+    p1 = tmp_path / "base_rect.png"
+    p2 = tmp_path / "cand_blank.png"
+
+    img1 = QImage(320, 240, QImage.Format.Format_ARGB32)
+    img1.fill(QColor("white"))
+    painter = QPainter(img1)
+    painter.fillRect(100, 80, 40, 30, QColor("#1F4E79"))
+    painter.end()
+    img1.save(str(p1))
+
+    img2 = QImage(320, 240, QImage.Format.Format_ARGB32)
+    img2.fill(QColor("white"))
+    img2.save(str(p2))
+
+    res = compare_canvases(p1, p2, app="powerpoint")
+    assert res.foreground_score is not None
+    assert res.foreground_score < 0.85
+    assert res.category == "CRITICAL_MISMATCH"
+    assert res.tier == "CRITICAL_MISMATCH"
+
+
+def test_blank_pair_scores_100_without_zero_division(tmp_path):
+    p1 = tmp_path / "blank1.png"
+    p2 = tmp_path / "blank2.png"
+    for p in (p1, p2):
+        img = QImage(200, 200, QImage.Format.Format_ARGB32)
+        img.fill(QColor("white"))
+        img.save(str(p))
+
+    res = compare_canvases(p1, p2, app="word")
+    assert res.foreground_score == 1.0
+    assert res.recall == 1.0
+    assert res.precision == 1.0
+    assert res.color_hist_similarity == 1.0
+    assert res.category == "PARITY_MATCH"
+
+
+def test_dark_background_slide_detection_and_missing_fill(tmp_path):
+    from PySide6.QtGui import QPainter
+
+    p1 = tmp_path / "dark_base.png"
+    p2 = tmp_path / "dark_cand_same.png"
+    p3 = tmp_path / "white_cand_wrong_bg.png"
+    p4 = tmp_path / "dark_cand_wrong_color.png"
+
+    def make_slide(path: Path, bg: QColor, fg: QColor | None) -> None:
+        img = QImage(240, 180, QImage.Format.Format_ARGB32)
+        img.fill(bg)
+        if fg is not None:
+            painter = QPainter(img)
+            painter.fillRect(60, 50, 80, 40, fg)
+            painter.end()
+        img.save(str(path))
+
+    make_slide(p1, QColor("#1E1E2E"), QColor("#FFFFFF"))
+    make_slide(p2, QColor("#1E1E2E"), QColor("#FFFFFF"))
+    make_slide(p3, QColor("#FFFFFF"), QColor("#FF0000"))
+    make_slide(p4, QColor("#1E1E2E"), QColor("#FF0000"))
+
+    res_match = compare_canvases(p1, p2, app="powerpoint")
+    assert res_match.foreground_score == 1.0
+    assert res_match.category == "PARITY_MATCH"
+
+    res_wrong_bg = compare_canvases(p1, p3, app="powerpoint")
+    assert res_wrong_bg.foreground_score is not None
+    assert res_wrong_bg.foreground_score < 0.70
+    assert res_wrong_bg.category == "CRITICAL_MISMATCH"
+
+    res_wrong_color = compare_canvases(p1, p4, app="powerpoint")
+    assert res_wrong_color.recall == 1.0
+    assert res_wrong_color.precision == 1.0
+    assert res_wrong_color.color_hist_similarity == 0.0
+    assert res_wrong_color.category == "CRITICAL_MISMATCH"
+
+
+def test_antialias_dilation_tolerance(tmp_path):
+    from PySide6.QtGui import QPainter
+
+    p1 = tmp_path / "shift_a.png"
+    p2 = tmp_path / "shift_b.png"
+
+    for p, dx in ((p1, 0), (p2, 2)):
+        img = QImage(200, 200, QImage.Format.Format_ARGB32)
+        img.fill(QColor("white"))
+        painter = QPainter(img)
+        painter.fillRect(50 + dx, 50, 60, 20, QColor("black"))
+        painter.end()
+        img.save(str(p))
+
+    res = compare_canvases(p1, p2, app="word")
+    assert res.foreground_score is not None
+    assert res.foreground_score >= 0.95
+    assert res.category == "PARITY_MATCH"
+
