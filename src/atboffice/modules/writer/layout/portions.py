@@ -159,6 +159,70 @@ def get_space_em(font_family: str) -> float:
     return calibrated_space_em(font_family)
 
 
+def map_symbol_char(ch: str, font: str = "") -> str:
+    """Map Symbol, Wingdings, and private-use bullet glyphs to standard Unicode characters."""
+    if not ch:
+        return ""
+    f = str(font or "").lower()
+    code = ord(ch[0]) & 0xFF
+
+    # Wingdings 2
+    if "wingdings" in f and "2" in f:
+        if 0x96 <= code <= 0x9D:
+            return "●"
+        if 0x9E <= code <= 0xA5:
+            return "■"
+        if 0xA6 <= code <= 0xAD:
+            return "◆"
+        w2_map = {0x50: "✓", 0x4F: "✗", 0x51: "☒", 0x52: "☑", 0xE9: "★", 0xEA: "★"}
+        return w2_map.get(code, "•")
+
+    # Wingdings 3
+    if "wingdings" in f and "3" in f:
+        w3_map = {0x7D: "►", 0x84: "►", 0x75: "►", 0x71: "◄", 0x70: "▲", 0x72: "▼", 0xC6: "➔", 0xC7: "⬅"}
+        return w3_map.get(code, "▸")
+
+    # Wingdings (standard)
+    if f.startswith("wingdings"):
+        w_map = {
+            "l": "●", "n": "■", "q": "❑", "u": "◆", "v": "❖", "Ø": "➢", "ü": "✓", "§": "▪",
+            "o": "❍", "p": "□", "w": "⬥", "Ü": "➢", "à": "➔", "è": "➜", "Þ": "➝", "ð": "⇨",
+            "ª": "✦", "¨": "◻",
+            "\uF06E": "■", "\uF06C": "●", "\uF075": "◆", "\uF0FC": "✓", "\uF0D8": "➢", "\uF0A7": "▪",
+            "\uF04A": "☺", "\uF049": "☹", "\uF0B2": "❖",
+        }
+        if ch in w_map:
+            return w_map[ch]
+        c_ascii = chr(code)
+        if c_ascii in w_map:
+            return w_map[c_ascii]
+        return "•"
+
+    # Symbol
+    if "symbol" in f:
+        sym_map = {"·": "•", "\uF0B7": "•", "Þ": "⇒", "®": "→", "¾": "—"}
+        if ch in sym_map:
+            return sym_map[ch]
+        c_ascii = chr(code)
+        if c_ascii in sym_map:
+            return sym_map[c_ascii]
+        if 0xF000 <= ord(ch[0]) <= 0xF0FF:
+            return "•"
+        return ch
+
+    # General private-use area characters often used for bullets
+    if ch in ("", ""):
+        return "•"
+    if 0xF000 <= ord(ch[0]) <= 0xF0FF:
+        p_map = {
+            "\uF06E": "■", "\uF06C": "●", "\uF075": "◆", "\uF0FC": "✓", "\uF0D8": "➢", "\uF0A7": "▪",
+            "\uF0B7": "•", "\uF04A": "☺", "\uF049": "☹", "\uF0B2": "❖",
+        }
+        return p_map.get(ch, "•")
+
+    return ch
+
+
 # ---------------------------------------------------------------------------
 # Data Models
 # ---------------------------------------------------------------------------
