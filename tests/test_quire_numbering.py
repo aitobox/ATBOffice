@@ -173,5 +173,24 @@ def test_portion_picture_bullet_and_hanging_indent() -> None:
     assert first_line.indent_left >= 0
 
 
+def test_all_word_fixtures_no_percent_in_labels() -> None:
+    """Acceptance Criteria 4: All 24 Word fixtures: no label text contains a '%' character."""
+    import glob
+    from atboffice.modules.writer.io.docx_reader import read_docx
+
+    fixtures = sorted(glob.glob("tests/docs/word/docx/*.docx"))
+    assert len(fixtures) >= 24
+
+    for fixture_path in fixtures:
+        fname = os.path.basename(fixture_path)
+        if "protected" in fname:
+            continue
+        doc = read_docx(fixture_path)
+        for i, b in enumerate(doc.blocks):
+            label = getattr(b, "label", "")
+            assert "%" not in label, f"Fixture {fname} block {i} label '{label}' contains literal '%'"
+
+
+
 
 
