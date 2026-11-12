@@ -282,6 +282,7 @@ class LedgerWindow(BaseOfficeWindow):
         self.action_registry.set_handler("chart_type_radar", lambda: self.set_chart_type("radar"))
         self.action_registry.set_handler("data_pivottable", self.open_pivot_wizard)
         self.action_registry.set_handler("pivotTable", self.open_pivot_wizard)
+        self.action_registry.set_handler("pivot_fields_pane", self.open_pivot_fields_pane)
 
         # Drawing toolbar actions
         self.action_registry.set_handler("bringToFront", self.bring_to_front)
@@ -346,6 +347,11 @@ class LedgerWindow(BaseOfficeWindow):
         )
         self._sync_formatting_toolbar_states()
         self.update_context_toolbars({})
+
+    @property
+    def workbook(self) -> Any:
+        """Access the active WorkbookModel bound to SpreadsheetView."""
+        return getattr(self.spreadsheet_view, "workbook", None)
 
     @property
     def sheet_tab_bar(self) -> Any:
@@ -1599,6 +1605,9 @@ class LedgerWindow(BaseOfficeWindow):
             parent=self,
         )
         if dlg.exec():
+            if getattr(dlg, "created_report", None) is not None:
+                self.open_pivot_fields_pane(dlg.created_report)
+            self.set_modified(True)
             self.spreadsheet_view.grid.viewport().update()
             self.statusBar().showMessage(safe_tr("数据透视表报表已成功生成。"), 4000)
 
@@ -1720,7 +1729,10 @@ class LedgerWindow(BaseOfficeWindow):
         if not self.task_pane_dock:
             return
 
-        from atboffice.modules.spreadsheet.panes import WatchWindowPane
+        from atboffice.modules.spreadsheet.panes import (
+            PivotFieldsTaskPane,
+            WatchWindowPane,
+        )
 
         wb = getattr(self.spreadsheet_view, "workbook", None)
         book_name = (
@@ -1751,6 +1763,25 @@ class LedgerWindow(BaseOfficeWindow):
             self.watch_pane,
         )
 
+        self.pivot_fields_pane = PivotFieldsTaskPane(
+            workbook=wb,
+            parent=self.task_pane_dock,
+        )
+        self.pivot_fields_pane.report_refreshed.connect(self._on_pivot_report_refreshed)
+        self.task_pane_dock.register_pane(
+            "pivot_fields",
+            safe_tr("数据透视表字段列表"),
+            self.pivot_fields_pane,
+        )
+
+        self.spreadsheet_view.grid.pivot_selection_changed.connect(
+            self._on_pivot_selection_changed
+        )
+        self.spreadsheet_view.grid.pivot_refresh_requested.connect(
+            self._on_pivot_report_refreshed
+        )
+        self.spreadsheet_view.workbook_changed.connect(self._on_workbook_changed)
+
     def _on_watch_pane_add_current(self) -> None:
         """Add current active cell to Watch Window task pane."""
         if not hasattr(self, "watch_pane"):
@@ -1769,6 +1800,45 @@ class LedgerWindow(BaseOfficeWindow):
             self.task_pane_dock.show()
             self.task_pane_dock.show_pane("watch_window")
         self.statusBar().showMessage(safe_tr("已打开公式监视任务窗格。"), 3000)
+
+    def open_pivot_fields_pane(self, target_pivot: Any | None = None) -> None:
+        """Open and bind the PivotTable Field List task pane."""
+        if not hasattr(self, "pivot_fields_pane") or self.task_pane_dock is None:
+            return
+        from atboffice.modules.spreadsheet.calc.pivots import PivotReport
+
+        if target_pivot is None:
+            ar, ac = self.spreadsheet_view.selection.active_cell
+            target_pivot = self.spreadsheet_view.grid.pivot_table_at(ar, ac)
+
+        if isinstance(target_pivot, PivotReport):
+            self.pivot_fields_pane.bind_pivot_report(target_pivot, self.workbook)
+
+        self.task_pane_dock.show()
+        self.task_pane_dock.show_pane("pivot_fields")
+        self.statusBar().showMessage(safe_tr("已打开数据透视表字段列表任务窗格。"), 3000)
+
+    def _on_pivot_selection_changed(self, report: Any | None) -> None:
+        """Keep PivotFieldsTaskPane synchronized when active cell moves onto a PivotTable."""
+        if not hasattr(self, "pivot_fields_pane"):
+            return
+        from atboffice.modules.spreadsheet.calc.pivots import PivotReport
+
+        if isinstance(report, PivotReport):
+            self.pivot_fields_pane.bind_pivot_report(report, self.workbook)
+
+    def _on_pivot_report_refreshed(self, report: Any | None = None) -> None:
+        """Update viewport and dirty state after PivotTable recalculation."""
+        self.set_modified(True)
+        self.spreadsheet_view.grid.viewport().update()
+
+    def _on_workbook_changed(self, wb: Any) -> None:
+        """Reset or rebind Ledger task panes when workbook instance changes."""
+        if hasattr(self, "watch_pane") and self.watch_pane:
+            self.watch_pane.workbook = wb
+            self.watch_pane.refresh_watches()
+        if hasattr(self, "pivot_fields_pane") and self.pivot_fields_pane:
+            self.pivot_fields_pane.bind_pivot_report(None, wb)
 
     def evaluate_formula(self) -> None:
         """Step-by-step formula evaluation dialog."""
@@ -2705,3 +2775,5 @@ class LedgerWindow(BaseOfficeWindow):
             self.fullscreen_bar.retranslate_ui()
         if hasattr(self, "watch_pane") and self.watch_pane:
             self.watch_pane.retranslate_ui()
+        if hasattr(self, "pivot_fields_pane") and self.pivot_fields_pane:
+            self.pivot_fields_pane.retranslate_ui()

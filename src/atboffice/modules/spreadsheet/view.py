@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import QCoreApplication, Qt, Signal
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from atboffice.core.diagnostics import record_action
@@ -32,6 +32,8 @@ def safe_tr(text: str) -> str:
 
 class SpreadsheetView(QWidget):
     """Top-level view for ATBOffice Ledger spreadsheet editing."""
+
+    workbook_changed = Signal(object)
 
     def __init__(
         self,
@@ -70,6 +72,7 @@ class SpreadsheetView(QWidget):
         self.grid = GridViewport(
             model=active_sheet, selection=active_sel, parent=self
         )
+        self.grid.workbook = self._workbook
         layout.addWidget(self.grid)
 
         # 4. In-cell editor & formula controller
@@ -155,6 +158,8 @@ class SpreadsheetView(QWidget):
             except Exception:
                 pass
         self._workbook = value
+        if hasattr(self, "grid") and self.grid is not None:
+            self.grid.workbook = value
         record_action("bind_workbook", "spreadsheet_view", {"sheet_count": len(value.sheets)})
         self._sheet_selections.clear()
         if hasattr(self, "sheet_tab_bar") and self.sheet_tab_bar is not None:
@@ -162,6 +167,7 @@ class SpreadsheetView(QWidget):
         self._workbook.active_sheet_changed.connect(self._on_active_sheet_changed)
         self._workbook.sheet_removed.connect(self._on_sheet_removed)
         self._on_active_sheet_changed(self._workbook.active_sheet_index)
+        self.workbook_changed.emit(value)
 
     @property
     def model(self) -> SheetDataModel:

@@ -98,6 +98,7 @@ class HitZone(Enum):
     ROW_RESIZE = auto()
     FILL_HANDLE = auto()
     FILTER_BUTTON = auto()
+    PIVOT_FILTER_BUTTON = auto()
     BORDER = auto()
 
 
@@ -142,6 +143,9 @@ class GridViewport(QAbstractScrollArea):
     cell_selected = Signal(int, int)
     cell_double_clicked = Signal(int, int)
     view_mode_changed = Signal(str)
+    pivot_refresh_requested = Signal(object)
+    pivot_field_list_requested = Signal(object)
+    pivot_selection_changed = Signal(object)
 
     # Classic Office / Luna color palette
     COLOR_GRIDLINE: Final[QColor] = QColor(208, 215, 229)
@@ -545,6 +549,21 @@ class GridViewport(QAbstractScrollArea):
                     by = row_y + row_h - btn_size - 1
                     if bx <= x <= bx + btn_size and by <= y <= by + btn_size:
                         return HitResult(HitZone.FILTER_BUTTON, row=r1, col=c)
+
+        # 4.6 PivotTable Filter Dropdown Button area
+        for report in getattr(self.model, "pivot_reports", []):
+            meta = getattr(report, "meta", None)
+            if meta is None:
+                continue
+            for r_cell, c_cell in getattr(meta, "filter_dropdown_cells", {}):
+                c_rect = self.cell_rect(r_cell, c_cell)
+                if not c_rect.isValid():
+                    continue
+                btn_size = min(16, max(12, c_rect.height() - 2))
+                bx = c_rect.left() + c_rect.width() - btn_size - 1
+                by = c_rect.top() + c_rect.height() - btn_size - 1
+                if bx <= x <= bx + btn_size and by <= y <= by + btn_size:
+                    return HitResult(HitZone.PIVOT_FILTER_BUTTON, row=r_cell, col=c_cell)
 
         # 5. Cell area
         x_rel = x - self.row_header_width
@@ -974,6 +993,11 @@ class GridViewport(QAbstractScrollArea):
             )
             painter.drawLine(self.row_header_width, y, vw, y)
         painter.restore()
+
+        # 3.5 Draw Dynamic PivotTable Bands, Headers, Subtotals & Grand Totals
+        self._paint_pivot_reports(
+            painter, pr_start, pr_end, pc_start, pc_end, psx, psy, pane_clip
+        )
 
         # 4. Draw Cell Contents (with right-overflow)
         painter.save()
@@ -1411,6 +1435,11 @@ class GridViewport(QAbstractScrollArea):
                     painter.drawPolygon(arrow_poly)
 
                 painter.restore()
+
+        # 5.6b Draw PivotTable Filter Dropdown Buttons & Active Outline
+        self._paint_pivot_dropdowns(
+            painter, pr_start, pr_end, pc_start, pc_end, psx, psy, pane_clip
+        )
 
         # 5.7 Draw Invalid Data Validation Circles (red ellipses)
         circles = getattr(self.model, "invalid_circles", [])
@@ -2605,6 +2634,14 @@ class GridViewport(QAbstractScrollArea):
             self._open_filter_dropdown(hit.col)
             return
 
+        elif (
+            hit.zone == HitZone.PIVOT_FILTER_BUTTON
+            and hit.row is not None
+            and hit.col is not None
+        ):
+            self._open_pivot_filter_dropdown(hit.row, hit.col)
+            return
+
         elif hit.zone == HitZone.CELL and hit.row is not None and hit.col is not None:
             self._drag_snapshot = DragSnapshot(
                 zone=HitZone.CELL,
@@ -2635,6 +2672,7 @@ class GridViewport(QAbstractScrollArea):
             else:
                 self.selection.select_cell(hit.row, hit.col)
             self.cell_selected.emit(hit.row, hit.col)
+            self.pivot_selection_changed.emit(self.pivot_table_at(hit.row, hit.col))
             self.reveal(hit.row, hit.col)
             self.viewport().update()
 
@@ -3717,6 +3755,20 @@ class GridViewport(QAbstractScrollArea):
 
         menu.addSeparator()
 
+        # PivotTable conditional branch
+        pvt = self.pivot_table_at(r, c)
+        if pvt is not None:
+            act_refresh_pvt = menu.addAction(safe_tr("刷新数据(&R)"))
+            act_refresh_pvt.triggered.connect(lambda: self.refresh_pivot_table(pvt))
+
+            act_show_fields = menu.addAction(safe_tr("显示字段列表(&L)"))
+            act_show_fields.triggered.connect(lambda: self.show_pivot_field_list(pvt))
+
+            act_pvt_wizard = menu.addAction(safe_tr("数据透视表向导(&W)…"))
+            act_pvt_wizard.triggered.connect(lambda: self.open_pivot_wizard_for(pvt))
+
+            menu.addSeparator()
+
         # Table / List conditional branch
         tbl = self.table_at(r, c)
         if tbl is not None:
@@ -4100,6 +4152,350 @@ class GridViewport(QAbstractScrollArea):
                 ]
         self.mark_dirty()
         self.viewport().update()
+
+    # -------------------------------------------------------------------------
+    # PivotTable Integration (Detection, Rendering, Refresh & Filter Dropdowns)
+    # -------------------------------------------------------------------------
+
+    def _resolve_workbook(self) -> Any | None:
+        """Resolve owning WorkbookModel from self, parent SpreadsheetView, or window."""
+        wb = getattr(self, "workbook", None)
+        if wb is not None:
+            return wb
+        parent = self.parent()
+        if parent is not None and getattr(parent, "workbook", None) is not None:
+            return parent.workbook
+        win = self.window()
+        if win is not self and getattr(win, "workbook", None) is not None:
+            return win.workbook
+        return None
+
+    def pivot_table_at(self, r: int, c: int) -> Any | None:
+        """Return the PivotReport (or OOXML PivotTable) containing cell (r, c), or None."""
+        for report in getattr(self.model, "pivot_reports", []):
+            if hasattr(report, "contains_cell") and report.contains_cell(r, c):
+                return report
+
+        wb = self._resolve_workbook()
+        if wb is not None:
+            pivots = getattr(wb, "extra", {}).get("pivots")
+            sheet_name = getattr(self.model, "name", "")
+            if pivots is not None:
+                for tbl in getattr(pivots, "tables", []):
+                    if (
+                        not getattr(tbl, "drop", None)
+                        and getattr(tbl, "sheet_name", "").lower() == sheet_name.lower()
+                        and getattr(tbl, "location_ref", None) is not None
+                    ):
+                        r1, c1, r2, c2 = tbl.location_ref
+                        if r1 <= r <= r2 and c1 <= c <= c2:
+                            return tbl
+        return None
+
+    def refresh_pivot_table(self, target_pivot: Any | None = None) -> bool:
+        """Recalculate and refresh the active or specified PivotTable."""
+        pvt = target_pivot or self.pivot_table_at(*self.selection.active_cell)
+        if pvt is None:
+            return False
+
+        wb = self._resolve_workbook()
+        from atboffice.modules.spreadsheet.calc.pivots import (
+            PivotReport,
+            refresh_pivot_report,
+        )
+
+        if isinstance(pvt, PivotReport):
+            if wb is None:
+                return False
+            ok = refresh_pivot_report(wb, pvt)
+            if ok:
+                self.last_status_message = safe_tr("数据透视表数据已刷新。")
+                self.mark_dirty()
+                self.viewport().update()
+                self.pivot_refresh_requested.emit(pvt)
+                win = self.window()
+                if win is not self and hasattr(win, "statusBar"):
+                    win.statusBar().showMessage(self.last_status_message, 3000)
+            return ok
+
+        # OOXML preserved PivotTable fallback
+        if wb is not None:
+            pivots = getattr(wb, "extra", {}).get("pivots")
+            if pivots is not None and hasattr(pivots, "find_cache"):
+                cache = pivots.find_cache(getattr(pvt, "cache_id", -1))
+                if cache is not None:
+                    cache.refresh = False
+            self.last_status_message = safe_tr("已标记刷新数据透视表缓存。")
+            self.mark_dirty()
+            self.viewport().update()
+            self.pivot_refresh_requested.emit(pvt)
+            return True
+        return False
+
+    def show_pivot_field_list(self, target_pivot: Any | None = None) -> None:
+        """Request displaying the PivotTable Field List task pane for target_pivot."""
+        pvt = target_pivot or self.pivot_table_at(*self.selection.active_cell)
+        self.pivot_field_list_requested.emit(pvt)
+        win = self.window()
+        if win is not self and hasattr(win, "open_pivot_fields_pane"):
+            win.open_pivot_fields_pane(pvt)
+
+    def open_pivot_wizard_for(self, target_pivot: Any | None = None) -> None:
+        """Open PivotTable Wizard dialog for the sheet or active pivot."""
+        win = self.window()
+        if win is not self and hasattr(win, "open_pivot_wizard"):
+            win.open_pivot_wizard()
+
+    def _paint_pivot_reports(
+        self,
+        painter: QPainter,
+        pr_start: int,
+        pr_end: int,
+        pc_start: int,
+        pc_end: int,
+        psx: int,
+        psy: int,
+        pane_clip: QRect,
+    ) -> None:
+        """Render dynamic pivot headers, banded rows, subtotals, and grand totals."""
+        reports = getattr(self.model, "pivot_reports", [])
+        if not reports:
+            return
+
+        painter.save()
+        painter.setClipRect(pane_clip)
+
+        color_head = QColor("#DCE6F2")
+        color_band = QColor("#F4F7FC")
+        color_subtotal = QColor("#E9EDF4")
+        color_grand = QColor("#D9E1F2")
+        pen_head = QPen(QColor("#9EB6CE"), 1)
+        pen_subtotal = QPen(QColor("#8EA9DB"), 1)
+        pen_grand = QPen(QColor("#4F81BD"), 1)
+
+        for report in reports:
+            meta = getattr(report, "meta", None)
+            bbox = getattr(report, "bbox", None)
+            if meta is None or bbox is None:
+                continue
+            b_r1, b_c1, b_r2, b_c2 = bbox
+            vis_r1 = max(pr_start, b_r1)
+            vis_r2 = min(pr_end, b_r2)
+            vis_c1 = max(pc_start, b_c1)
+            vis_c2 = min(pc_end, b_c2)
+            if vis_r1 > vis_r2 or vis_c1 > vis_c2:
+                continue
+
+            band_parity_map = {r: idx % 2 for idx, r in enumerate(meta.data_rows)}
+
+            for r in range(vis_r1, vis_r2 + 1):
+                row_y = (
+                    self.col_header_height
+                    + self.geometry_mapper.row_pos(r)
+                    - psy
+                )
+                row_h = self.geometry_mapper.row_size(r)
+                if row_h <= 0:
+                    continue
+
+                is_header = r in meta.header_rows
+                is_subtotal = r in meta.subtotal_rows
+                is_grand = r in meta.grand_total_rows
+                is_odd_band = band_parity_map.get(r, 0) == 1
+
+                for c in range(vis_c1, vis_c2 + 1):
+                    col_x = (
+                        self.row_header_width
+                        + self.geometry_mapper.col_pos(c)
+                        - psx
+                    )
+                    col_w = self.geometry_mapper.col_size(c)
+                    if col_w <= 0:
+                        continue
+                    rect = QRect(col_x, row_y, col_w, row_h)
+
+                    if is_header:
+                        painter.fillRect(rect, color_head)
+                        painter.setPen(pen_head)
+                        painter.drawLine(col_x, row_y + row_h - 1, col_x + col_w, row_y + row_h - 1)
+                    elif is_grand:
+                        painter.fillRect(rect, color_grand)
+                        painter.setPen(pen_grand)
+                        painter.drawLine(col_x, row_y, col_x + col_w, row_y)
+                        painter.drawLine(col_x, row_y + row_h - 3, col_x + col_w, row_y + row_h - 3)
+                        painter.drawLine(col_x, row_y + row_h - 1, col_x + col_w, row_y + row_h - 1)
+                    elif is_subtotal:
+                        painter.fillRect(rect, color_subtotal)
+                        painter.setPen(pen_subtotal)
+                        painter.drawLine(col_x, row_y, col_x + col_w, row_y)
+                        painter.drawLine(col_x, row_y + row_h - 1, col_x + col_w, row_y + row_h - 1)
+                    elif c in meta.grand_total_cols and r not in meta.filter_rows:
+                        painter.fillRect(rect, color_band)
+                    elif is_odd_band:
+                        painter.fillRect(rect, color_band)
+
+        painter.restore()
+
+    def _paint_pivot_dropdowns(
+        self,
+        painter: QPainter,
+        pr_start: int,
+        pr_end: int,
+        pc_start: int,
+        pc_end: int,
+        psx: int,
+        psy: int,
+        pane_clip: QRect,
+    ) -> None:
+        """Draw dropdown buttons on PivotTable filter/header cells and active pivot outline."""
+        reports = getattr(self.model, "pivot_reports", [])
+        if not reports:
+            return
+
+        ar, ac = self.selection.active_cell
+        painter.save()
+        painter.setClipRect(pane_clip)
+
+        for report in reports:
+            meta = getattr(report, "meta", None)
+            layout = getattr(report, "layout", None)
+            if meta is None or layout is None:
+                continue
+
+            # Map col_idx -> whether filter is active
+            active_filters: set[int] = set()
+            for f_list in (layout.filters, layout.rows, layout.columns):
+                for fs in f_list:
+                    if fs.selected_values is not None:
+                        active_filters.add(fs.col_idx)
+
+            for (r_cell, c_cell), (_zone_type, col_idx) in meta.filter_dropdown_cells.items():
+                if not (pr_start <= r_cell <= pr_end and pc_start <= c_cell <= pc_end):
+                    continue
+                row_y = (
+                    self.col_header_height
+                    + self.geometry_mapper.row_pos(r_cell)
+                    - psy
+                )
+                row_h = self.geometry_mapper.row_size(r_cell)
+                col_x = (
+                    self.row_header_width
+                    + self.geometry_mapper.col_pos(c_cell)
+                    - psx
+                )
+                col_w = self.geometry_mapper.col_size(c_cell)
+                btn_size = min(16, max(12, row_h - 2))
+                if col_w <= btn_size or row_h <= 0:
+                    continue
+
+                bx = col_x + col_w - btn_size - 1
+                by = row_y + row_h - btn_size - 1
+
+                painter.fillRect(bx, by, btn_size, btn_size, QColor(236, 233, 216))
+                painter.setPen(QPen(QColor(128, 128, 128), 1))
+                painter.drawRect(bx, by, btn_size - 1, btn_size - 1)
+                painter.setPen(QPen(Qt.GlobalColor.white, 1))
+                painter.drawLine(bx + 1, by + 1, bx + btn_size - 2, by + 1)
+                painter.drawLine(bx + 1, by + 1, bx + 1, by + btn_size - 2)
+
+                arrow_color = (
+                    QColor(0, 0, 255) if col_idx in active_filters else QColor(0, 0, 0)
+                )
+                painter.setBrush(QBrush(arrow_color))
+                painter.setPen(QPen(arrow_color, 1))
+                cx = bx + btn_size // 2
+                cy = by + btn_size // 2
+                painter.drawPolygon(
+                    [
+                        QPoint(cx - 3, cy - 1),
+                        QPoint(cx + 3, cy - 1),
+                        QPoint(cx, cy + 2),
+                    ]
+                )
+
+            # Active PivotTable outline when active cell is inside this report
+            if hasattr(report, "contains_cell") and report.contains_cell(ar, ac):
+                b_r1, b_c1, b_r2, b_c2 = report.bbox
+                ox1 = self.row_header_width + self.geometry_mapper.col_pos(b_c1) - psx
+                oy1 = self.col_header_height + self.geometry_mapper.row_pos(b_r1) - psy
+                ox2 = self.row_header_width + self.geometry_mapper.col_pos(b_c2 + 1) - psx
+                oy2 = self.col_header_height + self.geometry_mapper.row_pos(b_r2 + 1) - psy
+                painter.setPen(QPen(QColor("#4F81BD"), 1, Qt.PenStyle.DotLine))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRect(QRect(ox1, oy1, ox2 - ox1 - 1, oy2 - oy1 - 1))
+
+        painter.restore()
+
+    def _apply_pivot_field_filter(
+        self,
+        report: Any,
+        col_idx: int,
+        selected_values: set[str] | None,
+    ) -> None:
+        """Apply filter criteria on a PivotReport field and refresh in place."""
+        layout = getattr(report, "layout", None)
+        if layout is None:
+            return
+        for f_list in (layout.filters, layout.rows, layout.columns):
+            for fs in f_list:
+                if fs.col_idx == col_idx:
+                    fs.selected_values = (
+                        set(selected_values) if selected_values is not None else None
+                    )
+        self.refresh_pivot_table(report)
+
+    def _open_pivot_filter_dropdown(self, r: int, c: int) -> None:
+        """Show filter selection popup menu for a PivotTable dropdown button cell."""
+        report = self.pivot_table_at(r, c)
+        if report is None:
+            return
+        entry = report.meta.filter_dropdown_cells.get((r, c))
+        if not entry:
+            return
+        _zone_type, col_idx = entry
+        wb = self._resolve_workbook()
+        if wb is None:
+            return
+
+        from atboffice.modules.spreadsheet.calc.pivots import get_unique_field_values
+
+        unique_vals = get_unique_field_values(
+            wb,
+            report.layout.source_sheet,
+            report.layout.source_range,
+            col_idx,
+        )
+
+        # Find current selection state
+        cur_sel: set[str] | None = None
+        for f_list in (report.layout.filters, report.layout.rows, report.layout.columns):
+            for fs in f_list:
+                if fs.col_idx == col_idx:
+                    cur_sel = fs.selected_values
+                    break
+
+        menu = QMenu(self)
+        act_all = menu.addAction(safe_tr("(全部)"))
+        act_all.setCheckable(True)
+        act_all.setChecked(cur_sel is None)
+        act_all.triggered.connect(
+            lambda: self._apply_pivot_field_filter(report, col_idx, None)
+        )
+        menu.addSeparator()
+
+        for val in unique_vals:
+            act = menu.addAction(val)
+            act.setCheckable(True)
+            act.setChecked(cur_sel is not None and val in cur_sel)
+            act.triggered.connect(
+                lambda _checked=False, v=val: self._apply_pivot_field_filter(
+                    report, col_idx, {v}
+                )
+            )
+
+        c_rect = self.cell_rect(r, c)
+        pt = self.viewport().mapToGlobal(c_rect.bottomLeft())
+        menu.exec(pt)
 
     def open_chart_type_dialog(self, obj: Any) -> None:
         """Open chart type selector for chart object."""

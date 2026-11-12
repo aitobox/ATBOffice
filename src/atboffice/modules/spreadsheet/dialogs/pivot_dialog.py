@@ -51,6 +51,7 @@ PIV_FUNCTIONS: list[tuple[str, str]] = [
     ("average", "平均值 (Average)"),
     ("max", "最大值 (Max)"),
     ("min", "最小值 (Min)"),
+    ("product", "乘积 (Product)"),
     ("countNums", "数值计数 (Count Nums)"),
 ]
 
@@ -71,6 +72,7 @@ class PivotTableWizardDialog(QDialog):
         self.r1, self.c1, self.r2, self.c2 = initial_range
 
         self.created_sheet: SheetDataModel | None = None
+        self.created_report: object | None = None
         self.result_bbox: tuple[int, int, int, int] | None = None
 
         self.setWindowTitle(safe_tr("数据透视表和数据透视图向导"))
@@ -125,7 +127,7 @@ class PivotTableWizardDialog(QDialog):
         self.lbl_fn = QLabel(self)
         self.combo_fn = QComboBox(self.group_layout)
         for fn_code, fn_name in PIV_FUNCTIONS:
-            self.combo_fn.addItem(fn_name, fn_code)
+            self.combo_fn.addItem(safe_tr(fn_name), fn_code)
         data_box.addWidget(self.lbl_data)
         data_box.addWidget(self.combo_data, stretch=1)
         data_box.addWidget(self.lbl_fn)
@@ -312,6 +314,9 @@ class PivotTableWizardDialog(QDialog):
 
         try:
             self.created_sheet, self.result_bbox = build_pivot_table(self.workbook, cfg)
+            reports = getattr(self.created_sheet, "pivot_reports", [])
+            if reports:
+                self.created_report = reports[-1]
             self.accept()
         except Exception as exc:
             QMessageBox.critical(
