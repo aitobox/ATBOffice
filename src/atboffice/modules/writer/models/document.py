@@ -247,6 +247,7 @@ class Paragraph:
     sect: SectionProperties | None = None
     mark_ins: RevisionStamp | None = None
     mark_del: RevisionStamp | None = None
+    label: str = ""
     _o: int = 0  # Reading order index in story
 
     @property
@@ -396,6 +397,30 @@ class Document:
             from atboffice.modules.writer.models.styles import builtin_styles
 
             self.styles = builtin_styles()
+
+    @property
+    def blocks(self) -> list[Any]:
+        """Flattened list of blocks and nested table cell paragraphs in reading order."""
+        out: list[Any] = []
+
+        def _walk(blocks_list: list[Any]) -> None:
+            for b in blocks_list:
+                out.append(b)
+                if hasattr(b, "rows"):
+                    for r in getattr(b, "rows", []):
+                        for c in getattr(r, "cells", []):
+                            _walk(getattr(c, "blocks", []))
+
+        _walk(self.main.blocks)
+        return out
+
+    def all_paras(self, opts: Any = None) -> list[Paragraph]:
+        """Return all paragraphs in document order across main story."""
+        out: list[Paragraph] = []
+        for b in self.blocks:
+            if isinstance(b, Paragraph):
+                out.append(b)
+        return out
 
 
 # ----------------------------------------------------------------------
