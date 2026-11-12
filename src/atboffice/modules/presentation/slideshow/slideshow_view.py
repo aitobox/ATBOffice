@@ -21,10 +21,16 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QMenu,
+    QMessageBox,
     QWidget,
 )
 
+from atboffice.modules.presentation.models.shape import Fill, Line, Shape
 from atboffice.modules.presentation.models.slide import Slide, Transition
+from atboffice.modules.presentation.slideshow.annotation_layer import (
+    AnnotationStroke,
+    SlideAnnotationOverlay,
+)
 from atboffice.modules.presentation.slideshow.animations import (
     AnimationStep,
     AnimationStepPlayer,
@@ -84,11 +90,17 @@ class SlideShowView(QWidget):
         self.goto_buf: str = ""
         self._mouse_down = False
         self._cursor_visible = True
-        self.ink_strokes: dict[int, list[Any]] = {}
+        self.annotation_overlay = SlideAnnotationOverlay(
+            slide_w=self.presentation.w,
+            slide_h=self.presentation.h,
+            parent=self,
+        )
+        self.annotation_overlay.hide()
+        self.ink_strokes: dict[int, list[Any]] = self.annotation_overlay.strokes_map
         self.laser_pos: tuple[float, float] | None = None
         self.pen_tool: str = "arrow"
         self.pen_color: str = "#FF0000"
-        self._active_stroke: SlideInkStroke | None = None
+        self._active_stroke: Any | None = None
 
         # Build slide display order (all slide indices)
         self.order: list[int] = list(range(len(presentation.slides)))
@@ -456,6 +468,8 @@ class SlideShowView(QWidget):
         self.slide_pos = new_pos
         new_idx = self.current_slide_index
         self.is_ended = False
+        if hasattr(self, "annotation_overlay"):
+            self.annotation_overlay.set_slide_index(new_idx)
 
         self._img_prev = self._img_curr or self._get_slide_image(old_idx)
         self._init_current_slide_animations()
@@ -537,10 +551,44 @@ class SlideShowView(QWidget):
         self._presenter_console.show()
         return self._presenter_console
 
-    def end_show(self) -> None:
+    def end_show(self, prompt_ink: bool = True, keep_ink: bool = False) -> None:
         """Close slide show view and exit presentation mode."""
         if not self.is_active:
             return
+
+        has_ink = any(len(strokes) > 0 for strokes in self.ink_strokes.values())
+        if prompt_ink and has_ink:
+            res = QMessageBox.question(
+                self,
+                safe_tr("保留墨迹批注"),
+                safe_tr("是否保留墨迹批注？"),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            keep_ink = res == QMessageBox.StandardButton.Yes
+
+        if keep_ink:
+            for s_idx, strokes in self.ink_strokes.items():
+                if 0 <= s_idx < len(self.presentation.slides):
+                    slide = self.presentation.slides[s_idx]
+                    for stroke in strokes:
+                        pts = getattr(stroke, "points", [])
+                        if pts:
+                            poly_pts = [list(pt) for pt in pts]
+                            color = getattr(stroke, "color", "#FF0000")
+                            width = getattr(stroke, "width", 3.0)
+                            line_style = Line(color=color, width=width)
+                            ink_shape = Shape(
+                                id=f"ink_{s_idx}_{len(slide.shapes)}",
+                                type="shape",
+                                name=f"Ink Annotation {len(slide.shapes) + 1}",
+                                geom="freeform",
+                                poly=poly_pts,
+                                line=line_style,
+                                fill=Fill.none(),
+                            )
+                            slide.shapes.append(ink_shape)
+
         self.transition_player.stop()
         self._anim_player.stop()
         self._auto_timer.stop()
@@ -582,6 +630,38 @@ class SlideShowView(QWidget):
             self.update()
 
         # Navigation shortcuts
+        mod = event.modifiers()
+        if mod & Qt.KeyboardModifier.ControlModifier:
+            if key in (Qt.Key.Key_A,):
+                event.accept()
+                self._on_hud_pen_mode_changed("arrow", self.pen_color)
+                return
+            elif key in (Qt.Key.Key_P,):
+                event.accept()
+                self._on_hud_pen_mode_changed("pen", self.pen_color)
+                return
+            elif key in (Qt.Key.Key_L,):
+                event.accept()
+                self._on_hud_pen_mode_changed("laser", self.pen_color)
+                return
+            elif key in (Qt.Key.Key_E,):
+                event.accept()
+                self._on_hud_pen_mode_changed("eraser", self.pen_color)
+                return
+            elif key in (Qt.Key.Key_H,):
+                event.accept()
+                self.setCursor(Qt.CursorShape.BlankCursor)
+                self._cursor_visible = False
+                return
+
+        if key in (Qt.Key.Key_E,) and not (mod & Qt.KeyboardModifier.ControlModifier):
+            event.accept()
+            self.ink_strokes[self.current_slide_index] = []
+            if hasattr(self, "annotation_overlay"):
+                self.annotation_overlay.clear_slide_ink(self.current_slide_index)
+            self.update()
+            return
+
         if key in (
             Qt.Key.Key_Right,
             Qt.Key.Key_Down,
@@ -644,16 +724,24 @@ class SlideShowView(QWidget):
     def _on_hud_pen_mode_changed(self, tool: str, color: str) -> None:
         self.pen_tool = tool
         self.pen_color = color
+        if hasattr(self, "annotation_overlay"):
+            self.annotation_overlay.set_mode(tool, color=color)
         if tool == "clear":
             self.ink_strokes[self.current_slide_index] = []
             self.pen_tool = "arrow"
+            self.laser_pos = None
             self.setCursor(Qt.CursorShape.ArrowCursor)
             self.update()
         elif tool in ("pen", "highlighter"):
+            self.laser_pos = None
             self.setCursor(Qt.CursorShape.CrossCursor)
+        elif tool == "laser":
+            self.setCursor(Qt.CursorShape.BlankCursor)
         elif tool == "eraser":
+            self.laser_pos = None
             self.setCursor(Qt.CursorShape.PointingHandCursor)
         else:  # "arrow"
+            self.laser_pos = None
             self.setCursor(Qt.CursorShape.ArrowCursor)
 
     def _map_to_slide_coords(self, pos: Any) -> tuple[float, float] | None:
@@ -701,6 +789,16 @@ class SlideShowView(QWidget):
                     self.update()
                     event.accept()
                     return
+            elif self.pen_tool == "laser":
+                pt = self._map_to_slide_coords(event.position())
+                if pt:
+                    self.laser_pos = pt
+                    if hasattr(self, "annotation_overlay"):
+                        self.annotation_overlay.laser_pos = pt
+                    self.setCursor(Qt.CursorShape.BlankCursor)
+                    self.update()
+                    event.accept()
+                    return
             elif self.pen_tool == "eraser":
                 pt = self._map_to_slide_coords(event.position())
                 if pt:
@@ -742,6 +840,24 @@ class SlideShowView(QWidget):
             if hasattr(self, "hud"):
                 self.hud.fade_in()
 
+        if self.pen_tool == "laser":
+            pt = self._map_to_slide_coords(event.position())
+            if pt:
+                self.laser_pos = pt
+                if hasattr(self, "annotation_overlay"):
+                    self.annotation_overlay.laser_pos = pt
+                self.setCursor(Qt.CursorShape.BlankCursor)
+                self.update()
+                event.accept()
+                return
+
+        if self.pen_tool == "eraser" and (event.buttons() & Qt.MouseButton.LeftButton):
+            pt = self._map_to_slide_coords(event.position())
+            if pt:
+                self._erase_stroke_at(pt)
+                event.accept()
+                return
+
         if self._mouse_down and self._active_stroke is not None:
             pt = self._map_to_slide_coords(event.position())
             if pt:
@@ -753,10 +869,19 @@ class SlideShowView(QWidget):
         super().mouseMoveEvent(event)
 
     def _reset_cursor_idle(self) -> None:
-        if not self._cursor_visible:
-            self.setCursor(Qt.CursorShape.ArrowCursor)
+        if self.pen_tool == "laser":
+            self.setCursor(Qt.CursorShape.BlankCursor)
             self._cursor_visible = True
-            self.update()
+        else:
+            if not self._cursor_visible:
+                if self.pen_tool in ("pen", "highlighter"):
+                    self.setCursor(Qt.CursorShape.CrossCursor)
+                elif self.pen_tool == "eraser":
+                    self.setCursor(Qt.CursorShape.PointingHandCursor)
+                else:
+                    self.setCursor(Qt.CursorShape.ArrowCursor)
+                self._cursor_visible = True
+                self.update()
         self._idle_timer.start()
 
     def _on_cursor_idle(self) -> None:
@@ -777,6 +902,23 @@ class SlideShowView(QWidget):
 
         act_prev = menu.addAction(safe_tr("上一页 (&P)"))
         act_prev.triggered.connect(self.prev_slide)
+
+        menu.addSeparator()
+
+        # Pointer options submenu
+        menu_pointer = menu.addMenu(safe_tr("指针选项 (&O)"))
+        act_arr = menu_pointer.addAction(safe_tr("箭头 (&A)"))
+        act_arr.triggered.connect(lambda: self._on_hud_pen_mode_changed("arrow", self.pen_color))
+        act_pen = menu_pointer.addAction(safe_tr("圆珠笔 (&P)"))
+        act_pen.triggered.connect(lambda: self._on_hud_pen_mode_changed("pen", self.pen_color))
+        act_hl = menu_pointer.addAction(safe_tr("荧光笔 (&H)"))
+        act_hl.triggered.connect(lambda: self._on_hud_pen_mode_changed("highlighter", self.pen_color))
+        act_laser = menu_pointer.addAction(safe_tr("激光笔 (&L)"))
+        act_laser.triggered.connect(lambda: self._on_hud_pen_mode_changed("laser", self.pen_color))
+        act_er = menu_pointer.addAction(safe_tr("橡皮擦 (&E)"))
+        act_er.triggered.connect(lambda: self._on_hud_pen_mode_changed("eraser", self.pen_color))
+        act_clr = menu_pointer.addAction(safe_tr("清除所有墨迹 (&K)"))
+        act_clr.triggered.connect(lambda: self._on_hud_pen_mode_changed("clear", self.pen_color))
 
         menu.addSeparator()
 

@@ -186,6 +186,9 @@ class SlideShowHud(QFrame):
         act_highlighter = menu.addAction(safe_tr("荧光笔 (&H)"))
         act_highlighter.triggered.connect(lambda: self._select_pen_tool("highlighter"))
 
+        act_laser = menu.addAction(safe_tr("激光笔 (&L)"))
+        act_laser.triggered.connect(lambda: self._select_pen_tool("laser"))
+
         menu.addSeparator()
 
         # Ink Color submenu
