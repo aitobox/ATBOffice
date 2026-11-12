@@ -7,9 +7,8 @@ personalized menus & toolbar display options, and keyboard shortcut customizatio
 from __future__ import annotations
 
 import logging
-from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QKeyCombination, Qt, Signal
+from PySide6.QtCore import QCoreApplication, Qt, Signal
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -131,8 +130,16 @@ class CustomizeToolbarsDialog(QDialog):
             "Format": [
                 ("Font", safe_tr("字体"), safe_tr("更改选定文字的字体和字符间距。")),
                 ("Paragraph", safe_tr("段落"), safe_tr("设置段落缩进、对齐方式和行距。")),
-                ("Bullets and Numbering", safe_tr("项目符号和编号"), safe_tr("为选定段落添加项目符号或编号。")),
-                ("Borders and Shading", safe_tr("边框和底纹"), safe_tr("为所选文字或表格添加边框和底纹。")),
+                (
+                    "Bullets and Numbering",
+                    safe_tr("项目符号和编号"),
+                    safe_tr("为选定段落添加项目符号或编号。"),
+                ),
+                (
+                    "Borders and Shading",
+                    safe_tr("边框和底纹"),
+                    safe_tr("为所选文字或表格添加边框和底纹。"),
+                ),
                 ("Columns", safe_tr("分栏"), safe_tr("将页面内容分为多栏。")),
                 ("Style", safe_tr("样式"), safe_tr("应用或创建格式样式。")),
             ],

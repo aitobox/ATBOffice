@@ -16,8 +16,8 @@ import os
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QKeySequence
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QApplication
 
 from atboffice.deep.audit.core import (
@@ -31,7 +31,6 @@ from atboffice.modules.presentation.slideshow.annotation_layer import (
 )
 from atboffice.modules.presentation.smartart.engine import SmartArtEngine
 from atboffice.modules.presentation.smartart.item import SmartArtItem, new_id
-from atboffice.modules.spreadsheet.calc.dag import DependencyGraph
 from atboffice.modules.spreadsheet.models.filter_model import (
     AutoFilter,
     ColumnFilter,
@@ -50,7 +49,7 @@ from atboffice.ui.dialogs.customize_toolbars_dialog import (
     CustomizeToolbarsDialog,
     safe_tr,
 )
-from atboffice.ui.panes.clipboard_pane import ClipItem, ClipboardTaskPane
+from atboffice.ui.panes.clipboard_pane import ClipboardTaskPane, ClipItem
 
 
 @pytest.fixture(scope="module")

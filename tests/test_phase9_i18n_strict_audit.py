@@ -12,11 +12,12 @@ import os
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import QApplication
 
 from atboffice.ui.dialogs.customize_toolbars_dialog import (
     CustomizeToolbarsDialog,
+)
+from atboffice.ui.dialogs.customize_toolbars_dialog import (
     safe_tr as customize_safe_tr,
 )
 
@@ -113,8 +114,8 @@ def test_phase9_python_files_ast_i18n_audit():
             continue
         tree = ast.parse(p.read_text(encoding="utf-8"), filename=str(p))
 
-        # Check for string constants that contain Chinese characters
-        # They should either be inside a safe_tr(...) / tr(...) call or in a translation dictionary / mapping
+        # Check for string constants that contain Chinese characters.
+        # They should either be inside a safe_tr(...) / tr(...) call or in a mapping.
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
                 func = node.func
