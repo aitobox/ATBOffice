@@ -17,6 +17,7 @@ class BorderStyle:
 
     style: str = "thin"
     color: str | None = None
+    color_spec: dict[str, Any] | None = None
 
 
 @dataclass
@@ -41,6 +42,7 @@ class RichTextRun:
     underline_style: str | None = None
     strike: bool | None = None
     fg_color: str | None = None
+    fg_color_spec: dict[str, Any] | None = None
     vert_align: str | None = None  # "subscript", "superscript", "baseline", or None
 
     def clone(self) -> RichTextRun:
@@ -68,6 +70,8 @@ class CellData:
     font_family: str = "Arial"
     fg_color: str | None = None
     bg_color: str | None = None
+    fg_color_spec: dict[str, Any] | None = None
+    bg_color_spec: dict[str, Any] | None = None
     align_h: str = "general"
     align_v: str = "bottom"
     indent: int = 0
@@ -88,6 +92,7 @@ class CellData:
     # Patterns
     pattern: str | None = None
     pattern_color: str | None = None
+    pattern_color_spec: dict[str, Any] | None = None
 
     # Protection
     locked: bool = True
@@ -206,6 +211,8 @@ class FormatDelta:
     font_family: str | None = None
     fg_color: str | None = None
     bg_color: str | None = None
+    fg_color_spec: dict[str, Any] | None = None
+    bg_color_spec: dict[str, Any] | None = None
     align_h: str | None = None
     align_v: str | None = None
     indent: int | None = None
@@ -225,6 +232,7 @@ class FormatDelta:
 
     pattern: str | None = None
     pattern_color: str | None = None
+    pattern_color_spec: dict[str, Any] | None = None
     clear_fill: bool = False
 
     locked: bool | None = None
@@ -507,8 +515,14 @@ class SheetDataModel:
             cell.font_family = delta.font_family
         if delta.fg_color is not None:
             cell.fg_color = delta.fg_color
+            cell.fg_color_spec = delta.fg_color_spec
+        elif delta.fg_color_spec is not None:
+            cell.fg_color_spec = delta.fg_color_spec
         if delta.bg_color is not None:
             cell.bg_color = delta.bg_color
+            cell.bg_color_spec = delta.bg_color_spec
+        elif delta.bg_color_spec is not None:
+            cell.bg_color_spec = delta.bg_color_spec
         if delta.align_h is not None:
             cell.align_h = delta.align_h
         if delta.align_v is not None:
@@ -549,13 +563,18 @@ class SheetDataModel:
 
         if delta.clear_fill:
             cell.bg_color = None
+            cell.bg_color_spec = None
             cell.pattern = None
             cell.pattern_color = None
+            cell.pattern_color_spec = None
         else:
             if delta.pattern is not None:
                 cell.pattern = delta.pattern
             if delta.pattern_color is not None:
                 cell.pattern_color = delta.pattern_color
+                cell.pattern_color_spec = delta.pattern_color_spec
+            elif delta.pattern_color_spec is not None:
+                cell.pattern_color_spec = delta.pattern_color_spec
 
         if delta.locked is not None:
             cell.locked = delta.locked
