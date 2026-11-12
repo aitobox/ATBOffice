@@ -566,35 +566,16 @@ AGG_FUNC_LABELS: dict[str, str] = {
     "average": "Average",
     "max": "Max",
     "min": "Min",
+    "product": "Product",
     "countNums": "Count Nums",
 }
 
 
 def _aggregate_values(vals: list[Any], func: str) -> Any:
     """Calculate the aggregated scalar value from a list of cell values."""
-    nums: list[float] = []
-    for v in vals:
-        if isinstance(v, (int, float)) and not isinstance(v, bool):
-            nums.append(float(v))
-        elif isinstance(v, str):
-            try:
-                nums.append(float(v))
-            except ValueError:
-                pass
+    from atboffice.modules.spreadsheet.calc.pivots import aggregate_values
 
-    match func.lower():
-        case "count":
-            return len([x for x in vals if x is not None and str(x) != ""])
-        case "countnums":
-            return len(nums)
-        case "average":
-            return (sum(nums) / len(nums)) if nums else "#DIV/0!"
-        case "max":
-            return max(nums) if nums else 0
-        case "min":
-            return min(nums) if nums else 0
-        case _:  # default "sum"
-            return sum(nums) if nums else 0
+    return aggregate_values(vals, func)
 
 
 def build_pivot_table(
@@ -771,6 +752,86 @@ def build_pivot_table(
 
     max_c = c0 + (len(show_cols) + 1 if has_col else len(show_cols))
     bbox = (r0, c0, gr, max_c)
+
+    # Register live PivotReport metadata on dst_sheet for TaskPane & GridViewport integration
+    from atboffice.modules.spreadsheet.calc.pivots import (
+        PivotFieldSpec,
+        PivotLayoutMeta,
+        PivotLayoutSpec,
+        PivotReport,
+        PivotValueSpec,
+    )
+
+    filters_spec = (
+        [
+            PivotFieldSpec(
+                col_idx=config.page_field_col,
+                name=col_header(config.page_field_col),
+                selected_values=(
+                    {config.page_filter_val}
+                    if config.page_filter_val and config.page_filter_val != "(All)"
+                    else None
+                ),
+            )
+        ]
+        if config.page_field_col is not None
+        else []
+    )
+    cols_spec = (
+        [
+            PivotFieldSpec(
+                col_idx=config.col_field_col,
+                name=col_header(config.col_field_col),
+            )
+        ]
+        if has_col and config.col_field_col is not None
+        else []
+    )
+    rows_spec = [
+        PivotFieldSpec(col_idx=config.row_field_col, name=head_row),
+    ]
+    vals_spec = [
+        PivotValueSpec(
+            col_idx=config.data_field_col,
+            name=head_data,
+            agg_func=config.agg_func,
+        )
+    ]
+
+    meta = PivotLayoutMeta()
+    if config.page_field_col is not None:
+        p_row = max(0, r0 - 2)
+        meta.filter_rows.add(p_row)
+        meta.filter_dropdown_cells[(p_row, c0 + 1)] = ("filter", config.page_field_col)
+    meta.header_rows.update({curr_r, hr})
+    meta.filter_dropdown_cells[(hr, c0)] = ("row", config.row_field_col)
+    if has_col and config.col_field_col is not None:
+        meta.filter_dropdown_cells[(curr_r, c0 + 1)] = ("col", config.col_field_col)
+        meta.grand_total_cols.add(c0 + 1 + len(show_cols))
+    meta.data_rows = list(range(hr + 1, gr))
+    meta.grand_total_rows.add(gr)
+
+    full_r0 = min(r0, max(0, r0 - 2)) if config.page_field_col is not None else r0
+    report_name = f"PivotTable{len(dst_sheet.pivot_reports) + 1}"
+    layout_spec = PivotLayoutSpec(
+        source_sheet=config.source_sheet,
+        source_range=config.source_range,
+        filters=filters_spec,
+        columns=cols_spec,
+        rows=rows_spec,
+        values=vals_spec,
+        target_sheet=dst_sheet.name,
+        target_cell=(full_r0, c0),
+        name=report_name,
+    )
+    report = PivotReport(
+        name=report_name,
+        layout=layout_spec,
+        sheet_name=dst_sheet.name,
+        bbox=(full_r0, c0, gr, max_c),
+        meta=meta,
+    )
+    dst_sheet.pivot_reports.append(report)
 
     # Set as active sheet
     workbook.set_active_sheet(dst_sheet)

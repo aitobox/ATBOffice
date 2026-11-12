@@ -369,6 +369,7 @@ class SheetDataModel:
         self.geometry = SheetGeometry()
         self.merges: list[tuple[int, int, int, int]] = []
         self.auto_filter: Any | None = None
+        self.pivot_reports: list[Any] = []
         self.drawings: list[Any] = []
         self.conditional_formats: list[Any] = []
         self.data_validations: list[Any] = []
