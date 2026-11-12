@@ -5,9 +5,9 @@ Theme, indexed palette, and tint color resolution in XLSX reading & round-trip w
 from __future__ import annotations
 
 import io
-from pathlib import Path
 import xml.etree.ElementTree as ET
 import zipfile
+from pathlib import Path
 
 import pytest
 
@@ -158,7 +158,7 @@ def test_openxml_noextdatab1_indexed_53_font() -> None:
 
 
 def test_totals_row_function_custom_theme_teal_banner() -> None:
-    """libreoffice__totalsRowFunction.xlsx B1 uses custom theme accent1 (#1CC5D5) + negative tint."""
+    """libreoffice__totalsRowFunction.xlsx B1 uses custom theme accent1 + negative tint."""
     wb = read_xlsx(XLSX_CORPUS / "libreoffice__totalsRowFunction.xlsx")
     b1 = wb[0].get_cell(0, 1)
     assert b1 is not None
@@ -214,7 +214,7 @@ def test_roundtrip_preserves_theme_and_indexed_attributes(filename: str) -> None
 
 
 def test_dirty_cell_color_edit_overrides_stale_theme_spec() -> None:
-    """If a cell's fg_color or bg_color is edited to a new hex, writer emits rgb= instead of stale theme=."""
+    """Editing a cell color emits rgb= instead of stale theme= spec."""
     wb = read_xlsx(XLSX_CORPUS / "libreoffice__totalsRowShown.xlsx")
     a2 = wb[0].get_cell(1, 0)
     assert a2 is not None

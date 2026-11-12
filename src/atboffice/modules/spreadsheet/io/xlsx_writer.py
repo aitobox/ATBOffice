@@ -421,9 +421,12 @@ class StyleManager:
                 "bgColor", bg_color, bg_color_spec, self.theme_colors, self.palette
             )
             if fg_xml or bg_xml:
-                xml = f'<fill><patternFill patternType="{ptype}">{fg_xml}{bg_xml}</patternFill></fill>'
+                xml = (
+                    f'<fill><patternFill patternType="{_xml_escape(ptype)}">'
+                    f"{fg_xml}{bg_xml}</patternFill></fill>"
+                )
             else:
-                xml = f'<fill><patternFill patternType="{ptype}"/></fill>'
+                xml = f'<fill><patternFill patternType="{_xml_escape(ptype)}"/></fill>'
         else:
             fg_xml = _color_element(
                 "fgColor", pattern_color, pattern_color_spec, self.theme_colors, self.palette
