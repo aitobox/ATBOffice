@@ -447,3 +447,65 @@ def test_run_office_diff_score_only_dry_run():
     assert res.returncode == 0
     assert "Active targets: 73" in res.stdout
 
+
+def test_comparator_works_without_numpy(tmp_path, monkeypatch):
+    import builtins
+    import importlib
+
+    from PySide6.QtGui import QPainter
+
+    real_import = builtins.__import__
+
+    def no_numpy_import(name, *args, **kwargs):
+        if name == "numpy" or name.startswith("numpy."):
+            raise ModuleNotFoundError("No module named 'numpy'")
+        return real_import(name, *args, **kwargs)
+
+    p1 = tmp_path / "base.png"
+    p2 = tmp_path / "blank.png"
+    p3 = tmp_path / "dark1.png"
+    p4 = tmp_path / "dark2.png"
+
+    img1 = QImage(160, 120, QImage.Format.Format_ARGB32)
+    img1.fill(QColor("white"))
+    painter = QPainter(img1)
+    painter.fillRect(40, 30, 30, 20, QColor("#1F4E79"))
+    painter.end()
+    img1.save(str(p1))
+
+    img2 = QImage(160, 120, QImage.Format.Format_ARGB32)
+    img2.fill(QColor("white"))
+    img2.save(str(p2))
+
+    for path, fg in ((p3, "#FFFFFF"), (p4, "#FF0000")):
+        img = QImage(160, 120, QImage.Format.Format_ARGB32)
+        img.fill(QColor("#1E1E2E"))
+        p = QPainter(img)
+        p.fillRect(40, 30, 30, 20, QColor(fg))
+        p.end()
+        img.save(str(path))
+
+    monkeypatch.setattr(builtins, "__import__", no_numpy_import)
+    import scripts.office_diff.comparator as comp_mod
+
+    importlib.reload(comp_mod)
+    try:
+        res_rect = comp_mod.compare_canvases(p1, p2, app="powerpoint", diff_out=tmp_path / "d1.png")
+        assert res_rect.foreground_score is not None
+        assert res_rect.foreground_score < 0.85
+        assert res_rect.category == "CRITICAL_MISMATCH"
+
+        res_blank = comp_mod.compare_canvases(p2, p2, app="word")
+        assert res_blank.foreground_score == 1.0
+        assert res_blank.category == "PARITY_MATCH"
+
+        res_dark_match = comp_mod.compare_canvases(p3, p3, app="powerpoint")
+        assert res_dark_match.foreground_score == 1.0
+
+        res_dark_color = comp_mod.compare_canvases(p3, p4, app="powerpoint")
+        assert res_dark_color.color_hist_similarity == 0.0
+        assert res_dark_color.category == "CRITICAL_MISMATCH"
+    finally:
+        monkeypatch.undo()
+        importlib.reload(comp_mod)
+
