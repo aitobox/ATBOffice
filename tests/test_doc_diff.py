@@ -88,6 +88,32 @@ def test_models_serialization():
     assert r_dict["similarity"] == 0.98
 
 
+def test_diff_result_foreground_fields_serialization():
+    dr = DiffResult(
+        file="sample.docx",
+        app="word",
+        similarity=0.96,
+        mae=2.5,
+        edge_similarity=0.98,
+        roi_similarity=0.97,
+        category="CRITICAL_MISMATCH",
+        orig_size=(1178, 767),
+        target_size=(1178, 767),
+        foreground_score=0.45,
+        recall=0.45,
+        precision=0.90,
+        color_hist_similarity=0.80,
+        tier="CRITICAL_MISMATCH",
+    )
+    d = dr.to_dict()
+    assert d["foreground_score"] == 0.45
+    assert d["recall"] == 0.45
+    assert d["precision"] == 0.9
+    assert d["color_hist_similarity"] == 0.8
+    assert d["tier"] == "CRITICAL_MISMATCH"
+    assert d["pixel_similarity"] == 0.96
+
+
 def test_classify_similarity():
     assert classify_similarity(0.96) == "PARITY_MATCH"
     assert classify_similarity(0.90) == "COSMETIC_MINOR"

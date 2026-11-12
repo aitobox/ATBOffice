@@ -50,7 +50,7 @@ class DiffResult:
 
     file: str
     app: str
-    similarity: float | None  # None if incomparable
+    similarity: float | None  # Legacy whole-image MAE similarity (None if incomparable)
     mae: float
     edge_similarity: float
     roi_similarity: float
@@ -60,13 +60,27 @@ class DiffResult:
     diff_path: str | None = None
     normalized: bool = False
     error: str | None = None
+    foreground_score: float | None = None
+    recall: float | None = None
+    precision: float | None = None
+    color_hist_similarity: float | None = None
+    tier: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize diff result metrics to a JSON-compatible dictionary."""
         res = asdict(self)
         res["orig_size"] = list(self.orig_size)
         res["target_size"] = list(self.target_size)
         if self.similarity is not None:
             res["similarity"] = round(self.similarity, 4)
+            res["pixel_similarity"] = round(self.similarity, 4)
+        else:
+            res["pixel_similarity"] = None
+        for key in ("foreground_score", "recall", "precision", "color_hist_similarity"):
+            val = getattr(self, key)
+            if val is not None:
+                res[key] = round(val, 4)
+        res["tier"] = self.tier or self.category
         res["mae"] = round(self.mae, 2)
         res["edge_similarity"] = round(self.edge_similarity, 4)
         res["roi_similarity"] = round(self.roi_similarity, 4)
