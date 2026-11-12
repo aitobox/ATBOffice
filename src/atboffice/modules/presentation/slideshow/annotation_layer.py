@@ -48,7 +48,7 @@ class AnnotationStroke:
 
 
 class SlideAnnotationOverlay(QWidget):
-    """Transparent overlay viewport capturing and rendering real-time vector ink and laser pointer."""
+    """Transparent overlay viewport capturing and rendering real-time vector ink and laser."""
 
     strokeAdded = Signal(int, object)  # (slide_index, AnnotationStroke)
     strokeErased = Signal(int, int)  # (slide_index, stroke_index)

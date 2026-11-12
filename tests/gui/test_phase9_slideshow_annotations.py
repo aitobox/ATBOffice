@@ -1,4 +1,4 @@
-"""Interactive GUI tests for SlideShow ink annotations, pointer tools, laser overlay and exit prompt."""
+"""Interactive GUI tests for SlideShow ink annotations, pointer tools and laser overlay."""
 
 from __future__ import annotations
 
@@ -196,7 +196,7 @@ def test_slideshow_hud_laser_pointer_menu(qapp, sample_presentation):
 
 
 def test_slideshow_view_hotkeys_and_blanking(qapp, sample_presentation):
-    """Verify presentation hotkeys: B (Black), W (White), E (Erase All), Ctrl+L (Laser), Ctrl+P (Pen), Ctrl+A (Arrow)."""
+    """Verify presentation hotkeys: B, W, E, Ctrl+L, Ctrl+P, Ctrl+A, Ctrl+E."""
     view = SlideShowView(presentation=sample_presentation, start_slide_index=0)
     view.resize(960, 540)
     assert view.blank_color is None

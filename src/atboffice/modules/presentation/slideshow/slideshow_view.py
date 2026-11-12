@@ -27,10 +27,6 @@ from PySide6.QtWidgets import (
 
 from atboffice.modules.presentation.models.shape import Fill, Line, Shape
 from atboffice.modules.presentation.models.slide import Slide, Transition
-from atboffice.modules.presentation.slideshow.annotation_layer import (
-    AnnotationStroke,
-    SlideAnnotationOverlay,
-)
 from atboffice.modules.presentation.slideshow.animations import (
     AnimationStep,
     AnimationStepPlayer,
@@ -39,6 +35,7 @@ from atboffice.modules.presentation.slideshow.animations import (
     apply_step_state,
     compile_steps,
 )
+from atboffice.modules.presentation.slideshow.annotation_layer import SlideAnnotationOverlay
 from atboffice.modules.presentation.slideshow.slide_hud import SlideShowHud
 from atboffice.modules.presentation.slideshow.transitions import (
     SlideTransitionPlayer,
@@ -912,7 +909,9 @@ class SlideShowView(QWidget):
         act_pen = menu_pointer.addAction(safe_tr("圆珠笔 (&P)"))
         act_pen.triggered.connect(lambda: self._on_hud_pen_mode_changed("pen", self.pen_color))
         act_hl = menu_pointer.addAction(safe_tr("荧光笔 (&H)"))
-        act_hl.triggered.connect(lambda: self._on_hud_pen_mode_changed("highlighter", self.pen_color))
+        act_hl.triggered.connect(
+            lambda: self._on_hud_pen_mode_changed("highlighter", self.pen_color)
+        )
         act_laser = menu_pointer.addAction(safe_tr("激光笔 (&L)"))
         act_laser.triggered.connect(lambda: self._on_hud_pen_mode_changed("laser", self.pen_color))
         act_er = menu_pointer.addAction(safe_tr("橡皮擦 (&E)"))
