@@ -311,8 +311,8 @@ def test_read_styles():
     assert cell.strike is True
     assert cell.font_size == 14
     assert cell.font_family == "Helvetica"
-    assert cell.fg_color == "FFFF0000"
-    assert cell.bg_color == "FF00FF00"
+    assert cell.fg_color == "#FF0000"
+    assert cell.bg_color == "#00FF00"
     assert cell.align_h == "center"
     assert cell.align_v == "top"
     assert cell.wrap_text is True

@@ -67,6 +67,7 @@ class ColorScaleRule:
 
     cfvos: list[CFVO] = field(default_factory=list)
     colors: list[str] = field(default_factory=list)
+    color_specs: list[dict[str, Any] | None] = field(default_factory=list)
 
 
 @dataclass
@@ -75,6 +76,7 @@ class DataBarRule:
 
     cfvos: list[CFVO] = field(default_factory=list)
     color: str = "#638EC6"
+    color_spec: dict[str, Any] | None = None
     neg_color: str = "#FF0000"
     min_len: float = 0.1
     max_len: float = 0.9
@@ -98,6 +100,8 @@ class CFRule:
     # Formatting payload
     bg_color: str | None = None
     fg_color: str | None = None
+    bg_color_spec: dict[str, Any] | None = None
+    fg_color_spec: dict[str, Any] | None = None
     bold: bool | None = None
     italic: bool | None = None
 

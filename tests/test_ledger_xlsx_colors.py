@@ -4,8 +4,10 @@ Theme, indexed palette, and tint color resolution in XLSX reading & round-trip w
 
 from __future__ import annotations
 
+from pathlib import Path
 import xml.etree.ElementTree as ET
 
+from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
 from atboffice.modules.spreadsheet.models.color_utils import (
     DEFAULT_INDEXED_PALETTE,
     DEFAULT_THEME_COLORS,
@@ -104,3 +106,56 @@ def test_parse_theme_xml_extracts_12_colors_in_spreadsheetml_order() -> None:
     assert len(parsed["colors"]) == 12
     assert parsed["major"] == "Century Gothic"
     assert parsed["minor"] == "Calibri"
+
+
+XLSX_CORPUS = Path("tests/docs/excel/xlsx")
+
+
+def test_totals_row_shown_theme_and_tint_colors() -> None:
+    """AC 1: libreoffice__totalsRowShown.xlsx A2 red fill + white text, B3 light blue fill."""
+    wb = read_xlsx(XLSX_CORPUS / "libreoffice__totalsRowShown.xlsx")
+    sh = wb[0]
+    a2 = sh.get_cell(1, 0)
+    b3 = sh.get_cell(2, 1)
+    assert a2 is not None and b3 is not None
+    assert a2.bg_color == "#C0504D"  # theme 5 (accent2 red)
+    assert a2.fg_color == "#FFFFFF"  # theme 0 (lt1 white)
+    assert b3.bg_color == apply_tint("#4F81BD", 0.59999389629810485)  # light blue
+
+
+def test_sortconditionref_orange_fill_and_black_text() -> None:
+    """AC 2: libreoffice__sortconditionref.xlsx B2 fill #FFC000 and readable black text."""
+    wb = read_xlsx(XLSX_CORPUS / "libreoffice__sortconditionref.xlsx")
+    b2 = wb[0].get_cell(1, 1)
+    assert b2 is not None
+    assert b2.bg_color == "#FFC000"
+    assert b2.fg_color == "#000000"
+
+
+def test_poi_49156_indexed_fills() -> None:
+    """AC 3: poi__49156.xlsx indexed fills 41->#CCFFFF, 45->#FF99CC, 22->#C0C0C0."""
+    wb = read_xlsx(XLSX_CORPUS / "poi__49156.xlsx")
+    sh = wb[0]
+    d10 = sh.get_cell(9, 3)
+    e10 = sh.get_cell(9, 4)
+    f10 = sh.get_cell(9, 5)
+    assert d10 is not None and d10.bg_color == "#CCFFFF"
+    assert e10 is not None and e10.bg_color == "#FF99CC"
+    assert f10 is not None and f10.bg_color == "#C0C0C0"
+
+
+def test_openxml_noextdatab1_indexed_53_font() -> None:
+    """AC 4: openxml-sdk__NoExtDataB1.xlsx font indexed=53 resolves to #FF6600."""
+    wb = read_xlsx(XLSX_CORPUS / "openxml-sdk__NoExtDataB1.xlsx")
+    b1 = wb[0].get_cell(0, 1)
+    assert b1 is not None
+    assert b1.fg_color == "#FF6600"
+
+
+def test_totals_row_function_custom_theme_teal_banner() -> None:
+    """libreoffice__totalsRowFunction.xlsx B1 uses custom theme accent1 (#1CC5D5) + negative tint."""
+    wb = read_xlsx(XLSX_CORPUS / "libreoffice__totalsRowFunction.xlsx")
+    b1 = wb[0].get_cell(0, 1)
+    assert b1 is not None
+    assert b1.fg_color == "#FFFFFF"
+    assert b1.bg_color == apply_tint("#1CC5D5", -0.24994659260841701)

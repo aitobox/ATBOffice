@@ -159,8 +159,8 @@ def test_write_xlsx_cell_formatting():
     assert c.strike is True
     assert c.font_family == "Calibri"
     assert c.font_size == 14
-    assert c.fg_color in ("FF0000", "FFFF0000")
-    assert c.bg_color in ("FFFF00", "FFFFFF00")
+    assert c.fg_color == "#FF0000"
+    assert c.bg_color == "#FFFF00"
     assert c.align_h == "center"
     assert c.align_v == "center"
     assert c.wrap_text is True

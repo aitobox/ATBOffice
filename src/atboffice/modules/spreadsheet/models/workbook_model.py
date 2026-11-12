@@ -7,6 +7,7 @@ from typing import Any
 
 from PySide6.QtCore import QObject, Signal
 
+from atboffice.modules.spreadsheet.models.color_utils import DEFAULT_THEME_COLORS
 from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
 
 INVALID_SHEET_CHARS = set(r":\/?*[]")
@@ -51,6 +52,11 @@ class WorkbookModel(QObject):
         self.extra: dict[str, Any] = {}
         self._source_package: Any = None
         self.code_name: str | None = None
+        self.theme_colors: list[str] = list(DEFAULT_THEME_COLORS)
+        self.theme_name: str = "Office"
+        self.theme_major_font: str = "Cambria"
+        self.theme_minor_font: str = "Calibri"
+        self.indexed_palette: list[str] | None = None
 
         if sheets:
             for s in sheets:

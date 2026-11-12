@@ -7,12 +7,21 @@ import logging
 import re
 import xml.etree.ElementTree as ET
 import zipfile
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, BinaryIO
 
 from atboffice.modules.spreadsheet.calc.references import (
     parse_cell,
     parse_range,
+)
+from atboffice.modules.spreadsheet.models.color_utils import (
+    DEFAULT_INDEXED_PALETTE,
+    DEFAULT_THEME_COLORS,
+    normalize_hex_color,
+    parse_color_element,
+    parse_theme_xml,
+    resolve_color_spec,
 )
 from atboffice.modules.spreadsheet.models.conditional_format import (
     CFVO,
@@ -178,7 +187,11 @@ class SharedString(str):
     rich_runs: list[RichTextRun] | None = None
 
 
-def _parse_rpr(rpr_el: ET.Element | None) -> dict[str, Any]:
+def _parse_rpr(
+    rpr_el: ET.Element | None,
+    theme_colors: Sequence[str] | None = None,
+    palette: Sequence[str] | None = None,
+) -> dict[str, Any]:
     """Parse <rPr> font and style properties for a rich text run."""
     props: dict[str, Any] = {}
     if rpr_el is None:
@@ -226,9 +239,11 @@ def _parse_rpr(rpr_el: ET.Element | None) -> dict[str, Any]:
 
     color_el = _find_child(rpr_el, "color")
     if color_el is not None:
-        col = _norm_hex(_parse_color(color_el))
+        col, col_spec = _parse_color_and_spec(color_el, theme_colors, palette)
         if col:
             props["fg_color"] = col
+        if col_spec is not None:
+            props["fg_color_spec"] = col_spec
 
     va_el = _find_child(rpr_el, "vertAlign")
     if va_el is not None:
@@ -239,7 +254,11 @@ def _parse_rpr(rpr_el: ET.Element | None) -> dict[str, Any]:
     return props
 
 
-def _parse_rich_runs(container_el: ET.Element) -> tuple[str, list[RichTextRun] | None]:
+def _parse_rich_runs(
+    container_el: ET.Element,
+    theme_colors: Sequence[str] | None = None,
+    palette: Sequence[str] | None = None,
+) -> tuple[str, list[RichTextRun] | None]:
     """Parse child <r> elements from <si> or <is> into (full_text, runs_list)."""
     runs = _find_children(container_el, "r")
     if not runs:
@@ -257,7 +276,7 @@ def _parse_rich_runs(container_el: ET.Element) -> tuple[str, list[RichTextRun] |
         parts.append(run_text)
 
         rpr_el = _find_child(r_el, "rPr")
-        props = _parse_rpr(rpr_el)
+        props = _parse_rpr(rpr_el, theme_colors, palette)
         if props:
             has_any_styling = True
 
@@ -272,6 +291,7 @@ def _parse_rich_runs(container_el: ET.Element) -> tuple[str, list[RichTextRun] |
                 underline_style=props.get("underline_style"),
                 strike=props.get("strike"),
                 fg_color=props.get("fg_color"),
+                fg_color_spec=props.get("fg_color_spec"),
                 vert_align=props.get("vert_align"),
             )
         )
@@ -280,7 +300,12 @@ def _parse_rich_runs(container_el: ET.Element) -> tuple[str, list[RichTextRun] |
     return full_text, rich_runs if (rich_runs and has_any_styling) else None
 
 
-def _parse_shared_strings(zip_file: zipfile.ZipFile, sst_path: str) -> list[str]:
+def _parse_shared_strings(
+    zip_file: zipfile.ZipFile,
+    sst_path: str,
+    theme_colors: Sequence[str] | None = None,
+    palette: Sequence[str] | None = None,
+) -> list[str]:
     """Parse xl/sharedStrings.xml into a list of strings."""
     sst: list[str] = []
     try:
@@ -294,7 +319,7 @@ def _parse_shared_strings(zip_file: zipfile.ZipFile, sst_path: str) -> list[str]
         return sst
 
     for si in _find_children(root, "si"):
-        text, runs = _parse_rich_runs(si)
+        text, runs = _parse_rich_runs(si, theme_colors, palette)
         s = SharedString(text)
         if runs:
             s.rich_runs = runs
@@ -303,28 +328,44 @@ def _parse_shared_strings(zip_file: zipfile.ZipFile, sst_path: str) -> list[str]
     return sst
 
 
-def _parse_color(el: ET.Element | None) -> str | None:
-    """Extract 8-character ARGB hex string from color element."""
-    if el is None:
-        return None
-    rgb = _attr(el, "rgb")
-    if rgb:
-        clean = rgb.replace("#", "").upper()
-        if len(clean) == 6:
-            return "FF" + clean
-        return clean
-    return None
+def _parse_color_and_spec(
+    el: ET.Element | None,
+    theme_colors: Sequence[str] | None = None,
+    palette: Sequence[str] | None = None,
+    auto: str | None = None,
+) -> tuple[str | None, dict[str, Any] | None]:
+    """Extract resolved '#RRGGBB' color and original OOXML color spec from element."""
+    spec = parse_color_element(el)
+    if spec is None:
+        return None, None
+    resolved = resolve_color_spec(spec, theme_colors=theme_colors, palette=palette, auto=auto)
+    return resolved, spec
 
 
-def _parse_border_side(side_el: ET.Element | None) -> BorderStyle | None:
+def _parse_color(
+    el: ET.Element | None,
+    theme_colors: Sequence[str] | None = None,
+    palette: Sequence[str] | None = None,
+    auto: str | None = None,
+) -> str | None:
+    """Resolve SpreadsheetML color element (theme > rgb > indexed + tint) to '#RRGGBB'."""
+    resolved, _ = _parse_color_and_spec(el, theme_colors=theme_colors, palette=palette, auto=auto)
+    return resolved
+
+
+def _parse_border_side(
+    side_el: ET.Element | None,
+    theme_colors: Sequence[str] | None = None,
+    palette: Sequence[str] | None = None,
+) -> BorderStyle | None:
     """Parse single border side element (left, right, top, bottom, etc.)."""
     if side_el is None:
         return None
     style = _attr(side_el, "style")
     if not style or style == "none":
         return None
-    col = _parse_color(_find_child(side_el, "color"))
-    return BorderStyle(style=style, color=col)
+    col, col_spec = _parse_color_and_spec(_find_child(side_el, "color"), theme_colors, palette)
+    return BorderStyle(style=style, color=col, color_spec=col_spec)
 
 
 class StyleBundle(list):
@@ -337,17 +378,16 @@ class StyleBundle(list):
 
 def _norm_hex(col: str | None) -> str | None:
     """Normalize color hex to standard #RRGGBB."""
-    if not col:
-        return None
-    c = col.replace("#", "").upper()
-    if len(c) == 8 and c.startswith("FF"):
-        return f"#{c[2:]}"
-    if len(c) == 6:
-        return f"#{c}"
-    return f"#{c}"
+    return normalize_hex_color(col)
 
 
-def _parse_styles(zip_file: zipfile.ZipFile, styles_path: str) -> list[FormatDelta]:
+def _parse_styles(
+    zip_file: zipfile.ZipFile,
+    styles_path: str,
+    theme_colors: list[str] | None = None,
+    palette: list[str] | None = None,
+    workbook: WorkbookModel | None = None,
+) -> list[FormatDelta]:
     """Parse xl/styles.xml into a list of FormatDelta objects indexed by xfId."""
     deltas = StyleBundle()
     try:
@@ -361,6 +401,33 @@ def _parse_styles(zip_file: zipfile.ZipFile, styles_path: str) -> list[FormatDel
     except ET.ParseError:
         deltas.append(FormatDelta())
         return deltas
+
+    active_theme = list(theme_colors) if theme_colors else list(DEFAULT_THEME_COLORS)
+    active_palette = list(palette) if palette else list(DEFAULT_INDEXED_PALETTE)
+
+    # 0. Optional custom colors (<colors><indexedColors> / 2006 preview <themeColors>)
+    colors_el = _find_child(root, "colors")
+    if colors_el is not None:
+        if "http://schemas.microsoft.com/office/excel/2006/2" in root.tag:
+            tc_el = _find_child(colors_el, "themeColors")
+            if tc_el is not None:
+                for idx, rgb_el in enumerate(_find_children(tc_el, "rgbColor")):
+                    rgb_val = _attr(rgb_el, "rgb")
+                    norm = normalize_hex_color(rgb_val)
+                    if norm and idx < len(active_theme):
+                        active_theme[idx] = norm
+                if workbook is not None:
+                    workbook.theme_colors = list(active_theme)
+
+        idx_colors_el = _find_child(colors_el, "indexedColors")
+        if idx_colors_el is not None:
+            for idx, rgb_el in enumerate(_find_children(idx_colors_el, "rgbColor")):
+                rgb_val = _attr(rgb_el, "rgb")
+                norm = normalize_hex_color(rgb_val)
+                if norm and idx < len(active_palette):
+                    active_palette[idx] = norm
+            if workbook is not None:
+                workbook.indexed_palette = list(active_palette)
 
     # 1. Number formats
     num_fmts: dict[int, str] = dict(BUILTIN_NUMFMTS)
@@ -411,9 +478,11 @@ def _parse_styles(zip_file: zipfile.ZipFile, styles_path: str) -> list[FormatDel
                 font_info["strike"] = val is None or val in ("1", "true")
             c_el = _find_child(f, "color")
             if c_el is not None:
-                col = _parse_color(c_el)
+                col, col_spec = _parse_color_and_spec(c_el, active_theme, active_palette)
                 if col:
                     font_info["color"] = col
+                if col_spec is not None:
+                    font_info["color_spec"] = col_spec
             fonts.append(font_info)
 
     # 3. Fills
@@ -427,9 +496,22 @@ def _parse_styles(zip_file: zipfile.ZipFile, styles_path: str) -> list[FormatDel
                 ptype = _attr(pf, "patternType")
                 if ptype and ptype != "none":
                     fill_info["pattern"] = ptype
-                    fg = _parse_color(_find_child(pf, "fgColor"))
-                    bg = _parse_color(_find_child(pf, "bgColor"))
-                    fill_info["bg_color"] = fg or bg
+                    fg_hex, fg_spec = _parse_color_and_spec(
+                        _find_child(pf, "fgColor"), active_theme, active_palette
+                    )
+                    bg_hex, bg_spec = _parse_color_and_spec(
+                        _find_child(pf, "bgColor"), active_theme, active_palette
+                    )
+                    if ptype == "solid":
+                        fill_info["bg_color"] = fg_hex if fg_spec is not None else bg_hex
+                        fill_info["bg_color_spec"] = (
+                            fg_spec if fg_spec is not None else bg_spec
+                        )
+                    else:
+                        fill_info["pattern_color"] = fg_hex
+                        fill_info["pattern_color_spec"] = fg_spec
+                        fill_info["bg_color"] = bg_hex
+                        fill_info["bg_color_spec"] = bg_spec
             fills.append(fill_info)
 
     # 4. Borders
@@ -438,10 +520,16 @@ def _parse_styles(zip_file: zipfile.ZipFile, styles_path: str) -> list[FormatDel
     if borders_el is not None:
         for b_el in _find_children(borders_el, "border"):
             b_info = {
-                "top": _parse_border_side(_find_child(b_el, "top")),
-                "bottom": _parse_border_side(_find_child(b_el, "bottom")),
-                "left": _parse_border_side(_find_child(b_el, "left")),
-                "right": _parse_border_side(_find_child(b_el, "right")),
+                "top": _parse_border_side(_find_child(b_el, "top"), active_theme, active_palette),
+                "bottom": _parse_border_side(
+                    _find_child(b_el, "bottom"), active_theme, active_palette
+                ),
+                "left": _parse_border_side(
+                    _find_child(b_el, "left"), active_theme, active_palette
+                ),
+                "right": _parse_border_side(
+                    _find_child(b_el, "right"), active_theme, active_palette
+                ),
             }
             borders.append(b_info)
 
@@ -472,6 +560,8 @@ def _parse_styles(zip_file: zipfile.ZipFile, styles_path: str) -> list[FormatDel
                             delta.strike = finfo["strike"]
                         if "color" in finfo:
                             delta.fg_color = finfo["color"]
+                        if "color_spec" in finfo:
+                            delta.fg_color_spec = finfo["color_spec"]
                 except ValueError:
                     pass
 
@@ -482,8 +572,14 @@ def _parse_styles(zip_file: zipfile.ZipFile, styles_path: str) -> list[FormatDel
                     fill_id = int(fill_id_str)
                     if 0 <= fill_id < len(fills):
                         fl = fills[fill_id]
-                        if "bg_color" in fl:
+                        if fl.get("bg_color") is not None:
                             delta.bg_color = fl["bg_color"]
+                        if fl.get("bg_color_spec") is not None:
+                            delta.bg_color_spec = fl["bg_color_spec"]
+                        if fl.get("pattern_color") is not None:
+                            delta.pattern_color = fl["pattern_color"]
+                        if fl.get("pattern_color_spec") is not None:
+                            delta.pattern_color_spec = fl["pattern_color_spec"]
                         if "pattern" in fl:
                             delta.pattern = fl["pattern"]
                 except ValueError:
@@ -566,14 +662,21 @@ def _parse_styles(zip_file: zipfile.ZipFile, styles_path: str) -> list[FormatDel
                     d_info["italic"] = val is None or val in ("1", "true")
                 c_el = _find_child(f_el, "color")
                 if c_el is not None:
-                    d_info["fg_color"] = _parse_color(c_el)
+                    fg_hex, fg_spec = _parse_color_and_spec(c_el, active_theme, active_palette)
+                    d_info["fg_color"] = fg_hex
+                    d_info["fg_color_spec"] = fg_spec
             fill_el = _find_child(dxf_el, "fill")
             if fill_el is not None:
                 pf = _find_child(fill_el, "patternFill")
                 if pf is not None:
-                    fg = _parse_color(_find_child(pf, "fgColor"))
-                    bg = _parse_color(_find_child(pf, "bgColor"))
-                    d_info["bg_color"] = fg or bg
+                    fg_hex, fg_spec = _parse_color_and_spec(
+                        _find_child(pf, "fgColor"), active_theme, active_palette
+                    )
+                    bg_hex, bg_spec = _parse_color_and_spec(
+                        _find_child(pf, "bgColor"), active_theme, active_palette
+                    )
+                    d_info["bg_color"] = fg_hex if fg_spec is not None else bg_hex
+                    d_info["bg_color_spec"] = fg_spec if fg_spec is not None else bg_spec
             deltas.dxfs.append(d_info)
 
     if not deltas:
@@ -623,6 +726,8 @@ def _parse_worksheet(
     sheet: SheetDataModel,
     sst: list[str],
     style_deltas: list[FormatDelta],
+    theme_colors: Sequence[str] | None = None,
+    palette: Sequence[str] | None = None,
 ) -> None:
     """Parse a single worksheet XML part into SheetDataModel."""
     try:
@@ -795,7 +900,7 @@ def _parse_worksheet(
                 if cell_type == "inlineStr":
                     is_el = _find_child(c_el, "is")
                     if is_el is not None:
-                        val_str, cell_rich_runs = _parse_rich_runs(is_el)
+                        val_str, cell_rich_runs = _parse_rich_runs(is_el, theme_colors, palette)
                         parsed_value = val_str
                     else:
                         parsed_value = ""
@@ -875,6 +980,8 @@ def _parse_worksheet(
             # Formatting from dxf
             bg_col = None
             fg_col = None
+            bg_col_spec = None
+            fg_col_spec = None
             bold_val = None
             italic_val = None
             dxf_id_str = _attr(r_el, "dxfId")
@@ -885,6 +992,8 @@ def _parse_worksheet(
                         dinfo = dxfs[dxf_id]
                         bg_col = _norm_hex(dinfo.get("bg_color"))
                         fg_col = _norm_hex(dinfo.get("fg_color"))
+                        bg_col_spec = dinfo.get("bg_color_spec")
+                        fg_col_spec = dinfo.get("fg_color_spec")
                         bold_val = dinfo.get("bold")
                         italic_val = dinfo.get("italic")
                 except ValueError:
@@ -898,10 +1007,12 @@ def _parse_worksheet(
                 for vo_el in _find_children(cs_el, "cfvo"):
                     cfvos.append(CFVO(type=_attr(vo_el, "type", "min"), val=_attr(vo_el, "val")))
                 colors = []
+                color_specs = []
                 for col_el in _find_children(cs_el, "color"):
-                    c_val = _parse_color(col_el)
+                    c_val, c_spec = _parse_color_and_spec(col_el, theme_colors, palette)
                     colors.append(_norm_hex(c_val) or "#FFFFFF")
-                scale_rule = ColorScaleRule(cfvos=cfvos, colors=colors)
+                    color_specs.append(c_spec)
+                scale_rule = ColorScaleRule(cfvos=cfvos, colors=colors, color_specs=color_specs)
 
             # Data bar
             bar_rule = None
@@ -910,9 +1021,11 @@ def _parse_worksheet(
                 cfvos = []
                 for vo_el in _find_children(db_el, "cfvo"):
                     cfvos.append(CFVO(type=_attr(vo_el, "type", "min"), val=_attr(vo_el, "val")))
-                c_val = _parse_color(_find_child(db_el, "color"))
+                c_val, c_spec = _parse_color_and_spec(
+                    _find_child(db_el, "color"), theme_colors, palette
+                )
                 color_hex = _norm_hex(c_val) or "#638EC6"
-                bar_rule = DataBarRule(cfvos=cfvos, color=color_hex)
+                bar_rule = DataBarRule(cfvos=cfvos, color=color_hex, color_spec=c_spec)
 
             above_avg_attr = _attr(r_el, "aboveAverage")
             above_avg = above_avg_attr != "0"
@@ -933,6 +1046,8 @@ def _parse_worksheet(
                 stop_if_true=stop_if_true,
                 bg_color=bg_col,
                 fg_color=fg_col,
+                bg_color_spec=bg_col_spec,
+                fg_color_spec=fg_col_spec,
                 bold=bold_val,
                 italic=italic_val,
                 color_scale=scale_rule,
@@ -1548,14 +1663,17 @@ def read_xlsx(
             wb_rels_path = f"_rels/{wb_part}.rels"
         wb_rels = _parse_rels(z, wb_rels_path)
 
-        # Locate sharedStrings and styles
+        # Locate sharedStrings, styles, and theme
         sst_path: str | None = None
         styles_path: str | None = None
+        theme_path: str | None = None
         for _, (rel_type, target) in wb_rels.items():
             if rel_type == "sharedStrings":
                 sst_path = target
             elif rel_type == "styles":
                 styles_path = target
+            elif rel_type == "theme":
+                theme_path = target
 
         if not sst_path:
             for name in z.namelist():
@@ -1569,9 +1687,47 @@ def read_xlsx(
                     styles_path = name
                     break
 
-        # 3. Parse shared strings and styles
-        sst = _parse_shared_strings(z, sst_path) if sst_path else []
-        style_deltas = _parse_styles(z, styles_path) if styles_path else [FormatDelta()]
+        if not theme_path or theme_path not in z.namelist():
+            if "xl/theme/theme1.xml" in z.namelist():
+                theme_path = "xl/theme/theme1.xml"
+            else:
+                theme_path = next(
+                    (n for n in z.namelist() if n.lower().endswith("theme1.xml")),
+                    None,
+                )
+
+        # 3. Parse theme, styles (including custom palette), and shared strings
+        if theme_path and theme_path in z.namelist():
+            try:
+                parsed_theme = parse_theme_xml(z.read(theme_path))
+                wb.theme_colors = list(parsed_theme["colors"])
+                wb.theme_name = parsed_theme["name"]
+                wb.theme_major_font = parsed_theme["major"]
+                wb.theme_minor_font = parsed_theme["minor"]
+                wb.extra["theme"] = parsed_theme
+                wb.extra["theme_part"] = theme_path
+            except KeyError:
+                pass
+
+        style_deltas = (
+            _parse_styles(
+                z,
+                styles_path,
+                theme_colors=wb.theme_colors,
+                palette=wb.indexed_palette,
+                workbook=wb,
+            )
+            if styles_path
+            else [FormatDelta()]
+        )
+        active_palette = wb.indexed_palette or DEFAULT_INDEXED_PALETTE
+        sst = (
+            _parse_shared_strings(
+                z, sst_path, theme_colors=wb.theme_colors, palette=active_palette
+            )
+            if sst_path
+            else []
+        )
 
         # 4. Parse sheets list from workbook.xml
         sheets_el = _find_child(wb_root, "sheets")
@@ -1623,7 +1779,15 @@ def read_xlsx(
             if s_part:
                 sheet_model._ooxml_part = s_part
                 sheet_model.extra["ooxml_part"] = s_part
-                _parse_worksheet(z, s_part, sheet_model, sst, style_deltas)
+                _parse_worksheet(
+                    z,
+                    s_part,
+                    sheet_model,
+                    sst,
+                    style_deltas,
+                    theme_colors=wb.theme_colors,
+                    palette=active_palette,
+                )
             sheet_model.dirty = False
 
         # Set active sheet index
