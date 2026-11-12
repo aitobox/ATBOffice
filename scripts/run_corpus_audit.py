@@ -72,7 +72,7 @@ def main() -> None:
     parser.add_argument(
         "--workers",
         type=int,
-        default=min(os.cpu_count() or 4, 8),
+        default=2 if sys.platform == "darwin" else min(os.cpu_count() or 4, 8),
         help="Number of parallel worker processes.",
     )
     parser.add_argument(

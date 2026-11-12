@@ -1,6 +1,7 @@
 """Reusable cross-module UI dialogs for ATBOffice."""
 
 from atboffice.ui.dialogs.about_dialog import AboutDialog
+from atboffice.ui.dialogs.customize_toolbars_dialog import CustomizeToolbarsDialog
 from atboffice.ui.dialogs.document_properties_dialog import (
     DocumentMetadata,
     DocumentPropertiesDialog,
@@ -22,6 +23,7 @@ from atboffice.ui.dialogs.update_dialog import UpdateDialog
 
 __all__ = [
     "AboutDialog",
+    "CustomizeToolbarsDialog",
     "DocumentMetadata",
     "DocumentPropertiesDialog",
     "FindReplaceDialog",

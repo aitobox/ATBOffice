@@ -105,6 +105,14 @@ class CFRule:
     color_scale: ColorScaleRule | None = None
     data_bar: DataBarRule | None = None
 
+    # Statistical & Ranking rules
+    above_average: bool = True
+    equal_average: bool = False
+    std_dev: int | None = None
+    rank: int = 10
+    bottom: bool = False
+    percent: bool = False
+
 
 @dataclass
 class ConditionalFormat:
@@ -160,15 +168,23 @@ def _get_range_values(
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
                 cell = sheet.get_cell(r, c)
-                if cell is not None and cell.value is not None and cell.value != "":
-                    if nums_only:
-                        try:
-                            val = float(cell.value)
-                            out.append(val)
-                        except (ValueError, TypeError):
-                            pass
-                    else:
-                        out.append(cell.value)
+                if cell is not None:
+                    v = cell.value
+                    if (
+                        v is None
+                        or v == ""
+                        or (isinstance(v, str) and v.startswith("#"))
+                    ) and getattr(cell, "cached_value", None) is not None:
+                        v = cell.cached_value
+                    if v is not None and v != "":
+                        if nums_only:
+                            try:
+                                val = float(v)
+                                out.append(val)
+                            except (ValueError, TypeError):
+                                pass
+                        else:
+                            out.append(v)
     return out
 
 
@@ -282,6 +298,48 @@ def _rule_matches(
         count = sum(1 for v in all_vals if str(v).strip().lower() == target_s)
         return count > 1 if rule_type == CFRuleType.DUPLICATE_VALUES.value else count == 1
 
+    elif rule_type == CFRuleType.TOP10.value:
+        try:
+            num_v = float(val) if val is not None else None
+        except (ValueError, TypeError):
+            return False
+        if num_v is None:
+            return False
+        all_nums = _get_range_values(sheet, ranges, nums_only=True)
+        if not all_nums:
+            return False
+        s = sorted(all_nums, reverse=not getattr(rule, "bottom", False))
+        n = getattr(rule, "rank", 10) or 10
+        if getattr(rule, "percent", False):
+            n = max(1, int(len(s) * n / 100))
+        n = max(1, min(n, len(s)))
+        cut = s[n - 1]
+        return num_v <= cut if getattr(rule, "bottom", False) else num_v >= cut
+
+    elif rule_type == CFRuleType.ABOVE_AVERAGE.value:
+        try:
+            num_v = float(val) if val is not None else None
+        except (ValueError, TypeError):
+            return False
+        if num_v is None:
+            return False
+        all_nums = _get_range_values(sheet, ranges, nums_only=True)
+        if not all_nums:
+            return False
+        avg = sum(all_nums) / len(all_nums)
+        sd = (
+            math.sqrt(sum((x - avg) ** 2 for x in all_nums) / len(all_nums))
+            if getattr(rule, "std_dev", None)
+            else 0.0
+        )
+        is_above = getattr(rule, "above_average", True)
+        std_dev = getattr(rule, "std_dev", None)
+        lim = avg + ((-1 if not is_above else 1) * std_dev * sd if std_dev else 0.0)
+        equal = getattr(rule, "equal_average", False)
+        if not is_above:
+            return num_v <= lim if equal else num_v < lim
+        return num_v >= lim if equal else num_v > lim
+
     return False
 
 
@@ -293,6 +351,12 @@ def evaluate_cf_for_cell(sheet: SheetDataModel, r: int, c: int) -> CFResult | No
 
     cell = sheet.get_cell(r, c)
     val = cell.value if cell is not None else None
+    if (
+        cell is not None
+        and (val is None or val == "" or (isinstance(val, str) and val.startswith("#")))
+        and getattr(cell, "cached_value", None) is not None
+    ):
+        val = cell.cached_value
 
     # Collect matching rules sorted by priority
     candidates: list[tuple[ConditionalFormat, CFRule]] = []
