@@ -118,3 +118,79 @@ class TestDateFormatting:
     def test_negative_date_hashes(self) -> None:
         res = format_value(-1, "yyyy-mm-dd")
         assert res.is_error or res.text.startswith("#")
+
+
+class TestCurrencyLocaleTokens:
+    def test_pound_lcid_currency(self) -> None:
+        res = format_value(125.0, "[$£-809]#,##0.00")
+        assert res.text == "£125.00"
+        assert res.is_numeric is True
+
+    def test_currency_without_lcid_and_date_like_letters(self) -> None:
+        # 'd' and 's' inside USD must not trigger date parsing
+        res = format_value(125.0, "[$USD]#,##0.00")
+        assert res.text == "USD125.00"
+        assert res.is_numeric is True
+
+    def test_locale_only_tag_stripped(self) -> None:
+        assert format_value(125.0, "[$-409]#,##0.00").text == "125.00"
+        assert format_value(125.0, "[$€-2]#,##0.00").text == "€125.00"
+
+
+class TestAccountingPaddingAndFill:
+    def test_accounting_format_strips_tokens_and_exposes_fill_pos(self) -> None:
+        res = format_value(1.0, "_($* #,##0.00_)")
+        assert "$" in res.text
+        assert "1.00" in res.text
+        for forbidden in ("_", "*", "("):
+            assert forbidden not in res.text
+        assert res.has_fill is True
+        assert res.fill_pos is not None
+        assert "$" in res.text[: res.fill_pos]
+        assert "1.00" in res.text[res.fill_pos :]
+
+    def test_accounting_builtin_44_all_sections(self) -> None:
+        fmt = '_("$"* #,##0.00_);_("$"* \\(#,##0.00\\);_("$"* "-"??_);_(@_)'
+        pos = format_value(1.0, fmt)
+        assert pos.text == " $1.00 "
+        assert pos.has_fill is True
+        assert pos.fill_pos == 2
+        assert [s.kind for s in pos.segments] == ["pad", "text", "fill", "text", "pad"]
+        assert pos.segments[0].value == "("
+        assert pos.segments[4].value == ")"
+
+        neg = format_value(-1.0, fmt)
+        assert "$" in neg.text
+        assert "(1.00)" in neg.text
+        assert neg.has_fill is True
+
+        zero = format_value(0.0, fmt)
+        assert "$" in zero.text
+        assert "-" in zero.text
+        assert zero.has_fill is True
+
+        txt = format_value("Total", fmt)
+        assert txt.text == " Total "
+        assert txt.is_numeric is False
+
+
+class TestGeneralWidthLimit:
+    def test_general_11_char_limit(self) -> None:
+        res = format_value(0.10000000149011612, "General")
+        assert res.text == "0.100000001"
+        assert len(res.text) == 11
+
+    def test_general_column_width_rounding(self) -> None:
+        res = format_value(5715.046400000001, "General", max_chars=8)
+        assert res.text == "5715.046"
+        assert len(res.text) <= 8
+
+    def test_general_scientific_overflow_11_chars(self) -> None:
+        res = format_value(123456789012, "General")
+        assert res.text == "1.23457E+11"
+        assert len(res.text) <= 11
+
+    def test_general_too_narrow_hashes(self) -> None:
+        res = format_value(12345, "General", max_chars=4)
+        assert set(res.text) == {"#"}
+        assert res.is_error is True
