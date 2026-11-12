@@ -87,7 +87,7 @@ def _region_has_dark_pixel(img, x1: int, y1: int, x2: int, y2: int) -> bool:
 
 
 def test_accounting_fill_alignment_b3_totals_row_shown(qtbot):
-    """Verify B3 in libreoffice__totalsRowShown.xlsx paints '$' at left pad and '1.00' at right pad."""
+    """Verify B3 in libreoffice__totalsRowShown.xlsx aligns '$' left and '1.00' right."""
     from PySide6.QtGui import QFont, QFontMetricsF, QImage, QPainter
 
     from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
@@ -121,15 +121,21 @@ def test_accounting_fill_alignment_b3_totals_row_shown(qtbot):
 
     rect = viewport.cell_rect(2, 1)
     # Left zone (~x+4..x+20) should have dark '$' pixels
-    assert _region_has_dark_pixel(img, rect.left() + 3, rect.top() + 2, rect.left() + 22, rect.bottom() - 1)
+    assert _region_has_dark_pixel(
+        img, rect.left() + 3, rect.top() + 2, rect.left() + 22, rect.bottom() - 1
+    )
     # Middle fill zone (~x+30..x+60) should be blank white (no dark text pixels)
-    assert not _region_has_dark_pixel(img, rect.left() + 30, rect.top() + 2, rect.right() - 32, rect.bottom() - 2)
+    assert not _region_has_dark_pixel(
+        img, rect.left() + 30, rect.top() + 2, rect.right() - 32, rect.bottom() - 2
+    )
     # Right zone (~right-28..right-2) should have dark '1.00' pixels
-    assert _region_has_dark_pixel(img, rect.right() - 30, rect.top() + 2, rect.right() - 2, rect.bottom() - 1)
+    assert _region_has_dark_pixel(
+        img, rect.right() - 30, rect.top() + 2, rect.right() - 2, rect.bottom() - 1
+    )
 
 
 def test_general_rounding_poi_60509_e3(qtbot):
-    """Verify E3 in poi__60509.xlsx displays '5715.046' at its stored column width without clipping."""
+    """Verify E3 in poi__60509.xlsx displays '5715.046' at stored width without clipping."""
     from PySide6.QtGui import QFont, QFontMetricsF, QImage, QPainter
 
     from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
@@ -157,7 +163,9 @@ def test_general_rounding_poi_60509_e3(qtbot):
     painter.end()
 
     rect = viewport.cell_rect(2, 4)
-    assert _region_has_dark_pixel(img, rect.left() + 3, rect.top() + 2, rect.right() - 2, rect.bottom() - 1)
+    assert _region_has_dark_pixel(
+        img, rect.left() + 3, rect.top() + 2, rect.right() - 2, rect.bottom() - 1
+    )
 
 
 def test_narrow_column_renders_hashes(qtbot):

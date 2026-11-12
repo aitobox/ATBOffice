@@ -14,6 +14,7 @@ import math
 import re
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
+from functools import lru_cache
 from typing import Any, Final, Literal
 
 # Excel color names mapping
@@ -738,9 +739,10 @@ def _analyse_number(sec: _Section) -> None:
         sec.exp_d = sum(1 for t in toks[ei + 1 :] if t.t == "d")
 
 
-def _parse_format(code: str) -> list[_Section]:
+@lru_cache(maxsize=2048)
+def _parse_format(code: str) -> tuple[_Section, ...]:
     raw_secs = _split_sections(code)
-    return [_tokenize_section(s) for s in raw_secs]
+    return tuple(_tokenize_section(s) for s in raw_secs)
 
 
 def _is_date_format(code: str) -> bool:
@@ -772,7 +774,9 @@ def _cond_ok(cond: tuple[str, float], v: float) -> bool:
     return False
 
 
-def _pick_numeric_section(secs: list[_Section], v: float) -> tuple[_Section | None, bool]:
+def _pick_numeric_section(
+    secs: tuple[_Section, ...] | list[_Section], v: float
+) -> tuple[_Section | None, bool]:
     """Select the section for a numeric value; returns (section, use_abs)."""
     has_cond = any(s.cond is not None for s in secs)
     if has_cond:
@@ -794,7 +798,11 @@ def _pick_numeric_section(secs: list[_Section], v: float) -> tuple[_Section | No
             return _tokenize_section("General"), False
         return None, False
 
-    non_text = [s for idx, s in enumerate(secs) if not (s.kind == "text" and len(secs) > 1 and idx == 3)]
+    non_text = [
+        s
+        for idx, s in enumerate(secs)
+        if not (s.kind == "text" and len(secs) > 1 and idx == 3)
+    ]
     if len(non_text) == 1 or len(secs) == 1:
         return secs[0], False
     if v > 0 or (v == 0 and len(secs) < 3):
@@ -1074,7 +1082,12 @@ def _format_number_section(sec: _Section, v: float, use_abs: bool) -> list[Forma
         dec_toks = toks[sec.dec_at + 1 : end]
         ph = [t for t in dec_toks if t.t == "d"]
         last_sig = len(dec_str) - 1
-        while last_sig >= 0 and dec_str[last_sig] == "0" and last_sig < len(ph) and ph[last_sig].ch != "0":
+        while (
+            last_sig >= 0
+            and dec_str[last_sig] == "0"
+            and last_sig < len(ph)
+            and ph[last_sig].ch != "0"
+        ):
             last_sig -= 1
         _append_text_seg(segs, ".")
         q = 0
