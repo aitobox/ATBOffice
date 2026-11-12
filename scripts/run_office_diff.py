@@ -12,6 +12,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -26,46 +27,52 @@ from scripts.office_diff.capture import run_isolated_capture
 from scripts.office_diff.comparator import compare_canvases
 from scripts.office_diff.corpus import load_expectations, partition_corpus
 from scripts.office_diff.models import DiffResult, DocumentTarget
-from scripts.office_diff.reporter import generate_report
+from scripts.office_diff.reporter import generate_report, parse_visual_verdicts
+
+
+def _resolve_audit_subdir(user_dir: str | None, repo_root: Path, sub: str, fallbacks: list[Path]) -> Path:
+    """Locate the newest available audit screenshot directory or fallback."""
+    if user_dir:
+        return Path(user_dir).resolve()
+    audit_dirs = sorted(
+        (p / sub for p in (repo_root / "screenshots").glob("office_audit_*") if (p / sub).is_dir()),
+        reverse=True,
+    )
+    candidates = [*audit_dirs, *fallbacks]
+    best_dir = candidates[0] if candidates else (repo_root / "screenshots" / sub)
+    max_count = -1
+    for c in candidates:
+        if c.exists():
+            cnt = len(list(c.rglob("*.png")))
+            if cnt > max_count:
+                max_count = cnt
+                best_dir = c
+                if cnt >= 73 and c in audit_dirs:
+                    break
+    return best_dir
 
 
 def resolve_baseline_dir(user_dir: str | None, repo_root: Path) -> Path:
     """Find the best available baseline screenshot directory."""
-    if user_dir:
-        return Path(user_dir).resolve()
-    candidates = [
-        repo_root / "screenshots" / "office_audit_20261106" / "vibeoffice",
-        repo_root / "screenshots" / "vibeoffice_docs",
-        repo_root / "tests" / "docs" / "baselines",
-    ]
-    best_dir = candidates[0]
-    max_count = -1
-    for c in candidates:
-        if c.exists():
-            cnt = len(list(c.rglob("*.png")))
-            if cnt > max_count:
-                max_count = cnt
-                best_dir = c
-    return best_dir
+    return _resolve_audit_subdir(
+        user_dir,
+        repo_root,
+        "vibeoffice",
+        [
+            repo_root / "screenshots" / "vibeoffice_docs",
+            repo_root / "tests" / "docs" / "baselines",
+        ],
+    )
 
 
 def resolve_candidate_dir(user_dir: str | None, repo_root: Path) -> Path:
     """Find or create candidate screenshot directory with highest available snapshot count."""
-    if user_dir:
-        return Path(user_dir).resolve()
-    candidates = [
-        repo_root / "screenshots" / "office_audit_20261106" / "atboffice",
-        repo_root / "screenshots" / "atboffice_docs",
-    ]
-    best_dir = candidates[0]
-    max_count = -1
-    for c in candidates:
-        if c.exists():
-            cnt = len(list(c.rglob("*.png")))
-            if cnt > max_count:
-                max_count = cnt
-                best_dir = c
-    return best_dir
+    return _resolve_audit_subdir(
+        user_dir,
+        repo_root,
+        "atboffice",
+        [repo_root / "screenshots" / "atboffice_docs"],
+    )
 
 
 def run_diff_suite(
@@ -133,6 +140,8 @@ def main() -> int:
     parser.add_argument("--diff-dir", help="Directory for generated diff heatmap images")
     parser.add_argument("--out", help="Output path for markdown deliverable report")
     parser.add_argument("--capture", action="store_true", help="Perform offscreen capture before comparison")
+    parser.add_argument("--score-only", action="store_true", help="Score existing screenshots without capturing")
+    parser.add_argument("--json", help="Optional path to write diff results JSON")
     parser.add_argument("--canvas-only", action="store_true", help="Capture only inner document canvas")
     parser.add_argument("--normalize-size", action="store_true", help="Normalize sample dimensions during comparison")
     parser.add_argument("--strict", action="store_true", help="Exit with non-zero code if quality gates fail")
@@ -183,7 +192,12 @@ def main() -> int:
 
     baseline_dir = resolve_baseline_dir(args.baseline_dir, repo_root)
     candidate_dir = resolve_candidate_dir(args.candidate_dir, repo_root)
-    diff_dir = Path(args.diff_dir).resolve() if args.diff_dir else (repo_root / "screenshots" / "docs_diff")
+    if args.diff_dir:
+        diff_dir = Path(args.diff_dir).resolve()
+    elif baseline_dir.parent.name.startswith("office_audit_"):
+        diff_dir = baseline_dir.parent / "diff"
+    else:
+        diff_dir = repo_root / "screenshots" / "docs_diff"
     report_out = Path(args.out).resolve() if args.out else (repo_root / "docs" / "clone" / "OFFICE_DOCS_DIFF.md")
 
     print("=== ATBOffice Document Visual Diff Runner ===")
@@ -202,15 +216,32 @@ def main() -> int:
         print("[DRY RUN] Completed without modifications.")
         return 0
 
+    do_capture = bool(args.capture and not args.score_only)
     results = run_diff_suite(
         targets=targets,
         baseline_dir=baseline_dir,
         candidate_dir=candidate_dir,
         diff_dir=diff_dir,
-        do_capture=args.capture,
+        do_capture=do_capture,
         normalize_size=args.normalize_size,
         canvas_only=args.canvas_only,
     )
+
+    json_out = Path(args.json).resolve() if args.json else (diff_dir / "diff_results.json" if args.score_only else None)
+    if json_out is not None:
+        json_out.parent.mkdir(parents=True, exist_ok=True)
+        verdicts = parse_visual_verdicts(repo_root / "docs" / "clone" / "OFFICE_DOCS_DIFF.md")
+        payload = []
+        for r in results:
+            item = r.to_dict()
+            if r.file in verdicts:
+                item["visual_verdict"] = verdicts[r.file]
+            payload.append(item)
+        json_out.write_text(
+            json.dumps(payload, indent=2),
+            encoding="utf-8",
+        )
+        print(f"JSON results written: {json_out}")
 
     generate_report(
         results=results,
@@ -221,12 +252,15 @@ def main() -> int:
 
     print(f"\nReport generated: {report_out}")
 
-    comparable = [r for r in results if r.similarity is not None]
-    avg_sim = (sum(r.similarity for r in comparable) / len(comparable)) if comparable else 0.0
-    failing = [r for r in comparable if (r.similarity or 0.0) < args.min_single_similarity]
-    incomp = [r for r in results if r.similarity is None]
+    def _score_of(r: DiffResult) -> float | None:
+        return r.foreground_score if r.foreground_score is not None else r.similarity
 
-    print(f"Summary: {len(comparable)}/{len(results)} comparable, avg={avg_sim*100:.2f}%")
+    comparable = [r for r in results if _score_of(r) is not None]
+    avg_sim = (sum(_score_of(r) or 0.0 for r in comparable) / len(comparable)) if comparable else 0.0
+    failing = [r for r in comparable if (_score_of(r) or 0.0) < args.min_single_similarity]
+    incomp = [r for r in results if _score_of(r) is None]
+
+    print(f"Summary: {len(comparable)}/{len(results)} comparable, foreground_avg={avg_sim*100:.2f}%")
     print(f"Status: {len(failing)} below single threshold, {len(incomp)} incomparable/missing")
 
     if args.strict and (avg_sim < args.min_similarity or len(failing) > 0 or len(incomp) > 0):

@@ -88,6 +88,32 @@ def test_models_serialization():
     assert r_dict["similarity"] == 0.98
 
 
+def test_diff_result_foreground_fields_serialization():
+    dr = DiffResult(
+        file="sample.docx",
+        app="word",
+        similarity=0.96,
+        mae=2.5,
+        edge_similarity=0.98,
+        roi_similarity=0.97,
+        category="CRITICAL_MISMATCH",
+        orig_size=(1178, 767),
+        target_size=(1178, 767),
+        foreground_score=0.45,
+        recall=0.45,
+        precision=0.90,
+        color_hist_similarity=0.80,
+        tier="CRITICAL_MISMATCH",
+    )
+    d = dr.to_dict()
+    assert d["foreground_score"] == 0.45
+    assert d["recall"] == 0.45
+    assert d["precision"] == 0.9
+    assert d["color_hist_similarity"] == 0.8
+    assert d["tier"] == "CRITICAL_MISMATCH"
+    assert d["pixel_similarity"] == 0.96
+
+
 def test_classify_similarity():
     assert classify_similarity(0.96) == "PARITY_MATCH"
     assert classify_similarity(0.90) == "COSMETIC_MINOR"
@@ -282,4 +308,204 @@ def test_cdp_canvas_rects_and_viewport_isolation():
     assert resolve_canvas_target(w, "word") == "central_widget"
     assert resolve_canvas_target(w, "excel") == "central_widget"
     assert resolve_canvas_target(w, "powerpoint") == "central_widget"
+
+
+def test_filled_rectangle_vs_blank_below_cosmetic_minor(tmp_path):
+    from PySide6.QtGui import QPainter
+
+    p1 = tmp_path / "base_rect.png"
+    p2 = tmp_path / "cand_blank.png"
+
+    img1 = QImage(320, 240, QImage.Format.Format_ARGB32)
+    img1.fill(QColor("white"))
+    painter = QPainter(img1)
+    painter.fillRect(100, 80, 40, 30, QColor("#1F4E79"))
+    painter.end()
+    img1.save(str(p1))
+
+    img2 = QImage(320, 240, QImage.Format.Format_ARGB32)
+    img2.fill(QColor("white"))
+    img2.save(str(p2))
+
+    res = compare_canvases(p1, p2, app="powerpoint")
+    assert res.foreground_score is not None
+    assert res.foreground_score < 0.85
+    assert res.category == "CRITICAL_MISMATCH"
+    assert res.tier == "CRITICAL_MISMATCH"
+
+
+def test_blank_pair_scores_100_without_zero_division(tmp_path):
+    p1 = tmp_path / "blank1.png"
+    p2 = tmp_path / "blank2.png"
+    for p in (p1, p2):
+        img = QImage(200, 200, QImage.Format.Format_ARGB32)
+        img.fill(QColor("white"))
+        img.save(str(p))
+
+    res = compare_canvases(p1, p2, app="word")
+    assert res.foreground_score == 1.0
+    assert res.recall == 1.0
+    assert res.precision == 1.0
+    assert res.color_hist_similarity == 1.0
+    assert res.category == "PARITY_MATCH"
+
+
+def test_dark_background_slide_detection_and_missing_fill(tmp_path):
+    from PySide6.QtGui import QPainter
+
+    p1 = tmp_path / "dark_base.png"
+    p2 = tmp_path / "dark_cand_same.png"
+    p3 = tmp_path / "white_cand_wrong_bg.png"
+    p4 = tmp_path / "dark_cand_wrong_color.png"
+
+    def make_slide(path: Path, bg: QColor, fg: QColor | None) -> None:
+        img = QImage(240, 180, QImage.Format.Format_ARGB32)
+        img.fill(bg)
+        if fg is not None:
+            painter = QPainter(img)
+            painter.fillRect(60, 50, 80, 40, fg)
+            painter.end()
+        img.save(str(path))
+
+    make_slide(p1, QColor("#1E1E2E"), QColor("#FFFFFF"))
+    make_slide(p2, QColor("#1E1E2E"), QColor("#FFFFFF"))
+    make_slide(p3, QColor("#FFFFFF"), QColor("#FF0000"))
+    make_slide(p4, QColor("#1E1E2E"), QColor("#FF0000"))
+
+    res_match = compare_canvases(p1, p2, app="powerpoint")
+    assert res_match.foreground_score == 1.0
+    assert res_match.category == "PARITY_MATCH"
+
+    res_wrong_bg = compare_canvases(p1, p3, app="powerpoint")
+    assert res_wrong_bg.foreground_score is not None
+    assert res_wrong_bg.foreground_score < 0.70
+    assert res_wrong_bg.category == "CRITICAL_MISMATCH"
+
+    res_wrong_color = compare_canvases(p1, p4, app="powerpoint")
+    assert res_wrong_color.recall == 1.0
+    assert res_wrong_color.precision == 1.0
+    assert res_wrong_color.color_hist_similarity == 0.0
+    assert res_wrong_color.category == "CRITICAL_MISMATCH"
+
+
+def test_antialias_dilation_tolerance(tmp_path):
+    from PySide6.QtGui import QPainter
+
+    p1 = tmp_path / "shift_a.png"
+    p2 = tmp_path / "shift_b.png"
+
+    for p, dx in ((p1, 0), (p2, 2)):
+        img = QImage(200, 200, QImage.Format.Format_ARGB32)
+        img.fill(QColor("white"))
+        painter = QPainter(img)
+        painter.fillRect(50 + dx, 50, 60, 20, QColor("black"))
+        painter.end()
+        img.save(str(p))
+
+    res = compare_canvases(p1, p2, app="word")
+    assert res.foreground_score is not None
+    assert res.foreground_score >= 0.95
+    assert res.category == "PARITY_MATCH"
+
+
+def test_reporter_includes_foreground_and_secondary_pixel_score(tmp_path):
+    out_file = tmp_path / "report.md"
+    results = [
+        DiffResult(
+            file="loss_doc.docx",
+            app="word",
+            similarity=0.97,
+            mae=5.0,
+            edge_similarity=0.98,
+            roi_similarity=0.97,
+            category="CRITICAL_MISMATCH",
+            orig_size=(1178, 767),
+            target_size=(1178, 767),
+            foreground_score=0.10,
+            recall=0.10,
+            precision=0.95,
+            color_hist_similarity=0.40,
+            tier="CRITICAL_MISMATCH",
+        )
+    ]
+    content = generate_report(results, out_file)
+    assert "Foreground" in content
+    assert "Pixel Sim" in content
+    assert "10.0%" in content
+    assert "97.0%" in content
+    assert "NEEDS_REMEDIATION" in content
+
+
+def test_run_office_diff_score_only_dry_run():
+    script_path = REPO_ROOT / "scripts" / "run_office_diff.py"
+    res = subprocess.run(
+        [sys.executable, str(script_path), "--all", "--score-only", "--dry-run"],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+    )
+    assert res.returncode == 0
+    assert "Active targets: 73" in res.stdout
+
+
+def test_comparator_works_without_numpy(tmp_path, monkeypatch):
+    import builtins
+    import importlib
+
+    from PySide6.QtGui import QPainter
+
+    real_import = builtins.__import__
+
+    def no_numpy_import(name, *args, **kwargs):
+        if name == "numpy" or name.startswith("numpy."):
+            raise ModuleNotFoundError("No module named 'numpy'")
+        return real_import(name, *args, **kwargs)
+
+    p1 = tmp_path / "base.png"
+    p2 = tmp_path / "blank.png"
+    p3 = tmp_path / "dark1.png"
+    p4 = tmp_path / "dark2.png"
+
+    img1 = QImage(160, 120, QImage.Format.Format_ARGB32)
+    img1.fill(QColor("white"))
+    painter = QPainter(img1)
+    painter.fillRect(40, 30, 30, 20, QColor("#1F4E79"))
+    painter.end()
+    img1.save(str(p1))
+
+    img2 = QImage(160, 120, QImage.Format.Format_ARGB32)
+    img2.fill(QColor("white"))
+    img2.save(str(p2))
+
+    for path, fg in ((p3, "#FFFFFF"), (p4, "#FF0000")):
+        img = QImage(160, 120, QImage.Format.Format_ARGB32)
+        img.fill(QColor("#1E1E2E"))
+        p = QPainter(img)
+        p.fillRect(40, 30, 30, 20, QColor(fg))
+        p.end()
+        img.save(str(path))
+
+    monkeypatch.setattr(builtins, "__import__", no_numpy_import)
+    import scripts.office_diff.comparator as comp_mod
+
+    importlib.reload(comp_mod)
+    try:
+        res_rect = comp_mod.compare_canvases(p1, p2, app="powerpoint", diff_out=tmp_path / "d1.png")
+        assert res_rect.foreground_score is not None
+        assert res_rect.foreground_score < 0.85
+        assert res_rect.category == "CRITICAL_MISMATCH"
+
+        res_blank = comp_mod.compare_canvases(p2, p2, app="word")
+        assert res_blank.foreground_score == 1.0
+        assert res_blank.category == "PARITY_MATCH"
+
+        res_dark_match = comp_mod.compare_canvases(p3, p3, app="powerpoint")
+        assert res_dark_match.foreground_score == 1.0
+
+        res_dark_color = comp_mod.compare_canvases(p3, p4, app="powerpoint")
+        assert res_dark_color.color_hist_similarity == 0.0
+        assert res_dark_color.category == "CRITICAL_MISMATCH"
+    finally:
+        monkeypatch.undo()
+        importlib.reload(comp_mod)
 
