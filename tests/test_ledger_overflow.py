@@ -171,7 +171,13 @@ def test_render_offscreen_spill_left_and_right(qtbot):
     img = _render_to_image(viewport)
     b1 = viewport.cell_rect(0, 1)
     d2 = viewport.cell_rect(1, 3)
-    assert _has_dark_pixel(img, max(viewport.row_header_width, b1.left() + 2), b1.top() + 2, b1.right() - 2, b1.bottom() - 2)
+    assert _has_dark_pixel(
+        img,
+        max(viewport.row_header_width, b1.left() + 2),
+        b1.top() + 2,
+        b1.right() - 2,
+        b1.bottom() - 2,
+    )
     assert _has_dark_pixel(img, d2.left() + 2, d2.top() + 2, d2.right() - 2, d2.bottom() - 2)
 
 
@@ -186,7 +192,6 @@ def test_render_unfilled_merge_erases_internal_gridlines(qtbot):
     qtbot.addWidget(viewport)
 
     img = _render_to_image(viewport)
-    c00 = viewport.cell_rect(0, 0)
     c01 = viewport.cell_rect(0, 1)
     c11 = viewport.cell_rect(1, 1)
     # Internal vertical gridline between col 0 and col 1 at row 1 (c11.left()) must be white
@@ -201,7 +206,7 @@ def test_render_unfilled_merge_erases_internal_gridlines(qtbot):
 
 
 def test_render_poi_45540_a3_and_k1_o1_merged_blocks(qtbot):
-    """Acceptance 1 & 2: A3 paints full sentence; K1:O1 paints gray fill and both white title lines."""
+    """Acceptance 1 & 2: A3 paints full sentence; K1:O1 paints gray fill and wrapped title."""
     wb = read_xlsx("tests/docs/excel/xlsx/poi__45540_form_Header.xlsx")
     sh = wb.sheets[0]
     viewport = GridViewport(model=sh)
@@ -222,7 +227,7 @@ def test_render_poi_45540_a3_and_k1_o1_merged_blocks(qtbot):
     # Background pixel inside K1:O1 corner is gray (#808080)
     bg_px = img.pixelColor(k1.left() + 4, k1.top() + 4)
     assert (bg_px.red(), bg_px.green(), bg_px.blue()) == (128, 128, 128)
-    # Top half ("China Expatriate Programme") and bottom half ("APPLICATION FORM") both have white ink
+    # Top half ("China Expatriate Programme") and bottom half ("APPLICATION FORM") have white ink
     mid_y = k1.top() + k1.height() // 2
     assert _has_light_pixel(img, k1.left() + 10, k1.top() + 4, o1.right() - 10, mid_y)
     assert _has_light_pixel(img, k1.left() + 10, mid_y, o1.right() - 10, k1.bottom() - 4)

@@ -951,7 +951,7 @@ def _parse_worksheet(
                     rich_runs=cell_rich_runs,
                 )
 
-                # Resolve effective style index: cell s -> row s (customFormat) -> col style -> cellXfs[0]
+                # Resolve effective style: cell s -> row s -> col style -> cellXfs[0]
                 s_idx: int | None = None
                 if style_idx_str:
                     try:

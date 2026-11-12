@@ -1121,7 +1121,7 @@ class GridViewport(QAbstractScrollArea):
             painter, pr_start, pr_end, pc_start, pc_end, psx, psy, pane_clip
         )
 
-        # 4. Draw Cell Contents (Pass 1: Fills/Merges, Pass 2: Text/Spill/Offscreen, Pass 3: Borders)
+        # 4. Draw Cell Contents (Pass 1: Fills/Merges, Pass 2: Text/Spill, Pass 3: Borders)
         painter.save()
         painter.setClipRect(pane_clip)
 
