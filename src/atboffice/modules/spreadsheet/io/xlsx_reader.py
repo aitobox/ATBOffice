@@ -816,7 +816,8 @@ def _parse_worksheet(
             except ValueError:
                 pass
 
-    # 1. Custom column widths & hidden columns
+    # 1. Custom column widths, hidden columns, and column style ranges
+    col_style_ranges: list[tuple[int, int, int]] = []
     cols_el = _find_child(root, "cols")
     if cols_el is not None:
         for col_el in _find_children(cols_el, "col"):
@@ -824,6 +825,7 @@ def _parse_worksheet(
             max_c_str = _attr(col_el, "max")
             width_str = _attr(col_el, "width")
             hidden = _attr(col_el, "hidden") in ("1", "true")
+            col_style_str = _attr(col_el, "style")
 
             if min_c_str and max_c_str:
                 try:
@@ -834,6 +836,16 @@ def _parse_worksheet(
                         if width_str
                         else None
                     )
+
+                    if col_style_str:
+                        try:
+                            cs_idx = int(col_style_str)
+                            if 0 <= cs_idx < len(style_deltas):
+                                col_style_ranges.append(
+                                    (c1, min(c2, sheet.geometry.max_cols - 1), cs_idx)
+                                )
+                        except ValueError:
+                            pass
 
                     for c in range(c1, min(c2 + 1, sheet.geometry.max_cols)):
                         if w_px is not None:
@@ -865,6 +877,16 @@ def _parse_worksheet(
 
             if _attr(row_el, "hidden") in ("1", "true"):
                 sheet.geometry.hidden_rows.add(curr_r)
+
+            row_style_idx: int | None = None
+            row_s_str = _attr(row_el, "s")
+            if row_s_str and _attr(row_el, "customFormat") in ("1", "true"):
+                try:
+                    rs = int(row_s_str)
+                    if 0 <= rs < len(style_deltas):
+                        row_style_idx = rs
+                except ValueError:
+                    pass
 
             curr_c = -1
             for c_el in _find_children(row_el, "c"):
@@ -929,19 +951,29 @@ def _parse_worksheet(
                     rich_runs=cell_rich_runs,
                 )
 
-                # Apply style delta
+                # Resolve effective style: cell s -> row s -> col style -> cellXfs[0]
+                s_idx: int | None = None
                 if style_idx_str:
                     try:
-                        s_idx = int(style_idx_str)
-                        if 0 <= s_idx < len(style_deltas):
-                            delta = style_deltas[s_idx]
-                            sheet.set_cell(r, c, cell)
-                            sheet.apply_format_delta(r, c, delta)
-                            continue
+                        cand = int(style_idx_str)
+                        if 0 <= cand < len(style_deltas):
+                            s_idx = cand
                     except ValueError:
                         pass
+                if s_idx is None:
+                    if row_style_idx is not None:
+                        s_idx = row_style_idx
+                    else:
+                        for cs_c1, cs_c2, cs_idx in reversed(col_style_ranges):
+                            if cs_c1 <= c <= cs_c2:
+                                s_idx = cs_idx
+                                break
+                if s_idx is None and style_deltas:
+                    s_idx = 0
 
                 sheet.set_cell(r, c, cell)
+                if s_idx is not None and 0 <= s_idx < len(style_deltas):
+                    sheet.apply_format_delta(r, c, style_deltas[s_idx])
 
     # 3. Merged cells
     merges_el = _find_child(root, "mergeCells")
