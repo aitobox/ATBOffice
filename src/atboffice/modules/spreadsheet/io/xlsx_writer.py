@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, BinaryIO
 
 from atboffice.modules.spreadsheet.calc.references import cell_name
 from atboffice.modules.spreadsheet.io.xlsx_reader import BUILTIN_NUMFMTS
+from atboffice.modules.spreadsheet.models.color_utils import (
+    DEFAULT_INDEXED_PALETTE,
+    DEFAULT_THEME_COLORS,
+    normalize_hex_color,
+    resolve_color_spec,
+)
 from atboffice.modules.spreadsheet.models.pivot_model import write_pivots_to_package
 from atboffice.modules.spreadsheet.models.sheet_model import (
     BorderStyle,
@@ -105,13 +112,58 @@ def _color_hex(c: str | None) -> str | None:
     return None
 
 
+def _spec_key(spec: dict[str, Any] | None) -> tuple[tuple[str, Any], ...] | None:
+    """Convert an OOXML color spec dict into a hashable cache key."""
+    if not spec:
+        return None
+    return tuple(sorted(spec.items()))
+
+
+def _color_element(
+    tag: str,
+    hex_color: str | None,
+    spec: dict[str, Any] | None = None,
+    theme_colors: Sequence[str] | None = None,
+    palette: Sequence[str] | None = None,
+) -> str:
+    """Serialize an OOXML color element, preserving theme/indexed/tint/auto when valid."""
+    if spec:
+        if spec.get("auto") and hex_color is None:
+            return f'<{tag} auto="1"/>'
+        if hex_color is not None:
+            expected = resolve_color_spec(spec, theme_colors=theme_colors, palette=palette)
+            norm_cur = normalize_hex_color(hex_color)
+            if expected and norm_cur and expected.upper() == norm_cur.upper():
+                attrs: list[str] = []
+                if "theme" in spec and spec["theme"] is not None:
+                    attrs.append(f'theme="{spec["theme"]}"')
+                elif spec.get("rgb"):
+                    attrs.append(f'rgb="{spec["rgb"]}"')
+                elif "indexed" in spec and spec["indexed"] is not None:
+                    attrs.append(f'indexed="{spec["indexed"]}"')
+                if attrs:
+                    if spec.get("tint"):
+                        attrs.append(f'tint="{spec["tint"]}"')
+                    return f'<{tag} {" ".join(attrs)}/>'
+    c_hex = _color_hex(hex_color)
+    if c_hex:
+        return f'<{tag} rgb="{c_hex}"/>'
+    return ""
+
+
 class SharedStringsManager:
     """Manages unique shared strings for xl/sharedStrings.xml."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        theme_colors: Sequence[str] | None = None,
+        palette: Sequence[str] | None = None,
+    ) -> None:
         self.strings: list[str | tuple[str, list[RichTextRun]]] = []
         self.index_map: dict[Any, int] = {}
         self.total_count: int = 0
+        self.theme_colors = list(theme_colors) if theme_colors else list(DEFAULT_THEME_COLORS)
+        self.palette = list(palette) if palette else list(DEFAULT_INDEXED_PALETTE)
 
     def add(self, s: str, runs: list[RichTextRun] | None = None) -> int:
         self.total_count += 1
@@ -144,6 +196,7 @@ class SharedStringsManager:
                         r.underline_style,
                         r.strike,
                         r.fg_color,
+                        _spec_key(getattr(r, "fg_color_spec", None)),
                         r.vert_align,
                     )
                     for r in runs
@@ -195,10 +248,16 @@ class SharedStringsManager:
                             )
                     if r.font_size:
                         rpr_parts.append(f'<sz val="{r.font_size}"/>')
-                    if r.fg_color:
-                        hex_col = _color_hex(r.fg_color)
-                        if hex_col:
-                            rpr_parts.append(f'<color rgb="{hex_col}"/>')
+                    if r.fg_color or getattr(r, "fg_color_spec", None):
+                        col_xml = _color_element(
+                            "color",
+                            r.fg_color,
+                            getattr(r, "fg_color_spec", None),
+                            self.theme_colors,
+                            self.palette,
+                        )
+                        if col_xml:
+                            rpr_parts.append(col_xml)
                     if r.vert_align:
                         rpr_parts.append(
                             f'<vertAlign val="{_xml_escape(r.vert_align)}"/>'
@@ -223,7 +282,17 @@ class SharedStringsManager:
 class StyleManager:
     """Manages styles and generates xl/styles.xml."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        theme_colors: Sequence[str] | None = None,
+        indexed_palette: Sequence[str] | None = None,
+    ) -> None:
+        self.theme_colors = list(theme_colors) if theme_colors else list(DEFAULT_THEME_COLORS)
+        self.indexed_palette = list(indexed_palette) if indexed_palette else None
+        self.palette = (
+            list(indexed_palette) if indexed_palette else list(DEFAULT_INDEXED_PALETTE)
+        )
+
         self.fonts: list[str] = []
         self.font_map: dict[tuple[Any, ...], int] = {}
 
@@ -274,8 +343,10 @@ class StyleManager:
         underline: bool,
         strike: bool,
         color: str | None,
+        color_spec: dict[str, Any] | None = None,
     ) -> int:
         c_hex = _color_hex(color)
+        s_key = _spec_key(color_spec)
         key = (
             name or "Arial",
             sz or 10,
@@ -284,6 +355,7 @@ class StyleManager:
             bool(underline),
             bool(strike),
             c_hex,
+            s_key,
         )
         if key in self.font_map:
             return self.font_map[key]
@@ -298,8 +370,11 @@ class StyleManager:
         if underline:
             parts.append('<u val="single"/>')
         parts.append(f'<sz val="{sz or 10}"/>')
-        if c_hex:
-            parts.append(f'<color rgb="{c_hex}"/>')
+        col_xml = _color_element(
+            "color", color, color_spec, self.theme_colors, self.palette
+        )
+        if col_xml:
+            parts.append(col_xml)
         parts.append(f'<name val="{_xml_escape(name or "Arial")}"/>')
         parts.append('<family val="2"/>')
 
@@ -309,23 +384,54 @@ class StyleManager:
         self.font_map[key] = idx
         return idx
 
-    def _get_or_add_fill(self, bg_color: str | None, pattern: str | None = None) -> int:
-        if not bg_color and (not pattern or pattern == "none"):
+    def _get_or_add_fill(
+        self,
+        bg_color: str | None,
+        pattern: str | None = None,
+        bg_color_spec: dict[str, Any] | None = None,
+        pattern_color: str | None = None,
+        pattern_color_spec: dict[str, Any] | None = None,
+    ) -> int:
+        if (
+            not bg_color
+            and not bg_color_spec
+            and not pattern_color
+            and not pattern_color_spec
+            and (not pattern or pattern == "none")
+        ):
             return 0
         c_hex = _color_hex(bg_color)
-        key = (c_hex, pattern or "solid")
+        p_hex = _color_hex(pattern_color)
+        key = (
+            c_hex,
+            _spec_key(bg_color_spec),
+            p_hex,
+            _spec_key(pattern_color_spec),
+            pattern or "solid",
+        )
         if key in self.fill_map:
             return self.fill_map[key]
 
         ptype = pattern or "solid"
-        if c_hex:
-            xml = (
-                f'<fill><patternFill patternType="{ptype}">'
-                f'<fgColor rgb="{c_hex}"/><bgColor rgb="{c_hex}"/>'
-                f"</patternFill></fill>"
+        if ptype == "solid":
+            fg_xml = _color_element(
+                "fgColor", bg_color, bg_color_spec, self.theme_colors, self.palette
             )
+            bg_xml = _color_element(
+                "bgColor", bg_color, bg_color_spec, self.theme_colors, self.palette
+            )
+            if fg_xml or bg_xml:
+                xml = f'<fill><patternFill patternType="{ptype}">{fg_xml}{bg_xml}</patternFill></fill>'
+            else:
+                xml = f'<fill><patternFill patternType="{ptype}"/></fill>'
         else:
-            xml = f'<fill><patternFill patternType="{ptype}"/></fill>'
+            fg_xml = _color_element(
+                "fgColor", pattern_color, pattern_color_spec, self.theme_colors, self.palette
+            )
+            bg_xml = _color_element(
+                "bgColor", bg_color, bg_color_spec, self.theme_colors, self.palette
+            )
+            xml = f'<fill><patternFill patternType="{ptype}">{fg_xml}{bg_xml}</patternFill></fill>'
         idx = len(self.fills)
         self.fills.append(xml)
         self.fill_map[key] = idx
@@ -334,8 +440,13 @@ class StyleManager:
     def _border_side_xml(self, tag: str, side: BorderStyle | None) -> str:
         if not side or not side.style or side.style == "none":
             return f"<{tag}/>"
-        c_hex = _color_hex(side.color)
-        c_xml = f'<color rgb="{c_hex}"/>' if c_hex else ""
+        c_xml = _color_element(
+            "color",
+            side.color,
+            getattr(side, "color_spec", None),
+            self.theme_colors,
+            self.palette,
+        )
         return f'<{tag} style="{_xml_escape(side.style)}">{c_xml}</{tag}>'
 
     def _get_or_add_border(
@@ -345,10 +456,19 @@ class StyleManager:
         left: BorderStyle | None,
         right: BorderStyle | None,
     ) -> int:
-        top_k = (top.style, _color_hex(top.color)) if top else None
-        bot_k = (bottom.style, _color_hex(bottom.color)) if bottom else None
-        left_k = (left.style, _color_hex(left.color)) if left else None
-        right_k = (right.style, _color_hex(right.color)) if right else None
+        def _side_key(side: BorderStyle | None) -> tuple[Any, ...] | None:
+            if not side:
+                return None
+            return (
+                side.style,
+                _color_hex(side.color),
+                _spec_key(getattr(side, "color_spec", None)),
+            )
+
+        top_k = _side_key(top)
+        bot_k = _side_key(bottom)
+        left_k = _side_key(left)
+        right_k = _side_key(right)
         key = (top_k, bot_k, left_k, right_k)
         if not any(key):
             return 0
@@ -392,8 +512,15 @@ class StyleManager:
             or cell.font_size != 10
             or cell.font_family != "Arial"
             or cell.fg_color
+            or getattr(cell, "fg_color_spec", None)
         )
-        has_fill = bool(cell.bg_color or (cell.pattern and cell.pattern != "none"))
+        has_fill = bool(
+            cell.bg_color
+            or getattr(cell, "bg_color_spec", None)
+            or cell.pattern_color
+            or getattr(cell, "pattern_color_spec", None)
+            or (cell.pattern and cell.pattern != "none")
+        )
         has_border = bool(
             cell.border_top or cell.border_bottom or cell.border_left or cell.border_right
         )
@@ -420,11 +547,22 @@ class StyleManager:
                 cell.underline,
                 cell.strike,
                 cell.fg_color,
+                color_spec=getattr(cell, "fg_color_spec", None),
             )
             if has_font
             else 0
         )
-        fill_id = self._get_or_add_fill(cell.bg_color, cell.pattern) if has_fill else 0
+        fill_id = (
+            self._get_or_add_fill(
+                cell.bg_color,
+                cell.pattern,
+                bg_color_spec=getattr(cell, "bg_color_spec", None),
+                pattern_color=cell.pattern_color,
+                pattern_color_spec=getattr(cell, "pattern_color_spec", None),
+            )
+            if has_fill
+            else 0
+        )
         border_id = (
             self._get_or_add_border(
                 cell.border_top,
@@ -477,11 +615,15 @@ class StyleManager:
         fg_color: str | None = None,
         bold: bool | None = None,
         italic: bool | None = None,
+        bg_color_spec: dict[str, Any] | None = None,
+        fg_color_spec: dict[str, Any] | None = None,
     ) -> int:
         """Register differential formatting record for conditional formatting."""
         dxf = {
             "bg_color": bg_color,
             "fg_color": fg_color,
+            "bg_color_spec": bg_color_spec,
+            "fg_color_spec": fg_color_spec,
             "bold": bold,
             "italic": italic,
         }
@@ -582,19 +724,30 @@ class StyleManager:
                     font_parts.append('<b val="1"/>')
                 if d.get("italic"):
                     font_parts.append('<i val="1"/>')
-                if d.get("fg_color"):
-                    c_hex = _color_hex(d["fg_color"])
-                    if c_hex:
-                        font_parts.append(f'<color rgb="{c_hex}"/>')
+                if d.get("fg_color") or d.get("fg_color_spec"):
+                    col_xml = _color_element(
+                        "color",
+                        d.get("fg_color"),
+                        d.get("fg_color_spec"),
+                        self.theme_colors,
+                        self.palette,
+                    )
+                    if col_xml:
+                        font_parts.append(col_xml)
                 if font_parts:
                     parts.append(f"<font>{''.join(font_parts)}</font>")
 
-                if d.get("bg_color"):
-                    c_hex = _color_hex(d["bg_color"])
-                    if c_hex:
+                if d.get("bg_color") or d.get("bg_color_spec"):
+                    fg_xml = _color_element(
+                        "fgColor",
+                        d.get("bg_color"),
+                        d.get("bg_color_spec"),
+                        self.theme_colors,
+                        self.palette,
+                    )
+                    if fg_xml:
                         parts.append(
-                            '<fill><patternFill patternType="solid">'
-                            f'<fgColor rgb="{c_hex}"/></patternFill></fill>'
+                            f'<fill><patternFill patternType="solid">{fg_xml}</patternFill></fill>'
                         )
                 parts.append("</dxf>")
             parts.append("</dxfs>")
@@ -604,6 +757,14 @@ class StyleManager:
             '<tableStyles count="0" defaultTableStyle="TableStyleMedium2" '
             'defaultPivotStyle="PivotStyleLight16"/>'
         )
+
+        # 10. Optional custom indexedColors
+        if self.indexed_palette:
+            idx_xml = "".join(
+                f'<rgbColor rgb="{_color_hex(c) or "FF000000"}"/>'
+                for c in self.indexed_palette[:64]
+            )
+            parts.append(f"<colors><indexedColors>{idx_xml}</indexedColors></colors>")
 
         parts.append("</styleSheet>")
         return "".join(parts).encode("utf-8")
@@ -778,9 +939,17 @@ def _serialize_worksheet(
                 for cfvo in rule.color_scale.cfvos:
                     v_attr = f' val="{cfvo.val}"' if cfvo.val is not None else ""
                     parts.append(f'<cfvo type="{cfvo.type}"{v_attr}/>')
-                for col in rule.color_scale.colors:
-                    c_hex = _color_hex(col) or "FFFFFFFF"
-                    parts.append(f'<color rgb="{c_hex}"/>')
+                color_specs = getattr(rule.color_scale, "color_specs", None) or []
+                for idx_col, col in enumerate(rule.color_scale.colors):
+                    spec = color_specs[idx_col] if idx_col < len(color_specs) else None
+                    col_xml = _color_element(
+                        "color",
+                        col,
+                        spec,
+                        style_manager.theme_colors,
+                        style_manager.palette,
+                    )
+                    parts.append(col_xml or '<color rgb="FFFFFFFF"/>')
                 parts.append("</colorScale>")
                 parts.append("</cfRule>")
             elif rule.data_bar:
@@ -793,8 +962,14 @@ def _serialize_worksheet(
                 for cfvo in db.cfvos:
                     v_attr = f' val="{cfvo.val}"' if cfvo.val is not None else ""
                     parts.append(f'<cfvo type="{cfvo.type}"{v_attr}/>')
-                c_hex = _color_hex(db.color) or "FF638EC6"
-                parts.append(f'<color rgb="{c_hex}"/>')
+                col_xml = _color_element(
+                    "color",
+                    db.color,
+                    getattr(db, "color_spec", None),
+                    style_manager.theme_colors,
+                    style_manager.palette,
+                )
+                parts.append(col_xml or '<color rgb="FF638EC6"/>')
                 parts.append("</dataBar></cfRule>")
             else:
                 dxf_id = style_manager.add_dxf(
@@ -802,6 +977,8 @@ def _serialize_worksheet(
                     fg_color=rule.fg_color,
                     bold=rule.bold,
                     italic=rule.italic,
+                    bg_color_spec=getattr(rule, "bg_color_spec", None),
+                    fg_color_spec=getattr(rule, "fg_color_spec", None),
                 )
                 r_attrs = [
                     f'type="{rule.type}"',
@@ -1259,8 +1436,14 @@ def write_xlsx(
 
     pkg_writer = PackageWriter(source_package=source_pkg)
 
-    sst_manager = SharedStringsManager()
-    style_manager = StyleManager()
+    wb_theme_colors = getattr(workbook, "theme_colors", None)
+    wb_palette = getattr(workbook, "indexed_palette", None)
+    sst_manager = SharedStringsManager(theme_colors=wb_theme_colors, palette=wb_palette)
+    style_manager = StyleManager(theme_colors=wb_theme_colors, indexed_palette=wb_palette)
+    any_dirty = bool(
+        getattr(workbook, "dirty", False)
+        or any(getattr(s, "dirty", False) for s in workbook.sheets)
+    )
 
     sheet_count = len(workbook)
     sheet_rids = [f"rId{i}" for i in range(1, sheet_count + 1)]
@@ -1275,10 +1458,9 @@ def write_xlsx(
         part_name = f"xl/worksheets/sheet{i}.xml"
 
         ooxml_part = getattr(sheet, "_ooxml_part", None) or sheet.extra.get("ooxml_part")
-        sheet_is_dirty = getattr(sheet, "dirty", False) or getattr(workbook, "dirty", False)
 
         if source_pkg and ooxml_part and source_pkg.has_part(ooxml_part):
-            if not sheet_is_dirty:
+            if not any_dirty:
                 ws_bytes = source_pkg.read_part(ooxml_part)
             else:
                 orig_xml = source_pkg.read_part(ooxml_part).decode("utf-8")
@@ -1297,8 +1479,8 @@ def write_xlsx(
                     dim_ref = "A1"
 
                 patched = re.sub(
-                    r"<sheetData\b.*?/>|<sheetData\b.*?</sheetData>",
-                    sheet_data_xml,
+                    r"<sheetData\b[^>]*/>|<sheetData\b[^>]*>.*?</sheetData>",
+                    lambda _m: sheet_data_xml,
                     orig_xml,
                     count=1,
                     flags=re.DOTALL,
@@ -1421,8 +1603,11 @@ def write_xlsx(
     if sst_bytes:
         pkg_writer.add_part("xl/sharedStrings.xml", sst_bytes, CT_SHARED_STRINGS)
 
-    # 3. Serialize styles.xml
-    styles_bytes = style_manager.to_styles_xml()
+    # 3. Serialize styles.xml (carry unmodified styles.xml when workbook/sheets are clean)
+    if not any_dirty and source_pkg and source_pkg.has_part("xl/styles.xml"):
+        styles_bytes = source_pkg.read_part("xl/styles.xml")
+    else:
+        styles_bytes = style_manager.to_styles_xml()
     pkg_writer.add_part("xl/styles.xml", styles_bytes, CT_STYLES)
 
     # 4. Serialize workbook.xml and workbook.xml.rels

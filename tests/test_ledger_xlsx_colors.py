@@ -4,10 +4,15 @@ Theme, indexed palette, and tint color resolution in XLSX reading & round-trip w
 
 from __future__ import annotations
 
+import io
 from pathlib import Path
 import xml.etree.ElementTree as ET
+import zipfile
+
+import pytest
 
 from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
+from atboffice.modules.spreadsheet.io.xlsx_writer import write_xlsx
 from atboffice.modules.spreadsheet.models.color_utils import (
     DEFAULT_INDEXED_PALETTE,
     DEFAULT_THEME_COLORS,
@@ -159,3 +164,66 @@ def test_totals_row_function_custom_theme_teal_banner() -> None:
     assert b1 is not None
     assert b1.fg_color == "#FFFFFF"
     assert b1.bg_color == apply_tint("#1CC5D5", -0.24994659260841701)
+
+
+FIVE_FIXTURES = [
+    "libreoffice__totalsRowShown.xlsx",
+    "libreoffice__sortconditionref.xlsx",
+    "poi__49156.xlsx",
+    "openxml-sdk__NoExtDataB1.xlsx",
+    "libreoffice__totalsRowFunction.xlsx",
+]
+
+
+@pytest.mark.parametrize("filename", FIVE_FIXTURES)
+def test_roundtrip_preserves_theme_and_indexed_attributes(filename: str) -> None:
+    """AC 5: Reading then writing each fixture keeps every theme= and indexed= attribute."""
+    orig_bytes = (XLSX_CORPUS / filename).read_bytes()
+    wb = read_xlsx(orig_bytes)
+    saved_bytes = write_xlsx(wb)
+
+    with zipfile.ZipFile(io.BytesIO(orig_bytes)) as z_orig, zipfile.ZipFile(
+        io.BytesIO(saved_bytes)
+    ) as z_saved:
+        for part in z_orig.namelist():
+            if not part.endswith(".xml"):
+                continue
+            orig_xml = z_orig.read(part).decode("utf-8", "replace")
+            if "theme=" in orig_xml or "indexed=" in orig_xml:
+                assert part in z_saved.namelist(), f"Missing part {part} after round-trip"
+                saved_xml = z_saved.read(part).decode("utf-8", "replace")
+                assert saved_xml.count("theme=") >= orig_xml.count("theme=")
+                assert saved_xml.count("indexed=") >= orig_xml.count("indexed=")
+
+    # Dirty regeneration path: StyleManager rebuilds styles.xml from model + color_specs
+    wb.dirty = True
+    wb[0].dirty = True
+    dirty_bytes = write_xlsx(wb)
+    wb_reloaded = read_xlsx(dirty_bytes)
+    with zipfile.ZipFile(io.BytesIO(dirty_bytes)) as z_dirty:
+        dirty_styles = z_dirty.read("xl/styles.xml").decode("utf-8", "replace")
+        if filename in (
+            "libreoffice__totalsRowShown.xlsx",
+            "libreoffice__sortconditionref.xlsx",
+            "libreoffice__totalsRowFunction.xlsx",
+        ):
+            assert "theme=" in dirty_styles
+        if filename in ("poi__49156.xlsx", "openxml-sdk__NoExtDataB1.xlsx"):
+            assert "indexed=" in dirty_styles
+    assert len(wb_reloaded.sheets) == len(wb.sheets)
+
+
+def test_dirty_cell_color_edit_overrides_stale_theme_spec() -> None:
+    """If a cell's fg_color or bg_color is edited to a new hex, writer emits rgb= instead of stale theme=."""
+    wb = read_xlsx(XLSX_CORPUS / "libreoffice__totalsRowShown.xlsx")
+    a2 = wb[0].get_cell(1, 0)
+    assert a2 is not None
+    assert a2.bg_color == "#C0504D"
+    # Simulate user picking a custom RGB fill color without clearing spec manually
+    a2.bg_color = "#123456"
+    wb[0].dirty = True
+    out = write_xlsx(wb)
+    reloaded = read_xlsx(out)
+    a2_new = reloaded[0].get_cell(1, 0)
+    assert a2_new is not None
+    assert a2_new.bg_color == "#123456"
