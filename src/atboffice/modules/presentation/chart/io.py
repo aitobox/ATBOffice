@@ -333,7 +333,7 @@ def parse_chart_xml(xml_content: str | bytes) -> ChartData:
 
     if not cats:
         max_vals = max((len(s.vals) for s in series_list), default=4)
-        cats = [f"Category {i + 1}" for i in range(max_vals)]
+        cats = [str(i + 1) for i in range(max_vals)]
 
     # Major gridlines
     grid_y = bool(plot_elem.find(".//c:valAx//c:majorGridlines", ns) is not None)

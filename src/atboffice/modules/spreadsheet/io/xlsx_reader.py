@@ -914,6 +914,16 @@ def _parse_worksheet(
                 color_hex = _norm_hex(c_val) or "#638EC6"
                 bar_rule = DataBarRule(cfvos=cfvos, color=color_hex)
 
+            above_avg_attr = _attr(r_el, "aboveAverage")
+            above_avg = above_avg_attr != "0"
+            equal_avg = _attr(r_el, "equalAverage") in ("1", "true")
+            std_dev_attr = _attr(r_el, "stdDev")
+            std_dev = int(std_dev_attr) if std_dev_attr and std_dev_attr.isdigit() else None
+            rank_attr = _attr(r_el, "rank")
+            rank = int(rank_attr) if rank_attr and rank_attr.isdigit() else 10
+            bottom = _attr(r_el, "bottom") in ("1", "true")
+            percent = _attr(r_el, "percent") in ("1", "true")
+
             rule = CFRule(
                 type=rtype,
                 operator=op,
@@ -927,6 +937,12 @@ def _parse_worksheet(
                 italic=italic_val,
                 color_scale=scale_rule,
                 data_bar=bar_rule,
+                above_average=above_avg,
+                equal_average=equal_avg,
+                std_dev=std_dev,
+                rank=rank,
+                bottom=bottom,
+                percent=percent,
             )
             rules.append(rule)
 

@@ -44,8 +44,8 @@ def draw_columns(
         hi = max(0.0, max(pos_sums) if pos_sums else 1.0)
     else:
         all_vals = [v for s in series for v in s.vals]
-        lo = min(all_vals) if all_vals else 0.0
-        hi = max(all_vals) if all_vals else 1.0
+        lo = min(0.0, min(all_vals) if all_vals else 0.0)
+        hi = max(0.0, max(all_vals) if all_vals else 1.0)
 
     sc = scale(lo, hi, chart.ax.get("v"), length=plot_rect.height(), label_sz=chart.fsz)
     min_v, max_v = sc["min"], sc["max"]
@@ -162,8 +162,8 @@ def draw_bars(
         hi = max(0.0, max(pos_sums) if pos_sums else 1.0)
     else:
         all_vals = [v for s in series for v in s.vals]
-        lo = min(all_vals) if all_vals else 0.0
-        hi = max(all_vals) if all_vals else 1.0
+        lo = min(0.0, min(all_vals) if all_vals else 0.0)
+        hi = max(0.0, max(all_vals) if all_vals else 1.0)
 
     sc = scale(lo, hi, chart.ax.get("v"), length=plot_rect.width(), label_sz=chart.fsz)
     min_v, max_v = sc["min"], sc["max"]
