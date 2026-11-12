@@ -103,6 +103,8 @@ def format_number(n: int, fmt: str = "decimal") -> str:
         return f"{n:02d}" if 0 <= n < 10 else str(n)
     if fmt == "ordinal":
         return f"{n}{_ordinal_suffix(n)}"
+    if fmt in ("none", "bullet"):
+        return ""
     return str(n)
 
 

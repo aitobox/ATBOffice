@@ -394,6 +394,9 @@ class DocxReader:
         self._parse_footnotes()
         self._parse_endnotes()
         self._parse_comments()
+        from atboffice.modules.writer.layout.portions import compute_lists
+
+        compute_lists(self.doc)
         self.doc.hide_spelling_errors = True
         self.doc._doc_format = self.doc_format  # type: ignore[attr-defined]
         return self.doc

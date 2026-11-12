@@ -223,6 +223,178 @@ def map_symbol_char(ch: str, font: str = "") -> str:
     return ch
 
 
+def num_def(doc: Any, num_id: str | int) -> dict[str, Any] | None:
+    """Lookup concrete num and abstractNum definitions."""
+    numbering = getattr(doc, "numbering", {}) or {}
+    nums = numbering.get("nums", {})
+    entry = nums.get(str(num_id))
+    if not entry:
+        return None
+    abs_id = entry.get("abs")
+    abs_entry = numbering.get("abs", {}).get(str(abs_id))
+    if not abs_entry:
+        return None
+    return {"num": entry, "abs": abs_entry}
+
+
+def num_level_def(doc: Any, num_id: str | int, lvl: int) -> dict[str, Any]:
+    """Retrieve level definition, applying overrides if present."""
+    d = num_def(doc, num_id)
+    if not d:
+        return {}
+    ov_map = d["num"].get("ov", {}) or {}
+    ov = ov_map.get(lvl) if lvl in ov_map else ov_map.get(str(lvl))
+    levels = d["abs"].get("levels", [])
+    base = levels[lvl] if (0 <= lvl < len(levels)) else (levels[-1] if levels else {})
+    if not isinstance(base, dict):
+        base = {}
+    if ov and isinstance(ov, dict) and "lvl" in ov:
+        return ov["lvl"]
+    if ov and isinstance(ov, dict):
+        merged = dict(base)
+        for k in ("start", "fmt", "text"):
+            if k in ov and ov[k] is not None:
+                merged[k] = ov[k]
+        return merged
+    return base
+
+
+def compute_lists(doc: Any, stories: list[Any] | None = None) -> dict[int, dict[str, Any]]:
+    """Walk paragraphs in reading order and compute list labels and counters.
+
+    Matches the reference implementation in Quire (dmodel.js:562-616).
+    Updates each paragraph's `label` attribute and returns a dict mapping
+    paragraph.id to label metadata.
+    """
+    from atboffice.modules.writer.layout.pagination import format_number
+    from atboffice.modules.writer.models.document import Paragraph, plen
+    from atboffice.modules.writer.models.styles import resolve_p_props
+
+    labels: dict[int, dict[str, Any]] = {}
+    counters: dict[str, list[int | None]] = {}  # absId -> int[9]
+    seen_num: set[str] = set()
+
+    def visit(p: Paragraph) -> None:
+        p_pr = resolve_p_props(doc, p)
+        num = getattr(p_pr, "num", None)
+        if num is None or getattr(num, "id", None) is None or str(num.id) in ("0", ""):
+            p.label = ""
+            return
+
+        # Word neither shows nor counts a number on an empty paragraph that only carries a section break
+        if getattr(p, "sect", None) is not None and plen(p) == 0:
+            p.label = ""
+            return
+
+        definition = num_def(doc, num.id)
+        if not definition or not definition.get("abs"):
+            p.label = ""
+            return
+
+        raw_lvl = getattr(num, "lvl", 0)
+        lvl = max(0, min(int(raw_lvl if raw_lvl is not None else 0), 8))
+        abs_id = str(definition["num"].get("abs", ""))
+
+        if abs_id not in counters:
+            counters[abs_id] = [None] * 9
+        c = counters[abs_id]
+
+        if str(num.id) not in seen_num:
+            seen_num.add(str(num.id))
+            ov = definition["num"].get("ov", {}) or {}
+            for k, val in ov.items():
+                if val and isinstance(val, dict) and val.get("start") is not None:
+                    try:
+                        k_int = int(k)
+                        if 0 <= k_int < 9:
+                            c[k_int] = None
+                            for j in range(k_int + 1, 9):
+                                c[j] = None
+                    except (ValueError, TypeError):
+                        pass
+
+        lv_def = num_level_def(doc, num.id, lvl)
+
+        def start_of(l_idx: int) -> int:
+            ov = definition["num"].get("ov", {}) or {}
+            ov_val = ov.get(l_idx) or ov.get(str(l_idx))
+            if ov_val and isinstance(ov_val, dict) and ov_val.get("start") is not None:
+                return int(ov_val["start"])
+            d_l = num_level_def(doc, num.id, l_idx)
+            if d_l and d_l.get("start") is not None:
+                return int(d_l["start"])
+            return 1
+
+        for j in range(lvl):
+            if c[j] is None:
+                c[j] = start_of(j)
+
+        c[lvl] = start_of(lvl) if c[lvl] is None else (c[lvl] + 1)
+
+        for j in range(lvl + 1, 9):
+            d_j = num_level_def(doc, num.id, j)
+            restart = d_j.get("restart") if d_j else None
+            if not d_j or restart is None or restart > lvl:
+                c[j] = None
+
+        pic_bullet = lv_def.get("pic_bullet")
+        fmt = lv_def.get("fmt", "decimal")
+        r_pr = lv_def.get("r_pr")
+        font_name = getattr(r_pr, "font", None) if r_pr else None
+
+        if pic_bullet:
+            text = ""
+        elif fmt == "bullet":
+            raw_text = lv_def.get("text", "•") or "•"
+            text = map_symbol_char(raw_text, font_name or "Symbol")
+        else:
+            raw_pattern = str(
+                lv_def.get("text") if lv_def.get("text") is not None else f"%{lvl + 1}."
+            )
+
+            def repl(m: re.Match[str]) -> str:
+                digit = int(m.group(1))
+                k = digit - 1
+                if k > lvl or k < 0:
+                    return ""
+                ld = lv_def if k == lvl else num_level_def(doc, num.id, k)
+                is_lgl = bool(lv_def.get("is_lgl"))
+                sub_fmt = "decimal" if (is_lgl and k < lvl) else ld.get("fmt", "decimal")
+                val = c[k] if c[k] is not None else start_of(k)
+                return format_number(val, sub_fmt)
+
+            text = re.sub(r"%(\d)", repl, raw_pattern)
+            # Remove any trailing unmatched percent tokens
+            text = re.sub(r"%\d+", "", text)
+            text = text.replace("%", "")
+
+        p.label = text
+        labels[p.id] = {
+            "text": text,
+            "lv": lv_def,
+            "num_id": str(num.id),
+            "lvl": lvl,
+            "value": c[lvl],
+            "pic_bullet": pic_bullet,
+        }
+
+    def walk_blocks(blocks: list[Any]) -> None:
+        for b in blocks:
+            if isinstance(b, Paragraph):
+                visit(b)
+            elif hasattr(b, "rows"):
+                for r in getattr(b, "rows", []):
+                    for cell in getattr(r, "cells", []):
+                        walk_blocks(getattr(cell, "blocks", []))
+
+    walk_blocks(getattr(getattr(doc, "main", None), "blocks", []))
+    if stories:
+        for s in stories:
+            walk_blocks(getattr(s, "blocks", []))
+
+    return labels
+
+
 # ---------------------------------------------------------------------------
 # Data Models
 # ---------------------------------------------------------------------------

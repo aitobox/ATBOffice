@@ -100,3 +100,42 @@ def test_parse_num_pic_bullet() -> None:
     assert "pic_bullet" in lv0
 
 
+def test_tdf132802_list_counters() -> None:
+    """Verify libreoffice__tdf132802.docx numbering counters 1. through 8. and style inheritance."""
+    from atboffice.modules.writer.io.docx_reader import DocxReader
+
+    fixture_path = "tests/docs/word/docx/libreoffice__tdf132802.docx"
+    doc = DocxReader().read(fixture_path)
+
+    # Acceptance Criteria 1:
+    # libreoffice__tdf132802.docx labels are '1.' through '8.' in document order,
+    # with 'Not numbered paragraph' unlabeled.
+    labels = [b.label for b in doc.blocks if hasattr(b, "label") and b.label]
+    assert labels == ["1.", "2.", "3.", "4.", "5.", "6.", "7.", "8."]
+
+    # Find the 'Not numbered paragraph1' paragraph and confirm it has empty label
+    unlabeled = [
+        b
+        for b in doc.blocks
+        if hasattr(b, "runs")
+        and any("Not numbered paragraph" in getattr(r, "text", "") for r in b.runs)
+    ]
+    assert len(unlabeled) == 1
+    assert unlabeled[0].label == ""
+
+
+def test_tdf125881_multilevel_patterns() -> None:
+    """Verify libreoffice__tdf125881.docx multi-level patterns I., I.1., I.2., I.3."""
+    from atboffice.modules.writer.io.docx_reader import DocxReader
+
+    fixture_path = "tests/docs/word/docx/libreoffice__tdf125881.docx"
+    doc = DocxReader().read(fixture_path)
+
+    # Acceptance Criteria 2:
+    # libreoffice__tdf125881.docx labels are 'I.', 'I.1.', 'I.2.', 'I.3.'
+    # (Roman numeral parent + Arabic children).
+    labels = [b.label for b in doc.blocks if hasattr(b, "label") and b.label]
+    assert labels == ["I.", "I.1.", "I.2.", "I.3."]
+
+
+
