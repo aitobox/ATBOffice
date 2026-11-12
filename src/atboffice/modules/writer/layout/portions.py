@@ -179,7 +179,10 @@ def map_symbol_char(ch: str, font: str = "") -> str:
 
     # Wingdings 3
     if "wingdings" in f and "3" in f:
-        w3_map = {0x7D: "►", 0x84: "►", 0x75: "►", 0x71: "◄", 0x70: "▲", 0x72: "▼", 0xC6: "➔", 0xC7: "⬅"}
+        w3_map = {
+            0x7D: "►", 0x84: "►", 0x75: "►", 0x71: "◄",
+            0x70: "▲", 0x72: "▼", 0xC6: "➔", 0xC7: "⬅",
+        }
         return w3_map.get(code, "▸")
 
     # Wingdings (standard)
@@ -188,7 +191,8 @@ def map_symbol_char(ch: str, font: str = "") -> str:
             "l": "●", "n": "■", "q": "❑", "u": "◆", "v": "❖", "Ø": "➢", "ü": "✓", "§": "▪",
             "o": "❍", "p": "□", "w": "⬥", "Ü": "➢", "à": "➔", "è": "➜", "Þ": "➝", "ð": "⇨",
             "ª": "✦", "¨": "◻",
-            "\uF06E": "■", "\uF06C": "●", "\uF075": "◆", "\uF0FC": "✓", "\uF0D8": "➢", "\uF0A7": "▪",
+            "\uF06E": "■", "\uF06C": "●", "\uF075": "◆",
+            "\uF0FC": "✓", "\uF0D8": "➢", "\uF0A7": "▪",
             "\uF04A": "☺", "\uF049": "☹", "\uF0B2": "❖",
         }
         if ch in w_map:
@@ -215,7 +219,8 @@ def map_symbol_char(ch: str, font: str = "") -> str:
         return "•"
     if 0xF000 <= ord(ch[0]) <= 0xF0FF:
         p_map = {
-            "\uF06E": "■", "\uF06C": "●", "\uF075": "◆", "\uF0FC": "✓", "\uF0D8": "➢", "\uF0A7": "▪",
+            "\uF06E": "■", "\uF06C": "●", "\uF075": "◆",
+            "\uF0FC": "✓", "\uF0D8": "➢", "\uF0A7": "▪",
             "\uF0B7": "•", "\uF04A": "☺", "\uF049": "☹", "\uF0B2": "❖",
         }
         return p_map.get(ch, "•")
@@ -281,7 +286,8 @@ def compute_lists(doc: Any, stories: list[Any] | None = None) -> dict[int, dict[
             p.label = ""
             return
 
-        # Word neither shows nor counts a number on an empty paragraph that only carries a section break
+        # Word neither shows nor counts a number on an empty paragraph that only
+        # carries a section break
         if getattr(p, "sect", None) is not None and plen(p) == 0:
             p.label = ""
             return

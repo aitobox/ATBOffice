@@ -6,9 +6,6 @@ Issue #364 / TASK-DOC-Q02.
 from __future__ import annotations
 
 import os
-from pathlib import Path
-
-import pytest
 
 from atboffice.modules.writer.layout.portions import map_symbol_char
 
@@ -42,7 +39,14 @@ def test_map_symbol_char() -> None:
 
 def test_document_blocks_traversal() -> None:
     """Verify Document.blocks and all_paras traversal in reading order including tables."""
-    from atboffice.modules.writer.models.document import Cell, Document, Paragraph, Row, Story, Table
+    from atboffice.modules.writer.models.document import (
+        Cell,
+        Document,
+        Paragraph,
+        Row,
+        Story,
+        Table,
+    )
 
     p1 = Paragraph()
     p1.label = "1."
@@ -139,7 +143,7 @@ def test_tdf125881_multilevel_patterns() -> None:
 
 
 def test_portion_picture_bullet_and_hanging_indent() -> None:
-    """Verify decompose_paragraph_to_portions creates GRAPHIC portion for picture bullets and applies indents."""
+    """Verify decompose_paragraph_to_portions creates GRAPHIC portion for picture bullets."""
     from atboffice.modules.writer.io.docx_reader import DocxReader
     from atboffice.modules.writer.layout.portions import (
         PortionType,
@@ -159,7 +163,9 @@ def test_portion_picture_bullet_and_hanging_indent() -> None:
             if any(po.type == PortionType.GRAPHIC for po in portions):
                 pic_paras.append((b, portions))
 
-    assert len(pic_paras) > 0, "Should have synthesized graphic portions for picture bullet paragraphs"
+    assert len(pic_paras) > 0, (
+        "Should have synthesized graphic portions for picture bullet paragraphs"
+    )
     p, portions = pic_paras[0]
     graphic_po = [po for po in portions if po.type == PortionType.GRAPHIC][0]
     assert graphic_po.width > 0
@@ -176,6 +182,7 @@ def test_portion_picture_bullet_and_hanging_indent() -> None:
 def test_all_word_fixtures_no_percent_in_labels() -> None:
     """Acceptance Criteria 4: All 24 Word fixtures: no label text contains a '%' character."""
     import glob
+
     from atboffice.modules.writer.io.docx_reader import read_docx
 
     fixtures = sorted(glob.glob("tests/docs/word/docx/*.docx"))
@@ -188,7 +195,8 @@ def test_all_word_fixtures_no_percent_in_labels() -> None:
         doc = read_docx(fixture_path)
         for i, b in enumerate(doc.blocks):
             label = getattr(b, "label", "")
-            assert "%" not in label, f"Fixture {fname} block {i} label '{label}' contains literal '%'"
+            msg = f"Fixture {fname} block {i} label '{label}' contains literal '%'"
+            assert "%" not in label, msg
 
 
 
