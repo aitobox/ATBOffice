@@ -73,3 +73,30 @@ def test_document_blocks_traversal() -> None:
     # Verify doc.all_paras returns only paragraphs
     assert doc.all_paras() == [p1, p2, p4, p5, p3]
 
+
+def test_parse_num_pic_bullet() -> None:
+    """Verify DocxReader parses numPicBullet and lvlPicBulletId in bullet-complex fixture."""
+    from atboffice.modules.writer.io.docx_reader import DocxReader
+
+    fixture_path = "tests/docs/word/docx/openxml-sdk__bullet-complex.docx"
+    doc = DocxReader().read(fixture_path)
+
+    # Verify pic_bullets parsed in numbering
+    pic_bullets = doc.numbering.get("pic_bullets", {})
+    assert len(pic_bullets) >= 3
+    assert "0" in pic_bullets
+    assert "1" in pic_bullets
+    assert "2" in pic_bullets
+
+    pb0 = pic_bullets["0"]
+    assert "image_part" in pb0
+    assert pb0["image_part"].endswith(".gif")
+
+    # Verify abstractNum 14 has pic_bullet_id
+    abs14 = doc.numbering.get("abs", {}).get("14")
+    assert abs14 is not None
+    lv0 = abs14["levels"][0]
+    assert lv0.get("pic_bullet_id") == "0"
+    assert "pic_bullet" in lv0
+
+
