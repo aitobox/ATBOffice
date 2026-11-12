@@ -47,6 +47,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.drawing.numfmt import FormatSegment, FormattedResult, format_value
 from atboffice.modules.spreadsheet.calc.parser import parse, to_text
 from atboffice.modules.spreadsheet.calc.references import (
     adjust_move,
@@ -1002,7 +1003,6 @@ class GridViewport(QAbstractScrollArea):
         # 4. Draw Cell Contents (with right-overflow)
         painter.save()
         painter.setClipRect(pane_clip)
-        fm = QFontMetrics(self.font())
 
         for r in range(pr_start, pr_end + 1):
             row_y = (
@@ -1172,26 +1172,19 @@ class GridViewport(QAbstractScrollArea):
                 if cf_res and cf_res.data_bar and not cf_res.data_bar.get("show_value", True):
                     continue
 
-                if cell.rich_runs:
-                    text_w = int(self._measure_rich_runs_width(cell))
-                else:
-                    text = self.model.get_formatted_text(r, c)
-                    text_w = fm.horizontalAdvance(text)
-
                 eff_h = cell.get_effective_align_h()
                 eff_v = cell.get_effective_align_v()
 
-                # Right-overflow calculation: in Excel, only left-aligned text
-                # can overflow to the right
-                if eff_h == "left":
-                    span = self.calculate_overflow_span(r, c, text_w, col_w)
-                else:
-                    span = 1
-                span_w = sum(
-                    self.geometry_mapper.col_size(c + i) for i in range(span)
-                )
-
                 if cell.rich_runs:
+                    text_w = int(self._measure_rich_runs_width(cell))
+                    span = (
+                        self.calculate_overflow_span(r, c, text_w, col_w)
+                        if eff_h == "left"
+                        else 1
+                    )
+                    span_w = sum(
+                        self.geometry_mapper.col_size(c + i) for i in range(span)
+                    )
                     self._paint_rich_cell(
                         painter,
                         cell,
@@ -1204,11 +1197,6 @@ class GridViewport(QAbstractScrollArea):
                         cf_res,
                     )
                 else:
-                    painter.save()
-                    # Clip cell area
-                    painter.setClipRect(QRect(col_x, row_y, span_w - 1, row_h - 1))
-
-                    # Font & color
                     font = QFont(cell.font_family, cell.font_size)
                     is_bold = (
                         cf_res.bold
@@ -1223,12 +1211,34 @@ class GridViewport(QAbstractScrollArea):
                     font.setBold(is_bold)
                     font.setItalic(is_italic)
                     font.setUnderline(cell.underline)
+                    cell_fm = QFontMetricsF(font)
+
+                    fmt_res = self._format_cell_for_paint(
+                        cell, disp_val, cell_fm, col_w
+                    )
+                    text = fmt_res.text
+                    text_w = int(
+                        math.ceil(self._measure_formatted_width(fmt_res, cell_fm))
+                    )
+
+                    # Right-overflow calculation: only left-aligned non-fill text can overflow right
+                    if eff_h == "left" and not fmt_res.has_fill and not fmt_res.is_error:
+                        span = self.calculate_overflow_span(r, c, text_w, col_w)
+                    else:
+                        span = 1
+                    span_w = sum(
+                        self.geometry_mapper.col_size(c + i) for i in range(span)
+                    )
+
+                    painter.save()
+                    # Clip cell area
+                    painter.setClipRect(QRect(col_x, row_y, span_w - 1, row_h - 1))
                     painter.setFont(font)
 
                     text_col_str = (
                         cf_res.fg_color
                         if (cf_res and cf_res.fg_color)
-                        else cell.fg_color
+                        else (fmt_res.color or cell.fg_color)
                     )
                     text_color = (
                         QColor(text_col_str)
@@ -1256,9 +1266,46 @@ class GridViewport(QAbstractScrollArea):
                         h_flag = Qt.AlignmentFlag.AlignLeft
 
                     align_flag = v_flag | h_flag
-
                     text_rect = QRect(col_x + 3, row_y, span_w - 6, row_h)
-                    painter.drawText(text_rect, align_flag, text)
+
+                    has_pad_or_fill = fmt_res.has_fill or any(
+                        s.kind == "pad" for s in fmt_res.segments
+                    )
+                    if has_pad_or_fill and fmt_res.segments:
+                        self._paint_formatted_segments(
+                            painter,
+                            fmt_res.segments,
+                            cell_fm,
+                            text_rect,
+                            v_flag,
+                            eff_h,
+                        )
+                    elif (
+                        fmt_res.is_numeric
+                        and not fmt_res.is_error
+                        and not cell.wrap_text
+                        and not cell.shrink_to_fit
+                        and (cell.text_rotation or 0) == 0
+                        and cell_fm.horizontalAdvance(text) > text_rect.width()
+                        and text_rect.width() > 0
+                    ):
+                        # Narrow numeric text that fits by Excel's hinted width
+                        # rather than clipping leading digits when fallback fonts are wider.
+                        tw_actual = max(1.0, cell_fm.horizontalAdvance(text))
+                        sx = text_rect.width() / tw_actual
+                        painter.save()
+                        painter.translate(text_rect.left(), 0.0)
+                        painter.scale(sx, 1.0)
+                        scaled_rect = QRectF(
+                            0.0,
+                            float(text_rect.top()),
+                            tw_actual + 1.0,
+                            float(text_rect.height()),
+                        )
+                        painter.drawText(scaled_rect, align_flag, text)
+                        painter.restore()
+                    else:
+                        painter.drawText(text_rect, align_flag, text)
                     painter.restore()
 
         painter.restore()
@@ -1612,6 +1659,160 @@ class GridViewport(QAbstractScrollArea):
                         cm.text or "",
                     )
             painter.restore()
+
+    @staticmethod
+    def _excel_mdw(font_family: str, font_size: int) -> int:
+        """Maximum digit width (px) matching Excel/VibeOffice font sizing rules."""
+        name = (font_family or "Arial").strip().lower()
+        sz = font_size or 11
+        ratios = {
+            "calibri": 7.0 / 11.0,
+            "arial": 7.0 / 10.0,
+            "aptos narrow": 7.0 / 11.0,
+            "aptos": 7.5 / 11.0,
+            "cambria": 7.0 / 11.0,
+            "times new roman": 7.0 / 12.0,
+            "verdana": 8.0 / 10.0,
+            "tahoma": 7.0 / 10.0,
+            "courier new": 8.0 / 10.0,
+            "segoe ui": 7.0 / 10.0,
+            "ms pgothic": 8.0 / 11.0,
+        }
+        k = ratios.get(name, 7.0 / 11.0)
+        return max(5, int(round(k * sz)))
+
+    @classmethod
+    def _hinted_text_width(cls, text: str, font_family: str, font_size: int) -> float:
+        """Estimate rendered width using Excel's hinted character metrics."""
+        mdw = float(cls._excel_mdw(font_family, font_size))
+        narrow = max(2.0, mdw * 0.5)
+        w = 0.0
+        for ch in text:
+            w += narrow if ch in ".,:-' " else mdw
+        return w
+
+    @staticmethod
+    def _measure_formatted_width(
+        fmt_res: FormattedResult, cell_fm: QFontMetricsF
+    ) -> float:
+        """Measure horizontal advance of formatted segments excluding fill tokens."""
+        if not fmt_res.segments:
+            return cell_fm.horizontalAdvance(fmt_res.text)
+        total = 0.0
+        for seg in fmt_res.segments:
+            if seg.kind in ("text", "pad"):
+                total += cell_fm.horizontalAdvance(seg.value)
+        return total
+
+    def _format_cell_for_paint(
+        self,
+        cell: CellData,
+        disp_val: Any,
+        cell_fm: QFontMetricsF,
+        col_w: int,
+    ) -> FormattedResult:
+        """Format a cell value for painting, applying General width fitting and #### overflow."""
+        is_num = isinstance(disp_val, (int, float)) and not isinstance(disp_val, bool)
+        fit_to_width = (
+            is_num
+            and not cell.wrap_text
+            and not cell.shrink_to_fit
+            and (cell.text_rotation or 0) == 0
+        )
+        fmt_code = cell.format_code or "General"
+        if not fit_to_width:
+            return format_value(disp_val, fmt_code)
+
+        avail = max(1.0, float(col_w - 6))
+        hash_w = max(1.0, cell_fm.horizontalAdvance("#"))
+        hashes = "#" * max(1, int(avail // hash_w))
+
+        if fmt_code.lower() == "general":
+            mdw = float(self._excel_mdw(cell.font_family, cell.font_size))
+            chars = max(1, min(11, int((avail - 5.0) // mdw) + 1))
+            res = format_value(disp_val, "General", max_chars=chars)
+            tw = self._hinted_text_width(res.text, cell.font_family, cell.font_size)
+            while tw > avail and chars > 1 and not res.text.startswith("#"):
+                chars -= 1
+                res = format_value(disp_val, "General", max_chars=chars)
+                tw = self._hinted_text_width(res.text, cell.font_family, cell.font_size)
+            if res.is_error or res.text.startswith("#") or tw > avail:
+                return FormattedResult(
+                    text=hashes,
+                    color=res.color,
+                    is_numeric=True,
+                    is_error=True,
+                    segments=(FormatSegment("text", hashes),),
+                )
+            return res
+
+        res = format_value(disp_val, fmt_code)
+        hinted_w = self._hinted_text_width(res.text, cell.font_family, cell.font_size)
+        if res.is_error or (res.is_numeric and hinted_w > avail + 0.5):
+            return FormattedResult(
+                text=hashes,
+                color=res.color,
+                is_numeric=True,
+                is_error=True,
+                segments=(FormatSegment("text", hashes),),
+            )
+        return res
+
+    @staticmethod
+    def _paint_formatted_segments(
+        painter: QPainter,
+        segments: tuple[FormatSegment, ...],
+        cell_fm: QFontMetricsF,
+        text_rect: QRect,
+        v_flag: Qt.AlignmentFlag,
+        eff_h: str,
+    ) -> None:
+        """Render formatted segments with exact `_x` padding and `*x` fill expansion."""
+        avail = max(0.0, float(text_rect.width()))
+        fixed_w = sum(
+            cell_fm.horizontalAdvance(s.value)
+            for s in segments
+            if s.kind != "fill"
+        )
+        fill_count = sum(1 for s in segments if s.kind == "fill")
+        spare = max(0.0, avail - fixed_w)
+
+        if fill_count > 0:
+            cur_x = float(text_rect.left())
+        elif eff_h == "right":
+            cur_x = float(text_rect.right() + 1) - fixed_w
+        elif eff_h == "center":
+            cur_x = float(text_rect.left()) + (avail - fixed_w) / 2.0
+        else:
+            cur_x = float(text_rect.left())
+
+        top_y = float(text_rect.top())
+        row_h = float(text_rect.height())
+        align_seg = v_flag | Qt.AlignmentFlag.AlignLeft
+
+        for seg in segments:
+            if seg.kind == "text":
+                seg_w = cell_fm.horizontalAdvance(seg.value)
+                painter.drawText(
+                    QRectF(cur_x, top_y, seg_w + 2.0, row_h),
+                    align_seg,
+                    seg.value,
+                )
+                cur_x += seg_w
+            elif seg.kind == "pad":
+                cur_x += cell_fm.horizontalAdvance(seg.value)
+            elif seg.kind == "fill":
+                each_fill = spare / fill_count
+                if seg.value != " " and each_fill > 0:
+                    cw = max(1.0, cell_fm.horizontalAdvance(seg.value))
+                    repeat_n = int(each_fill // cw)
+                    if repeat_n > 0:
+                        painter.drawText(
+                            QRectF(cur_x, top_y, each_fill, row_h),
+                            align_seg,
+                            seg.value * repeat_n,
+                        )
+                cur_x += each_fill
 
     def _paint_rich_cell(
         self,
