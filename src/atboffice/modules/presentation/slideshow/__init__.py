@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from atboffice.modules.presentation.slideshow.annotation_layer import (
+    AnnotationStroke,
+    SlideAnnotationOverlay,
+)
 from atboffice.modules.presentation.slideshow.presenter_view import (
     InkPoint,
     InkStroke,
@@ -22,11 +26,13 @@ from atboffice.modules.presentation.slideshow.transitions import (
 )
 
 __all__ = [
+    "AnnotationStroke",
     "InkPoint",
     "InkStroke",
     "InteractiveSlideCanvas",
     "PresenterConsole",
     "PresenterView",
+    "SlideAnnotationOverlay",
     "SlideShowView",
     "SlideTransitionPlayer",
     "TRANSITION_CATALOGUE",
