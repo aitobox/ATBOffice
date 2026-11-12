@@ -407,3 +407,43 @@ def test_antialias_dilation_tolerance(tmp_path):
     assert res.foreground_score >= 0.95
     assert res.category == "PARITY_MATCH"
 
+
+def test_reporter_includes_foreground_and_secondary_pixel_score(tmp_path):
+    out_file = tmp_path / "report.md"
+    results = [
+        DiffResult(
+            file="loss_doc.docx",
+            app="word",
+            similarity=0.97,
+            mae=5.0,
+            edge_similarity=0.98,
+            roi_similarity=0.97,
+            category="CRITICAL_MISMATCH",
+            orig_size=(1178, 767),
+            target_size=(1178, 767),
+            foreground_score=0.10,
+            recall=0.10,
+            precision=0.95,
+            color_hist_similarity=0.40,
+            tier="CRITICAL_MISMATCH",
+        )
+    ]
+    content = generate_report(results, out_file)
+    assert "Foreground" in content
+    assert "Pixel Sim" in content
+    assert "10.0%" in content
+    assert "97.0%" in content
+    assert "NEEDS_REMEDIATION" in content
+
+
+def test_run_office_diff_score_only_dry_run():
+    script_path = REPO_ROOT / "scripts" / "run_office_diff.py"
+    res = subprocess.run(
+        [sys.executable, str(script_path), "--all", "--score-only", "--dry-run"],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+    )
+    assert res.returncode == 0
+    assert "Active targets: 73" in res.stdout
+

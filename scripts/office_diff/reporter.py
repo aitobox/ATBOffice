@@ -9,6 +9,11 @@ from pathlib import Path
 from .models import DiffResult
 
 
+def _primary_score(item: DiffResult) -> float | None:
+    """Return foreground-weighted score when available, falling back to legacy similarity."""
+    return item.foreground_score if item.foreground_score is not None else item.similarity
+
+
 def generate_task_card(
     task_num: int,
     item: DiffResult,
@@ -18,8 +23,10 @@ def generate_task_card(
     """Generate a standard ATB Issue-Ready Remediation Task Card."""
     mod = item.app
     doc_file = item.file
-    sim_str = f"{item.similarity * 100:.1f}%" if item.similarity is not None else "N/A"
-    notes = f"Canvas similarity {sim_str} (category: {item.category}) in {doc_file}"
+    score = _primary_score(item)
+    sim_str = f"{score * 100:.1f}%" if score is not None else "N/A"
+    pixel_str = f"{item.similarity * 100:.1f}%" if item.similarity is not None else "N/A"
+    notes = f"Foreground score {sim_str} (pixel MAE sim {pixel_str}, category: {item.category}) in {doc_file}"
     if item.error:
         notes += f" - {item.error}"
 
@@ -81,10 +88,20 @@ def generate_report(
     now_str = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     total = len(results)
-    comparable = [r for r in results if r.similarity is not None]
-    incomparable = [r for r in results if r.similarity is None]
+    comparable = [r for r in results if _primary_score(r) is not None]
+    incomparable = [r for r in results if _primary_score(r) is None]
 
-    avg_sim = (sum(r.similarity for r in comparable) / len(comparable)) if comparable else 0.0
+    avg_sim = (
+        sum(_primary_score(r) or 0.0 for r in comparable) / len(comparable)
+        if comparable
+        else 0.0
+    )
+    pixel_comparable = [r for r in results if r.similarity is not None]
+    avg_pixel_sim = (
+        sum(r.similarity or 0.0 for r in pixel_comparable) / len(pixel_comparable)
+        if pixel_comparable
+        else 0.0
+    )
 
     parity_matches = sum(1 for r in results if r.category == "PARITY_MATCH")
     cosmetic_minors = sum(1 for r in results if r.category == "COSMETIC_MINOR")
@@ -95,7 +112,7 @@ def generate_report(
 
     # Quality Gate Verdict
     meets_avg = avg_sim >= min_similarity if comparable else False
-    failing_singles = [r for r in comparable if (r.similarity or 0.0) < min_single]
+    failing_singles = [r for r in comparable if (_primary_score(r) or 0.0) < min_single]
     gate_passed = meets_avg and len(failing_singles) == 0 and len(incomparable) == 0
 
     verdict_badge = "✅ PASS" if gate_passed else "⚠️ NEEDS_REMEDIATION"
@@ -113,7 +130,8 @@ def generate_report(
         f"| **Evaluated Documents** | `{total}` | 73 Core Supported OOXML |",
         f"| **Comparable Documents** | `{len(comparable)}` | Size & Region Aligned |",
         f"| **Incomparable / Missing** | `{len(incomparable)}` | 0 Blockers |",
-        f"| **Average Visual Similarity** | `{avg_sim*100:.2f}%` | >= {min_similarity*100:.1f}% |",
+        f"| **Average Visual Similarity** | `{avg_sim*100:.2f}%` | >= {min_similarity*100:.1f}% (Foreground-Weighted) |",
+        f"| **Average Pixel Similarity (MAE)** | `{avg_pixel_sim*100:.2f}%` | Secondary Reference |",
         f"| **Parity Matches (>=95%)** | `{parity_matches}` | High Fidelity |",
         f"| **Cosmetic Minor (85%-95%)** | `{cosmetic_minors}` | Acceptable |",
         f"| **Layout Drifts (70%-85%)** | `{layout_drifts}` | Needs Polish |",
@@ -133,17 +151,24 @@ def generate_report(
         "",
         "## 3. Detailed Results by Document",
         "",
-        "| App | File | Category | Similarity | MAE | Baseline Size | ATB Size | Diff Map |",
-        "|---|---|---|---|---|---|---|---|",
+        "| App | File | Category | Foreground | Recall | Precision | Color Hist | Pixel Sim (MAE) | MAE | Baseline Size | ATB Size | Diff Map |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
 
+    def _fmt_pct(val: float | None) -> str:
+        return f"{val * 100:.1f}%" if val is not None else "N/A"
+
     for r in sorted(results, key=lambda x: (x.app, x.file)):
-        sim_text = f"{r.similarity*100:.1f}%" if r.similarity is not None else "N/A"
+        fg_text = _fmt_pct(_primary_score(r))
+        rec_text = _fmt_pct(r.recall)
+        prec_text = _fmt_pct(r.precision)
+        hist_text = _fmt_pct(r.color_hist_similarity)
+        pix_text = _fmt_pct(r.similarity)
         diff_text = f"[`diff`]({r.diff_path})" if r.diff_path else "-"
         orig_s = f"{r.orig_size[0]}x{r.orig_size[1]}" if r.orig_size != (0, 0) else "-"
         target_s = f"{r.target_size[0]}x{r.target_size[1]}" if r.target_size != (0, 0) else "-"
         lines.append(
-            f"| {r.app} | `{r.file}` | `{r.category}` | **{sim_text}** | {r.mae:.1f} | {orig_s} | {target_s} | {diff_text} |"
+            f"| {r.app} | `{r.file}` | `{r.category}` | **{fg_text}** | {rec_text} | {prec_text} | {hist_text} | {pix_text} | {r.mae:.1f} | {orig_s} | {target_s} | {diff_text} |"
         )
 
     lines.extend([
