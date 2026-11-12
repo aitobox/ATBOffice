@@ -1121,313 +1121,75 @@ class GridViewport(QAbstractScrollArea):
             painter, pr_start, pr_end, pc_start, pc_end, psx, psy, pane_clip
         )
 
-        # 4. Draw Cell Contents (with right-overflow)
+        # 4. Draw Cell Contents (Pass 1: Fills/Merges, Pass 2: Text/Spill/Offscreen, Pass 3: Borders)
         painter.save()
         painter.setClipRect(pane_clip)
 
-        for r in range(pr_start, pr_end + 1):
-            row_y = (
-                self.col_header_height
-                + self.geometry_mapper.row_pos(r)
-                - psy
+        fz_c = self.freeze_cols
+        pane_min_col = fz_c if (fz_c > 0 and pc_start >= fz_c) else 0
+        pane_max_col = (
+            fz_c - 1
+            if (fz_c > 0 and pc_end < fz_c)
+            else self.geometry_mapper.max_cols - 1
+        )
+        items, merge_by_cell = self._collect_pane_items(
+            pr_start, pr_end, pc_start, pc_end, psx, psy
+        )
+
+        # Pass 1: Fills, patterns, data bars, and internal gridline erasure for unfilled merges
+        for r, c, cell, merge, item_rect, cf_res in items:
+            self._paint_cell_item_fill(
+                painter,
+                r,
+                c,
+                cell,
+                merge,
+                item_rect,
+                cf_res,
+                pr_start,
+                pr_end,
+                pc_start,
+                pc_end,
+                psx,
+                psy,
             )
-            row_h = self.geometry_mapper.row_size(r)
-            if row_h <= 0:
+
+        # Pass 2: Cell text (with bidirectional spill) and offscreen overflow
+        for r, c, cell, merge, item_rect, cf_res in items:
+            if cell is None:
                 continue
+            self._paint_cell_item_text(
+                painter,
+                r,
+                c,
+                cell,
+                merge,
+                item_rect,
+                cf_res,
+                psx,
+                pane_min_col,
+                pane_max_col,
+                merge_by_cell,
+            )
 
-            for c in range(pc_start, pc_end + 1):
-                cell = self.model.get_cell(r, c)
-                if cell is None:
-                    continue
+        self._paint_offscreen_overflow(
+            painter,
+            pr_start,
+            pr_end,
+            pc_start,
+            pc_end,
+            psx,
+            psy,
+            pane_min_col,
+            pane_max_col,
+            merge_by_cell,
+        )
 
-                col_x = (
-                    self.row_header_width
-                    + self.geometry_mapper.col_pos(c)
-                    - psx
-                )
-                col_w = self.geometry_mapper.col_size(c)
-                if col_w <= 0:
-                    continue
-
-                cell_rect = QRect(col_x, row_y, col_w, row_h)
-                cf_res = evaluate_cf_for_cell(self.model, r, c)
-                bg_col = cf_res.bg_color if (cf_res and cf_res.bg_color) else cell.bg_color
-
-                # Background fill & patterns
-                if bg_col or cell.pattern:
-                    painter.save()
-                    painter.setClipRect(cell_rect)
-                    if bg_col:
-                        painter.fillRect(cell_rect, QColor(bg_col))
-                    if cell.pattern:
-                        from atboffice.modules.spreadsheet.dialogs.pattern_defs import (
-                            create_pattern_brush,
-                        )
-
-                        brush = create_pattern_brush(
-                            cell.pattern,
-                            cell.pattern_color or "#000000",
-                            bg_col or "#FFFFFF",
-                        )
-                        painter.fillRect(cell_rect, brush)
-                    painter.restore()
-
-                # Data bar overlay
-                if cf_res and cf_res.data_bar:
-                    painter.save()
-                    painter.setClipRect(cell_rect)
-                    bar_frac = max(0.0, min(1.0, float(cf_res.data_bar.get("frac", 0.0))))
-                    bar_color = QColor(str(cf_res.data_bar.get("color", "#638EC6")))
-                    bar_w = int((col_w - 2) * bar_frac)
-                    bar_h = row_h - 2
-                    bx = col_x + 1
-                    by = row_y + 1
-                    if bar_w > 0 and bar_h > 0:
-                        is_gradient = cf_res.data_bar.get("gradient", True)
-                        if is_gradient:
-                            grad = QLinearGradient(bx, by, bx + bar_w, by)
-                            grad.setColorAt(0.0, bar_color)
-                            grad.setColorAt(1.0, QColor(255, 255, 255, 220))
-                            painter.fillRect(QRect(bx, by, bar_w, bar_h), QBrush(grad))
-                        else:
-                            painter.fillRect(QRect(bx, by, bar_w, bar_h), bar_color)
-
-                        # 1px border stroke around data bar
-                        if cf_res.data_bar.get("border", True):
-                            border_col = cf_res.data_bar.get("border_color")
-                            b_pen_color = QColor(border_col) if border_col else bar_color
-                            painter.setPen(QPen(b_pen_color, 1))
-                            painter.drawRect(QRect(bx, by, max(0, bar_w - 1), max(0, bar_h - 1)))
-                    painter.restore()
-
-                # Cell borders
-                if any(
-                    [
-                        cell.border_top,
-                        cell.border_bottom,
-                        cell.border_left,
-                        cell.border_right,
-                    ]
-                ):
-                    painter.save()
-                    if cell.border_top and cell.border_top.style != "none":
-                        col = (
-                            QColor(cell.border_top.color)
-                            if cell.border_top.color
-                            else Qt.GlobalColor.black
-                        )
-                        painter.setPen(
-                            QPen(
-                                col,
-                                2
-                                if cell.border_top.style in ("medium", "thick")
-                                else 1,
-                            )
-                        )
-                        painter.drawLine(col_x, row_y, col_x + col_w, row_y)
-                    if (
-                        cell.border_bottom
-                        and cell.border_bottom.style != "none"
-                    ):
-                        col = (
-                            QColor(cell.border_bottom.color)
-                            if cell.border_bottom.color
-                            else Qt.GlobalColor.black
-                        )
-                        painter.setPen(
-                            QPen(
-                                col,
-                                2
-                                if cell.border_bottom.style
-                                in ("medium", "thick")
-                                else 1,
-                            )
-                        )
-                        painter.drawLine(
-                            col_x, row_y + row_h, col_x + col_w, row_y + row_h
-                        )
-                    if cell.border_left and cell.border_left.style != "none":
-                        col = (
-                            QColor(cell.border_left.color)
-                            if cell.border_left.color
-                            else Qt.GlobalColor.black
-                        )
-                        painter.setPen(
-                            QPen(
-                                col,
-                                2
-                                if cell.border_left.style
-                                in ("medium", "thick")
-                                else 1,
-                            )
-                        )
-                        painter.drawLine(col_x, row_y, col_x, row_y + row_h)
-                    if cell.border_right and cell.border_right.style != "none":
-                        col = (
-                            QColor(cell.border_right.color)
-                            if cell.border_right.color
-                            else Qt.GlobalColor.black
-                        )
-                        painter.setPen(
-                            QPen(
-                                col,
-                                2
-                                if cell.border_right.style
-                                in ("medium", "thick")
-                                else 1,
-                            )
-                        )
-                        painter.drawLine(
-                            col_x + col_w, row_y, col_x + col_w, row_y + row_h
-                        )
-                    painter.restore()
-
-                disp_val = (
-                    cell.get_display_value()
-                    if hasattr(cell, "get_display_value")
-                    else cell.value
-                )
-                if disp_val is None or disp_val == "":
-                    continue
-
-                if cf_res and cf_res.data_bar and not cf_res.data_bar.get("show_value", True):
-                    continue
-
-                eff_h = cell.get_effective_align_h()
-                eff_v = cell.get_effective_align_v()
-
-                if cell.rich_runs:
-                    text_w = int(self._measure_rich_runs_width(cell))
-                    span = (
-                        self.calculate_overflow_span(r, c, text_w, col_w)
-                        if eff_h == "left"
-                        else 1
-                    )
-                    span_w = sum(
-                        self.geometry_mapper.col_size(c + i) for i in range(span)
-                    )
-                    self._paint_rich_cell(
-                        painter,
-                        cell,
-                        col_x,
-                        row_y,
-                        span_w,
-                        row_h,
-                        eff_h,
-                        eff_v,
-                        cf_res,
-                    )
-                else:
-                    font = QFont(cell.font_family, cell.font_size)
-                    is_bold = (
-                        cf_res.bold
-                        if (cf_res and cf_res.bold is not None)
-                        else cell.bold
-                    )
-                    is_italic = (
-                        cf_res.italic
-                        if (cf_res and cf_res.italic is not None)
-                        else cell.italic
-                    )
-                    font.setBold(is_bold)
-                    font.setItalic(is_italic)
-                    font.setUnderline(cell.underline)
-                    cell_fm = QFontMetricsF(font)
-
-                    fmt_res = self._format_cell_for_paint(
-                        cell, disp_val, cell_fm, col_w
-                    )
-                    text = fmt_res.text
-                    text_w = int(
-                        math.ceil(self._measure_formatted_width(fmt_res, cell_fm))
-                    )
-
-                    # Right-overflow calculation: only left-aligned non-fill text can overflow right
-                    if eff_h == "left" and not fmt_res.has_fill and not fmt_res.is_error:
-                        span = self.calculate_overflow_span(r, c, text_w, col_w)
-                    else:
-                        span = 1
-                    span_w = sum(
-                        self.geometry_mapper.col_size(c + i) for i in range(span)
-                    )
-
-                    painter.save()
-                    # Clip cell area
-                    painter.setClipRect(QRect(col_x, row_y, span_w - 1, row_h - 1))
-                    painter.setFont(font)
-
-                    text_col_str = (
-                        cf_res.fg_color
-                        if (cf_res and cf_res.fg_color)
-                        else (fmt_res.color or cell.fg_color)
-                    )
-                    text_color = (
-                        QColor(text_col_str)
-                        if text_col_str
-                        else Qt.GlobalColor.black
-                    )
-                    painter.setPen(text_color)
-
-                    # Vertical alignment
-                    if eff_v == "top":
-                        v_flag = Qt.AlignmentFlag.AlignTop
-                    elif eff_v == "bottom" and row_h > 26:
-                        v_flag = Qt.AlignmentFlag.AlignBottom
-                    else:
-                        v_flag = Qt.AlignmentFlag.AlignVCenter
-
-                    # Horizontal alignment
-                    if eff_h == "center":
-                        h_flag = Qt.AlignmentFlag.AlignHCenter
-                    elif eff_h == "right":
-                        h_flag = Qt.AlignmentFlag.AlignRight
-                    elif eff_h == "justify":
-                        h_flag = Qt.AlignmentFlag.AlignJustify
-                    else:
-                        h_flag = Qt.AlignmentFlag.AlignLeft
-
-                    align_flag = v_flag | h_flag
-                    text_rect = QRect(col_x + 3, row_y, span_w - 6, row_h)
-
-                    has_pad_or_fill = fmt_res.has_fill or any(
-                        s.kind == "pad" for s in fmt_res.segments
-                    )
-                    if has_pad_or_fill and fmt_res.segments:
-                        self._paint_formatted_segments(
-                            painter,
-                            fmt_res.segments,
-                            cell_fm,
-                            text_rect,
-                            v_flag,
-                            eff_h,
-                        )
-                    elif (
-                        fmt_res.is_numeric
-                        and not fmt_res.is_error
-                        and not cell.wrap_text
-                        and not cell.shrink_to_fit
-                        and (cell.text_rotation or 0) == 0
-                        and cell_fm.horizontalAdvance(text) > text_rect.width()
-                        and text_rect.width() > 0
-                    ):
-                        # Narrow numeric text that fits by Excel's hinted width
-                        # rather than clipping leading digits when fallback fonts are wider.
-                        tw_actual = max(1.0, cell_fm.horizontalAdvance(text))
-                        sx = text_rect.width() / tw_actual
-                        painter.save()
-                        painter.translate(text_rect.left(), 0.0)
-                        painter.scale(sx, 1.0)
-                        scaled_rect = QRectF(
-                            0.0,
-                            float(text_rect.top()),
-                            tw_actual + 1.0,
-                            float(text_rect.height()),
-                        )
-                        painter.drawText(scaled_rect, align_flag, text)
-                        painter.restore()
-                    else:
-                        painter.drawText(text_rect, align_flag, text)
-                    painter.restore()
+        # Pass 3: Borders
+        for r, c, cell, merge, item_rect, _cf_res in items:
+            if cell is None and merge is None:
+                continue
+            self._paint_cell_item_borders(painter, cell, merge, item_rect)
 
         painter.restore()
 
@@ -1935,6 +1697,562 @@ class GridViewport(QAbstractScrollArea):
                         )
                 cur_x += each_fill
 
+    def _collect_pane_items(
+        self,
+        pr_start: int,
+        pr_end: int,
+        pc_start: int,
+        pc_end: int,
+        psx: int,
+        psy: int,
+    ) -> tuple[
+        list[tuple[int, int, CellData | None, tuple[int, int, int, int] | None, QRect, Any]],
+        dict[tuple[int, int], tuple[int, int, int, int]],
+    ]:
+        """Collect visible merged blocks and unmerged cells for a pane."""
+        items: list[
+            tuple[int, int, CellData | None, tuple[int, int, int, int] | None, QRect, Any]
+        ] = []
+        merge_by_cell: dict[tuple[int, int], tuple[int, int, int, int]] = {}
+        seen_merges: set[tuple[int, int, int, int]] = set()
+
+        scan_c_min = max(0, pc_start - 256)
+        scan_c_max = min(self.geometry_mapper.max_cols - 1, pc_end + 64)
+
+        for raw_m in getattr(self.model, "merges", []):
+            m = self._normalize_merge(raw_m)
+            mr1, mc1, mr2, mc2 = m
+            if mr2 < pr_start or mr1 > pr_end:
+                continue
+            # Index cells in visible row band + horizontal spill scan window
+            if not (mc2 < scan_c_min or mc1 > scan_c_max):
+                ir1 = max(mr1, pr_start)
+                ir2 = min(mr2, pr_end)
+                ic1 = max(mc1, scan_c_min)
+                ic2 = min(mc2, scan_c_max)
+                for rr in range(ir1, ir2 + 1):
+                    for cc in range(ic1, ic2 + 1):
+                        merge_by_cell[(rr, cc)] = m
+            if mc2 < pc_start or mc1 > pc_end or m in seen_merges:
+                continue
+            seen_merges.add(m)
+
+            mx = self.row_header_width + self.geometry_mapper.col_pos(mc1) - psx
+            my = self.col_header_height + self.geometry_mapper.row_pos(mr1) - psy
+            mx2 = self.row_header_width + self.geometry_mapper.col_pos(mc2 + 1) - psx
+            my2 = self.col_header_height + self.geometry_mapper.row_pos(mr2 + 1) - psy
+            mw = mx2 - mx
+            mh = my2 - my
+            if mw <= 0 or mh <= 0:
+                continue
+            anchor_cell = self.model.get_cell(mr1, mc1)
+            cf_res = (
+                evaluate_cf_for_cell(self.model, mr1, mc1)
+                if anchor_cell is not None
+                else None
+            )
+            items.append((mr1, mc1, anchor_cell, m, QRect(mx, my, mw, mh), cf_res))
+
+        for r in range(pr_start, pr_end + 1):
+            row_h = self.geometry_mapper.row_size(r)
+            if row_h <= 0:
+                continue
+            row_y = self.col_header_height + self.geometry_mapper.row_pos(r) - psy
+            for c in range(pc_start, pc_end + 1):
+                if (r, c) in merge_by_cell:
+                    continue
+                cell = self.model.get_cell(r, c)
+                if cell is None:
+                    continue
+                col_w = self.geometry_mapper.col_size(c)
+                if col_w <= 0:
+                    continue
+                col_x = self.row_header_width + self.geometry_mapper.col_pos(c) - psx
+                cf_res = evaluate_cf_for_cell(self.model, r, c)
+                items.append((r, c, cell, None, QRect(col_x, row_y, col_w, row_h), cf_res))
+
+        return items, merge_by_cell
+
+    def _paint_cell_item_fill(
+        self,
+        painter: QPainter,
+        r: int,
+        c: int,
+        cell: CellData | None,
+        merge: tuple[int, int, int, int] | None,
+        item_rect: QRect,
+        cf_res: Any,
+        pr_start: int,
+        pr_end: int,
+        pc_start: int,
+        pc_end: int,
+        psx: int,
+        psy: int,
+    ) -> None:
+        """Paint cell or merge background fill, pattern, data bar, and merge gridline erasure."""
+        bg_col = (
+            cf_res.bg_color
+            if (cf_res and cf_res.bg_color)
+            else (cell.bg_color if cell is not None else None)
+        )
+        pattern = cell.pattern if cell is not None else None
+
+        if bg_col or pattern:
+            painter.save()
+            painter.setClipRect(item_rect, Qt.ClipOperation.IntersectClip)
+            if bg_col:
+                painter.fillRect(item_rect, QColor(bg_col))
+            if pattern and cell is not None:
+                from atboffice.modules.spreadsheet.dialogs.pattern_defs import (
+                    create_pattern_brush,
+                )
+
+                brush = create_pattern_brush(
+                    pattern,
+                    cell.pattern_color or "#000000",
+                    bg_col or "#FFFFFF",
+                )
+                painter.fillRect(item_rect, brush)
+            painter.restore()
+        elif merge is not None:
+            # Erase internal gridlines inside an unfilled merge while keeping outer gridlines
+            mr1, mc1, mr2, mc2 = merge
+            painter.save()
+            painter.setPen(QPen(Qt.GlobalColor.white, 1))
+            y_top = item_rect.top() + 1
+            y_bot = item_rect.bottom()
+            x_left = item_rect.left() + 1
+            x_right = item_rect.right()
+            for mc in range(max(mc1 + 1, pc_start), min(mc2, pc_end + 1) + 1):
+                gx = self.row_header_width + self.geometry_mapper.col_pos(mc) - psx
+                if x_left <= gx <= x_right:
+                    painter.drawLine(gx, y_top, gx, y_bot)
+            for mr in range(max(mr1 + 1, pr_start), min(mr2, pr_end + 1) + 1):
+                gy = self.col_header_height + self.geometry_mapper.row_pos(mr) - psy
+                if y_top <= gy <= y_bot:
+                    painter.drawLine(x_left, gy, x_right, gy)
+            painter.restore()
+
+        if cf_res and cf_res.data_bar:
+            col_x = item_rect.x()
+            row_y = item_rect.y()
+            col_w = item_rect.width()
+            row_h = item_rect.height()
+            painter.save()
+            painter.setClipRect(item_rect, Qt.ClipOperation.IntersectClip)
+            bar_frac = max(0.0, min(1.0, float(cf_res.data_bar.get("frac", 0.0))))
+            bar_color = QColor(str(cf_res.data_bar.get("color", "#638EC6")))
+            bar_w = int((col_w - 2) * bar_frac)
+            bar_h = row_h - 2
+            bx = col_x + 1
+            by = row_y + 1
+            if bar_w > 0 and bar_h > 0:
+                is_gradient = cf_res.data_bar.get("gradient", True)
+                if is_gradient:
+                    grad = QLinearGradient(bx, by, bx + bar_w, by)
+                    grad.setColorAt(0.0, bar_color)
+                    grad.setColorAt(1.0, QColor(255, 255, 255, 220))
+                    painter.fillRect(QRect(bx, by, bar_w, bar_h), QBrush(grad))
+                else:
+                    painter.fillRect(QRect(bx, by, bar_w, bar_h), bar_color)
+
+                if cf_res.data_bar.get("border", True):
+                    border_col = cf_res.data_bar.get("border_color")
+                    b_pen_color = QColor(border_col) if border_col else bar_color
+                    painter.setPen(QPen(b_pen_color, 1))
+                    painter.drawRect(QRect(bx, by, max(0, bar_w - 1), max(0, bar_h - 1)))
+            painter.restore()
+
+    def _paint_cell_item_borders(
+        self,
+        painter: QPainter,
+        cell: CellData | None,
+        merge: tuple[int, int, int, int] | None,
+        item_rect: QRect,
+    ) -> None:
+        """Paint cell or merged-block outer borders."""
+        b_top = cell.border_top if cell is not None else None
+        b_bottom = cell.border_bottom if cell is not None else None
+        b_left = cell.border_left if cell is not None else None
+        b_right = cell.border_right if cell is not None else None
+
+        if merge is not None:
+            mr1, mc1, mr2, mc2 = merge
+            if b_bottom is None:
+                bl_cell = self.model.get_cell(mr2, mc1)
+                if bl_cell is not None:
+                    b_bottom = bl_cell.border_bottom
+            if b_right is None:
+                tr_cell = self.model.get_cell(mr1, mc2)
+                if tr_cell is not None:
+                    b_right = tr_cell.border_right
+
+        if not any([b_top, b_bottom, b_left, b_right]):
+            return
+
+        col_x = item_rect.x()
+        row_y = item_rect.y()
+        col_w = item_rect.width()
+        row_h = item_rect.height()
+
+        painter.save()
+        if b_top and b_top.style != "none":
+            col = QColor(b_top.color) if b_top.color else Qt.GlobalColor.black
+            painter.setPen(QPen(col, 2 if b_top.style in ("medium", "thick") else 1))
+            painter.drawLine(col_x, row_y, col_x + col_w, row_y)
+        if b_bottom and b_bottom.style != "none":
+            col = QColor(b_bottom.color) if b_bottom.color else Qt.GlobalColor.black
+            painter.setPen(QPen(col, 2 if b_bottom.style in ("medium", "thick") else 1))
+            painter.drawLine(col_x, row_y + row_h, col_x + col_w, row_y + row_h)
+        if b_left and b_left.style != "none":
+            col = QColor(b_left.color) if b_left.color else Qt.GlobalColor.black
+            painter.setPen(QPen(col, 2 if b_left.style in ("medium", "thick") else 1))
+            painter.drawLine(col_x, row_y, col_x, row_y + row_h)
+        if b_right and b_right.style != "none":
+            col = QColor(b_right.color) if b_right.color else Qt.GlobalColor.black
+            painter.setPen(QPen(col, 2 if b_right.style in ("medium", "thick") else 1))
+            painter.drawLine(col_x + col_w, row_y, col_x + col_w, row_y + row_h)
+        painter.restore()
+
+    def _paint_cell_item_text(
+        self,
+        painter: QPainter,
+        r: int,
+        c: int,
+        cell: CellData,
+        merge: tuple[int, int, int, int] | None,
+        item_rect: QRect,
+        cf_res: Any,
+        psx: int,
+        pane_min_col: int,
+        pane_max_col: int,
+        merge_by_cell: dict[tuple[int, int], tuple[int, int, int, int]],
+    ) -> None:
+        """Paint cell or merged-block text with bidirectional neighbor spill and wrapping."""
+        disp_val = (
+            cell.get_display_value()
+            if hasattr(cell, "get_display_value")
+            else cell.value
+        )
+        if disp_val is None or disp_val == "":
+            return
+
+        if cf_res and cf_res.data_bar and not cf_res.data_bar.get("show_value", True):
+            return
+
+        col_x = item_rect.x()
+        row_y = item_rect.y()
+        col_w = item_rect.width()
+        row_h = item_rect.height()
+        if col_w <= 1 or row_h <= 1:
+            return
+
+        eff_h = cell.get_effective_align_h()
+        eff_v = cell.get_effective_align_v()
+        indent_px = (cell.indent or 0) * 9
+
+        if cell.rich_runs:
+            text_w = int(math.ceil(self._measure_rich_runs_width(cell)))
+            can_spill = (
+                merge is None
+                and not cell.wrap_text
+                and not cell.shrink_to_fit
+                and (cell.text_rotation or 0) == 0
+                and eff_h in ("left", "general", "right", "center", "centerContinuous")
+            )
+            if can_spill:
+                left_c, right_c = self.calculate_spill_bounds(
+                    r,
+                    c,
+                    text_w,
+                    col_w,
+                    eff_h,
+                    indent_px=indent_px,
+                    min_col=pane_min_col,
+                    max_col=pane_max_col,
+                    merge_by_cell=merge_by_cell,
+                )
+                clip_l = self.row_header_width + self.geometry_mapper.col_pos(left_c) - psx
+                clip_r = self.row_header_width + self.geometry_mapper.col_pos(right_c + 1) - psx
+            else:
+                clip_l = col_x
+                clip_r = col_x + col_w
+            clip_rect = QRect(clip_l, row_y, max(0, clip_r - clip_l - 1), max(0, row_h - 1))
+
+            if eff_h in ("center", "centerContinuous") and can_spill:
+                draw_w = max(col_w, text_w + 8)
+                draw_x = int(round(col_x + col_w / 2.0 - draw_w / 2.0))
+            elif eff_h == "right" and can_spill:
+                draw_w = max(clip_r - clip_l, text_w + 8 + indent_px)
+                draw_x = col_x + col_w - draw_w
+            else:
+                draw_x = col_x
+                draw_w = clip_r - col_x
+
+            self._paint_rich_cell(
+                painter,
+                cell,
+                draw_x,
+                row_y,
+                draw_w,
+                row_h,
+                eff_h,
+                eff_v,
+                cf_res,
+                clip_rect=clip_rect,
+            )
+            return
+
+        font = QFont(cell.font_family, cell.font_size)
+        is_bold = (
+            cf_res.bold
+            if (cf_res and cf_res.bold is not None)
+            else cell.bold
+        )
+        is_italic = (
+            cf_res.italic
+            if (cf_res and cf_res.italic is not None)
+            else cell.italic
+        )
+        font.setBold(is_bold)
+        font.setItalic(is_italic)
+        font.setUnderline(cell.underline)
+        cell_fm = QFontMetricsF(font)
+
+        fmt_res = self._format_cell_for_paint(cell, disp_val, cell_fm, col_w)
+        text = self._normalize_unwrapped_text(fmt_res.text, cell.wrap_text)
+        if text != fmt_res.text:
+            text_w = int(math.ceil(cell_fm.horizontalAdvance(text)))
+        else:
+            text_w = int(math.ceil(self._measure_formatted_width(fmt_res, cell_fm)))
+
+        can_spill = (
+            merge is None
+            and not cell.wrap_text
+            and not cell.shrink_to_fit
+            and (cell.text_rotation or 0) == 0
+            and not fmt_res.is_numeric
+            and not fmt_res.has_fill
+            and not fmt_res.is_error
+            and eff_h in ("left", "general", "right", "center", "centerContinuous")
+        )
+        if can_spill:
+            left_c, right_c = self.calculate_spill_bounds(
+                r,
+                c,
+                text_w,
+                col_w,
+                eff_h,
+                indent_px=indent_px,
+                min_col=pane_min_col,
+                max_col=pane_max_col,
+                merge_by_cell=merge_by_cell,
+            )
+            clip_l = self.row_header_width + self.geometry_mapper.col_pos(left_c) - psx
+            clip_r = self.row_header_width + self.geometry_mapper.col_pos(right_c + 1) - psx
+        else:
+            clip_l = col_x
+            clip_r = col_x + col_w
+
+        clip_rect = QRect(clip_l, row_y, max(0, clip_r - clip_l - 1), max(0, row_h - 1))
+
+        painter.save()
+        painter.setClipRect(clip_rect, Qt.ClipOperation.IntersectClip)
+        painter.setFont(font)
+
+        text_col_str = (
+            cf_res.fg_color
+            if (cf_res and cf_res.fg_color)
+            else (fmt_res.color or cell.fg_color)
+        )
+        text_color = (
+            QColor(text_col_str)
+            if text_col_str
+            else Qt.GlobalColor.black
+        )
+        painter.setPen(text_color)
+
+        if eff_v == "top":
+            v_flag = Qt.AlignmentFlag.AlignTop
+        elif eff_v == "bottom" and row_h > 26:
+            v_flag = Qt.AlignmentFlag.AlignBottom
+        else:
+            v_flag = Qt.AlignmentFlag.AlignVCenter
+
+        if eff_h in ("center", "centerContinuous"):
+            h_flag = Qt.AlignmentFlag.AlignHCenter
+        elif eff_h == "right":
+            h_flag = Qt.AlignmentFlag.AlignRight
+        elif eff_h == "justify":
+            h_flag = Qt.AlignmentFlag.AlignJustify
+        else:
+            h_flag = Qt.AlignmentFlag.AlignLeft
+
+        align_flag = v_flag | h_flag
+        if cell.wrap_text:
+            align_flag |= Qt.TextFlag.TextWordWrap
+
+        if can_spill and eff_h == "right":
+            rect_r = col_x + col_w - 3 - indent_px
+            rect_l = min(clip_l + 3, rect_r - text_w - 4)
+            text_rect = QRect(rect_l, row_y, max(0, rect_r - rect_l), row_h)
+        elif can_spill and eff_h in ("center", "centerContinuous"):
+            half_w = max(col_w / 2.0, text_w / 2.0 + 4.0)
+            cx = col_x + col_w / 2.0
+            rect_l = int(round(cx - half_w)) + 3
+            rect_w = max(0, int(round(half_w * 2.0)) - 6)
+            text_rect = QRect(rect_l, row_y, rect_w, row_h)
+        else:
+            span_w = clip_r - col_x
+            if eff_h in ("left", "general"):
+                text_rect = QRect(
+                    col_x + 3 + indent_px,
+                    row_y,
+                    max(0, span_w - 6 - indent_px),
+                    row_h,
+                )
+            elif eff_h == "right":
+                text_rect = QRect(
+                    col_x + 3,
+                    row_y,
+                    max(0, span_w - 6 - indent_px),
+                    row_h,
+                )
+            else:
+                text_rect = QRect(col_x + 3, row_y, max(0, span_w - 6), row_h)
+
+        has_pad_or_fill = fmt_res.has_fill or any(
+            s.kind == "pad" for s in fmt_res.segments
+        )
+        if has_pad_or_fill and fmt_res.segments:
+            self._paint_formatted_segments(
+                painter,
+                fmt_res.segments,
+                cell_fm,
+                text_rect,
+                v_flag,
+                eff_h,
+            )
+        elif (
+            fmt_res.is_numeric
+            and not fmt_res.is_error
+            and not cell.wrap_text
+            and not cell.shrink_to_fit
+            and (cell.text_rotation or 0) == 0
+            and cell_fm.horizontalAdvance(text) > text_rect.width()
+            and text_rect.width() > 0
+        ):
+            tw_actual = max(1.0, cell_fm.horizontalAdvance(text))
+            sx = text_rect.width() / tw_actual
+            painter.save()
+            painter.translate(text_rect.left(), 0.0)
+            painter.scale(sx, 1.0)
+            scaled_rect = QRectF(
+                0.0,
+                float(text_rect.top()),
+                tw_actual + 1.0,
+                float(text_rect.height()),
+            )
+            painter.drawText(scaled_rect, align_flag, text)
+            painter.restore()
+        else:
+            painter.drawText(text_rect, align_flag, text)
+        painter.restore()
+
+    def _paint_offscreen_overflow(
+        self,
+        painter: QPainter,
+        pr_start: int,
+        pr_end: int,
+        pc_start: int,
+        pc_end: int,
+        psx: int,
+        psy: int,
+        pane_min_col: int,
+        pane_max_col: int,
+        merge_by_cell: dict[tuple[int, int], tuple[int, int, int, int]],
+    ) -> None:
+        """Paint text spilling into the visible pane from cells outside [pc_start, pc_end]."""
+        for r in range(pr_start, pr_end + 1):
+            row_h = self.geometry_mapper.row_size(r)
+            if row_h <= 0:
+                continue
+            row_y = self.col_header_height + self.geometry_mapper.row_pos(r) - psy
+
+            # Left offscreen scan: nearest non-empty cell before pc_start
+            if pc_start > pane_min_col:
+                limit_l = max(pane_min_col, pc_start - 256)
+                cc = pc_start - 1
+                while cc >= limit_l:
+                    if (r, cc) in merge_by_cell or self._is_merged_cell(r, cc):
+                        break
+                    cl = self.model.get_cell(r, cc)
+                    val = cl.get_display_value() if cl is not None else None
+                    if val is not None and val != "":
+                        eff_h = cl.get_effective_align_h()
+                        if (
+                            not cl.wrap_text
+                            and not cl.shrink_to_fit
+                            and (cl.text_rotation or 0) == 0
+                            and eff_h in ("left", "general", "center", "centerContinuous")
+                        ):
+                            col_x = self.row_header_width + self.geometry_mapper.col_pos(cc) - psx
+                            col_w = self.geometry_mapper.col_size(cc)
+                            if col_w > 0:
+                                cf_res = evaluate_cf_for_cell(self.model, r, cc)
+                                self._paint_cell_item_text(
+                                    painter,
+                                    r,
+                                    cc,
+                                    cl,
+                                    None,
+                                    QRect(col_x, row_y, col_w, row_h),
+                                    cf_res,
+                                    psx,
+                                    pane_min_col,
+                                    pane_max_col,
+                                    merge_by_cell,
+                                )
+                        break
+                    cc -= 1
+
+            # Right offscreen scan: nearest non-empty cell beyond pc_end
+            if pc_end < pane_max_col:
+                limit_r = min(pane_max_col, pc_end + 64)
+                cc = pc_end + 1
+                while cc <= limit_r:
+                    if (r, cc) in merge_by_cell or self._is_merged_cell(r, cc):
+                        break
+                    cl = self.model.get_cell(r, cc)
+                    val = cl.get_display_value() if cl is not None else None
+                    if val is not None and val != "":
+                        eff_h = cl.get_effective_align_h()
+                        if (
+                            not cl.wrap_text
+                            and not cl.shrink_to_fit
+                            and (cl.text_rotation or 0) == 0
+                            and eff_h in ("right", "center")
+                        ):
+                            col_x = self.row_header_width + self.geometry_mapper.col_pos(cc) - psx
+                            col_w = self.geometry_mapper.col_size(cc)
+                            if col_w > 0:
+                                cf_res = evaluate_cf_for_cell(self.model, r, cc)
+                                self._paint_cell_item_text(
+                                    painter,
+                                    r,
+                                    cc,
+                                    cl,
+                                    None,
+                                    QRect(col_x, row_y, col_w, row_h),
+                                    cf_res,
+                                    psx,
+                                    pane_min_col,
+                                    pane_max_col,
+                                    merge_by_cell,
+                                )
+                        break
+                    cc += 1
+
     def _paint_rich_cell(
         self,
         painter: QPainter,
@@ -1946,6 +2264,7 @@ class GridViewport(QAbstractScrollArea):
         eff_h: str,
         eff_v: str,
         cf_res: Any = None,
+        clip_rect: QRect | None = None,
     ) -> None:
         """Render in-cell rich text runs with mixed fonts, colors, sub/superscript, and wrapping."""
         runs = cell.rich_runs or []
@@ -1953,7 +2272,10 @@ class GridViewport(QAbstractScrollArea):
             return
 
         painter.save()
-        painter.setClipRect(QRect(col_x, row_y, span_w - 1, row_h - 1))
+        effective_clip = (
+            clip_rect if clip_rect is not None else QRect(col_x, row_y, span_w - 1, row_h - 1)
+        )
+        painter.setClipRect(effective_clip, Qt.ClipOperation.IntersectClip)
 
         # Base font metrics for baseline calculation
         base_font = QFont(cell.font_family or "Arial", cell.font_size or 10)
@@ -2031,7 +2353,8 @@ class GridViewport(QAbstractScrollArea):
 
             rfm = QFontMetricsF(rf)
 
-            text_parts = r.text.split("\n")
+            run_text = self._normalize_unwrapped_text(r.text, cell.wrap_text)
+            text_parts = run_text.split("\n")
             for idx, part in enumerate(text_parts):
                 if idx > 0:
                     lines.append(curr_line)
@@ -2078,10 +2401,10 @@ class GridViewport(QAbstractScrollArea):
         for l_idx, line in enumerate(lines):
             line_w = sum(item[4] for item in line)
 
-            if eff_h == "center":
-                curr_x = col_x + 3.0 + max(0.0, (avail_w - line_w) / 2.0)
-            elif eff_h in ("right",):
-                curr_x = col_x + 3.0 + max(0.0, avail_w - line_w)
+            if eff_h in ("center", "centerContinuous"):
+                curr_x = col_x + 3.0 + (avail_w - line_w) / 2.0
+            elif eff_h == "right":
+                curr_x = col_x + 3.0 + (avail_w - line_w)
             else:
                 curr_x = col_x + 3.0
 
