@@ -590,6 +590,52 @@ class GridViewport(QAbstractScrollArea):
             return (hit.row, hit.col)
         return None
 
+    @staticmethod
+    def _normalize_unwrapped_text(text: str, wrap_text: bool) -> str:
+        """Replace line breaks with spaces when wrap_text is disabled (Excel behavior)."""
+        if wrap_text:
+            return text
+        if "\n" not in text and "\r" not in text:
+            return text
+        return text.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
+
+    @staticmethod
+    def _normalize_merge(m: Any) -> tuple[int, int, int, int]:
+        """Normalize a merge entry (4-tuple or SelectionRange) to (r1, c1, r2, c2)."""
+        if hasattr(m, "min_r"):
+            return (int(m.min_r), int(m.min_c), int(m.max_r), int(m.max_c))
+        r1, c1, r2, c2 = m
+        return (
+            min(int(r1), int(r2)),
+            min(int(c1), int(c2)),
+            max(int(r1), int(r2)),
+            max(int(c1), int(c2)),
+        )
+
+    def _is_merged_cell(self, r: int, c: int) -> bool:
+        """Return True if (r, c) lies inside any merged region on the sheet."""
+        for m in getattr(self.model, "merges", []):
+            r1, c1, r2, c2 = self._normalize_merge(m)
+            if r1 <= r <= r2 and c1 <= c <= c2:
+                return True
+        return False
+
+    def _is_empty_for_spill(
+        self,
+        r: int,
+        c: int,
+        merge_by_cell: dict[tuple[int, int], tuple[int, int, int, int]] | None = None,
+    ) -> bool:
+        """Return True if neighbor cell (r, c) can accept spilled text."""
+        if c < 0 or c >= self.geometry_mapper.max_cols:
+            return False
+        if merge_by_cell is not None:
+            if (r, c) in merge_by_cell:
+                return False
+        elif self._is_merged_cell(r, c):
+            return False
+        return self.model.is_empty(r, c)
+
     def _measure_rich_runs_width(self, cell: CellData) -> float:
         """Measure total horizontal width of rich text runs."""
         runs = cell.rich_runs or []
@@ -616,7 +662,8 @@ class GridViewport(QAbstractScrollArea):
             rf.setItalic(r.italic if r.italic is not None else cell.italic)
             rfm = QFontMetricsF(rf)
 
-            parts = r.text.split("\n")
+            run_text = self._normalize_unwrapped_text(r.text, cell.wrap_text)
+            parts = run_text.split("\n")
             for idx, part in enumerate(parts):
                 if idx > 0:
                     if curr_line_w > max_line_w:
@@ -662,23 +709,97 @@ class GridViewport(QAbstractScrollArea):
     def calculate_overflow_span(
         self, r: int, c: int, text_width: int, col_width: int
     ) -> int:
-        """Calculate how many consecutive empty neighbor columns text can overflow into."""
-        if text_width <= col_width - 6:
-            return 1
+        """Calculate how many consecutive empty neighbor columns text can overflow right."""
+        _, right_c = self.calculate_spill_bounds(
+            r, c, text_width, col_width, eff_h="left"
+        )
+        return right_c - c + 1
 
-        accumulated = col_width
-        span = 1
-        curr_c = c + 1
-        while accumulated < text_width + 6 and curr_c < self.geometry_mapper.max_cols:
-            if not self.model.is_empty(r, curr_c):
-                break
-            accumulated += self.geometry_mapper.col_size(curr_c)
-            span += 1
-            curr_c += 1
-            if span > 50:
-                break
+    def calculate_spill_bounds(
+        self,
+        r: int,
+        c: int,
+        text_width: float,
+        col_width: int,
+        eff_h: str,
+        indent_px: int = 0,
+        min_col: int = 0,
+        max_col: int | None = None,
+        merge_by_cell: dict[tuple[int, int], tuple[int, int, int, int]] | None = None,
+    ) -> tuple[int, int]:
+        """Calculate inclusive (left_col, right_col) spill bounds for unwrapped text."""
+        avail = col_width - 6 - indent_px
+        if text_width <= avail:
+            return (c, c)
 
-        return span
+        upper_col = (
+            self.geometry_mapper.max_cols - 1
+            if max_col is None
+            else min(max_col, self.geometry_mapper.max_cols - 1)
+        )
+        lower_col = max(0, min_col)
+        left_c = c
+        right_c = c
+
+        if eff_h in ("left", "general"):
+            accumulated = col_width
+            curr_c = c + 1
+            steps = 0
+            while (
+                accumulated < text_width + 6 + indent_px
+                and curr_c <= upper_col
+                and steps < 200
+                and self._is_empty_for_spill(r, curr_c, merge_by_cell)
+            ):
+                accumulated += self.geometry_mapper.col_size(curr_c)
+                right_c = curr_c
+                curr_c += 1
+                steps += 1
+        elif eff_h == "right":
+            accumulated = col_width
+            curr_c = c - 1
+            steps = 0
+            while (
+                accumulated < text_width + 6 + indent_px
+                and curr_c >= lower_col
+                and steps < 200
+                and self._is_empty_for_spill(r, curr_c, merge_by_cell)
+            ):
+                accumulated += self.geometry_mapper.col_size(curr_c)
+                left_c = curr_c
+                curr_c -= 1
+                steps += 1
+        elif eff_h in ("center", "centerContinuous"):
+            need = max(0.0, (text_width - max(0, col_width - 6)) / 2.0)
+            extra_r = 0
+            curr_c = c + 1
+            steps = 0
+            while (
+                extra_r < need + 3
+                and curr_c <= upper_col
+                and steps < 200
+                and self._is_empty_for_spill(r, curr_c, merge_by_cell)
+            ):
+                extra_r += self.geometry_mapper.col_size(curr_c)
+                right_c = curr_c
+                curr_c += 1
+                steps += 1
+
+            extra_l = 0
+            curr_c = c - 1
+            steps = 0
+            while (
+                extra_l < need + 3
+                and curr_c >= lower_col
+                and steps < 200
+                and self._is_empty_for_spill(r, curr_c, merge_by_cell)
+            ):
+                extra_l += self.geometry_mapper.col_size(curr_c)
+                left_c = curr_c
+                curr_c -= 1
+                steps += 1
+
+        return (left_c, right_c)
 
     def reveal(self, r: int, c: int) -> None:
         """Ensure cell (r, c) is visible in the viewport by scrolling if needed."""
