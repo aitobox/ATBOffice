@@ -1280,6 +1280,30 @@ class GridViewport(QAbstractScrollArea):
                             v_flag,
                             eff_h,
                         )
+                    elif (
+                        fmt_res.is_numeric
+                        and not fmt_res.is_error
+                        and not cell.wrap_text
+                        and not cell.shrink_to_fit
+                        and (cell.text_rotation or 0) == 0
+                        and cell_fm.horizontalAdvance(text) > text_rect.width()
+                        and text_rect.width() > 0
+                    ):
+                        # Narrow numeric text that fits by Excel's hinted width
+                        # rather than clipping leading digits when fallback fonts are wider.
+                        tw_actual = max(1.0, cell_fm.horizontalAdvance(text))
+                        sx = text_rect.width() / tw_actual
+                        painter.save()
+                        painter.translate(text_rect.left(), 0.0)
+                        painter.scale(sx, 1.0)
+                        scaled_rect = QRectF(
+                            0.0,
+                            float(text_rect.top()),
+                            tw_actual + 1.0,
+                            float(text_rect.height()),
+                        )
+                        painter.drawText(scaled_rect, align_flag, text)
+                        painter.restore()
                     else:
                         painter.drawText(text_rect, align_flag, text)
                     painter.restore()
@@ -1637,6 +1661,37 @@ class GridViewport(QAbstractScrollArea):
             painter.restore()
 
     @staticmethod
+    def _excel_mdw(font_family: str, font_size: int) -> int:
+        """Maximum digit width (px) matching Excel/VibeOffice font sizing rules."""
+        name = (font_family or "Arial").strip().lower()
+        sz = font_size or 11
+        ratios = {
+            "calibri": 7.0 / 11.0,
+            "arial": 7.0 / 10.0,
+            "aptos narrow": 7.0 / 11.0,
+            "aptos": 7.5 / 11.0,
+            "cambria": 7.0 / 11.0,
+            "times new roman": 7.0 / 12.0,
+            "verdana": 8.0 / 10.0,
+            "tahoma": 7.0 / 10.0,
+            "courier new": 8.0 / 10.0,
+            "segoe ui": 7.0 / 10.0,
+            "ms pgothic": 8.0 / 11.0,
+        }
+        k = ratios.get(name, 7.0 / 11.0)
+        return max(5, int(round(k * sz)))
+
+    @classmethod
+    def _hinted_text_width(cls, text: str, font_family: str, font_size: int) -> float:
+        """Estimate rendered width using Excel's hinted character metrics."""
+        mdw = float(cls._excel_mdw(font_family, font_size))
+        narrow = max(2.0, mdw * 0.5)
+        w = 0.0
+        for ch in text:
+            w += narrow if ch in ".,:-' " else mdw
+        return w
+
+    @staticmethod
     def _measure_formatted_width(
         fmt_res: FormattedResult, cell_fm: QFontMetricsF
     ) -> float:
@@ -1673,14 +1728,14 @@ class GridViewport(QAbstractScrollArea):
         hashes = "#" * max(1, int(avail // hash_w))
 
         if fmt_code.lower() == "general":
-            mdw = max(5.0, max(cell_fm.horizontalAdvance(d) for d in "0123456789"))
+            mdw = float(self._excel_mdw(cell.font_family, cell.font_size))
             chars = max(1, min(11, int((avail - 5.0) // mdw) + 1))
             res = format_value(disp_val, "General", max_chars=chars)
-            tw = cell_fm.horizontalAdvance(res.text)
+            tw = self._hinted_text_width(res.text, cell.font_family, cell.font_size)
             while tw > avail and chars > 1 and not res.text.startswith("#"):
                 chars -= 1
                 res = format_value(disp_val, "General", max_chars=chars)
-                tw = cell_fm.horizontalAdvance(res.text)
+                tw = self._hinted_text_width(res.text, cell.font_family, cell.font_size)
             if res.is_error or res.text.startswith("#") or tw > avail:
                 return FormattedResult(
                     text=hashes,
@@ -1692,8 +1747,8 @@ class GridViewport(QAbstractScrollArea):
             return res
 
         res = format_value(disp_val, fmt_code)
-        fixed_w = self._measure_formatted_width(res, cell_fm)
-        if res.is_error or (res.is_numeric and fixed_w > avail + 0.5):
+        hinted_w = self._hinted_text_width(res.text, cell.font_family, cell.font_size)
+        if res.is_error or (res.is_numeric and hinted_w > avail + 0.5):
             return FormattedResult(
                 text=hashes,
                 color=res.color,
