@@ -9,6 +9,24 @@ from pathlib import Path
 from .models import DiffResult
 
 
+def parse_visual_verdicts(verdicts_doc: Path | None) -> dict[str, str]:
+    """Parse Section 6 visual verdicts (LOSS, WRONG, DRIFT, MINOR, MATCH) from markdown."""
+    if not verdicts_doc or not verdicts_doc.exists():
+        return {}
+    verdicts: dict[str, str] = {}
+    for line in verdicts_doc.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("| "):
+            continue
+        parts = [p.strip() for p in line.strip("|").split("|")]
+        if len(parts) >= 6:
+            doc_name = parts[2].strip("`")
+            verdict = parts[5].strip("*")
+            if verdict in ("LOSS", "WRONG", "DRIFT", "MINOR", "MATCH"):
+                verdicts[doc_name] = verdict
+                verdicts[f"{doc_name}.png"] = verdict
+    return verdicts
+
+
 def _primary_score(item: DiffResult) -> float | None:
     """Return foreground-weighted score when available, falling back to legacy similarity."""
     return item.foreground_score if item.foreground_score is not None else item.similarity

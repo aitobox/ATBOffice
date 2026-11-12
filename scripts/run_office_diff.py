@@ -27,7 +27,7 @@ from scripts.office_diff.capture import run_isolated_capture
 from scripts.office_diff.comparator import compare_canvases
 from scripts.office_diff.corpus import load_expectations, partition_corpus
 from scripts.office_diff.models import DiffResult, DocumentTarget
-from scripts.office_diff.reporter import generate_report
+from scripts.office_diff.reporter import generate_report, parse_visual_verdicts
 
 
 def _resolve_audit_subdir(user_dir: str | None, repo_root: Path, sub: str, fallbacks: list[Path]) -> Path:
@@ -230,8 +230,15 @@ def main() -> int:
     json_out = Path(args.json).resolve() if args.json else (diff_dir / "diff_results.json" if args.score_only else None)
     if json_out is not None:
         json_out.parent.mkdir(parents=True, exist_ok=True)
+        verdicts = parse_visual_verdicts(repo_root / "docs" / "clone" / "OFFICE_DOCS_DIFF.md")
+        payload = []
+        for r in results:
+            item = r.to_dict()
+            if r.file in verdicts:
+                item["visual_verdict"] = verdicts[r.file]
+            payload.append(item)
         json_out.write_text(
-            json.dumps([r.to_dict() for r in results], indent=2),
+            json.dumps(payload, indent=2),
             encoding="utf-8",
         )
         print(f"JSON results written: {json_out}")
