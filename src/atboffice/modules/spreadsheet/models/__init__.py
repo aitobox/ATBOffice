@@ -1,10 +1,17 @@
 """Spreadsheet data, selection, and workbook models."""
 
 from atboffice.modules.spreadsheet.models.color_utils import (
+    DEFAULT_INDEXED_PALETTE,
+    DEFAULT_THEME_COLORS,
+    THEME_COLOR_ORDER,
     apply_tint,
     font_row_pt,
     hsl_to_rgb,
+    normalize_hex_color,
+    parse_color_element,
+    parse_theme_xml,
     pt_to_px,
+    resolve_color_spec,
     rgb_to_hsl,
 )
 from atboffice.modules.spreadsheet.models.conditional_format import (
@@ -85,9 +92,16 @@ __all__ = [
     "read_pivots_from_zip",
     "validate_cell_value",
     "write_pivots_to_package",
+    "DEFAULT_INDEXED_PALETTE",
+    "DEFAULT_THEME_COLORS",
+    "THEME_COLOR_ORDER",
     "apply_tint",
     "font_row_pt",
     "hsl_to_rgb",
+    "normalize_hex_color",
+    "parse_color_element",
+    "parse_theme_xml",
     "pt_to_px",
+    "resolve_color_spec",
     "rgb_to_hsl",
 ]
