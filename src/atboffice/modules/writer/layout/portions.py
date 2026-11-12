@@ -612,41 +612,57 @@ def decompose_paragraph_to_portions(
 
     # Numbering & Bullet Portion Synthesis
     num = getattr(p_pr, "num", None)
-    if num is not None and getattr(d, "numbering", None):
-        nums_map = d.numbering.get("nums", {})
-        num_entry = nums_map.get(str(num.id))
-        if num_entry:
-            abs_id = num_entry.get("abs")
-            abs_entry = d.numbering.get("abs", {}).get(str(abs_id), {})
-            levels = abs_entry.get("levels", [])
+    if (
+        num is not None
+        and getattr(d, "numbering", None)
+        and str(getattr(num, "id", "0")) not in ("0", "")
+    ):
+        if not getattr(p, "label", "") and not getattr(p, "_lists_checked", False):
+            compute_lists(d)
+            p._lists_checked = True
+
+        definition = num_def(d, num.id)
+        if definition:
             lvl_idx = num.lvl if num.lvl is not None else 0
-            if 0 <= lvl_idx < len(levels):
-                lvl = levels[lvl_idx]
-                fmt = lvl.get("fmt", "bullet")
-                txt = lvl.get("text", "")
-                r_pr = lvl.get("r_pr")
-                font_f = r_pr.font if (r_pr and r_pr.font) else "Wingdings"
-                font_s = r_pr.sz if (r_pr and r_pr.sz) else 10.0
-                color = r_pr.color if (r_pr and r_pr.color) else "#000000"
+            lvl = num_level_def(d, num.id, lvl_idx)
+            pic_bullet = lvl.get("pic_bullet")
+            r_pr = lvl.get("r_pr")
+            font_f = (
+                r_pr.font
+                if (r_pr and getattr(r_pr, "font", None))
+                else ("Symbol" if lvl.get("fmt") == "bullet" else "Times New Roman")
+            )
+            font_s = r_pr.sz if (r_pr and getattr(r_pr, "sz", None)) else 10.0
+            color = r_pr.color if (r_pr and getattr(r_pr, "color", None)) else "#000000"
 
-                if fmt == "bullet":
-                    glyph = txt if txt else "•"
-                elif fmt == "decimal":
-                    start_val = lvl.get("start", 1)
-                    glyph = (
-                        txt.replace(f"%{lvl_idx + 1}", str(start_val)) if txt else f"{start_val}."
+            # 1. Picture Bullet
+            if pic_bullet and pic_bullet.get("image_part"):
+                w_pt = float(pic_bullet.get("width", 11.25))
+                h_pt = float(pic_bullet.get("height", 11.25))
+                pic_item = PictureItem(
+                    width=w_pt,
+                    height=h_pt,
+                    image_part=pic_bullet["image_part"],
+                )
+                portions.append(
+                    Portion(
+                        type=PortionType.GRAPHIC,
+                        text="",
+                        width=w_pt,
+                        ascent=h_pt,
+                        descent=0.0,
+                        font_size=font_s,
+                        font_family=font_f,
+                        color=color,
+                        counts_for_height=True,
+                        char_offset=0,
+                        length=1,
+                        data=pic_item,
                     )
-                elif fmt == "lowerLetter":
-                    glyph = txt.replace(f"%{lvl_idx + 1}", "a") if txt else "a."
-                elif fmt == "upperLetter":
-                    glyph = txt.replace(f"%{lvl_idx + 1}", "A") if txt else "A."
-                elif fmt == "lowerRoman":
-                    glyph = txt.replace(f"%{lvl_idx + 1}", "i") if txt else "i."
-                elif fmt == "upperRoman":
-                    glyph = txt.replace(f"%{lvl_idx + 1}", "I") if txt else "I."
-                else:
-                    glyph = txt if txt else "•"
-
+                )
+                char_offset += 1
+            elif p.label:
+                glyph = p.label
                 w_glyph = measure_text_width(glyph, font_s, font_f)
                 b_ascent, b_descent = compute_font_metrics(font_s, font_f)
                 portions.append(
@@ -665,6 +681,9 @@ def decompose_paragraph_to_portions(
                     )
                 )
                 char_offset += len(glyph)
+
+            # Suffix tab or space
+            if pic_bullet or p.label:
                 suff = lvl.get("suff", "tab")
                 if suff == "tab":
                     portions.append(
@@ -684,6 +703,7 @@ def decompose_paragraph_to_portions(
                     char_offset += 1
                 elif suff == "space":
                     sp_w = measure_text_width(" ", font_s, font_f)
+                    b_ascent, b_descent = compute_font_metrics(font_s, font_f)
                     portions.append(
                         Portion(
                             type=PortionType.BLANK,
@@ -1121,21 +1141,18 @@ def layout_paragraph(
 
     # Inherit indents from numbering level if not explicitly defined
     num = getattr(p_pr, "num", None)
-    if num is not None and getattr(d, "numbering", None):
-        nums_map = d.numbering.get("nums", {})
-        num_entry = nums_map.get(str(num.id))
-        if num_entry:
-            abs_id = num_entry.get("abs")
-            abs_entry = d.numbering.get("abs", {}).get(str(abs_id), {})
-            levels = abs_entry.get("levels", [])
-            lvl_idx = num.lvl if num.lvl is not None else 0
-            if 0 <= lvl_idx < len(levels):
-                lvl = levels[lvl_idx]
-                lvl_ind = lvl.get("ind", {})
-                if ind_left == 0.0 and lvl_ind.get("l") is not None:
-                    ind_left = float(lvl_ind["l"])
-                if ind_first == 0.0 and lvl_ind.get("fl") is not None:
-                    ind_first = float(lvl_ind["fl"])
+    if (
+        num is not None
+        and getattr(d, "numbering", None)
+        and str(getattr(num, "id", "0")) not in ("0", "")
+    ):
+        lvl_idx = num.lvl if num.lvl is not None else 0
+        lvl = num_level_def(d, num.id, lvl_idx)
+        lvl_ind = lvl.get("ind", {}) if isinstance(lvl, dict) else {}
+        if ind_left == 0.0 and lvl_ind.get("l") is not None:
+            ind_left = float(lvl_ind["l"])
+        if ind_first == 0.0 and lvl_ind.get("fl") is not None:
+            ind_first = float(lvl_ind["fl"])
 
     first_line_available = max(10.0, container_width - ind_left - ind_right - ind_first)
     subsequent_line_available = max(10.0, container_width - ind_left - ind_right)

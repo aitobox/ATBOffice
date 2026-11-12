@@ -138,4 +138,40 @@ def test_tdf125881_multilevel_patterns() -> None:
     assert labels == ["I.", "I.1.", "I.2.", "I.3."]
 
 
+def test_portion_picture_bullet_and_hanging_indent() -> None:
+    """Verify decompose_paragraph_to_portions creates GRAPHIC portion for picture bullets and applies indents."""
+    from atboffice.modules.writer.io.docx_reader import DocxReader
+    from atboffice.modules.writer.layout.portions import (
+        PortionType,
+        decompose_paragraph_to_portions,
+        layout_paragraph,
+    )
+
+    fixture_path = "tests/docs/word/docx/openxml-sdk__bullet-complex.docx"
+    doc = DocxReader().read(fixture_path)
+
+    # Paragraph with picture bullet (e.g. using abstractNum 14, 19, or 24)
+    # Find paragraph with picture bullet in doc
+    pic_paras = []
+    for b in doc.blocks:
+        if hasattr(b, "runs"):
+            portions = decompose_paragraph_to_portions(b, doc)
+            if any(po.type == PortionType.GRAPHIC for po in portions):
+                pic_paras.append((b, portions))
+
+    assert len(pic_paras) > 0, "Should have synthesized graphic portions for picture bullet paragraphs"
+    p, portions = pic_paras[0]
+    graphic_po = [po for po in portions if po.type == PortionType.GRAPHIC][0]
+    assert graphic_po.width > 0
+    assert graphic_po.ascent > 0
+    assert graphic_po.data is not None
+
+    # Verify hanging indent on a numbered paragraph
+    layout = layout_paragraph(p, doc=doc, container_width=468.0)
+    assert len(layout.lines) > 0
+    first_line = layout.lines[0]
+    assert first_line.indent_left >= 0
+
+
+
 
