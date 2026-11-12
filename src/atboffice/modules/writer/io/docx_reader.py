@@ -298,16 +298,20 @@ def _emu_to_pt(val: str | int | float | None, default: float = 0.0) -> float:
 class DocxReader:
     """Reads ECMA-376 WordprocessingML (.docx, .docm) into Quire Document."""
 
-    def __init__(self, source_pkg: SourcePackage) -> None:
-        self.pkg = source_pkg
+    def __init__(self, source_pkg: SourcePackage | str | Path | None = None) -> None:
+        if isinstance(source_pkg, (str, Path)):
+            self.pkg: SourcePackage | None = SourcePackage.open(str(source_pkg))
+        else:
+            self.pkg = source_pkg
         self.main_path = "word/document.xml"
         self.doc_format = "docx"
         self.rels: dict[str, Relationship] = {}
         self.cur_rels: dict[str, Relationship] = {}
         self._sdt_controls_map: dict[str, dict[str, Any]] = {}
         self.doc = Document()
-        self.doc._source_pkg = source_pkg  # type: ignore[attr-defined]
-        self.doc.keep["source_pkg"] = source_pkg
+        if self.pkg is not None:
+            self.doc._source_pkg = self.pkg  # type: ignore[attr-defined]
+            self.doc.keep["source_pkg"] = self.pkg
 
     def _parse_sdt_control(self, sdt_elem: ET.Element) -> dict[str, Any]:
         """Extract content control (SDT) metadata and shell XML for roundtrip preservation."""
@@ -368,8 +372,17 @@ class DocxReader:
         self._sdt_controls_map[key] = ctrl
         return ctrl
 
-    def read(self) -> Document:
+    def read(self, source: str | Path | None = None) -> Document:
         """Parse the complete package and return the populated Document."""
+        if source is not None:
+            self.pkg = SourcePackage.open(str(source))
+            self.doc = Document()
+            self.doc._source_pkg = self.pkg  # type: ignore[attr-defined]
+            self.doc.keep["source_pkg"] = self.pkg
+
+        if self.pkg is None:
+            raise ValueError("No source package provided to DocxReader.")
+
         self._discover_main_part()
         self._load_document_relationships()
         self._parse_styles()
@@ -381,6 +394,9 @@ class DocxReader:
         self._parse_footnotes()
         self._parse_endnotes()
         self._parse_comments()
+        from atboffice.modules.writer.layout.portions import compute_lists
+
+        compute_lists(self.doc)
         self.doc.hide_spelling_errors = True
         self.doc._doc_format = self.doc_format  # type: ignore[attr-defined]
         return self.doc
@@ -504,6 +520,52 @@ class DocxReader:
         abs_map: dict[str, dict[str, Any]] = {}
         nums_map: dict[str, dict[str, Any]] = {}
 
+        # 0. Parse numPicBullet elements
+        num_rels = {r.id: r for r in self.pkg.get_relationships(num_path)}
+        pic_bullets: dict[str, dict[str, Any]] = {}
+        for pb in _findall_elems(root, "numPicBullet", W_NAMESPACES):
+            pb_id = _get_attr(pb, "numPicBulletId")
+            if not pb_id:
+                continue
+            target_image = ""
+            shape_style = ""
+            width_pt = 12.0
+            height_pt = 12.0
+            for elem in pb.iter():
+                tag = _local_tag(elem)
+                if tag == "shape":
+                    shape_style = elem.attrib.get("style", "")
+                    for part in shape_style.split(";"):
+                        if ":" in part:
+                            k, v = part.split(":", 1)
+                            k = k.strip().lower()
+                            v = v.strip().lower()
+                            if k == "width" and v.endswith("pt"):
+                                try:
+                                    width_pt = float(v[:-2])
+                                except ValueError:
+                                    pass
+                            elif k == "height" and v.endswith("pt"):
+                                try:
+                                    height_pt = float(v[:-2])
+                                except ValueError:
+                                    pass
+                elif tag in ("imagedata", "blip"):
+                    r_id = _get_attr(elem, "id") or _get_attr(elem, "embed")
+                    if r_id and r_id in num_rels:
+                        rel_target = num_rels[r_id].target.lstrip("/")
+                        if not rel_target.startswith("word/"):
+                            rel_target = f"word/{rel_target}"
+                        target_image = rel_target
+
+            pic_bullets[pb_id] = {
+                "id": pb_id,
+                "image_part": target_image,
+                "style": shape_style,
+                "width": width_pt,
+                "height": height_pt,
+            }
+
         # 1. Parse abstractNum elements
         for an in _findall_elems(root, "abstractNum", W_NAMESPACES):
             an_id = _get_attr(an, "abstractNumId")
@@ -593,6 +655,13 @@ class DocxReader:
                 r_pr_elem = _find_elem(lv, "rPr", W_NAMESPACES)
                 r_pr = self._parse_r_pr(r_pr_elem) if r_pr_elem is not None else RunProperties()
 
+                pic_bullet_elem = _find_elem(lv, "lvlPicBulletId", W_NAMESPACES)
+                pic_bullet_id = (
+                    _get_attr(pic_bullet_elem, "val")
+                    if pic_bullet_elem is not None
+                    else None
+                )
+
                 levels[ilvl] = {
                     "ilvl": ilvl,
                     "start": start_val,
@@ -606,6 +675,8 @@ class DocxReader:
                     "restart": restart,
                     "p_style": p_style,
                     "r_pr": r_pr,
+                    "pic_bullet_id": pic_bullet_id,
+                    "pic_bullet": pic_bullets.get(pic_bullet_id) if pic_bullet_id else None,
                 }
 
             # Fill missing levels up to 9
@@ -624,6 +695,8 @@ class DocxReader:
                         "restart": None,
                         "p_style": None,
                         "r_pr": RunProperties(),
+                        "pic_bullet_id": None,
+                        "pic_bullet": None,
                     }
 
             abs_map[an_id] = {
@@ -676,7 +749,11 @@ class DocxReader:
                 "ov": ov_map,
             }
 
-        self.doc.numbering = {"abs": abs_map, "nums": nums_map}
+        self.doc.numbering = {
+            "abs": abs_map,
+            "nums": nums_map,
+            "pic_bullets": pic_bullets,
+        }
 
     def _parse_settings(self) -> None:
         """Parse word/settings.xml into doc.settings."""
