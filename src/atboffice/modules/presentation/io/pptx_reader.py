@@ -18,8 +18,11 @@ from atboffice.modules.presentation.models.comment import (
     CommentReply,
 )
 from atboffice.modules.presentation.models.designs import (
+    COLOR_SLOT_MAP,
     ColorScheme,
     DesignTemplate,
+    apply_color_mods,
+    resolve_color,
 )
 from atboffice.modules.presentation.models.media_item import (
     MediaItem,
@@ -155,6 +158,8 @@ class MasterInfo:
     decorations: list[Shape] = field(default_factory=list)
     bg: Fill | None = None
     design: DesignTemplate | None = None
+    clr_map: dict[str, str] = field(default_factory=dict)
+    theme_path: str = ""
 
 
 @dataclass
@@ -166,6 +171,7 @@ class LayoutInfo:
     bg: Fill | None = None
     show_master: bool = True
     layout_type: str = ""
+    clr_map_ovr: dict[str, str] = field(default_factory=dict)
 
 
 def _guide_env(w: float, h: float) -> dict[str, float]:
@@ -269,6 +275,7 @@ class PptxReader:
         self.package = package
         self.rels_map: dict[str, dict[str, Any]] = {}
         self.themes: dict[str, ColorScheme] = {}
+        self.theme_fmt: dict[str, dict[str, list[ET.Element]]] = {}
         self.media_map: dict[str, bytes] = {}
         self._layouts: dict[str, LayoutInfo] = {}
         self._masters: dict[str, MasterInfo] = {}
@@ -410,6 +417,22 @@ class PptxReader:
                     primary_design = next(iter(pres.designs.values()), None)
                     if primary_design:
                         primary_design.colors = colors
+
+                # Parse and cache fmtScheme (fills, lines, bgFills)
+                fm_elem = None
+                for elem in t_xml.iter():
+                    if _local_tag(elem.tag) == "fmtScheme":
+                        fm_elem = elem
+                        break
+                if fm_elem is not None:
+                    fill_lst = _get_child(fm_elem, "fillStyleLst")
+                    ln_lst = _get_child(fm_elem, "lnStyleLst")
+                    bg_lst = _get_child(fm_elem, "bgFillStyleLst")
+                    self.theme_fmt[t_part] = {
+                        "fills": list(fill_lst) if fill_lst is not None else [],
+                        "lines": list(ln_lst) if ln_lst is not None else [],
+                        "bgFills": list(bg_lst) if bg_lst is not None else [],
+                    }
             except Exception:
                 pass
 
@@ -438,6 +461,109 @@ class PptxReader:
             folHlink=slots.get("folHlink", "#99CC00"),
         )
 
+    def _extract_color_detail(
+        self,
+        parent: ET.Element | None,
+        ph_clr: str | None = None,
+        theme_colors: ColorScheme | None = None,
+        clr_map: dict[str, str] | None = None,
+        clr_map_ovr: dict[str, str] | None = None,
+        keep_scheme: bool = False,
+    ) -> tuple[str | None, float]:
+        """Extract resolved color string and alpha from XML element, applying mods and color maps."""
+        if parent is None:
+            return None, 1.0
+
+        target = parent
+        tag = _local_tag(parent.tag)
+        if tag not in ("srgbClr", "sysClr", "schemeClr", "scrgbClr"):
+            target = None
+            for child in parent:
+                c_tag = _local_tag(child.tag)
+                if c_tag in ("srgbClr", "sysClr", "schemeClr", "scrgbClr"):
+                    target = child
+                    tag = c_tag
+                    break
+
+        if target is None:
+            return None, 1.0
+
+        # Parse modifiers and alpha
+        alpha = 1.0
+        mods: list[dict[str, Any]] = []
+        for m in target:
+            mtag = _local_tag(m.tag)
+            mval_str = _get_attr(m, "val")
+            mval = float(mval_str) if mval_str else 0.0
+            if mtag == "alpha":
+                alpha = mval / 100000.0
+            elif mtag == "alphaMod":
+                alpha *= mval / 100000.0
+            elif mtag == "alphaOff":
+                alpha += mval / 100000.0
+            else:
+                mods.append({"name": mtag, "val": mval})
+
+        alpha = max(0.0, min(1.0, alpha))
+
+        if tag == "schemeClr" and not mods and keep_scheme:
+            val = _get_attr(target, "val")
+            if val == "phClr" and ph_clr:
+                if ph_clr.startswith("#"):
+                    return ph_clr, alpha
+                token = ph_clr
+                if clr_map_ovr and token in clr_map_ovr:
+                    token = clr_map_ovr[token]
+                if clr_map and token in clr_map:
+                    token = clr_map[token]
+                return token, alpha
+            elif val and val != "phClr":
+                token = val
+                if clr_map_ovr and token in clr_map_ovr:
+                    token = clr_map_ovr[token]
+                if clr_map and token in clr_map:
+                    token = clr_map[token]
+                return token, alpha
+
+        base: str | None = None
+        if tag == "srgbClr":
+            val = _get_attr(target, "val")
+            if val:
+                base = f"#{val.upper()}"
+        elif tag == "sysClr":
+            last_clr = _get_attr(target, "lastClr")
+            base = f"#{last_clr.upper()}" if last_clr else "#000000"
+        elif tag == "schemeClr":
+            val = _get_attr(target, "val")
+            if val == "phClr" and ph_clr:
+                val = ph_clr
+            if val:
+                token = val
+                if clr_map_ovr and token in clr_map_ovr:
+                    token = clr_map_ovr[token]
+                if clr_map and token in clr_map:
+                    token = clr_map[token]
+                slot = COLOR_SLOT_MAP.get(token, token)
+                if theme_colors and hasattr(theme_colors, slot):
+                    base = getattr(theme_colors, slot)
+                elif val.startswith("#"):
+                    base = val
+                else:
+                    base = resolve_color(token, fallback=val)
+        elif tag == "scrgbClr":
+            r_val = float(_get_attr(target, "r", "0") or 0) / 100000.0
+            g_val = float(_get_attr(target, "g", "0") or 0) / 100000.0
+            b_val = float(_get_attr(target, "b", "0") or 0) / 100000.0
+            r = max(0, min(255, round(r_val * 255.0)))
+            g = max(0, min(255, round(g_val * 255.0)))
+            b = max(0, min(255, round(b_val * 255.0)))
+            base = f"#{r:02X}{g:02X}{b:02X}"
+
+        if base and mods and base.startswith("#"):
+            base = apply_color_mods(base, mods)
+
+        return base, alpha
+
     def _extract_color(self, parent: ET.Element | None) -> str | None:
         """Extract hex color string or theme color slot token from XML element."""
         if parent is None:
@@ -456,7 +582,166 @@ class PptxReader:
                 val = _get_attr(child, "val")
                 if val:
                     return val
+            elif tag == "scrgbClr":
+                clr, _ = self._extract_color_detail(child)
+                return clr
         return None
+
+    def _get_theme_colors(self, theme_path: str) -> ColorScheme | None:
+        themes = getattr(self, "themes", {})
+        if not theme_path:
+            return next(iter(themes.values()), None)
+        clean_path = theme_path.lstrip("/")
+        for k, v in themes.items():
+            if k == theme_path or k.lstrip("/") == clean_path or Path(k).name == Path(clean_path).name:
+                return v
+        return next(iter(themes.values()), None)
+
+    def _get_theme_fmt(self, theme_path: str) -> dict[str, list[ET.Element]]:
+        theme_fmt = getattr(self, "theme_fmt", {})
+        if not theme_path:
+            return next(iter(theme_fmt.values()), {"fills": [], "lines": [], "bgFills": []})
+        clean_path = theme_path.lstrip("/")
+        for k, v in theme_fmt.items():
+            if k == theme_path or k.lstrip("/") == clean_path or Path(k).name == Path(clean_path).name:
+                return v
+        return next(iter(theme_fmt.values()), {"fills": [], "lines": [], "bgFills": []})
+
+    def _resolve_theme_context(
+        self,
+        layout_info: LayoutInfo | None = None,
+        slide_clr_map_ovr: dict[str, str] | None = None,
+    ) -> tuple[ColorScheme | None, dict[str, list[ET.Element]], dict[str, str], dict[str, str]]:
+        themes = getattr(self, "themes", {})
+        theme_fmt_dict = getattr(self, "theme_fmt", {})
+        theme_colors = None
+        theme_fmt: dict[str, list[ET.Element]] = {"fills": [], "lines": [], "bgFills": []}
+        clr_map: dict[str, str] = {}
+        clr_map_ovr: dict[str, str] = dict(slide_clr_map_ovr or {})
+        if layout_info:
+            if not clr_map_ovr and layout_info.clr_map_ovr:
+                clr_map_ovr = dict(layout_info.clr_map_ovr)
+            if layout_info.master:
+                m = layout_info.master
+                clr_map = dict(m.clr_map)
+                theme_colors = self._get_theme_colors(m.theme_path)
+                theme_fmt = self._get_theme_fmt(m.theme_path)
+        if theme_colors is None:
+            theme_colors = next(iter(themes.values()), None)
+            theme_fmt = next(iter(theme_fmt_dict.values()), {"fills": [], "lines": [], "bgFills": []})
+        return theme_colors, theme_fmt, clr_map, clr_map_ovr
+
+    def _parse_style_refs(
+        self,
+        style_elem: ET.Element | None,
+        theme_colors: ColorScheme | None = None,
+        theme_fmt: dict[str, list[ET.Element]] | None = None,
+        clr_map: dict[str, str] | None = None,
+        clr_map_ovr: dict[str, str] | None = None,
+    ) -> tuple[Fill | None, Line | None, str | None, str | None]:
+        """Parse <p:style> element, returning (fill, line, font_color, font_type)."""
+        if style_elem is None:
+            return None, None, None, None
+
+        fmt = theme_fmt or {"fills": [], "lines": [], "bgFills": []}
+        theme_lines = fmt.get("lines", [])
+        theme_fills = fmt.get("fills", [])
+        theme_bg_fills = fmt.get("bgFills", [])
+
+        fill: Fill | None = None
+        line: Line | None = None
+        font_color: str | None = None
+        font_type: str | None = None
+
+        # Line ref
+        ln_ref = _get_child(style_elem, "lnRef")
+        if ln_ref is not None:
+            idx_str = _get_attr(ln_ref, "idx", "0") or "0"
+            try:
+                idx = int(idx_str)
+            except ValueError:
+                idx = 0
+            if idx == 0:
+                line = Line.none()
+            elif idx > 0:
+                ph_clr, alpha = self._extract_color_detail(
+                    ln_ref,
+                    theme_colors=theme_colors,
+                    clr_map=clr_map,
+                    clr_map_ovr=clr_map_ovr,
+                    keep_scheme=True,
+                )
+                if theme_lines and idx - 1 < len(theme_lines):
+                    th_ln = theme_lines[idx - 1]
+                    line = self._parse_line(
+                        th_ln,
+                        ph_clr=ph_clr,
+                        theme_colors=theme_colors,
+                        clr_map=clr_map,
+                        clr_map_ovr=clr_map_ovr,
+                    )
+                else:
+                    line = Line(type="solid", color=ph_clr or "tx1", width=0.75)
+
+        # Fill ref
+        fill_ref = _get_child(style_elem, "fillRef")
+        if fill_ref is not None:
+            idx_str = _get_attr(fill_ref, "idx", "0") or "0"
+            try:
+                idx = int(idx_str)
+            except ValueError:
+                idx = 0
+            if idx == 0:
+                fill = Fill.none()
+            elif idx > 0:
+                ph_clr, alpha = self._extract_color_detail(
+                    fill_ref,
+                    theme_colors=theme_colors,
+                    clr_map=clr_map,
+                    clr_map_ovr=clr_map_ovr,
+                    keep_scheme=True,
+                )
+                th_fill = None
+                if idx >= 1001:
+                    bg_idx = idx - 1001
+                    if theme_bg_fills and bg_idx < len(theme_bg_fills):
+                        th_fill = theme_bg_fills[bg_idx]
+                else:
+                    f_idx = idx - 1
+                    if theme_fills and f_idx < len(theme_fills):
+                        th_fill = theme_fills[f_idx]
+
+                if th_fill is not None:
+                    parsed_fill = self._parse_fill(
+                        th_fill,
+                        ph_clr=ph_clr,
+                        theme_colors=theme_colors,
+                        clr_map=clr_map,
+                        clr_map_ovr=clr_map_ovr,
+                    )
+                    if parsed_fill.type == "gradient" and ph_clr:
+                        fill = Fill.solid(ph_clr, alpha)
+                    else:
+                        fill = parsed_fill
+                else:
+                    fill = Fill.solid(ph_clr or "#FFFFFF", alpha)
+
+        # Font ref
+        font_ref = _get_child(style_elem, "fontRef")
+        if font_ref is not None:
+            idx_str = _get_attr(font_ref, "idx", "") or ""
+            font_color, _ = self._extract_color_detail(
+                font_ref,
+                theme_colors=theme_colors,
+                clr_map=clr_map,
+                clr_map_ovr=clr_map_ovr,
+            )
+            if idx_str == "major":
+                font_type = "+mj"
+            elif idx_str == "minor":
+                font_type = "+mn"
+
+        return fill, line, font_color, font_type
 
     def _parse_slide(self, slide_path: str, pres: Presentation) -> Slide:
         """Parse individual slide part XML."""
@@ -469,6 +754,30 @@ class PptxReader:
 
         slide_id = Path(slide_path).stem
         slide = Slide(id=slide_id, layout="text", is_imported=True)
+
+        # Parse slide colour map override
+        slide_clr_map_ovr: dict[str, str] = {}
+        s_clr_map_ovr_elem = _get_child(slide_xml, "clrMapOvr")
+        if s_clr_map_ovr_elem is not None:
+            s_ovr_el = _get_child(s_clr_map_ovr_elem, "overrideClrMapping")
+            if s_ovr_el is not None:
+                for k in (
+                    "bg1",
+                    "tx1",
+                    "bg2",
+                    "tx2",
+                    "accent1",
+                    "accent2",
+                    "accent3",
+                    "accent4",
+                    "accent5",
+                    "accent6",
+                    "hlink",
+                    "folHlink",
+                ):
+                    v = _get_attr(s_ovr_el, k)
+                    if v:
+                        slide_clr_map_ovr[k] = v
 
         # Parse media timing from <p:timing>
         timing_elem = _get_child(slide_xml, "timing")
@@ -484,6 +793,10 @@ class PptxReader:
                 layout_path = _resolve_path(slide_path, r.target)
                 layout_info = self._load_layout(layout_path)
                 break
+
+        if not slide_clr_map_ovr and layout_info and layout_info.clr_map_ovr:
+            slide_clr_map_ovr = dict(layout_info.clr_map_ovr)
+        slide.clr_map_ovr = slide_clr_map_ovr
 
         if layout_info and layout_info.master:
             m_info = layout_info.master
@@ -505,7 +818,10 @@ class PptxReader:
 
             if m_info.design is None:
                 d_stem = Path(m_info.master_path).stem
-                d_colors = next(iter(self.themes.values()), ColorScheme())
+                d_colors = (
+                    self._get_theme_colors(m_info.theme_path)
+                    or next(iter(self.themes.values()), ColorScheme())
+                )
                 d_fonts = {
                     "major": m_info.major_font or "Arial",
                     "minor": m_info.minor_font or "Arial",
@@ -534,6 +850,7 @@ class PptxReader:
                     colors=d_colors,
                     fonts=d_fonts,
                     bg=d_bg,
+                    clr_map=dict(m_info.clr_map),
                     decorations=all_decos,
                     placeholder_frames=concrete_ph,
                     text_styles={
@@ -572,6 +889,7 @@ class PptxReader:
                         rel_map,
                         timing_map=timing_map,
                         layout_info=layout_info,
+                        slide_clr_map_ovr=slide_clr_map_ovr,
                     )
                     if shape:
                         slide.shapes.append(shape)
@@ -645,6 +963,8 @@ class PptxReader:
         rel_map: dict[str, Any],
         timing_map: dict[str, PlaybackSettings] | None = None,
         layout_info: LayoutInfo | None = None,
+        slide_clr_map_ovr: dict[str, str] | None = None,
+        group_fill: Fill | None = None,
     ) -> Shape | None:
         """Parse shape, picture, table, or group element."""
         tag = _local_tag(elem.tag)
@@ -656,13 +976,22 @@ class PptxReader:
                 rel_map=rel_map,
                 timing_map=timing_map,
                 layout_info=layout_info,
+                slide_clr_map_ovr=slide_clr_map_ovr,
+                group_fill=group_fill,
             )
         elif tag == "pic":
             return self._parse_pic_element(elem, slide_path, rel_map, timing_map=timing_map)
         elif tag == "graphicFrame":
             return self._parse_graphic_frame(elem, slide_path=slide_path, rel_map=rel_map)
         elif tag == "grpSp":
-            return self._parse_group_element(elem, slide_path, rel_map)
+            return self._parse_group_element(
+                elem,
+                slide_path=slide_path,
+                rel_map=rel_map,
+                layout_info=layout_info,
+                slide_clr_map_ovr=slide_clr_map_ovr,
+                group_fill=group_fill,
+            )
         return None
 
     def _parse_sp_element(
@@ -672,6 +1001,8 @@ class PptxReader:
         rel_map: dict[str, Any] | None = None,
         timing_map: dict[str, PlaybackSettings] | None = None,
         layout_info: LayoutInfo | None = None,
+        slide_clr_map_ovr: dict[str, str] | None = None,
+        group_fill: Fill | None = None,
     ) -> Shape:
         """Parse standard <p:sp> shape or text box."""
         nv_sp_pr = _get_child(elem, "nvSpPr")
@@ -709,14 +1040,25 @@ class PptxReader:
             ph_idx = int(_get_attr(ph_elem, "idx", "0") or 0)
             placeholder = PlaceholderInfo(type=ph_type, idx=ph_idx)
 
+        # Resolve theme context for colors & formatting
+        theme_colors, theme_fmt, clr_map, clr_map_ovr = self._resolve_theme_context(
+            layout_info, slide_clr_map_ovr
+        )
+
+        style_elem = _get_child(elem, "style")
+        style_fill, style_line, style_font_color, style_font = self._parse_style_refs(
+            style_elem,
+            theme_colors=theme_colors,
+            theme_fmt=theme_fmt,
+            clr_map=clr_map,
+            clr_map_ovr=clr_map_ovr,
+        )
+
         # Shape Properties (transform, geometry, fill, line)
         sp_pr = _get_child(elem, "spPr")
         has_xfrm = sp_pr is not None and _get_child(sp_pr, "xfrm") is not None
         x, y, w, h, rot = self._parse_transform(sp_pr)
         geom, custom_path = self._parse_geometry(sp_pr)
-        fill = self._parse_fill(sp_pr)
-        line = self._parse_line(sp_pr)
-        shadow = self._parse_shadow(sp_pr)
 
         # Match placeholder in layout / master if this shape is a placeholder
         lp = None
@@ -733,29 +1075,73 @@ class PptxReader:
                 elif mp and mp.xfrm is not None:
                     x, y, w, h, rot = mp.xfrm
 
-            # Inherit missing fill
-            has_fill = sp_pr is not None and (
-                _get_child(sp_pr, "solidFill") is not None
-                or _get_child(sp_pr, "gradFill") is not None
-                or _get_child(sp_pr, "noFill") is not None
+        # Fill precedence: own spPr > useBgFill > style > layout placeholder > master placeholder
+        fill: Fill | None = None
+        has_sp_fill = sp_pr is not None and (
+            _get_child(sp_pr, "solidFill") is not None
+            or _get_child(sp_pr, "gradFill") is not None
+            or _get_child(sp_pr, "noFill") is not None
+            or _get_child(sp_pr, "grpFill") is not None
+        )
+        if has_sp_fill:
+            fill = self._parse_fill(
+                sp_pr,
+                theme_colors=theme_colors,
+                clr_map=clr_map,
+                clr_map_ovr=clr_map_ovr,
+                group_fill=group_fill,
             )
-            if not has_fill:
-                if lp and lp.fill and lp.fill.type != "none":
-                    fill = lp.fill
-                elif mp and mp.fill and mp.fill.type != "none":
-                    fill = mp.fill
+        elif _get_attr(elem, "useBgFill") in ("1", "true", "True"):
+            fill = Fill(type="bg")
+        elif style_fill is not None:
+            fill = copy.deepcopy(style_fill)
+        elif lp and lp.fill and lp.fill.type != "none":
+            fill = copy.deepcopy(lp.fill)
+        elif mp and mp.fill and mp.fill.type != "none":
+            fill = copy.deepcopy(mp.fill)
+        else:
+            fill = Fill.none()
 
-            # Inherit missing line
-            has_ln = sp_pr is not None and _get_child(sp_pr, "ln") is not None
-            if not has_ln:
-                if lp and lp.line and lp.line.type != "none":
-                    line = lp.line
-                elif mp and mp.line and mp.line.type != "none":
-                    line = mp.line
+        # Line precedence: style > layout placeholder > master placeholder, then overlaid by spPr/ln
+        ln_base = Line.none()
+        if style_line is not None:
+            ln_base = copy.deepcopy(style_line)
+        elif lp and lp.line and lp.line.type != "none":
+            ln_base = copy.deepcopy(lp.line)
+        elif mp and mp.line and mp.line.type != "none":
+            ln_base = copy.deepcopy(mp.line)
+
+        line = self._parse_line(
+            sp_pr,
+            base_line=ln_base,
+            theme_colors=theme_colors,
+            clr_map=clr_map,
+            clr_map_ovr=clr_map_ovr,
+        )
+
+        shadow = self._parse_shadow(sp_pr)
+
+        # Resolve default font from style_font (+mj / +mn)
+        resolved_font = None
+        if style_font == "+mj" and layout_info and layout_info.master and layout_info.master.major_font:
+            resolved_font = layout_info.master.major_font
+        elif style_font == "+mn" and layout_info and layout_info.master and layout_info.master.minor_font:
+            resolved_font = layout_info.master.minor_font
+        elif style_font:
+            resolved_font = style_font
 
         # Text Body
         tx_body_elem = _get_child(elem, "txBody")
-        text_body = self._parse_text_body(tx_body_elem) if tx_body_elem is not None else None
+        text_body = (
+            self._parse_text_body(
+                tx_body_elem,
+                default_color=style_font_color,
+                default_font=resolved_font,
+                rel_map=rel_map,
+            )
+            if tx_body_elem is not None
+            else None
+        )
 
         if placeholder is not None and text_body is not None and layout_info is not None:
             self._apply_placeholder_text_inheritance(text_body, placeholder, layout_info, lp, mp)
@@ -1175,6 +1561,9 @@ class PptxReader:
         elem: ET.Element,
         slide_path: str,
         rel_map: dict[str, Any],
+        layout_info: LayoutInfo | None = None,
+        slide_clr_map_ovr: dict[str, str] | None = None,
+        group_fill: Fill | None = None,
     ) -> Shape:
         """Parse <p:grpSp> group element recursively."""
         nv_grp_pr = _get_child(elem, "nvGrpSpPr")
@@ -1184,6 +1573,24 @@ class PptxReader:
 
         grp_sp_pr = _get_child(elem, "grpSpPr")
         x, y, w, h, rot = self._parse_transform(grp_sp_pr)
+
+        # Inherit or parse group fill
+        theme_colors, theme_fmt, clr_map, clr_map_ovr = self._resolve_theme_context(
+            layout_info, slide_clr_map_ovr
+        )
+        grp_fill = None
+        if grp_sp_pr is not None:
+            parsed_grp_fill = self._parse_fill(
+                grp_sp_pr,
+                theme_colors=theme_colors,
+                clr_map=clr_map,
+                clr_map_ovr=clr_map_ovr,
+                group_fill=group_fill,
+            )
+            if parsed_grp_fill.type != "none":
+                grp_fill = parsed_grp_fill
+        if grp_fill is None and group_fill is not None:
+            grp_fill = group_fill
 
         xfrm = _get_child(grp_sp_pr, "xfrm") if grp_sp_pr is not None else None
         ch_off = _get_child(xfrm, "chOff") if xfrm is not None else None
@@ -1199,7 +1606,14 @@ class PptxReader:
         for child in elem:
             tag = _local_tag(child.tag)
             if tag in ("sp", "pic", "graphicFrame", "grpSp"):
-                kid_shape = self._parse_shape(child, slide_path, rel_map)
+                kid_shape = self._parse_shape(
+                    child,
+                    slide_path,
+                    rel_map,
+                    layout_info=layout_info,
+                    slide_clr_map_ovr=slide_clr_map_ovr,
+                    group_fill=grp_fill,
+                )
                 if kid_shape:
                     if ch_off is not None or ch_ext is not None:
                         kid_shape.x = round(x + (kid_shape.x - chx) * sx, 2)
@@ -1525,9 +1939,31 @@ class PptxReader:
             )
             major_font = None
             minor_font = None
+            t_path = ""
             if theme_rel:
                 t_path = _resolve_path(master_path, theme_rel.target)
                 major_font, minor_font = self._load_theme_fonts(t_path)
+
+            clr_map_elem = _get_child(m_xml, "clrMap")
+            m_clr_map: dict[str, str] = {}
+            if clr_map_elem is not None:
+                for k in (
+                    "bg1",
+                    "tx1",
+                    "bg2",
+                    "tx2",
+                    "accent1",
+                    "accent2",
+                    "accent3",
+                    "accent4",
+                    "accent5",
+                    "accent6",
+                    "hlink",
+                    "folHlink",
+                ):
+                    v = _get_attr(clr_map_elem, k)
+                    if v:
+                        m_clr_map[k] = v
 
             c_sld = _get_child(m_xml, "cSld")
             sp_tree = _get_child(c_sld, "spTree") if c_sld is not None else None
@@ -1574,6 +2010,8 @@ class PptxReader:
                 minor_font=minor_font,
                 decorations=m_decos,
                 bg=m_bg,
+                clr_map=m_clr_map,
+                theme_path=t_path,
             )
             self._masters[master_path] = info
             return info
@@ -1631,6 +2069,29 @@ class PptxReader:
             show_master = _get_attr(l_xml, "showMasterSp") != "0"
             l_type = _get_attr(l_xml, "type", "") or ""
 
+            clr_map_ovr_elem = _get_child(l_xml, "clrMapOvr")
+            l_clr_map_ovr: dict[str, str] = {}
+            if clr_map_ovr_elem is not None:
+                ovr_el = _get_child(clr_map_ovr_elem, "overrideClrMapping")
+                if ovr_el is not None:
+                    for k in (
+                        "bg1",
+                        "tx1",
+                        "bg2",
+                        "tx2",
+                        "accent1",
+                        "accent2",
+                        "accent3",
+                        "accent4",
+                        "accent5",
+                        "accent6",
+                        "hlink",
+                        "folHlink",
+                    ):
+                        v = _get_attr(ovr_el, k)
+                        if v:
+                            l_clr_map_ovr[k] = v
+
             info = LayoutInfo(
                 layout_path=layout_path,
                 master=master_info,
@@ -1639,6 +2100,7 @@ class PptxReader:
                 bg=l_bg,
                 show_master=show_master,
                 layout_type=l_type,
+                clr_map_ovr=l_clr_map_ovr,
             )
             self._layouts[layout_path] = info
             return info
@@ -2058,63 +2520,154 @@ class PptxReader:
 
         return animations
 
-    def _parse_fill(self, sp_pr: ET.Element | None) -> Fill:
-        """Parse shape fill style (solid, gradient, none)."""
+    def _parse_fill(
+        self,
+        sp_pr: ET.Element | None,
+        ph_clr: str | None = None,
+        theme_colors: ColorScheme | None = None,
+        clr_map: dict[str, str] | None = None,
+        clr_map_ovr: dict[str, str] | None = None,
+        group_fill: Fill | None = None,
+    ) -> Fill:
+        """Parse shape fill style (solid, gradient, none, group fill)."""
         if sp_pr is None:
             return Fill.none()
 
-        if _get_child(sp_pr, "noFill") is not None:
+        tag = _local_tag(sp_pr.tag)
+        if tag == "noFill":
             return Fill.none()
-
-        solid_fill = _get_child(sp_pr, "solidFill")
-        if solid_fill is not None:
-            clr = self._extract_color(solid_fill) or "#FFFFFF"
-            # Alpha
-            alpha = 1.0
-            for child in solid_fill:
-                alpha_elem = _get_child(child, "alpha")
-                if alpha_elem is not None:
-                    aval = _get_attr(alpha_elem, "val")
-                    if aval:
-                        alpha = float(aval) / 100000.0
-            return Fill.solid(clr, alpha)
-
-        grad_fill = _get_child(sp_pr, "gradFill")
-        if grad_fill is not None:
-            gs_lst = _get_child(grad_fill, "gsLst")
+        elif tag == "solidFill":
+            clr, alpha = self._extract_color_detail(
+                sp_pr,
+                ph_clr=ph_clr,
+                theme_colors=theme_colors,
+                clr_map=clr_map,
+                clr_map_ovr=clr_map_ovr,
+                keep_scheme=True,
+            )
+            return Fill.solid(clr or "#FFFFFF", alpha)
+        elif tag == "gradFill":
+            gs_lst = _get_child(sp_pr, "gsLst")
             stops: list[dict[str, Any]] = []
             if gs_lst is not None:
                 for gs in _get_children(gs_lst, "gs"):
                     pos = float(_get_attr(gs, "pos", "0") or 0) / 100000.0
-                    clr = self._extract_color(gs) or "#FFFFFF"
-                    stops.append({"p": pos, "c": clr, "a": 1.0})
+                    clr, alpha = self._extract_color_detail(
+                        gs,
+                        ph_clr=ph_clr,
+                        theme_colors=theme_colors,
+                        clr_map=clr_map,
+                        clr_map_ovr=clr_map_ovr,
+                    )
+                    stops.append({"p": pos, "c": clr or "#FFFFFF", "a": alpha})
+            return Fill.gradient(stops)
+
+        if _get_child(sp_pr, "noFill") is not None:
+            return Fill.none()
+
+        if _get_child(sp_pr, "grpFill") is not None:
+            if group_fill is not None:
+                return copy.deepcopy(group_fill)
+            return Fill.none()
+
+        solid_fill = _get_child(sp_pr, "solidFill")
+        if solid_fill is not None:
+            clr, alpha = self._extract_color_detail(
+                solid_fill,
+                ph_clr=ph_clr,
+                theme_colors=theme_colors,
+                clr_map=clr_map,
+                clr_map_ovr=clr_map_ovr,
+                keep_scheme=True,
+            )
+            return Fill.solid(clr or "#FFFFFF", alpha)
+
+        grad_fill = _get_child(sp_pr, "gradFill")
+        if grad_fill is not None:
+            gs_lst = _get_child(grad_fill, "gsLst")
+            stops = []
+            if gs_lst is not None:
+                for gs in _get_children(gs_lst, "gs"):
+                    pos = float(_get_attr(gs, "pos", "0") or 0) / 100000.0
+                    clr, alpha = self._extract_color_detail(
+                        gs,
+                        ph_clr=ph_clr,
+                        theme_colors=theme_colors,
+                        clr_map=clr_map,
+                        clr_map_ovr=clr_map_ovr,
+                    )
+                    stops.append({"p": pos, "c": clr or "#FFFFFF", "a": alpha})
             return Fill.gradient(stops)
 
         return Fill.none()
 
-    def _parse_line(self, sp_pr: ET.Element | None) -> Line:
+    def _parse_line(
+        self,
+        sp_pr: ET.Element | None,
+        base_line: Line | None = None,
+        ph_clr: str | None = None,
+        theme_colors: ColorScheme | None = None,
+        clr_map: dict[str, str] | None = None,
+        clr_map_ovr: dict[str, str] | None = None,
+    ) -> Line:
         """Parse shape outline line style."""
+        res = copy.deepcopy(base_line) if base_line is not None else Line.none()
         if sp_pr is None:
-            return Line.none()
+            return res
 
-        ln_elem = _get_child(sp_pr, "ln")
-        if ln_elem is None or _get_child(ln_elem, "noFill") is not None:
+        ln_elem = sp_pr if _local_tag(sp_pr.tag) == "ln" else _get_child(sp_pr, "ln")
+        if ln_elem is None:
+            return res
+
+        if _get_child(ln_elem, "noFill") is not None:
             return Line.none()
 
         w_emu = _get_attr(ln_elem, "w")
-        width_pt = emu_to_pt(w_emu, default=0.75) if w_emu else 0.75
+        if w_emu:
+            res.width = emu_to_pt(w_emu, default=res.width or 0.75)
+        elif res.type == "none":
+            res.width = 0.75
 
-        clr = self._extract_color(_get_child(ln_elem, "solidFill")) or "tx1"
+        solid_fill = _get_child(ln_elem, "solidFill")
+        if solid_fill is not None:
+            clr, _ = self._extract_color_detail(
+                solid_fill,
+                ph_clr=ph_clr,
+                theme_colors=theme_colors,
+                clr_map=clr_map,
+                clr_map_ovr=clr_map_ovr,
+                keep_scheme=True,
+            )
+            if clr:
+                res.color = clr
+                res.type = "solid"
 
         prst_dash = _get_child(ln_elem, "prstDash")
-        dash_style = _get_attr(prst_dash, "val", "solid") or "solid"
+        if prst_dash is not None:
+            res.dash = _get_attr(prst_dash, "val", "solid") or "solid"
 
-        return Line(
-            type="solid",
-            color=clr,
-            width=width_pt,
-            dash=dash_style,
-        )
+        cust_dash = _get_child(ln_elem, "custDash")
+        if cust_dash is not None:
+            dashes: list[float] = []
+            for ds in _get_children(cust_dash, "ds"):
+                d_val = float(_get_attr(ds, "d", "0") or 0) / 100000.0
+                sp_val = float(_get_attr(ds, "sp", "0") or 0) / 100000.0
+                dashes.extend([d_val, sp_val])
+            if dashes:
+                res.custom_dash = dashes
+                res.dash = "custom"
+
+        if res.type == "none" and (
+            solid_fill is not None
+            or w_emu is not None
+            or prst_dash is not None
+            or cust_dash is not None
+        ):
+            res.type = "solid"
+            if not res.color:
+                res.color = "tx1"
+
+        return res
 
     def _parse_shadow(self, sp_pr: ET.Element | None) -> Shadow | None:
         """Parse drop shadow from <a:effectLst>/<a:outerShdw>."""
@@ -2132,7 +2685,13 @@ class PptxReader:
         clr = self._extract_color(outer_shdw) or "#000000"
         return Shadow(blur=blur, dist=dist, color=clr)
 
-    def _parse_text_body(self, tx_body: ET.Element | None) -> TextBody:
+    def _parse_text_body(
+        self,
+        tx_body: ET.Element | None,
+        default_color: str | None = None,
+        default_font: str | None = None,
+        rel_map: dict[str, Any] | None = None,
+    ) -> TextBody:
         """Parse <p:txBody> into TextBody with paragraphs and runs."""
         if tx_body is None:
             return TextBody()
@@ -2199,7 +2758,12 @@ class PptxReader:
 
         paragraphs: list[Paragraph] = []
         for p_elem in _get_children(tx_body, "p"):
-            p = self._parse_paragraph(p_elem)
+            p = self._parse_paragraph(
+                p_elem,
+                default_color=default_color,
+                default_font=default_font,
+                rel_map=rel_map,
+            )
             if lst_styles:
                 lvl_style = lst_styles.get(p.level) or lst_styles.get(0) or {}
                 for k in ("algn", "marL", "indent", "bu", "lnSpc", "spcBef", "spcAft"):
@@ -2228,7 +2792,13 @@ class PptxReader:
             has_explicit_font_scale=has_explicit_font_scale,
         )
 
-    def _parse_paragraph(self, p_elem: ET.Element) -> Paragraph:
+    def _parse_paragraph(
+        self,
+        p_elem: ET.Element,
+        default_color: str | None = None,
+        default_font: str | None = None,
+        rel_map: dict[str, Any] | None = None,
+    ) -> Paragraph:
         """Parse <a:p> paragraph element."""
         p_pr = _get_child(p_elem, "pPr")
         level = 0
@@ -2290,10 +2860,22 @@ class PptxReader:
         for child in p_elem:
             ltag = _local_tag(child.tag)
             if ltag == "r":
-                runs.append(self._parse_run(child))
+                runs.append(
+                    self._parse_run(
+                        child,
+                        default_color=default_color,
+                        default_font=default_font,
+                        rel_map=rel_map,
+                    )
+                )
             elif ltag == "fld":
                 fld_type = _get_attr(child, "type", "") or ""
-                r = self._parse_run(child)
+                r = self._parse_run(
+                    child,
+                    default_color=default_color,
+                    default_font=default_font,
+                    rel_map=rel_map,
+                )
                 r.field = fld_type
                 runs.append(r)
             elif ltag == "br":
@@ -2321,7 +2903,13 @@ class PptxReader:
             runs=runs,
         )
 
-    def _parse_run(self, r_elem: ET.Element) -> Run:
+    def _parse_run(
+        self,
+        r_elem: ET.Element,
+        default_color: str | None = None,
+        default_font: str | None = None,
+        rel_map: dict[str, Any] | None = None,
+    ) -> Run:
         """Parse <a:r> run element."""
         r_pr = _get_child(r_elem, "rPr")
         t_elem = _get_child(r_elem, "t")
@@ -2334,6 +2922,7 @@ class PptxReader:
         italic = False
         underline = False
         strike = False
+        link: str | None = None
 
         if r_pr is not None:
             sz_val = _get_attr(r_pr, "sz")
@@ -2363,6 +2952,27 @@ class PptxReader:
             if solid_fill is not None:
                 color = self._extract_color(solid_fill)
 
+            hlink_elem = _get_child(r_pr, "hlinkClick")
+            if hlink_elem is not None:
+                r_id = ""
+                for k, v in hlink_elem.attrib.items():
+                    if _local_tag(k) in ("id", "link", "embed"):
+                        r_id = v
+                        break
+                if r_id and rel_map and r_id in rel_map:
+                    rel = rel_map[r_id]
+                    link = rel.target
+                elif not link:
+                    link = _get_attr(hlink_elem, "action", "")
+                if link:
+                    color = "hlink"
+                    underline = True
+
+        if color is None and default_color:
+            color = default_color
+        if font is None and default_font:
+            font = default_font
+
         return Run(
             text=text,
             font=font,
@@ -2372,6 +2982,7 @@ class PptxReader:
             italic=italic,
             underline=underline,
             strike=strike,
+            link=link,
         )
 
     def _parse_transition(self, trans_elem: ET.Element | None) -> Transition:

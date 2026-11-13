@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import colorsys
 import copy
 import uuid
 from collections.abc import Callable
@@ -143,25 +144,156 @@ PRESET_COLORS = {
     "cyan": "#00FFFF",
     "magenta": "#FF00FF",
     "gray": "#808080",
+    "grey": "#808080",
+    "silver": "#C0C0C0",
+    "maroon": "#800000",
+    "navy": "#000080",
+    "olive": "#808000",
+    "purple": "#800080",
+    "teal": "#008080",
+    "lime": "#00FF00",
+    "orange": "#FFA500",
+    "darkblue": "#00008B",
+    "darkred": "#8B0000",
+    "darkgreen": "#006400",
+    "accent1": "#2B579A",
+    "accent2": "#D24726",
+    "accent3": "#008A00",
+    "accent4": "#825A2C",
+    "accent5": "#002050",
+    "accent6": "#E2B200",
+    "hlink": "#0000FF",
+    "folhlink": "#800080",
+    "tx1": "#000000",
+    "tx2": "#595959",
+    "bg1": "#FFFFFF",
+    "bg2": "#EBEBEB",
+    "dk1": "#000000",
+    "lt1": "#FFFFFF",
+    "dk2": "#44546A",
+    "lt2": "#E7E6E6",
 }
+
+
+def apply_color_mods(hex_color: str, mods: list[dict[str, Any]] | None) -> str:
+    """Apply DrawingML color transforms (lumMod, lumOff, tint, shade, etc.) to a hex color."""
+    if not mods or not hex_color or not hex_color.startswith("#"):
+        return hex_color
+    hex_clean = hex_color.lstrip("#")
+    if len(hex_clean) == 3:
+        hex_clean = "".join(c * 2 for c in hex_clean)
+    if len(hex_clean) != 6:
+        return hex_color
+    try:
+        r = int(hex_clean[0:2], 16)
+        g = int(hex_clean[2:4], 16)
+        b = int(hex_clean[4:6], 16)
+    except ValueError:
+        return hex_color
+
+    def to_lin(val: float) -> float:
+        c = val / 255.0
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+    def to_s(val: float) -> int:
+        clamped = min(1.0, max(0.0, val))
+        res = 255.0 * (
+            clamped * 12.92 if clamped <= 0.0031308 else 1.055 * (clamped ** (1.0 / 2.4)) - 0.055
+        )
+        return max(0, min(255, round(res)))
+
+    for m in mods:
+        name = m.get("name")
+        val = float(m.get("val", 0))
+        v = val / 100000.0
+
+        if name in (
+            "lumMod",
+            "lumOff",
+            "lum",
+            "satMod",
+            "satOff",
+            "sat",
+            "hueMod",
+            "hueOff",
+            "hue",
+            "comp",
+        ):
+            h, l, s = colorsys.rgb_to_hls(r / 255.0, g / 255.0, b / 255.0)
+            if name == "lumMod":
+                l = max(0.0, min(1.0, l * v))
+            elif name == "lumOff":
+                l = max(0.0, min(1.0, l + v))
+            elif name == "lum":
+                l = max(0.0, min(1.0, v))
+            elif name == "satMod":
+                s = max(0.0, min(1.0, s * v))
+            elif name == "satOff":
+                s = max(0.0, min(1.0, s + v))
+            elif name == "sat":
+                s = max(0.0, min(1.0, v))
+            elif name == "hueMod":
+                h = (h * v) % 1.0
+            elif name == "hueOff":
+                h = (h + val / 21600000.0 + 1.0) % 1.0
+            elif name == "hue":
+                h = (val / 21600000.0) % 1.0
+            elif name == "comp":
+                h = (h + 0.5) % 1.0
+            r_f, g_f, b_f = colorsys.hls_to_rgb(h, l, s)
+            r = max(0, min(255, round(r_f * 255.0)))
+            g = max(0, min(255, round(g_f * 255.0)))
+            b = max(0, min(255, round(b_f * 255.0)))
+        elif name == "tint":
+            r = to_s(to_lin(r) * v + (1.0 - v))
+            g = to_s(to_lin(g) * v + (1.0 - v))
+            b = to_s(to_lin(b) * v + (1.0 - v))
+        elif name == "shade":
+            r = to_s(to_lin(r) * v)
+            g = to_s(to_lin(g) * v)
+            b = to_s(to_lin(b) * v)
+        elif name == "inv":
+            r = 255 - r
+            g = 255 - g
+            b = 255 - b
+        elif name == "gray":
+            y = round(0.299 * r + 0.587 * g + 0.114 * b)
+            r = g = b = max(0, min(255, y))
+
+    return f"#{r:02X}{g:02X}{b:02X}"
 
 
 def resolve_color(
     c: str | None,
     design: DesignTemplate | None = None,
     fallback: str = "#000000",
+    clr_map_ovr: dict[str, str] | None = None,
 ) -> str:
     """Resolve a color token or scheme slot to an actual hex color #RRGGBB."""
     if not c:
         return fallback
     if c.startswith("#"):
         return c
+    token = c
+    if clr_map_ovr and token in clr_map_ovr:
+        token = clr_map_ovr[token]
+    if design and design.clr_map and token in design.clr_map:
+        token = design.clr_map[token]
+    slot = COLOR_SLOT_MAP.get(token, token)
     cols = design.colors if design else ColorScheme()
-    slot = COLOR_SLOT_MAP.get(c, c)
     if hasattr(cols, slot):
-        return getattr(cols, slot)
-    if c in PRESET_COLORS:
-        return PRESET_COLORS[c]
+        val = getattr(cols, slot)
+        if val:
+            return val
+    lower_token = token.lower()
+    lower_slot = slot.lower()
+    if lower_slot in PRESET_COLORS:
+        return PRESET_COLORS[lower_slot]
+    if lower_token in PRESET_COLORS:
+        return PRESET_COLORS[lower_token]
+    lower_c = c.lower()
+    if lower_c in PRESET_COLORS:
+        return PRESET_COLORS[lower_c]
     return fallback
 
 
@@ -213,6 +345,7 @@ class DesignTemplate:
     footer_style: dict[str, Any] = field(default_factory=dict)
     ctr_title_algn: str = "ctr"
     sub_title_algn: str = "ctr"
+    clr_map: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -227,6 +360,8 @@ class DesignTemplate:
             "ctrTitleAlgn": self.ctr_title_algn,
             "subTitleAlgn": self.sub_title_algn,
         }
+        if self.clr_map:
+            d["clrMap"] = dict(self.clr_map)
         if self.title_decorations is not None:
             d["titleDeco"] = [s.to_dict() for s in self.title_decorations]
         if self.title_bg:
@@ -256,6 +391,7 @@ class DesignTemplate:
             placeholder_frames=ph_frames,
             ctr_title_algn=str(data.get("ctrTitleAlgn", "ctr")),
             sub_title_algn=str(data.get("subTitleAlgn", "ctr")),
+            clr_map=dict(data.get("clrMap", {})),
         )
 
 

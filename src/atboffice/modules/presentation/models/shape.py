@@ -107,7 +107,8 @@ class Line:
     type: str = "solid"  # "none", "solid"
     color: str = "tx1"
     width: float = 0.75  # in points
-    dash: str = "solid"  # "solid", "dash", "dot"
+    dash: str = "solid"  # "solid", "dash", "dot", "lgDashDotDot", etc.
+    custom_dash: list[float] | None = None
     tail: dict[str, Any] | None = None
     head: dict[str, Any] | None = None
 
@@ -119,6 +120,8 @@ class Line:
         if self.type == "none":
             return {"t": "none"}
         d: dict[str, Any] = {"c": self.color, "w": self.width, "dash": self.dash}
+        if self.custom_dash:
+            d["custom_dash"] = list(self.custom_dash)
         if self.tail:
             d["tail"] = dict(self.tail)
         if self.head:
@@ -134,6 +137,7 @@ class Line:
             color=data.get("c", "tx1"),
             width=float(data.get("w", 0.75)),
             dash=data.get("dash", "solid"),
+            custom_dash=[float(x) for x in data["custom_dash"]] if "custom_dash" in data else None,
             tail=dict(data.get("tail")) if data.get("tail") else None,
             head=dict(data.get("head")) if data.get("head") else None,
         )

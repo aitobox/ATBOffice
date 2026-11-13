@@ -170,6 +170,7 @@ class Slide:
     has_timing: bool = False
     raw_timing_xml: str | None = None
     is_imported: bool = False
+    clr_map_ovr: dict[str, str] = field(default_factory=dict)
 
     def add_shape(self, shape: Shape) -> None:
         self.shapes.append(shape)
@@ -230,6 +231,8 @@ class Slide:
         if self.hide_master:
             d["hide_master"] = True
             d["hideMaster"] = True
+        if self.clr_map_ovr:
+            d["clrMapOvr"] = dict(self.clr_map_ovr)
         return d
 
     @classmethod
@@ -249,6 +252,7 @@ class Slide:
             hidden=bool(data.get("hidden", False)),
             bg=bg_fill,
             hide_master=hide_master,
+            clr_map_ovr=dict(data.get("clrMapOvr", {})),
         )
 
 

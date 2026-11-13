@@ -611,11 +611,14 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                     char_fmt.setFontWeight(QFont.Weight.Bold)
                 if run.italic:
                     char_fmt.setFontItalic(True)
-                if run.underline:
+                if run.underline or bool(run.link):
                     char_fmt.setFontUnderline(True)
                 if run.strike:
                     char_fmt.setFontStrikeOut(True)
-                char_fmt.setForeground(color_resolver(run.color))
+                if run.link:
+                    char_fmt.setForeground(color_resolver("hlink"))
+                else:
+                    char_fmt.setForeground(color_resolver(run.color))
 
                 prefix = ""
                 if r_idx == 0 and has_bullet:

@@ -41,6 +41,20 @@ if TYPE_CHECKING:
 HANDLE_SIZE = 8.0
 ROT_HANDLE_OFFSET = 24.0
 
+DASH_PATTERNS: dict[str, list[float] | None] = {
+    "solid": None,
+    "dot": [1.0, 2.0],
+    "dash": [4.0, 3.0],
+    "lgDash": [8.0, 3.0],
+    "dashDot": [4.0, 3.0, 1.0, 3.0],
+    "lgDashDot": [8.0, 3.0, 1.0, 3.0],
+    "lgDashDotDot": [8.0, 3.0, 1.0, 3.0, 1.0, 3.0],
+    "sysDash": [3.0, 1.0],
+    "sysDot": [1.0, 1.0],
+    "sysDashDot": [3.0, 1.0, 1.0, 1.0],
+    "sysDashDotDot": [3.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+}
+
 
 def safe_tr(text: str) -> str:
     """Translate UI text with fallback to Chinese native text for ATBOffice."""
@@ -431,12 +445,22 @@ class ShapeGraphicsItem(QGraphicsObject):
             line_pen = QPen(Qt.PenStyle.NoPen)
         else:
             lc = self._resolve_color(self.model.line.color)
-            dash = Qt.PenStyle.SolidLine
-            if self.model.line.dash == "dash":
-                dash = Qt.PenStyle.DashLine
+            line_w = max(1.0, self.model.line.width)
+            line_pen = QPen(lc, line_w, Qt.PenStyle.SolidLine)
+            custom_dash = getattr(self.model.line, "custom_dash", None)
+            if custom_dash:
+                pattern = [float(x) for x in custom_dash]
+                if len(pattern) % 2 != 0:
+                    pattern.append(pattern[-1])
+                line_pen.setDashPattern(pattern)
+            elif self.model.line.dash in DASH_PATTERNS:
+                pat = DASH_PATTERNS[self.model.line.dash]
+                if pat:
+                    line_pen.setDashPattern(pat)
+            elif self.model.line.dash == "dash":
+                line_pen.setStyle(Qt.PenStyle.DashLine)
             elif self.model.line.dash == "dot":
-                dash = Qt.PenStyle.DotLine
-            line_pen = QPen(lc, max(1.0, self.model.line.width), dash)
+                line_pen.setStyle(Qt.PenStyle.DotLine)
 
         painter.setPen(line_pen)
         painter.setBrush(fill_brush)
@@ -477,6 +501,26 @@ class ShapeGraphicsItem(QGraphicsObject):
             return QColor("#000000")
         if color_name.startswith("#") or color_name.startswith("rgb"):
             return QColor(color_name)
+
+        design = None
+        clr_map_ovr = None
+        scene = self.scene()
+        if scene:
+            pres = getattr(scene, "presentation", None)
+            slide = getattr(scene, "slide", None)
+            if slide:
+                clr_map_ovr = getattr(slide, "clr_map_ovr", None)
+            if pres and hasattr(pres, "designs") and pres.designs:
+                if slide and getattr(slide, "design_id", "") in pres.designs:
+                    design = pres.designs[slide.design_id]
+                else:
+                    design = next(iter(pres.designs.values()), None)
+
+        from atboffice.modules.presentation.models.designs import resolve_color
+        hex_val = resolve_color(color_name, design=design, fallback="", clr_map_ovr=clr_map_ovr)
+        if hex_val:
+            return QColor(hex_val)
+
         # Standard palette mappings
         preset_map = {
             "accent1": "#2B579A",
@@ -485,6 +529,8 @@ class ShapeGraphicsItem(QGraphicsObject):
             "accent4": "#825A2C",
             "accent5": "#002050",
             "accent6": "#E2B200",
+            "hlink": "#0000FF",
+            "folhlink": "#800080",
             "tx1": "#000000",
             "tx2": "#595959",
             "bg1": "#FFFFFF",
