@@ -855,7 +855,8 @@ class WriterCanvasView(QAbstractScrollArea):
                         painter.setPen(QPen(QColor("#666666")))
                         painter.drawText(QPointF(x_px, baseline_px), text_str)
 
-                        if getattr(po, "underline", False):
+                        _ul = getattr(po, "underline", None)
+                        if _ul and _ul != "none":
                             pen_u = QPen(QColor("#666666"), 0.75 * self._zoom)
                             painter.setPen(pen_u)
                             painter.drawLine(
@@ -869,6 +870,19 @@ class WriterCanvasView(QAbstractScrollArea):
                             painter.drawLine(
                                 QPointF(x_px, mid_y),
                                 QPointF(x_px + self.pt_to_px(po_w), mid_y),
+                            )
+                        if getattr(po, "dstrike", False):
+                            pen_ds = QPen(QColor("#666666"), 0.75 * self._zoom)
+                            painter.setPen(pen_ds)
+                            mid_y = baseline_px - (font_size_pt * self._zoom) * 0.3
+                            gap = 1.5 * self._zoom
+                            painter.drawLine(
+                                QPointF(x_px, mid_y - gap),
+                                QPointF(x_px + self.pt_to_px(po_w), mid_y - gap),
+                            )
+                            painter.drawLine(
+                                QPointF(x_px, mid_y + gap),
+                                QPointF(x_px + self.pt_to_px(po_w), mid_y + gap),
                             )
 
                     elif po.type == PortionType.TAB and po_w > 0:
@@ -1747,7 +1761,8 @@ class WriterCanvasView(QAbstractScrollArea):
                                 baseline = line_y + (line.baseline - line.top)
                                 painter.drawText(QPointF(cur_x, baseline), po.text)
 
-                                if getattr(po, "underline", False):
+                                _ul2 = getattr(po, "underline", None)
+                                if _ul2 and _ul2 != "none":
                                     pen_u = QPen(pen.color(), 0.75)
                                     painter.setPen(pen_u)
                                     painter.drawLine(
@@ -1765,6 +1780,22 @@ class WriterCanvasView(QAbstractScrollArea):
                                     painter.drawLine(
                                         QPointF(cur_x, mid_y),
                                         QPointF(cur_x + po_w, mid_y),
+                                    )
+                                if getattr(po, "dstrike", False):
+                                    pen_ds = QPen(pen.color(), 0.75)
+                                    painter.setPen(pen_ds)
+                                    mid_y = (
+                                        line_y
+                                        + line.baseline_offset
+                                        - (po.font_size or 12.0) * 0.3
+                                    )
+                                    painter.drawLine(
+                                        QPointF(cur_x, mid_y - 1.5),
+                                        QPointF(cur_x + po_w, mid_y - 1.5),
+                                    )
+                                    painter.drawLine(
+                                        QPointF(cur_x, mid_y + 1.5),
+                                        QPointF(cur_x + po_w, mid_y + 1.5),
                                     )
                             elif po.type == PortionType.TAB and po_w > 0:
                                 tab_data = getattr(po, "data", None)
