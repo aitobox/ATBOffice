@@ -431,8 +431,12 @@ class Portion:
     bold: bool = False
     italic: bool = False
     color: str | None = None
-    underline: str = "none"
+    underline: str | None = None
     highlight: str | None = None
+    strikethrough: bool = False
+    dstrike: bool = False
+    caps: bool = False
+    small_caps: bool = False
     rtl: bool = False
     counts_for_height: bool = True
     char_offset: int = 0
@@ -606,6 +610,14 @@ def compute_grid_line_height(
 # ---------------------------------------------------------------------------
 
 
+def _norm_underline(r_pr: Any) -> str | None:
+    """Return normalised underline style string or None when no underline."""
+    u = getattr(r_pr, "u", None)
+    if not u or u == "none":
+        return None
+    return u
+
+
 def decompose_paragraph_to_portions(
     p: Paragraph,
     doc: Document | None = None,
@@ -615,6 +627,8 @@ def decompose_paragraph_to_portions(
     d = doc or Document()
     p_pr = resolve_p_props(d, p)
     char_offset = 0
+    # Sequential fallback counter for footnote/endnote references whose note_id is "0"
+    _fn_seq: list[int] = [0]
 
     # Numbering & Bullet Portion Synthesis
     num = getattr(p_pr, "num", None)
@@ -783,7 +797,11 @@ def decompose_paragraph_to_portions(
                                 bold=bool(r_pr.b),
                                 italic=bool(r_pr.i),
                                 color=r_pr.color,
-                                underline=getattr(r_pr, "u", "none"),
+                                underline=_norm_underline(r_pr),
+                                strikethrough=bool(getattr(r_pr, "strike", False)),
+                                dstrike=bool(getattr(r_pr, "dstrike", False)),
+                                caps=bool(getattr(r_pr, "caps", False)),
+                                small_caps=bool(getattr(r_pr, "small_caps", False)),
                                 highlight=getattr(r_pr, "highlight", None),
                                 rtl=bool(getattr(r_pr, "rtl", False)),
                                 counts_for_height=False,
@@ -793,26 +811,37 @@ def decompose_paragraph_to_portions(
                         )
                     elif is_cjk_char(ch):
                         # CJK characters can break individually
+                        _cjk_font_sz = font_sz
+                        if getattr(r_pr, "small_caps", False):
+                            _cjk_font_sz = round(font_sz * 0.8, 2)
                         ascent, descent = compute_font_metrics(
-                            font_sz,
+                            _cjk_font_sz,
                             r_pr.font_ea or font_family,
                             bold=bool(r_pr.b),
                             italic=bool(r_pr.i),
                         )
-                        w = font_sz
+                        w = _cjk_font_sz
+                        _is_upper = getattr(r_pr, "caps", False) or getattr(
+                            r_pr, "small_caps", False
+                        )
+                        _cjk_ch = ch.upper() if _is_upper else ch
                         portions.append(
                             Portion(
                                 type=PortionType.TEXT,
-                                text=ch,
+                                text=_cjk_ch,
                                 width=w,
                                 ascent=ascent,
                                 descent=descent,
-                                font_size=font_sz,
+                                font_size=_cjk_font_sz,
                                 font_family=r_pr.font_ea or font_family,
                                 bold=bool(r_pr.b),
                                 italic=bool(r_pr.i),
                                 color=r_pr.color,
-                                underline=getattr(r_pr, "u", "none"),
+                                underline=_norm_underline(r_pr),
+                                strikethrough=bool(getattr(r_pr, "strike", False)),
+                                dstrike=bool(getattr(r_pr, "dstrike", False)),
+                                caps=bool(getattr(r_pr, "caps", False)),
+                                small_caps=bool(getattr(r_pr, "small_caps", False)),
                                 highlight=getattr(r_pr, "highlight", None),
                                 rtl=bool(getattr(r_pr, "rtl", False)),
                                 counts_for_height=True,
@@ -831,25 +860,42 @@ def decompose_paragraph_to_portions(
                         ):
                             pos += 1
                         word = line_str[start:pos]
+                        # Apply caps / small_caps: uppercase the display text only
+                        _latin_caps = bool(getattr(r_pr, "caps", False))
+                        _latin_small_caps = bool(getattr(r_pr, "small_caps", False))
+                        _latin_font_sz = font_sz
+                        display_word = word
+                        if _latin_caps or _latin_small_caps:
+                            display_word = word.upper()
+                        if _latin_small_caps:
+                            _latin_font_sz = round(font_sz * 0.8, 2)
                         w = measure_text_width(
-                            word, font_sz, font_family, bold=bool(r_pr.b), italic=bool(r_pr.i)
+                            display_word,
+                            _latin_font_sz,
+                            font_family,
+                            bold=bool(r_pr.b),
+                            italic=bool(r_pr.i),
                         )
                         ascent, descent = compute_font_metrics(
-                            font_sz, font_family, bold=bool(r_pr.b), italic=bool(r_pr.i)
+                            _latin_font_sz, font_family, bold=bool(r_pr.b), italic=bool(r_pr.i)
                         )
                         portions.append(
                             Portion(
                                 type=PortionType.TEXT,
-                                text=word,
+                                text=display_word,
                                 width=w,
                                 ascent=ascent,
                                 descent=descent,
-                                font_size=font_sz,
+                                font_size=_latin_font_sz,
                                 font_family=font_family,
                                 bold=bool(r_pr.b),
                                 italic=bool(r_pr.i),
                                 color=r_pr.color,
-                                underline=getattr(r_pr, "u", "none"),
+                                underline=_norm_underline(r_pr),
+                                strikethrough=bool(getattr(r_pr, "strike", False)),
+                                dstrike=bool(getattr(r_pr, "dstrike", False)),
+                                caps=_latin_caps,
+                                small_caps=_latin_small_caps,
                                 highlight=getattr(r_pr, "highlight", None),
                                 rtl=bool(getattr(r_pr, "rtl", False)),
                                 counts_for_height=True,
@@ -985,9 +1031,16 @@ def decompose_paragraph_to_portions(
                 char_offset += 1
 
         elif isinstance(item, NoteRefItem):
-            ref_str = item.custom_mark or str(item.note_id or "")
-            if not ref_str:
-                ref_str = "*"
+            # Determine display text for the footnote/endnote reference mark.
+            # Priority: custom_mark > valid non-zero note_id > sequential counter
+            if item.custom_mark:
+                ref_str = item.custom_mark
+            elif item.note_id and str(item.note_id) not in ("0", ""):
+                ref_str = str(item.note_id)
+            else:
+                # Fallback: use a sequential counter tracked across this paragraph
+                _fn_seq[0] += 1
+                ref_str = str(_fn_seq[0])
             fn_font_sz = max(6.0, round(font_sz * 0.65, 2))
             w = measure_text_width(
                 ref_str, fn_font_sz, font_family, bold=bool(r_pr.b), italic=bool(r_pr.i)
@@ -1509,6 +1562,10 @@ def layout_paragraph(
                 italic=pt.italic,
                 color=pt.color,
                 underline=pt.underline,
+                strikethrough=pt.strikethrough,
+                dstrike=pt.dstrike,
+                caps=pt.caps,
+                small_caps=pt.small_caps,
                 highlight=pt.highlight,
                 rtl=pt.rtl,
                 counts_for_height=pt.counts_for_height,
@@ -1529,6 +1586,10 @@ def layout_paragraph(
                 italic=pt.italic,
                 color=pt.color,
                 underline=pt.underline,
+                strikethrough=pt.strikethrough,
+                dstrike=pt.dstrike,
+                caps=pt.caps,
+                small_caps=pt.small_caps,
                 highlight=pt.highlight,
                 rtl=pt.rtl,
                 counts_for_height=pt.counts_for_height,
