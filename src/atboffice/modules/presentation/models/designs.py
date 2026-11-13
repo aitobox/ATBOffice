@@ -219,13 +219,13 @@ def apply_color_mods(hex_color: str, mods: list[dict[str, Any]] | None) -> str:
             "hue",
             "comp",
         ):
-            h, l, s = colorsys.rgb_to_hls(r / 255.0, g / 255.0, b / 255.0)
+            h, lum, s = colorsys.rgb_to_hls(r / 255.0, g / 255.0, b / 255.0)
             if name == "lumMod":
-                l = max(0.0, min(1.0, l * v))
+                lum = max(0.0, min(1.0, lum * v))
             elif name == "lumOff":
-                l = max(0.0, min(1.0, l + v))
+                lum = max(0.0, min(1.0, lum + v))
             elif name == "lum":
-                l = max(0.0, min(1.0, v))
+                lum = max(0.0, min(1.0, v))
             elif name == "satMod":
                 s = max(0.0, min(1.0, s * v))
             elif name == "satOff":
@@ -240,7 +240,7 @@ def apply_color_mods(hex_color: str, mods: list[dict[str, Any]] | None) -> str:
                 h = (val / 21600000.0) % 1.0
             elif name == "comp":
                 h = (h + 0.5) % 1.0
-            r_f, g_f, b_f = colorsys.hls_to_rgb(h, l, s)
+            r_f, g_f, b_f = colorsys.hls_to_rgb(h, lum, s)
             r = max(0, min(255, round(r_f * 255.0)))
             g = max(0, min(255, round(g_f * 255.0)))
             b = max(0, min(255, round(b_f * 255.0)))

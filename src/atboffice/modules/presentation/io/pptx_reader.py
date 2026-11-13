@@ -470,7 +470,7 @@ class PptxReader:
         clr_map_ovr: dict[str, str] | None = None,
         keep_scheme: bool = False,
     ) -> tuple[str | None, float]:
-        """Extract resolved color string and alpha from XML element, applying mods and color maps."""
+        """Extract resolved color string and alpha from XML element, applying mods and maps."""
         if parent is None:
             return None, 1.0
 
@@ -593,7 +593,8 @@ class PptxReader:
             return next(iter(themes.values()), None)
         clean_path = theme_path.lstrip("/")
         for k, v in themes.items():
-            if k == theme_path or k.lstrip("/") == clean_path or Path(k).name == Path(clean_path).name:
+            k_clean = k.lstrip("/")
+            if k == theme_path or k_clean == clean_path or Path(k).name == Path(clean_path).name:
                 return v
         return next(iter(themes.values()), None)
 
@@ -603,7 +604,8 @@ class PptxReader:
             return next(iter(theme_fmt.values()), {"fills": [], "lines": [], "bgFills": []})
         clean_path = theme_path.lstrip("/")
         for k, v in theme_fmt.items():
-            if k == theme_path or k.lstrip("/") == clean_path or Path(k).name == Path(clean_path).name:
+            k_clean = k.lstrip("/")
+            if k == theme_path or k_clean == clean_path or Path(k).name == Path(clean_path).name:
                 return v
         return next(iter(theme_fmt.values()), {"fills": [], "lines": [], "bgFills": []})
 
@@ -628,7 +630,8 @@ class PptxReader:
                 theme_fmt = self._get_theme_fmt(m.theme_path)
         if theme_colors is None:
             theme_colors = next(iter(themes.values()), None)
-            theme_fmt = next(iter(theme_fmt_dict.values()), {"fills": [], "lines": [], "bgFills": []})
+            dft_fmt = {"fills": [], "lines": [], "bgFills": []}
+            theme_fmt = next(iter(theme_fmt_dict.values()), dft_fmt)
         return theme_colors, theme_fmt, clr_map, clr_map_ovr
 
     def _parse_style_refs(
@@ -1123,10 +1126,11 @@ class PptxReader:
 
         # Resolve default font from style_font (+mj / +mn)
         resolved_font = None
-        if style_font == "+mj" and layout_info and layout_info.master and layout_info.master.major_font:
-            resolved_font = layout_info.master.major_font
-        elif style_font == "+mn" and layout_info and layout_info.master and layout_info.master.minor_font:
-            resolved_font = layout_info.master.minor_font
+        m_info = layout_info.master if layout_info else None
+        if style_font == "+mj" and m_info and m_info.major_font:
+            resolved_font = m_info.major_font
+        elif style_font == "+mn" and m_info and m_info.minor_font:
+            resolved_font = m_info.minor_font
         elif style_font:
             resolved_font = style_font
 
