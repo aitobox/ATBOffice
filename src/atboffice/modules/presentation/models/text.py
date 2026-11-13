@@ -254,6 +254,17 @@ class TextBody:
     font_scale: float = 1.0  # Dynamic font scale factor (AutoFit)
     ln_spc_reduction: float = 0.0  # Line spacing reduction factor (AutoFit)
     has_explicit_font_scale: bool = False
+    cols: int = 1
+    col_gap: float = 0.0
+    rtl_col: bool = False
+
+    @property
+    def columns(self) -> int:
+        return self.cols
+
+    @columns.setter
+    def columns(self, value: int) -> None:
+        self.cols = int(value)
 
     @property
     def plain_text(self) -> str:
@@ -305,6 +316,12 @@ class TextBody:
             d["lnSpcReduction"] = self.ln_spc_reduction
         if self.vert:
             d["vert"] = self.vert
+        if self.cols > 1:
+            d["cols"] = self.cols
+        if self.col_gap > 0.001:
+            d["colGap"] = self.col_gap
+        if self.rtl_col:
+            d["rtlCol"] = True
         return d
 
     @classmethod
@@ -316,6 +333,9 @@ class TextBody:
         ln_spc_red = float(data.get("lnSpcReduction", 0.0))
         anchor_ctr = bool(data.get("anchorCtr", False))
         has_explicit_fs = bool(data.get("hasExplicitFontScale", "fontScale" in data))
+        cols = int(data.get("cols", data.get("columns", 1)))
+        col_gap = float(data.get("colGap", data.get("col_gap", 0.0)))
+        rtl_col = bool(data.get("rtlCol", data.get("rtl_col", False)))
         return cls(
             anchor=data.get("anchor", "t"),
             anchor_ctr=anchor_ctr,
@@ -327,4 +347,7 @@ class TextBody:
             font_scale=font_scale,
             ln_spc_reduction=ln_spc_red,
             has_explicit_font_scale=has_explicit_fs,
+            cols=cols,
+            col_gap=col_gap,
+            rtl_col=rtl_col,
         )

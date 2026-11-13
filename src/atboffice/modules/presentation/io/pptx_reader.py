@@ -277,6 +277,7 @@ class PptxReader:
         self.themes: dict[str, ColorScheme] = {}
         self.theme_fmt: dict[str, dict[str, list[ET.Element]]] = {}
         self.media_map: dict[str, bytes] = {}
+        self.default_text_style: dict[int, dict[str, Any]] = {}
         self._layouts: dict[str, LayoutInfo] = {}
         self._masters: dict[str, MasterInfo] = {}
         self._theme_fonts: dict[str, tuple[str | None, str | None]] = {}
@@ -331,6 +332,13 @@ class PptxReader:
         pres.props["_media_map"] = self.media_map
         slide_part_map: dict[str, str] = {}
         pres.props["_slide_part_map"] = slide_part_map
+
+        # 2.1 Presentation Default Text Style
+        dft_elem = _get_child(pres_xml, "defaultTextStyle")
+        self.default_text_style = (
+            self._parse_style_levels(dft_elem) if dft_elem is not None else {}
+        )
+        pres.props["default_text_style"] = self.default_text_style
 
         # 3. Resolve presentation relationships
         pres_rels = self.package.get_relationships(pres_part)
@@ -985,7 +993,13 @@ class PptxReader:
         elif tag == "pic":
             return self._parse_pic_element(elem, slide_path, rel_map, timing_map=timing_map)
         elif tag == "graphicFrame":
-            return self._parse_graphic_frame(elem, slide_path=slide_path, rel_map=rel_map)
+            return self._parse_graphic_frame(
+                elem,
+                slide_path=slide_path,
+                rel_map=rel_map,
+                layout_info=layout_info,
+                slide_clr_map_ovr=slide_clr_map_ovr,
+            )
         elif tag == "grpSp":
             return self._parse_group_element(
                 elem,
@@ -1149,6 +1163,8 @@ class PptxReader:
 
         if placeholder is not None and text_body is not None and layout_info is not None:
             self._apply_placeholder_text_inheritance(text_body, placeholder, layout_info, lp, mp)
+        elif placeholder is None and text_body is not None:
+            self._apply_shape_text_inheritance(text_body, layout_info, shape_elem=elem)
 
         shape_type = (
             "text"
@@ -1379,6 +1395,8 @@ class PptxReader:
         elem: ET.Element,
         slide_path: str = "",
         rel_map: dict[str, Any] | None = None,
+        layout_info: LayoutInfo | None = None,
+        slide_clr_map_ovr: dict[str, str] | None = None,
     ) -> Shape:
         """Parse <p:graphicFrame> table or chart element."""
         c_nv_pr = None
@@ -1532,6 +1550,10 @@ class PptxReader:
         tbl_elem = _get_child(graphic_data, "tbl") if graphic_data is not None else None
 
         if tbl_elem is not None:
+            master_info = layout_info.master if layout_info else None
+            other_style = master_info.other_style if master_info else {}
+            default_style = getattr(self, "default_text_style", {})
+
             tbl_grid = _get_child(tbl_elem, "tblGrid")
             if tbl_grid is not None:
                 for col_elem in _get_children(tbl_grid, "gridCol"):
@@ -1545,6 +1567,26 @@ class PptxReader:
                     cell_text = (
                         self._parse_text_body(tx_body) if tx_body is not None else TextBody()
                     )
+                    # Table cells inherit text properties from otherStyle and defaultTextStyle
+                    for p in cell_text.paragraphs:
+                        lvl = p.level
+                        def_s = default_style.get(lvl) or default_style.get(0) or {}
+                        oth_s = other_style.get(lvl) or other_style.get(0) or {}
+                        base_s = copy.deepcopy(def_s)
+                        base_s.update(oth_s)
+                        sz = base_s.get("sz", 18.0)
+                        font = (
+                            base_s.get("font")
+                            or (master_info.minor_font if master_info else "Arial")
+                        )
+                        clr = base_s.get("color")
+                        for r in p.runs:
+                            if r.size is None:
+                                r.size = sz
+                            if r.font is None:
+                                r.font = font
+                            if r.color is None and clr:
+                                r.color = clr
                     row_cells.append({"tx": cell_text, "text": cell_text.plain_text})
                 tbl_dict["rows"].append({"h": h_pt, "cells": row_cells})
 
@@ -2200,11 +2242,32 @@ class PptxReader:
                 text_body.ln_spc_reduction = mp_tb.ln_spc_reduction
                 text_body.has_explicit_font_scale = True
 
+        if text_body.cols <= 1:
+            if lp_tb and lp_tb.cols > 1:
+                text_body.cols = lp_tb.cols
+                text_body.col_gap = lp_tb.col_gap
+                text_body.rtl_col = lp_tb.rtl_col
+            elif mp_tb and mp_tb.cols > 1:
+                text_body.cols = mp_tb.cols
+                text_body.col_gap = mp_tb.col_gap
+                text_body.rtl_col = mp_tb.rtl_col
+
+        if text_body.wrap:
+            if lp_tb and not lp_tb.wrap:
+                text_body.wrap = False
+            elif mp_tb and not mp_tb.wrap:
+                text_body.wrap = False
+
+        default_style = getattr(self, "default_text_style", {})
+
         for p in text_body.paragraphs:
             lvl = p.level
             lp_p = next((x for x in lp_paras if x.level == lvl), lp_paras[0] if lp_paras else None)
             mp_p = next((x for x in mp_paras if x.level == lvl), mp_paras[0] if mp_paras else None)
-            lvl_style = style_dict.get(lvl) or style_dict.get(0) or {}
+            def_lvl_s = default_style.get(lvl) or default_style.get(0) or {}
+            master_lvl_s = style_dict.get(lvl) or style_dict.get(0) or {}
+            lvl_style = copy.deepcopy(def_lvl_s)
+            lvl_style.update(master_lvl_s)
 
             # Alignment
             if "algn" not in p.props:
@@ -2316,6 +2379,61 @@ class PptxReader:
                         r.italic = True
                     elif lvl_style.get("i"):
                         r.italic = True
+
+    def _apply_shape_text_inheritance(
+        self,
+        text_body: TextBody,
+        layout_info: LayoutInfo | None,
+        shape_elem: ET.Element | None = None,
+    ) -> None:
+        """Apply defaultTextStyle and master otherStyle inheritance to non-placeholder shapes."""
+        master_info = layout_info.master if layout_info else None
+        other_style = master_info.other_style if master_info else {}
+        default_style = getattr(self, "default_text_style", {})
+
+        shape_lst_styles: dict[int, dict[str, Any]] = {}
+        if shape_elem is not None:
+            tx_body_elem = _get_child(shape_elem, "txBody")
+            if tx_body_elem is not None:
+                lst_style_elem = _get_child(tx_body_elem, "lstStyle")
+                if lst_style_elem is not None:
+                    shape_lst_styles = self._parse_style_levels(lst_style_elem)
+
+        default_font = (
+            master_info.minor_font if master_info and master_info.minor_font else "Arial"
+        )
+
+        for p in text_body.paragraphs:
+            lvl = p.level
+            def_s = default_style.get(lvl) or default_style.get(0) or {}
+            oth_s = other_style.get(lvl) or other_style.get(0) or {}
+            own_lst_s = shape_lst_styles.get(lvl) or shape_lst_styles.get(0) or {}
+
+            # Precedence: defaultTextStyle < otherStyle < shape lstStyle
+            base_s = copy.deepcopy(def_s)
+            base_s.update(oth_s)
+            base_s.update(own_lst_s)
+
+            # DrawingML default font size for otherStyle / regular shapes is 18.0 pt
+            sz = base_s.get("sz", 18.0)
+            font = base_s.get("font") or default_font
+            color = base_s.get("color") or "tx1"
+
+            for k in ("algn", "marL", "indent", "bu", "lnSpc", "spcBef", "spcAft"):
+                if k not in p.props and k in base_s:
+                    p.props[k] = copy.deepcopy(base_s[k])
+
+            for r in p.runs:
+                if r.size is None:
+                    r.size = sz
+                if r.font is None:
+                    r.font = font
+                if r.color is None and color:
+                    r.color = color
+                if not r.bold and base_s.get("b"):
+                    r.bold = True
+                if not r.italic and base_s.get("i"):
+                    r.italic = True
 
     def _parse_slide_animations(
         self,
@@ -2710,6 +2828,9 @@ class PptxReader:
         font_scale = 1.0
         ln_spc_red = 0.0
         has_explicit_font_scale = False
+        cols = 1
+        col_gap = 0.0
+        rtl_col = False
         if body_pr is not None:
             l_ins = emu_to_pt(_get_attr(body_pr, "lIns"), default=7.2)
             t_ins = emu_to_pt(_get_attr(body_pr, "tIns"), default=3.6)
@@ -2733,6 +2854,22 @@ class PptxReader:
             wrap_val = _get_attr(body_pr, "wrap")
             if wrap_val == "none":
                 wrap = False
+
+            num_col_attr = _get_attr(body_pr, "numCol")
+            if num_col_attr:
+                try:
+                    num_col_val = int(num_col_attr)
+                    if num_col_val > 1:
+                        cols = num_col_val
+                        spc_col_attr = _get_attr(body_pr, "spcCol")
+                        if spc_col_attr:
+                            col_gap = emu_to_pt(spc_col_attr, default=0.0)
+                except ValueError:
+                    pass
+
+            rtl_col_attr = _get_attr(body_pr, "rtlCol")
+            if rtl_col_attr in ("1", "true", "True"):
+                rtl_col = True
 
             norm_elem = _get_child(body_pr, "normAutofit")
             if norm_elem is not None:
@@ -2794,6 +2931,9 @@ class PptxReader:
             font_scale=font_scale,
             ln_spc_reduction=ln_spc_red,
             has_explicit_font_scale=has_explicit_font_scale,
+            cols=cols,
+            col_gap=col_gap,
+            rtl_col=rtl_col,
         )
 
     def _parse_paragraph(
@@ -2860,6 +3000,32 @@ class PptxReader:
             elif _get_child(p_pr, "buAutoNum") is not None:
                 bullet = BulletInfo(type="auto", char="1.")
 
+            p_def_r_pr = _get_child(p_pr, "defRPr")
+            p_def_sz = None
+            p_def_b = None
+            p_def_i = None
+            p_def_font = None
+            p_def_color = None
+            if p_def_r_pr is not None:
+                sz_attr = _get_attr(p_def_r_pr, "sz")
+                if sz_attr:
+                    try:
+                        p_def_sz = round(float(sz_attr) / 100.0, 1)
+                    except ValueError:
+                        pass
+                b_attr = _get_attr(p_def_r_pr, "b")
+                if b_attr in ("1", "true", "on"):
+                    p_def_b = True
+                i_attr = _get_attr(p_def_r_pr, "i")
+                if i_attr in ("1", "true", "on"):
+                    p_def_i = True
+                latin_el = _get_child(p_def_r_pr, "latin")
+                if latin_el is not None:
+                    p_def_font = _get_attr(latin_el, "typeface")
+                solid_fill = _get_child(p_def_r_pr, "solidFill")
+                if solid_fill is not None:
+                    p_def_color = self._extract_color(solid_fill)
+
         runs: list[Run] = []
         for child in p_elem:
             ltag = _local_tag(child.tag)
@@ -2884,6 +3050,19 @@ class PptxReader:
                 runs.append(r)
             elif ltag == "br":
                 runs.append(Run(text="\n"))
+
+        if p_pr is not None and p_def_r_pr is not None:
+            for r in runs:
+                if r.size is None and p_def_sz is not None:
+                    r.size = p_def_sz
+                if r.font is None and p_def_font is not None:
+                    r.font = p_def_font
+                if r.color is None and p_def_color is not None:
+                    r.color = p_def_color
+                if not r.bold and p_def_b:
+                    r.bold = True
+                if not r.italic and p_def_i:
+                    r.italic = True
 
         props: dict[str, Any] = {}
         if algn_val:

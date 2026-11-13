@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QRectF, Qt, Signal
+from PySide6.QtCore import QRectF, QSizeF, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFocusEvent,
@@ -468,7 +468,22 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         doc.setDocumentMargin(0.0)
         avail_w = max(10.0, text_rect.width())
         avail_h = max(10.0, text_rect.height())
-        doc.setTextWidth(avail_w)
+
+        num_cols = getattr(text_body, "cols", 1)
+        col_gap = getattr(text_body, "col_gap", 0.0)
+        rtl_col = getattr(text_body, "rtl_col", False)
+
+        if not text_body.wrap:
+            opt = doc.defaultTextOption()
+            opt.setWrapMode(QTextOption.WrapMode.NoWrap)
+            doc.setDefaultTextOption(opt)
+
+        if num_cols > 1:
+            col_w = max(10.0, (avail_w - (num_cols - 1) * col_gap) / num_cols)
+            doc.setTextWidth(col_w)
+            doc.setPageSize(QSizeF(col_w, avail_h))
+        else:
+            doc.setTextWidth(avail_w)
 
         font_scale = text_body.font_scale if text_body.font_scale else 1.0
         ln_spc_red = text_body.ln_spc_reduction if text_body.ln_spc_reduction else 0.0
@@ -605,7 +620,12 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                 else:
                     char_fmt.setFontFamily(fam)
 
-                sz = (run.size if run.size is not None else BODY_SIZES[level]) * font_scale
+                fallback_sz = (
+                    18.0
+                    if level == 0 and not getattr(text_body, "_is_placeholder", False)
+                    else BODY_SIZES[level]
+                )
+                sz = (run.size if run.size is not None else fallback_sz) * font_scale
                 char_fmt.setFontPointSize(max(1.0, sz * 72.0 / 96.0))
                 if run.bold:
                     char_fmt.setFontWeight(QFont.Weight.Bold)
@@ -630,15 +650,34 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         cursor.endEditBlock()
 
         painter.save()
-        doc_h = doc.size().height()
-        dy = 0.0
-        if text_body.anchor == "ctr":
-            dy = max(0.0, (avail_h - doc_h) / 2.0)
-        elif text_body.anchor == "b":
-            dy = max(0.0, avail_h - doc_h)
+        painter.setClipRect(text_rect)
 
-        painter.translate(text_rect.x(), text_rect.y() + dy)
-        doc.drawContents(painter, QRectF(0.0, 0.0, avail_w, max(avail_h, doc_h)))
+        if num_cols > 1:
+            col_w = max(10.0, (avail_w - (num_cols - 1) * col_gap) / num_cols)
+            col_h = avail_h
+            for c in range(min(num_cols, doc.pageCount())):
+                col_x = (
+                    (num_cols - 1 - c) * (col_w + col_gap)
+                    if rtl_col
+                    else c * (col_w + col_gap)
+                )
+                col_clip = QRectF(text_rect.x() + col_x, text_rect.y(), col_w, col_h)
+                painter.save()
+                painter.setClipRect(col_clip)
+                painter.translate(text_rect.x() + col_x, text_rect.y() - c * col_h)
+                doc.drawContents(painter, QRectF(0.0, c * col_h, col_w, col_h))
+                painter.restore()
+        else:
+            doc_h = doc.size().height()
+            dy = 0.0
+            if text_body.anchor == "ctr":
+                dy = max(0.0, (avail_h - doc_h) / 2.0)
+            elif text_body.anchor == "b":
+                dy = max(0.0, avail_h - doc_h)
+
+            painter.translate(text_rect.x(), text_rect.y() + dy)
+            doc.drawContents(painter, QRectF(0.0, 0.0, avail_w, max(avail_h, doc_h)))
+
         painter.restore()
 
     # ------------------------------------------------------------------
@@ -765,7 +804,12 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                 else:
                     char_fmt.setFontFamily(family)
 
-                sz = (run.size if run.size is not None else BODY_SIZES[level]) * font_scale
+                fallback_sz = (
+                    18.0
+                    if level == 0 and not getattr(text_body, "_is_placeholder", False)
+                    else BODY_SIZES[level]
+                )
+                sz = (run.size if run.size is not None else fallback_sz) * font_scale
                 char_fmt.setFontPointSize(sz)
 
                 if run.bold:
