@@ -196,14 +196,15 @@ def body_properties_to_xml(text_body: TextBody) -> str:
         f'rIns="{r_ins}"',
         f'bIns="{b_ins}"',
         f'anchor="{anchor_str}"',
-        'rtlCol="0"',
     ]
     if getattr(text_body, "anchor_ctr", False):
         attrs.append('anchorCtr="1"')
-    cols = getattr(text_body, "columns", 1)
+    cols = getattr(text_body, "cols", getattr(text_body, "columns", 1))
     if cols > 1:
         attrs.append(f'numCol="{cols}"')
-        attrs.append(f'spcCol="{pt_to_emu(getattr(text_body, "col_gap", 0))}"')
+        attrs.append(f'spcCol="{pt_to_emu(getattr(text_body, "col_gap", 0.0))}"')
+    rtl_col = "1" if getattr(text_body, "rtl_col", False) else "0"
+    attrs.append(f'rtlCol="{rtl_col}"')
 
     inner = ""
     if text_body.autofit == "shape":
