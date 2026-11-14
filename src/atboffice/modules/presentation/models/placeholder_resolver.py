@@ -254,9 +254,7 @@ def resolve_unoverridden_placeholders(
             # sldNum
             show_num = bool(hf and getattr(hf, "num", False))
             if show_num and "sldNum" not in existing_types:
-                box = design.placeholder_frames.get(
-                    "sldNum", (round(design.colors.lt1 and 688.0, 2), 491.6, 224.0, 37.5)
-                )
+                box = design.placeholder_frames.get("sldNum", (688.0, 491.6, 224.0, 37.5))
                 unoverridden.append(
                     _create_footer_placeholder(
                         "sldNum", box, design, slide_idx=slide_idx, presentation=presentation

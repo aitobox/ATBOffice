@@ -174,7 +174,7 @@ class TransformHandleItem(QGraphicsItem):
             event.accept()
             self._parent_shape.begin_handle_drag(self, event.scenePos())
         else:
-            super("mousePressEvent", event)
+            super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent) -> None:
         if event.buttons() & Qt.MouseButton.LeftButton:
@@ -183,14 +183,14 @@ class TransformHandleItem(QGraphicsItem):
                 self, event.scenePos(), event.modifiers()
             )
         else:
-            super("mouseMoveEvent", event)
+            super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             event.accept()
             self._parent_shape.end_handle_drag(self)
         else:
-            super("mouseReleaseEvent", event)
+            super().mouseReleaseEvent(event)
 
 
 class ShapeGraphicsItem(QGraphicsObject):

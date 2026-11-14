@@ -14,6 +14,7 @@ from PySide6.QtGui import (
     QPen,
     QResizeEvent,
     QShowEvent,
+    QTransform,
     QWheelEvent,
 )
 from PySide6.QtWidgets import (
@@ -91,6 +92,7 @@ class SlideScene(QGraphicsScene):
         self._comment_items: list[CommentMarkerItem] = []
         self._is_dragging_item = False
         self._dragged_item: ShapeGraphicsItem | None = None
+        self._active_connector_updates: set[str] = set()
 
         self.setSceneRect(
             -150.0,
@@ -222,73 +224,92 @@ class SlideScene(QGraphicsScene):
             item for item in self.selectedItems() if isinstance(item, ShapeGraphicsItem)
         ]
 
-    def update_connected_connectors(self, shape_id: str) -> None:
+    def update_connected_connectors(
+        self,
+        shape_id: str,
+        _visited: set[str] | None = None,
+    ) -> None:
         """Automatically recalculate connector endpoints and routes connected to shape_id."""
-        for item in list(self._items_by_id.values()):
-            if not getattr(item.model, "is_connector", False):
-                continue
+        visited = _visited if _visited is not None else self._active_connector_updates
+        if shape_id in visited:
+            return
+        visited.add(shape_id)
+        try:
+            for item in list(self._items_by_id.values()):
+                if not getattr(item.model, "is_connector", False):
+                    continue
+                if item.model.id in visited:
+                    continue
 
-            cxn_start = item.model.cxn_start
-            cxn_end = item.model.cxn_end
-            if not cxn_start and not cxn_end:
-                continue
+                cxn_start = item.model.cxn_start
+                cxn_end = item.model.cxn_end
+                if not cxn_start and not cxn_end:
+                    continue
 
-            needs_update = False
-            adj = item.model.adj or {}
-            # Unrouted connectors: derive the free ends from the box and its flips.
-            (ls_x, ls_y), (le_x, le_y) = connector_local_endpoints(
-                item.model.w, item.model.h, item.model.flip_h, item.model.flip_v
-            )
-
-            # Start point
-            s_pt = None
-            s_idx = None
-            if cxn_start:
-                s_shape_id = cxn_start.get("id")
-                s_idx = int(cxn_start.get("idx", 0))
-                target = self.get_shape_item(s_shape_id)
-                if target:
-                    sites = target.get_connection_sites_scene()
-                    if s_idx < len(sites):
-                        s_pt = sites[s_idx]
-                        if s_shape_id == shape_id:
-                            needs_update = True
-            if s_pt is None:
-                p1 = adj.get("p1")
-                s_pt = (
-                    (float(p1[0]), float(p1[1]))
-                    if p1
-                    else (item.model.x + ls_x, item.model.y + ls_y)
+                needs_update = False
+                adj = item.model.adj or {}
+                # Unrouted connectors: derive the free ends from the box and its flips.
+                (ls_x, ls_y), (le_x, le_y) = connector_local_endpoints(
+                    item.model.w, item.model.h, item.model.flip_h, item.model.flip_v
                 )
 
-            # End point
-            e_pt = None
-            e_idx = None
-            if cxn_end:
-                e_shape_id = cxn_end.get("id")
-                e_idx = int(cxn_end.get("idx", 0))
-                target = self.get_shape_item(e_shape_id)
-                if target:
-                    sites = target.get_connection_sites_scene()
-                    if e_idx < len(sites):
-                        e_pt = sites[e_idx]
-                        if e_shape_id == shape_id:
-                            needs_update = True
-            if e_pt is None:
-                p2 = adj.get("p2")
-                e_pt = (
-                    (float(p2[0]), float(p2[1]))
-                    if p2
-                    else (item.model.x + le_x, item.model.y + le_y)
-                )
+                def _safe_site_idx(raw: Any) -> int:
+                    try:
+                        return int(raw) if raw is not None else 0
+                    except (TypeError, ValueError):
+                        return 0
 
-            if needs_update:
-                item.update_connector_endpoints(
-                    s_pt,
-                    e_pt,
-                    site1_idx=s_idx,
-                    site2_idx=e_idx,
-                )
+                # Start point
+                s_pt = None
+                s_idx = None
+                if cxn_start:
+                    s_shape_id = cxn_start.get("id")
+                    s_idx = _safe_site_idx(cxn_start.get("idx", 0))
+                    target = self.get_shape_item(s_shape_id)
+                    if target:
+                        sites = target.get_connection_sites_scene()
+                        if 0 <= s_idx < len(sites):
+                            s_pt = sites[s_idx]
+                            if s_shape_id == shape_id:
+                                needs_update = True
+                if s_pt is None:
+                    p1 = adj.get("p1")
+                    s_pt = (
+                        (float(p1[0]), float(p1[1]))
+                        if p1
+                        else (item.model.x + ls_x, item.model.y + ls_y)
+                    )
+
+                # End point
+                e_pt = None
+                e_idx = None
+                if cxn_end:
+                    e_shape_id = cxn_end.get("id")
+                    e_idx = _safe_site_idx(cxn_end.get("idx", 0))
+                    target = self.get_shape_item(e_shape_id)
+                    if target:
+                        sites = target.get_connection_sites_scene()
+                        if 0 <= e_idx < len(sites):
+                            e_pt = sites[e_idx]
+                            if e_shape_id == shape_id:
+                                needs_update = True
+                if e_pt is None:
+                    p2 = adj.get("p2")
+                    e_pt = (
+                        (float(p2[0]), float(p2[1]))
+                        if p2
+                        else (item.model.x + le_x, item.model.y + le_y)
+                    )
+
+                if needs_update:
+                    item.update_connector_endpoints(
+                        s_pt,
+                        e_pt,
+                        site1_idx=s_idx,
+                        site2_idx=e_idx,
+                    )
+        finally:
+            visited.discard(shape_id)
 
     # ------------------------------------------------------------------
     # Background rendering (Slide paper & shadow)
@@ -485,7 +506,8 @@ class SlideScene(QGraphicsScene):
             event.accept()
             return
 
-        item = self.itemAt(event.scenePos(), self.views()[0].transform() if self.views() else None)
+        view_tx = self.views()[0].transform() if self.views() else QTransform()
+        item = self.itemAt(event.scenePos(), view_tx)
         # Commit any active text editor if clicked outside
         for it in list(self._items_by_id.values()):
             if it.is_editing_text and it != item and getattr(it, "_text_editor", None) != item:
