@@ -265,6 +265,39 @@ def _twips_to_pt(val: str | int | float | None, default: float = 0.0) -> float:
         return default
 
 
+_TBL_BORDER_SIDES = ("top", "left", "bottom", "right", "insideH", "insideV")
+_CELL_BORDER_SIDES = ("top", "left", "bottom", "right")
+
+
+def _parse_border_set(bds_elem: ET.Element, sides: tuple[str, ...]) -> dict[str, BorderProperties]:
+    """Parse a w:tblBorders / w:tcBorders element into side -> BorderProperties.
+
+    ``w:start`` / ``w:end`` (bidi-neutral names) are accepted as ``left`` / ``right``.
+    """
+    out: dict[str, BorderProperties] = {}
+    for b_tag in sides:
+        b_elem = _find_elem(bds_elem, b_tag, W_NAMESPACES)
+        if b_elem is None and b_tag in ("left", "right"):
+            b_elem = _find_elem(bds_elem, "start" if b_tag == "left" else "end", W_NAMESPACES)
+        if b_elem is not None:
+            out[b_tag] = BorderProperties(
+                val=_get_attr(b_elem, "val", "none") or "none",
+                sz=_eighths_to_pt(_get_attr(b_elem, "sz", "4")),
+                color=_get_attr(b_elem, "color", "auto") or "auto",
+            )
+    return out
+
+
+def _parse_tbl_ind(tbl_pr_elem: ET.Element) -> float | None:
+    """Return w:tblInd in points, or None when absent / not an absolute (dxa) width."""
+    ind_elem = _find_elem(tbl_pr_elem, "tblInd", W_NAMESPACES)
+    if ind_elem is None:
+        return None
+    if (_get_attr(ind_elem, "type", "dxa") or "dxa") not in ("dxa", ""):
+        return None
+    return _twips_to_pt(_get_attr(ind_elem, "w", "0"))
+
+
 def _hp_to_pt(val: str | int | float | None, default: float = 12.0) -> float:
     """Convert half-points (1/2 pt) to points."""
     if val is None or val == "":
@@ -490,6 +523,18 @@ class DocxReader:
             if r_pr_elem is not None:
                 r_pr = self._parse_r_pr(r_pr_elem)
 
+            # Table style tblPr: borders and indent (resolved along basedOn at layout time)
+            style_tbl_pr: dict[str, Any] = {}
+            if s_type == "table":
+                st_tbl_pr_elem = _find_elem(style_elem, "tblPr", W_NAMESPACES)
+                if st_tbl_pr_elem is not None:
+                    st_bds_elem = _find_elem(st_tbl_pr_elem, "tblBorders", W_NAMESPACES)
+                    if st_bds_elem is not None:
+                        style_tbl_pr["borders"] = _parse_border_set(st_bds_elem, _TBL_BORDER_SIDES)
+                    st_ind = _parse_tbl_ind(st_tbl_pr_elem)
+                    if st_ind is not None:
+                        style_tbl_pr["ind"] = st_ind
+
             styles[s_id] = Style(
                 id=s_id,
                 name=s_name,
@@ -498,6 +543,7 @@ class DocxReader:
                 next_style=next_s,
                 p_pr=p_pr or ParagraphProperties(),
                 r_pr=r_pr or RunProperties(),
+                tbl_pr=style_tbl_pr,
                 builtin=False,
                 is_default=is_default,
             )
@@ -1342,15 +1388,10 @@ class DocxReader:
             # Table Borders (w:tblBorders)
             tbl_bds_elem = _find_elem(tbl_pr_elem, "tblBorders", W_NAMESPACES)
             if tbl_bds_elem is not None:
-                tbl_bds: dict[str, BorderProperties] = {}
-                for b_tag in ("top", "left", "bottom", "right", "insideH", "insideV"):
-                    b_elem = _find_elem(tbl_bds_elem, b_tag, W_NAMESPACES)
-                    if b_elem is not None:
-                        val = _get_attr(b_elem, "val", "none")
-                        sz = _eighths_to_pt(_get_attr(b_elem, "sz", "4"))
-                        color = _get_attr(b_elem, "color", "auto")
-                        tbl_bds[b_tag] = BorderProperties(val=val, sz=sz, color=color)
-                tbl_pr.borders = tbl_bds
+                tbl_pr.borders = _parse_border_set(tbl_bds_elem, _TBL_BORDER_SIDES)
+
+            # Table Indent (w:tblInd)
+            tbl_pr.ind = _parse_tbl_ind(tbl_pr_elem)
 
             tbl.tbl_pr = tbl_pr
 
@@ -1440,15 +1481,7 @@ class DocxReader:
                     # Cell Borders (w:tcBorders)
                     tc_bds_elem = _find_elem(tc_pr_elem, "tcBorders", W_NAMESPACES)
                     if tc_bds_elem is not None:
-                        tc_bds: dict[str, BorderProperties] = {}
-                        for b_tag in ("top", "left", "bottom", "right"):
-                            b_elem = _find_elem(tc_bds_elem, b_tag, W_NAMESPACES)
-                            if b_elem is not None:
-                                val = _get_attr(b_elem, "val", "none")
-                                sz = _eighths_to_pt(_get_attr(b_elem, "sz", "4"))
-                                color = _get_attr(b_elem, "color", "auto")
-                                tc_bds[b_tag] = BorderProperties(val=val, sz=sz, color=color)
-                        tc_pr.borders = tc_bds
+                        tc_pr.borders = _parse_border_set(tc_bds_elem, _CELL_BORDER_SIDES)
                     cell.tc_pr = tc_pr
 
                 # Cell Blocks

@@ -53,6 +53,7 @@ from atboffice.modules.writer.layout.portions import (
     PortionType,
     measure_text_width,
 )
+from atboffice.modules.writer.layout.table_layout import TableLayout
 from atboffice.modules.writer.layout.wrap import FloatBox
 from atboffice.modules.writer.models.document import (
     Document,
@@ -324,7 +325,8 @@ class WriterCanvasView(QAbstractScrollArea):
         pen_w = max(1.0, sz_pt * self.pt_to_px_ratio * zoom)
         color_val = getattr(bp, "color", "auto") or "auto"
         if color_val in ("auto", "none", ""):
-            color = QColor(120, 120, 120)
+            # "auto" border colour resolves to black (Word renders it as windowText).
+            color = QColor(0, 0, 0)
         else:
             hex_c = color_val if color_val.startswith("#") else f"#{color_val}"
             color = QColor(hex_c)
@@ -1413,6 +1415,153 @@ class WriterCanvasView(QAbstractScrollArea):
                         painter.drawText(QPointF(x_px, baseline_px), po.text)
                     cur_x += po_w
 
+    def _paint_table_layout(
+        self,
+        painter: QPainter,
+        page_rect: QRectF,
+        tl: TableLayout,
+        frag_x: float,
+        frag_y: float,
+    ) -> None:
+        """Paint a table, and recursively its nested tables, at origin (frag_x, frag_y) in pt."""
+        for rl in tl.rows:
+            for cl in rl.cells:
+                cell_x_px = page_rect.left() + self.pt_to_px(frag_x + cl.x)
+                cell_y_px = page_rect.top() + self.pt_to_px(frag_y + cl.y)
+                cell_w_px = self.pt_to_px(cl.width)
+                cell_h_px = self.pt_to_px(cl.height)
+                cell_rect = QRectF(cell_x_px, cell_y_px, cell_w_px, cell_h_px)
+
+                # Shading
+                fill_val = getattr(cl.shd, "fill", "auto")
+                if fill_val and fill_val not in ("auto", "clear", "none"):
+                    hex_fill = fill_val if fill_val.startswith("#") else f"#{fill_val}"
+                    painter.fillRect(cell_rect, QColor(hex_fill))
+
+                # Borders
+                bds = getattr(cl, "borders", {}) or {}
+                has_explicit_borders = any(
+                    getattr(b, "val", "none") not in ("none", "nil", "hidden", "", None)
+                    for b in bds.values()
+                )
+                if has_explicit_borders:
+                    top_p = self._get_border_pen(bds.get("top"), self._zoom)
+                    if top_p:
+                        painter.setPen(top_p)
+                        painter.drawLine(
+                            QPointF(cell_rect.left(), cell_rect.top()),
+                            QPointF(cell_rect.right(), cell_rect.top()),
+                        )
+                    bot_p = self._get_border_pen(bds.get("bottom"), self._zoom)
+                    if bot_p:
+                        painter.setPen(bot_p)
+                        painter.drawLine(
+                            QPointF(cell_rect.left(), cell_rect.bottom()),
+                            QPointF(cell_rect.right(), cell_rect.bottom()),
+                        )
+                    left_p = self._get_border_pen(bds.get("left"), self._zoom)
+                    if left_p:
+                        painter.setPen(left_p)
+                        painter.drawLine(
+                            QPointF(cell_rect.left(), cell_rect.top()),
+                            QPointF(cell_rect.left(), cell_rect.bottom()),
+                        )
+                    right_p = self._get_border_pen(bds.get("right"), self._zoom)
+                    if right_p:
+                        painter.setPen(right_p)
+                        painter.drawLine(
+                            QPointF(cell_rect.right(), cell_rect.top()),
+                            QPointF(cell_rect.right(), cell_rect.bottom()),
+                        )
+                else:
+                    # Fallback default subtle table grid boundary
+                    painter.setPen(QPen(QColor(180, 180, 180), 1.0))
+                    painter.drawRect(cell_rect)
+
+                # Cell text content with margins and multi-paragraph layout
+                mar_l = getattr(cl, "mar_l", 5.4)
+                mar_t = getattr(cl, "mar_t", 0.0)
+                cell_inner_x = frag_x + cl.x + mar_l
+                content_y = frag_y + cl.y + cl.content_offset_y + mar_t
+
+                for item, item_top in zip(cl.block_layouts, cl.block_tops):
+                    if isinstance(item, TableLayout):
+                        # Nested table: recurse, clipped to the parent cell.
+                        painter.save()
+                        painter.setClipRect(cell_rect, Qt.ClipOperation.IntersectClip)
+                        self._paint_table_layout(
+                            painter, page_rect, item, cell_inner_x + item.x, content_y + item_top
+                        )
+                        painter.restore()
+                        continue
+                    playout = item
+                    p_top = content_y + item_top + playout.effective_space_before
+                    for line in playout.lines:
+                        line_y = p_top + line.top
+                        cur_x = cell_inner_x + line.indent_left
+                        for po in line.portions:
+                            po_w = po.width
+                            if po.type == PortionType.TEXT and po.text:
+                                font_family = po.font_family or "Times New Roman"
+                                font_size_pt = po.font_size or 12.0
+                                font = QFont(font_family)
+                                font.setPointSizeF(font_size_pt * self._zoom)
+                                if getattr(po, "bold", False):
+                                    font.setBold(True)
+                                if getattr(po, "italic", False):
+                                    font.setItalic(True)
+                                painter.setFont(font)
+                                x_px = page_rect.left() + self.pt_to_px(cur_x)
+                                y_px = page_rect.top() + self.pt_to_px(line_y)
+                                baseline_px = y_px + self.pt_to_px(line.baseline_offset)
+                                painter.setPen(QPen(QColor(0, 0, 0)))
+                                painter.drawText(QPointF(x_px, baseline_px), po.text)
+                                if (
+                                    self.spell_engine.is_enabled("spelling/check_as_you_type", True)
+                                    and po.text
+                                ):
+                                    fm = QFontMetricsF(font)
+                                    for (
+                                        w,
+                                        w_start,
+                                        w_end,
+                                    ) in self.spell_engine.tokenize_words(po.text):
+                                        if not self.spell_engine.is_valid_word(w):
+                                            w_x1 = x_px + fm.horizontalAdvance(po.text[:w_start])
+                                            w_x2 = x_px + fm.horizontalAdvance(po.text[:w_end])
+                                            self._draw_wavy_line(
+                                                painter,
+                                                w_x1,
+                                                w_x2,
+                                                baseline_px + 2.5,
+                                                QColor(255, 0, 0),
+                                            )
+                            elif po.type == PortionType.GRAPHIC:
+                                x_px = page_rect.left() + self.pt_to_px(cur_x)
+                                y_px = page_rect.top() + self.pt_to_px(line_y)
+                                baseline_px = y_px + self.pt_to_px(line.baseline_offset)
+                                if isinstance(po.data, OfficeMathItem):
+                                    paint_math(
+                                        painter,
+                                        po.data,
+                                        x_px,
+                                        baseline_px,
+                                        self._zoom,
+                                    )
+                                elif isinstance(po.data, PictureItem) or getattr(
+                                    po.data, "t", ""
+                                ) in ("picture", "img"):
+                                    pic_w_px = self.pt_to_px(po.width)
+                                    pic_h_px = self.pt_to_px(po.ascent)
+                                    dest_rect = QRectF(
+                                        x_px,
+                                        baseline_px - pic_h_px,
+                                        pic_w_px,
+                                        pic_h_px,
+                                    )
+                                    self._paint_picture(painter, po.data, dest_rect, self._zoom)
+                            cur_x += po_w
+
     def _paint_page_content(self, painter: QPainter, page_rect: QRectF, page: Page) -> None:
         """Render lines, formatted portions, and table structures on a single page."""
         # 1. Render Header if present
@@ -1433,151 +1582,7 @@ class WriterCanvasView(QAbstractScrollArea):
                         frag_x = page.body_left + col.left
                         frag_y = page.body_top + col.top + frag.top
 
-                        for rl in tl.rows:
-                            for cl in rl.cells:
-                                cell_x_px = page_rect.left() + self.pt_to_px(frag_x + cl.x)
-                                cell_y_px = page_rect.top() + self.pt_to_px(frag_y + cl.y)
-                                cell_w_px = self.pt_to_px(cl.width)
-                                cell_h_px = self.pt_to_px(cl.height)
-                                cell_rect = QRectF(cell_x_px, cell_y_px, cell_w_px, cell_h_px)
-
-                                # Shading
-                                fill_val = getattr(cl.shd, "fill", "auto")
-                                if fill_val and fill_val not in ("auto", "clear", "none"):
-                                    hex_fill = (
-                                        fill_val if fill_val.startswith("#") else f"#{fill_val}"
-                                    )
-                                    painter.fillRect(cell_rect, QColor(hex_fill))
-
-                                # Borders
-                                bds = getattr(cl, "borders", {}) or {}
-                                has_explicit_borders = any(
-                                    getattr(b, "val", "none")
-                                    not in ("none", "nil", "hidden", "", None)
-                                    for b in bds.values()
-                                )
-                                if has_explicit_borders:
-                                    top_p = self._get_border_pen(bds.get("top"), self._zoom)
-                                    if top_p:
-                                        painter.setPen(top_p)
-                                        painter.drawLine(
-                                            QPointF(cell_rect.left(), cell_rect.top()),
-                                            QPointF(cell_rect.right(), cell_rect.top()),
-                                        )
-                                    bot_p = self._get_border_pen(bds.get("bottom"), self._zoom)
-                                    if bot_p:
-                                        painter.setPen(bot_p)
-                                        painter.drawLine(
-                                            QPointF(cell_rect.left(), cell_rect.bottom()),
-                                            QPointF(cell_rect.right(), cell_rect.bottom()),
-                                        )
-                                    left_p = self._get_border_pen(bds.get("left"), self._zoom)
-                                    if left_p:
-                                        painter.setPen(left_p)
-                                        painter.drawLine(
-                                            QPointF(cell_rect.left(), cell_rect.top()),
-                                            QPointF(cell_rect.left(), cell_rect.bottom()),
-                                        )
-                                    right_p = self._get_border_pen(bds.get("right"), self._zoom)
-                                    if right_p:
-                                        painter.setPen(right_p)
-                                        painter.drawLine(
-                                            QPointF(cell_rect.right(), cell_rect.top()),
-                                            QPointF(cell_rect.right(), cell_rect.bottom()),
-                                        )
-                                else:
-                                    # Fallback default subtle table grid boundary
-                                    painter.setPen(QPen(QColor(180, 180, 180), 1.0))
-                                    painter.drawRect(cell_rect)
-
-                                # Cell text content with margins and multi-paragraph layout
-                                mar_l = getattr(cl, "mar_l", 5.4)
-                                mar_t = getattr(cl, "mar_t", 0.0)
-                                cell_inner_x = frag_x + cl.x + mar_l
-                                cur_p_y = frag_y + cl.y + cl.content_offset_y + mar_t
-
-                                for playout in cl.paragraphs_layout:
-                                    p_top = cur_p_y + playout.effective_space_before
-                                    for line in playout.lines:
-                                        line_y = p_top + line.top
-                                        cur_x = cell_inner_x + line.indent_left
-                                        for po in line.portions:
-                                            po_w = po.width
-                                            if po.type == PortionType.TEXT and po.text:
-                                                font_family = po.font_family or "Times New Roman"
-                                                font_size_pt = po.font_size or 12.0
-                                                font = QFont(font_family)
-                                                font.setPointSizeF(font_size_pt * self._zoom)
-                                                if getattr(po, "bold", False):
-                                                    font.setBold(True)
-                                                if getattr(po, "italic", False):
-                                                    font.setItalic(True)
-                                                painter.setFont(font)
-                                                x_px = page_rect.left() + self.pt_to_px(cur_x)
-                                                y_px = page_rect.top() + self.pt_to_px(line_y)
-                                                baseline_px = y_px + self.pt_to_px(
-                                                    line.baseline_offset
-                                                )
-                                                painter.setPen(QPen(QColor(0, 0, 0)))
-                                                painter.drawText(
-                                                    QPointF(x_px, baseline_px), po.text
-                                                )
-                                                if (
-                                                    self.spell_engine.is_enabled(
-                                                        "spelling/check_as_you_type", True
-                                                    )
-                                                    and po.text
-                                                ):
-                                                    fm = QFontMetricsF(font)
-                                                    for (
-                                                        w,
-                                                        w_start,
-                                                        w_end,
-                                                    ) in self.spell_engine.tokenize_words(po.text):
-                                                        if not self.spell_engine.is_valid_word(w):
-                                                            w_x1 = x_px + fm.horizontalAdvance(
-                                                                po.text[:w_start]
-                                                            )
-                                                            w_x2 = x_px + fm.horizontalAdvance(
-                                                                po.text[:w_end]
-                                                            )
-                                                            self._draw_wavy_line(
-                                                                painter,
-                                                                w_x1,
-                                                                w_x2,
-                                                                baseline_px + 2.5,
-                                                                QColor(255, 0, 0),
-                                                            )
-                                            elif po.type == PortionType.GRAPHIC:
-                                                x_px = page_rect.left() + self.pt_to_px(cur_x)
-                                                y_px = page_rect.top() + self.pt_to_px(line_y)
-                                                baseline_px = y_px + self.pt_to_px(
-                                                    line.baseline_offset
-                                                )
-                                                if isinstance(po.data, OfficeMathItem):
-                                                    paint_math(
-                                                        painter,
-                                                        po.data,
-                                                        x_px,
-                                                        baseline_px,
-                                                        self._zoom,
-                                                    )
-                                                elif isinstance(po.data, PictureItem) or getattr(
-                                                    po.data, "t", ""
-                                                ) in ("picture", "img"):
-                                                    pic_w_px = self.pt_to_px(po.width)
-                                                    pic_h_px = self.pt_to_px(po.ascent)
-                                                    dest_rect = QRectF(
-                                                        x_px,
-                                                        baseline_px - pic_h_px,
-                                                        pic_w_px,
-                                                        pic_h_px,
-                                                    )
-                                                    self._paint_picture(
-                                                        painter, po.data, dest_rect, self._zoom
-                                                    )
-                                            cur_x += po_w
-                                    cur_p_y = p_top + playout.height + playout.effective_space_after
+                        self._paint_table_layout(painter, page_rect, tl, frag_x + tl.x, frag_y)
                         continue
 
                     frag_top = page.body_top + col.top + frag.top
@@ -1629,6 +1634,75 @@ class WriterCanvasView(QAbstractScrollArea):
             f.setItalic(is_italic)
             col = getattr(po, "color", None) or default_color
             return f, QPen(QColor(col))
+
+        def _paint_table(tl: TableLayout, frag_x: float, frag_y: float) -> None:
+            """Paint a table, recursing into nested tables, at origin (frag_x, frag_y) in pt."""
+            for rl in tl.rows:
+                for cl in rl.cells:
+                    cell_x = frag_x + cl.x
+                    cell_y = frag_y + cl.y
+                    cell_rect = QRectF(cell_x, cell_y, cl.width, cl.height)
+
+                    # Shading
+                    fill_val = getattr(cl.shd, "fill", "auto")
+                    if fill_val and fill_val not in ("auto", "clear", "none"):
+                        hex_fill = fill_val if fill_val.startswith("#") else f"#{fill_val}"
+                        painter.fillRect(cell_rect, QColor(hex_fill))
+
+                    # Border
+                    painter.setPen(QPen(QColor(120, 120, 120), 0.75))
+                    painter.drawRect(cell_rect)
+
+                    # Cell text content
+                    cell_inner_x = frag_x + cl.x + cl.mar_l
+                    cell_inner_y = frag_y + cl.y + cl.content_offset_y + cl.mar_t
+                    for item, item_top in zip(cl.block_layouts, cl.block_tops):
+                        if isinstance(item, TableLayout):
+                            painter.save()
+                            painter.setClipRect(cell_rect, Qt.ClipOperation.IntersectClip)
+                            _paint_table(item, cell_inner_x + item.x, cell_inner_y + item_top)
+                            painter.restore()
+                            continue
+                        playout = item
+                        p_top = cell_inner_y + item_top + playout.effective_space_before
+                        for line in playout.lines:
+                            line_y = p_top + line.top
+                            cur_x = cell_inner_x + line.indent_left
+                            for po in line.portions:
+                                po_w = po.width
+                                if po.type == PortionType.TEXT and po.text:
+                                    font, pen = _setup_font_and_pen(po, 12.0, "#000000")
+                                    painter.setFont(font)
+                                    painter.setPen(pen)
+                                    baseline = line_y + (line.baseline - line.top)
+                                    painter.drawText(QPointF(cur_x, baseline), po.text)
+                                elif po.type == PortionType.GRAPHIC:
+                                    baseline = line_y + (line.baseline - line.top)
+                                    if isinstance(po.data, OfficeMathItem):
+                                        paint_math(
+                                            painter,
+                                            po.data,
+                                            cur_x,
+                                            baseline,
+                                            1.0,
+                                        )
+                                    elif isinstance(po.data, PictureItem) or getattr(
+                                        po.data, "t", ""
+                                    ) in ("picture", "img"):
+                                        dest_rect = QRectF(
+                                            cur_x,
+                                            baseline - po.ascent,
+                                            po.width,
+                                            po.ascent,
+                                        )
+                                        self._paint_picture(
+                                            painter,
+                                            po.data,
+                                            dest_rect,
+                                            1.0,
+                                            is_vector=True,
+                                        )
+                                cur_x += po_w
 
         # 1. Render Header if present
         if page.header:
@@ -1685,66 +1759,7 @@ class WriterCanvasView(QAbstractScrollArea):
                         frag_x = origin_x + page.body_left + col.left
                         frag_y = origin_y + page.body_top + col.top + frag.top
 
-                        for rl in tl.rows:
-                            for cl in rl.cells:
-                                cell_x = frag_x + cl.x
-                                cell_y = frag_y + cl.y
-                                cell_rect = QRectF(cell_x, cell_y, cl.width, cl.height)
-
-                                # Shading
-                                fill_val = getattr(cl.shd, "fill", "auto")
-                                if fill_val and fill_val not in ("auto", "clear", "none"):
-                                    hex_fill = (
-                                        fill_val if fill_val.startswith("#") else f"#{fill_val}"
-                                    )
-                                    painter.fillRect(cell_rect, QColor(hex_fill))
-
-                                # Border
-                                painter.setPen(QPen(QColor(120, 120, 120), 0.75))
-                                painter.drawRect(cell_rect)
-
-                                # Cell text content
-                                cell_inner_x = frag_x + cl.x + 5.4
-                                cell_inner_y = frag_y + cl.y + cl.content_offset_y
-                                for playout in cl.paragraphs_layout:
-                                    for line in playout.lines:
-                                        line_y = cell_inner_y + line.top
-                                        cur_x = cell_inner_x + line.indent_left
-                                        for po in line.portions:
-                                            po_w = po.width
-                                            if po.type == PortionType.TEXT and po.text:
-                                                font, pen = _setup_font_and_pen(po, 12.0, "#000000")
-                                                painter.setFont(font)
-                                                painter.setPen(pen)
-                                                baseline = line_y + (line.baseline - line.top)
-                                                painter.drawText(QPointF(cur_x, baseline), po.text)
-                                            elif po.type == PortionType.GRAPHIC:
-                                                baseline = line_y + (line.baseline - line.top)
-                                                if isinstance(po.data, OfficeMathItem):
-                                                    paint_math(
-                                                        painter,
-                                                        po.data,
-                                                        cur_x,
-                                                        baseline,
-                                                        1.0,
-                                                    )
-                                                elif isinstance(po.data, PictureItem) or getattr(
-                                                    po.data, "t", ""
-                                                ) in ("picture", "img"):
-                                                    dest_rect = QRectF(
-                                                        cur_x,
-                                                        baseline - po.ascent,
-                                                        po.width,
-                                                        po.ascent,
-                                                    )
-                                                    self._paint_picture(
-                                                        painter,
-                                                        po.data,
-                                                        dest_rect,
-                                                        1.0,
-                                                        is_vector=True,
-                                                    )
-                                            cur_x += po_w
+                        _paint_table(tl, frag_x + tl.x, frag_y)
                         continue
 
                     frag_top = origin_y + page.body_top + col.top + frag.top
@@ -1773,9 +1788,7 @@ class WriterCanvasView(QAbstractScrollArea):
                                     pen_s = QPen(pen.color(), 0.75)
                                     painter.setPen(pen_s)
                                     mid_y = (
-                                        line_y
-                                        + line.baseline_offset
-                                        - (po.font_size or 12.0) * 0.3
+                                        line_y + line.baseline_offset - (po.font_size or 12.0) * 0.3
                                     )
                                     painter.drawLine(
                                         QPointF(cur_x, mid_y),
@@ -1785,9 +1798,7 @@ class WriterCanvasView(QAbstractScrollArea):
                                     pen_ds = QPen(pen.color(), 0.75)
                                     painter.setPen(pen_ds)
                                     mid_y = (
-                                        line_y
-                                        + line.baseline_offset
-                                        - (po.font_size or 12.0) * 0.3
+                                        line_y + line.baseline_offset - (po.font_size or 12.0) * 0.3
                                     )
                                     painter.drawLine(
                                         QPointF(cur_x, mid_y - 1.5),
