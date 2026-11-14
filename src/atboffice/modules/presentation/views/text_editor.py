@@ -208,12 +208,20 @@ def measure_text_body_height(
         else:
             block_fmt.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
+        mar_l_raw = para.props.get("marL")
         mar_l = (
-            para.props.get("marL", BODY_MARL[level]) if "marL" in para.props else BODY_MARL[level]
+            float(mar_l_raw)
+            if isinstance(mar_l_raw, (int, float))
+            and not isinstance(mar_l_raw, bool)
+            and math.isfinite(mar_l_raw)
+            else BODY_MARL[level]
         ) * font_scale
+        indent_raw = para.props.get("indent")
         indent = (
-            para.props.get("indent", BODY_INDENT[level])
-            if "indent" in para.props
+            float(indent_raw)
+            if isinstance(indent_raw, (int, float))
+            and not isinstance(indent_raw, bool)
+            and math.isfinite(indent_raw)
             else BODY_INDENT[level]
         ) * font_scale
         block_fmt.setLeftMargin(mar_l)
@@ -343,7 +351,9 @@ def solve_norm_autofit_scale(
 
     final_scale = max(min_scale, math.floor(best_scale * 1000.0) / 1000.0)
     final_red = max(0.0, min(0.20, round(best_red, 3)))
-    while final_scale > min_scale:
+    for _ in range(13):
+        if final_scale <= min_scale:
+            break
         h = measure_text_body_height(
             text_body, avail_w, font_scale=final_scale, ln_spc_reduction=final_red
         )
@@ -450,6 +460,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         color_resolver: Any = resolve_color,
         slide_index: int = 0,
         presentation: Any = None,
+        autofit_cache_host: Any = None,
     ) -> None:
         """Render formatted multiline text for static canvas painting."""
         if not text_body or text_body.is_empty():
@@ -493,7 +504,19 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                 # Honor explicit font scale and line spacing reduction stored in PPTX
                 pass
             else:
-                solved_scale, solved_red = solve_norm_autofit_scale(text_body, avail_w, avail_h)
+                cache_key = (
+                    text_body.plain_text,
+                    len(text_body.paragraphs),
+                    round(avail_w, 1),
+                    round(avail_h, 1),
+                )
+                cached = getattr(autofit_cache_host, "_cached_autofit", None) if autofit_cache_host is not None else None
+                if cached is not None and cached[0] == cache_key:
+                    solved_scale, solved_red = float(cached[1]), float(cached[2])
+                else:
+                    solved_scale, solved_red = solve_norm_autofit_scale(text_body, avail_w, avail_h)
+                    if autofit_cache_host is not None:
+                        autofit_cache_host._cached_autofit = (cache_key, solved_scale, solved_red)
                 # If font_scale is default (1.0) or solved_scale indicates overflow,
                 # use solved scale
                 if abs(font_scale - 1.0) < 0.001 or solved_scale < font_scale:
@@ -534,22 +557,35 @@ class ShapeTextEditorItem(QGraphicsTextItem):
             has_bullet = (bu_type == "char" and bool(bu_char))
 
             if has_bullet:
+                mar_l_raw = para.props.get("marL")
                 mar_l = (
-                    para.props.get("marL", BODY_MARL[level])
-                    if "marL" in para.props
+                    float(mar_l_raw)
+                    if isinstance(mar_l_raw, (int, float))
+                    and not isinstance(mar_l_raw, bool)
+                    and math.isfinite(mar_l_raw)
                     else BODY_MARL[level]
                 ) * font_scale
+                indent_raw = para.props.get("indent")
                 indent = (
-                    para.props.get("indent", BODY_INDENT[level])
-                    if "indent" in para.props
+                    float(indent_raw)
+                    if isinstance(indent_raw, (int, float))
+                    and not isinstance(indent_raw, bool)
+                    and math.isfinite(indent_raw)
                     else BODY_INDENT[level]
                 ) * font_scale
                 block_fmt.setLeftMargin(mar_l)
                 block_fmt.setTextIndent(indent)
                 block_fmt.setTabPositions([QTextOption.Tab(mar_l, QTextOption.TabType.LeftTab)])
             else:
-                mar_l = float(para.props.get("marL", 0.0)) * font_scale
-                block_fmt.setLeftMargin(mar_l)
+                mar_l_raw = para.props.get("marL")
+                mar_l_val = (
+                    float(mar_l_raw)
+                    if isinstance(mar_l_raw, (int, float))
+                    and not isinstance(mar_l_raw, bool)
+                    and math.isfinite(mar_l_raw)
+                    else 0.0
+                )
+                block_fmt.setLeftMargin(mar_l_val * font_scale)
                 block_fmt.setTextIndent(0.0)
 
             # Line spacing & reduction (matching .vibeoffice 1.2x factor in FixedHeight)
@@ -707,14 +743,20 @@ class ShapeTextEditorItem(QGraphicsTextItem):
 
             # Outline level & margins
             block_fmt.setProperty(PROP_OUTLINE_LEVEL, level)
+            mar_l_raw = para.props.get("marL")
             mar_l = (
-                para.props.get("marL", BODY_MARL[level])
-                if "marL" in para.props
+                float(mar_l_raw)
+                if isinstance(mar_l_raw, (int, float))
+                and not isinstance(mar_l_raw, bool)
+                and math.isfinite(mar_l_raw)
                 else BODY_MARL[level]
             ) * font_scale
+            indent_raw = para.props.get("indent")
             indent = (
-                para.props.get("indent", BODY_INDENT[level])
-                if "indent" in para.props
+                float(indent_raw)
+                if isinstance(indent_raw, (int, float))
+                and not isinstance(indent_raw, bool)
+                and math.isfinite(indent_raw)
                 else BODY_INDENT[level]
             ) * font_scale
             block_fmt.setLeftMargin(mar_l)
@@ -810,7 +852,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                     else BODY_SIZES[level]
                 )
                 sz = (run.size if run.size is not None else fallback_sz) * font_scale
-                char_fmt.setFontPointSize(sz)
+                char_fmt.setFontPointSize(max(1.0, sz))
 
                 if run.bold:
                     char_fmt.setFontWeight(QFont.Weight.Bold)

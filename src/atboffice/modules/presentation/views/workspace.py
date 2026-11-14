@@ -12,7 +12,8 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from PySide6.QtCore import QRectF, QSize, Qt, Signal
+import shiboken6
+from PySide6.QtCore import QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -87,9 +88,10 @@ def render_slide_thumbnail(
     width: int = 160,
 ) -> QPixmap:
     """Render a high-fidelity thumbnail preview of a slide onto a QPixmap."""
-    w = max(100.0, presentation.w)
-    h = max(100.0, presentation.h)
-    height = max(60, int(width * h / w))
+    width = max(1, int(width or 160))
+    w = max(100.0, presentation.w or 960.0)
+    h = max(100.0, presentation.h or 540.0)
+    height = max(1, int(width * h / w))
 
     pixmap = QPixmap(width, height)
     pixmap.fill(QColor("#FFFFFF"))
@@ -148,15 +150,18 @@ def render_slide_thumbnail(
                 rows = tbl.get("rows", [])
                 if rows:
                     if not cols:
-                        col_count = max(1, len(rows[0].get("cells", [])))
+                        col_count = max(1, *(len(r.get("cells", [])) for r in rows))
                         cols = [sh.w / col_count] * col_count
                     tot_w = sum(cols)
                     tbl_sx = (rect.width() / tot_w) if tot_w > 0.001 else 1.0
                     cur_y = rect.top()
                     for r in rows:
-                        rh = float(r.get("h", 20.0)) * sy
+                        rh = max(1.0, float(r.get("h", 20.0) or 20.0) * sy)
                         cur_x = rect.left()
                         cells = r.get("cells", [])
+                        if not cells:
+                            cur_y += rh
+                            continue
                         for c_idx, cell in enumerate(cells):
                             def_w = sh.w / max(1, len(cells))
                             cw = (cols[c_idx] if c_idx < len(cols) else def_w) * tbl_sx
@@ -1061,6 +1066,7 @@ class LecternWorkspace(QWidget):
         self._view_mode: str = "normal"
         self.master_kind: str = "slide"
         self.master_slide: Slide | None = None
+        self._thumb_load_gen: int = 0
 
         self._init_ui()
         self.load_presentation(self.presentation)
@@ -1352,14 +1358,66 @@ class LecternWorkspace(QWidget):
         self.task_pane.setVisible(visible)
 
     def _refresh_thumbnails(self) -> None:
+        """Rebuild left slide strip incrementally to avoid UI stalls on large decks."""
+        self._thumb_load_gen += 1
+        gen = self._thumb_load_gen
+        sync_batch = 6
+
         self.thumbnail_list.clear()
-        for idx, s in enumerate(self.presentation.slides):
-            pixmap = render_slide_thumbnail(s, self.presentation, width=160)
+        slides = self.presentation.slides
+        w = max(100.0, self.presentation.w or 960.0)
+        h = max(100.0, self.presentation.h or 540.0)
+        est_h = max(60, int(160 * h / w))
+        placeholder: QPixmap | None = None
+
+        for idx, s in enumerate(slides):
+            if idx < sync_batch:
+                pixmap = render_slide_thumbnail(s, self.presentation, width=160)
+            else:
+                if placeholder is None:
+                    placeholder = QPixmap(160, est_h)
+                    placeholder.fill(QColor("#F7F7F7"))
+                pixmap = placeholder
             item = QListWidgetItem(QIcon(pixmap), f"{idx + 1}")
             item.setSizeHint(QSize(160, pixmap.height() + 24))
             self.thumbnail_list.addItem(item)
-        if self.presentation.slides:
-            self.thumbnail_list.setCurrentRow(self.current_slide_index)
+
+        if slides:
+            self.thumbnail_list.setCurrentRow(
+                max(0, min(self.current_slide_index, len(slides) - 1))
+            )
+
+        if len(slides) > sync_batch:
+            QTimer.singleShot(
+                0,
+                lambda g=gen, start=sync_batch: self._render_thumbnail_chunk(g, start),
+            )
+
+    def _render_thumbnail_chunk(self, gen: int, start: int, chunk_size: int = 6) -> None:
+        """Render the next deferred batch of sidebar thumbnails if still active."""
+        if (
+            not shiboken6.isValid(self)
+            or not shiboken6.isValid(self.thumbnail_list)
+            or gen != self._thumb_load_gen
+        ):
+            return
+        slides = self.presentation.slides
+        end = min(len(slides), start + chunk_size)
+        for idx in range(start, end):
+            if gen != self._thumb_load_gen or idx >= self.thumbnail_list.count():
+                return
+            item = self.thumbnail_list.item(idx)
+            if item is not None:
+                pixmap = render_slide_thumbnail(slides[idx], self.presentation, width=160)
+                item.setIcon(QIcon(pixmap))
+                item.setSizeHint(QSize(160, pixmap.height() + 24))
+        if end < len(slides):
+            QTimer.singleShot(
+                0,
+                lambda g=gen, next_start=end: self._render_thumbnail_chunk(
+                    g, next_start, chunk_size
+                ),
+            )
 
     def _refresh_current_thumbnail(self) -> None:
         idx = self.current_slide_index

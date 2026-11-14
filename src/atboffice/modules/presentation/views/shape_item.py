@@ -215,9 +215,13 @@ class ShapeGraphicsItem(QGraphicsObject):
         )
         self.setAcceptHoverEvents(True)
 
-        # In-place text editor state
+        # In-place text editor & render cache state
         self.is_editing_text: bool = False
         self._text_editor: Any = None
+        self._cached_pixmap: QPixmap | None = None
+        self._cached_media_key: tuple[str, int, int] | None = None
+        self._media_decode_failed: bool = False
+        self._cached_autofit: tuple[Any, float, float] | None = None
 
         # Multimedia preview state
         self._is_preview_playing: bool = False
@@ -436,36 +440,55 @@ class ShapeGraphicsItem(QGraphicsObject):
 
         # Fill
         fill_brush = QBrush(Qt.BrushStyle.NoBrush)
-        if self.model.fill.type == "solid":
-            color_str = self.model.fill.color
-            c = self._resolve_color(color_str)
-            c.setAlphaF(self.model.fill.alpha)
-            fill_brush = QBrush(c)
-        elif self.model.fill.type == "none":
-            fill_brush = QBrush(Qt.BrushStyle.NoBrush)
-        else:
-            fill_brush = QBrush(self._resolve_color("accent1"))
+        fill_obj = getattr(self.model, "fill", None)
+        if fill_obj is not None:
+            if fill_obj.type == "solid":
+                color_str = fill_obj.color
+                c = self._resolve_color(color_str)
+                raw_alpha = getattr(fill_obj, "alpha", 1.0)
+                alpha = (
+                    max(0.0, min(1.0, float(raw_alpha)))
+                    if isinstance(raw_alpha, (int, float)) and math.isfinite(raw_alpha)
+                    else 1.0
+                )
+                c.setAlphaF(alpha)
+                fill_brush = QBrush(c)
+            elif fill_obj.type == "none":
+                fill_brush = QBrush(Qt.BrushStyle.NoBrush)
+            else:
+                fill_brush = QBrush(self._resolve_color("accent1"))
 
         # Outline Pen
-        if self.model.line.type == "none":
+        line_obj = getattr(self.model, "line", None)
+        if line_obj is None or line_obj.type == "none":
             line_pen = QPen(Qt.PenStyle.NoPen)
         else:
-            lc = self._resolve_color(self.model.line.color)
-            line_w = max(1.0, self.model.line.width)
+            lc = self._resolve_color(line_obj.color)
+            raw_lw = getattr(line_obj, "width", 1.0)
+            line_w = (
+                max(1.0, float(raw_lw))
+                if isinstance(raw_lw, (int, float)) and math.isfinite(raw_lw)
+                else 1.0
+            )
             line_pen = QPen(lc, line_w, Qt.PenStyle.SolidLine)
-            custom_dash = getattr(self.model.line, "custom_dash", None)
+            custom_dash = getattr(line_obj, "custom_dash", None)
             if custom_dash:
-                pattern = [float(x) for x in custom_dash]
-                if len(pattern) % 2 != 0:
-                    pattern.append(pattern[-1])
-                line_pen.setDashPattern(pattern)
-            elif self.model.line.dash in DASH_PATTERNS:
-                pat = DASH_PATTERNS[self.model.line.dash]
+                pattern = [
+                    float(x)
+                    for x in custom_dash
+                    if isinstance(x, (int, float)) and math.isfinite(x) and x > 0.0
+                ]
+                if pattern:
+                    if len(pattern) % 2 != 0:
+                        pattern.append(pattern[-1])
+                    line_pen.setDashPattern(pattern)
+            elif line_obj.dash in DASH_PATTERNS:
+                pat = DASH_PATTERNS[line_obj.dash]
                 if pat:
                     line_pen.setDashPattern(pat)
-            elif self.model.line.dash == "dash":
+            elif line_obj.dash == "dash":
                 line_pen.setStyle(Qt.PenStyle.DashLine)
-            elif self.model.line.dash == "dot":
+            elif line_obj.dash == "dot":
                 line_pen.setStyle(Qt.PenStyle.DotLine)
 
         painter.setPen(line_pen)
@@ -579,6 +602,7 @@ class ShapeGraphicsItem(QGraphicsObject):
             self._resolve_color,
             slide_index=slide_idx,
             presentation=pres,
+            autofit_cache_host=self,
         )
 
     def retranslate_ui(self) -> None:
@@ -633,9 +657,20 @@ class ShapeGraphicsItem(QGraphicsObject):
                 poster_bytes = media_map.get(self.model.media)
 
         if poster_bytes:
-            qimg = QImage.fromData(poster_bytes)
-            if not qimg.isNull():
-                pix = QPixmap.fromImage(qimg)
+            m_id = str(getattr(m_item, "id", "") or self.model.media or self.model.id)
+            media_key = (m_id, len(poster_bytes), hash(poster_bytes))
+            if self._cached_media_key != media_key:
+                self._cached_pixmap = None
+                self._media_decode_failed = False
+                qimg = QImage.fromData(poster_bytes)
+                if not qimg.isNull():
+                    self._cached_pixmap = QPixmap.fromImage(qimg)
+                else:
+                    self._media_decode_failed = True
+                self._cached_media_key = media_key
+
+            if self._cached_pixmap is not None and not self._cached_pixmap.isNull():
+                pix = self._cached_pixmap
                 painter.save()
                 painter.setTransform(
                     flip_transform(w, h, self.model.flip_h, self.model.flip_v), True
@@ -945,8 +980,12 @@ class ShapeGraphicsItem(QGraphicsObject):
 
         painter.restore()
 
-    def _paint_group(self, painter: QPainter, w: float, h: float) -> None:
-        """Recursively render child shapes inside a group shape."""
+    def _paint_group(
+        self, painter: QPainter, w: float, h: float, depth: int = 0, max_depth: int = 16
+    ) -> None:
+        """Recursively render child shapes inside a group shape with depth limit."""
+        if depth >= max_depth:
+            return
         painter.save()
         for kid in self.model.kids:
             local_x = kid.x - self.model.x
@@ -962,14 +1001,26 @@ class ShapeGraphicsItem(QGraphicsObject):
 
             if kid.fill and kid.fill.type == "solid":
                 fc = self._resolve_color(kid.fill.color)
-                fc.setAlphaF(kid.fill.alpha)
+                raw_fa = getattr(kid.fill, "alpha", 1.0)
+                fa = (
+                    max(0.0, min(1.0, float(raw_fa)))
+                    if isinstance(raw_fa, (int, float)) and math.isfinite(raw_fa)
+                    else 1.0
+                )
+                fc.setAlphaF(fa)
                 painter.setBrush(QBrush(fc))
             else:
                 painter.setBrush(Qt.BrushStyle.NoBrush)
 
             if kid.line and kid.line.type != "none":
                 lc = self._resolve_color(kid.line.color)
-                painter.setPen(QPen(lc, max(1.0, kid.line.width)))
+                raw_klw = getattr(kid.line, "width", 1.0)
+                klw = (
+                    max(1.0, float(raw_klw))
+                    if isinstance(raw_klw, (int, float)) and math.isfinite(raw_klw)
+                    else 1.0
+                )
+                painter.setPen(QPen(lc, klw))
             else:
                 painter.setPen(Qt.PenStyle.NoPen)
 

@@ -11,7 +11,7 @@ import os
 import random
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QCoreApplication, QPointF, QRectF, Qt
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -143,6 +143,23 @@ TEXTURE_KEY_MAP: dict[str, str] = {
 }
 
 _TEXTURE_CACHE: dict[str, QPixmap] = {}
+_CACHE_APP_ID: int | None = None
+
+
+def clear_texture_cache() -> None:
+    """Release cached procedural texture pixmaps."""
+    _TEXTURE_CACHE.clear()
+
+
+def _ensure_app_cache_hook() -> None:
+    global _CACHE_APP_ID
+    app = QCoreApplication.instance()
+    if app is not None and id(app) != _CACHE_APP_ID:
+        _CACHE_APP_ID = id(app)
+        try:
+            app.aboutToQuit.connect(clear_texture_cache)
+        except Exception:
+            pass
 
 
 def resolve_fill_color(
@@ -204,6 +221,7 @@ def resolve_fill_color(
 
 def get_procedural_texture(name: str) -> QPixmap:
     """Generate or retrieve a cached procedural texture QPixmap (64x64 or 128x128)."""
+    _ensure_app_cache_hook()
     norm_name = TEXTURE_KEY_MAP.get(name, name)
     if norm_name in _TEXTURE_CACHE:
         return _TEXTURE_CACHE[norm_name]
@@ -512,6 +530,11 @@ def paint_fill_rect(
 
     # 5. Image or Procedural Texture Fill
     if fill.type == "img":
+        target_sz = rect.size().toSize()
+        target_rect = rect.toRect()
+        if target_sz.width() <= 0 or target_sz.height() <= 0:
+            return
+
         img_key = getattr(fill, "image_path", "") or getattr(fill, "pattern", "")
         tile_mode = getattr(fill, "tile", False)
 
@@ -519,13 +542,15 @@ def paint_fill_rect(
         norm_key = TEXTURE_KEY_MAP.get(img_key, img_key)
         if norm_key in TEXTURE_NAMES:
             tex_pix = get_procedural_texture(norm_key)
+            if tex_pix.isNull():
+                return
             if tile_mode:
-                painter.drawTiledPixmap(rect.toRect(), tex_pix)
+                painter.drawTiledPixmap(target_rect, tex_pix)
             else:
                 painter.drawPixmap(
-                    rect.toRect(),
+                    target_rect,
                     tex_pix.scaled(
-                        rect.size().toSize(),
+                        target_sz,
                         Qt.AspectRatioMode.IgnoreAspectRatio,
                         Qt.TransformationMode.SmoothTransformation,
                     ),
@@ -538,12 +563,12 @@ def paint_fill_rect(
             if not qimg.isNull():
                 pix = QPixmap.fromImage(qimg)
                 if tile_mode:
-                    painter.drawTiledPixmap(rect.toRect(), pix)
+                    painter.drawTiledPixmap(target_rect, pix)
                 else:
                     painter.drawPixmap(
-                        rect.toRect(),
+                        target_rect,
                         pix.scaled(
-                            rect.size().toSize(),
+                            target_sz,
                             Qt.AspectRatioMode.IgnoreAspectRatio,
                             Qt.TransformationMode.SmoothTransformation,
                         ),
