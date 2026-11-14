@@ -129,7 +129,6 @@ def chart_frame_to_xml(
     return f"<p:graphicFrame>{nv_graphic_frame}{xfrm_xml}{graphic}</p:graphicFrame>"
 
 
-
 def _src_rect_xml(shape: Shape) -> str:
     """Serialize a picture's crop fractions as <a:srcRect> (1/1000 percent)."""
     crop = shape.crop if isinstance(shape.crop, dict) else None
@@ -141,6 +140,7 @@ def _src_rect_xml(shape: Shape) -> str:
         if val:
             attrs += f' {key}="{val}"'
     return f"<a:srcRect{attrs}/>" if attrs else ""
+
 
 def picture_to_xml(
     shape: Shape,
