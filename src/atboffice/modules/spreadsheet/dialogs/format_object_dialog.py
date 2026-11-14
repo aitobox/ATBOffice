@@ -206,6 +206,11 @@ class FormatObjectDialog(QDialog):
 
     def _apply_and_accept(self) -> None:
         """Apply user modifications to the FloatingObject and accept dialog."""
+        # A newly chosen color replaces imported gradient/pattern/no fill and hidden lines.
+        if self._current_fill_color.upper() != str(self.obj.fill_color).upper():
+            self.obj.fill_type = "solid"
+        if self._current_line_color.upper() != str(self.obj.line_color).upper():
+            self.obj.line_visible = True
         self.obj.fill_color = self._current_fill_color
         self.obj.fill_alpha = round(1.0 - (self.spin_transparency.value() / 100.0), 2)
         self.obj.line_color = self._current_line_color

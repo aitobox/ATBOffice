@@ -1315,6 +1315,8 @@ class LedgerWindow(BaseOfficeWindow):
         layer = getattr(self.spreadsheet_view, "object_layer", None)
         if layer and hasattr(layer, "selected_object") and layer.selected_object:
             layer.selected_object.fill_color = color
+            if hasattr(layer.selected_object, "fill_type"):
+                layer.selected_object.fill_type = "solid"
             layer.update()
             self.set_modified(True)
 

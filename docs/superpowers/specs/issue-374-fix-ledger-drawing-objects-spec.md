@@ -33,4 +33,4 @@ Text-body styling, `fontRef` theme fonts, effects/3D, guide formulas in `custGeo
 - [x] Task 3: Reader — groups, connectors, fills, style refs, anchor fixes
 - [x] Task 4: Object layer — preset paths, gradients, groups, aspect-locked images
 - [x] Task 5: Tests `tests/test_ledger_drawings.py` against the 5 fixtures
-- [ ] Task 6: Full test suite + grilling audit
+- [x] Task 6: Full test suite + grilling audit

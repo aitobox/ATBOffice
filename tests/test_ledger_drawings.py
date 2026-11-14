@@ -258,3 +258,24 @@ def test_write_roundtrip_keeps_group_and_gradient(tmp_path):
             assert after.gradient_stops == before.gradient_stops
             assert after.gradient_angle == pytest.approx(before.gradient_angle)
             assert after.geometry_adj == before.geometry_adj
+
+
+def test_format_dialog_new_color_replaces_gradient(qapp):
+    from atboffice.modules.spreadsheet.dialogs.format_object_dialog import FormatObjectDialog
+
+    obj = FloatingObject(
+        fill_type="gradient",
+        fill_color="#FFF200",
+        line_visible=False,
+        gradient_stops=[(0.0, "#FFF200", 1.0), (1.0, "#FF7A00", 1.0)],
+    )
+    dlg = FormatObjectDialog(obj)
+    dlg._apply_and_accept()  # unchanged colors keep the imported gradient
+    assert obj.fill_type == "gradient" and not obj.line_visible
+
+    dlg = FormatObjectDialog(obj)
+    dlg._current_fill_color = "#00ff00"
+    dlg._current_line_color = "#123456"
+    dlg._apply_and_accept()
+    assert obj.fill_type == "solid" and obj.fill_color == "#00ff00"
+    assert obj.line_visible
