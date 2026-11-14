@@ -114,6 +114,15 @@ class SlideShowSettings:
         )
 
 
+@dataclass(frozen=True)
+class LoadWarning:
+    """Non-fatal warning recorded when opening a partially malformed presentation."""
+
+    scope: str
+    location: str
+    message: str
+
+
 @dataclass
 class Presentation:
     """Root container representing an entire presentation document."""
@@ -128,6 +137,7 @@ class Presentation:
     hf: HeaderFooterSettings = field(default_factory=HeaderFooterSettings)
     props: dict[str, Any] = field(default_factory=dict)
     comment_authors: list[CommentAuthor] = field(default_factory=list)
+    load_warnings: list[LoadWarning] = field(default_factory=list, repr=False, compare=False)
 
     @classmethod
     def create_new(

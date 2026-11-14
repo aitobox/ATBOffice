@@ -32,6 +32,7 @@ from atboffice.modules.presentation.models.media_item import (
     is_video_extension,
 )
 from atboffice.modules.presentation.models.presentation import (
+    LoadWarning,
     Presentation,
 )
 from atboffice.modules.presentation.models.shape import (
@@ -78,14 +79,58 @@ NS_P188 = "http://schemas.microsoft.com/office/powerpoint/2018/8/main"
 EMUS_PER_PT = 12700.0
 
 
+def safe_int(val: Any, default: int = 0) -> int:
+    """Safely parse integers including float-like or percentage strings."""
+    if val is None or isinstance(val, bool):
+        return default
+    if isinstance(val, int):
+        return val
+    if isinstance(val, float):
+        return int(val) if math.isfinite(val) else default
+    s = str(val).strip().rstrip("%").strip()
+    if not s:
+        return default
+    try:
+        return int(s)
+    except ValueError:
+        try:
+            f = float(s)
+            return int(f) if math.isfinite(f) else default
+        except (ValueError, TypeError):
+            return default
+
+
+def safe_float(val: Any, default: float = 0.0) -> float:
+    """Safely parse finite floats including percentage strings, rejecting NaN/Inf."""
+    if val is None or isinstance(val, bool):
+        return default
+    if isinstance(val, (int, float)):
+        f = float(val)
+        return f if math.isfinite(f) else default
+    s = str(val).strip().rstrip("%").strip()
+    if not s:
+        return default
+    try:
+        f = float(s)
+        return f if math.isfinite(f) else default
+    except (ValueError, TypeError):
+        return default
+
+
+def clamp_alpha(val: Any, default: float = 1.0) -> float:
+    """Clamp alpha values safely into [0.0, 1.0]."""
+    f = safe_float(val, default)
+    return max(0.0, min(1.0, f))
+
+
 def emu_to_pt(emu: float | int | str | None, default: float = 0.0) -> float:
     """Convert EMUs (English Metric Units) to points (1 pt = 12700 EMUs)."""
     if emu is None:
         return default
-    try:
-        return round(float(emu) / EMUS_PER_PT, 2)
-    except (ValueError, TypeError):
+    val = safe_float(emu, float("nan"))
+    if not math.isfinite(val):
         return default
+    return round(val / EMUS_PER_PT, 2)
 
 
 def _local_tag(tag: str) -> str:
@@ -242,10 +287,7 @@ def _eval_guides(guide_list: list[ET.Element], env: dict[str, float]) -> dict[st
             return 0.0
         if tok in env:
             return env[tok]
-        try:
-            return float(tok)
-        except (ValueError, TypeError):
-            return 0.0
+        return safe_float(tok, 0.0)
 
     def rad(a: float) -> float:
         return (a / 60000.0) * math.pi / 180.0
@@ -313,6 +355,7 @@ class PptxReader:
         self.default_text_style: dict[int, dict[str, Any]] = {}
         self._layouts: dict[str, LayoutInfo] = {}
         self._masters: dict[str, MasterInfo] = {}
+        self._warnings: list[LoadWarning] = []
         self._theme_fonts: dict[str, tuple[str | None, str | None]] = {}
 
     @classmethod
@@ -333,6 +376,16 @@ class PptxReader:
 
     def read(self) -> Presentation:
         """Parse presentation document and return populated Presentation model."""
+        self._warnings = []
+        for corrupt_part in sorted(getattr(self.package, "_corrupt_parts", ())):
+            self._warnings.append(
+                LoadWarning(
+                    scope="package",
+                    location=corrupt_part,
+                    message="ZIP member could not be decompressed",
+                )
+            )
+
         # 1. Locate presentation part via root relationships
         pres_part = self._locate_presentation_part()
         pres_bytes = self.package.read_part(pres_part)
@@ -343,13 +396,8 @@ class PptxReader:
         width_pt = emu_to_pt(_get_attr(sz_elem, "cx"), default=960.0)
         height_pt = emu_to_pt(_get_attr(sz_elem, "cy"), default=540.0)
 
-        first_num = 1
         fn_val = _get_attr(pres_xml, "firstSlideNum")
-        if fn_val:
-            try:
-                first_num = int(fn_val)
-            except ValueError:
-                first_num = 1
+        first_num = safe_int(fn_val, 1) if fn_val else 1
 
         pres = Presentation.create_new(
             title="",
@@ -407,7 +455,22 @@ class PptxReader:
                 if rel and (rel.type == REL_SLIDE or rel.type.endswith("/slide")):
                     slide_path = _resolve_path(pres_part, rel.target)
                     if self.package.has_part(slide_path):
-                        slide = self._parse_slide(slide_path, pres)
+                        try:
+                            slide = self._parse_slide(slide_path, pres)
+                        except Exception as exc:
+                            self._warnings.append(
+                                LoadWarning(
+                                    scope="slide",
+                                    location=slide_path,
+                                    message=str(exc),
+                                )
+                            )
+                            fallback_design = pres.get_design_for_slide(None)
+                            slide = Slide(
+                                id=f"degraded_{len(pres.slides) + 1}",
+                                layout="blank",
+                                design_id=fallback_design.id,
+                            )
                         slide._original_state = slide.to_dict()
                         pres.slides.append(slide)
                         slide_part_map[slide.id] = slide_path
@@ -416,6 +479,7 @@ class PptxReader:
         if not pres.slides:
             pres.add_slide(layout="title")
 
+        pres.load_warnings = list(self._warnings)
         return pres
 
     def _locate_presentation_part(self) -> str:
@@ -535,7 +599,7 @@ class PptxReader:
         for m in target:
             mtag = _local_tag(m.tag)
             mval_str = _get_attr(m, "val")
-            mval = float(mval_str) if mval_str else 0.0
+            mval = safe_float(mval_str, 0.0) if mval_str else 0.0
             if mtag == "alpha":
                 alpha = mval / 100000.0
             elif mtag == "alphaMod":
@@ -545,7 +609,7 @@ class PptxReader:
             else:
                 mods.append({"name": mtag, "val": mval})
 
-        alpha = max(0.0, min(1.0, alpha))
+        alpha = clamp_alpha(alpha, 1.0)
 
         if tag == "schemeClr" and not mods and keep_scheme:
             val = _get_attr(target, "val")
@@ -592,9 +656,9 @@ class PptxReader:
                 else:
                     base = resolve_color(token, fallback=val)
         elif tag == "scrgbClr":
-            r_val = float(_get_attr(target, "r", "0") or 0) / 100000.0
-            g_val = float(_get_attr(target, "g", "0") or 0) / 100000.0
-            b_val = float(_get_attr(target, "b", "0") or 0) / 100000.0
+            r_val = safe_float(_get_attr(target, "r", "0"), 0.0) / 100000.0
+            g_val = safe_float(_get_attr(target, "g", "0"), 0.0) / 100000.0
+            b_val = safe_float(_get_attr(target, "b", "0"), 0.0) / 100000.0
             r = max(0, min(255, round(r_val * 255.0)))
             g = max(0, min(255, round(g_val * 255.0)))
             b = max(0, min(255, round(b_val * 255.0)))
@@ -926,30 +990,54 @@ class PptxReader:
         if c_sld is not None:
             sp_tree = _get_child(c_sld, "spTree")
             if sp_tree is not None:
-                for child in sp_tree:
-                    shape = self._parse_shape(
-                        child,
-                        slide_path,
-                        rel_map,
-                        timing_map=timing_map,
-                        layout_info=layout_info,
-                        slide_clr_map_ovr=slide_clr_map_ovr,
-                    )
-                    if shape:
-                        slide.shapes.append(shape)
+                for sp_idx, child in enumerate(sp_tree):
+                    try:
+                        shape = self._parse_shape(
+                            child,
+                            slide_path,
+                            rel_map,
+                            timing_map=timing_map,
+                            layout_info=layout_info,
+                            slide_clr_map_ovr=slide_clr_map_ovr,
+                        )
+                        if shape:
+                            slide.shapes.append(shape)
+                    except Exception as exc:
+                        self._warnings.append(
+                            LoadWarning(
+                                scope="shape",
+                                location=f"{slide_path}#{sp_idx}",
+                                message=str(exc),
+                            )
+                        )
 
         # 1.1 Animation Timings
-        slide.animations = self._parse_slide_animations(timing_elem, slide.shapes)
+        try:
+            slide.animations = self._parse_slide_animations(timing_elem, slide.shapes)
+        except Exception as exc:
+            self._warnings.append(
+                LoadWarning(scope="animation", location=slide_path, message=str(exc))
+            )
 
         # 2. Slide Transition
         trans_elem = _get_child(slide_xml, "transition")
         if trans_elem is not None:
-            slide.transition = self._parse_transition(trans_elem)
+            try:
+                slide.transition = self._parse_transition(trans_elem)
+            except Exception as exc:
+                self._warnings.append(
+                    LoadWarning(scope="transition", location=slide_path, message=str(exc))
+                )
 
         # 3. Slide Speaker Notes
-        notes_text = self._extract_notes(slide_path, rel_map)
-        if notes_text:
-            slide.notes = notes_text
+        try:
+            notes_text = self._extract_notes(slide_path, rel_map)
+            if notes_text:
+                slide.notes = notes_text
+        except Exception as exc:
+            self._warnings.append(
+                LoadWarning(scope="notes", location=slide_path, message=str(exc))
+            )
 
         # 4. Slide Comments
         self._parse_slide_comments(slide_path, rel_map, slide, pres)
@@ -1070,13 +1158,13 @@ class PptxReader:
             if st_cxn is not None:
                 cxn_start = {
                     "id": _get_attr(st_cxn, "id", ""),
-                    "idx": int(_get_attr(st_cxn, "idx", "0") or 0),
+                    "idx": safe_int(_get_attr(st_cxn, "idx", "0"), 0),
                 }
             end_cxn = _get_child(c_nv_cxn_pr, "endCxn")
             if end_cxn is not None:
                 cxn_end = {
                     "id": _get_attr(end_cxn, "id", ""),
-                    "idx": int(_get_attr(end_cxn, "idx", "0") or 0),
+                    "idx": safe_int(_get_attr(end_cxn, "idx", "0"), 0),
                 }
 
         shape_id = _get_attr(c_nv_pr, "id", f"sp_{id(elem)}")
@@ -1087,7 +1175,7 @@ class PptxReader:
         ph_elem = _get_child(nv_pr, "ph") if nv_pr is not None else None
         if ph_elem is not None:
             ph_type = _get_attr(ph_elem, "type", "body") or "body"
-            ph_idx = int(_get_attr(ph_elem, "idx", "0") or 0)
+            ph_idx = safe_int(_get_attr(ph_elem, "idx", "0"), 0)
             placeholder = PlaceholderInfo(type=ph_type, idx=ph_idx)
 
         # Resolve theme context for colors & formatting
@@ -1492,24 +1580,30 @@ class PptxReader:
                 chart_target = rel.target if hasattr(rel, "target") else str(rel)
                 chart_path = _resolve_path(slide_path, chart_target)
                 if self.package.has_part(chart_path):
-                    from atboffice.modules.presentation.chart.io import parse_chart_xml
+                    try:
+                        from atboffice.modules.presentation.chart.io import parse_chart_xml
 
-                    chart_bytes = self.package.read_part(chart_path)
-                    chart_obj = parse_chart_xml(chart_bytes)
+                        chart_bytes = self.package.read_part(chart_path)
+                        chart_obj = parse_chart_xml(chart_bytes)
 
-                    # Look for embedded workbook in chart rels
-                    chart_rels = self.package.get_relationships(chart_path)
-                    for cr in chart_rels:
-                        if (
-                            "spreadsheetml" in cr.type.lower()
-                            or "package" in cr.type.lower()
-                            or cr.target.endswith(".xlsx")
-                        ):
-                            wb_path = _resolve_path(chart_path, cr.target)
-                            if self.package.has_part(wb_path):
-                                chart_obj.embedded_workbook = self.package.read_part(wb_path)
-                                break
-                    chart_dict = chart_obj.to_dict()
+                        # Look for embedded workbook in chart rels
+                        chart_rels = self.package.get_relationships(chart_path)
+                        for cr in chart_rels:
+                            if (
+                                "spreadsheetml" in cr.type.lower()
+                                or "package" in cr.type.lower()
+                                or cr.target.endswith(".xlsx")
+                            ):
+                                wb_path = _resolve_path(chart_path, cr.target)
+                                if self.package.has_part(wb_path):
+                                    chart_obj.embedded_workbook = self.package.read_part(wb_path)
+                                    break
+                        chart_dict = chart_obj.to_dict()
+                    except Exception as exc:
+                        self._warnings.append(
+                            LoadWarning(scope="chart", location=chart_path, message=str(exc))
+                        )
+                        chart_dict = None
 
             return Shape(
                 id=frame_id or "chart_1",
@@ -1572,8 +1666,10 @@ class PptxReader:
                                         full_line = " ".join(t_runs).strip()
                                         if full_line and full_line not in diag_texts:
                                             diag_texts.append(full_line)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            self._warnings.append(
+                                LoadWarning(scope="smartart", location=dm_path, message=str(exc))
+                            )
 
                 if lo_rid and lo_rid in rel_map:
                     lo_rel = rel_map[lo_rid]
@@ -1585,8 +1681,10 @@ class PptxReader:
                             uid = lo_xml.attrib.get("uniqueId", "")
                             if uid:
                                 diag_layout = uid.split("/")[-1]
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            self._warnings.append(
+                                LoadWarning(scope="smartart", location=lo_path, message=str(exc))
+                            )
 
             sa_items = [{"text": t} for t in diag_texts] if diag_texts else [{"text": "SmartArt"}]
             sa_obj = {
@@ -1771,7 +1869,7 @@ class PptxReader:
         h = emu_to_pt(_get_attr(ext, "cy"), default=100.0)
 
         rot_val = _get_attr(xfrm, "rot")
-        rot = round(float(rot_val) / 60000.0, 2) if rot_val else 0.0
+        rot = round(safe_float(rot_val, 0.0) / 60000.0, 2) if rot_val else 0.0
 
         return (x, y, w, h, rot)
 
@@ -1797,8 +1895,8 @@ class PptxReader:
         if cust_geom is not None:
             xfrm = _get_child(sp_pr, "xfrm")
             ext = _get_child(xfrm, "ext") if xfrm is not None else None
-            ext_w = float(_get_attr(ext, "cx", "0") or 0)
-            ext_h = float(_get_attr(ext, "cy", "0") or 0)
+            ext_w = safe_float(_get_attr(ext, "cx", "0"), 0.0)
+            ext_h = safe_float(_get_attr(ext, "cy", "0"), 0.0)
             custom_path = self._parse_custom_geometry(cust_geom, ext_w, ext_h)
             if custom_path:
                 return "custom", custom_path
@@ -1840,8 +1938,8 @@ class PptxReader:
         for p_elem in _get_children(path_lst, "path"):
             pw_str = _get_attr(p_elem, "w")
             ph_str = _get_attr(p_elem, "h")
-            pw = float(pw_str) if pw_str else ext_w_emu
-            ph = float(ph_str) if ph_str else ext_h_emu
+            pw = safe_float(pw_str, ext_w_emu) if pw_str else ext_w_emu
+            ph = safe_float(ph_str, ext_h_emu) if ph_str else ext_h_emu
             pw_pt = to_pt(pw) if pw > 0 else 100.0
             ph_pt = to_pt(ph) if ph > 0 else 100.0
 
@@ -2026,7 +2124,7 @@ class PptxReader:
                 continue
 
             ph_type = _get_attr(ph_elem, "type", "body") or "body"
-            ph_idx = int(_get_attr(ph_elem, "idx", "0") or 0)
+            ph_idx = safe_int(_get_attr(ph_elem, "idx", "0"), 0)
             sp_id = _get_attr(c_nv_pr, "id", "") or ""
 
             sp_pr = _get_child(sp, "spPr")
@@ -2649,37 +2747,23 @@ class PptxReader:
             dur_val = _get_attr(ctn, "dur")
             dur = 500
             if dur_val and dur_val != "indefinite":
-                try:
-                    dur = int(float(dur_val))
-                except ValueError:
-                    dur = 500
+                dur = safe_int(dur_val, 500)
 
             delay = 0
             for cond in ctn.iter():
                 if _local_tag(cond.tag) == "cond":
                     d_val = _get_attr(cond, "delay")
                     if d_val and d_val != "indefinite":
-                        try:
-                            delay = int(float(d_val))
+                        parsed_delay = safe_int(d_val, -1)
+                        if parsed_delay >= 0:
+                            delay = parsed_delay
                             break
-                        except ValueError:
-                            pass
 
-            pid = 10
             pid_str = _get_attr(ctn, "presetID")
-            if pid_str:
-                try:
-                    pid = int(pid_str)
-                except ValueError:
-                    pid = 10
+            pid = safe_int(pid_str, 10) if pid_str else 10
 
-            sub = 0
             sub_str = _get_attr(ctn, "presetSubtype")
-            if sub_str:
-                try:
-                    sub = int(sub_str)
-                except ValueError:
-                    sub = 0
+            sub = safe_int(sub_str, 0) if sub_str else 0
 
             direction = None
             if cls in ("entr", "exit"):
@@ -2756,7 +2840,7 @@ class PptxReader:
             stops: list[dict[str, Any]] = []
             if gs_lst is not None:
                 for gs in _get_children(gs_lst, "gs"):
-                    pos = float(_get_attr(gs, "pos", "0") or 0) / 100000.0
+                    pos = safe_float(_get_attr(gs, "pos", "0"), 0.0) / 100000.0
                     clr, alpha = self._extract_color_detail(
                         gs,
                         ph_clr=ph_clr,
@@ -2793,7 +2877,7 @@ class PptxReader:
             stops = []
             if gs_lst is not None:
                 for gs in _get_children(gs_lst, "gs"):
-                    pos = float(_get_attr(gs, "pos", "0") or 0) / 100000.0
+                    pos = safe_float(_get_attr(gs, "pos", "0"), 0.0) / 100000.0
                     clr, alpha = self._extract_color_detail(
                         gs,
                         ph_clr=ph_clr,
@@ -2855,8 +2939,8 @@ class PptxReader:
         if cust_dash is not None:
             dashes: list[float] = []
             for ds in _get_children(cust_dash, "ds"):
-                d_val = float(_get_attr(ds, "d", "0") or 0) / 100000.0
-                sp_val = float(_get_attr(ds, "sp", "0") or 0) / 100000.0
+                d_val = safe_float(_get_attr(ds, "d", "0"), 0.0) / 100000.0
+                sp_val = safe_float(_get_attr(ds, "sp", "0"), 0.0) / 100000.0
                 dashes.extend([d_val, sp_val])
             if dashes:
                 res.custom_dash = dashes
@@ -2959,17 +3043,16 @@ class PptxReader:
                 autofit = "norm"
                 fs_attr = _get_attr(norm_elem, "fontScale")
                 if fs_attr:
-                    try:
-                        font_scale = max(0.01, min(1.0, float(fs_attr) / 100000.0))
+                    fs_num = safe_float(fs_attr, float("nan"))
+                    if math.isfinite(fs_num) and fs_num > 0:
+                        font_scale = max(0.01, min(1.0, fs_num / 100000.0))
                         has_explicit_font_scale = True
-                    except ValueError:
+                    else:
                         font_scale = 1.0
                 ls_attr = _get_attr(norm_elem, "lnSpcReduction")
                 if ls_attr:
-                    try:
-                        ln_spc_red = max(0.0, min(1.0, float(ls_attr) / 100000.0))
-                    except ValueError:
-                        ln_spc_red = 0.0
+                    ls_num = safe_float(ls_attr, 0.0)
+                    ln_spc_red = max(0.0, min(1.0, ls_num / 100000.0))
             elif _get_child(body_pr, "spAutoFit") is not None:
                 autofit = "shape"
 
@@ -3306,7 +3389,7 @@ class PptxReader:
         speed = _get_attr(trans_elem, "spd", "fast") or "fast"
         adv_click = _get_attr(trans_elem, "advClick", "1") in ("1", "true")
         adv_tm = _get_attr(trans_elem, "advTm")
-        after = float(adv_tm) / 1000.0 if adv_tm else None
+        after = safe_float(adv_tm, 0.0) / 1000.0 if adv_tm else None
 
         return Transition(
             type=trans_type,
@@ -3386,8 +3469,8 @@ class PptxReader:
                         aid = _get_attr(elem, "id", "") or ""
                         name = _get_attr(elem, "name", "") or "Author"
                         initials = _get_attr(elem, "initials", "") or ""
-                        last_idx = int(_get_attr(elem, "lastIdx", "0") or "0")
-                        clr_idx = int(_get_attr(elem, "clrIdx", "0") or "0")
+                        last_idx = safe_int(_get_attr(elem, "lastIdx", "0"), 0)
+                        clr_idx = safe_int(_get_attr(elem, "clrIdx", "0"), 0)
                         user_id = _get_attr(elem, "userId", "") or ""
                         provider_id = _get_attr(elem, "providerId", "") or ""
                         author = CommentAuthor(
@@ -3401,7 +3484,10 @@ class PptxReader:
                         )
                         if not any(a.id == aid for a in pres.comment_authors):
                             pres.comment_authors.append(author)
-            except Exception:
+            except Exception as exc:
+                self._warnings.append(
+                    LoadWarning(scope="comments", location=part_path, message=str(exc))
+                )
                 continue
 
     def _parse_slide_comments(
@@ -3450,7 +3536,7 @@ class PptxReader:
                     cm_id = _get_attr(elem, "id", "") or f"cm_{len(slide.comments) + 1}"
                     author_id = _get_attr(elem, "authorId", "0") or "0"
                     created = _get_attr(elem, "created", _get_attr(elem, "dt", "") or "") or ""
-                    idx = int(_get_attr(elem, "idx", "1") or "1")
+                    idx = safe_int(_get_attr(elem, "idx", "1"), 1)
                     status = _get_attr(elem, "status", "active") or "active"
 
                     # Coordinates from <pos>
@@ -3465,13 +3551,10 @@ class PptxReader:
                     if pos_elem is not None:
                         raw_x = _get_attr(pos_elem, "x", "254000")
                         raw_y = _get_attr(pos_elem, "y", "254000")
-                        try:
-                            fx = float(raw_x or 254000)
-                            fy = float(raw_y or 254000)
-                            x_val = round(fx / 12700.0, 2) if fx > 2000.0 else round(fx, 2)
-                            y_val = round(fy / 12700.0, 2) if fy > 2000.0 else round(fy, 2)
-                        except ValueError:
-                            pass
+                        fx = safe_float(raw_x, 254000.0)
+                        fy = safe_float(raw_y, 254000.0)
+                        x_val = round(fx / 12700.0, 2) if fx > 2000.0 else round(fx, 2)
+                        y_val = round(fy / 12700.0, 2) if fy > 2000.0 else round(fy, 2)
 
                     # Extract text
                     text = ""
@@ -3535,7 +3618,10 @@ class PptxReader:
                             is_modern=is_modern,
                         )
                     )
-            except Exception:
+            except Exception as exc:
+                self._warnings.append(
+                    LoadWarning(scope="comments", location=part_path, message=str(exc))
+                )
                 continue
 
 

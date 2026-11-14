@@ -34,6 +34,8 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMenu,
+    QMessageBox,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
     QSplitter,
@@ -57,7 +59,7 @@ from atboffice.modules.presentation.models.layouts import (
     layout_frames,
     make_placeholder,
 )
-from atboffice.modules.presentation.models.presentation import Presentation
+from atboffice.modules.presentation.models.presentation import LoadWarning, Presentation
 from atboffice.modules.presentation.models.shape import Shape
 from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.models.text import Paragraph, TextBody, TextRun
@@ -970,6 +972,79 @@ class LecternTaskPane(QWidget):
         self.btn_fwd.setEnabled(self._history_index < len(self._history) - 1)
 
 
+class DegradedLoadBanner(QFrame):
+    """Non-blocking top banner notifying the user when parts opened in degraded mode."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._warnings: list[LoadWarning] = []
+        self.setObjectName("degradedLoadBanner")
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setStyleSheet(
+            "#degradedLoadBanner {"
+            "  background-color: #FFF4CE;"
+            "  border-bottom: 1px solid #E2B857;"
+            "}"
+        )
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 6, 12, 6)
+        layout.setSpacing(8)
+
+        self.summary_label = QLabel(self)
+        self.summary_label.setStyleSheet("color: #6B4F00; font-weight: 500;")
+        layout.addWidget(self.summary_label, 1)
+
+        self.details_btn = QPushButton(self)
+        self.details_btn.setFlat(True)
+        self.details_btn.clicked.connect(self._on_details_clicked)
+        layout.addWidget(self.details_btn)
+
+        self.close_btn = QPushButton(self)
+        self.close_btn.setFlat(True)
+        self.close_btn.clicked.connect(self._on_close_clicked)
+        layout.addWidget(self.close_btn)
+
+        self.retranslate_ui()
+        self.hide()
+
+    def set_warnings(self, warnings: list[LoadWarning] | None) -> None:
+        """Display banner when warnings exist, or hide cleanly when empty."""
+        self._warnings = list(warnings or [])
+        if not self._warnings:
+            self.hide()
+            return
+        self._refresh_text()
+        self.show()
+
+    def _refresh_text(self) -> None:
+        template = safe_tr("已打开文稿，有 {count} 个元素因格式异常按降级模式显示")
+        self.summary_label.setText(template.format(count=len(self._warnings)))
+        self.details_btn.setText(safe_tr("查看详情"))
+        self.close_btn.setText(safe_tr("关闭"))
+
+    def _on_details_clicked(self) -> None:
+        max_items = 50
+        lines = [
+            f"[{w.scope}] {w.location}: {w.message}"
+            for w in self._warnings[:max_items]
+        ]
+        if len(self._warnings) > max_items:
+            more_tpl = safe_tr("……另有 {rest} 条未展开显示")
+            lines.append(more_tpl.format(rest=len(self._warnings) - max_items))
+        QMessageBox.information(
+            self,
+            safe_tr("降级模式详情"),
+            "\n".join(lines),
+        )
+
+    def _on_close_clicked(self) -> None:
+        self.hide()
+
+    def retranslate_ui(self) -> None:
+        """Retranslate banner text using active locale."""
+        self._refresh_text()
+
+
 class LecternWorkspace(QWidget):
     """Complete three-pane workspace implementation for Lectern."""
 
@@ -1032,6 +1107,10 @@ class LecternWorkspace(QWidget):
         center_normal_layout = QVBoxLayout(self.center_normal_widget)
         center_normal_layout.setContentsMargins(0, 0, 0, 0)
         center_normal_layout.setSpacing(0)
+
+        self.degraded_banner = DegradedLoadBanner(self.center_normal_widget)
+        self.degraded_banner.hide()
+        center_normal_layout.addWidget(self.degraded_banner)
 
         self.master_close_bar = MasterViewCloseBar(self.center_normal_widget)
         self.master_close_bar.close_clicked.connect(self.exit_master_view)
@@ -1160,6 +1239,8 @@ class LecternWorkspace(QWidget):
             self.notes_view.load_presentation(presentation)
         if hasattr(self, "master_view"):
             self.master_view.load_presentation(presentation)
+        if hasattr(self, "degraded_banner"):
+            self.degraded_banner.set_warnings(getattr(presentation, "load_warnings", []))
 
     def set_current_slide_index(self, index: int) -> None:
         """Switch active slide shown in canvas and notes."""
@@ -1559,6 +1640,8 @@ class LecternWorkspace(QWidget):
         self.left_pane.setTabText(1, safe_tr("大纲"))
         self.notes_pane.retranslate_ui()
         self.canvas_view.retranslate_ui()
+        if hasattr(self, "degraded_banner"):
+            self.degraded_banner.retranslate_ui()
         if hasattr(self, "master_close_bar"):
             self.master_close_bar.retranslate_ui()
         if hasattr(self, "sorter_view"):
