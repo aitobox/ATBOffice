@@ -6,7 +6,8 @@ import math
 import uuid
 from typing import Any
 
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+import shiboken6
+from PySide6.QtCore import QPointF, QRectF, QSignalBlocker, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QKeyEvent,
@@ -93,6 +94,7 @@ class SlideScene(QGraphicsScene):
         self._is_dragging_item = False
         self._dragged_item: ShapeGraphicsItem | None = None
         self._active_connector_updates: set[str] = set()
+        self._is_loading_slide: bool = False
 
         self.setSceneRect(
             -150.0,
@@ -102,67 +104,104 @@ class SlideScene(QGraphicsScene):
         )
         self.load_slide(self.slide)
 
+    def finish_active_text_editing(self, commit: bool = True) -> None:
+        """Safely finish or cancel any in-place text editor currently active on the scene."""
+        for item in list(self._items_by_id.values()):
+            if not shiboken6.isValid(item):
+                continue
+            if getattr(item, "is_editing_text", False):
+                ed = getattr(item, "_text_editor", None)
+                if ed is not None and shiboken6.isValid(ed):
+                    if commit:
+                        ed.commit_and_finish()
+                    else:
+                        ed.cancel_editing()
+                if shiboken6.isValid(item) and getattr(item, "is_editing_text", False):
+                    item.finish_text_editing()
+        self.clearFocus()
+
     def load_slide(self, slide: Slide) -> None:
-        """Load a slide model and populate graphics items."""
+        """Load a slide model and populate graphics items safely."""
         self.slide = slide
-        self.clear()
-        self._items_by_id.clear()
-        self._comment_items.clear()
+        self._is_loading_slide = True
+        try:
+            self.finish_active_text_editing(commit=False)
 
-        design = (
-            self.presentation.get_design_for_slide(slide)
-            if self.presentation
-            else None
-        )
+            with QSignalBlocker(self):
+                self.clearSelection()
+                self._items_by_id.clear()
+                self._comment_items.clear()
+                self._is_dragging_item = False
+                self._dragged_item = None
+                self._is_drawing_shape = False
+                self._draw_start_pos = None
+                self.guide_controller.clear_guides(self)
+                self.clear()
 
-        # Add master decorations behind slide shapes if not hide_master
-        if self.presentation and not getattr(slide, "hide_master", False) and design:
-            is_title = getattr(slide, "layout", "text") == "title"
-            if is_title and getattr(design, "title_decorations", None):
-                decos = design.title_decorations
-            else:
-                decos = getattr(design, "decorations", None) or []
-            for d_idx, d_sh in enumerate(decos):
-                d_item = ShapeGraphicsItem(d_sh)
-                d_item.setZValue(-100.0 + d_idx)
-                d_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False)
-                d_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
-                self.addItem(d_item)
-
-        # 1. Unoverridden layout and master placeholders
-        if self.presentation and design:
-            unoverridden = resolve_unoverridden_placeholders(slide, self.presentation)
-            for u_idx, u_sh in enumerate(unoverridden):
-                u_item = ShapeGraphicsItem(u_sh)
-                setattr(u_item, "_is_inherited_placeholder", True)
-                u_item.setZValue(-10.0 + u_idx)
-                u_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
-                self.addItem(u_item)
-                self._items_by_id[u_sh.id] = u_item
-
-        # 2. Slide shapes
-        for idx, sh in enumerate(slide.shapes):
-            if sh.placeholder and design:
-                apply_cascading_placeholder_styles(sh, design)
-
-            if sh.is_chart:
-                from atboffice.modules.presentation.views.chart_item import ChartGraphicsItem
-
-                item = ChartGraphicsItem(sh)
-            else:
-                item = ShapeGraphicsItem(sh)
-            item.setZValue(float(idx))
-            self.addItem(item)
-            self._items_by_id[sh.id] = item
-
-        for cm in slide.comments:
-            marker = CommentMarkerItem(
-                cm,
-                self.presentation,
-                on_click=self._on_comment_marker_clicked,
+            design = (
+                self.presentation.get_design_for_slide(slide)
+                if self.presentation
+                else None
             )
-            self.addItem(marker)
-            self._comment_items.append(marker)
+
+            # Add master decorations behind slide shapes if not hide_master
+            if self.presentation and not getattr(slide, "hide_master", False) and design:
+                is_title = getattr(slide, "layout", "text") == "title"
+                if is_title and getattr(design, "title_decorations", None):
+                    decos = design.title_decorations
+                else:
+                    decos = getattr(design, "decorations", None) or []
+                for d_idx, d_sh in enumerate(decos):
+                    d_item = ShapeGraphicsItem(d_sh)
+                    d_item.setZValue(-100.0 + d_idx)
+                    d_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False)
+                    d_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+                    self.addItem(d_item)
+
+            # 1. Unoverridden layout and master placeholders
+            seen_ids: set[str] = set()
+            if self.presentation and design:
+                unoverridden = resolve_unoverridden_placeholders(slide, self.presentation)
+                for u_idx, u_sh in enumerate(unoverridden):
+                    if not u_sh.id or u_sh.id in seen_ids:
+                        u_sh.id = f"{u_sh.id or 'ph'}_{u_idx}_{uuid.uuid4().hex[:6]}"
+                    seen_ids.add(u_sh.id)
+                    u_item = ShapeGraphicsItem(u_sh)
+                    setattr(u_item, "_is_inherited_placeholder", True)
+                    u_item.setZValue(-10.0 + u_idx)
+                    u_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+                    self.addItem(u_item)
+                    self._items_by_id[u_sh.id] = u_item
+
+            # 2. Slide shapes
+            for idx, sh in enumerate(slide.shapes):
+                if sh.placeholder and design:
+                    apply_cascading_placeholder_styles(sh, design)
+                if not sh.id or sh.id in seen_ids:
+                    sh.id = f"{sh.id or 'shape'}_{idx}_{uuid.uuid4().hex[:6]}"
+                seen_ids.add(sh.id)
+
+                if sh.is_chart:
+                    from atboffice.modules.presentation.views.chart_item import ChartGraphicsItem
+
+                    item = ChartGraphicsItem(sh)
+                else:
+                    item = ShapeGraphicsItem(sh)
+                item.setZValue(float(idx))
+                self.addItem(item)
+                self._items_by_id[sh.id] = item
+
+            for cm in slide.comments:
+                marker = CommentMarkerItem(
+                    cm,
+                    self.presentation,
+                    on_click=self._on_comment_marker_clicked,
+                )
+                self.addItem(marker)
+                self._comment_items.append(marker)
+        finally:
+            self._is_loading_slide = False
+        self.selectionChanged.emit()
 
     def _on_comment_marker_clicked(self, marker: CommentMarkerItem) -> None:
         self.commentClicked.emit(marker.comment)

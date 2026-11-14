@@ -1051,14 +1051,22 @@ class ShapeGraphicsItem(QGraphicsObject):
         if not self.is_editing_text:
             return
 
-        self.is_editing_text = False
-        if self._text_editor:
-            sc = self._text_editor.scene()
-            if sc:
-                sc.removeItem(self._text_editor)
-            self._text_editor.setParentItem(None)
-            self._text_editor = None
+        import shiboken6
 
+        self.is_editing_text = False
+        ed = self._text_editor
+        self._text_editor = None
+        if ed is not None and shiboken6.isValid(ed):
+            sc = ed.scene()
+            if sc and not getattr(sc, "_is_loading_slide", False):
+                sc.removeItem(ed)
+            ed.setParentItem(None)
+
+        if not shiboken6.isValid(self):
+            return
+        sc_self = self.scene()
+        if sc_self and getattr(sc_self, "_is_loading_slide", False):
+            return
         self._update_handles_visibility(self.isSelected())
         self.update()
         self.geometryChanged.emit()

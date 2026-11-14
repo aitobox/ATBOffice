@@ -1263,6 +1263,17 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         if self._is_finishing:
             return
         self._is_finishing = True
+
+        import shiboken6
+
+        if not shiboken6.isValid(self) or not shiboken6.isValid(self.shape_item):
+            return
+        sc = self.scene()
+        if sc is None or getattr(sc, "_is_loading_slide", False):
+            self.shape_item.is_editing_text = False
+            self.shape_item._text_editor = None
+            return
+
         updated_tb = self.to_text_body()
         self.model.text = updated_tb
 
@@ -1273,15 +1284,26 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         self.editingFinished.emit(self.model.id, self.model.text)
 
         # Notify parent shape item
-        self.shape_item.finish_text_editing()
+        if shiboken6.isValid(self.shape_item):
+            self.shape_item.finish_text_editing()
 
     def cancel_editing(self) -> None:
         """Cancel editing without committing newly typed changes."""
         if self._is_finishing:
             return
         self._is_finishing = True
+
+        import shiboken6
+
+        if not shiboken6.isValid(self) or not shiboken6.isValid(self.shape_item):
+            return
         if self._orig_text_body is not None:
             self.model.text = self._orig_text_body
+        sc = self.scene()
+        if sc is None or getattr(sc, "_is_loading_slide", False):
+            self.shape_item.is_editing_text = False
+            self.shape_item._text_editor = None
+            return
         self.shape_item.finish_text_editing()
 
     def _on_contents_changed(self) -> None:
@@ -1340,9 +1362,17 @@ class ShapeTextEditorItem(QGraphicsTextItem):
 
     def focusOutEvent(self, event: QFocusEvent) -> None:
         """Auto-commit when losing focus."""
+        import shiboken6
+
+        if not shiboken6.isValid(self):
+            return
         super().focusOutEvent(event)
-        if not self._is_finishing:
-            self.commit_and_finish()
+        if not shiboken6.isValid(self) or self._is_finishing:
+            return
+        sc = self.scene()
+        if sc is None or getattr(sc, "_is_loading_slide", False):
+            return
+        self.commit_and_finish()
 
     def contextMenuEvent(self, event: Any) -> None:
         """Display rich text formatting context menu."""

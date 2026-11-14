@@ -2185,6 +2185,8 @@ class LecternWindow(BaseOfficeWindow):
 
     def do_open(self, path: Path) -> bool:
         """Parse and load Lectern presentation from disk with transactional rollback."""
+        self._cleanup_active_editing_and_overlays()
+
         if path.stat().st_size == 0:
             from atboffice.modules.presentation.models.presentation import Presentation
 
@@ -2225,6 +2227,29 @@ class LecternWindow(BaseOfficeWindow):
             raise bind_err
 
         return True
+
+    def _cleanup_active_editing_and_overlays(self) -> None:
+        """Close active text editor, comment cards, or running slideshow before opening."""
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws is None:
+            return
+        active_show = getattr(ws, "_active_slideshow", None)
+        if active_show is not None:
+            try:
+                active_show.end_show(prompt_ink=False)
+            except Exception:
+                pass
+            ws._active_slideshow = None
+        canvas_view = getattr(ws, "canvas_view", None)
+        if canvas_view is not None and getattr(canvas_view, "_active_card", None) is not None:
+            try:
+                canvas_view._active_card.close()
+            except Exception:
+                pass
+            canvas_view._active_card = None
+        scene = getattr(ws, "scene", None)
+        if scene is not None and hasattr(scene, "finish_active_text_editing"):
+            scene.finish_active_text_editing(commit=False)
 
     def _setup_toolbars(self) -> None:
         """Initialize PowerPoint 2003 Luna 10 toolbars cluster."""
