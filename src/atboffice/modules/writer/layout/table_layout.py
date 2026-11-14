@@ -8,7 +8,9 @@ and cross-page splitting with repeated header rows.
 from __future__ import annotations
 
 import copy
+from collections.abc import Iterator
 from dataclasses import dataclass, field
+from typing import Any
 
 from atboffice.modules.writer.layout.portions import (
     ParagraphLayout,
@@ -40,6 +42,10 @@ class CellLayout:
     width: float
     height: float
     paragraphs_layout: list[ParagraphLayout] = field(default_factory=list)
+    # Ordered cell content (paragraphs and nested tables) with their top offsets
+    # relative to the cell's content origin (before the paragraph's space-before).
+    block_layouts: list[ParagraphLayout | TableLayout] = field(default_factory=list)
+    block_tops: list[float] = field(default_factory=list)
     borders: dict[str, BorderProperties] = field(default_factory=dict)
     shd: ShadingProperties = field(default_factory=ShadingProperties)
     v_align: str = "top"
@@ -114,13 +120,67 @@ class TableLayout:
     total_grid_width: float = 0.0
 
 
+# Guard against pathological nesting depth in malformed documents.
+_MAX_NESTING_DEPTH = 16
+
+
+def _table_style_chain(doc: Document, table: Table) -> list[Any]:
+    """Return the table style chain, most-derived first, following basedOn (cycle-safe)."""
+    styles = getattr(doc, "styles", None) or {}
+    style_id = getattr(table.tbl_pr, "style", "") or ""
+    st = styles.get(style_id)
+    if st is None or getattr(st, "style_type", "") != "table":
+        # Unknown / absent style: fall back to the document's default table style.
+        st = next(
+            (
+                s
+                for s in styles.values()
+                if getattr(s, "style_type", "") == "table" and getattr(s, "is_default", False)
+            ),
+            None,
+        )
+    chain: list[Any] = []
+    seen: set[str] = set()
+    while st is not None and st.id not in seen:
+        seen.add(st.id)
+        chain.append(st)
+        st = styles.get(st.based_on) if st.based_on else None
+    return chain
+
+
+def resolve_table_style_props(doc: Document, table: Table) -> dict[str, Any]:
+    """Resolve effective table borders and indent.
+
+    Style values cascade along ``basedOn``; direct ``w:tblPr`` values override
+    the style per border side, and a direct ``w:tblInd`` overrides the style indent.
+    """
+    borders: dict[str, BorderProperties] = {}
+    ind = 0.0
+    for st in reversed(_table_style_chain(doc, table)):
+        st_tbl_pr = getattr(st, "tbl_pr", None) or {}
+        borders.update(st_tbl_pr.get("borders") or {})
+        if st_tbl_pr.get("ind") is not None:
+            ind = float(st_tbl_pr["ind"])
+    borders.update(table.tbl_pr.borders or {})
+    direct_ind = getattr(table.tbl_pr, "ind", None)
+    if direct_ind is not None:
+        ind = float(direct_ind)
+    return {"borders": borders, "ind": ind}
+
+
 def layout_table(
     table: Table,
     container_width: float,
     doc: Document,
+    _depth: int = 0,
 ) -> TableLayout:
-    """Layout a Table block into geometric coordinates and paragraph portions."""
+    """Layout a Table block into geometric coordinates and paragraph portions.
+
+    Nested tables inside cells are laid out recursively with the cell's inner
+    width as their container width.
+    """
     container_width = max(20.0, container_width)
+    style_props = resolve_table_style_props(doc, table)
     total_raw_grid = sum(table.grid) if table.grid else container_width
     if total_raw_grid <= 0:
         total_raw_grid = container_width
@@ -180,6 +240,8 @@ def layout_table(
             inner_w = max(10.0, cell_w - c_mar_l - c_mar_r)
 
             p_layouts: list[ParagraphLayout] = []
+            items: list[ParagraphLayout | TableLayout] = []
+            item_tops: list[float] = []
             cur_p_y = c_mar_t
             for block in entry.cell.blocks:
                 if isinstance(block, Paragraph):
@@ -190,17 +252,27 @@ def layout_table(
                         doc=doc,
                     )
                     p_layouts.append(playout)
+                    items.append(playout)
+                    item_tops.append(cur_p_y - c_mar_t)
                     cur_p_y += (
                         playout.height
                         + playout.effective_space_before
                         + playout.effective_space_after
                     )
+                elif isinstance(block, Table) and _depth < _MAX_NESTING_DEPTH:
+                    inner_tl = layout_table(block, inner_w, doc, _depth=_depth + 1)
+                    # Keep the nested table inside its cell: clamp its indent so the
+                    # table never starts left of, or runs past, the cell's text box.
+                    inner_tl.x = min(max(inner_tl.x, 0.0), max(0.0, inner_w - inner_tl.width))
+                    items.append(inner_tl)
+                    item_tops.append(cur_p_y - c_mar_t)
+                    cur_p_y += inner_tl.height
 
             total_h = cur_p_y + c_mar_b
             cell_content_heights[id(entry.cell)] = total_h
 
             resolved_bds = resolve_cell_borders(
-                tbl_borders=table.tbl_pr.borders,
+                tbl_borders=style_props["borders"],
                 cell_borders=entry.cell.tc_pr.borders,
                 row_idx=r_idx,
                 col_idx=c0,
@@ -219,6 +291,8 @@ def layout_table(
                 width=cell_w,
                 height=total_h,
                 paragraphs_layout=p_layouts,
+                block_layouts=items,
+                block_tops=item_tops,
                 borders=resolved_bds,
                 shd=copy.deepcopy(entry.cell.tc_pr.shd),
                 v_align=entry.cell.tc_pr.v_align or "top",
@@ -308,7 +382,7 @@ def layout_table(
 
     return TableLayout(
         table=table,
-        x=0.0,
+        x=style_props["ind"],
         y=0.0,
         width=table_width,
         height=cur_y,
@@ -395,3 +469,29 @@ def split_table_for_page(
         total_grid_width=table_layout.total_grid_width,
     )
     return sliced, next_r
+
+
+def iter_table_paragraphs(
+    table_layout: TableLayout,
+    origin_x: float,
+    origin_y: float,
+) -> Iterator[tuple[Paragraph, ParagraphLayout, float, float]]:
+    """Yield ``(paragraph, layout, top, inner_x)`` for every paragraph in a table.
+
+    Recurses into nested tables. ``top`` is the paragraph's first-line origin
+    (after space-before) and ``inner_x`` the left edge of the cell's text box, both
+    in the same coordinate space as ``origin_x`` / ``origin_y`` (the table's origin).
+    """
+    for rl in table_layout.rows:
+        for cl in rl.cells:
+            inner_x = origin_x + cl.x + cl.mar_l
+            content_y = origin_y + cl.y + cl.content_offset_y + cl.mar_t
+            paras = iter([b for b in cl.cell.blocks if isinstance(b, Paragraph)])
+            for item, item_top in zip(cl.block_layouts, cl.block_tops):
+                if isinstance(item, TableLayout):
+                    yield from iter_table_paragraphs(item, inner_x + item.x, content_y + item_top)
+                    continue
+                para = next(paras, None)
+                if para is None:
+                    break
+                yield para, item, content_y + item_top + item.effective_space_before, inner_x

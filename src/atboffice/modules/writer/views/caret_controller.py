@@ -20,6 +20,7 @@ from atboffice.modules.writer.layout.portions import (
     Portion,
     measure_text_width,
 )
+from atboffice.modules.writer.layout.table_layout import iter_table_paragraphs
 from atboffice.modules.writer.models.document import (
     Document,
     Paragraph,
@@ -299,76 +300,52 @@ class CaretController(QObject):
                                 tl = frag.table_layout
                                 frag_x = page.body_left + col.left
                                 frag_y = page.body_top + col.top + frag.top
-                                for rl in tl.rows:
-                                    for cl in rl.cells:
-                                        mar_l = getattr(cl, "mar_l", 5.4)
-                                        mar_t = getattr(cl, "mar_t", 0.0)
-                                        cell_inner_x = frag_x + cl.x + mar_l
-                                        cur_p_y = frag_y + cl.y + cl.content_offset_y + mar_t
-                                        for block, playout in zip(
-                                            cl.cell.blocks, cl.paragraphs_layout
-                                        ):
-                                            p_top = cur_p_y + playout.effective_space_before
+                                for block, playout, p_top, cell_inner_x in iter_table_paragraphs(
+                                    tl, frag_x + tl.x, frag_y
+                                ):
+                                    if block.id == target_pid:
+                                        for line in playout.lines:
+                                            line_y = p_top + line.top
+                                            line_h = max(line.height, 14.0)
+                                            if not line.portions:
+                                                return (
+                                                    p_idx,
+                                                    QPointF(
+                                                        cell_inner_x + line.indent_left,
+                                                        line_y,
+                                                    ),
+                                                    line_h,
+                                                )
+                                            l_start = line.portions[0].char_offset
+                                            l_end = (
+                                                line.portions[-1].char_offset
+                                                + line.portions[-1].length
+                                            )
                                             if (
-                                                isinstance(block, Paragraph)
-                                                and block.id == target_pid
+                                                l_start <= target_off <= l_end
+                                                or line is playout.lines[-1]
                                             ):
-                                                for line in playout.lines:
-                                                    line_y = p_top + line.top
-                                                    line_h = max(line.height, 14.0)
-                                                    if not line.portions:
+                                                x = cell_inner_x + line.indent_left
+                                                for po in line.portions:
+                                                    if target_off >= po.char_offset + po.length:
+                                                        x += po.width
+                                                    else:
+                                                        sub = max(0, target_off - po.char_offset)
+                                                        is_b = getattr(po, "bold", False)
+                                                        is_i = getattr(po, "italic", False)
+                                                        x += measure_text_width(
+                                                            po.text[:sub],
+                                                            po.font_size,
+                                                            po.font_family,
+                                                            bold=is_b,
+                                                            italic=is_i,
+                                                        )
                                                         return (
                                                             p_idx,
-                                                            QPointF(
-                                                                cell_inner_x + line.indent_left,
-                                                                line_y,
-                                                            ),
+                                                            QPointF(x, line_y),
                                                             line_h,
                                                         )
-                                                    l_start = line.portions[0].char_offset
-                                                    l_end = (
-                                                        line.portions[-1].char_offset
-                                                        + line.portions[-1].length
-                                                    )
-                                                    if (
-                                                        l_start <= target_off <= l_end
-                                                        or line is playout.lines[-1]
-                                                    ):
-                                                        x = cell_inner_x + line.indent_left
-                                                        for po in line.portions:
-                                                            if (
-                                                                target_off
-                                                                >= po.char_offset + po.length
-                                                            ):
-                                                                x += po.width
-                                                            else:
-                                                                sub = max(
-                                                                    0, target_off - po.char_offset
-                                                                )
-                                                                is_b = getattr(
-                                                                    po, "bold", False
-                                                                )
-                                                                is_i = getattr(
-                                                                    po, "italic", False
-                                                                )
-                                                                x += measure_text_width(
-                                                                    po.text[:sub],
-                                                                    po.font_size,
-                                                                    po.font_family,
-                                                                    bold=is_b,
-                                                                    italic=is_i,
-                                                                )
-                                                                return (
-                                                                    p_idx,
-                                                                    QPointF(x, line_y),
-                                                                    line_h,
-                                                                )
-                                                        return p_idx, QPointF(x, line_y), line_h
-                                            cur_p_y = (
-                                                p_top
-                                                + playout.height
-                                                + playout.effective_space_after
-                                            )
+                                                return p_idx, QPointF(x, line_y), line_h
                             continue
                         if frag.paragraph.id != target_pid:
                             continue
@@ -452,7 +429,7 @@ class CaretController(QObject):
         if best_frag.paragraph is None:
             if best_frag.table_layout is not None:
                 tl = best_frag.table_layout
-                frag_x = page.body_left + best_col.left
+                frag_x = page.body_left + best_col.left + tl.x
                 frag_y = page.body_top + best_col.top + best_frag.top
                 target_x = point_pt.x()
                 for rl in tl.rows:
