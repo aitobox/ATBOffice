@@ -131,14 +131,14 @@ def _table_style_chain(doc: Document, table: Table) -> list[Any]:
     st = styles.get(style_id)
     if st is None or getattr(st, "style_type", "") != "table":
         # Unknown / absent style: fall back to the document's default table style.
-        st = next(
-            (
-                s
-                for s in styles.values()
-                if getattr(s, "style_type", "") == "table" and getattr(s, "is_default", False)
-            ),
-            None,
-        )
+        # Prefer the document's own default over the builtin TableNormal.
+        defaults = [
+            s
+            for s in styles.values()
+            if getattr(s, "style_type", "") == "table" and getattr(s, "is_default", False)
+        ]
+        defaults.sort(key=lambda s: bool(getattr(s, "builtin", True)))
+        st = defaults[0] if defaults else None
     chain: list[Any] = []
     seen: set[str] = set()
     while st is not None and st.id not in seen:

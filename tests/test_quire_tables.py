@@ -200,3 +200,18 @@ def test_iter_table_paragraphs_reaches_nested_paragraphs_in_order() -> None:
     # Paragraph after the nested table sits below it; nested text is further right.
     assert found[1][3] > found[0][3]
     assert found[0][3] >= 20.0
+
+
+def test_unknown_style_falls_back_to_document_default_table_style() -> None:
+    doc = Document()
+    doc.styles["DocDefault"] = Style(
+        id="DocDefault",
+        name="Normal Table",
+        style_type="table",
+        builtin=False,
+        is_default=True,
+        tbl_pr={"ind": 5.0},
+    )
+    tbl = _table([_para("x")])
+    tbl.tbl_pr.style = "MissingStyle"
+    assert resolve_table_style_props(doc, tbl)["ind"] == pytest.approx(5.0)
