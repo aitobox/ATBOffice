@@ -363,6 +363,7 @@ class TableProperties:
     jc: str = "left"  # "left", "center", "right"
     w: float = 0.0
     w_type: str = "auto"  # "auto", "dxa", "pct"
+    ind: float | None = None  # w:tblInd (pt); None = inherit from table style
     borders: dict[str, BorderProperties] = field(default_factory=dict)
     cell_mar: dict[str, float] = field(
         default_factory=lambda: {"t": 0.0, "b": 0.0, "l": 5.4, "r": 5.4}

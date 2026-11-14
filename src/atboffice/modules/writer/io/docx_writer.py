@@ -838,6 +838,12 @@ class DocxWriter:
             w_elem.set(_w("w"), str(pt_to_dxa(tbl.tbl_pr.w)))
             w_elem.set(_w("type"), tbl.tbl_pr.w_type)
 
+        # Table Indent (w:tblInd)
+        if tbl.tbl_pr.ind is not None:
+            ind_elem = ET.SubElement(tbl_pr_elem, _w("tblInd"))
+            ind_elem.set(_w("w"), str(pt_to_dxa(tbl.tbl_pr.ind)))
+            ind_elem.set(_w("type"), "dxa")
+
         # Table Cell Margins (w:tblCellMar)
         if tbl.tbl_pr.cell_mar:
             mar_elem = ET.SubElement(tbl_pr_elem, _w("tblCellMar"))
