@@ -27,7 +27,7 @@ MALFORMED_DIR = Path(__file__).resolve().parents[2] / "docs" / "powerpoint" / "m
 def test_malformed_pptx_opens_renders_and_shows_warning_banner(
     qtbot, tmp_path, pptx_name: str, min_warnings: int
 ):
-    """All malformed fixtures open cleanly, render on canvas, roundtrip, and show non-blocking UI."""
+    """Malformed fixtures open cleanly, render, roundtrip, and show banner UI."""
     pptx_path = MALFORMED_DIR / pptx_name
     assert pptx_path.is_file(), f"Missing malformed fixture: {pptx_path}"
 

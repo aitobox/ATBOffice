@@ -510,7 +510,11 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                     round(avail_w, 1),
                     round(avail_h, 1),
                 )
-                cached = getattr(autofit_cache_host, "_cached_autofit", None) if autofit_cache_host is not None else None
+                cached = (
+                    getattr(autofit_cache_host, "_cached_autofit", None)
+                    if autofit_cache_host is not None
+                    else None
+                )
                 if cached is not None and cached[0] == cache_key:
                     solved_scale, solved_red = float(cached[1]), float(cached[2])
                 else:

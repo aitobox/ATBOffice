@@ -1,4 +1,4 @@
-"""Generate deterministic malformed .pptx regression fixtures under tests/docs/powerpoint/malformed/."""
+"""Generate deterministic malformed .pptx fixtures under tests/docs/powerpoint/malformed/."""
 
 from __future__ import annotations
 
@@ -15,7 +15,11 @@ from atboffice.modules.presentation.models.text import Paragraph, Run, TextBody
 OUT_DIR = Path(__file__).resolve().parents[1] / "tests" / "docs" / "powerpoint" / "malformed"
 
 
-def _rewrite_zip(raw_bytes: bytes, replacements: dict[str, bytes], additions: dict[str, bytes] | None = None) -> bytes:
+def _rewrite_zip(
+    raw_bytes: bytes,
+    replacements: dict[str, bytes],
+    additions: dict[str, bytes] | None = None,
+) -> bytes:
     """Return deterministic ZIP bytes with specified parts replaced or added."""
     out = io.BytesIO()
     with zipfile.ZipFile(io.BytesIO(raw_bytes), "r") as zin, zipfile.ZipFile(

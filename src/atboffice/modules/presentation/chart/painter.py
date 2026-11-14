@@ -104,7 +104,8 @@ class ChartPainter:
                 legend_items.append((cat, col))
         else:
             for si, s in enumerate(chart.series):
-                legend_items.append((str(s.name) if s.name is not None else f"Series {si+1}", get_series_color(s, si)))
+                s_name = str(s.name) if s.name is not None else f"Series {si+1}"
+                legend_items.append((s_name, get_series_color(s, si)))
 
         plot_area = draw_legend(
             painter,

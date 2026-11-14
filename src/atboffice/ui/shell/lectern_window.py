@@ -2059,7 +2059,7 @@ class LecternWindow(BaseOfficeWindow):
                 act.setEnabled(is_diagram)
 
     def _on_slide_changed(self, _index: int = 0) -> None:
-        """Update slide indicator and contextual state when navigating slides without marking dirty."""
+        """Update slide indicator on navigation without marking dirty."""
         if hasattr(self, "lbl_status_slide"):
             ws = self.presentation_view.workspace
             curr = getattr(ws, "current_slide_index", 0) + 1

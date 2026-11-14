@@ -24,7 +24,7 @@ from atboffice.ui.shell.lectern_window import LecternWindow
 
 
 def test_transform_handle_right_click_no_typeerror(qapp) -> None:
-    """Right/middle-clicking or moving/releasing non-left button on TransformHandleItem must not raise TypeError."""
+    """Non-left button events on TransformHandleItem must not raise TypeError."""
     slide = Slide(id="s1")
     shape = Shape(id="sh1", x=100.0, y=100.0, w=120.0, h=80.0, fill=Fill.solid("#FFFFFF"))
     slide.add_shape(shape)

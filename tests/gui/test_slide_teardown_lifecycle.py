@@ -1,4 +1,4 @@
-"""GUI lifecycle tests for SlideScene teardown, text editor focus, and LecternWindow open rollback."""
+"""GUI lifecycle tests for SlideScene teardown, text focus, and open rollback."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from atboffice.ui.shell.lectern_window import LecternWindow
 
 
 def test_load_slide_while_text_editor_focused_no_crash_or_runtimeerror(qapp) -> None:
-    """Switching/reloading slides while ShapeTextEditorItem owns focus must safely finish editing."""
+    """Reloading slides while ShapeTextEditorItem owns focus finishes editing safely."""
     slide1 = Slide(id="s1")
     slide1.add_shape(
         Shape(id="sh1", x=40.0, y=40.0, w=200.0, h=80.0, text=TextBody.from_text("Hello"))
@@ -102,7 +102,7 @@ def test_focus_out_after_scene_clear_is_noop(qapp) -> None:
 def test_lectern_do_open_closes_editing_and_preserves_clean_state_on_failure(
     qapp, tmp_path: Path
 ) -> None:
-    """do_open must end active text editing cleanly and leave previous state intact if open fails."""
+    """do_open ends active editing cleanly and preserves prior state if open fails."""
     win = LecternWindow(file_path=None)
     try:
         pres = Presentation.create_new()

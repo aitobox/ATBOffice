@@ -95,7 +95,9 @@ def test_read_pptx_isolates_broken_chart_and_populates_load_warnings():
     restored = read_pptx(corrupt_bytes)
     assert restored.props.get("_source_package") is not None
     assert len(restored.slides) == 1
-    assert any(s.text and "Surviving Text" in s.text.to_plain_text() for s in restored.slides[0].shapes)
+    assert any(
+        s.text and "Surviving Text" in s.text.to_plain_text() for s in restored.slides[0].shapes
+    )
     assert any(isinstance(w, LoadWarning) and w.scope == "chart" for w in restored.load_warnings)
 
 
@@ -146,7 +148,7 @@ def test_read_pptx_isolates_corrupt_slide_xml_while_loading_valid_slides():
 
 
 def test_source_package_tolerates_corrupt_optional_zip_member():
-    """SourcePackage.from_bytes isolates a corrupt optional ZIP stream and records _corrupt_parts."""
+    """SourcePackage.from_bytes isolates corrupt optional ZIP streams."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("[Content_Types].xml", '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>')

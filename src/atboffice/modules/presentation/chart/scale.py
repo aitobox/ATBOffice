@@ -190,7 +190,13 @@ def scale(
             break
         cur_v = nxt
 
-    return {"min": min_v, "max": max_v, "ticks": ticks_list or [min_v, max_v], "step": step, "log": None}
+    return {
+        "min": min_v,
+        "max": max_v,
+        "ticks": ticks_list or [min_v, max_v],
+        "step": step,
+        "log": None,
+    }
 
 
 def format_val(v: float | None, code: str | None = None) -> str:

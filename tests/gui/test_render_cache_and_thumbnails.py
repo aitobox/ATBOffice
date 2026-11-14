@@ -14,7 +14,7 @@ from atboffice.modules.presentation.models.shape import Fill, Line, Shape
 from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.models.text import Paragraph, Run, TextBody
 from atboffice.modules.presentation.slideshow.transitions import render_slide_to_image
-from atboffice.modules.presentation.views import background_renderer, text_editor
+from atboffice.modules.presentation.views import background_renderer
 from atboffice.modules.presentation.views.shape_item import ShapeGraphicsItem
 from atboffice.modules.presentation.views.text_editor import (
     ShapeTextEditorItem,
@@ -178,7 +178,17 @@ def test_background_renderer_zero_size_rect_and_cache_clear(qapp):
     # Also check offscreen render helpers handle empty/degenerate slides safely
     pres = Presentation.create_new(title="Deg", empty=True)
     sl = Slide(id="s1", layout="blank")
-    sl.add_shape(Shape(id="tb1", type="table", x=10, y=10, w=100, h=60, tbl={"cols": [0.0], "rows": [{"cells": []}]}))
+    sl.add_shape(
+        Shape(
+            id="tb1",
+            type="table",
+            x=10,
+            y=10,
+            w=100,
+            h=60,
+            tbl={"cols": [0.0], "rows": [{"cells": []}]},
+        )
+    )
     pres.slides.append(sl)
     assert render_slide_thumbnail(sl, pres, width=0).width() >= 1
     assert render_slide_to_image(sl, pres, width=0, height=0).width() >= 1
