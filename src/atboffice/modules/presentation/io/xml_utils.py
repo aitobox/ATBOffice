@@ -336,9 +336,9 @@ def transform_to_xml(
         if getattr(shape, "rot", 0.0):
             rot_val = int(round((((shape.rot % 360) + 360) % 360) * 60000))
             attrs.append(f'rot="{rot_val}"')
-        if getattr(shape, "flipH", False):
+        if getattr(shape, "flip_h", False):
             attrs.append('flipH="1"')
-        if getattr(shape, "flipV", False):
+        if getattr(shape, "flip_v", False):
             attrs.append('flipV="1"')
 
     attr_str = f" {' '.join(attrs)}" if attrs else ""

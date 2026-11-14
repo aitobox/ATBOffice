@@ -40,6 +40,7 @@ from atboffice.modules.presentation.views.comment_overlay import (
     CommentCardWidget,
     CommentMarkerItem,
 )
+from atboffice.modules.presentation.views.geometry_helper import connector_local_endpoints
 from atboffice.modules.presentation.views.shape_item import ShapeGraphicsItem
 from atboffice.modules.presentation.views.smart_guides import SmartGuideController
 
@@ -234,6 +235,10 @@ class SlideScene(QGraphicsScene):
 
             needs_update = False
             adj = item.model.adj or {}
+            # Unrouted connectors: derive the free ends from the box and its flips.
+            (ls_x, ls_y), (le_x, le_y) = connector_local_endpoints(
+                item.model.w, item.model.h, item.model.flip_h, item.model.flip_v
+            )
 
             # Start point
             s_pt = None
@@ -250,7 +255,11 @@ class SlideScene(QGraphicsScene):
                             needs_update = True
             if s_pt is None:
                 p1 = adj.get("p1")
-                s_pt = (float(p1[0]), float(p1[1])) if p1 else (item.model.x, item.model.y)
+                s_pt = (
+                    (float(p1[0]), float(p1[1]))
+                    if p1
+                    else (item.model.x + ls_x, item.model.y + ls_y)
+                )
 
             # End point
             e_pt = None
@@ -270,7 +279,7 @@ class SlideScene(QGraphicsScene):
                 e_pt = (
                     (float(p2[0]), float(p2[1]))
                     if p2
-                    else (item.model.x + item.model.w, item.model.y + item.model.h)
+                    else (item.model.x + le_x, item.model.y + le_y)
                 )
 
             if needs_update:
