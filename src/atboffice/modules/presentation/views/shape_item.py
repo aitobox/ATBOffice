@@ -29,7 +29,9 @@ from atboffice.modules.presentation.models.shape import Shape
 from atboffice.modules.presentation.models.text import TextBody
 from atboffice.modules.presentation.views.geometry_helper import (
     calculate_connector_route,
+    connector_local_endpoints,
     create_shape_path,
+    flip_transform,
     get_adjustment_handles,
     get_shape_connection_sites,
 )
@@ -286,8 +288,9 @@ class ShapeGraphicsItem(QGraphicsObject):
                 ex = float(p2[0]) - self.model.x
                 ey = float(p2[1]) - self.model.y
             else:
-                sx, sy = 0.0, 0.0
-                ex, ey = w, h
+                (sx, sy), (ex, ey) = connector_local_endpoints(
+                    w, h, self.model.flip_h, self.model.flip_v
+                )
 
             for hd in self._handles:
                 if hd.handle_type == HandleType.START:
@@ -405,10 +408,13 @@ class ShapeGraphicsItem(QGraphicsObject):
                 painter.drawRect(QRectF(0.0, 0.0, w, h))
             return
 
+        # Flips mirror the geometry (and its shadow) inside the box; text stays upright.
+        flip_xf = flip_transform(w, h, self.model.flip_h, self.model.flip_v)
+
         # 1. Shadow effect
         if self.model.shadow:
-            sh_path = create_shape_path(
-                self.model.geom, w, h, self.model.adj, self.model.custom_path
+            sh_path = flip_xf.map(
+                create_shape_path(self.model.geom, w, h, self.model.adj, self.model.custom_path)
             )
             painter.save()
             sh_dist = self.model.shadow.dist
@@ -424,8 +430,8 @@ class ShapeGraphicsItem(QGraphicsObject):
             painter.restore()
 
         # 2. Main shape path
-        path = create_shape_path(
-            self.model.geom, w, h, self.model.adj, self.model.custom_path
+        path = flip_xf.map(
+            create_shape_path(self.model.geom, w, h, self.model.adj, self.model.custom_path)
         )
 
         # Fill
@@ -630,7 +636,13 @@ class ShapeGraphicsItem(QGraphicsObject):
             qimg = QImage.fromData(poster_bytes)
             if not qimg.isNull():
                 pix = QPixmap.fromImage(qimg)
-                painter.drawPixmap(QRectF(0.0, 0.0, w, h).toRect(), pix)
+                painter.save()
+                painter.setTransform(
+                    flip_transform(w, h, self.model.flip_h, self.model.flip_v), True
+                )
+                painter.setClipRect(QRectF(0.0, 0.0, w, h), Qt.ClipOperation.IntersectClip)
+                painter.drawPixmap(self._image_target_rect(w, h), pix, QRectF(pix.rect()))
+                painter.restore()
                 drawn_image = True
 
         if not drawn_image:
@@ -655,6 +667,27 @@ class ShapeGraphicsItem(QGraphicsObject):
         # 2. Multimedia Playback Controls Overlay
         if m_item and (getattr(m_item, "is_video", False) or getattr(m_item, "is_audio", False)):
             self._paint_playback_controls(painter, w, h)
+
+    def _image_target_rect(self, w: float, h: float) -> QRectF:
+        """Where the whole picture lands so its srcRect crop fills the frame.
+
+        The visible fraction (1 - l - r, 1 - t - b) is stretched to the frame and the
+        rest falls outside it (or, for negative crops, leaves padding inside it).
+        """
+        crop = self.model.crop if isinstance(self.model.crop, dict) else None
+        if not crop:
+            return QRectF(0.0, 0.0, w, h)
+        cl = float(crop.get("l", 0.0) or 0.0)
+        ct = float(crop.get("t", 0.0) or 0.0)
+        cr = float(crop.get("r", 0.0) or 0.0)
+        cb = float(crop.get("b", 0.0) or 0.0)
+        vis_w = 1.0 - cl - cr
+        vis_h = 1.0 - ct - cb
+        if vis_w <= 0.001 or vis_h <= 0.001:
+            return QRectF(0.0, 0.0, w, h)
+        full_w = w / vis_w
+        full_h = h / vis_h
+        return QRectF(-cl * full_w, -ct * full_h, full_w, full_h)
 
     def _draw_speaker_icon(self, painter: QPainter, w: float, h: float) -> None:
         """Draw classic audio speaker symbol with sound waves."""
@@ -923,7 +956,9 @@ class ShapeGraphicsItem(QGraphicsObject):
 
             kw = max(1.0, kid.w)
             kh = max(1.0, kid.h)
-            path = create_shape_path(kid.geom, kw, kh, kid.adj, kid.custom_path)
+            path = flip_transform(kw, kh, kid.flip_h, kid.flip_v).map(
+                create_shape_path(kid.geom, kw, kh, kid.adj, kid.custom_path)
+            )
 
             if kid.fill and kid.fill.type == "solid":
                 fc = self._resolve_color(kid.fill.color)
@@ -1093,6 +1128,9 @@ class ShapeGraphicsItem(QGraphicsObject):
         self.model.w = round(w, 2)
         self.model.h = round(h, 2)
         self.model.rot = 0.0
+        # The route already runs from start to end, so a parsed flip would mirror it twice.
+        self.model.flip_h = False
+        self.model.flip_v = False
         self.setPos(min_x, min_y)
         self.setRotation(0.0)
 

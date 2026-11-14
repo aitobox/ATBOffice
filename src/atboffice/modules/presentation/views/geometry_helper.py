@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from typing import Any
 
-from PySide6.QtGui import QPainterPath
+from PySide6.QtGui import QPainterPath, QTransform
 
 
 def clamp(val: float, min_val: float, max_val: float) -> float:
@@ -151,12 +152,23 @@ def create_shape_path(
                         float(cmd[3]) * sx, float(cmd[4]) * sy,
                     )
                 elif op == "A" and len(cmd) >= 5:
-                    wr = float(cmd[1]) * sx
-                    hr = float(cmd[2]) * sy
+                    # DrawingML arcTo starts at the current point, which lies on the
+                    # ellipse at stAng (degrees, clockwise in y-down space); the
+                    # ellipse centre is derived from it. Qt angles run
+                    # counter-clockwise, hence the sign flips.
+                    wr = abs(float(cmd[1]) * sx)
+                    hr = abs(float(cmd[2]) * sy)
                     st_ang = float(cmd[3])
                     sw_ang = float(cmd[4])
                     cur = path.currentPosition()
-                    path.arcTo(cur.x() - wr, cur.y() - hr, wr * 2, hr * 2, -st_ang, -sw_ang)
+                    st_rad = math.radians(st_ang)
+                    cx = cur.x() - wr * math.cos(st_rad)
+                    cy = cur.y() - hr * math.sin(st_rad)
+                    if wr <= 0.0 or hr <= 0.0:
+                        end_rad = math.radians(st_ang + sw_ang)
+                        path.lineTo(cx + wr * math.cos(end_rad), cy + hr * math.sin(end_rad))
+                    else:
+                        path.arcTo(cx - wr, cy - hr, wr * 2, hr * 2, -st_ang, -sw_ang)
                 elif op == "Z":
                     path.closeSubpath()
         return path
@@ -270,6 +282,35 @@ def create_shape_path(
         path.addRect(0.0, 0.0, w, h)
 
     return path
+
+
+def flip_transform(w: float, h: float, flip_h: bool, flip_v: bool) -> QTransform:
+    """Mirror transform for a shape's local box (applied before rotation).
+
+    flipH reflects across the vertical centre line and flipV across the horizontal
+    one, so the box (0, 0, w, h) maps onto itself.
+    """
+    return QTransform(
+        -1.0 if flip_h else 1.0,
+        0.0,
+        0.0,
+        -1.0 if flip_v else 1.0,
+        float(w) if flip_h else 0.0,
+        float(h) if flip_v else 0.0,
+    )
+
+
+def connector_local_endpoints(
+    w: float, h: float, flip_h: bool = False, flip_v: bool = False
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    """Local start/end points of an unrouted connector honoring its flips.
+
+    An unflipped connector runs from the top-left to the bottom-right corner of its
+    box; each flip mirrors both ends along that axis.
+    """
+    sx, ex = (w, 0.0) if flip_h else (0.0, w)
+    sy, ey = (h, 0.0) if flip_v else (0.0, h)
+    return (sx, sy), (ex, ey)
 
 
 def get_shape_connection_sites(

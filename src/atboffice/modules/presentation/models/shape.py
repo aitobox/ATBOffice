@@ -206,6 +206,8 @@ class Shape:
     w: float = 100.0
     h: float = 100.0
     rot: float = 0.0
+    flip_h: bool = False
+    flip_v: bool = False
     fill: Fill = field(default_factory=Fill)
     line: Line = field(default_factory=Line)
     shadow: Shadow | None = None
@@ -288,6 +290,10 @@ class Shape:
             "fill": self.fill.to_dict(),
             "line": self.line.to_dict(),
         }
+        if self.flip_h:
+            d["flipH"] = True
+        if self.flip_v:
+            d["flipV"] = True
         if self.shadow:
             d["shadow"] = self.shadow.to_dict()
         if self.placeholder:
@@ -334,6 +340,8 @@ class Shape:
             w=float(data.get("w", 100.0)),
             h=float(data.get("h", 100.0)),
             rot=float(data.get("rot", 0.0)),
+            flip_h=bool(data.get("flipH", False)),
+            flip_v=bool(data.get("flipV", False)),
             fill=Fill.from_dict(data.get("fill")),
             line=Line.from_dict(data.get("line")),
             shadow=Shadow.from_dict(data.get("shadow")),

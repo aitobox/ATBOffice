@@ -129,6 +129,19 @@ def chart_frame_to_xml(
     return f"<p:graphicFrame>{nv_graphic_frame}{xfrm_xml}{graphic}</p:graphicFrame>"
 
 
+def _src_rect_xml(shape: Shape) -> str:
+    """Serialize a picture's crop fractions as <a:srcRect> (1/1000 percent)."""
+    crop = shape.crop if isinstance(shape.crop, dict) else None
+    if not crop:
+        return ""
+    attrs = ""
+    for key in ("l", "t", "r", "b"):
+        val = int(round(float(crop.get(key, 0.0) or 0.0) * 100000))
+        if val:
+            attrs += f' {key}="{val}"'
+    return f"<a:srcRect{attrs}/>" if attrs else ""
+
+
 def picture_to_xml(
     shape: Shape,
     shape_id: str,
@@ -142,7 +155,7 @@ def picture_to_xml(
     nv_pic_pr = f"<p:nvPicPr>{c_nv_pr}{c_nv_pic}{nv_pr}</p:nvPicPr>"
 
     blip_fill = (
-        f'<p:blipFill><a:blip r:embed="{embed_rid}"/>'
+        f'<p:blipFill><a:blip r:embed="{embed_rid}"/>{_src_rect_xml(shape)}'
         "<a:stretch><a:fillRect/></a:stretch></p:blipFill>"
     )
     sp_pr = shape_properties_to_xml(shape, design=design, tag="p:spPr")

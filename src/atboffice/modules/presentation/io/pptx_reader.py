@@ -135,6 +135,39 @@ def _get_attr(elem: ET.Element | None, name: str, default: str | None = None) ->
     return default
 
 
+def _mirror_in_group(
+    shape: Shape,
+    gx: float,
+    gy: float,
+    gw: float,
+    gh: float,
+    flip_h: bool,
+    flip_v: bool,
+) -> None:
+    """Bake a flipped group's mirror into a child shape (absolute coordinates).
+
+    The child's box is reflected across the group's vertical/horizontal centre line,
+    leaf shapes toggle their own flip flag, and rotation is negated because a single
+    reflection reverses the rotation direction (two reflections are a 180° turn and
+    keep it). Nested groups recurse so every descendant (also stored in absolute
+    coordinates) is reflected once.
+    """
+    if flip_h:
+        shape.x = round(gx + gw - (shape.x - gx) - shape.w, 2)
+    if flip_v:
+        shape.y = round(gy + gh - (shape.y - gy) - shape.h, 2)
+    if shape.rot and flip_h != flip_v:
+        shape.rot = round((360.0 - shape.rot) % 360.0, 2)
+    if shape.type == "group" and shape.kids:
+        for kid in shape.kids:
+            _mirror_in_group(kid, gx, gy, gw, gh, flip_h, flip_v)
+        return
+    if flip_h:
+        shape.flip_h = not shape.flip_h
+    if flip_v:
+        shape.flip_v = not shape.flip_v
+
+
 @dataclass
 class PlaceholderTemplate:
     type: str
@@ -1075,6 +1108,7 @@ class PptxReader:
         sp_pr = _get_child(elem, "spPr")
         has_xfrm = sp_pr is not None and _get_child(sp_pr, "xfrm") is not None
         x, y, w, h, rot = self._parse_transform(sp_pr)
+        flip_h, flip_v = self._parse_flip(sp_pr)
         geom, custom_path = self._parse_geometry(sp_pr)
 
         # Match placeholder in layout / master if this shape is a placeholder
@@ -1240,6 +1274,8 @@ class PptxReader:
             w=w,
             h=h,
             rot=rot,
+            flip_h=flip_h,
+            flip_v=flip_v,
             fill=fill,
             line=line,
             shadow=shadow,
@@ -1268,10 +1304,12 @@ class PptxReader:
 
         sp_pr = _get_child(elem, "spPr")
         x, y, w, h, rot = self._parse_transform(sp_pr)
+        flip_h, flip_v = self._parse_flip(sp_pr)
 
         # 1. Poster image embed relationship from <p:blipFill>/<a:blip>
         blip_fill = _get_child(elem, "blipFill")
         blip = _get_child(blip_fill, "blip") if blip_fill is not None else None
+        crop = self._parse_src_rect(blip_fill)
         embed_id = ""
         if blip is not None:
             for k, v in blip.attrib.items():
@@ -1384,11 +1422,36 @@ class PptxReader:
             w=w,
             h=h,
             rot=rot,
+            flip_h=flip_h,
+            flip_v=flip_v,
             fill=Fill.none(),
             line=Line.none(),
             media=media_key,
             media_item=media_item,
+            crop=crop,
         )
+
+    @staticmethod
+    def _parse_src_rect(blip_fill: ET.Element | None) -> dict[str, float] | None:
+        """Parse <a:srcRect l t r b> (1/1000 percent) into crop fractions.
+
+        Values may be negative (the picture is padded rather than cropped). Returns
+        None when no edge is cropped or the crop would leave nothing visible.
+        """
+        src_rect = _get_child(blip_fill, "srcRect") if blip_fill is not None else None
+        if src_rect is None:
+            return None
+        crop: dict[str, float] = {}
+        for key in ("l", "t", "r", "b"):
+            try:
+                crop[key] = float(_get_attr(src_rect, key, "0") or 0) / 100000.0
+            except (TypeError, ValueError):
+                crop[key] = 0.0
+        if not any(crop.values()):
+            return None
+        if crop["l"] + crop["r"] >= 1.0 or crop["t"] + crop["b"] >= 1.0:
+            return None
+        return crop
 
     def _parse_graphic_frame(
         self,
@@ -1619,6 +1682,7 @@ class PptxReader:
 
         grp_sp_pr = _get_child(elem, "grpSpPr")
         x, y, w, h, rot = self._parse_transform(grp_sp_pr)
+        grp_flip_h, grp_flip_v = self._parse_flip(grp_sp_pr)
 
         # Inherit or parse group fill
         theme_colors, theme_fmt, clr_map, clr_map_ovr = self._resolve_theme_context(
@@ -1651,7 +1715,7 @@ class PptxReader:
         kids: list[Shape] = []
         for child in elem:
             tag = _local_tag(child.tag)
-            if tag in ("sp", "pic", "graphicFrame", "grpSp"):
+            if tag in ("sp", "cxnSp", "pic", "graphicFrame", "grpSp"):
                 kid_shape = self._parse_shape(
                     child,
                     slide_path,
@@ -1666,6 +1730,8 @@ class PptxReader:
                         kid_shape.y = round(y + (kid_shape.y - chy) * sy, 2)
                         kid_shape.w = round(kid_shape.w * sx, 2)
                         kid_shape.h = round(kid_shape.h * sy, 2)
+                    if grp_flip_h or grp_flip_v:
+                        _mirror_in_group(kid_shape, x, y, w, h, grp_flip_h, grp_flip_v)
                     kids.append(kid_shape)
 
         return Shape(
@@ -1708,6 +1774,17 @@ class PptxReader:
         rot = round(float(rot_val) / 60000.0, 2) if rot_val else 0.0
 
         return (x, y, w, h, rot)
+
+    @staticmethod
+    def _parse_flip(xfrm_parent: ET.Element | None) -> tuple[bool, bool]:
+        """Return (flipH, flipV) from the <a:xfrm> child of spPr/grpSpPr."""
+        xfrm = _get_child(xfrm_parent, "xfrm") if xfrm_parent is not None else None
+        if xfrm is None:
+            return False, False
+        return (
+            _get_attr(xfrm, "flipH", "0") in ("1", "true"),
+            _get_attr(xfrm, "flipV", "0") in ("1", "true"),
+        )
 
     def _parse_geometry(self, sp_pr: ET.Element | None) -> tuple[str, dict[str, Any] | None]:
         """Parse preset geometry name or DrawingML a:custGeom custom path."""
@@ -1753,22 +1830,28 @@ class PptxReader:
         if path_lst is None:
             return None
 
+        # Path coordinates live in each path's own (w, h) space, which may be tiny
+        # (e.g. w="100"): convert without emu_to_pt's 0.01 pt rounding, which would
+        # collapse such paths. The renderer rescales (w, h) to the shape box.
+        def to_pt(val: float) -> float:
+            return val / EMUS_PER_PT
+
         paths: list[dict[str, Any]] = []
         for p_elem in _get_children(path_lst, "path"):
             pw_str = _get_attr(p_elem, "w")
             ph_str = _get_attr(p_elem, "h")
             pw = float(pw_str) if pw_str else ext_w_emu
             ph = float(ph_str) if ph_str else ext_h_emu
-            pw_pt = emu_to_pt(pw, default=ext_w_emu / EMUS_PER_PT if ext_w_emu else 100.0)
-            ph_pt = emu_to_pt(ph, default=ext_h_emu / EMUS_PER_PT if ext_h_emu else 100.0)
+            pw_pt = to_pt(pw) if pw > 0 else 100.0
+            ph_pt = to_pt(ph) if ph > 0 else 100.0
 
             cmds: list[list[Any]] = []
             for cmd_elem in p_elem:
                 tag = _local_tag(cmd_elem.tag)
                 pts: list[tuple[float, float]] = []
                 for pt_elem in _get_children(cmd_elem, "pt"):
-                    px = emu_to_pt(resolve_val(_get_attr(pt_elem, "x")))
-                    py = emu_to_pt(resolve_val(_get_attr(pt_elem, "y")))
+                    px = to_pt(resolve_val(_get_attr(pt_elem, "x")))
+                    py = to_pt(resolve_val(_get_attr(pt_elem, "y")))
                     pts.append((px, py))
 
                 if tag == "moveTo" and pts:
@@ -1790,8 +1873,8 @@ class PptxReader:
                 elif tag == "quadBezTo" and len(pts) >= 2:
                     cmds.append(["Q", pts[0][0], pts[0][1], pts[1][0], pts[1][1]])
                 elif tag == "arcTo":
-                    wr = emu_to_pt(resolve_val(_get_attr(cmd_elem, "wR")))
-                    hr = emu_to_pt(resolve_val(_get_attr(cmd_elem, "hR")))
+                    wr = to_pt(resolve_val(_get_attr(cmd_elem, "wR")))
+                    hr = to_pt(resolve_val(_get_attr(cmd_elem, "hR")))
                     st_ang = resolve_val(_get_attr(cmd_elem, "stAng")) / 60000.0
                     sw_ang = resolve_val(_get_attr(cmd_elem, "swAng")) / 60000.0
                     cmds.append(["A", wr, hr, st_ang, sw_ang])

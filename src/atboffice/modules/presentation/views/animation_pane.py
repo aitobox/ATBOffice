@@ -382,14 +382,18 @@ class AnimationPane(QWidget):
             if a.id == self._selected_anim_id:
                 target_row = i
 
-        self._updating_ui = False
-
+        # Restore the list's current row while _updating_ui is still set: a refresh
+        # is programmatic and must not push a selection onto the slide canvas
+        # (otherwise opening a deck selects the first animated shape).
+        if target_row < 0 and self.list_anims.count() > 0:
+            target_row = 0
         if target_row >= 0:
             self.list_anims.setCurrentRow(target_row)
-        elif self.list_anims.count() > 0:
-            self.list_anims.setCurrentRow(0)
-        else:
-            self._update_property_controls(None)
+            self._selected_anim_id = self.list_anims.item(target_row).data(
+                Qt.ItemDataRole.UserRole
+            )
+        self._updating_ui = False
+        self._update_property_controls(self._get_selected_animation() if target_row >= 0 else None)
 
     def _get_selected_animation(self) -> Animation | None:
         if not self.slide or not self._selected_anim_id:
