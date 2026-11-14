@@ -11,9 +11,16 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, BinaryIO
 
+from atboffice.drawing.dml import theme_map as dml_theme_map
 from atboffice.modules.spreadsheet.calc.references import (
     parse_cell,
     parse_range,
+)
+from atboffice.modules.spreadsheet.io.xlsx_drawing_shapes import (
+    DrawingContext,
+    element_xfrm,
+    first_shape_element,
+    parse_shape_element,
 )
 from atboffice.modules.spreadsheet.models.color_utils import (
     DEFAULT_INDEXED_PALETTE,
@@ -1144,7 +1151,7 @@ def _parse_worksheet(
             sheet.add_data_validation(dv)
 
     # 6. Floating drawings
-    _parse_worksheet_drawings(zip_file, sheet_path, sheet)
+    _parse_worksheet_drawings(zip_file, sheet_path, sheet, theme_colors)
 
     # 7. Worksheet comments
     _parse_worksheet_comments(zip_file, sheet_path, sheet)
@@ -1154,6 +1161,7 @@ def _parse_worksheet_drawings(
     zip_file: zipfile.ZipFile,
     sheet_path: str,
     sheet: SheetDataModel,
+    theme_colors: Sequence[str] | None = None,
 ) -> None:
     """Parse Drawings / Floating Objects associated with sheet_path."""
     sheet_dir = sheet_path.rsplit("/", 1)[0] if "/" in sheet_path else ""
@@ -1184,6 +1192,10 @@ def _parse_worksheet_drawings(
 
     if not hasattr(sheet, "drawings") or sheet.drawings is None:
         sheet.drawings = []
+
+    drawing_ctx = DrawingContext(
+        zip_file=zip_file, rels=drw_rels, theme=dml_theme_map(theme_colors)
+    )
 
     for anchor_el in drw_root:
         tag = _clean_tag(anchor_el.tag)
@@ -1243,176 +1255,37 @@ def _parse_worksheet_drawings(
             to_pt.row = int(r_el.text) if r_el is not None and r_el.text else 0
             to_pt.row_off = (int(ro_el.text) // 9525) if ro_el is not None and ro_el.text else 0
 
-        # Check for pic or sp or graphicFrame
-        pic_el = _find_child(anchor_el, "pic")
-        sp_el = _find_child(anchor_el, "sp")
-        gf_el = _find_child(anchor_el, "graphicFrame")
+        content_el = first_shape_element(anchor_el)
+        if content_el is None:
+            continue
 
-        if pic_el is not None:
-            obj_id = 1
-            obj_name = "Picture"
-            nv_pic = _find_child(pic_el, "nvPicPr")
-            if nv_pic is not None:
-                c_nv = _find_child(nv_pic, "cNvPr")
-                if c_nv is not None:
-                    id_val = _attr(c_nv, "id")
-                    if id_val and id_val.isdigit():
-                        obj_id = int(id_val)
-                    obj_name = _attr(c_nv, "name", "Picture") or "Picture"
-
-            img_bytes: bytes | None = None
-            img_mime = "image/png"
-            blip_fill = _find_child(pic_el, "blipFill")
-            if blip_fill is not None:
-                blip = _find_child(blip_fill, "blip")
-                if blip is not None:
-                    embed_id = _attr(blip, "embed")
-                    if not embed_id:
-                        for k, v in blip.attrib.items():
-                            if k.endswith("}embed") or k == "embed":
-                                embed_id = v
-                                break
-                    if embed_id and embed_id in drw_rels:
-                        img_target = drw_rels[embed_id][1]
-                        if img_target in zip_file.namelist():
-                            img_bytes = zip_file.read(img_target)
-                            target_lower = img_target.lower()
-                            if target_lower.endswith((".jpg", ".jpeg")):
-                                img_mime = "image/jpeg"
-
-            obj = FloatingObject(
-                id=obj_id,
-                name=obj_name,
-                kind="image",
-                anchor_type=anchor_type,
-                from_point=from_pt,
-                to_point=to_pt,
-                abs_rect=abs_rect,
-                image_data=img_bytes,
-                image_mime=img_mime,
-                z_index=len(sheet.drawings),
-            )
-            sheet.drawings.append(obj)
-
-        elif sp_el is not None:
-            obj_id = 1
-            obj_name = "Shape"
-            is_tb = False
-            nv_sp = _find_child(sp_el, "nvSpPr")
-            if nv_sp is not None:
-                c_nv = _find_child(nv_sp, "cNvPr")
-                if c_nv is not None:
-                    id_val = _attr(c_nv, "id")
-                    if id_val and id_val.isdigit():
-                        obj_id = int(id_val)
-                    obj_name = _attr(c_nv, "name", "Shape") or "Shape"
-                c_nv_sp = _find_child(nv_sp, "cNvSpPr")
-                if c_nv_sp is not None and _attr(c_nv_sp, "txBox") == "1":
-                    is_tb = True
-
-            sp_pr = _find_child(sp_el, "spPr")
-            prst_geom = "rect"
-            fill_col = "#4F81BD"
-            line_col = "#385D8A"
-            line_w = 1.0
-
-            if sp_pr is not None:
-                geom_el = _find_child(sp_pr, "prstGeom")
-                if geom_el is not None:
-                    prst_geom = _attr(geom_el, "prst", "rect") or "rect"
-
-                # Solid fill
-                sf_el = _find_child(sp_pr, "solidFill")
-                if sf_el is not None:
-                    clr_el = _find_child(sf_el, "srgbClr")
-                    if clr_el is not None:
-                        val = _attr(clr_el, "val")
-                        if val:
-                            fill_col = f"#{val}"
-
-                # Line
-                ln_el = _find_child(sp_pr, "ln")
-                if ln_el is not None:
-                    w_val = _attr(ln_el, "w")
-                    if w_val and w_val.isdigit():
-                        line_w = max(0.5, float(w_val) / 12700.0)
-                    ln_sf = _find_child(ln_el, "solidFill")
-                    if ln_sf is not None:
-                        ln_clr = _find_child(ln_sf, "srgbClr")
-                        if ln_clr is not None:
-                            ln_val = _attr(ln_clr, "val")
-                            if ln_val:
-                                line_col = f"#{ln_val}"
-
-            # Text body
-            tx_lines: list[str] = []
-            font_sz = 11
-            font_fam = "Calibri"
-            txt_col = "#000000"
-            tx_body = _find_child(sp_el, "txBody")
-            if tx_body is not None:
-                for p_el in _find_children(tx_body, "p"):
-                    line_parts = []
-                    for r_el in _find_children(p_el, "r"):
-                        r_pr = _find_child(r_el, "rPr")
-                        if r_pr is not None:
-                            sz_val = _attr(r_pr, "sz")
-                            if sz_val and sz_val.isdigit():
-                                font_sz = max(6, int(sz_val) // 100)
-                            latin_el = _find_child(r_pr, "latin")
-                            if latin_el is not None:
-                                font_fam = _attr(latin_el, "typeface", font_fam) or font_fam
-                            r_sf = _find_child(r_pr, "solidFill")
-                            if r_sf is not None:
-                                r_clr = _find_child(r_sf, "srgbClr")
-                                if r_clr is not None:
-                                    t_val = _attr(r_clr, "val")
-                                    if t_val:
-                                        txt_col = f"#{t_val}"
-                        t_el = _find_child(r_el, "t")
-                        if t_el is not None and t_el.text:
-                            line_parts.append(t_el.text)
-                    tx_lines.append("".join(line_parts))
-
-            all_text = "\n".join(tx_lines)
-
-            # Determine kind
-            is_white_fill = fill_col.upper() in ("#FFFFFF", "#FFF")
-            if is_tb or (prst_geom == "rect" and all_text and is_white_fill):
-                kind = "textbox"
-            elif prst_geom == "roundRect":
-                kind = "roundRect"
-            elif prst_geom in ("ellipse", "oval"):
-                kind = "oval"
-            elif prst_geom in ("line", "straightConnector1"):
-                kind = "line"
-            elif prst_geom in ("rightArrow", "arrow"):
-                kind = "arrow"
-            elif all_text and not fill_col:
-                kind = "textbox"
+        # twoCellAnchor always places the object by its from/to cells; editAs only
+        # governs how it reacts to later cell edits. oneCell keeps the xfrm size,
+        # absolute needs the cell rect resolved by the layer (sheet geometry).
+        anchor_resolved = True
+        if tag == "twoCellAnchor" and anchor_type == AnchorType.ONE_CELL:
+            xf = element_xfrm(content_el)
+            if xf is not None and xf.cx > 0 and xf.cy > 0:
+                abs_rect = (0, 0, max(4, xf.cx // 9525), max(4, xf.cy // 9525))
             else:
-                kind = "rect"
+                anchor_resolved = False
+        elif tag == "twoCellAnchor" and anchor_type == AnchorType.ABSOLUTE:
+            anchor_resolved = False
 
-            obj = FloatingObject(
-                id=obj_id,
-                name=obj_name,
-                kind=kind,
-                anchor_type=anchor_type,
-                from_point=from_pt,
-                to_point=to_pt,
-                abs_rect=abs_rect,
-                fill_color=fill_col,
-                line_color=line_col,
-                line_width=line_w,
-                text=all_text,
-                text_color=txt_col,
-                font_size=font_sz,
-                font_family=font_fam,
-                z_index=len(sheet.drawings),
-            )
-            sheet.drawings.append(obj)
+        gf_el = content_el if _clean_tag(content_el.tag) == "graphicFrame" else None
+        if gf_el is None:
+            shape_obj = parse_shape_element(content_el, drawing_ctx)
+            if shape_obj is None:
+                continue
+            shape_obj.anchor_type = anchor_type
+            shape_obj.from_point = from_pt
+            shape_obj.to_point = to_pt
+            shape_obj.abs_rect = abs_rect
+            shape_obj.anchor_resolved = anchor_resolved
+            shape_obj.z_index = len(sheet.drawings)
+            sheet.drawings.append(shape_obj)
 
-        elif gf_el is not None:
+        else:
             obj_id = 1
             obj_name = "Chart"
             chart_dict: dict[str, Any] | None = None
@@ -1464,6 +1337,7 @@ def _parse_worksheet_drawings(
                 abs_rect=abs_rect,
                 z_index=len(sheet.drawings),
                 chart_data=chart_dict,
+                anchor_resolved=anchor_resolved,
             )
             sheet.drawings.append(obj)
 
