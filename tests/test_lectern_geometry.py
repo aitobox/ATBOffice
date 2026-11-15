@@ -27,6 +27,7 @@ from atboffice.modules.presentation.views.geometry_helper import (
     connector_local_endpoints,
     create_shape_path,
     flip_transform,
+    get_adjustment_handles,
 )
 
 CORPUS_DIR = Path("tests/docs/powerpoint/pptx")
@@ -90,6 +91,26 @@ def test_parsed_custom_geometry_fills_xfrm_extent():
     second = create_shape_path(geom, w, h, None, {"paths": custom["paths"][1:]})
     assert abs(second.elementAt(0).x - w / 2.0) < 0.01
     assert abs(second.elementAt(1).y - h) < 0.01
+
+
+def test_right_arrow_adj1_is_shaft_thickness_adj2_is_head_length():
+    # ECMA-376: dy1 = h * adj1 / 200000, x1 = w - min(w, h) * adj2 / 100000.
+    path = create_shape_path("rightArrow", 400, 100, {"adj1": 20000, "adj2": 80000})
+    pts = [(path.elementAt(i).x, path.elementAt(i).y) for i in range(path.elementCount())]
+    shaft_top, shaft_bot = pts[0][1], pts[6][1]
+    assert shaft_bot - shaft_top == pytest.approx(20.0)
+    assert (shaft_top, shaft_bot) == (pytest.approx(40.0), pytest.approx(60.0))
+    assert pts[1][0] == pytest.approx(320.0)  # head starts at x1
+    assert pts[3] == (pytest.approx(400.0), pytest.approx(50.0))  # tip
+
+
+def test_right_arrow_handle_matches_path_semantics():
+    (handle,) = get_adjustment_handles("rightArrow")
+    adj = {"adj1": 20000, "adj2": 80000}
+    assert handle.pos_fn(400, 100, adj) == (pytest.approx(320.0), pytest.approx(40.0))
+    new = handle.set_fn(320.0, 40.0, 400, 100, adj)
+    assert new["adj1"] == pytest.approx(20000)
+    assert new["adj2"] == pytest.approx(80000)
 
 
 def test_arc_to_starts_at_current_point():
