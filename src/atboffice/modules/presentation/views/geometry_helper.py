@@ -90,12 +90,12 @@ HANDLE_DEFS: dict[str, list[AdjustmentHandleDef]] = {
     "rightArrow": [
         AdjustmentHandleDef(
             pos_fn=lambda w, h, a: (
-                w - (min(w, h) * float(a.get("adj1", 50000))) / 100000.0,
-                (h - (h * float(a.get("adj2", 50000))) / 100000.0) / 2.0,
+                w - (min(w, h) * float(a.get("adj2", 50000))) / 100000.0,
+                (h - (h * float(a.get("adj1", 50000))) / 100000.0) / 2.0,
             ),
             set_fn=lambda x, y, w, h, a: {
-                "adj1": clamp(((w - x) / max(1.0, min(w, h))) * 100000.0, 0.0, 100000.0),
-                "adj2": clamp((1.0 - (2.0 * y) / max(1.0, h)) * 100000.0, 10000.0, 90000.0),
+                "adj1": clamp((1.0 - (2.0 * y) / max(1.0, h)) * 100000.0, 10000.0, 90000.0),
+                "adj2": clamp(((w - x) / max(1.0, min(w, h))) * 100000.0, 0.0, 100000.0),
             },
         )
     ],
@@ -242,8 +242,10 @@ def create_shape_path(
     elif geom == "rightArrow":
         adj1 = float(adj.get("adj1", 50000))
         adj2 = float(adj.get("adj2", 50000))
-        head_w = (min(w, h) * adj1) / 100000.0
-        shaft_h = (h * adj2) / 100000.0
+        # ECMA-376 presetShapeDefinitions: adj1 = shaft thickness (fraction of h),
+        # adj2 = head length (fraction of min(w, h)).
+        shaft_h = (h * adj1) / 100000.0
+        head_w = (min(w, h) * adj2) / 100000.0
         shaft_top = (h - shaft_h) / 2.0
         shaft_bot = shaft_top + shaft_h
         shaft_w = max(0.0, w - head_w)
