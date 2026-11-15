@@ -1342,6 +1342,22 @@ def _parse_worksheet_drawings(
             sheet.drawings.append(obj)
 
 
+def _strip_author_prefix(text: str, author: str) -> str:
+    """Drop the ``"Author:"`` header Excel stores at the start of a note.
+
+    Excel writes the author as a bold leading run (``"Author:"`` followed by a
+    line break). The callout painter draws the author header itself, so keep
+    only the body here to avoid showing the name twice.
+    """
+    name = (author or "").strip()
+    if not name:
+        return text
+    prefix = f"{name}:"
+    if not text.startswith(prefix):
+        return text
+    return text[len(prefix):].lstrip(" \t").removeprefix("\r\n").removeprefix("\n")
+
+
 def _parse_worksheet_comments(
     zip_file: zipfile.ZipFile,
     sheet_path: str,
@@ -1428,7 +1444,7 @@ def _parse_worksheet_comments(
                 for elem in txt_el.iter():
                     if _clean_tag(elem.tag) == "t" and elem.text:
                         text_parts.append(elem.text)
-            text = "".join(text_parts)
+            text = _strip_author_prefix("".join(text_parts), author)
             is_visible = (r, c) in vml_visible_cells
 
             sheet.set_comment(r, c, text, author=author, visible=is_visible)

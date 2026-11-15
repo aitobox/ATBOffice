@@ -1462,15 +1462,14 @@ class GridViewport(QAbstractScrollArea):
                 if cw <= 0 or ch <= 0:
                     continue
 
-                bx = cx + cw + 14
-                by = max(self.col_header_height + 2, cy - 6)
-                bw = int(getattr(cm, "w", 140) or 140)
-                bh = int(getattr(cm, "h", 65) or 65)
+                box = self._comment_callout_rect(cr, cc, cm, QRect(cx, cy, cw, ch))
+                bx, by, bw, bh = box.x(), box.y(), box.width(), box.height()
+                flipped = bx < cx
 
-                # Connecting leader arrow pointing from card edge (bx, by + 8)
+                # Connecting leader arrow pointing from the near card edge
                 # to cell top-right corner (cx + cw, cy)
                 arrow_tip = QPoint(cx + cw, cy)
-                arrow_base = QPoint(bx, by + 8)
+                arrow_base = QPoint(bx + bw if flipped else bx, by + 8)
                 painter.setPen(QPen(QColor(60, 60, 60), 1))
                 painter.drawLine(arrow_base, arrow_tip)
 
@@ -1493,14 +1492,11 @@ class GridViewport(QAbstractScrollArea):
                 # Drop shadow behind note box
                 painter.fillRect(bx + 3, by + 3, bw, bh, QColor(0, 0, 0, 45))
 
-                # Yellow note box
-                note_bg = (
-                    QColor(cm.fill)
-                    if (getattr(cm, "fill", None) and QColor(cm.fill).isValid())
-                    else QColor(255, 255, 225)
-                )
-                painter.fillRect(bx, by, bw, bh, note_bg)
+                # Pale yellow note box (Excel's #FFFFE1), independent of the app palette
+                painter.fillRect(bx, by, bw, bh, self._COMMENT_NOTE_BG)
                 painter.setPen(QPen(QColor(160, 160, 160), 1))
+                # Border only: the arrow-head brush must not flood the note
+                painter.setBrush(Qt.BrushStyle.NoBrush)
                 painter.drawRect(bx, by, bw, bh)
 
                 # Text inside note
@@ -1542,6 +1538,39 @@ class GridViewport(QAbstractScrollArea):
                         cm.text or "",
                     )
             painter.restore()
+
+    _COMMENT_NOTE_BG = QColor(0xFF, 0xFF, 0xE1)
+    _COMMENT_GAP = 14
+
+    def _comment_callout_rect(
+        self, r: int, c: int, cm: Any, cell: QRect | None = None
+    ) -> QRect:
+        """Viewport rect of the note callout for cell (r, c).
+
+        The box sits to the right of the cell; it flips to the left when it
+        would overflow the right edge and shifts up to stay above the bottom.
+        """
+        if cell is None:
+            cell = self.cell_rect(r, c)
+        bw = int(getattr(cm, "w", 140) or 140)
+        bh = int(getattr(cm, "h", 65) or 65)
+        view_w = self.viewport().width()
+        view_h = self.viewport().height()
+        right = cell.x() + cell.width()
+
+        bx = right + self._COMMENT_GAP
+        if bx + bw > view_w:
+            left_x = cell.x() - self._COMMENT_GAP - bw
+            if left_x >= self.row_header_width:
+                bx = left_x
+            else:
+                bx = max(self.row_header_width, view_w - bw - 1)
+
+        top_min = self.col_header_height + 2
+        by = max(top_min, cell.y() - 6)
+        if by + bh > view_h:
+            by = max(top_min, view_h - bh - 1)
+        return QRect(bx, by, bw, bh)
 
     @staticmethod
     def _excel_mdw(font_family: str, font_size: int) -> int:
@@ -3350,17 +3379,9 @@ class GridViewport(QAbstractScrollArea):
                     else None
                 )
                 new_hover = (hit.row, hit.col) if cm is not None else None
-                if cm:
-                    tip_text = (
-                        f"{cm.author}:\n{cm.text}" if cm.author else cm.text
-                    )
-                    QToolTip.showText(
-                        event.globalPosition().toPoint(),
-                        tip_text,
-                        self.viewport(),
-                    )
-                else:
-                    QToolTip.hideText()
+                # The painted callout shows the note; a system tooltip would
+                # duplicate it in the (possibly dark) platform palette.
+                QToolTip.hideText()
             else:
                 new_hover = None
                 QToolTip.hideText()
