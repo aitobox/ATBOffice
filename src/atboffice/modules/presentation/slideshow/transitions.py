@@ -239,8 +239,10 @@ def render_slide_to_image(
     frame_states: dict[str, Any] | None = None,
 ) -> QImage:
     """Render a slide with background and shapes onto a QImage with animation frame support."""
-    w = max(100.0, presentation.w)
-    h = max(100.0, presentation.h)
+    width = max(1, int(width or 960))
+    height = max(1, int(height or 540))
+    w = max(100.0, presentation.w or 960.0)
+    h = max(100.0, presentation.h or 540.0)
 
     img = QImage(width, height, QImage.Format.Format_ARGB32_Premultiplied)
     img.fill(QColor("#FFFFFF"))
@@ -306,15 +308,18 @@ def render_slide_to_image(
                 rows = tbl.get("rows", [])
                 if rows:
                     if not cols:
-                        col_count = max(1, len(rows[0].get("cells", [])))
+                        col_count = max(1, *(len(r.get("cells", [])) for r in rows))
                         cols = [sh.w / col_count] * col_count
                     tot_w = sum(cols)
                     tbl_sx = (rect.width() / tot_w) if tot_w > 0.001 else 1.0
                     cur_y = rect.top()
                     for r in rows:
-                        rh = float(r.get("h", 30.0)) * sy
+                        rh = max(1.0, float(r.get("h", 30.0) or 30.0) * sy)
                         cur_x = rect.left()
                         cells = r.get("cells", [])
+                        if not cells:
+                            cur_y += rh
+                            continue
                         for c_idx, cell in enumerate(cells):
                             def_w = sh.w / max(1, len(cells))
                             cw = (cols[c_idx] if c_idx < len(cols) else def_w) * tbl_sx

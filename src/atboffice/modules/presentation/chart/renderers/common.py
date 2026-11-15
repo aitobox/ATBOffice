@@ -45,16 +45,23 @@ def resolve_color(color_spec: Any, default: str = "#4472C4") -> QColor:
         return QColor(default)
     if isinstance(color_spec, dict):
         c = color_spec.get("c") or default
-        alpha = float(color_spec.get("a", 1.0))
+        try:
+            alpha = float(color_spec.get("a", 1.0))
+        except (ValueError, TypeError):
+            alpha = 1.0
         col = resolve_color(c, default)
-        col.setAlphaF(max(0.0, min(1.0, alpha)))
-        return col
+        if col.isValid():
+            col.setAlphaF(max(0.0, min(1.0, alpha if alpha == alpha else 1.0)))
+            return col
+        return QColor(default)
 
     s = str(color_spec).strip()
     if s.lower() in THEME_COLOR_MAP:
         return QColor(THEME_COLOR_MAP[s.lower()])
     if s.startswith("#") or s.startswith("rgb"):
-        return QColor(s)
+        col = QColor(s)
+        if col.isValid():
+            return col
     return QColor(default)
 
 

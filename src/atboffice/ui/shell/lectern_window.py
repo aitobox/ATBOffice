@@ -71,7 +71,7 @@ class LecternWindow(BaseOfficeWindow):
 
         # 5. Connect slide changes & selection signals
         ws = self.presentation_view.workspace
-        ws.slide_changed.connect(self._on_presentation_modified)
+        ws.slide_changed.connect(self._on_slide_changed)
 
         if hasattr(ws, "scene") and ws.scene is not None:
             ws.scene.selectionChanged.connect(self._on_scene_selection_changed)
@@ -1757,15 +1757,29 @@ class LecternWindow(BaseOfficeWindow):
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
-        ws = getattr(self.presentation_view, "workspace", None)
-        if ws and hasattr(ws, "is_auto_fit") and ws.is_auto_fit:
-            ws.fit_to_window()
+        self._safe_fit_to_window()
 
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
+        self._safe_fit_to_window()
+
+    def _safe_fit_to_window(self) -> None:
+        """Fit canvas to window only when visible with non-zero viewport and without re-entrancy."""
+        if getattr(self, "_is_fitting_window", False) or not self.isVisible():
+            return
         ws = getattr(self.presentation_view, "workspace", None)
-        if ws and hasattr(ws, "is_auto_fit") and ws.is_auto_fit:
+        if not ws or not getattr(ws, "is_auto_fit", False) or not hasattr(ws, "fit_to_window"):
+            return
+        canvas_view = getattr(ws, "canvas_view", None)
+        if canvas_view is not None:
+            vp = canvas_view.viewport()
+            if vp is None or vp.width() <= 0 or vp.height() <= 0:
+                return
+        self._is_fitting_window = True
+        try:
             ws.fit_to_window()
+        finally:
+            self._is_fitting_window = False
 
     def _on_font_color_selected(self, color_hex: str) -> None:
         """Apply font color to selected text."""
@@ -2044,15 +2058,19 @@ class LecternWindow(BaseOfficeWindow):
             if act:
                 act.setEnabled(is_diagram)
 
-    def _on_presentation_modified(self) -> None:
-        """Mark presentation as modified when slide content or layout changes."""
-        self.set_modified(True)
+    def _on_slide_changed(self, _index: int = 0) -> None:
+        """Update slide indicator on navigation without marking dirty."""
         if hasattr(self, "lbl_status_slide"):
             ws = self.presentation_view.workspace
             curr = getattr(ws, "current_slide_index", 0) + 1
             slides = getattr(ws.presentation, "slides", [])
             total = len(slides) if slides else 1
             self.lbl_status_slide.setText(f"{safe_tr('幻灯片')} {curr} / {total}")
+
+    def _on_presentation_modified(self) -> None:
+        """Mark presentation as modified when slide content or layout changes."""
+        self.set_modified(True)
+        self._on_slide_changed()
 
     def _on_scene_selection_changed(self) -> None:
         """Inspect selected items on the slide scene and trigger toolbar context refresh."""
@@ -2167,6 +2185,8 @@ class LecternWindow(BaseOfficeWindow):
 
     def do_open(self, path: Path) -> bool:
         """Parse and load Lectern presentation from disk with transactional rollback."""
+        self._cleanup_active_editing_and_overlays()
+
         if path.stat().st_size == 0:
             from atboffice.modules.presentation.models.presentation import Presentation
 
@@ -2207,6 +2227,29 @@ class LecternWindow(BaseOfficeWindow):
             raise bind_err
 
         return True
+
+    def _cleanup_active_editing_and_overlays(self) -> None:
+        """Close active text editor, comment cards, or running slideshow before opening."""
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws is None:
+            return
+        active_show = getattr(ws, "_active_slideshow", None)
+        if active_show is not None:
+            try:
+                active_show.end_show(prompt_ink=False)
+            except Exception:
+                pass
+            ws._active_slideshow = None
+        canvas_view = getattr(ws, "canvas_view", None)
+        if canvas_view is not None and getattr(canvas_view, "_active_card", None) is not None:
+            try:
+                canvas_view._active_card.close()
+            except Exception:
+                pass
+            canvas_view._active_card = None
+        scene = getattr(ws, "scene", None)
+        if scene is not None and hasattr(scene, "finish_active_text_editing"):
+            scene.finish_active_text_editing(commit=False)
 
     def _setup_toolbars(self) -> None:
         """Initialize PowerPoint 2003 Luna 10 toolbars cluster."""

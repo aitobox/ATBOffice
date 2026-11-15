@@ -15,7 +15,8 @@ from __future__ import annotations
 
 import copy
 
-from PySide6.QtCore import QPoint, Qt, Signal
+import shiboken6
+from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -78,12 +79,14 @@ class SlideSorterCard(QFrame):
         presentation: Presentation,
         card_width: int = 180,
         parent: QWidget | None = None,
+        defer_thumbnail: bool = False,
     ) -> None:
         super().__init__(parent)
         self.slide = slide
         self.index = index
         self.presentation = presentation
         self.card_width = card_width
+        self._defer_thumbnail = defer_thumbnail
         self.is_selected = False
         self._press_pos: QPoint | None = None
         self._is_dragging = False
@@ -158,7 +161,18 @@ class SlideSorterCard(QFrame):
 
         layout.addWidget(self.footer)
 
-        self.refresh_thumbnail()
+        if self._defer_thumbnail:
+            thumb_w = max(80, self.card_width - 12)
+            w = max(100.0, getattr(self.presentation, "w", 960.0) or 960.0)
+            h = max(100.0, getattr(self.presentation, "h", 540.0) or 540.0)
+            est_h = max(60, int(thumb_w * h / w))
+            placeholder = QPixmap(thumb_w, est_h)
+            placeholder.fill(QColor("#F7F7F7"))
+            self.thumb_label.setPixmap(placeholder)
+            self.thumb_label.setFixedSize(placeholder.size())
+            self.setFixedSize(self.card_width, est_h + 38)
+        else:
+            self.refresh_thumbnail()
 
     def refresh_thumbnail(self) -> None:
         """Render and set the slide thumbnail pixmap."""
@@ -287,6 +301,7 @@ class SlideSorterView(QScrollArea):
         self.presentation = presentation or Presentation()
         self.cards: list[SlideSorterCard] = []
         self._selected_indices: set[int] = set()
+        self._thumb_load_gen: int = 0
         self.card_width: int = 180
         self.spacing: int = 16
         self.padding: int = 16
@@ -312,7 +327,11 @@ class SlideSorterView(QScrollArea):
         self.load_presentation(self.presentation)
 
     def load_presentation(self, presentation: Presentation) -> None:
-        """Load presentation slides and construct cards."""
+        """Load presentation slides and construct cards incrementally."""
+        self._thumb_load_gen += 1
+        gen = self._thumb_load_gen
+        sync_batch = 6
+
         self.presentation = presentation
         self._selected_indices.clear()
 
@@ -335,6 +354,7 @@ class SlideSorterView(QScrollArea):
                 presentation=presentation,
                 card_width=self.card_width,
                 parent=self.grid_widget,
+                defer_thumbnail=(idx >= sync_batch),
             )
             card.clicked.connect(self._on_card_clicked)
             card.double_clicked.connect(self._on_card_double_clicked)
@@ -349,6 +369,31 @@ class SlideSorterView(QScrollArea):
             self.cards[0].set_selected(True)
 
         self._reflow_cards()
+
+        if len(slides) > sync_batch:
+            QTimer.singleShot(
+                0,
+                lambda g=gen, start=sync_batch: self._refresh_card_chunk(g, start),
+            )
+
+    def _refresh_card_chunk(self, gen: int, start: int, chunk_size: int = 6) -> None:
+        """Render the next deferred chunk of slide sorter thumbnails if still active."""
+        if not shiboken6.isValid(self) or gen != self._thumb_load_gen:
+            return
+        end = min(len(self.cards), start + chunk_size)
+        for idx in range(start, end):
+            if gen != self._thumb_load_gen or idx >= len(self.cards):
+                return
+            card = self.cards[idx]
+            if shiboken6.isValid(card):
+                card.refresh_thumbnail()
+        if end < len(self.cards):
+            QTimer.singleShot(
+                0,
+                lambda g=gen, next_start=end: self._refresh_card_chunk(
+                    g, next_start, chunk_size
+                ),
+            )
 
     def get_selected_indices(self) -> set[int]:
         """Return the set of currently selected slide indices."""

@@ -12,7 +12,8 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from PySide6.QtCore import QRectF, QSize, Qt, Signal
+import shiboken6
+from PySide6.QtCore import QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -34,6 +35,8 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMenu,
+    QMessageBox,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
     QSplitter,
@@ -57,7 +60,7 @@ from atboffice.modules.presentation.models.layouts import (
     layout_frames,
     make_placeholder,
 )
-from atboffice.modules.presentation.models.presentation import Presentation
+from atboffice.modules.presentation.models.presentation import LoadWarning, Presentation
 from atboffice.modules.presentation.models.shape import Shape
 from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.models.text import Paragraph, TextBody, TextRun
@@ -85,9 +88,10 @@ def render_slide_thumbnail(
     width: int = 160,
 ) -> QPixmap:
     """Render a high-fidelity thumbnail preview of a slide onto a QPixmap."""
-    w = max(100.0, presentation.w)
-    h = max(100.0, presentation.h)
-    height = max(60, int(width * h / w))
+    width = max(1, int(width or 160))
+    w = max(100.0, presentation.w or 960.0)
+    h = max(100.0, presentation.h or 540.0)
+    height = max(1, int(width * h / w))
 
     pixmap = QPixmap(width, height)
     pixmap.fill(QColor("#FFFFFF"))
@@ -146,15 +150,18 @@ def render_slide_thumbnail(
                 rows = tbl.get("rows", [])
                 if rows:
                     if not cols:
-                        col_count = max(1, len(rows[0].get("cells", [])))
+                        col_count = max(1, *(len(r.get("cells", [])) for r in rows))
                         cols = [sh.w / col_count] * col_count
                     tot_w = sum(cols)
                     tbl_sx = (rect.width() / tot_w) if tot_w > 0.001 else 1.0
                     cur_y = rect.top()
                     for r in rows:
-                        rh = float(r.get("h", 20.0)) * sy
+                        rh = max(1.0, float(r.get("h", 20.0) or 20.0) * sy)
                         cur_x = rect.left()
                         cells = r.get("cells", [])
+                        if not cells:
+                            cur_y += rh
+                            continue
                         for c_idx, cell in enumerate(cells):
                             def_w = sh.w / max(1, len(cells))
                             cw = (cols[c_idx] if c_idx < len(cols) else def_w) * tbl_sx
@@ -970,6 +977,79 @@ class LecternTaskPane(QWidget):
         self.btn_fwd.setEnabled(self._history_index < len(self._history) - 1)
 
 
+class DegradedLoadBanner(QFrame):
+    """Non-blocking top banner notifying the user when parts opened in degraded mode."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._warnings: list[LoadWarning] = []
+        self.setObjectName("degradedLoadBanner")
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setStyleSheet(
+            "#degradedLoadBanner {"
+            "  background-color: #FFF4CE;"
+            "  border-bottom: 1px solid #E2B857;"
+            "}"
+        )
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 6, 12, 6)
+        layout.setSpacing(8)
+
+        self.summary_label = QLabel(self)
+        self.summary_label.setStyleSheet("color: #6B4F00; font-weight: 500;")
+        layout.addWidget(self.summary_label, 1)
+
+        self.details_btn = QPushButton(self)
+        self.details_btn.setFlat(True)
+        self.details_btn.clicked.connect(self._on_details_clicked)
+        layout.addWidget(self.details_btn)
+
+        self.close_btn = QPushButton(self)
+        self.close_btn.setFlat(True)
+        self.close_btn.clicked.connect(self._on_close_clicked)
+        layout.addWidget(self.close_btn)
+
+        self.retranslate_ui()
+        self.hide()
+
+    def set_warnings(self, warnings: list[LoadWarning] | None) -> None:
+        """Display banner when warnings exist, or hide cleanly when empty."""
+        self._warnings = list(warnings or [])
+        if not self._warnings:
+            self.hide()
+            return
+        self._refresh_text()
+        self.show()
+
+    def _refresh_text(self) -> None:
+        template = safe_tr("已打开文稿，有 {count} 个元素因格式异常按降级模式显示")
+        self.summary_label.setText(template.format(count=len(self._warnings)))
+        self.details_btn.setText(safe_tr("查看详情"))
+        self.close_btn.setText(safe_tr("关闭"))
+
+    def _on_details_clicked(self) -> None:
+        max_items = 50
+        lines = [
+            f"[{w.scope}] {w.location}: {w.message}"
+            for w in self._warnings[:max_items]
+        ]
+        if len(self._warnings) > max_items:
+            more_tpl = safe_tr("……另有 {rest} 条未展开显示")
+            lines.append(more_tpl.format(rest=len(self._warnings) - max_items))
+        QMessageBox.information(
+            self,
+            safe_tr("降级模式详情"),
+            "\n".join(lines),
+        )
+
+    def _on_close_clicked(self) -> None:
+        self.hide()
+
+    def retranslate_ui(self) -> None:
+        """Retranslate banner text using active locale."""
+        self._refresh_text()
+
+
 class LecternWorkspace(QWidget):
     """Complete three-pane workspace implementation for Lectern."""
 
@@ -986,6 +1066,7 @@ class LecternWorkspace(QWidget):
         self._view_mode: str = "normal"
         self.master_kind: str = "slide"
         self.master_slide: Slide | None = None
+        self._thumb_load_gen: int = 0
 
         self._init_ui()
         self.load_presentation(self.presentation)
@@ -1032,6 +1113,10 @@ class LecternWorkspace(QWidget):
         center_normal_layout = QVBoxLayout(self.center_normal_widget)
         center_normal_layout.setContentsMargins(0, 0, 0, 0)
         center_normal_layout.setSpacing(0)
+
+        self.degraded_banner = DegradedLoadBanner(self.center_normal_widget)
+        self.degraded_banner.hide()
+        center_normal_layout.addWidget(self.degraded_banner)
 
         self.master_close_bar = MasterViewCloseBar(self.center_normal_widget)
         self.master_close_bar.close_clicked.connect(self.exit_master_view)
@@ -1160,6 +1245,8 @@ class LecternWorkspace(QWidget):
             self.notes_view.load_presentation(presentation)
         if hasattr(self, "master_view"):
             self.master_view.load_presentation(presentation)
+        if hasattr(self, "degraded_banner"):
+            self.degraded_banner.set_warnings(getattr(presentation, "load_warnings", []))
 
     def set_current_slide_index(self, index: int) -> None:
         """Switch active slide shown in canvas and notes."""
@@ -1271,14 +1358,66 @@ class LecternWorkspace(QWidget):
         self.task_pane.setVisible(visible)
 
     def _refresh_thumbnails(self) -> None:
+        """Rebuild left slide strip incrementally to avoid UI stalls on large decks."""
+        self._thumb_load_gen += 1
+        gen = self._thumb_load_gen
+        sync_batch = 6
+
         self.thumbnail_list.clear()
-        for idx, s in enumerate(self.presentation.slides):
-            pixmap = render_slide_thumbnail(s, self.presentation, width=160)
+        slides = self.presentation.slides
+        w = max(100.0, self.presentation.w or 960.0)
+        h = max(100.0, self.presentation.h or 540.0)
+        est_h = max(60, int(160 * h / w))
+        placeholder: QPixmap | None = None
+
+        for idx, s in enumerate(slides):
+            if idx < sync_batch:
+                pixmap = render_slide_thumbnail(s, self.presentation, width=160)
+            else:
+                if placeholder is None:
+                    placeholder = QPixmap(160, est_h)
+                    placeholder.fill(QColor("#F7F7F7"))
+                pixmap = placeholder
             item = QListWidgetItem(QIcon(pixmap), f"{idx + 1}")
             item.setSizeHint(QSize(160, pixmap.height() + 24))
             self.thumbnail_list.addItem(item)
-        if self.presentation.slides:
-            self.thumbnail_list.setCurrentRow(self.current_slide_index)
+
+        if slides:
+            self.thumbnail_list.setCurrentRow(
+                max(0, min(self.current_slide_index, len(slides) - 1))
+            )
+
+        if len(slides) > sync_batch:
+            QTimer.singleShot(
+                0,
+                lambda g=gen, start=sync_batch: self._render_thumbnail_chunk(g, start),
+            )
+
+    def _render_thumbnail_chunk(self, gen: int, start: int, chunk_size: int = 6) -> None:
+        """Render the next deferred batch of sidebar thumbnails if still active."""
+        if (
+            not shiboken6.isValid(self)
+            or not shiboken6.isValid(self.thumbnail_list)
+            or gen != self._thumb_load_gen
+        ):
+            return
+        slides = self.presentation.slides
+        end = min(len(slides), start + chunk_size)
+        for idx in range(start, end):
+            if gen != self._thumb_load_gen or idx >= self.thumbnail_list.count():
+                return
+            item = self.thumbnail_list.item(idx)
+            if item is not None:
+                pixmap = render_slide_thumbnail(slides[idx], self.presentation, width=160)
+                item.setIcon(QIcon(pixmap))
+                item.setSizeHint(QSize(160, pixmap.height() + 24))
+        if end < len(slides):
+            QTimer.singleShot(
+                0,
+                lambda g=gen, next_start=end: self._render_thumbnail_chunk(
+                    g, next_start, chunk_size
+                ),
+            )
 
     def _refresh_current_thumbnail(self) -> None:
         idx = self.current_slide_index
@@ -1559,6 +1698,8 @@ class LecternWorkspace(QWidget):
         self.left_pane.setTabText(1, safe_tr("大纲"))
         self.notes_pane.retranslate_ui()
         self.canvas_view.retranslate_ui()
+        if hasattr(self, "degraded_banner"):
+            self.degraded_banner.retranslate_ui()
         if hasattr(self, "master_close_bar"):
             self.master_close_bar.retranslate_ui()
         if hasattr(self, "sorter_view"):

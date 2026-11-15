@@ -12,6 +12,7 @@ import tempfile
 import urllib.parse
 import xml.etree.ElementTree as ET
 import zipfile
+import zlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -254,11 +255,13 @@ class SourcePackage:
         content_types: dict[str, str],
         default_content_types: dict[str, str],
         relationships: dict[str, list[Relationship]],
+        corrupt_parts: set[str] | None = None,
     ) -> None:
         self._parts_data = parts_data
         self._content_types = content_types
         self._default_content_types = default_content_types
         self._relationships = relationships
+        self._corrupt_parts: set[str] = set(corrupt_parts or ())
 
     @classmethod
     def open(cls, file_path: Path | str) -> SourcePackage:
@@ -296,12 +299,22 @@ class SourcePackage:
                     )
                 raise ValueError("Not a valid ZIP/OPC package (header mismatch)")
             buf.seek(0)
+            corrupt_parts: set[str] = set()
             with zipfile.ZipFile(buf, "r") as zf:
                 parts_data: dict[str, bytes] = {}
                 for info in zf.infolist():
                     if not info.is_dir():
                         norm_name = normalize_part_name(info.filename)
-                        parts_data[norm_name] = zf.read(info.filename)
+                        try:
+                            parts_data[norm_name] = zf.read(info.filename)
+                        except (zipfile.BadZipFile, zlib.error, EOFError) as exc:
+                            if norm_name in ("[Content_Types].xml", "_rels/.rels"):
+                                raise ValueError(
+                                    f"Corrupt root OPC part '{norm_name}': {exc}"
+                                ) from exc
+                            corrupt_parts.add(norm_name)
+                if not parts_data and corrupt_parts:
+                    raise ValueError("Not a valid ZIP/OPC package: all parts corrupt")
         except zipfile.BadZipFile as exc:
             raise ValueError(f"Not a valid ZIP/OPC package: {exc}") from exc
         except Exception as exc:
@@ -369,6 +382,7 @@ class SourcePackage:
             content_types=content_types,
             default_content_types=default_content_types,
             relationships=relationships,
+            corrupt_parts=corrupt_parts,
         )
 
     def has_part(self, part_name: str) -> bool:

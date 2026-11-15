@@ -67,15 +67,20 @@ class ChartPainter:
         rem_rect = bounds.adjusted(pad, pad, -pad, -pad)
 
         # 3. Title
+        base_fsz = max(1.0, float(chart.fsz) if chart.fsz else 10.0)
         if chart.title:
             title_font = QFont("sans-serif")
-            title_sz = chart.title_tx.get("sz", chart.fsz * 1.2)
+            raw_title_sz = chart.title_tx.get("sz", base_fsz * 1.2)
+            try:
+                title_sz = max(1.0, float(raw_title_sz))
+            except (ValueError, TypeError):
+                title_sz = max(1.0, base_fsz * 1.2)
             title_font.setPointSizeF(title_sz)
-            title_font.setBold(chart.title_tx.get("b", True))
+            title_font.setBold(bool(chart.title_tx.get("b", True)))
             painter.setFont(title_font)
 
             fm = QFontMetricsF(title_font)
-            lines = wrap_text(chart.title, title_font, rem_rect.width() * 0.9)
+            lines = wrap_text(str(chart.title), title_font, rem_rect.width() * 0.9)
             th = len(lines) * fm.lineSpacing()
 
             title_color = resolve_color(chart.title_tx.get("color"), "#333333")
@@ -88,9 +93,10 @@ class ChartPainter:
 
         # 4. Legend items
         legend_items: list[tuple[str, QColor]] = []
+        cats = [str(c) if c is not None else "" for c in (chart.cats or [])]
         if chart.kind in ("pie", "doughnut"):
             # Slices are the categories
-            for ci, cat in enumerate(chart.cats):
+            for ci, cat in enumerate(cats):
                 if chart.pie_colors and ci < len(chart.pie_colors):
                     col = resolve_color(chart.pie_colors[ci])
                 else:
@@ -98,14 +104,15 @@ class ChartPainter:
                 legend_items.append((cat, col))
         else:
             for si, s in enumerate(chart.series):
-                legend_items.append((s.name or f"Series {si+1}", get_series_color(s, si)))
+                s_name = str(s.name) if s.name is not None else f"Series {si+1}"
+                legend_items.append((s_name, get_series_color(s, si)))
 
         plot_area = draw_legend(
             painter,
             legend_items,
             chart.legend,
             rem_rect,
-            font_size=max(8.0, chart.fsz * 0.9),
+            font_size=max(8.0, base_fsz * 0.9),
         )
 
         # 5. Gridlines & Axes for Cartesian types
@@ -184,9 +191,10 @@ class ChartPainter:
             hi = max(all_vals) if all_vals else 1.0
 
         if is_bar:
+            cats = [str(c) if c is not None else "" for c in (chart.cats or [])]
             sc = scale(lo, hi, chart.ax.get("v"), length=area.width(), label_sz=chart.fsz)
             # Left margin for category names
-            max_cat_w = max([fm.horizontalAdvance(c) for c in chart.cats] + [20.0])
+            max_cat_w = max([fm.horizontalAdvance(c) for c in cats] + [20.0])
             left_margin = min(max_cat_w + 8.0, area.width() * 0.35)
             bottom_margin = fm.height() + 8.0
 
@@ -218,8 +226,8 @@ class ChartPainter:
                 )
 
             # Draw category labels on left
-            slot_h = plot_rect.height() / max(1, len(chart.cats))
-            for ci, cat in enumerate(chart.cats):
+            slot_h = plot_rect.height() / max(1, len(cats))
+            for ci, cat in enumerate(cats):
                 cy = plot_rect.top() + ci * slot_h
                 painter.setPen(QPen(QColor("#333333")))
                 painter.drawText(

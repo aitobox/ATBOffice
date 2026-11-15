@@ -6,7 +6,8 @@ import math
 import uuid
 from typing import Any
 
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+import shiboken6
+from PySide6.QtCore import QPointF, QRectF, QSignalBlocker, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QKeyEvent,
@@ -14,6 +15,7 @@ from PySide6.QtGui import (
     QPen,
     QResizeEvent,
     QShowEvent,
+    QTransform,
     QWheelEvent,
 )
 from PySide6.QtWidgets import (
@@ -91,6 +93,8 @@ class SlideScene(QGraphicsScene):
         self._comment_items: list[CommentMarkerItem] = []
         self._is_dragging_item = False
         self._dragged_item: ShapeGraphicsItem | None = None
+        self._active_connector_updates: set[str] = set()
+        self._is_loading_slide: bool = False
 
         self.setSceneRect(
             -150.0,
@@ -100,67 +104,104 @@ class SlideScene(QGraphicsScene):
         )
         self.load_slide(self.slide)
 
+    def finish_active_text_editing(self, commit: bool = True) -> None:
+        """Safely finish or cancel any in-place text editor currently active on the scene."""
+        for item in list(self._items_by_id.values()):
+            if not shiboken6.isValid(item):
+                continue
+            if getattr(item, "is_editing_text", False):
+                ed = getattr(item, "_text_editor", None)
+                if ed is not None and shiboken6.isValid(ed):
+                    if commit:
+                        ed.commit_and_finish()
+                    else:
+                        ed.cancel_editing()
+                if shiboken6.isValid(item) and getattr(item, "is_editing_text", False):
+                    item.finish_text_editing()
+        self.clearFocus()
+
     def load_slide(self, slide: Slide) -> None:
-        """Load a slide model and populate graphics items."""
+        """Load a slide model and populate graphics items safely."""
         self.slide = slide
-        self.clear()
-        self._items_by_id.clear()
-        self._comment_items.clear()
+        self._is_loading_slide = True
+        try:
+            self.finish_active_text_editing(commit=False)
 
-        design = (
-            self.presentation.get_design_for_slide(slide)
-            if self.presentation
-            else None
-        )
+            with QSignalBlocker(self):
+                self.clearSelection()
+                self._items_by_id.clear()
+                self._comment_items.clear()
+                self._is_dragging_item = False
+                self._dragged_item = None
+                self._is_drawing_shape = False
+                self._draw_start_pos = None
+                self.guide_controller.clear_guides(self)
+                self.clear()
 
-        # Add master decorations behind slide shapes if not hide_master
-        if self.presentation and not getattr(slide, "hide_master", False) and design:
-            is_title = getattr(slide, "layout", "text") == "title"
-            if is_title and getattr(design, "title_decorations", None):
-                decos = design.title_decorations
-            else:
-                decos = getattr(design, "decorations", None) or []
-            for d_idx, d_sh in enumerate(decos):
-                d_item = ShapeGraphicsItem(d_sh)
-                d_item.setZValue(-100.0 + d_idx)
-                d_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False)
-                d_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
-                self.addItem(d_item)
-
-        # 1. Unoverridden layout and master placeholders
-        if self.presentation and design:
-            unoverridden = resolve_unoverridden_placeholders(slide, self.presentation)
-            for u_idx, u_sh in enumerate(unoverridden):
-                u_item = ShapeGraphicsItem(u_sh)
-                setattr(u_item, "_is_inherited_placeholder", True)
-                u_item.setZValue(-10.0 + u_idx)
-                u_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
-                self.addItem(u_item)
-                self._items_by_id[u_sh.id] = u_item
-
-        # 2. Slide shapes
-        for idx, sh in enumerate(slide.shapes):
-            if sh.placeholder and design:
-                apply_cascading_placeholder_styles(sh, design)
-
-            if sh.is_chart:
-                from atboffice.modules.presentation.views.chart_item import ChartGraphicsItem
-
-                item = ChartGraphicsItem(sh)
-            else:
-                item = ShapeGraphicsItem(sh)
-            item.setZValue(float(idx))
-            self.addItem(item)
-            self._items_by_id[sh.id] = item
-
-        for cm in slide.comments:
-            marker = CommentMarkerItem(
-                cm,
-                self.presentation,
-                on_click=self._on_comment_marker_clicked,
+            design = (
+                self.presentation.get_design_for_slide(slide)
+                if self.presentation
+                else None
             )
-            self.addItem(marker)
-            self._comment_items.append(marker)
+
+            # Add master decorations behind slide shapes if not hide_master
+            if self.presentation and not getattr(slide, "hide_master", False) and design:
+                is_title = getattr(slide, "layout", "text") == "title"
+                if is_title and getattr(design, "title_decorations", None):
+                    decos = design.title_decorations
+                else:
+                    decos = getattr(design, "decorations", None) or []
+                for d_idx, d_sh in enumerate(decos):
+                    d_item = ShapeGraphicsItem(d_sh)
+                    d_item.setZValue(-100.0 + d_idx)
+                    d_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False)
+                    d_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+                    self.addItem(d_item)
+
+            # 1. Unoverridden layout and master placeholders
+            seen_ids: set[str] = set()
+            if self.presentation and design:
+                unoverridden = resolve_unoverridden_placeholders(slide, self.presentation)
+                for u_idx, u_sh in enumerate(unoverridden):
+                    if not u_sh.id or u_sh.id in seen_ids:
+                        u_sh.id = f"{u_sh.id or 'ph'}_{u_idx}_{uuid.uuid4().hex[:6]}"
+                    seen_ids.add(u_sh.id)
+                    u_item = ShapeGraphicsItem(u_sh)
+                    setattr(u_item, "_is_inherited_placeholder", True)
+                    u_item.setZValue(-10.0 + u_idx)
+                    u_item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+                    self.addItem(u_item)
+                    self._items_by_id[u_sh.id] = u_item
+
+            # 2. Slide shapes
+            for idx, sh in enumerate(slide.shapes):
+                if sh.placeholder and design:
+                    apply_cascading_placeholder_styles(sh, design)
+                if not sh.id or sh.id in seen_ids:
+                    sh.id = f"{sh.id or 'shape'}_{idx}_{uuid.uuid4().hex[:6]}"
+                seen_ids.add(sh.id)
+
+                if sh.is_chart:
+                    from atboffice.modules.presentation.views.chart_item import ChartGraphicsItem
+
+                    item = ChartGraphicsItem(sh)
+                else:
+                    item = ShapeGraphicsItem(sh)
+                item.setZValue(float(idx))
+                self.addItem(item)
+                self._items_by_id[sh.id] = item
+
+            for cm in slide.comments:
+                marker = CommentMarkerItem(
+                    cm,
+                    self.presentation,
+                    on_click=self._on_comment_marker_clicked,
+                )
+                self.addItem(marker)
+                self._comment_items.append(marker)
+        finally:
+            self._is_loading_slide = False
+        self.selectionChanged.emit()
 
     def _on_comment_marker_clicked(self, marker: CommentMarkerItem) -> None:
         self.commentClicked.emit(marker.comment)
@@ -222,73 +263,92 @@ class SlideScene(QGraphicsScene):
             item for item in self.selectedItems() if isinstance(item, ShapeGraphicsItem)
         ]
 
-    def update_connected_connectors(self, shape_id: str) -> None:
+    def update_connected_connectors(
+        self,
+        shape_id: str,
+        _visited: set[str] | None = None,
+    ) -> None:
         """Automatically recalculate connector endpoints and routes connected to shape_id."""
-        for item in list(self._items_by_id.values()):
-            if not getattr(item.model, "is_connector", False):
-                continue
+        visited = _visited if _visited is not None else self._active_connector_updates
+        if shape_id in visited:
+            return
+        visited.add(shape_id)
+        try:
+            for item in list(self._items_by_id.values()):
+                if not getattr(item.model, "is_connector", False):
+                    continue
+                if item.model.id in visited:
+                    continue
 
-            cxn_start = item.model.cxn_start
-            cxn_end = item.model.cxn_end
-            if not cxn_start and not cxn_end:
-                continue
+                cxn_start = item.model.cxn_start
+                cxn_end = item.model.cxn_end
+                if not cxn_start and not cxn_end:
+                    continue
 
-            needs_update = False
-            adj = item.model.adj or {}
-            # Unrouted connectors: derive the free ends from the box and its flips.
-            (ls_x, ls_y), (le_x, le_y) = connector_local_endpoints(
-                item.model.w, item.model.h, item.model.flip_h, item.model.flip_v
-            )
-
-            # Start point
-            s_pt = None
-            s_idx = None
-            if cxn_start:
-                s_shape_id = cxn_start.get("id")
-                s_idx = int(cxn_start.get("idx", 0))
-                target = self.get_shape_item(s_shape_id)
-                if target:
-                    sites = target.get_connection_sites_scene()
-                    if s_idx < len(sites):
-                        s_pt = sites[s_idx]
-                        if s_shape_id == shape_id:
-                            needs_update = True
-            if s_pt is None:
-                p1 = adj.get("p1")
-                s_pt = (
-                    (float(p1[0]), float(p1[1]))
-                    if p1
-                    else (item.model.x + ls_x, item.model.y + ls_y)
+                needs_update = False
+                adj = item.model.adj or {}
+                # Unrouted connectors: derive the free ends from the box and its flips.
+                (ls_x, ls_y), (le_x, le_y) = connector_local_endpoints(
+                    item.model.w, item.model.h, item.model.flip_h, item.model.flip_v
                 )
 
-            # End point
-            e_pt = None
-            e_idx = None
-            if cxn_end:
-                e_shape_id = cxn_end.get("id")
-                e_idx = int(cxn_end.get("idx", 0))
-                target = self.get_shape_item(e_shape_id)
-                if target:
-                    sites = target.get_connection_sites_scene()
-                    if e_idx < len(sites):
-                        e_pt = sites[e_idx]
-                        if e_shape_id == shape_id:
-                            needs_update = True
-            if e_pt is None:
-                p2 = adj.get("p2")
-                e_pt = (
-                    (float(p2[0]), float(p2[1]))
-                    if p2
-                    else (item.model.x + le_x, item.model.y + le_y)
-                )
+                def _safe_site_idx(raw: Any) -> int:
+                    try:
+                        return int(raw) if raw is not None else 0
+                    except (TypeError, ValueError):
+                        return 0
 
-            if needs_update:
-                item.update_connector_endpoints(
-                    s_pt,
-                    e_pt,
-                    site1_idx=s_idx,
-                    site2_idx=e_idx,
-                )
+                # Start point
+                s_pt = None
+                s_idx = None
+                if cxn_start:
+                    s_shape_id = cxn_start.get("id")
+                    s_idx = _safe_site_idx(cxn_start.get("idx", 0))
+                    target = self.get_shape_item(s_shape_id)
+                    if target:
+                        sites = target.get_connection_sites_scene()
+                        if 0 <= s_idx < len(sites):
+                            s_pt = sites[s_idx]
+                            if s_shape_id == shape_id:
+                                needs_update = True
+                if s_pt is None:
+                    p1 = adj.get("p1")
+                    s_pt = (
+                        (float(p1[0]), float(p1[1]))
+                        if p1
+                        else (item.model.x + ls_x, item.model.y + ls_y)
+                    )
+
+                # End point
+                e_pt = None
+                e_idx = None
+                if cxn_end:
+                    e_shape_id = cxn_end.get("id")
+                    e_idx = _safe_site_idx(cxn_end.get("idx", 0))
+                    target = self.get_shape_item(e_shape_id)
+                    if target:
+                        sites = target.get_connection_sites_scene()
+                        if 0 <= e_idx < len(sites):
+                            e_pt = sites[e_idx]
+                            if e_shape_id == shape_id:
+                                needs_update = True
+                if e_pt is None:
+                    p2 = adj.get("p2")
+                    e_pt = (
+                        (float(p2[0]), float(p2[1]))
+                        if p2
+                        else (item.model.x + le_x, item.model.y + le_y)
+                    )
+
+                if needs_update:
+                    item.update_connector_endpoints(
+                        s_pt,
+                        e_pt,
+                        site1_idx=s_idx,
+                        site2_idx=e_idx,
+                    )
+        finally:
+            visited.discard(shape_id)
 
     # ------------------------------------------------------------------
     # Background rendering (Slide paper & shadow)
@@ -485,7 +545,8 @@ class SlideScene(QGraphicsScene):
             event.accept()
             return
 
-        item = self.itemAt(event.scenePos(), self.views()[0].transform() if self.views() else None)
+        view_tx = self.views()[0].transform() if self.views() else QTransform()
+        item = self.itemAt(event.scenePos(), view_tx)
         # Commit any active text editor if clicked outside
         for it in list(self._items_by_id.values()):
             if it.is_editing_text and it != item and getattr(it, "_text_editor", None) != item:
