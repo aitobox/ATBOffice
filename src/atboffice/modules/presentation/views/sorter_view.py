@@ -382,7 +382,7 @@ class SlideSorterView(QScrollArea):
             return
         end = min(len(self.cards), start + chunk_size)
         for idx in range(start, end):
-            if gen != self._thumb_load_gen:
+            if gen != self._thumb_load_gen or idx >= len(self.cards):
                 return
             card = self.cards[idx]
             if shiboken6.isValid(card):

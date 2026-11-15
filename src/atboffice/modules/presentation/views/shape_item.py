@@ -1105,6 +1105,7 @@ class ShapeGraphicsItem(QGraphicsObject):
         import shiboken6
 
         self.is_editing_text = False
+        self._cached_autofit = None
         ed = self._text_editor
         self._text_editor = None
         if ed is not None and shiboken6.isValid(ed):

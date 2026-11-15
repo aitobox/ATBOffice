@@ -240,7 +240,7 @@ def render_slide_to_image(
 ) -> QImage:
     """Render a slide with background and shapes onto a QImage with animation frame support."""
     width = max(1, int(width or 960))
-    height = max(1, int(height))
+    height = max(1, int(height or 540))
     w = max(100.0, presentation.w or 960.0)
     h = max(100.0, presentation.h or 540.0)
 

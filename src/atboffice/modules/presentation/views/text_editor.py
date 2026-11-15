@@ -504,11 +504,22 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                 # Honor explicit font scale and line spacing reduction stored in PPTX
                 pass
             else:
+                run_sig = tuple(
+                    (
+                        p.level,
+                        tuple(
+                            (r.size, r.bold, r.font, len(r.text))
+                            for r in p.runs
+                        ),
+                    )
+                    for p in text_body.paragraphs
+                )
                 cache_key = (
                     text_body.plain_text,
                     len(text_body.paragraphs),
                     round(avail_w, 1),
                     round(avail_h, 1),
+                    run_sig,
                 )
                 cached = (
                     getattr(autofit_cache_host, "_cached_autofit", None)
