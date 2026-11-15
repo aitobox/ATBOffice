@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, BinaryIO
@@ -1047,6 +1047,183 @@ def _serialize_worksheet(
     return "".join(parts).encode("utf-8")
 
 
+_GROUP_CHILD_EXTENT = 1_000_000  # virtual child coordinate space for written groups
+
+
+def _iter_drawings(drawings: list[Any]) -> Iterator[Any]:
+    """Yield drawings depth-first, including the children of group shapes."""
+    for obj in drawings:
+        yield obj
+        yield from _iter_drawings(getattr(obj, "children", None) or [])
+
+
+def _hex6(color: str | None, default: str) -> str:
+    clean = (color or "").lstrip("#").upper() or default
+    return clean[:6]
+
+
+def _drawing_fill_xml(obj: Any) -> str:
+    """spPr fill for a floating object (solid, none, gradient or pattern)."""
+    fill_type = getattr(obj, "fill_type", "solid")
+    if fill_type == "none":
+        return "<a:noFill/>"
+    stops = getattr(obj, "gradient_stops", None) or []
+    if fill_type == "gradient" and stops:
+        gs = "".join(
+            f'<a:gs pos="{round(pos * 100000)}"><a:srgbClr val="{_hex6(col, "000000")}">'
+            + (f'<a:alpha val="{round(alpha * 100000)}"/>' if alpha < 1.0 else "")
+            + "</a:srgbClr></a:gs>"
+            for pos, col, alpha in stops
+        )
+        ang = round(getattr(obj, "gradient_angle", 0.0) * 60000)
+        return f'<a:gradFill><a:gsLst>{gs}</a:gsLst><a:lin ang="{ang}"/></a:gradFill>'
+    if fill_type == "pattern":
+        prst = _xml_escape(getattr(obj, "pattern", "") or "pct50")
+        return (
+            f'<a:pattFill prst="{prst}">'
+            f'<a:fgClr><a:srgbClr val="{_hex6(obj.fill_color, "000000")}"/></a:fgClr>'
+            f'<a:bgClr><a:srgbClr val="{_hex6(getattr(obj, "pattern_bg", ""), "FFFFFF")}"/>'
+            f"</a:bgClr></a:pattFill>"
+        )
+    return f'<a:solidFill><a:srgbClr val="{_hex6(obj.fill_color, "4F81BD")}"/></a:solidFill>'
+
+
+def _drawing_line_xml(obj: Any) -> str:
+    """spPr outline for a floating object, including arrow ends."""
+    if not getattr(obj, "line_visible", True):
+        return "<a:ln><a:noFill/></a:ln>"
+    lw_emu = int(max(0.5, getattr(obj, "line_width", 1.0)) * 12700)
+    ends = ""
+    for tag, attr in (("headEnd", "head_end"), ("tailEnd", "tail_end")):
+        end_type = getattr(obj, attr, "")
+        if end_type:
+            ends += f'<a:{tag} type="{_xml_escape(end_type)}"/>'
+    return (
+        f'<a:ln w="{lw_emu}">'
+        f'<a:solidFill><a:srgbClr val="{_hex6(obj.line_color, "385D8A")}"/></a:solidFill>'
+        f"{ends}</a:ln>"
+    )
+
+
+def _drawing_geom_xml(obj: Any, geom_map: dict[str, str]) -> str:
+    """Preset geometry (with adjustments) for a floating object."""
+    geometry = getattr(obj, "geometry", "")
+    if not geometry or geometry == "custom":
+        geometry = geom_map.get(obj.kind, "rect")
+        adj: dict[str, Any] = {}
+    else:
+        adj = getattr(obj, "geometry_adj", None) or {}
+    gds = "".join(
+        f'<a:gd name="{_xml_escape(str(name))}" fmla="val {round(float(val))}"/>'
+        for name, val in adj.items()
+        if isinstance(val, (int, float))
+    )
+    return f'<a:prstGeom prst="{_xml_escape(geometry)}"><a:avLst>{gds}</a:avLst></a:prstGeom>'
+
+
+def _group_child_xfrm(obj: Any, tag: str = "a:xfrm") -> str:
+    fx, fy, fw, fh = getattr(obj, "group_frac", None) or (0.0, 0.0, 1.0, 1.0)
+    ext = _GROUP_CHILD_EXTENT
+    flips = ""
+    if getattr(obj, "flip_h", False):
+        flips += ' flipH="1"'
+    if getattr(obj, "flip_v", False):
+        flips += ' flipV="1"'
+    return (
+        f"<{tag}{flips}><a:off x=\"{round(fx * ext)}\" y=\"{round(fy * ext)}\"/>"
+        f'<a:ext cx="{round(fw * ext)}" cy="{round(fh * ext)}"/></{tag}>'
+    )
+
+
+def _object_xml(
+    obj: Any, image_rids: dict[int, str], geom_map: dict[str, str], in_group: bool = False
+) -> str:
+    """Serialize one floating object (picture, shape or group) into DrawingML."""
+    name_esc = _xml_escape(obj.name or f"Object {obj.id}")
+    xfrm = _group_child_xfrm(obj) if in_group else ""
+
+    if obj.kind == "group":
+        ext = _GROUP_CHILD_EXTENT
+        own = (
+            _group_child_xfrm(obj)
+            if in_group
+            else f'<a:xfrm><a:off x="0" y="0"/><a:ext cx="{ext}" cy="{ext}"/>'
+            f'<a:chOff x="0" y="0"/><a:chExt cx="{ext}" cy="{ext}"/></a:xfrm>'
+        )
+        if in_group:
+            child_space = f'<a:chOff x="0" y="0"/><a:chExt cx="{ext}" cy="{ext}"/>'
+            own = own.replace("</a:xfrm>", f"{child_space}</a:xfrm>")
+        kids = "".join(
+            _object_xml(c, image_rids, geom_map, in_group=True)
+            for c in sorted(obj.children, key=lambda o: o.z_index)
+        )
+        return (
+            f'<xdr:grpSp><xdr:nvGrpSpPr><xdr:cNvPr id="{obj.id}" name="{name_esc}"/>'
+            f"<xdr:cNvGrpSpPr/></xdr:nvGrpSpPr><xdr:grpSpPr>{own}</xdr:grpSpPr>"
+            f"{kids}</xdr:grpSp>"
+        )
+
+    if obj.kind == "image" and obj.id in image_rids:
+        img_rid = image_rids[obj.id]
+        locks = "<a:picLocks noChangeAspect=\"1\"/>" if getattr(obj, "lock_aspect", False) else ""
+        nv_pic_pr = (
+            f'<xdr:nvPicPr><xdr:cNvPr id="{obj.id}" name="{name_esc}"/>'
+            f"<xdr:cNvPicPr>{locks}</xdr:cNvPicPr></xdr:nvPicPr>"
+        )
+        blip_fill = (
+            f"<xdr:blipFill>"
+            f'<a:blip xmlns:r="{NS_R}" r:embed="{img_rid}"/>'
+            f"<a:stretch><a:fillRect/></a:stretch>"
+            f"</xdr:blipFill>"
+        )
+        return (
+            f"<xdr:pic>{nv_pic_pr}{blip_fill}"
+            f'<xdr:spPr>{xfrm}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>'
+            f"</xdr:pic>"
+        )
+
+    is_tb = "1" if obj.kind == "textbox" else "0"
+
+    # Text body
+    tx_body = ""
+    if getattr(obj, "text", "") or obj.kind == "textbox":
+        txt_clean = _hex6(getattr(obj, "text_color", "#000000"), "000000")
+        p_items = []
+        for line in (getattr(obj, "text", "") or "").split("\n"):
+            f_name = _xml_escape(getattr(obj, "font_family", "Calibri"))
+            p_items.append(
+                f"<a:p><a:r>"
+                f'<a:rPr lang="en-US" sz="{getattr(obj, "font_size", 11) * 100}">'
+                f'<a:solidFill><a:srgbClr val="{txt_clean}"/></a:solidFill>'
+                f'<a:latin typeface="{f_name}"/>'
+                f"</a:rPr>"
+                f"<a:t>{_xml_escape(line)}</a:t>"
+                f"</a:r></a:p>"
+            )
+        tx_body = (
+            f"<xdr:txBody>"
+            f'<a:bodyPr vertOverflow="clip" horzOverflow="clip"/>'
+            f"<a:lstStyle/>"
+            f"{''.join(p_items)}"
+            f"</xdr:txBody>"
+        )
+
+    nv_sp_pr = (
+        f'<xdr:nvSpPr><xdr:cNvPr id="{obj.id}" name="{name_esc}"/>'
+        f'<xdr:cNvSpPr txBox="{is_tb}"/></xdr:nvSpPr>'
+    )
+    return (
+        f'<xdr:sp macro="" textlink="">'
+        f"{nv_sp_pr}"
+        f"<xdr:spPr>{xfrm}"
+        f"{_drawing_geom_xml(obj, geom_map)}"
+        f"{_drawing_fill_xml(obj)}{_drawing_line_xml(obj)}"
+        f"</xdr:spPr>"
+        f"{tx_body}"
+        f"</xdr:sp>"
+    )
+
+
 def _serialize_drawings(
     drawings: list[Any],
     image_rids: dict[int, str],
@@ -1090,86 +1267,7 @@ def _serialize_drawings(
             f"<xdr:row>{t_row}</xdr:row><xdr:rowOff>{t_row_off}</xdr:rowOff></xdr:to>"
         )
 
-        name_esc = _xml_escape(obj.name or f"Object {obj.id}")
-
-        if obj.kind == "image" and obj.id in image_rids:
-            img_rid = image_rids[obj.id]
-            nv_pic_pr = (
-                f'<xdr:nvPicPr><xdr:cNvPr id="{obj.id}" name="{name_esc}"/>'
-                f"<xdr:cNvPicPr/></xdr:nvPicPr>"
-            )
-            blip_fill = (
-                f"<xdr:blipFill>"
-                f'<a:blip xmlns:r="{NS_R}" r:embed="{img_rid}"/>'
-                f"<a:stretch><a:fillRect/></a:stretch>"
-                f"</xdr:blipFill>"
-            )
-            parts.append(
-                f"<xdr:pic>{nv_pic_pr}{blip_fill}"
-                f'<xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>'
-                f"</xdr:pic>"
-            )
-        else:
-            geom = geom_map.get(obj.kind, "rect")
-            is_tb = "1" if obj.kind == "textbox" else "0"
-
-            # Fill
-            fill_clean = obj.fill_color.lstrip("#").upper() if obj.fill_color else "4F81BD"
-            if len(fill_clean) > 6:
-                fill_clean = fill_clean[:6]
-            fill_xml = f'<a:solidFill><a:srgbClr val="{fill_clean}"/></a:solidFill>'
-
-            # Line
-            line_clean = obj.line_color.lstrip("#").upper() if obj.line_color else "385D8A"
-            if len(line_clean) > 6:
-                line_clean = line_clean[:6]
-            lw_emu = int(max(0.5, getattr(obj, "line_width", 1.0)) * 12700)
-            line_xml = (
-                f'<a:ln w="{lw_emu}">'
-                f'<a:solidFill><a:srgbClr val="{line_clean}"/></a:solidFill>'
-                f"</a:ln>"
-            )
-
-            # Text body
-            tx_body = ""
-            if getattr(obj, "text", "") or obj.kind == "textbox":
-                txt_clean = getattr(obj, "text_color", "#000000").lstrip("#").upper()
-                if len(txt_clean) > 6:
-                    txt_clean = txt_clean[:6]
-                p_items = []
-                for line in (getattr(obj, "text", "") or "").split("\n"):
-                    f_name = _xml_escape(getattr(obj, "font_family", "Calibri"))
-                    p_items.append(
-                        f"<a:p><a:r>"
-                        f'<a:rPr lang="en-US" sz="{getattr(obj, "font_size", 11) * 100}">'
-                        f'<a:solidFill><a:srgbClr val="{txt_clean}"/></a:solidFill>'
-                        f'<a:latin typeface="{f_name}"/>'
-                        f"</a:rPr>"
-                        f"<a:t>{_xml_escape(line)}</a:t>"
-                        f"</a:r></a:p>"
-                    )
-                tx_body = (
-                    f"<xdr:txBody>"
-                    f'<a:bodyPr vertOverflow="clip" horzOverflow="clip"/>'
-                    f"<a:lstStyle/>"
-                    f"{''.join(p_items)}"
-                    f"</xdr:txBody>"
-                )
-
-            nv_sp_pr = (
-                f'<xdr:nvSpPr><xdr:cNvPr id="{obj.id}" name="{name_esc}"/>'
-                f'<xdr:cNvSpPr txBox="{is_tb}"/></xdr:nvSpPr>'
-            )
-            parts.append(
-                f'<xdr:sp macro="" textlink="">'
-                f"{nv_sp_pr}"
-                f"<xdr:spPr>"
-                f'<a:prstGeom prst="{geom}"><a:avLst/></a:prstGeom>'
-                f"{fill_xml}{line_xml}"
-                f"</xdr:spPr>"
-                f"{tx_body}"
-                f"</xdr:sp>"
-            )
+        parts.append(_object_xml(obj, image_rids, geom_map))
 
         parts.append("<xdr:clientData/></xdr:twoCellAnchor>")
 
@@ -1513,7 +1611,7 @@ def write_xlsx(
             image_rids: dict[int, str] = {}
             drawing_rels: list[str] = []
             rel_counter = 1
-            for obj in sheet.drawings:
+            for obj in _iter_drawings(sheet.drawings):
                 if obj.kind == "image" and getattr(obj, "image_data", None):
                     media_count += 1
                     ext = "png"

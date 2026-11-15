@@ -23,11 +23,15 @@ from PySide6.QtGui import (
     QMouseEvent,
     QPainter,
     QPen,
-    QPixmap,
     QPolygon,
 )
 from PySide6.QtWidgets import QMenu, QWidget
 
+from atboffice.modules.spreadsheet.views.object_painting import (
+    child_rect,
+    paint_geometry,
+    paint_image,
+)
 from atboffice.platform.cursors import get_safe_cursor
 
 if TYPE_CHECKING:
@@ -120,6 +124,27 @@ class FloatingObject:
     image_mime: str = "image/png"
     z_index: int = 0
     chart_data: dict[str, Any] | None = None
+    # DrawingML shape details (populated by the XLSX reader)
+    geometry: str = ""  # preset name ("rightArrow", "ellipse"...) or "custom"
+    geometry_adj: dict[str, Any] = field(default_factory=dict)
+    custom_path: dict[str, Any] | None = None
+    fill_type: str = "solid"  # "solid", "none", "gradient", "pattern"
+    gradient_stops: list[tuple[float, str, float]] = field(default_factory=list)
+    gradient_angle: float = 0.0
+    pattern: str = ""
+    pattern_bg: str = "#FFFFFF"
+    line_visible: bool = True
+    head_end: str = ""
+    tail_end: str = ""
+    flip_h: bool = False
+    flip_v: bool = False
+    lock_aspect: bool = False
+    # Group shapes: children are laid out in fractions of the parent frame.
+    children: list[FloatingObject] = field(default_factory=list)
+    group_frac: tuple[float, float, float, float] | None = None
+    # False until the layer has derived abs_rect from from/to cells (twoCellAnchor
+    # with editAs="oneCell"/"absolute"); the layer caches the result in abs_rect.
+    anchor_resolved: bool = True
 
     def clone(self) -> FloatingObject:
         """Create a deep copy of this floating object."""
@@ -148,6 +173,31 @@ class FloatingObject:
         }
         if self.chart_data is not None:
             d["chart_data"] = self.chart_data
+        if self.geometry:
+            d["geometry"] = self.geometry
+            d["geometry_adj"] = dict(self.geometry_adj)
+        if self.custom_path is not None:
+            d["custom_path"] = self.custom_path
+        if self.fill_type != "solid":
+            d["fill_type"] = self.fill_type
+            d["gradient_stops"] = [list(s) for s in self.gradient_stops]
+            d["gradient_angle"] = self.gradient_angle
+            d["pattern"] = self.pattern
+            d["pattern_bg"] = self.pattern_bg
+        if not self.line_visible:
+            d["line_visible"] = False
+        for key in ("head_end", "tail_end"):
+            if getattr(self, key):
+                d[key] = getattr(self, key)
+        for key in ("flip_h", "flip_v", "lock_aspect"):
+            if getattr(self, key):
+                d[key] = True
+        if self.children:
+            d["children"] = [c.to_dict() for c in self.children]
+        if self.group_frac is not None:
+            d["group_frac"] = list(self.group_frac)
+        if not self.anchor_resolved:
+            d["anchor_resolved"] = False
         return d
 
     @classmethod
@@ -178,6 +228,25 @@ class FloatingObject:
             image_mime=str(data.get("image_mime", "image/png")),
             z_index=int(data.get("z_index", 0)),
             chart_data=data.get("chart_data"),
+            geometry=str(data.get("geometry", "")),
+            geometry_adj=dict(data.get("geometry_adj") or {}),
+            custom_path=data.get("custom_path"),
+            fill_type=str(data.get("fill_type", "solid")),
+            gradient_stops=[
+                (float(p), str(c), float(a)) for p, c, a in data.get("gradient_stops") or []
+            ],
+            gradient_angle=float(data.get("gradient_angle", 0.0)),
+            pattern=str(data.get("pattern", "")),
+            pattern_bg=str(data.get("pattern_bg", "#FFFFFF")),
+            line_visible=bool(data.get("line_visible", True)),
+            head_end=str(data.get("head_end", "")),
+            tail_end=str(data.get("tail_end", "")),
+            flip_h=bool(data.get("flip_h", False)),
+            flip_v=bool(data.get("flip_v", False)),
+            lock_aspect=bool(data.get("lock_aspect", False)),
+            children=[cls.from_dict(c) for c in data.get("children") or []],
+            group_frac=tuple(data["group_frac"]) if data.get("group_frac") else None,  # type: ignore
+            anchor_resolved=bool(data.get("anchor_resolved", True)),
         )
 
 
@@ -192,6 +261,21 @@ def object_to_rect(
     freeze_cols: int = 0,
 ) -> QRect:
     """Calculate widget viewport bounding rectangle for a floating object."""
+    if not obj.anchor_resolved:
+        # Imported twoCellAnchor with editAs oneCell/absolute: derive the frame from
+        # its cells once, then keep it fixed (absolute) or sized (oneCell).
+        sx1 = geometry.col_pos(obj.from_point.col) + obj.from_point.col_off
+        sy1 = geometry.row_pos(obj.from_point.row) + obj.from_point.row_off
+        sx2 = geometry.col_pos(obj.to_point.col) + obj.to_point.col_off
+        sy2 = geometry.row_pos(obj.to_point.row) + obj.to_point.row_off
+        obj.abs_rect = (
+            int(min(sx1, sx2)),
+            int(min(sy1, sy2)),
+            int(max(4, abs(sx2 - sx1))),
+            int(max(4, abs(sy2 - sy1))),
+        )
+        obj.anchor_resolved = True
+
     eff_sx = 0 if (freeze_cols > 0 and obj.from_point.col < freeze_cols) else scroll_x
     eff_sy = 0 if (freeze_rows > 0 and obj.from_point.row < freeze_rows) else scroll_y
 
@@ -541,6 +625,11 @@ class SpreadsheetObjectLayer(QWidget):
         self, painter: QPainter, obj: FloatingObject, rect: QRect
     ) -> None:
         """Render a single floating object on canvas."""
+        if obj.kind == "group":
+            for sub in sorted(obj.children, key=lambda o: o.z_index):
+                self._paint_object(painter, sub, child_rect(rect, sub.group_frac))
+            return
+
         fill_col = QColor(obj.fill_color)
         fill_col.setAlphaF(max(0.0, min(1.0, obj.fill_alpha)))
         line_col = QColor(obj.line_color)
@@ -550,7 +639,11 @@ class SpreadsheetObjectLayer(QWidget):
         painter.setPen(pen)
         painter.setBrush(brush)
 
-        if obj.kind in ("rect", "textbox"):
+        if obj.kind == "image":
+            paint_image(painter, obj, rect)
+        elif obj.geometry and obj.kind != "chart":
+            paint_geometry(painter, obj, rect)
+        elif obj.kind in ("rect", "textbox"):
             painter.drawRect(rect)
         elif obj.kind == "roundRect":
             painter.drawRoundedRect(rect, 8.0, 8.0)
@@ -564,15 +657,6 @@ class SpreadsheetObjectLayer(QWidget):
             br = rect.bottomRight()
             head = QPolygon([br, br + QPoint(-8, -4), br + QPoint(-4, -8)])
             painter.drawPolygon(head)
-        elif obj.kind == "image":
-            if obj.image_data:
-                pix = QPixmap()
-                if pix.loadFromData(obj.image_data):
-                    painter.drawPixmap(rect, pix)
-                else:
-                    painter.drawRect(rect)
-            else:
-                painter.drawRect(rect)
         elif obj.kind == "chart":
             try:
                 from PySide6.QtCore import QRectF
