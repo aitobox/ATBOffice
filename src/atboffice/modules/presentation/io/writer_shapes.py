@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from atboffice.modules.presentation.io.alternate_content import render_preserved
 from atboffice.modules.presentation.io.writer_text import text_body_to_xml
 from atboffice.modules.presentation.io.xml_utils import (
     escape_xml,
@@ -232,6 +233,11 @@ def shape_to_xml(
     lang: str = "en-US",
 ) -> str:
     """Serialize any Shape model into compliant PresentationML XML."""
+    # Unedited shape loaded from mc:AlternateContent: write the original block back.
+    preserved = render_preserved(shape, id_resolver, media_resolver)
+    if preserved is not None:
+        return preserved
+
     shape_id = id_resolver(shape.id)
 
     # 0. SmartArt Diagram GraphicFrame

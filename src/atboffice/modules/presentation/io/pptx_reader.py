@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from atboffice.modules.presentation.io import alternate_content as mce
 from atboffice.modules.presentation.models.comment import (
     Comment,
     CommentAuthor,
@@ -49,6 +50,7 @@ from atboffice.modules.presentation.models.text import (
     Run,
     TextBody,
 )
+from atboffice.modules.writer.models.omml import parse_omml
 from atboffice.vfs.opc import SourcePackage
 
 # PresentationML & DrawingML Namespaces
@@ -471,6 +473,9 @@ class PptxReader:
                                 layout="blank",
                                 design_id=fallback_design.id,
                             )
+                        for sh in slide.shapes:
+                            if sh.alt_content is not None:
+                                sh.alt_content.fingerprint = mce.shape_fingerprint(sh)
                         slide._original_state = slide.to_dict()
                         pres.slides.append(slide)
                         slide_part_map[slide.id] = slide_path
@@ -855,6 +860,7 @@ class PptxReader:
         """Parse individual slide part XML."""
         slide_bytes = self.package.read_part(slide_path)
         slide_xml = ET.fromstring(slide_bytes)
+        part_namespaces: dict[str, str] | None = None
 
         # Slide relationships (for images, notes, etc.)
         slide_rels = self.package.get_relationships(slide_path)
@@ -1001,6 +1007,16 @@ class PptxReader:
                             slide_clr_map_ovr=slide_clr_map_ovr,
                         )
                         if shape:
+                            if mce.is_alternate_content(child):
+                                if part_namespaces is None:
+                                    part_namespaces = mce.collect_namespaces(slide_bytes)
+                                shape.alt_content = mce.capture(
+                                    child,
+                                    slide_path,
+                                    rel_map,
+                                    part_namespaces,
+                                    self._read_media_part,
+                                )
                             slide.shapes.append(shape)
                     except Exception as exc:
                         self._warnings.append(
@@ -1130,7 +1146,91 @@ class PptxReader:
                 slide_clr_map_ovr=slide_clr_map_ovr,
                 group_fill=group_fill,
             )
+        elif tag == "AlternateContent":
+            return self._parse_alternate_content(
+                elem,
+                slide_path=slide_path,
+                rel_map=rel_map,
+                timing_map=timing_map,
+                layout_info=layout_info,
+                slide_clr_map_ovr=slide_clr_map_ovr,
+                group_fill=group_fill,
+            )
         return None
+
+    def _parse_alternate_content(
+        self,
+        elem: ET.Element,
+        slide_path: str,
+        rel_map: dict[str, Any],
+        timing_map: dict[str, PlaybackSettings] | None = None,
+        layout_info: LayoutInfo | None = None,
+        slide_clr_map_ovr: dict[str, str] | None = None,
+        group_fill: Fill | None = None,
+    ) -> Shape | None:
+        """Parse the readable branch of an <mc:AlternateContent> in a shape tree."""
+        branch = mce.select_branch(elem)
+        if branch is None:
+            return None
+        shapes: list[Shape] = []
+        for child in branch:
+            sh = self._parse_shape(
+                child,
+                slide_path,
+                rel_map,
+                timing_map=timing_map,
+                layout_info=layout_info,
+                slide_clr_map_ovr=slide_clr_map_ovr,
+                group_fill=group_fill,
+            )
+            if sh is not None:
+                if _local_tag(child.tag) == "sp" and sh.type != "image":
+                    self._apply_picture_fill(child, sh, slide_path, rel_map)
+                shapes.append(sh)
+        if not shapes:
+            return None
+        if len(shapes) == 1:
+            return shapes[0]
+        # Several objects in one branch: keep them together as a group (absolute coords).
+        x0 = min(sh.x for sh in shapes)
+        y0 = min(sh.y for sh in shapes)
+        x1 = max(sh.x + sh.w for sh in shapes)
+        y1 = max(sh.y + sh.h for sh in shapes)
+        return Shape(
+            id=f"{shapes[0].id}_ac",
+            type="group",
+            name="Group",
+            x=x0,
+            y=y0,
+            w=x1 - x0,
+            h=y1 - y0,
+            kids=shapes,
+        )
+
+    def _apply_picture_fill(
+        self, sp: ET.Element, shape: Shape, slide_path: str, rel_map: dict[str, Any]
+    ) -> None:
+        """Show an <p:sp> filled with a picture (typical mc:Fallback rendering) as an image."""
+        sp_pr = _get_child(sp, "spPr")
+        blip = _get_child(_get_child(sp_pr, "blipFill"), "blip")
+        r_id = _get_attr(blip, "embed") if blip is not None else None
+        rel = rel_map.get(r_id) if r_id else None
+        if rel is None or rel.is_external:
+            return
+        media_path = _resolve_path(slide_path, rel.target)
+        data = self._read_media_part(media_path)
+        if not data:
+            return
+        shape.type = "image"
+        shape.media = media_path
+        shape.media_item = MediaItem(
+            media_type="image",
+            media_path=media_path,
+            poster_path=media_path,
+            poster_bytes=data,
+        )
+        if shape.text is not None and not shape.text.plain_text.strip():
+            shape.text = None
 
     def _parse_sp_element(
         self,
@@ -1813,7 +1913,7 @@ class PptxReader:
         kids: list[Shape] = []
         for child in elem:
             tag = _local_tag(child.tag)
-            if tag in ("sp", "cxnSp", "pic", "graphicFrame", "grpSp"):
+            if tag in ("sp", "cxnSp", "pic", "graphicFrame", "grpSp", "AlternateContent"):
                 kid_shape = self._parse_shape(
                     child,
                     slide_path,
@@ -2201,7 +2301,7 @@ class PptxReader:
             if sp_tree is not None:
                 for child in sp_tree:
                     ltag = _local_tag(child.tag)
-                    if ltag in ("sp", "pic", "graphicFrame", "grpSp"):
+                    if ltag in ("sp", "pic", "graphicFrame", "grpSp", "AlternateContent"):
                         has_ph = any(_local_tag(sub.tag) == "ph" for sub in child.iter())
                         if not has_ph:
                             sh = self._parse_shape(child, master_path, m_rel_map)
@@ -2278,7 +2378,7 @@ class PptxReader:
             if sp_tree is not None:
                 for child in sp_tree:
                     ltag = _local_tag(child.tag)
-                    if ltag in ("sp", "pic", "graphicFrame", "grpSp"):
+                    if ltag in ("sp", "pic", "graphicFrame", "grpSp", "AlternateContent"):
                         has_ph = any(_local_tag(sub.tag) == "ph" for sub in child.iter())
                         if not has_ph:
                             sh = self._parse_shape(child, layout_path, l_rel_map)
@@ -3193,7 +3293,10 @@ class PptxReader:
                     p_def_color = self._extract_color(solid_fill)
 
         runs: list[Run] = []
-        for child in p_elem:
+        display_math_jc: str | None = None
+
+        def _consume(child: ET.Element) -> None:
+            nonlocal display_math_jc
             ltag = _local_tag(child.tag)
             if ltag == "r":
                 runs.append(
@@ -3216,6 +3319,27 @@ class PptxReader:
                 runs.append(r)
             elif ltag == "br":
                 runs.append(Run(text="\n"))
+            elif ltag == "m":  # a14:m inline OMML math zone
+                for zone in child:
+                    math_run = self._parse_math_zone(
+                        zone, default_color=default_color, rel_map=rel_map
+                    )
+                    if math_run is not None:
+                        runs.append(math_run)
+                        item = math_run.math
+                        if item.display and display_math_jc is None:
+                            display_math_jc = item.jc or "centerGroup"
+            elif ltag == "AlternateContent":
+                branch = mce.select_branch(child)
+                if branch is not None:
+                    for sub in branch:
+                        _consume(sub)
+
+        for child in p_elem:
+            _consume(child)
+
+        if display_math_jc is not None and not algn_val:
+            algn_val = {"left": "l", "right": "r"}.get(display_math_jc, "ctr")
 
         if p_pr is not None and p_def_r_pr is not None:
             for r in runs:
@@ -3251,6 +3375,42 @@ class PptxReader:
             props=props,
             runs=runs,
         )
+
+    def _read_media_part(self, part_path: str) -> bytes | None:
+        """Return a media part's bytes (cached in media_map), or None if absent."""
+        if part_path in self.media_map:
+            return self.media_map[part_path]
+        if not self.package.has_part(part_path):
+            return None
+        data = self.package.read_part(part_path)
+        if data is not None:
+            self.media_map[part_path] = data
+        return data
+
+    def _parse_math_zone(
+        self,
+        zone: ET.Element,
+        default_color: str | None = None,
+        rel_map: dict[str, Any] | None = None,
+    ) -> Run | None:
+        """Turn an <m:oMathPara>/<m:oMath> zone into a run carrying the parsed formula."""
+        if _local_tag(zone.tag) not in ("oMathPara", "oMath"):
+            return None
+        item = parse_omml(zone)
+        text = item.plain_text()
+        if not text:
+            return None
+        # Formatting comes from the first DrawingML a:rPr inside a math run.
+        proto = ET.Element("r")
+        for el in zone.iter():
+            if el.tag == f"{{{NS_A}}}rPr":
+                proto.append(el)
+                break
+        run = self._parse_run(proto, default_color=default_color, rel_map=rel_map)
+        run.text = text
+        run.font = run.font or "Cambria Math"
+        run.math = item
+        return run
 
     def _parse_run(
         self,

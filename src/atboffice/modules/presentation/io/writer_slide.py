@@ -267,7 +267,26 @@ def slide_to_xml(
     enforce_schema_order(elem, "slide")
 
     xml_body = ET.tostring(elem, encoding="unicode")
+    xml_body = _declare_required_prefixes(xml_body, slide.shapes)
     return f"{XML_DECL}{xml_body}"
+
+
+def _declare_required_prefixes(xml_body: str, shapes: list) -> str:
+    """Declare mc:Choice ``Requires`` prefixes that ElementTree dropped as unused."""
+    head_end = xml_body.find(">")
+    if head_end < 0:
+        return xml_body
+    head = xml_body[:head_end]
+    extra: dict[str, str] = {}
+    for sh in shapes:
+        src = getattr(sh, "alt_content", None)
+        for prefix, uri in (src.namespaces if src else {}).items():
+            if f'xmlns:{prefix}="' not in head:
+                extra.setdefault(prefix, uri)
+    if not extra:
+        return xml_body
+    decls = "".join(f' xmlns:{p}="{escape_xml(u)}"' for p, u in extra.items())
+    return head + decls + xml_body[head_end:]
 
 
 def notes_slide_to_xml(

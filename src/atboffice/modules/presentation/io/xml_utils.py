@@ -169,6 +169,10 @@ class RelationshipBuilder:
     ) -> str:
         """Add relationship and return its relationship ID (e.g. rId1)."""
         if not rel_id:
+            # Skip ids already taken by relationships copied with explicit ids.
+            taken = {r["id"] for r in self._rels}
+            while f"rId{self._next_id}" in taken:
+                self._next_id += 1
             rel_id = f"rId{self._next_id}"
             self._next_id += 1
         self._rels.append(
