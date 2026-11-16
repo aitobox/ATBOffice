@@ -143,7 +143,9 @@ def parse_wsp(
     )
 
 
-def _parse_pic_child(pic: ET.Element, width: float, height: float, resolve: ResolveBlip) -> ShapeItem:
+def _parse_pic_child(
+    pic: ET.Element, width: float, height: float, resolve: ResolveBlip
+) -> ShapeItem:
     sp_pr = child(pic, "spPr")
     geom, adj, custom = parse_shape_geometry(sp_pr)
     xf = parse_xfrm(sp_pr)
@@ -252,7 +254,14 @@ def _vml_length_pt(raw: str | None, default: float) -> float:
     if not raw:
         return default
     raw = raw.strip()
-    units = {"pt": 1.0, "in": 72.0, "px": 0.75, "cm": 72.0 / 2.54, "mm": 72.0 / 25.4, "emu": 1 / EMU_PER_PT}
+    units = {
+        "emu": 1 / EMU_PER_PT,
+        "pt": 1.0,
+        "in": 72.0,
+        "px": 0.75,
+        "cm": 72.0 / 2.54,
+        "mm": 72.0 / 25.4,
+    }
     for unit, scale in units.items():
         if raw.endswith(unit):
             try:

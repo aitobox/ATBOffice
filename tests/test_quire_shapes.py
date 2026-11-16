@@ -299,7 +299,9 @@ def test_invisible_shape_paints_nothing(qapp) -> None:
     paint_shape(p, shape, QRectF(5, 5, 40, 40), 1.0)
     p.end()
     assert all(
-        QColor(img.pixel(x, y)).name() == "#ffffff" for x in range(0, 50, 3) for y in range(0, 50, 3)
+        QColor(img.pixel(x, y)).name() == "#ffffff"
+        for x in range(0, 50, 3)
+        for y in range(0, 50, 3)
     )
 
 

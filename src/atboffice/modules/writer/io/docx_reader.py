@@ -8,6 +8,13 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
+from atboffice.modules.writer.io.docx_shapes import (
+    is_vml_shape,
+    load_theme_colors,
+    parse_group,
+    parse_vml_shape,
+    parse_wsp,
+)
 from atboffice.modules.writer.models.document import (
     BookmarkEndItem,
     BookmarkStartItem,
@@ -43,13 +50,6 @@ from atboffice.modules.writer.models.drawing import (
     WrapDist,
     WrapMode,
     WrapSide,
-)
-from atboffice.modules.writer.io.docx_shapes import (
-    is_vml_shape,
-    load_theme_colors,
-    parse_group,
-    parse_vml_shape,
-    parse_wsp,
 )
 from atboffice.modules.writer.models.omml import parse_omml
 from atboffice.modules.writer.models.properties import (
@@ -2015,7 +2015,10 @@ class DocxReader:
             "arc",
             "curve",
         }
+        nested: set[int] = set()  # elements already owned by a parsed shape's text box
         for shape in elem.iter():
+            if id(shape) in nested:
+                continue
             tag = _local_tag(shape)
             if tag in vml_shape_tags:
                 style_str = _get_attr(shape, "style", "")
@@ -2068,6 +2071,7 @@ class DocxReader:
                     vml_shape.r_pr = r_pr or RunProperties()
                     vml_shape.raw_xml = raw_xml
                     runs.append(vml_shape)
+                    nested.update(id(d) for d in shape.iter() if d is not shape)
                     continue
 
                 pic = PictureItem(

@@ -23,7 +23,9 @@ from atboffice.modules.presentation.views.geometry_helper import (
 from atboffice.modules.writer.models.document import Paragraph
 from atboffice.modules.writer.models.drawing import ShapeItem
 
-OPEN_GEOMETRIES = frozenset({"line", "straightConnector1", "arc", "bentConnector3", "curvedConnector3"})
+OPEN_GEOMETRIES = frozenset(
+    {"line", "straightConnector1", "arc", "bentConnector3", "curvedConnector3"}
+)
 
 _DASH_STYLES = {
     "solid": Qt.PenStyle.SolidLine,
