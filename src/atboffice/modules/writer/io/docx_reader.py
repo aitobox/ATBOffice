@@ -39,9 +39,17 @@ from atboffice.modules.writer.models.drawing import (
     PictureItem,
     PositionH,
     PositionV,
+    ShapeItem,
     WrapDist,
     WrapMode,
     WrapSide,
+)
+from atboffice.modules.writer.io.docx_shapes import (
+    is_vml_shape,
+    load_theme_colors,
+    parse_group,
+    parse_vml_shape,
+    parse_wsp,
 )
 from atboffice.modules.writer.models.omml import parse_omml
 from atboffice.modules.writer.models.properties import (
@@ -341,6 +349,7 @@ class DocxReader:
         self.rels: dict[str, Relationship] = {}
         self.cur_rels: dict[str, Relationship] = {}
         self._sdt_controls_map: dict[str, dict[str, Any]] = {}
+        self.theme_colors: dict[str, str] = load_theme_colors(None)
         self.doc = Document()
         if self.pkg is not None:
             self.doc._source_pkg = self.pkg  # type: ignore[attr-defined]
@@ -418,6 +427,7 @@ class DocxReader:
 
         self._discover_main_part()
         self._load_document_relationships()
+        self._load_theme()
         self._parse_styles()
         self._parse_numbering()
         self._parse_settings()
@@ -468,6 +478,15 @@ class DocxReader:
                         target = f"word/{target}"
                     return target
         return None
+
+    def _load_theme(self) -> None:
+        """Load theme colors used to resolve DrawingML scheme colors in shapes."""
+        theme_path = self._rel_target("theme") or "word/theme/theme1.xml"
+        try:
+            data = self.pkg.read_part(theme_path) if self.pkg.has_part(theme_path) else None
+        except Exception:
+            data = None
+        self.theme_colors = load_theme_colors(data)
 
     def _parse_styles(self) -> None:
         """Parse word/styles.xml into doc.styles and doc.defaults."""
@@ -1762,6 +1781,18 @@ class DocxReader:
         if is_anchor:
             float_pr = self._parse_float_properties(container)
 
+        raw_xml = normalize_strict_namespaces(ET.tostring(elem, encoding="unicode"))
+        shape = self._parse_drawing_shape(container, width_pt, height_pt)
+        if shape is not None:
+            shape.id = doc_id
+            shape.name = name or shape.name
+            shape.alt_text = alt_text or name or "Shape"
+            shape.float_pr = float_pr
+            shape.r_pr = r_pr or RunProperties()
+            shape.raw_xml = raw_xml
+            runs.append(shape)
+            return
+
         rels = self.cur_rels if self.cur_rels else self.rels
         image_part = ""
         crop = Crop()
@@ -1809,9 +1840,56 @@ class DocxReader:
             image_part=image_part,
             alt_text=alt_text or name or "Embedded Object",
             crop=crop,
-            raw_xml=normalize_strict_namespaces(ET.tostring(elem, encoding="unicode")),
+            raw_xml=raw_xml,
         )
         runs.append(pic)
+
+    def _blip_part(self, pic: ET.Element) -> str:
+        """Resolve the package part of the first ``a:blip`` below ``pic`` ("" if none)."""
+        rels = self.cur_rels if self.cur_rels else self.rels
+        for gd in pic.iter():
+            if _local_tag(gd) != "blip":
+                continue
+            r_id = _get_attr(gd, "embed") or _get_attr(gd, "link")
+            if r_id and r_id in rels:
+                t = rels[r_id].target.lstrip("/")
+                if not t.startswith("word/") and not t.startswith("docProps/"):
+                    t = f"word/{t}"
+                return t
+        return ""
+
+    def _parse_drawing_shape(
+        self, container: ET.Element, width_pt: float, height_pt: float
+    ) -> ShapeItem | None:
+        """Return a ShapeItem for ``wps:wsp`` / ``wpg:wgp`` / ``wpc:wpc`` graphic data."""
+        graphic_data = None
+        for gd in container.iter():
+            if _local_tag(gd) == "graphicData":
+                graphic_data = gd
+                break
+        if graphic_data is None:
+            return None
+        content = next(iter(graphic_data), None)
+        if content is None:
+            return None
+        kind = _local_tag(content)
+        try:
+            if kind == "wsp":
+                return parse_wsp(
+                    content, width_pt, height_pt, self.theme_colors, self._collect_blocks
+                )
+            if kind in ("wgp", "wpc"):
+                return parse_group(
+                    content,
+                    width_pt,
+                    height_pt,
+                    self.theme_colors,
+                    self._collect_blocks,
+                    self._blip_part,
+                )
+        except Exception:
+            return None
+        return None
 
     def _parse_float_properties(self, anchor: ET.Element) -> FloatProperties:
         """Parse floating layout parameters from <wp:anchor>."""
@@ -1846,7 +1924,18 @@ class DocxReader:
             except ValueError:
                 pass
 
+        anchor_children: list[ET.Element] = []
         for c in anchor:
+            if _local_tag(c) == "AlternateContent":
+                choice = _find_elem(c, "Choice")
+                if choice is None:
+                    choice = _find_elem(c, "Fallback")
+                if choice is not None:
+                    anchor_children.extend(choice)
+            else:
+                anchor_children.append(c)
+
+        for c in anchor_children:
             c_tag = _local_tag(c)
             if c_tag == "positionH":
                 pos_h.rel = _get_attr(c, "relativeFrom", "column") or "column"
@@ -1856,6 +1945,11 @@ class DocxReader:
                         pos_h.align = sub.text.strip()
                     elif sub_tag == "posOffset" and sub.text:
                         pos_h.offset = _emu_to_pt(sub.text.strip())
+                    elif sub_tag == "pctPosHOffset" and sub.text:
+                        try:
+                            pos_h.percent = float(sub.text.strip()) / 1000.0
+                        except ValueError:
+                            pass
             elif c_tag == "positionV":
                 pos_v.rel = _get_attr(c, "relativeFrom", "paragraph") or "paragraph"
                 for sub in c:
@@ -1864,6 +1958,11 @@ class DocxReader:
                         pos_v.align = sub.text.strip()
                     elif sub_tag == "posOffset" and sub.text:
                         pos_v.offset = _emu_to_pt(sub.text.strip())
+                    elif sub_tag == "pctPosVOffset" and sub.text:
+                        try:
+                            pos_v.percent = float(sub.text.strip()) / 1000.0
+                        except ValueError:
+                            pass
             elif c_tag == "wrapSquare":
                 wrap_mode = WrapMode.SQUARE
                 ws_val = _get_attr(c, "wrapText", "bothSides")
@@ -1956,6 +2055,20 @@ class DocxReader:
                         pos_v=pos_v,
                         z_index=z_index,
                     )
+
+                if is_vml_shape(shape):
+                    vml_shape = parse_vml_shape(
+                        shape,
+                        props.get("width", 72.0),
+                        props.get("height", 72.0),
+                        self._collect_blocks,
+                        _get_attr,
+                    )
+                    vml_shape.float_pr = float_pr
+                    vml_shape.r_pr = r_pr or RunProperties()
+                    vml_shape.raw_xml = raw_xml
+                    runs.append(vml_shape)
+                    continue
 
                 pic = PictureItem(
                     width=props.get("width", 72.0),

@@ -283,6 +283,89 @@ class TextBoxItem(DrawingObject):
         self.vertical_align = vertical_align
 
 
+@dataclass
+class ShapeChild:
+    """A member of a group shape, placed in the group's box (points, unrotated)."""
+
+    item: ShapeItem
+    x: float = 0.0
+    y: float = 0.0
+
+
+@dataclass
+class ShapeItem(PictureItem):
+    """DrawingML / VML shape (``wps:wsp``, ``wpg:wgp``, ``v:rect`` ...) with optional text.
+
+    A ``PictureItem`` subclass so layout, wrapping and the verbatim ``raw_xml``
+    round-trip treat it like any other drawing; only painting differs.
+    ``fill`` is a ``drawing.dml.DmlFill`` and ``line`` a ``drawing.shape_style.DmlLine``.
+    """
+
+    geometry: str = "rect"
+    adjustments: dict[str, Any] = field(default_factory=dict)
+    custom_path: dict[str, Any] | None = None
+    fill: Any = None
+    line: Any = None
+    flip_h: bool = False
+    flip_v: bool = False
+    story: Story | None = None
+    insets: tuple[float, float, float, float] = (7.2, 3.6, 7.2, 3.6)  # l, t, r, b
+    v_anchor: str = "t"  # t, ctr, b
+    text_color: str | None = None
+    children: list[ShapeChild] = field(default_factory=list)
+
+    def __init__(self, **kwargs: Any) -> None:
+        own = {
+            k: kwargs.pop(k)
+            for k in (
+                "geometry", "adjustments", "custom_path", "fill", "line", "flip_h",
+                "flip_v", "story", "insets", "v_anchor", "text_color", "children",
+            )
+            if k in kwargs
+        }
+        super().__init__(**kwargs)
+        self.t = "shape"
+        self.geometry = own.get("geometry", "rect") or "rect"
+        self.adjustments = dict(own.get("adjustments") or {})
+        self.custom_path = own.get("custom_path")
+        self.fill = own.get("fill")
+        self.line = own.get("line")
+        self.flip_h = bool(own.get("flip_h", False))
+        self.flip_v = bool(own.get("flip_v", False))
+        self.story = own.get("story")
+        self.insets = tuple(own.get("insets", (7.2, 3.6, 7.2, 3.6)))  # type: ignore[assignment]
+        self.v_anchor = own.get("v_anchor", "t") or "t"
+        self.text_color = own.get("text_color")
+        self.children = list(own.get("children") or [])
+
+    @property
+    def is_group(self) -> bool:
+        return bool(self.children)
+
+    def has_text(self) -> bool:
+        """True when the text box holds any non-whitespace text."""
+        if self.story is None:
+            return False
+        from atboffice.modules.writer.models.document import Paragraph, plain_text
+
+        for block in self.story.blocks:
+            if isinstance(block, Paragraph):
+                if plain_text(block).strip():
+                    return True
+            elif getattr(block, "rows", None):  # a table counts as content
+                return True
+        return False
+
+    @property
+    def is_invisible(self) -> bool:
+        """No fill, no outline, no text and no children: nothing to paint."""
+        if self.children:
+            return all(c.item.is_invisible for c in self.children)
+        fill_visible = self.fill is not None and getattr(self.fill, "kind", "none") != "none"
+        line_visible = self.line is not None and bool(getattr(self.line, "visible", False))
+        return not (fill_visible or line_visible or self.has_text())
+
+
 # ---------------------------------------------------------------------------
 # Object Manipulation & Transformation Utilities
 # ---------------------------------------------------------------------------
