@@ -67,7 +67,7 @@ from atboffice.modules.writer.models.document import (
     reindex,
     split_at,
 )
-from atboffice.modules.writer.models.drawing import PictureItem
+from atboffice.modules.writer.models.drawing import PictureItem, ShapeItem
 from atboffice.modules.writer.models.omml import OfficeMathItem
 from atboffice.modules.writer.models.properties import (
     IndentProperties,
@@ -103,6 +103,7 @@ from atboffice.modules.writer.views.caret_controller import (
     delete_range_in_paragraph,
     insert_text_in_paragraph,
 )
+from atboffice.modules.writer.views.shape_painter import paint_shape
 from atboffice.modules.writer.views.view_modes import ViewMode
 
 
@@ -725,6 +726,10 @@ class WriterCanvasView(QAbstractScrollArea):
         if dest_rect.width() <= 0 or dest_rect.height() <= 0:
             return
 
+        if isinstance(pic, ShapeItem) and not pic.image_part:
+            self._paint_shape(painter, pic, dest_rect, is_vector)
+            return
+
         pixmap = self._resolve_pixmap(pic)
         if pixmap is not None and not pixmap.isNull():
             painter.save()
@@ -805,6 +810,64 @@ class WriterCanvasView(QAbstractScrollArea):
                 painter.drawText(dest_rect, Qt.AlignmentFlag.AlignCenter, label)
             finally:
                 painter.restore()
+
+    def _paint_shape(
+        self,
+        painter: QPainter,
+        shape: ShapeItem,
+        dest_rect: QRectF,
+        is_vector: bool = False,
+    ) -> None:
+        """Render a DrawingML/VML shape: geometry, fill, outline and text box content."""
+        if is_vector:
+            scale = 1.0
+
+            def line_cb(p: QPainter, origin: QPointF, line: Any, x: float, y: float) -> None:
+                self._paint_vector_line(p, line, origin.x() + x, origin.y() + y)
+
+            table_cb = None
+        else:
+            scale = self.pt_to_px(1.0)
+
+            def line_cb(p: QPainter, origin: QPointF, line: Any, x: float, y: float) -> None:
+                self._paint_line_portions(
+                    p, QRectF(origin.x(), origin.y(), 0.0, 0.0), line, x, y, check_spell=False
+                )
+
+            def table_cb(p: QPainter, origin: QPointF, tl: Any, x: float, y: float) -> None:
+                self._paint_table_layout(p, QRectF(origin.x(), origin.y(), 0.0, 0.0), tl, x, y)
+
+        def image_cb(p: QPainter, item: ShapeItem, rect: QRectF) -> None:
+            self._paint_picture(p, item, rect, self._zoom if not is_vector else 1.0, is_vector)
+
+        paint_shape(
+            painter,
+            shape,
+            dest_rect,
+            scale,
+            paint_line=line_cb,
+            paint_table=table_cb,
+            paint_image=image_cb,
+            doc=getattr(self, "doc", None),
+        )
+
+    def _paint_vector_line(self, painter: QPainter, line: Any, x_pt: float, y_pt: float) -> None:
+        """Paint the text portions of one laid-out line in point coordinates (print/PDF)."""
+        baseline = y_pt + (line.baseline - line.top)
+        cur_x = x_pt
+        for po in line.portions:
+            if po.type == PortionType.TEXT and po.text:
+                font = QFont(po.font_family or "Times New Roman")
+                font.setPointSizeF(po.font_size or 12.0)
+                font.setBold(bool(getattr(po, "bold", False)))
+                font.setItalic(bool(getattr(po, "italic", False)))
+                painter.setFont(font)
+                color_str = getattr(po, "color", None) or "#000000"
+                if color_str == "auto":
+                    color_str = "#000000"
+                painter.setPen(QPen(QColor(color_str)))
+                painter.drawText(QPointF(cur_x, baseline), po.text)
+            cur_x += po.width
 
     def _paint_header_footer(
         self,

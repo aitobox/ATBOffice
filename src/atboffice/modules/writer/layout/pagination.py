@@ -910,7 +910,8 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
                         "inline",
                         None,
                     ):
-                        cl = col.left if col else 0.0
+                        # Page coordinates: the column origin includes the left margin.
+                        cl = (col.left if col else 0.0) + sect.ml
                         cw = col.width if col else ctx.current_page.body_width
                         para_top_y = (col.used_height if col else 0.0) + sect.mt
                         fb = resolve_float_box(

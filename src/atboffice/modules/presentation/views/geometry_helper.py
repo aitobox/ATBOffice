@@ -279,11 +279,52 @@ def create_shape_path(
         path.moveTo(0.0, 0.0)
         path.cubicTo(w / 2.0, 0.0, w / 2.0, h, w, h)
 
+    elif geom in _STAR_PRESETS:
+        _add_star(path, geom, w, h, adj)
+
     else:
         # Default rectangle
         path.addRect(0.0, 0.0, w, h)
 
     return path
+
+
+# DrawingML star presets: point count, default inner-radius adj (of 50000), and the
+# horizontal/vertical outer-radius stretch factors (hf, vf; of 100000) from presetShapeDefinitions.
+_STAR_PRESETS: dict[str, tuple[int, float, float, float]] = {
+    "star4": (4, 12500, 100000, 100000),
+    "star5": (5, 19098, 105146, 110557),
+    "star6": (6, 28868, 115470, 100000),
+    "star7": (7, 34601, 102572, 105210),
+    "star8": (8, 37500, 100000, 100000),
+    "star10": (10, 42533, 105146, 100000),
+    "star12": (12, 37500, 100000, 100000),
+    "star16": (16, 37500, 100000, 100000),
+    "star24": (24, 37500, 100000, 100000),
+    "star32": (32, 37500, 100000, 100000),
+}
+
+
+def _add_star(path: QPainterPath, geom: str, w: float, h: float, adj: dict[str, Any]) -> None:
+    """Append an N-point star; the first point is at the top centre."""
+    n, default_adj, hf, vf = _STAR_PRESETS[geom]
+    try:
+        a = float(adj.get("adj", default_adj))
+    except (TypeError, ValueError):
+        a = default_adj
+    a = max(0.0, min(50000.0, a))
+    rx, ry = w / 2.0 * hf / 100000.0, h / 2.0 * vf / 100000.0
+    cx, cy = w / 2.0, h / 2.0 * vf / 100000.0
+    inner = a / 50000.0
+    for i in range(2 * n):
+        ang = -math.pi / 2.0 + i * math.pi / n
+        f = 1.0 if i % 2 == 0 else inner
+        x, y = cx + rx * f * math.cos(ang), cy + ry * f * math.sin(ang)
+        if i == 0:
+            path.moveTo(x, y)
+        else:
+            path.lineTo(x, y)
+    path.closeSubpath()
 
 
 def flip_transform(w: float, h: float, flip_h: bool, flip_v: bool) -> QTransform:
