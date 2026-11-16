@@ -36,6 +36,7 @@ from atboffice.modules.spreadsheet.models.conditional_format import (
     ColorScaleRule,
     ConditionalFormat,
     DataBarRule,
+    IconSetRule,
 )
 from atboffice.modules.spreadsheet.models.pivot_model import read_pivots_from_zip
 from atboffice.modules.spreadsheet.models.sheet_model import (
@@ -1066,6 +1067,9 @@ def _parse_worksheet(
                 color_hex = _norm_hex(c_val) or "#638EC6"
                 bar_rule = DataBarRule(cfvos=cfvos, color=color_hex, color_spec=c_spec)
 
+            # Icon set
+            icon_rule = _parse_icon_set(_find_child(r_el, "iconSet"))
+
             above_avg_attr = _attr(r_el, "aboveAverage")
             above_avg = above_avg_attr != "0"
             equal_avg = _attr(r_el, "equalAverage") in ("1", "true")
@@ -1091,6 +1095,7 @@ def _parse_worksheet(
                 italic=italic_val,
                 color_scale=scale_rule,
                 data_bar=bar_rule,
+                icon_set=icon_rule,
                 above_average=above_avg,
                 equal_average=equal_avg,
                 std_dev=std_dev,
@@ -1101,6 +1106,10 @@ def _parse_worksheet(
             rules.append(rule)
 
         cf = ConditionalFormat(sqref=sqref, ranges=ranges, rules=rules)
+        sheet.add_conditional_format(cf)
+
+    # 4b. x14 extension rules (icon sets with custom icons / 2009 icon sets)
+    for cf in _parse_x14_icon_set_formats(root):
         sheet.add_conditional_format(cf)
 
     # 5. Data Validations (<dataValidations>)
@@ -1474,6 +1483,85 @@ def _open_zip(source: str | Path | bytes | BinaryIO) -> zipfile.ZipFile:
             raise ValueError("Provided stream is not a valid XLSX archive.") from err
 
     raise ValueError(f"Unsupported source type: {type(source)}")
+
+
+def _parse_icon_set(is_el: ET.Element | None, x14: bool = False) -> IconSetRule | None:
+    """Parse ``<iconSet>`` (main namespace) or ``<x14:iconSet>`` into an IconSetRule.
+
+    Main-namespace cfvos carry ``val``; x14 cfvos carry an ``<xm:f>`` child
+    (see ``ledger/js/xlsx-read.js:810`` and ``:885-889``).
+    """
+    if is_el is None:
+        return None
+    cfvos: list[CFVO] = []
+    for vo_el in _find_children(is_el, "cfvo"):
+        val: Any = _attr(vo_el, "val")
+        f_el = _find_child(vo_el, "f")
+        if f_el is not None and f_el.text is not None:
+            val = f_el.text.strip()
+        cfvos.append(
+            CFVO(
+                type=_attr(vo_el, "type", "percent") or "percent",
+                val=val,
+                gte=_attr(vo_el, "gte") not in ("0", "false"),
+            )
+        )
+    custom: list[tuple[str, int]] = []
+    for ci_el in _find_children(is_el, "cfIcon"):
+        try:
+            icon_id = int(_attr(ci_el, "iconId", "0") or 0)
+        except ValueError:
+            icon_id = 0
+        custom.append((_attr(ci_el, "iconSet", "") or "", icon_id))
+    return IconSetRule(
+        set_name=_attr(is_el, "iconSet") or "3TrafficLights1",
+        cfvos=cfvos,
+        reverse=_attr(is_el, "reverse") in ("1", "true"),
+        show_value=_attr(is_el, "showValue") not in ("0", "false"),
+        percent=_attr(is_el, "percent") not in ("0", "false"),
+        custom=custom,
+        x14=x14,
+    )
+
+
+def _parse_x14_icon_set_formats(root: ET.Element) -> list[ConditionalFormat]:
+    """Read icon-set rules stored only in the worksheet x14 ``extLst``."""
+    out: list[ConditionalFormat] = []
+    ext_lst = _find_child(root, "extLst")
+    for ext_el in _find_children(ext_lst, "ext"):
+        for cfs_el in _find_children(ext_el, "conditionalFormattings"):
+            for cf_el in _find_children(cfs_el, "conditionalFormatting"):
+                sq_el = _find_child(cf_el, "sqref")
+                sqref = (sq_el.text or "").strip() if sq_el is not None else ""
+                ranges: list[tuple[int, int, int, int]] = []
+                for part in sqref.split():
+                    rg = parse_range(part)
+                    if rg:
+                        ranges.append((rg["r1"], rg["c1"], rg["r2"], rg["c2"]))
+                if not ranges:
+                    continue
+                rules: list[CFRule] = []
+                for r_el in _find_children(cf_el, "cfRule"):
+                    if _attr(r_el, "type") != "iconSet":
+                        continue  # x14 data bars and others are not handled here
+                    icon_rule = _parse_icon_set(_find_child(r_el, "iconSet"), x14=True)
+                    if icon_rule is None:
+                        continue
+                    try:
+                        priority = int(_attr(r_el, "priority", "1") or 1)
+                    except ValueError:
+                        priority = 1
+                    rules.append(
+                        CFRule(
+                            type="iconSet",
+                            priority=priority,
+                            stop_if_true=_attr(r_el, "stopIfTrue") in ("1", "true"),
+                            icon_set=icon_rule,
+                        )
+                    )
+                if rules:
+                    out.append(ConditionalFormat(sqref=sqref, ranges=ranges, rules=rules))
+    return out
 
 
 def read_xlsx(

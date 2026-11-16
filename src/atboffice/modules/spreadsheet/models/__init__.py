@@ -23,6 +23,7 @@ from atboffice.modules.spreadsheet.models.conditional_format import (
     ColorScaleRule,
     ConditionalFormat,
     DataBarRule,
+    IconSetRule,
     evaluate_cf_for_cell,
     mix_colors,
 )
@@ -71,6 +72,7 @@ __all__ = [
     "ColorScaleRule",
     "ConditionalFormat",
     "DataBarRule",
+    "IconSetRule",
     "DataValidation",
     "PivotCache",
     "PivotCacheSource",

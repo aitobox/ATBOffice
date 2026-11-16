@@ -7,6 +7,9 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
+from atboffice.modules.spreadsheet.calc.errors import ExcelError
+from atboffice.modules.spreadsheet.models.cf_formula import can_parse, eval_at, truthy
+
 if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
 
@@ -26,6 +29,12 @@ class CFRuleType(StrEnum):
     UNIQUE_VALUES = "uniqueValues"
     TOP10 = "top10"
     ABOVE_AVERAGE = "aboveAverage"
+    ICON_SET = "iconSet"
+    TIME_PERIOD = "timePeriod"
+    CONTAINS_BLANKS = "containsBlanks"
+    NOT_CONTAINS_BLANKS = "notContainsBlanks"
+    CONTAINS_ERRORS = "containsErrors"
+    NOT_CONTAINS_ERRORS = "notContainsErrors"
 
 
 class CFOp(StrEnum):
@@ -86,6 +95,30 @@ class DataBarRule:
     border_color: str | None = None
 
 
+# Icon sets introduced by the 2009 (x14) schema; they cannot be written in the
+# main SpreadsheetML namespace.
+X14_ONLY_ICON_SETS = frozenset({"3Stars", "3Triangles", "5Boxes", "NoIcons"})
+
+
+@dataclass
+class IconSetRule:
+    """Icon set configuration (``<iconSet>`` / ``<x14:iconSet>``)."""
+
+    set_name: str = "3TrafficLights1"
+    cfvos: list[CFVO] = field(default_factory=list)
+    reverse: bool = False
+    show_value: bool = True
+    percent: bool = True
+    # x14 custom icons: one (icon set name, icon id) per threshold
+    custom: list[tuple[str, int]] = field(default_factory=list)
+    # True when the rule was read from (and must be written to) the x14 extension
+    x14: bool = False
+
+    def needs_x14(self) -> bool:
+        """Whether this rule can only be represented in the x14 extension."""
+        return self.x14 or bool(self.custom) or self.set_name in X14_ONLY_ICON_SETS
+
+
 @dataclass
 class CFRule:
     """Individual conditional formatting rule."""
@@ -108,6 +141,7 @@ class CFRule:
     # Graphical rules
     color_scale: ColorScaleRule | None = None
     data_bar: DataBarRule | None = None
+    icon_set: IconSetRule | None = None
 
     # Statistical & Ranking rules
     above_average: bool = True
@@ -136,6 +170,8 @@ class CFResult:
     bold: bool | None = None
     italic: bool | None = None
     data_bar: dict[str, Any] | None = None
+    # {"set": name, "i": icon index, "n": icon count, "show_value": bool}
+    icon: dict[str, Any] | None = None
 
 
 def lerp(a: float, b: float, t: float) -> int:
@@ -231,6 +267,75 @@ def _cfvo_value(cfvo: CFVO, nums: list[float]) -> float:
     return 0.0
 
 
+_TEXT_RULE_TYPES = frozenset(
+    {
+        CFRuleType.CONTAINS_TEXT.value,
+        CFRuleType.NOT_CONTAINS_TEXT.value,
+        CFRuleType.BEGINS_WITH.value,
+        CFRuleType.ENDS_WITH.value,
+    }
+)
+
+
+def _anchor(ranges: list[tuple[int, int, int, int]]) -> tuple[int, int]:
+    """Anchor cell of a conditional format: top-left of the first sqref range."""
+    if not ranges:
+        return (0, 0)
+    return (ranges[0][0], ranges[0][1])
+
+
+def _is_blank(val: Any) -> bool:
+    return val is None or (isinstance(val, str) and val.strip() == "")
+
+
+def _is_error_value(val: Any) -> bool:
+    if isinstance(val, ExcelError):
+        return True
+    return isinstance(val, str) and val in (
+        "#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A", "#SPILL!", "#CALC!",
+    )
+
+
+def _text_match(rule_type: str, target: str, val: Any) -> bool:
+    """Plain text comparison used when a text rule carries no usable formula."""
+    s = str(val).lower() if val is not None else ""
+    t = target.lower()
+    if rule_type == CFRuleType.CONTAINS_TEXT.value:
+        return t in s
+    if rule_type == CFRuleType.NOT_CONTAINS_TEXT.value:
+        return t not in s
+    if rule_type == CFRuleType.BEGINS_WITH.value:
+        return s.startswith(t)
+    return s.endswith(t)
+
+
+def _cell_is_operand(
+    sheet: SheetDataModel,
+    ranges: list[tuple[int, int, int, int]],
+    text: str,
+    r: int,
+    c: int,
+) -> Any:
+    """Resolve a cellIs operand: plain numbers directly, anything else as a shifted formula."""
+    try:
+        return float(text)
+    except (ValueError, TypeError):
+        pass
+    if not can_parse(text):
+        return text  # legacy behaviour: compare against the raw text
+    v = eval_at(sheet, text, _anchor(ranges), r, c)
+    if isinstance(v, ExcelError) and v.code == "#NAME?":
+        # Unquoted text typed into the dialog (e.g. ``abc``): compare literally.
+        return text
+    if v is None:
+        return 0.0
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, (int, float)):
+        return float(v)
+    return v
+
+
 def _rule_matches(
     rule: CFRule,
     sheet: SheetDataModel,
@@ -243,56 +348,74 @@ def _rule_matches(
     rule_type = rule.type
 
     if rule_type == CFRuleType.CELL_IS.value:
-        if val is None:
+        if val is None or _is_error_value(val):
+            return False
+        f0 = _cell_is_operand(sheet, ranges, rule.formula[0] if rule.formula else "0", r, c)
+        op = rule.operator or CFOp.EQUAL.value
+        if op in (CFOp.BETWEEN.value, CFOp.NOT_BETWEEN.value):
+            f1 = _cell_is_operand(
+                sheet, ranges, rule.formula[1] if len(rule.formula) > 1 else "0", r, c
+            )
+            if isinstance(f0, ExcelError) or isinstance(f1, ExcelError):
+                return False
+            try:
+                num_val = float(val)
+                lo, hi = sorted((float(f0), float(f1)))
+            except (ValueError, TypeError):
+                return False
+            inside = lo <= num_val <= hi
+            return inside if op == CFOp.BETWEEN.value else not inside
+        if isinstance(f0, ExcelError):
             return False
         try:
             num_val = float(val)
-            f0 = float(rule.formula[0]) if rule.formula else 0.0
+            num_f0 = float(f0)
         except (ValueError, TypeError):
-            # Fall back to string comparison
-            s_val = str(val)
-            s_f0 = str(rule.formula[0]) if rule.formula else ""
-            if rule.operator == CFOp.EQUAL.value:
-                return s_val.lower() == s_f0.lower()
-            elif rule.operator == CFOp.NOT_EQUAL.value:
-                return s_val.lower() != s_f0.lower()
+            # Fall back to case-insensitive string comparison
+            s_val = str(val).lower()
+            s_f0 = str(f0).lower()
+            if op == CFOp.EQUAL.value:
+                return s_val == s_f0
+            if op == CFOp.NOT_EQUAL.value:
+                return s_val != s_f0
             return False
-
-        op = rule.operator or CFOp.EQUAL.value
-        if op == CFOp.BETWEEN.value or op == CFOp.NOT_BETWEEN.value:
-            f1 = float(rule.formula[1]) if len(rule.formula) > 1 else 0.0
-            lo, hi = min(f0, f1), max(f0, f1)
-            inside = lo <= num_val <= hi
-            return inside if op == CFOp.BETWEEN.value else not inside
-        elif op == CFOp.EQUAL.value:
-            return num_val == f0
-        elif op == CFOp.NOT_EQUAL.value:
-            return num_val != f0
-        elif op == CFOp.GREATER_THAN.value:
-            return num_val > f0
-        elif op == CFOp.LESS_THAN.value:
-            return num_val < f0
-        elif op == CFOp.GREATER_THAN_OR_EQUAL.value:
-            return num_val >= f0
-        elif op == CFOp.LESS_THAN_OR_EQUAL.value:
-            return num_val <= f0
+        if op == CFOp.EQUAL.value:
+            return num_val == num_f0
+        if op == CFOp.NOT_EQUAL.value:
+            return num_val != num_f0
+        if op == CFOp.GREATER_THAN.value:
+            return num_val > num_f0
+        if op == CFOp.LESS_THAN.value:
+            return num_val < num_f0
+        if op == CFOp.GREATER_THAN_OR_EQUAL.value:
+            return num_val >= num_f0
+        if op == CFOp.LESS_THAN_OR_EQUAL.value:
+            return num_val <= num_f0
         return False
 
-    elif rule_type == CFRuleType.CONTAINS_TEXT.value:
-        target = rule.text or (rule.formula[0] if rule.formula else "")
-        return target.lower() in str(val).lower() if val is not None else False
+    elif rule_type == CFRuleType.CONTAINS_BLANKS.value:
+        return _is_blank(val)
 
-    elif rule_type == CFRuleType.NOT_CONTAINS_TEXT.value:
-        target = rule.text or (rule.formula[0] if rule.formula else "")
-        return target.lower() not in str(val).lower() if val is not None else True
+    elif rule_type == CFRuleType.NOT_CONTAINS_BLANKS.value:
+        return not _is_blank(val)
 
-    elif rule_type == CFRuleType.BEGINS_WITH.value:
-        target = rule.text or (rule.formula[0] if rule.formula else "")
-        return str(val).lower().startswith(target.lower()) if val is not None else False
+    elif rule_type == CFRuleType.CONTAINS_ERRORS.value:
+        return _is_error_value(val)
 
-    elif rule_type == CFRuleType.ENDS_WITH.value:
-        target = rule.text or (rule.formula[0] if rule.formula else "")
-        return str(val).lower().endswith(target.lower()) if val is not None else False
+    elif rule_type == CFRuleType.NOT_CONTAINS_ERRORS.value:
+        return not _is_error_value(val)
+
+    elif rule_type == CFRuleType.EXPRESSION.value or rule_type in _TEXT_RULE_TYPES:
+        # Formula-based rules: the formula is written for the anchor cell and
+        # its relative references move with the evaluated cell.
+        formula = rule.formula[0] if rule.formula else None
+        if rule_type in _TEXT_RULE_TYPES and (formula is None or not can_parse(formula)):
+            if rule.text is None:
+                return False
+            return _text_match(rule_type, rule.text, val)
+        if formula is None:
+            return False
+        return truthy(eval_at(sheet, formula, _anchor(ranges), r, c))
 
     elif rule_type in (CFRuleType.DUPLICATE_VALUES.value, CFRuleType.UNIQUE_VALUES.value):
         if val is None or val == "":
@@ -345,6 +468,67 @@ def _rule_matches(
         return num_v >= lim if equal else num_v > lim
 
     return False
+
+
+def _resolve_cfvo(
+    cfvo: CFVO, sheet: SheetDataModel, ranges: list[tuple[int, int, int, int]]
+) -> CFVO:
+    """Evaluate a formula-valued threshold (e.g. ``$A$1``) at the anchor cell."""
+    if cfvo.val is None or cfvo.type in ("min", "max"):
+        return cfvo
+    try:
+        float(cfvo.val)
+        return cfvo
+    except (ValueError, TypeError):
+        pass
+    text = str(cfvo.val)
+    if not can_parse(text):
+        return cfvo
+    anchor = _anchor(ranges)
+    v = eval_at(sheet, text, anchor, anchor[0], anchor[1])
+    num = float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
+    return CFVO(type=cfvo.type, val=num, gte=cfvo.gte)
+
+
+def _icon_for_value(
+    ic: IconSetRule,
+    sheet: SheetDataModel,
+    ranges: list[tuple[int, int, int, int]],
+    val: Any,
+) -> dict[str, Any] | None:
+    """Pick the icon for ``val`` (ported from ``ledger/js/cf.js`` icon branch)."""
+    if val is None or isinstance(val, bool) or not ic.cfvos:
+        return None
+    try:
+        num_val = float(val)
+    except (ValueError, TypeError):
+        return None
+    nums = _get_range_values(sheet, ranges, nums_only=True)
+    if not nums:
+        return None
+    th = [_cfvo_value(_resolve_cfvo(cfvo, sheet, ranges), nums) for cfvo in ic.cfvos]
+    idx = 0
+    for k in range(len(th) - 1, 0, -1):
+        gte = getattr(ic.cfvos[k], "gte", True)
+        if (num_val >= th[k]) if gte else (num_val > th[k]):
+            idx = k
+            break
+    n = len(th)
+    if ic.custom and idx < len(ic.custom):
+        c_set, c_id = ic.custom[idx]
+        if c_set == "NoIcons":
+            # No icon for this band; only hiding the value still applies.
+            if not ic.show_value:
+                return {"set": "NoIcons", "i": 0, "n": n, "show_value": False}
+            return None
+        if c_set:
+            return {"set": c_set, "i": c_id, "n": n, "show_value": ic.show_value}
+    return {
+        "set": ic.set_name,
+        "i": n - 1 - idx if ic.reverse else idx,
+        "n": n,
+        "show_value": ic.show_value,
+    }
 
 
 def evaluate_cf_for_cell(sheet: SheetDataModel, r: int, c: int) -> CFResult | None:
@@ -451,7 +635,18 @@ def evaluate_cf_for_cell(sheet: SheetDataModel, r: int, c: int) -> CFResult | No
                 break
             continue
 
-        # 3. Standard CellIs / Text / Duplicate Rules
+        # 3. Icon Set Rule
+        if rule.type == CFRuleType.ICON_SET.value or rule.icon_set is not None:
+            if rule.icon_set is not None and result.icon is None:
+                icon = _icon_for_value(rule.icon_set, sheet, cf.ranges, val)
+                if icon is not None:
+                    result.icon = icon
+                    has_format = True
+            if rule.stop_if_true:
+                break
+            continue
+
+        # 4. Standard CellIs / Text / Duplicate Rules
         if _rule_matches(rule, sheet, cf.ranges, r, c, val):
             if rule.bg_color is not None and result.bg_color is None:
                 result.bg_color = rule.bg_color
