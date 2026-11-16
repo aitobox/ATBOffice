@@ -1052,7 +1052,9 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
                             continue
 
                     placed_lines = lines_to_place[:k]
-                    if placed_lines and placed_lines[0].top != 0.0:
+                    # Continuation chunks restart at the column top. The first chunk keeps
+                    # a float-induced offset (lines pushed below a top-and-bottom drawing).
+                    if placed_lines and line_offset > 0 and placed_lines[0].top != 0.0:
                         first_top = placed_lines[0].top
                         rebased_lines: list[LayoutLine] = []
                         for ln in placed_lines:
@@ -1063,6 +1065,8 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
                             rebased_lines.append(ln_copy)
                         placed_lines = rebased_lines
                     frag_h = sum(ln.height for ln in placed_lines)
+                    if placed_lines:
+                        frag_h = max(frag_h, max(ln.top + ln.height for ln in placed_lines))
                     frag = PageFragment(
                         paragraph=block,  # Keep reference to original block
                         line_start_idx=line_offset,

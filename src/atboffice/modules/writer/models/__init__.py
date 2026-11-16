@@ -41,6 +41,7 @@ from atboffice.modules.writer.models.document import (
 )
 from atboffice.modules.writer.models.drawing import (
     AnchorHandle,
+    ChartItem,
     Crop,
     DrawingObject,
     FloatProperties,
@@ -215,6 +216,7 @@ __all__ = [
     "TabItem",
     "Table",
     "TableProperties",
+    "ChartItem",
     "ShapeChild",
     "ShapeItem",
     "TextBoxItem",

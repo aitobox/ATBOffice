@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 import math
 from collections.abc import Callable
 from typing import Any
@@ -40,6 +41,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.modules.presentation.chart.painter import ChartPainter
 from atboffice.modules.writer.layout.math_layout import paint_math
 from atboffice.modules.writer.layout.pagination import (
     Page,
@@ -67,7 +69,7 @@ from atboffice.modules.writer.models.document import (
     reindex,
     split_at,
 )
-from atboffice.modules.writer.models.drawing import PictureItem, ShapeItem
+from atboffice.modules.writer.models.drawing import ChartItem, PictureItem, ShapeItem
 from atboffice.modules.writer.models.omml import OfficeMathItem
 from atboffice.modules.writer.models.properties import (
     IndentProperties,
@@ -105,6 +107,8 @@ from atboffice.modules.writer.views.caret_controller import (
 )
 from atboffice.modules.writer.views.shape_painter import paint_shape
 from atboffice.modules.writer.views.view_modes import ViewMode
+
+logger = logging.getLogger(__name__)
 
 
 def safe_tr(text: str) -> str:
@@ -730,6 +734,10 @@ class WriterCanvasView(QAbstractScrollArea):
             self._paint_shape(painter, pic, dest_rect, is_vector)
             return
 
+        if isinstance(pic, ChartItem) and pic.chart is not None:
+            self._paint_chart(painter, pic, dest_rect, is_vector)
+            return
+
         pixmap = self._resolve_pixmap(pic)
         if pixmap is not None and not pixmap.isNull():
             painter.save()
@@ -810,6 +818,35 @@ class WriterCanvasView(QAbstractScrollArea):
                 painter.drawText(dest_rect, Qt.AlignmentFlag.AlignCenter, label)
             finally:
                 painter.restore()
+
+    def _paint_chart(
+        self,
+        painter: QPainter,
+        item: ChartItem,
+        dest_rect: QRectF,
+        is_vector: bool = False,
+    ) -> None:
+        """Paint an embedded chart with the shared chart painter.
+
+        The chart is laid out in points (fonts, insets) and scaled to the device so it
+        looks the same at every zoom and in print.
+        """
+        scale = 1.0 if is_vector else self.pt_to_px(1.0)
+        if scale <= 0:
+            return
+        painter.save()
+        try:
+            painter.translate(dest_rect.topLeft())
+            painter.scale(scale, scale)
+            ChartPainter.paint_chart(
+                painter,
+                item.chart,
+                QRectF(0.0, 0.0, dest_rect.width() / scale, dest_rect.height() / scale),
+            )
+        except Exception:
+            logger.debug("Chart painting failed for %s", item.name, exc_info=True)
+        finally:
+            painter.restore()
 
     def _paint_shape(
         self,

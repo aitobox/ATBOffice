@@ -283,6 +283,21 @@ class TextBoxItem(DrawingObject):
         self.vertical_align = vertical_align
 
 
+class ChartItem(PictureItem):
+    """Embedded DrawingML chart (``c:chart``).
+
+    ``chart`` is a ``presentation.chart.model.ChartData``. A ``PictureItem`` subclass so
+    layout, wrapping and the verbatim ``raw_xml`` round-trip treat it like any drawing.
+    """
+
+    chart: Any = None
+
+    def __init__(self, chart: Any = None, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.t = "chart"
+        self.chart = chart
+
+
 @dataclass
 class ShapeChild:
     """A member of a group shape, placed in the group's box (points, unrotated)."""
