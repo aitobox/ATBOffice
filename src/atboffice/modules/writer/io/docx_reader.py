@@ -8,6 +8,11 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
+from atboffice.modules.writer.io.docx_graphics import (
+    read_chart,
+    smartart_from_data,
+    smartart_from_drawing,
+)
 from atboffice.modules.writer.io.docx_shapes import (
     is_vml_shape,
     load_theme_colors,
@@ -41,6 +46,7 @@ from atboffice.modules.writer.models.document import (
     normalize,
 )
 from atboffice.modules.writer.models.drawing import (
+    ChartItem,
     Crop,
     FloatProperties,
     PictureItem,
@@ -1189,14 +1195,12 @@ class DocxReader:
                 line_val = _get_attr(child, "line")
                 if line_val is not None:
                     line_str = str(line_val).strip()
-                    if line_str.endswith("pt"):
+                    if line_str.endswith(("pt", "in")):
+                        # Strict OOXML writes measures with units; with lineRule="auto"
+                        # the value is still in 240ths of a line (12pt == 240 twips == 1 line).
                         try:
-                            line = float(line_str[:-2])
-                        except ValueError:
-                            line = 1.0
-                    elif line_str.endswith("in"):
-                        try:
-                            line = float(line_str[:-2]) * 72.0
+                            pts = float(line_str[:-2]) * (72.0 if line_str.endswith("in") else 1.0)
+                            line = pts / 12.0 if rule == "auto" else pts
                         except ValueError:
                             line = 1.0
                     else:
@@ -1567,7 +1571,8 @@ class DocxReader:
         # Document grid
         doc_grid_elem = _find_elem(sect_elem, "docGrid", W_NAMESPACES)
         if doc_grid_elem is not None:
-            dg_type = _get_attr(doc_grid_elem, "type", "lines")
+            # No w:type means the "default" grid: no line snapping (ECMA-376 17.6.5).
+            dg_type = _get_attr(doc_grid_elem, "type", "default") or "default"
             dg_pitch = _twips_to_pt(_get_attr(doc_grid_elem, "linePitch"), 15.6)
             dg_char = _twips_to_pt(_get_attr(doc_grid_elem, "charSpace"), 0.0)
             sect.doc_grid = DocGridProperties(type=dg_type, line_pitch=dg_pitch, char_space=dg_char)
@@ -1860,8 +1865,8 @@ class DocxReader:
 
     def _parse_drawing_shape(
         self, container: ET.Element, width_pt: float, height_pt: float
-    ) -> ShapeItem | None:
-        """Return a ShapeItem for ``wps:wsp`` / ``wpg:wgp`` / ``wpc:wpc`` graphic data."""
+    ) -> ShapeItem | ChartItem | None:
+        """Return the item for ``wps:wsp`` / ``wpg:wgp`` / ``wpc:wpc`` / chart / SmartArt data."""
         graphic_data = None
         for gd in container.iter():
             if _local_tag(gd) == "graphicData":
@@ -1874,6 +1879,10 @@ class DocxReader:
             return None
         kind = _local_tag(content)
         try:
+            if kind == "chart":
+                return self._parse_chart_frame(content, width_pt, height_pt)
+            if kind == "relIds":
+                return self._parse_smartart_frame(content, width_pt, height_pt)
             if kind == "wsp":
                 return parse_wsp(
                     content, width_pt, height_pt, self.theme_colors, self._collect_blocks
@@ -1888,6 +1897,85 @@ class DocxReader:
                     self._blip_part,
                 )
         except Exception:
+            return None
+        return None
+
+    def _rel_part(self, r_id: str | None) -> str:
+        """Package path of an internal relationship target of the current part ("" if none)."""
+        rels = self.cur_rels if self.cur_rels else self.rels
+        rel = rels.get(r_id or "")
+        if rel is None or getattr(rel, "target_mode", "Internal") != "Internal":
+            return ""
+        t = rel.target.lstrip("/")
+        if not t.startswith("word/") and not t.startswith("docProps/"):
+            t = f"word/{t}"
+        return t
+
+    def _read_xml_part(self, path: str) -> str | None:
+        """Read a package part as text with Strict namespaces normalized (None if unreadable)."""
+        if not path or not self.pkg.has_part(path):
+            return None
+        try:
+            raw = self.pkg.read_part(path)
+            text = raw.decode("utf-8", errors="ignore") if isinstance(raw, bytes) else str(raw)
+            return normalize_strict_namespaces(text)
+        except Exception:
+            return None
+
+    def _parse_chart_frame(
+        self, content: ET.Element, width_pt: float, height_pt: float
+    ) -> ChartItem | None:
+        """``c:chart r:id`` -> :class:`ChartItem` (None keeps the picture fallback)."""
+        xml_text = self._read_xml_part(self._rel_part(_get_attr(content, "id")))
+        chart = read_chart(xml_text) if xml_text else None
+        if chart is None:
+            return None
+        return ChartItem(width=width_pt, height=height_pt, chart=chart)
+
+    def _parse_smartart_frame(
+        self, content: ET.Element, width_pt: float, height_pt: float
+    ) -> ShapeItem | None:
+        """``dgm:relIds`` -> group :class:`ShapeItem` from the stored diagram drawing.
+
+        The data part names its drawing in ``dsp:dataModelExt/@relId``; otherwise the
+        part's only ``diagramDrawing`` relationship is used. Without a drawing the data model
+        is laid out directly.
+        """
+        rels = self.cur_rels if self.cur_rels else self.rels
+        data_text = self._read_xml_part(self._rel_part(_get_attr(content, "dm")))
+        data_root = None
+        drawing_rid = None
+        if data_text:
+            try:
+                data_root = ET.fromstring(data_text)
+            except ET.ParseError:
+                data_root = None
+        if data_root is not None:
+            for el in data_root.iter():
+                if _local_tag(el) == "dataModelExt" and _get_attr(el, "relId"):
+                    drawing_rid = _get_attr(el, "relId")
+                    break
+        if drawing_rid not in rels:
+            # Only trust a bare diagramDrawing relationship when it is unambiguous.
+            drawings = [r.id for r in rels.values() if r.type.endswith("/diagramDrawing")]
+            drawing_rid = drawings[0] if len(drawings) == 1 else None
+        drawing_text = self._read_xml_part(self._rel_part(drawing_rid))
+        try:
+            if drawing_text:
+                group = smartart_from_drawing(
+                    ET.fromstring(drawing_text), width_pt, height_pt, self.theme_colors
+                )
+                if group is not None:
+                    return group
+            if data_root is not None:
+                layout_id = ""
+                layout_text = self._read_xml_part(self._rel_part(_get_attr(content, "lo")))
+                if layout_text:
+                    layout_id = ET.fromstring(layout_text).get("uniqueId", "") or ""
+                return smartart_from_data(
+                    data_root, layout_id, width_pt, height_pt, self.theme_colors
+                )
+        except ET.ParseError:
             return None
         return None
 
