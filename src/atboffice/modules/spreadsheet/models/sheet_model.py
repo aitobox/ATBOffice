@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
@@ -239,6 +239,60 @@ class FormatDelta:
     hidden: bool | None = None
 
 
+@dataclass
+class TableStyleInfo:
+    """``<tableStyleInfo>`` of an Excel table (ECMA-376 §18.5.1.5)."""
+
+    name: str = "TableStyleMedium2"
+    show_first_column: bool = False
+    show_last_column: bool = False
+    show_row_stripes: bool = False
+    show_column_stripes: bool = False
+
+
+@dataclass
+class TableColumn:
+    """``<tableColumn>`` of an Excel table."""
+
+    id: int
+    name: str = ""
+    totals_row_function: str | None = None
+    totals_row_label: str | None = None
+
+
+@dataclass
+class Table:
+    """Excel ``ListObject`` table (``xl/tables/table*.xml``); bounds are 0-based inclusive."""
+
+    id: int
+    name: str
+    r1: int
+    c1: int
+    r2: int
+    c2: int
+    ref: str = ""
+    display_name: str = ""
+    header_row_count: int = 1
+    totals_row_count: int = 0
+    style_info: TableStyleInfo | None = None
+    columns: list[TableColumn] = field(default_factory=list)
+    has_auto_filter: bool = False
+    part: str | None = None
+    # Resolved ``TableStyleSpec`` (see ``table_style.py``); None = no visible style.
+    spec: Any = None
+
+    @property
+    def has_header(self) -> bool:
+        return self.header_row_count > 0
+
+    @property
+    def has_totals(self) -> bool:
+        return self.totals_row_count > 0
+
+    def contains(self, r: int, c: int) -> bool:
+        return self.r1 <= r <= self.r2 and self.c1 <= c <= self.c2
+
+
 class SheetGeometry:
     """Maps virtual row and column coordinates to pixel offsets.
 
@@ -377,6 +431,7 @@ class SheetDataModel:
         self.geometry = SheetGeometry()
         self.merges: list[tuple[int, int, int, int]] = []
         self.auto_filter: Any | None = None
+        self.tables: list[Table] = []
         self.pivot_reports: list[Any] = []
         self.drawings: list[Any] = []
         self.conditional_formats: list[Any] = []
@@ -391,6 +446,13 @@ class SheetDataModel:
         self.dirty: bool = False
         self.extra: dict[str, Any] = {}
         self.code_name: str | None = None
+
+    def table_at(self, r: int, c: int) -> Table | None:
+        """Return the table covering cell (r, c), if any."""
+        for t in self.tables:
+            if t.contains(r, c):
+                return t
+        return None
 
     def set_comment(
         self,

@@ -22,6 +22,10 @@ from atboffice.modules.spreadsheet.io.xlsx_drawing_shapes import (
     first_shape_element,
     parse_shape_element,
 )
+from atboffice.modules.spreadsheet.io.xlsx_tables import (
+    parse_table_styles,
+    parse_worksheet_tables,
+)
 from atboffice.modules.spreadsheet.models.color_utils import (
     DEFAULT_INDEXED_PALETTE,
     DEFAULT_THEME_COLORS,
@@ -382,6 +386,7 @@ class StyleBundle(list):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.dxfs: list[dict[str, Any]] = []
+        self.table_styles: list[dict[str, Any]] = []
 
 
 def _norm_hex(col: str | None) -> str | None:
@@ -685,7 +690,26 @@ def _parse_styles(
                     )
                     d_info["bg_color"] = fg_hex if fg_spec is not None else bg_hex
                     d_info["bg_color_spec"] = fg_spec if fg_spec is not None else bg_spec
+                    pt = _attr(pf, "patternType")
+                    if pt:
+                        d_info["pattern_type"] = pt
+            border_el = _find_child(dxf_el, "border")
+            if border_el is not None:
+                d_borders: dict[str, BorderStyle] = {}
+                for side in ("left", "right", "top", "bottom", "horizontal", "vertical"):
+                    bs = _parse_border_side(
+                        _find_child(border_el, side), active_theme, active_palette
+                    )
+                    if bs is not None:
+                        d_borders[side] = bs
+                if d_borders:
+                    d_info["borders"] = d_borders
             deltas.dxfs.append(d_info)
+
+    # 7. Custom table styles (<tableStyles>)
+    deltas.table_styles = parse_table_styles(root)
+    if workbook is not None and deltas.table_styles:
+        workbook.extra["table_styles"] = deltas.table_styles
 
     if not deltas:
         deltas.append(FormatDelta())
@@ -1158,6 +1182,26 @@ def _parse_worksheet(
                 ranges=ranges,
             )
             sheet.add_data_validation(dv)
+
+    # 5b. Excel tables (ListObjects). The default (cellXfs[0]) font colour is recorded so
+    # the renderer can tell unformatted cells, which take the table font, from cells
+    # with a deliberate font colour.
+    if style_deltas and style_deltas[0].fg_color:
+        sheet.extra["default_font_color"] = style_deltas[0].fg_color
+    sheet_dir = sheet_path.rsplit("/", 1)[0] if "/" in sheet_path else ""
+    sheet_file = sheet_path.rsplit("/", 1)[-1]
+    ws_rels_path = (
+        f"{sheet_dir}/_rels/{sheet_file}.rels" if sheet_dir else f"_rels/{sheet_file}.rels"
+    )
+    parse_worksheet_tables(
+        zip_file,
+        root,
+        sheet,
+        _parse_rels(zip_file, ws_rels_path),
+        theme_colors=theme_colors,
+        custom_styles=getattr(style_deltas, "table_styles", None),
+        dxfs=getattr(style_deltas, "dxfs", None),
+    )
 
     # 6. Floating drawings
     _parse_worksheet_drawings(zip_file, sheet_path, sheet, theme_colors)
