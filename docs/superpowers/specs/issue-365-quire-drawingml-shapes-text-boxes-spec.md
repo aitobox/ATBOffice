@@ -40,5 +40,5 @@ Shadows/effects, text warp/WordArt, vertical text, linked text box chains, chart
 - [x] Task 4: Reader — VML rect/roundrect/oval shapes with text boxes
 - [x] Task 5: Layout — absolute column origin for column-relative floats
 - [x] Task 6: Painter — shape geometry, fill, line, text; no placeholder (screen + vector)
-- [ ] Task 7: Fixture tests for the four acceptance documents + full suite
+- [x] Task 7: Fixture tests for the four acceptance documents + full suite
 - [ ] Task 8: grill-me audit

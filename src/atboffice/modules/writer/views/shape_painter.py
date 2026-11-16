@@ -139,6 +139,11 @@ def layout_shape_text(shape: ShapeItem, doc: Any = None) -> list[TextBlock]:
         dy = top
     for tb in blocks:
         tb.y += dy
+        if tb.kind == "line" and shape.text_color:
+            # automatic text color follows the shape style's fontRef (e.g. lt1 on accent fills)
+            for po in tb.layout.portions:
+                if getattr(po, "color", None) in (None, "", "auto"):
+                    po.color = shape.text_color
     shape._text_layout_cache = (key, blocks)  # type: ignore[attr-defined]
     return blocks
 

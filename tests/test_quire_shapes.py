@@ -315,3 +315,26 @@ def test_shapes_survive_docx_round_trip() -> None:
         again = read_docx(io.BytesIO(buf.getvalue()))
         assert [s.geometry for s in _shapes(again)] == [s.geometry for s in _shapes(doc)]
         assert [_story_text(s) for s in _shapes(again)] == [_story_text(s) for s in _shapes(doc)]
+
+
+def test_auto_text_color_follows_font_ref() -> None:
+    from atboffice.drawing.dml import DmlFill
+    from atboffice.drawing.shape_style import DmlLine
+    from atboffice.modules.writer.models import Story, TextItem
+    from atboffice.modules.writer.views.shape_painter import layout_shape_text
+
+    para = Paragraph(runs=[TextItem(text="white text")])
+    shape = ShapeItem(
+        width=200,
+        height=50,
+        fill=DmlFill(kind="solid", color="#4F81BD"),
+        line=DmlLine(),
+        story=Story(kind="textbox", blocks=[para]),
+        text_color="#FFFFFF",
+        v_anchor="ctr",
+    )
+    blocks = layout_shape_text(shape)
+    assert blocks and all(
+        po.color == "#FFFFFF" for b in blocks for po in b.layout.portions if po.text
+    )
+    assert blocks[0].y > shape.insets[1]  # vertically centred
