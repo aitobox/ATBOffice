@@ -63,11 +63,16 @@ from atboffice.modules.spreadsheet.calc.tokens import CellRefNode
 from atboffice.modules.spreadsheet.models.conditional_format import (
     evaluate_cf_for_cell,
 )
+from atboffice.modules.spreadsheet.models.table_style import (
+    overlay_table_style,
+    table_style_at,
+)
 from atboffice.modules.spreadsheet.models.selection_model import (
     SelectionModel,
     SelectionRange,
 )
 from atboffice.modules.spreadsheet.models.sheet_model import (
+    BorderStyle,
     CellComment,
     CellData,
     SheetDataModel,
@@ -1188,9 +1193,12 @@ class GridViewport(QAbstractScrollArea):
 
         # Pass 3: Borders
         for r, c, cell, merge, item_rect, _cf_res in items:
-            if cell is None and merge is None:
+            ts = table_style_at(self.model, r, c)
+            if cell is None and merge is None and ts is None:
                 continue
-            self._paint_cell_item_borders(painter, cell, merge, item_rect)
+            self._paint_cell_item_borders(
+                painter, cell, merge, item_rect, ts.borders if ts is not None else None
+            )
 
         painter.restore()
 
@@ -1299,7 +1307,9 @@ class GridViewport(QAbstractScrollArea):
                     painter.fillRect(cx, cy, 4, 4, hl.color)
             painter.restore()
 
-        # 5.6 Draw AutoFilter Buttons
+        # 5.6 Draw AutoFilter Buttons (sheet AutoFilter + table header rows,
+        # ledger/js/grid.js syncWidgets)
+        filter_bands: list[tuple[int, int, int, Any]] = []
         af = getattr(self.model, "auto_filter", None)
         if (
             af is not None
@@ -1307,7 +1317,11 @@ class GridViewport(QAbstractScrollArea):
             and hasattr(af, "c1")
             and hasattr(af, "c2")
         ):
-            r1 = af.r1
+            filter_bands.append((af.r1, af.c1, af.c2, getattr(af, "cols", {})))
+        for tbl in getattr(self.model, "tables", None) or ():
+            if tbl.has_auto_filter and tbl.has_header:
+                filter_bands.append((tbl.r1, tbl.c1, tbl.c2, {}))
+        for r1, band_c1, band_c2, cols in filter_bands:
             if pr_start <= r1 <= pr_end:
                 painter.save()
                 painter.setClipRect(pane_clip)
@@ -1319,7 +1333,7 @@ class GridViewport(QAbstractScrollArea):
                 row_h = self.geometry_mapper.row_size(r1)
                 btn_size = min(16, max(12, row_h - 2))
 
-                for c in range(max(pc_start, af.c1), min(pc_end, af.c2) + 1):
+                for c in range(max(pc_start, band_c1), min(pc_end, band_c2) + 1):
                     col_x = (
                         self.row_header_width
                         + self.geometry_mapper.col_pos(c)
@@ -1334,6 +1348,8 @@ class GridViewport(QAbstractScrollArea):
 
                     # Draw Office 2003 bevel button
                     painter.fillRect(bx, by, btn_size, btn_size, QColor(236, 233, 216))
+                    # Reset the brush: the previous button's arrow left it solid.
+                    painter.setBrush(Qt.BrushStyle.NoBrush)
                     painter.setPen(QPen(QColor(128, 128, 128), 1))
                     painter.drawRect(bx, by, btn_size - 1, btn_size - 1)
                     # 1px top/left highlight
@@ -1342,8 +1358,7 @@ class GridViewport(QAbstractScrollArea):
                     painter.drawLine(bx + 1, by + 1, bx + 1, by + btn_size - 2)
 
                     # Downward arrow triangle
-                    col_offset = c - af.c1
-                    cols = getattr(af, "cols", {})
+                    col_offset = c - band_c1
                     has_active_crit = (
                         isinstance(cols, dict)
                         and col_offset in cols
@@ -1781,8 +1796,15 @@ class GridViewport(QAbstractScrollArea):
                 if anchor_cell is not None
                 else None
             )
+            cf_res = overlay_table_style(
+                cf_res,
+                table_style_at(self.model, mr1, mc1),
+                anchor_cell,
+                self.model.extra.get("default_font_color"),
+            )
             items.append((mr1, mc1, anchor_cell, m, QRect(mx, my, mw, mh), cf_res))
 
+        has_tables = bool(getattr(self.model, "tables", None))
         for r in range(pr_start, pr_end + 1):
             row_h = self.geometry_mapper.row_size(r)
             if row_h <= 0:
@@ -1792,16 +1814,27 @@ class GridViewport(QAbstractScrollArea):
                 if (r, c) in merge_by_cell:
                     continue
                 cell = self.model.get_cell(r, c)
-                if cell is None:
+                # Empty cells inside a table still paint the table style.
+                if cell is None and not (has_tables and self.model.table_at(r, c)):
                     continue
                 col_w = self.geometry_mapper.col_size(c)
                 if col_w <= 0:
                     continue
                 col_x = self.row_header_width + self.geometry_mapper.col_pos(c) - psx
-                cf_res = evaluate_cf_for_cell(self.model, r, c)
+                cf_res = self._cell_format_overlay(r, c, cell)
                 items.append((r, c, cell, None, QRect(col_x, row_y, col_w, row_h), cf_res))
 
         return items, merge_by_cell
+
+    def _cell_format_overlay(self, r: int, c: int, cell: CellData | None) -> Any:
+        """Conditional format result with the Excel table style folded underneath."""
+        cf_res = evaluate_cf_for_cell(self.model, r, c) if cell is not None else None
+        return overlay_table_style(
+            cf_res,
+            table_style_at(self.model, r, c),
+            cell,
+            self.model.extra.get("default_font_color"),
+        )
 
     def _paint_cell_item_fill(
         self,
@@ -1917,8 +1950,9 @@ class GridViewport(QAbstractScrollArea):
         cell: CellData | None,
         merge: tuple[int, int, int, int] | None,
         item_rect: QRect,
+        table_borders: dict[str, BorderStyle] | None = None,
     ) -> None:
-        """Paint cell or merged-block outer borders."""
+        """Paint cell or merged-block outer borders (table-style sides fill the gaps)."""
         b_top = cell.border_top if cell is not None else None
         b_bottom = cell.border_bottom if cell is not None else None
         b_left = cell.border_left if cell is not None else None
@@ -1934,6 +1968,12 @@ class GridViewport(QAbstractScrollArea):
                 tr_cell = self.model.get_cell(mr1, mc2)
                 if tr_cell is not None:
                     b_right = tr_cell.border_right
+
+        if table_borders:
+            b_top = b_top or table_borders.get("t")
+            b_bottom = b_bottom or table_borders.get("b")
+            b_left = b_left or table_borders.get("l")
+            b_right = b_right or table_borders.get("r")
 
         if not any([b_top, b_bottom, b_left, b_right]):
             return
@@ -2253,7 +2293,7 @@ class GridViewport(QAbstractScrollArea):
                             col_x = self.row_header_width + self.geometry_mapper.col_pos(cc) - psx
                             col_w = self.geometry_mapper.col_size(cc)
                             if col_w > 0:
-                                cf_res = evaluate_cf_for_cell(self.model, r, cc)
+                                cf_res = self._cell_format_overlay(r, cc, cl)
                                 self._paint_cell_item_text(
                                     painter,
                                     r,
@@ -2290,7 +2330,7 @@ class GridViewport(QAbstractScrollArea):
                             col_x = self.row_header_width + self.geometry_mapper.col_pos(cc) - psx
                             col_w = self.geometry_mapper.col_size(cc)
                             if col_w > 0:
-                                cf_res = evaluate_cf_for_cell(self.model, r, cc)
+                                cf_res = self._cell_format_overlay(r, cc, cl)
                                 self._paint_cell_item_text(
                                     painter,
                                     r,
