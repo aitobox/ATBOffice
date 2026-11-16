@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -153,6 +154,8 @@ class TextRun:
     field: str | None = None  # "dt", "sldNum", "ftr"
     link: str | None = None
     baseline: int = 0
+    # OfficeMathItem when this run is an OMML math zone (text holds its linear form).
+    math: Any = dataclasses.field(default=None, repr=False, compare=False)
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"t": self.text}

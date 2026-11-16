@@ -226,6 +226,8 @@ class Shape:
     custom_path: dict[str, Any] | None = None
     cxn_start: dict[str, Any] | None = None
     cxn_end: dict[str, Any] | None = None
+    # AltContentSource when loaded from an mc:AlternateContent block (verbatim write-back).
+    alt_content: Any = field(default=None, repr=False, compare=False)
 
     def translate(self, dx: float, dy: float) -> None:
         self.x += dx
