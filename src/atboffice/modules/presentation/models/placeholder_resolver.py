@@ -223,23 +223,14 @@ def resolve_unoverridden_placeholders(
                 from atboffice.modules.presentation.models.layouts import make_placeholder
 
                 sh = make_placeholder(fr, design)
-                # Set prompt text if empty
-                prompt = PROMPTS.get(fr_type, "")
-                if prompt and (not sh.text or sh.text.is_empty()):
+                # Leave the placeholder empty: the edit view draws the translated
+                # prompt, and print/export show nothing. An empty run carries the
+                # cascaded style the prompt is drawn in.
+                if PROMPTS.get(fr_type, "") and (not sh.text or sh.text.is_empty()):
                     sh.text = TextBody(
                         anchor="ctr" if fr_type in ("title", "ctrTitle") else "t",
                         wrap=True,
-                        paragraphs=[
-                            Paragraph(
-                                level=0,
-                                runs=[
-                                    TextRun(
-                                        text=prompt,
-                                        color=getattr(design.colors, "lt2", "#808080"),
-                                    )
-                                ],
-                            )
-                        ],
+                        paragraphs=[Paragraph(level=0, runs=[TextRun(text="")])],
                     )
                 apply_cascading_placeholder_styles(sh, design)
                 unoverridden.append(sh)

@@ -95,6 +95,9 @@ class SlideScene(QGraphicsScene):
         self._dragged_item: ShapeGraphicsItem | None = None
         self._active_connector_updates: set[str] = set()
         self._is_loading_slide: bool = False
+        # Empty placeholders show prompt text and a dashed outline: an editing aid
+        # only. Scenes rendered for print or export turn this off.
+        self.show_placeholder_prompts: bool = True
 
         self.setSceneRect(
             -150.0,

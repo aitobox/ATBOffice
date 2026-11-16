@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import copy
+import dataclasses
 import math
 from typing import TYPE_CHECKING, Any
 
@@ -25,8 +27,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.modules.presentation.models.layouts import PROMPTS
 from atboffice.modules.presentation.models.shape import Shape
-from atboffice.modules.presentation.models.text import TextBody
+from atboffice.modules.presentation.models.text import Paragraph, TextBody, TextRun
 from atboffice.modules.presentation.views.geometry_helper import (
     calculate_connector_route,
     connector_local_endpoints,
@@ -66,6 +69,47 @@ def safe_tr(text: str) -> str:
         if translated and translated != text:
             return translated
     return text
+
+
+# Edit-view outline of an empty placeholder (original: 1px dashed rgba(90,90,90,.75)).
+PLACEHOLDER_OUTLINE_COLOR = QColor(90, 90, 90, 191)
+
+# Placeholder types PROMPTS does not list fall back to the body prompt.
+_DEFAULT_PROMPT = "Click to add text"
+
+
+def build_prompt_body(text_body: TextBody | None, ph_type: str | None) -> TextBody | None:
+    """Return the prompt to draw inside an empty placeholder, or None.
+
+    Text: the layout's custom prompt (``hasCustomPrompt``) when the reader found one,
+    otherwise the translated default for the placeholder type. Style: the first run
+    of the first paragraph if any (typed-then-deleted text keeps its formatting), else
+    the style the reader cascaded from layout/master into ``prompt_run``.
+    """
+    if text_body is None or not text_body.is_empty():
+        return None
+
+    prompt_run = text_body.prompt_run
+    text = prompt_run.text if prompt_run is not None and prompt_run.text else ""
+    if not text:
+        key = PROMPTS.get(ph_type or "", _DEFAULT_PROMPT)
+        if not key:
+            return None  # dt / ftr / sldNum have no prompt
+        text = safe_tr(key)
+
+    first = text_body.paragraphs[0] if text_body.paragraphs else None
+    style = first.runs[0] if first is not None and first.runs else prompt_run
+    level = first.level if first is not None else 0
+    props = first.props if first is not None else {}
+
+    paragraphs: list[Paragraph] = []
+    for line in text.split("\n"):
+        if style is not None:
+            run = dataclasses.replace(style, text=line, field=None, link=None, math=None)
+        else:
+            run = TextRun(text=line)
+        paragraphs.append(Paragraph(level=level, props=copy.deepcopy(props), runs=[run]))
+    return dataclasses.replace(text_body, paragraphs=paragraphs, prompt_run=None)
 
 
 class HandleType:
@@ -491,13 +535,28 @@ class ShapeGraphicsItem(QGraphicsObject):
             elif line_obj.dash == "dot":
                 line_pen.setStyle(Qt.PenStyle.DotLine)
 
-        painter.setPen(line_pen)
-        painter.setBrush(fill_brush)
-        painter.drawPath(path)
+        # An empty placeholder is only an editing aid: print and export leave it out.
+        empty_ph = self._is_empty_placeholder()
+        show_prompts = self._shows_placeholder_prompts()
+
+        if not empty_ph or show_prompts:
+            painter.setPen(line_pen)
+            painter.setBrush(fill_brush)
+            painter.drawPath(path)
 
         # 3. Draw inner text if present and not currently being edited
         if not self.is_editing_text and self.model.text and self.model.text.plain_text.strip():
             self._paint_text(painter, w, h)
+
+        # 3b. Edit view: prompt text and dashed outline for an empty placeholder
+        if empty_ph and show_prompts:
+            if not self.is_editing_text:
+                self._paint_placeholder_prompt(painter, w, h)
+            outline_pen = QPen(PLACEHOLDER_OUTLINE_COLOR, 1.0, Qt.PenStyle.DashLine)
+            outline_pen.setCosmetic(True)
+            painter.setPen(outline_pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(QRectF(0.5, 0.5, max(0.0, w - 1.0), max(0.0, h - 1.0)))
 
         # 4. Selection bounding ring
         if self.isSelected() and not self.model.is_connector:
@@ -570,9 +629,38 @@ class ShapeGraphicsItem(QGraphicsObject):
         hex_val = preset_map.get(color_name.lower(), "#2B579A")
         return QColor(hex_val)
 
-    def _paint_text(self, painter: QPainter, w: float, h: float) -> None:
-        """Draw multiline text within shape boundaries."""
+    def _is_empty_placeholder(self) -> bool:
+        """True for a placeholder whose text body exists but holds no text."""
         text_body = self.model.text
+        return (
+            self.model.placeholder is not None
+            and text_body is not None
+            and text_body.is_empty()
+        )
+
+    def _shows_placeholder_prompts(self) -> bool:
+        """Prompts belong to the edit canvas only; scenes opt in explicitly."""
+        scene = self.scene()
+        return bool(scene is not None and getattr(scene, "show_placeholder_prompts", False))
+
+    def _paint_placeholder_prompt(self, painter: QPainter, w: float, h: float) -> None:
+        """Draw the empty placeholder's prompt in its inherited text style."""
+        ph = self.model.placeholder
+        prompt = build_prompt_body(self.model.text, ph.type if ph else None)
+        if prompt is not None:
+            self._paint_text(painter, w, h, text_body=prompt, use_autofit_cache=False)
+
+    def _paint_text(
+        self,
+        painter: QPainter,
+        w: float,
+        h: float,
+        text_body: TextBody | None = None,
+        use_autofit_cache: bool = True,
+    ) -> None:
+        """Draw multiline text within shape boundaries."""
+        if text_body is None:
+            text_body = self.model.text
         if not text_body or text_body.is_empty():
             return
 
@@ -602,7 +690,7 @@ class ShapeGraphicsItem(QGraphicsObject):
             self._resolve_color,
             slide_index=slide_idx,
             presentation=pres,
-            autofit_cache_host=self,
+            autofit_cache_host=self if use_autofit_cache else None,
         )
 
     def retranslate_ui(self) -> None:
