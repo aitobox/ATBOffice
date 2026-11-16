@@ -1007,7 +1007,8 @@ def _serialize_worksheet(
         ]
         if x14_rules:
             x14_icon_formats.append((cf.sqref, x14_rules))
-        main_rules = [rule for rule in cf.rules if rule not in x14_rules]
+        x14_ids = {id(rule) for rule in x14_rules}
+        main_rules = [rule for rule in cf.rules if id(rule) not in x14_ids]
         if not main_rules:
             continue
         parts.append(f'<conditionalFormatting sqref="{cf.sqref}">')
