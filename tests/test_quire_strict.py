@@ -314,3 +314,17 @@ def test_charts_and_diagrams_survive_docx_round_trip(path: Path) -> None:
 
     doc = read_docx(path)
     assert kinds(read_docx(write_docx(doc))) == kinds(doc)
+
+
+def test_dml_text_line_break_and_empty_body() -> None:
+    from atboffice.modules.writer.models.document import BreakItem
+
+    tx = ET.fromstring(
+        f'<dsp:txBody xmlns:dsp="urn:dsp" xmlns:a="{A}"><a:p><a:r><a:t>a</a:t></a:r><a:br/>'
+        "<a:r><a:t>b</a:t></a:r></a:p></dsp:txBody>"
+    )
+    story = dml_text_story(tx, THEME)
+    assert [type(r).__name__ for r in story.blocks[0].runs] == ["TextItem", "BreakItem", "TextItem"]
+    assert isinstance(story.blocks[0].runs[1], BreakItem)
+    assert dml_text_story(ET.fromstring(f'<x xmlns:a="{A}"/>'), THEME) is None
+    assert dml_text_story(None, THEME) is None

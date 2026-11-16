@@ -25,7 +25,7 @@ from atboffice.drawing.shape_style import (
     resolve_shape_line,
 )
 from atboffice.modules.writer.io.docx_shapes import EMU_PER_PT, parse_xfrm
-from atboffice.modules.writer.models.document import Paragraph, Story, TextItem
+from atboffice.modules.writer.models.document import BreakItem, Paragraph, Story, TextItem
 from atboffice.modules.writer.models.drawing import ShapeChild, ShapeItem
 from atboffice.modules.writer.models.properties import (
     ParagraphProperties,
@@ -132,8 +132,6 @@ def dml_text_story(tx_body: ET.Element | None, theme: Mapping[str, str]) -> Stor
         for r in ap:
             name = local_name(r.tag)
             if name == "br":
-                from atboffice.modules.writer.models.document import BreakItem
-
                 para.runs.append(BreakItem(break_type="line"))
                 continue
             if name not in ("r", "fld"):

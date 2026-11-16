@@ -1878,11 +1878,11 @@ class DocxReader:
         if content is None:
             return None
         kind = _local_tag(content)
-        if kind == "chart":
-            return self._parse_chart_frame(content, width_pt, height_pt)
-        if kind == "relIds":
-            return self._parse_smartart_frame(content, width_pt, height_pt)
         try:
+            if kind == "chart":
+                return self._parse_chart_frame(content, width_pt, height_pt)
+            if kind == "relIds":
+                return self._parse_smartart_frame(content, width_pt, height_pt)
             if kind == "wsp":
                 return parse_wsp(
                     content, width_pt, height_pt, self.theme_colors, self._collect_blocks
@@ -1938,7 +1938,7 @@ class DocxReader:
         """``dgm:relIds`` -> group :class:`ShapeItem` from the stored diagram drawing.
 
         The data part names its drawing in ``dsp:dataModelExt/@relId``; otherwise the
-        first ``diagramDrawing`` relationship is used. Without a drawing the data model
+        part's only ``diagramDrawing`` relationship is used. Without a drawing the data model
         is laid out directly.
         """
         rels = self.cur_rels if self.cur_rels else self.rels
@@ -1956,9 +1956,9 @@ class DocxReader:
                     drawing_rid = _get_attr(el, "relId")
                     break
         if drawing_rid not in rels:
-            drawing_rid = next(
-                (r.id for r in rels.values() if r.type.endswith("/diagramDrawing")), None
-            )
+            # Only trust a bare diagramDrawing relationship when it is unambiguous.
+            drawings = [r.id for r in rels.values() if r.type.endswith("/diagramDrawing")]
+            drawing_rid = drawings[0] if len(drawings) == 1 else None
         drawing_text = self._read_xml_part(self._rel_part(drawing_rid))
         try:
             if drawing_text:
