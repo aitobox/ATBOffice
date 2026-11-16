@@ -320,7 +320,8 @@ def _text_story(lines: list[str], size: float, bullets: bool) -> Story:
             sp=SpacingProperties(before=0.0, after=0.0, line=0.95, line_rule="auto"),
         )
         p_pr.jc_explicit = True
-        blocks.append(Paragraph(runs=[TextItem(("• " if sub else "") + text, rp)], p_pr=p_pr, r_pr=rp))
+        run = TextItem(("• " if sub else "") + text, rp)
+        blocks.append(Paragraph(runs=[run], p_pr=p_pr, r_pr=rp))
     return Story(kind="textbox", blocks=blocks or [Paragraph()])
 
 

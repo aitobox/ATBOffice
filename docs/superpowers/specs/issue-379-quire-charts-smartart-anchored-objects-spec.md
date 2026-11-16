@@ -33,10 +33,10 @@ Theme font resolution (#372), chart editing, writing modified charts/diagrams ba
 round-trip is unchanged), SmartArt relayout/editing in Quire.
 
 ## Task list
-- [ ] Task 1: Strict `w:line` unit values with `lineRule="auto"` become line multipliers + test
-- [ ] Task 2: `ChartItem` model and chart reading from the chart relationship (Strict + transitional)
-- [ ] Task 3: SmartArt group from the stored diagram drawing, DrawingML text as paragraphs
-- [ ] Task 4: SmartArt fallback layout from the data model when no drawing is stored
-- [ ] Task 5: Paint charts with the shared ChartPainter (screen + vector)
-- [ ] Task 6: Fixture tests `tests/test_quire_strict.py` for the three acceptance criteria + full suite
-- [ ] Task 7: grill-me audit
+- [x] Task 1: Strict `w:line` unit values with `lineRule="auto"` become line multipliers + test
+- [x] Task 2: `ChartItem` model and chart reading from the chart relationship (Strict + transitional)
+- [x] Task 3: SmartArt group from the stored diagram drawing, DrawingML text as paragraphs
+- [x] Task 4: SmartArt fallback layout from the data model when no drawing is stored
+- [x] Task 5: Paint charts with the shared ChartPainter (screen + vector)
+- [x] Task 6: Fixture tests `tests/test_quire_strict.py` for the three acceptance criteria + full suite
+- [x] Task 7: grill-me audit
