@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import uuid
 from collections.abc import Iterator, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -873,6 +874,72 @@ def _serialize_sheet_data(
     return "".join(parts)
 
 
+
+_X14_CF_EXT_URI = "{78C0D931-6437-407d-A8EE-F0AAD7539E65}"
+_NS_X14 = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"
+_NS_XM = "http://schemas.microsoft.com/office/excel/2006/main"
+
+
+def _icon_set_attrs(ic: Any, x14: bool) -> str:
+    attrs = [f'iconSet="{_xml_escape(ic.set_name)}"']
+    if not ic.show_value:
+        attrs.append('showValue="0"')
+    if not ic.percent:
+        attrs.append('percent="0"')
+    if ic.reverse:
+        attrs.append('reverse="1"')
+    if x14 and ic.custom:
+        attrs.append('custom="1"')
+    return " ".join(attrs)
+
+
+def _icon_set_rule_xml(rule: Any) -> str:
+    """Serialize a main-namespace ``<cfRule type="iconSet">``."""
+    ic = rule.icon_set
+    stop = ' stopIfTrue="1"' if rule.stop_if_true else ""
+    out = [f'<cfRule type="iconSet" priority="{rule.priority}"{stop}>']
+    out.append(f"<iconSet {_icon_set_attrs(ic, False)}>")
+    for cfvo in ic.cfvos:
+        v_attr = f' val="{_xml_escape(str(cfvo.val))}"' if cfvo.val is not None else ""
+        g_attr = ' gte="0"' if not getattr(cfvo, "gte", True) else ""
+        out.append(f'<cfvo type="{cfvo.type}"{v_attr}{g_attr}/>')
+    out.append("</iconSet></cfRule>")
+    return "".join(out)
+
+
+def _x14_icon_set_ext_xml(formats: list[tuple[str, list[Any]]]) -> str:
+    """Serialize x14-only icon-set rules into a worksheet ``<extLst>`` block."""
+    out = [
+        f'<extLst><ext uri="{_X14_CF_EXT_URI}" xmlns:x14="{_NS_X14}">',
+        "<x14:conditionalFormattings>",
+    ]
+    for sqref, rules in formats:
+        out.append(f'<x14:conditionalFormatting xmlns:xm="{_NS_XM}">')
+        for rule in rules:
+            ic = rule.icon_set
+            stop = ' stopIfTrue="1"' if rule.stop_if_true else ""
+            rid = "{" + str(uuid.uuid4()).upper() + "}"
+            out.append(
+                f'<x14:cfRule type="iconSet" priority="{rule.priority}"{stop} id="{rid}">'
+            )
+            out.append(f"<x14:iconSet {_icon_set_attrs(ic, True)}>")
+            for cfvo in ic.cfvos:
+                g_attr = ' gte="0"' if not getattr(cfvo, "gte", True) else ""
+                if cfvo.val is not None:
+                    out.append(
+                        f'<x14:cfvo type="{cfvo.type}"{g_attr}>'
+                        f"<xm:f>{_xml_escape(str(cfvo.val))}</xm:f></x14:cfvo>"
+                    )
+                else:
+                    out.append(f'<x14:cfvo type="{cfvo.type}"{g_attr}/>')
+            for c_set, c_id in ic.custom:
+                out.append(f'<x14:cfIcon iconSet="{_xml_escape(c_set)}" iconId="{c_id}"/>')
+            out.append("</x14:iconSet></x14:cfRule>")
+        out.append(f"<xm:sqref>{_xml_escape(sqref)}</xm:sqref></x14:conditionalFormatting>")
+    out.append("</x14:conditionalFormattings></ext></extLst>")
+    return "".join(out)
+
+
 def _serialize_worksheet(
     sheet: SheetDataModel,
     style_manager: StyleManager,
@@ -933,10 +1000,21 @@ def _serialize_worksheet(
         parts.append("</mergeCells>")
 
     # Conditional Formatting (<conditionalFormatting>)
+    x14_icon_formats: list[tuple[str, list[Any]]] = []
     for cf in getattr(sheet, "conditional_formats", []):
+        x14_rules = [
+            rule for rule in cf.rules if rule.icon_set is not None and rule.icon_set.needs_x14()
+        ]
+        if x14_rules:
+            x14_icon_formats.append((cf.sqref, x14_rules))
+        main_rules = [rule for rule in cf.rules if rule not in x14_rules]
+        if not main_rules:
+            continue
         parts.append(f'<conditionalFormatting sqref="{cf.sqref}">')
-        for rule in cf.rules:
-            if rule.color_scale:
+        for rule in main_rules:
+            if rule.icon_set is not None:
+                parts.append(_icon_set_rule_xml(rule))
+            elif rule.color_scale:
                 parts.append(f'<cfRule type="colorScale" priority="{rule.priority}">')
                 parts.append("<colorScale>")
                 for cfvo in rule.color_scale.cfvos:
@@ -1042,6 +1120,8 @@ def _serialize_worksheet(
     )
     if drawing_rid:
         parts.append(f'<drawing r:id="{drawing_rid}"/>')
+    if x14_icon_formats:
+        parts.append(_x14_icon_set_ext_xml(x14_icon_formats))
     parts.append("</worksheet>")
 
     return "".join(parts).encode("utf-8")

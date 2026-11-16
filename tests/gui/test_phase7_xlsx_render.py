@@ -173,10 +173,10 @@ def test_corpus_sample_conditional_formatting(qtbot):
     assert rule.text == "BAC"
     assert rule.bg_color == "#00B050"
 
-    # Evaluate CF on matching cell
-    cf_res = evaluate_cf_for_cell(sh1, 4, 1)  # cell B5 has "BAC"
-    assert cf_res is not None
-    assert cf_res.bg_color == "#00B050"
+    # The rule formula SEARCH("BAC",B1) is written for the anchor B3, so B5 tests
+    # B3 (empty) and G2 tests a reference above row 1 (#REF!) -> neither is filled.
+    assert evaluate_cf_for_cell(sh1, 4, 1) is None  # B5 has "BAC"
+    assert evaluate_cf_for_cell(sh1, 1, 6) is None  # G2 has "BAC"
 
     view = SpreadsheetView(workbook=wb)
     qtbot.addWidget(view)

@@ -73,6 +73,7 @@ from atboffice.modules.spreadsheet.models.sheet_model import (
     SheetDataModel,
 )
 from atboffice.modules.spreadsheet.views.autofill import AutoFillEngine
+from atboffice.modules.spreadsheet.views.cf_icons import draw_icon, icon_size
 from atboffice.platform.cursors import get_safe_cursor
 
 if TYPE_CHECKING:
@@ -1892,6 +1893,24 @@ class GridViewport(QAbstractScrollArea):
                     painter.drawRect(QRect(bx, by, max(0, bar_w - 1), max(0, bar_h - 1)))
             painter.restore()
 
+        if cf_res and cf_res.icon:
+            # Icon sets: the icon sits at the cell's left edge, bottom-aligned
+            # (ledger/js/render.js drawIcon call site).
+            size = icon_size(item_rect.height(), self._zoom)
+            if size > 2:
+                pad = max(2, round(2 * self._zoom))
+                painter.save()
+                painter.setClipRect(item_rect, Qt.ClipOperation.IntersectClip)
+                draw_icon(
+                    painter,
+                    str(cf_res.icon.get("set", "3TrafficLights1")),
+                    int(cf_res.icon.get("i", 0)),
+                    item_rect.x() + pad,
+                    item_rect.y() + item_rect.height() - size - max(1, round(2 * self._zoom)),
+                    size,
+                )
+                painter.restore()
+
     def _paint_cell_item_borders(
         self,
         painter: QPainter,
@@ -1968,6 +1987,9 @@ class GridViewport(QAbstractScrollArea):
 
         if cf_res and cf_res.data_bar and not cf_res.data_bar.get("show_value", True):
             return
+        if cf_res and cf_res.icon and not cf_res.icon.get("show_value", True):
+            return
+        icon_w = round(16 * self._zoom) if (cf_res and cf_res.icon) else 0
 
         col_x = item_rect.x()
         row_y = item_rect.y()
@@ -2149,6 +2171,9 @@ class GridViewport(QAbstractScrollArea):
                 )
             else:
                 text_rect = QRect(col_x + 3, row_y, max(0, span_w - 6), row_h)
+        if icon_w:
+            # Keep the text clear of the icon drawn at the left edge.
+            text_rect = text_rect.adjusted(min(icon_w, text_rect.width()), 0, 0, 0)
 
         has_pad_or_fill = fmt_res.has_fill or any(
             s.kind == "pad" for s in fmt_res.segments
