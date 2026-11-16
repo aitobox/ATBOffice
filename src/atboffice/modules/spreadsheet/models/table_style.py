@@ -31,7 +31,12 @@ class TableStylePart:
     borders: dict[str, BorderStyle] = field(default_factory=dict)
 
     def is_empty(self) -> bool:
-        return self.fill is None and self.font_color is None and self.bold is None and not self.borders
+        return (
+            self.fill is None
+            and self.font_color is None
+            and self.bold is None
+            and not self.borders
+        )
 
 
 # The per-cell result has the same shape as a style element.

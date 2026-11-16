@@ -16,15 +16,15 @@ from atboffice.modules.spreadsheet.calc.references import (
     parse_cell,
     parse_range,
 )
-from atboffice.modules.spreadsheet.io.xlsx_tables import (
-    parse_table_styles,
-    parse_worksheet_tables,
-)
 from atboffice.modules.spreadsheet.io.xlsx_drawing_shapes import (
     DrawingContext,
     element_xfrm,
     first_shape_element,
     parse_shape_element,
+)
+from atboffice.modules.spreadsheet.io.xlsx_tables import (
+    parse_table_styles,
+    parse_worksheet_tables,
 )
 from atboffice.modules.spreadsheet.models.color_utils import (
     DEFAULT_INDEXED_PALETTE,

@@ -42,7 +42,10 @@ def _bool(el: ET.Element, name: str, default: bool = False) -> bool:
 
 
 def parse_table_styles(styles_root: ET.Element | None) -> list[dict[str, Any]]:
-    """Custom ``<tableStyle>`` definitions: ``[{name, pivot, table, elements:[{type, dxf_id}]}]``."""
+    """Custom ``<tableStyle>`` definitions.
+
+    Returns ``[{name, pivot, table, elements: [{type, dxf_id}]}]``.
+    """
     if styles_root is None:
         return []
     ts_el = styles_root.find("{*}tableStyles")
@@ -144,8 +147,13 @@ def parse_worksheet_tables(
         rel = sheet_rels.get(tp.get(_R_ID) or "")
         if rel is None or rel[1] not in names:
             continue
+        try:
+            content = zip_file.read(rel[1])
+        except (KeyError, zipfile.BadZipFile, OSError):
+            logger.warning("Skipping unreadable table part %s", rel[1])
+            continue
         table = parse_table_part(
-            zip_file.read(rel[1]),
+            content,
             rel[1],
             len(sheet.tables) + 1,
             theme_colors,

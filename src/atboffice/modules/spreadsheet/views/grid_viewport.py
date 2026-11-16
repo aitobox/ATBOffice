@@ -63,10 +63,6 @@ from atboffice.modules.spreadsheet.calc.tokens import CellRefNode
 from atboffice.modules.spreadsheet.models.conditional_format import (
     evaluate_cf_for_cell,
 )
-from atboffice.modules.spreadsheet.models.table_style import (
-    overlay_table_style,
-    table_style_at,
-)
 from atboffice.modules.spreadsheet.models.selection_model import (
     SelectionModel,
     SelectionRange,
@@ -76,6 +72,10 @@ from atboffice.modules.spreadsheet.models.sheet_model import (
     CellComment,
     CellData,
     SheetDataModel,
+)
+from atboffice.modules.spreadsheet.models.table_style import (
+    overlay_table_style,
+    table_style_at,
 )
 from atboffice.modules.spreadsheet.views.autofill import AutoFillEngine
 from atboffice.modules.spreadsheet.views.cf_icons import draw_icon, icon_size
@@ -1800,7 +1800,7 @@ class GridViewport(QAbstractScrollArea):
                 cf_res,
                 table_style_at(self.model, mr1, mc1),
                 anchor_cell,
-                self.model.extra.get("default_font_color"),
+                self._default_font_color(),
             )
             items.append((mr1, mc1, anchor_cell, m, QRect(mx, my, mw, mh), cf_res))
 
@@ -1826,6 +1826,10 @@ class GridViewport(QAbstractScrollArea):
 
         return items, merge_by_cell
 
+    def _default_font_color(self) -> str | None:
+        extra = getattr(self.model, "extra", None)
+        return extra.get("default_font_color") if isinstance(extra, dict) else None
+
     def _cell_format_overlay(self, r: int, c: int, cell: CellData | None) -> Any:
         """Conditional format result with the Excel table style folded underneath."""
         cf_res = evaluate_cf_for_cell(self.model, r, c) if cell is not None else None
@@ -1833,7 +1837,7 @@ class GridViewport(QAbstractScrollArea):
             cf_res,
             table_style_at(self.model, r, c),
             cell,
-            self.model.extra.get("default_font_color"),
+            self._default_font_color(),
         )
 
     def _paint_cell_item_fill(
