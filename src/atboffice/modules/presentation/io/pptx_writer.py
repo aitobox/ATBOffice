@@ -492,9 +492,13 @@ class PptxWriter:
         self.pkg_writer.replace_part(
             "ppt/viewProps.xml", build_view_props_xml().encode("utf-8"), content_type=CT_VIEW_PROPS
         )
+        table_styles = build_table_styles_xml().encode("utf-8")
+        if self.source_pkg is not None and self.source_pkg.has_part("ppt/tableStyles.xml"):
+            # Keep custom table styles referenced by tableStyleId (issue #370)
+            table_styles = self.source_pkg.read_part("ppt/tableStyles.xml")
         self.pkg_writer.replace_part(
             "ppt/tableStyles.xml",
-            build_table_styles_xml().encode("utf-8"),
+            table_styles,
             content_type=CT_TABLE_STYLES,
         )
         self.pkg_writer.replace_part(

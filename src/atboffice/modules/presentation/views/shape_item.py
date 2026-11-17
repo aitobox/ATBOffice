@@ -970,27 +970,68 @@ class ShapeGraphicsItem(QGraphicsObject):
 
         from atboffice.modules.presentation.views.text_editor import ShapeTextEditorItem
 
-        cur_y = 0.0
+        col_ws = [
+            (cols[c] if c < len(cols) else (w / max(1, len(cols)))) * sx
+            for c in range(max(len(cols), max(len(r.get("cells", [])) for r in rows)))
+        ]
+        col_x = [0.0]
+        for cw in col_ws:
+            col_x.append(col_x[-1] + cw)
+        row_hs = [float(r.get("h", 30.0)) for r in rows]
+        row_y = [0.0]
+        for rh in row_hs:
+            row_y.append(row_y[-1] + rh)
+        styled = bool(tbl_data.get("style_id"))
+
         for r_idx, row in enumerate(rows):
-            row_h = float(row.get("h", 30.0))
-            cur_x = 0.0
             cells = row.get("cells", [])
             for c_idx, cell in enumerate(cells):
-                col_w = (cols[c_idx] if c_idx < len(cols) else (w / max(1, len(cells)))) * sx
-                cell_rect = QRectF(cur_x, cur_y, col_w, row_h)
+                # Continuation cells of a merge are covered by their origin cell
+                if cell.get("hm") or cell.get("vm"):
+                    continue
+                gs = max(1, int(cell.get("gs") or 1))
+                rs = max(1, int(cell.get("rs") or 1))
+                c_end = min(len(col_ws), c_idx + gs)
+                r_end = min(len(rows), r_idx + rs)
+                cell_rect = QRectF(
+                    col_x[c_idx],
+                    row_y[r_idx],
+                    col_x[c_end] - col_x[c_idx],
+                    row_y[r_end] - row_y[r_idx],
+                )
 
                 # Fill
                 c_fill = cell.get("fill")
                 if c_fill and isinstance(c_fill, dict) and c_fill.get("t") == "solid":
-                    painter.fillRect(cell_rect, self._resolve_color(c_fill.get("c")))
+                    fill_c = self._resolve_color(c_fill.get("c"))
+                    alpha = c_fill.get("a", 1.0)
+                    if isinstance(alpha, (int, float)) and 0.0 <= alpha < 1.0:
+                        fill_c.setAlphaF(float(alpha))
+                    painter.fillRect(cell_rect, fill_c)
                 elif c_fill and hasattr(c_fill, "color") and c_fill.color:
                     painter.fillRect(cell_rect, self._resolve_color(c_fill.color))
 
-                # Border
-                grid_pen = QPen(QColor(180, 180, 180), 1.0)
-                painter.setPen(grid_pen)
+                # Borders: per side from tcPr / table style; legacy grid for plain tables
+                bd = cell.get("bd") or {}
                 painter.setBrush(Qt.BrushStyle.NoBrush)
-                painter.drawRect(cell_rect)
+                if bd:
+                    for side, p1, p2 in (
+                        ("l", cell_rect.topLeft(), cell_rect.bottomLeft()),
+                        ("r", cell_rect.topRight(), cell_rect.bottomRight()),
+                        ("t", cell_rect.topLeft(), cell_rect.topRight()),
+                        ("b", cell_rect.bottomLeft(), cell_rect.bottomRight()),
+                    ):
+                        line = bd.get(side)
+                        if not isinstance(line, dict):
+                            continue
+                        lw = float(line.get("w") or 0.0)
+                        if lw <= 0 or not line.get("c"):
+                            continue
+                        painter.setPen(QPen(self._resolve_color(line.get("c")), lw))
+                        painter.drawLine(p1, p2)
+                elif not styled:
+                    painter.setPen(QPen(QColor(180, 180, 180), 1.0))
+                    painter.drawRect(cell_rect)
 
                 # Text
                 cell_tx = cell.get("tx")
@@ -1013,9 +1054,6 @@ class ShapeGraphicsItem(QGraphicsObject):
                         Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                         str(cell["text"]),
                     )
-
-                cur_x += col_w
-            cur_y += row_h
 
     def _paint_diagram(self, painter: QPainter, w: float, h: float) -> None:
         """Render SmartArt diagram layout and text."""

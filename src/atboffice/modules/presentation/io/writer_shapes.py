@@ -7,6 +7,7 @@ from collections.abc import Callable
 from atboffice.modules.presentation.io.alternate_content import render_preserved
 from atboffice.modules.presentation.io.writer_text import text_body_to_xml
 from atboffice.modules.presentation.io.xml_utils import (
+    color_to_xml,
     escape_xml,
     fill_to_xml,
     geometry_to_xml,
@@ -60,6 +61,74 @@ def shape_properties_to_xml(
     return f"<{tag}>{xfrm_xml}{geom_xml}{fill_xml}{line_xml}{shadow_xml}</{tag}>"
 
 
+_TBL_FLAGS = ("firstRow", "firstCol", "lastRow", "lastCol", "bandRow", "bandCol")
+
+
+def _cell_border_xml(tag: str, line: dict | None, design: DesignTemplate | None) -> str:
+    if not isinstance(line, dict):
+        return ""
+    width = float(line.get("w") or 0.0)
+    if width <= 0 or not line.get("c"):
+        return f"<{tag}><a:noFill/></{tag}>"
+    dash = line.get("dash") or "solid"
+    dash_xml = f'<a:prstDash val="{escape_xml(dash)}"/>' if dash != "custom" else ""
+    return (
+        f'<{tag} w="{pt_to_emu(width)}">'
+        f"<a:solidFill>{color_to_xml(line['c'], None, design)}</a:solidFill>"
+        f"{dash_xml}</{tag}>"
+    )
+
+
+def _cell_properties_xml(cell: dict, design: DesignTemplate | None) -> str:
+    """Serialize the cell's own <a:tcPr> (style-derived values are not baked in)."""
+    own = cell.get("own")
+    if own is None:
+        # Cells created in-app: every fill/border on them is their own.
+        own = {"fill": bool(cell.get("fill")), "bd": list((cell.get("bd") or {}).keys())}
+    parts: list[str] = []
+    bd = cell.get("bd") or {}
+    for side, tag in (("l", "a:lnL"), ("r", "a:lnR"), ("t", "a:lnT"), ("b", "a:lnB")):
+        if side in own.get("bd", []):
+            parts.append(_cell_border_xml(tag, bd.get(side), design))
+    fill = cell.get("fill")
+    if own.get("fill") and isinstance(fill, dict):
+        if fill.get("t") == "solid" and fill.get("c"):
+            parts.append(
+                f"<a:solidFill>{color_to_xml(fill['c'], fill.get('a'), design)}</a:solidFill>"
+            )
+        elif fill.get("t") == "none":
+            parts.append("<a:noFill/>")
+    return f"<a:tcPr>{''.join(parts)}</a:tcPr>" if parts else "<a:tcPr/>"
+
+
+def _cell_attrs(cell: dict) -> str:
+    attrs: list[str] = []
+    for key, attr in (("gs", "gridSpan"), ("rs", "rowSpan")):
+        try:
+            span = int(cell.get(key) or 1)
+        except (TypeError, ValueError):
+            span = 1
+        if span > 1:
+            attrs.append(f'{attr}="{span}"')
+    for key, attr in (("hm", "hMerge"), ("vm", "vMerge")):
+        if cell.get(key):
+            attrs.append(f'{attr}="1"')
+    return (" " + " ".join(attrs)) if attrs else ""
+
+
+def _table_properties_xml(tbl_data: dict) -> str:
+    if not any(flag in tbl_data for flag in _TBL_FLAGS):
+        flags = {"firstRow": True, "bandRow": True}  # defaults for tables created in-app
+    else:
+        flags = {flag: bool(tbl_data.get(flag)) for flag in _TBL_FLAGS}
+    attrs = "".join(f' {flag}="1"' for flag in _TBL_FLAGS if flags.get(flag))
+    style_id = tbl_data.get("style_id")
+    if style_id:
+        sid = escape_xml(str(style_id))
+        return f"<a:tblPr{attrs}><a:tableStyleId>{sid}</a:tableStyleId></a:tblPr>"
+    return f"<a:tblPr{attrs}/>"
+
+
 def table_to_xml(
     shape: Shape,
     shape_id: str,
@@ -88,11 +157,11 @@ def table_to_xml(
                     "<a:txBody><a:bodyPr/><a:lstStyle/>"
                     '<a:p><a:endParaRPr lang="en-US"/></a:p></a:txBody>'
                 )
-            tc_pr = "<a:tcPr/>"
-            cells_xml.append(f"<a:tc>{tx_xml}{tc_pr}</a:tc>")
+            tc_pr = _cell_properties_xml(c, design)
+            cells_xml.append(f"<a:tc{_cell_attrs(c)}>{tx_xml}{tc_pr}</a:tc>")
         rows_xml.append(f'<a:tr h="{h_emu}">{"".join(cells_xml)}</a:tr>')
 
-    tbl_pr = '<a:tblPr firstRow="1" bandRow="1"/>'
+    tbl_pr = _table_properties_xml(tbl_data)
     tbl_grid = f"<a:tblGrid>{grid_xml}</a:tblGrid>"
     table_content = f"<a:tbl>{tbl_pr}{tbl_grid}{''.join(rows_xml)}</a:tbl>"
     graphic = (
