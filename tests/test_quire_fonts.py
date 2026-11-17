@@ -197,3 +197,17 @@ def test_tdf43100_two_row_paragraphs_take_two_lines(qapp) -> None:
         assert "".join(getattr(p, "text", "") or "" for p in fr.lines[1].portions).startswith(
             "mollis"
         )
+
+
+def test_explicit_times_new_roman_survives_save(tmp_path) -> None:
+    from atboffice.modules.writer.io.docx_writer import write_docx
+
+    doc = read_docx(DOCX / "libreoffice__A019_min.docx")
+    para, run = _first_text_run(doc, "Hello")
+    doc.styles[para.p_pr.style or "Normal"].r_pr.font = "Arial"
+    out = tmp_path / "a019.docx"
+    write_docx(doc, out)
+    again = read_docx(out)
+    para2, run2 = _first_text_run(again, "Hello")
+    assert run2.r_pr.font_explicit
+    assert resolve_r_props(again, para2, run2).font == "Times New Roman"
