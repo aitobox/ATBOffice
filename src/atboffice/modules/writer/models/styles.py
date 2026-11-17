@@ -299,10 +299,12 @@ def merge_r_props(base: RunProperties, over: RunProperties | None) -> RunPropert
 
     if over.style:
         res.style = over.style
-    if over.font != "Times New Roman":
+    if over.font != "Times New Roman" or over.font_explicit:
         res.font = over.font
-    if over.font_ea != "SimSun":
+    if over.font_ea != "SimSun" or over.font_ea_explicit:
         res.font_ea = over.font_ea
+    if over.font_cs != "Times New Roman" or over.font_cs_explicit:
+        res.font_cs = over.font_cs
     if over.sz != 12.0:
         res.sz = over.sz
     if over.sz_ea is not None:

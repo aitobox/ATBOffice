@@ -278,6 +278,11 @@ class RunProperties:
     ins: RevisionStamp | None = None
     del_rev: RevisionStamp | None = None
     chg: RevisionStamp | None = None
+    # True when the face was set by w:rFonts, so a set "Times New Roman" / "SimSun" still
+    # overrides an inherited face (the defaults above double as "unset").
+    font_explicit: bool = field(default=False, repr=False, compare=False)
+    font_ea_explicit: bool = field(default=False, repr=False, compare=False)
+    font_cs_explicit: bool = field(default=False, repr=False, compare=False)
 
     @property
     def bold(self) -> bool:
