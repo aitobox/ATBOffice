@@ -69,6 +69,9 @@ class ATBApplication(QApplication):
         from atboffice.core.diagnostics import drain_event_loop
         self.aboutToQuit.connect(drain_event_loop)
 
+        from atboffice.utils.font_registry import register_bundled_fonts
+        register_bundled_fonts()
+
     @property
     def pending_files(self) -> list[str]:
         """Return a copy of the pending file queue."""
@@ -161,6 +164,9 @@ def create_application(argv: list[str] | None = None) -> ATBApplication:
             setattr(existing, "_file_event_filter", event_filter)
             existing.installEventFilter(event_filter)
 
+        from atboffice.utils.font_registry import register_bundled_fonts
+
+        register_bundled_fonts()
         return existing  # type: ignore[return-value]
 
     return ATBApplication(argv)

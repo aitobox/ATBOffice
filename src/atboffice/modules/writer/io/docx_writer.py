@@ -751,6 +751,9 @@ class DocxWriter:
             r_pr.font != "Times New Roman"
             or r_pr.font_ea != "SimSun"
             or r_pr.font_cs != "Times New Roman"
+            or r_pr.font_explicit
+            or r_pr.font_ea_explicit
+            or r_pr.font_cs_explicit
         )
         if font_changed:
             r_fonts = ET.SubElement(r_pr_elem, _w("rFonts"))

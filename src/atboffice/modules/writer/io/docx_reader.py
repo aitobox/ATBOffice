@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
+from atboffice.modules.writer.io.docx_fonts import ThemeFonts, parse_theme_fonts
 from atboffice.modules.writer.io.docx_graphics import (
     read_chart,
     smartart_from_data,
@@ -356,6 +357,7 @@ class DocxReader:
         self.cur_rels: dict[str, Relationship] = {}
         self._sdt_controls_map: dict[str, dict[str, Any]] = {}
         self.theme_colors: dict[str, str] = load_theme_colors(None)
+        self.theme_fonts = ThemeFonts()
         self.doc = Document()
         if self.pkg is not None:
             self.doc._source_pkg = self.pkg  # type: ignore[attr-defined]
@@ -493,6 +495,19 @@ class DocxReader:
         except Exception:
             data = None
         self.theme_colors = load_theme_colors(data)
+        ea_lang = bidi_lang = ""
+        settings_path = self._rel_target("settings") or "word/settings.xml"
+        try:
+            if self.pkg.has_part(settings_path):
+                lang_el = _find_desc(
+                    ET.fromstring(self.pkg.read_part(settings_path)), "themeFontLang", W_NAMESPACES
+                )
+                if lang_el is not None:
+                    ea_lang = _get_attr(lang_el, "eastAsia") or ""
+                    bidi_lang = _get_attr(lang_el, "bidi") or ""
+        except Exception:
+            pass
+        self.theme_fonts = parse_theme_fonts(data, ea_lang, bidi_lang)
 
     def _parse_styles(self) -> None:
         """Parse word/styles.xml into doc.styles and doc.defaults."""
@@ -1284,15 +1299,25 @@ class DocxReader:
             if tag == "rStyle":
                 r_pr.style = _get_attr(child, "val")
             elif tag == "rFonts":
-                ascii_f = _get_attr(child, "ascii") or _get_attr(child, "hAnsi")
+                # A theme slot wins over the face named beside it (Word precedence); an empty
+                # theme slot falls back to that face.
+                tf = self.theme_fonts
+                ascii_f = (
+                    tf.resolve(_get_attr(child, "asciiTheme") or _get_attr(child, "hAnsiTheme"))
+                    or _get_attr(child, "ascii")
+                    or _get_attr(child, "hAnsi")
+                )
                 if ascii_f:
                     r_pr.font = ascii_f
-                ea_f = _get_attr(child, "eastAsia")
+                    r_pr.font_explicit = True
+                ea_f = tf.resolve(_get_attr(child, "eastAsiaTheme")) or _get_attr(child, "eastAsia")
                 if ea_f:
                     r_pr.font_ea = ea_f
-                cs_f = _get_attr(child, "cs")
+                    r_pr.font_ea_explicit = True
+                cs_f = tf.resolve(_get_attr(child, "cstheme")) or _get_attr(child, "cs")
                 if cs_f:
                     r_pr.font_cs = cs_f
+                    r_pr.font_cs_explicit = True
             elif tag == "b":
                 r_pr.b = _bool_val(child, True)
             elif tag == "i":

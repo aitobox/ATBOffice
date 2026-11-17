@@ -520,18 +520,66 @@ def _get_font_metrics(
         return None
 
 
+_EM_PX = 1000
+_em_cache: dict[tuple[str, bool, bool], Any] = {}
+# Faces measured from the bundled metric-compatible font (same advances as the Office face).
+# Every other face keeps the calibrated estimates so layout is identical on every machine.
+_BUNDLED_METRICS = {
+    "calibri": "Carlito",
+    "carlito": "Carlito",
+    "cambria": "Caladea",
+    "caladea": "Caladea",
+}
+
+
+def _em_metrics(font_family: str, bold: bool = False, italic: bool = False) -> Any:
+    """Unhinted QFontMetricsF at a 1000 px em of the bundled stand-in, or None.
+
+    None when the face has no bundled stand-in or no GUI application exists. Advances divided
+    by 1000 are em fractions, independent of screen DPI and hinting.
+    """
+    bundled = _BUNDLED_METRICS.get((font_family or "").strip().lower())
+    if bundled is None:
+        return None
+    key = (bundled, bool(bold), bool(italic))
+    if key in _em_cache:
+        return _em_cache[key]
+    try:
+        from PySide6.QtGui import QFont, QFontDatabase, QFontMetricsF, QGuiApplication
+
+        from atboffice.utils.font_registry import register_bundled_fonts
+
+        if QGuiApplication.instance() is None or not register_bundled_fonts():
+            return None
+        if not QFontDatabase.hasFamily(bundled):
+            return None
+        f = QFont(bundled)
+        f.setPixelSize(_EM_PX)
+        f.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
+        f.setBold(bool(bold))
+        f.setItalic(bool(italic))
+        fm = QFontMetricsF(f)
+    except Exception:
+        return None
+    _em_cache[key] = fm
+    return fm
+
+
 def measure_char_width(
     ch: str, font_size: float, font_family: str, bold: bool = False, italic: bool = False
 ) -> float:
-    """Deterministic, high-precision character width calculation in points."""
+    """Character width in points: bundled-font advances when available, else estimates."""
     if is_cjk_char(ch):
         # East Asian CJK full-width glyph is 1.0 em
         return font_size
-    if ch in (" ", "\u00a0"):
-        return font_size * get_space_em(font_family)
     if ch == "\t":
         # Tabs are handled by tab-stop calculation
         return 0.0
+    fm = _em_metrics(font_family, bold, italic)
+    if fm is not None:
+        return fm.horizontalAdvance(ch) * font_size / _EM_PX
+    if ch in (" ", "\u00a0"):
+        return font_size * get_space_em(font_family)
     # Proportional Latin widths
     key = get_font_key(font_family)
     if "courier" in key or "console" in key:
@@ -1486,8 +1534,12 @@ def layout_paragraph(
                     idx += 1
                     continue
                 else:
-                    # Space before wrapped word stays on current line
-                    current_portions.append(pt)
+                    # The whole run of spaces before the wrapped word hangs on the current
+                    # line over the margin (Word); none of it starts the next line.
+                    while idx < len(portions) and portions[idx].type == PortionType.BLANK:
+                        current_portions.append(portions[idx])
+                        idx += 1
+                    idx -= 1
                     lines.append(finalize_line(is_last=False, is_hard=False))
                     current_portions = []
                     current_width = 0.0

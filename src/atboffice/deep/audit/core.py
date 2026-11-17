@@ -133,6 +133,9 @@ def _render_model_offscreen(app: str, model: Any) -> bool:
         qapp = QApplication.instance()
         if qapp is None:
             qapp = QApplication([])
+        from atboffice.utils.font_registry import register_bundled_fonts
+
+        register_bundled_fonts()
 
         view: Any = None
         if app == "word":
