@@ -8,7 +8,12 @@ from decimal import Decimal
 from typing import Any
 
 from atboffice.drawing.numfmt import format_value
-from atboffice.modules.spreadsheet.calc.references import MAXC, MAXR
+from atboffice.modules.spreadsheet.calc.references import (
+    MAXC,
+    MAXR,
+    parse_cell,
+    parse_range,
+)
 
 
 @dataclass
@@ -422,6 +427,39 @@ class SheetGeometry:
             return c
 
 
+@dataclass
+class SheetViewState:
+    """Saved ``<sheetView>`` state of a worksheet (cell refs kept in A1 notation)."""
+
+    active_cell: str | None = None
+    sqref: str | None = None
+    show_grid_lines: bool = True
+    zoom_scale: int | None = None
+    view: str = "normal"  # "normal" | "pageBreakPreview" | "pageLayout"
+    top_left_cell: str | None = None
+    row_breaks: list[int] = field(default_factory=list)
+    col_breaks: list[int] = field(default_factory=list)
+
+    def active_cell_rc(self) -> tuple[int, int] | None:
+        """Return the 0-based ``(row, col)`` of ``active_cell``, or None if unset/invalid."""
+        p = parse_cell(self.active_cell) if self.active_cell else None
+        return (p["r"], p["c"]) if p else None
+
+    def top_left_rc(self) -> tuple[int, int] | None:
+        """Return the 0-based ``(row, col)`` of ``top_left_cell``, or None if unset/invalid."""
+        p = parse_cell(self.top_left_cell) if self.top_left_cell else None
+        return (p["r"], p["c"]) if p else None
+
+    def selection_ranges(self) -> list[tuple[int, int, int, int]]:
+        """Parse space-separated ``sqref`` into ``(r1, c1, r2, c2)`` tuples, skipping bad parts."""
+        out: list[tuple[int, int, int, int]] = []
+        for part in (self.sqref or "").split():
+            rg = parse_range(part)
+            if rg:
+                out.append((rg["r1"], rg["c1"], rg["r2"], rg["c2"]))
+        return out
+
+
 class SheetDataModel:
     """In-memory sparse cell storage for a worksheet."""
 
@@ -443,6 +481,7 @@ class SheetDataModel:
         self.links: list[Any] = []
         self.freeze_rows: int = 0
         self.freeze_cols: int = 0
+        self.view_state = SheetViewState()
         self.dirty: bool = False
         self.extra: dict[str, Any] = {}
         self.code_name: str | None = None
