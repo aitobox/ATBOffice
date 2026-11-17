@@ -791,7 +791,7 @@ def _parse_sheet_view_state(sv_el: ET.Element, sheet: SheetDataModel) -> None:
 
 
 def _parse_breaks(breaks_el: ET.Element | None) -> list[int]:
-    """Return sorted break ids from ``<rowBreaks>``/``<colBreaks>`` (first index of the next page)."""
+    """Return sorted break ids of ``<rowBreaks>``/``<colBreaks>`` (first index of the next page)."""
     out: set[int] = set()
     for brk in _find_children(breaks_el, "brk"):
         val = _parse_int_attr(brk, "id")

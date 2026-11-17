@@ -442,7 +442,7 @@ class GridViewport(QAbstractScrollArea):
         return vs.show_grid_lines if vs is not None else True
 
     def _apply_sheet_view_state(self) -> None:
-        """Apply the sheet's saved zoom, and on its first display its view mode and scroll origin."""
+        """Apply the sheet's saved zoom; on first display also its view mode and scroll origin."""
         model = self.model
         if hasattr(model, "extra") and "zoom" in model.extra:
             try:

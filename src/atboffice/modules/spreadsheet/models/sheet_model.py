@@ -451,7 +451,7 @@ class SheetViewState:
         return (p["r"], p["c"]) if p else None
 
     def selection_ranges(self) -> list[tuple[int, int, int, int]]:
-        """Parse the space-separated ``sqref`` into ``(r1, c1, r2, c2)`` tuples, skipping bad parts."""
+        """Parse space-separated ``sqref`` into ``(r1, c1, r2, c2)`` tuples, skipping bad parts."""
         out: list[tuple[int, int, int, int]] = []
         for part in (self.sqref or "").split():
             rg = parse_range(part)
