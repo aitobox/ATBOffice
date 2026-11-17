@@ -88,13 +88,10 @@ def baseline_target_size(
 
     for png in (baseline_dir / app / f"{file_name}.png", baseline_dir / f"{file_name}.png"):
         if png.is_file():
-            try:
-                from PIL import Image
+            from PySide6.QtGui import QImageReader
 
-                with Image.open(png) as img:
-                    return img.size
-            except Exception:
-                return None
+            size = QImageReader(str(png)).size()
+            return (size.width(), size.height()) if size.isValid() else None
     return None
 
 

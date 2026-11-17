@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from PIL import Image
+from PySide6.QtGui import QColor, QImage
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 for extra in (REPO_ROOT / "src", REPO_ROOT):
@@ -35,7 +35,9 @@ def _write_manifest(directory: Path, entries: list[dict]) -> None:
 
 def _write_png(path: Path, size: tuple[int, int]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    Image.new("RGB", size, "white").save(path)
+    img = QImage(size[0], size[1], QImage.Format.Format_RGB32)
+    img.fill(QColor("white"))
+    assert img.save(str(path))
 
 
 def test_region_table_defines_both_regions_for_every_app():
@@ -125,11 +127,14 @@ def test_excel_workspace_capture_includes_tab_strip_without_white_band(tmp_path)
     assert entry["status"] == "captured", entry
     assert (entry["region"], entry["width"], entry["height"]) == ("workspace", *size)
 
-    with Image.open(candidate / "excel" / f"{EXCEL_FIXTURE.name}.png") as img:
-        assert img.size == size
-        band = img.convert("RGB").crop((0, size[1] - 40, size[0], size[1]))
-        colors = band.getcolors(maxcolors=1 << 16) or []
-        assert not (len(colors) == 1 and colors[0][1] == (255, 255, 255)), "bottom band is padded white"
-        # The sheet tab strip and scrollbar chrome are not white.
-        non_white = sum(n for n, c in colors if c != (255, 255, 255))
-        assert non_white > size[0] * 5
+    img = QImage(str(candidate / "excel" / f"{EXCEL_FIXTURE.name}.png"))
+    assert (img.width(), img.height()) == size
+    white = QColor("white").rgb()
+    # Bottom 40 rows hold the sheet tab strip and scrollbar, so they are not padded white.
+    non_white = sum(
+        1
+        for y in range(size[1] - 40, size[1])
+        for x in range(size[0])
+        if img.pixel(x, y) | 0xFF000000 != white
+    )
+    assert non_white > size[0] * 5, "bottom band is padded white"
