@@ -260,6 +260,10 @@ class TextBody:
     cols: int = 1
     col_gap: float = 0.0
     rtl_col: bool = False
+    # Edit-view prompt for an empty placeholder: the run style it inherits from
+    # layout/master, plus the layout's custom prompt text when it has one.
+    # Transient — never serialized, so saving a file is unaffected.
+    prompt_run: TextRun | None = field(default=None, repr=False, compare=False)
 
     @property
     def columns(self) -> int:

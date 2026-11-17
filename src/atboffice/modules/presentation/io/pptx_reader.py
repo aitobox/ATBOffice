@@ -224,6 +224,8 @@ class PlaceholderTemplate:
     fill: Fill | None = None
     line: Line | None = None
     text_body: TextBody | None = None
+    # <p:ph hasCustomPrompt="1">: the layout's own text is the slide's prompt
+    custom_prompt: bool = False
 
 
 @dataclass
@@ -2245,6 +2247,7 @@ class PptxReader:
                     fill=fill,
                     line=line,
                     text_body=text_body,
+                    custom_prompt=_get_attr(ph_elem, "hasCustomPrompt") in ("1", "true"),
                 )
             )
         return placeholders
@@ -2541,6 +2544,11 @@ class PptxReader:
 
         default_style = getattr(self, "default_text_style", {})
 
+        is_empty = text_body.is_empty()
+        custom_prompt = ""
+        if is_empty and lp is not None and lp.custom_prompt and lp.text_body is not None:
+            custom_prompt = lp.text_body.plain_text.strip()
+
         for p in text_body.paragraphs:
             lvl = p.level
             lp_p = next((x for x in lp_paras if x.level == lvl), lp_paras[0] if lp_paras else None)
@@ -2613,7 +2621,14 @@ class PptxReader:
             lp_r = lp_p.runs[0] if (lp_p and lp_p.runs) else None
             mp_r = mp_p.runs[0] if (mp_p and mp_p.runs) else None
 
-            for r in p.runs:
+            # An empty placeholder keeps no runs; cascade into a prompt run so the
+            # edit view can draw its prompt in the inherited style.
+            targets = p.runs
+            if is_empty and p is text_body.paragraphs[0] and not p.runs:
+                text_body.prompt_run = Run(text=custom_prompt)
+                targets = [text_body.prompt_run]
+
+            for r in targets:
                 # Size
                 if r.size is None:
                     if lp_r and lp_r.size is not None:

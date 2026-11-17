@@ -2483,6 +2483,7 @@ class LecternWindow(BaseOfficeWindow):
 
                     # 2. Render slide vector scene
                     scene = SlideScene(slide=slide, slide_width=960.0, slide_height=540.0)
+                    scene.show_placeholder_prompts = False
                     scene.render(painter, thumb_rect, QRectF(0, 0, 960.0, 540.0))
 
                     # 3. Slide index caption
@@ -2538,6 +2539,7 @@ class LecternWindow(BaseOfficeWindow):
 
                 # Render vector slide scene
                 scene = SlideScene(slide=slide, slide_width=960.0, slide_height=540.0)
+                scene.show_placeholder_prompts = False
                 scene.render(painter, target_rect, QRectF(0, 0, 960.0, 540.0))
 
                 # Footer caption: Slide X of Y
