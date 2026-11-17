@@ -33,12 +33,13 @@ class CaptureResult:
 
     file: str
     app: str
-    status: str  # "captured", "crash", "timeout", "missing_file", "exception", "dialog_warning"
+    status: str  # "captured", "size_mismatch", "crash", "timeout", "missing_file", "exception", "dialog_warning"
     screenshot_path: str | None = None
     width: int = 0
     height: int = 0
     error: str | None = None
     dialog_warning: str | None = None
+    region: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

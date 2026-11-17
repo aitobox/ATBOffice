@@ -15,6 +15,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from .corpus import find_repo_root
 from .models import CaptureResult, DocumentTarget
+from .regions import baseline_target_size, default_region, region_names, resolve_region_widget
 
 repo_root = find_repo_root(Path(__file__))
 if str(repo_root / "src") not in sys.path:
@@ -22,69 +23,59 @@ if str(repo_root / "src") not in sys.path:
 if str(repo_root) not in sys.path:
     sys.path.insert(0, str(repo_root))
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QPainter, QPixmap
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from atboffice.core.app import create_application
 from atboffice.core.window_manager import WindowManager
 
-CDP_CANVAS_RECTS: dict[str, tuple[int, int]] = {
-    "excel": (1178, 798),
-    "powerpoint": (982, 745),
-    "word": (1178, 767),
-}
-
 LAST_DIALOG_ERROR: str | None = None
 
+FIT_ATTEMPTS = 8
 
-def resolve_canvas_target(window: object, app_name: str) -> object:
-    """Isolate the exact document canvas boundaries in PySide6 to match CDP canvas rects."""
-    if app_name == "powerpoint" and hasattr(window, "presentation_view"):
-        ws = getattr(window.presentation_view, "workspace", None)
-        if ws and hasattr(ws, "canvas_view") and ws.canvas_view is not None:
-            cv = ws.canvas_view
-            return cv.viewport() if hasattr(cv, "viewport") else cv
-        return window.presentation_view
 
-    if app_name == "word" and hasattr(window, "writer_view"):
-        cv = getattr(window.writer_view, "canvas_view", None)
-        if cv and hasattr(cv, "viewport"):
-            return cv.viewport()
-        return window.writer_view
-
-    if app_name == "excel" and hasattr(window, "spreadsheet_view"):
-        grid = getattr(window.spreadsheet_view, "grid", None) or getattr(
-            window.spreadsheet_view, "grid_viewport", None
-        )
-        if grid and hasattr(grid, "viewport"):
-            return grid.viewport()
-        if hasattr(window.spreadsheet_view, "table_view") and hasattr(
-            window.spreadsheet_view.table_view, "viewport"
-        ):
-            return window.spreadsheet_view.table_view.viewport()
-        return window.spreadsheet_view
-
+def resolve_capture_widget(window: object, app_name: str, region: str) -> object:
+    """Widget for ``region``; falls back to the central widget for unknown windows."""
+    widget = resolve_region_widget(window, app_name, region)
+    if widget is not None:
+        return widget
     cw = getattr(window, "centralWidget", lambda: None)()
     return cw if cw is not None else window
 
 
-def align_pixmap_to_canvas(pixmap: QPixmap, target_size: tuple[int, int]) -> QPixmap:
-    """Align a captured pixmap to the target CDP canvas bounding box dimensions."""
-    target_w, target_h = target_size
-    if target_w <= 0 or target_h <= 0:
-        return pixmap
-    if pixmap.width() == target_w and pixmap.height() == target_h:
-        return pixmap
+def fit_region_to_size(
+    window: object,
+    app_name: str,
+    region: str,
+    target_size: tuple[int, int],
+) -> object:
+    """Resize ``window`` until the region widget is exactly ``target_size``.
 
-    aligned = QPixmap(target_w, target_h)
-    aligned.fill(Qt.GlobalColor.white)
-    painter = QPainter(aligned)
-    src_w = min(pixmap.width(), target_w)
-    src_h = min(pixmap.height(), target_h)
-    painter.drawPixmap(0, 0, pixmap, 0, 0, src_w, src_h)
-    painter.end()
-    return aligned
+    Splitters and layouts do not always hand the whole window delta to the region,
+    so the delta is re-measured on every pass. Returns the (re-resolved) widget.
+    """
+    widget = resolve_capture_widget(window, app_name, region)
+    for _ in range(FIT_ATTEMPTS):
+        drain_event_loop(3)
+        dw = target_size[0] - widget.width()
+        dh = target_size[1] - widget.height()
+        if dw == 0 and dh == 0:
+            break
+        window.resize(max(1, window.width() + dw), max(1, window.height() + dh))
+        drain_event_loop(3)
+        if hasattr(window, "fit_to_window"):
+            window.fit_to_window()
+        widget = resolve_capture_widget(window, app_name, region)
+    return widget
+
+
+def crop_to_size(pixmap: QPixmap, target_size: tuple[int, int]) -> QPixmap:
+    """Crop a grab that came out larger than the baseline. Never pads."""
+    w = min(pixmap.width(), target_size[0])
+    h = min(pixmap.height(), target_size[1])
+    if (w, h) == (pixmap.width(), pixmap.height()):
+        return pixmap
+    return pixmap.copy(0, 0, w, h)
 
 
 def install_dialog_interceptors() -> None:
@@ -132,11 +123,18 @@ def capture_single_document(
     out_dir: Path,
     viewport_size: tuple[int, int] = (1440, 900),
     canvas_only: bool = False,
+    region: str | None = None,
+    baseline_dir: Path | None = None,
 ) -> CaptureResult:
-    """Render a single document in PySide6 offscreen mode and save its canvas snapshot."""
+    """Render one document offscreen and save the named region.
+
+    The region widget is resized to the baseline size from ``baseline_dir`` so both
+    engines capture the same pixels. ``canvas_only`` is an alias for ``region="canvas"``.
+    """
     global LAST_DIALOG_ERROR
     LAST_DIALOG_ERROR = None
     install_dialog_interceptors()
+    region = "canvas" if canvas_only else (region or default_region())
 
     app = QApplication.instance()
     if not app:
@@ -183,49 +181,12 @@ def capture_single_document(
             window.fit_to_window()
             drain_event_loop(5)
 
-        # Determine target canvas bounding box size (from reference baseline if available)
-        target_size = CDP_CANVAS_RECTS.get(target.app, viewport_size)
-        for base_dir in [
-            repo_root / "screenshots" / "office_audit_20261106" / "vibeoffice",
-            repo_root / "screenshots" / "vibeoffice_docs",
-        ]:
-            cand_base = base_dir / target.app / f"{target.file}.png"
-            if cand_base.exists():
-                try:
-                    from PIL import Image
-
-                    with Image.open(cand_base) as img:
-                        target_size = img.size
-                        break
-                except Exception:
-                    pass
-
-        if canvas_only:
-            grab_target = resolve_canvas_target(window, target.app)
+        target_size = baseline_target_size(baseline_dir, target.app, target.file, region)
+        if target_size is not None:
+            grab_target = fit_region_to_size(window, target.app, region, target_size)
         else:
-            grab_target = resolve_canvas_target(window, target.app)
-            if grab_target is None:
-                cw = window.centralWidget()
-                grab_target = cw if cw is not None else window
-
-        if grab_target is not None and target.app in ("word", "powerpoint"):
-            expected_canvas_size = (
-                (target_size[0], 648) if target.app == "powerpoint" else target_size
-            )
-            for _ in range(4):
-                drain_event_loop(3)
-                cur_vw, cur_vh = grab_target.width(), grab_target.height()
-                if (cur_vw, cur_vh) == expected_canvas_size:
-                    break
-                window.resize(
-                    window.width() + (expected_canvas_size[0] - cur_vw),
-                    window.height() + (expected_canvas_size[1] - cur_vh),
-                )
-                drain_event_loop(3)
-            if hasattr(window, "fit_to_window"):
-                window.fit_to_window()
-                drain_event_loop(3)
-
+            grab_target = resolve_capture_widget(window, target.app, region)
+        drain_event_loop(3)
         pixmap = grab_target.grab()
 
         if pixmap.isNull() or pixmap.width() == 0 or pixmap.height() == 0:
@@ -236,7 +197,16 @@ def capture_single_document(
                 error="Grabbed pixmap is null or zero-sized",
             )
 
-        pixmap = align_pixmap_to_canvas(pixmap, target_size)
+        status = "dialog_warning" if LAST_DIALOG_ERROR else "captured"
+        error = None
+        if target_size is not None:
+            pixmap = crop_to_size(pixmap, target_size)
+            if (pixmap.width(), pixmap.height()) != target_size:
+                status = "size_mismatch"
+                error = (
+                    f"Region '{region}' is {pixmap.width()}x{pixmap.height()}, "
+                    f"baseline is {target_size[0]}x{target_size[1]}"
+                )
 
         saved = pixmap.save(str(out_png), "PNG")
         if not saved:
@@ -250,11 +220,13 @@ def capture_single_document(
         return CaptureResult(
             file=target.file,
             app=target.app,
-            status="dialog_warning" if LAST_DIALOG_ERROR else "captured",
+            status=status,
             screenshot_path=str(out_png),
             width=pixmap.width(),
             height=pixmap.height(),
+            error=error,
             dialog_warning=LAST_DIALOG_ERROR,
+            region=region,
         )
 
     except Exception as exc:
@@ -279,8 +251,11 @@ def run_isolated_capture(
     timeout: int = 30,
     canvas_only: bool = False,
     viewport_size: tuple[int, int] = (1440, 900),
+    region: str | None = None,
+    baseline_dir: Path | None = None,
 ) -> CaptureResult:
     """Execute capture of a single file in an isolated Python subprocess."""
+    region = "canvas" if canvas_only else (region or default_region())
     cmd = [
         sys.executable,
         "-m",
@@ -295,10 +270,12 @@ def run_isolated_capture(
         str(viewport_size[0]),
         "--height",
         str(viewport_size[1]),
+        "--region",
+        region,
         "--json-single",
     ]
-    if canvas_only:
-        cmd.append("--canvas-only")
+    if baseline_dir is not None:
+        cmd += ["--baseline-dir", str(baseline_dir)]
 
     env = os.environ.copy()
     env["PYTHONPATH"] = f"{repo_root}/src:{repo_root}"
@@ -333,6 +310,7 @@ def run_isolated_capture(
                         height=data.get("height", 0),
                         error=data.get("error"),
                         dialog_warning=data.get("dialog_warning"),
+                        region=data.get("region", region),
                     )
                 except Exception:
                     pass
@@ -341,6 +319,7 @@ def run_isolated_capture(
             app=target.app,
             status="parse_error",
             error=f"No valid JSON output. Raw stdout: {proc.stdout[:200]}",
+            region=region,
         )
     except subprocess.TimeoutExpired:
         return CaptureResult(
@@ -348,6 +327,7 @@ def run_isolated_capture(
             app=target.app,
             status="timeout",
             error=f"Timed out after {timeout} seconds",
+            region=region,
         )
 
 
@@ -358,7 +338,9 @@ def main() -> None:
     parser.add_argument("--out", default=str(repo_root / "screenshots" / "atboffice_docs"), help="Output directory")
     parser.add_argument("--width", type=int, default=1440, help="Viewport width")
     parser.add_argument("--height", type=int, default=900, help="Viewport height")
-    parser.add_argument("--canvas-only", action="store_true", help="Capture only canvas")
+    parser.add_argument("--canvas-only", action="store_true", help="Alias for --region canvas")
+    parser.add_argument("--region", choices=region_names(), default=None, help="Named capture region (default from regions.json)")
+    parser.add_argument("--baseline-dir", default=None, help="Baseline directory whose sizes the capture must match")
     parser.add_argument("--json-single", action="store_true", help="Output JSON and exit")
     args = parser.parse_args()
 
@@ -376,6 +358,8 @@ def main() -> None:
         out_dir=Path(args.out),
         viewport_size=(args.width, args.height),
         canvas_only=args.canvas_only,
+        region=args.region,
+        baseline_dir=Path(args.baseline_dir) if args.baseline_dir else None,
     )
 
     if args.json_single:

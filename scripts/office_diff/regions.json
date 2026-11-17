@@ -1,0 +1,18 @@
+{
+  "default": "canvas",
+  "legacy_region": "workspace",
+  "regions": {
+    "word": {
+      "canvas": {"selector": "#scroller", "box": "client", "description": "Page area without rulers or scrollbars"},
+      "workspace": {"selector": "#center", "box": "border", "description": "Rulers, page area and view bar"}
+    },
+    "excel": {
+      "canvas": {"selector": "#gridwrap", "box": "client", "description": "Cell grid with row and column headers"},
+      "workspace": {"selector": "#center", "box": "border", "description": "Grid, scrollbars and sheet tab strip"}
+    },
+    "powerpoint": {
+      "canvas": {"selector": "#editorwrap", "box": "client", "description": "Slide editing area"},
+      "workspace": {"selector": "#center", "box": "border", "description": "Slide editing area and notes pane"}
+    }
+  }
+}
