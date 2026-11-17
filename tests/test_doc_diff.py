@@ -17,11 +17,7 @@ if str(REPO_ROOT / "src") not in sys.path:
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.office_diff.capture import (
-    CDP_CANVAS_RECTS,
-    align_pixmap_to_canvas,
-    resolve_canvas_target,
-)
+from scripts.office_diff.capture import crop_to_size, resolve_capture_widget
 from scripts.office_diff.comparator import classify_similarity, compare_canvases, is_blank_canvas
 from scripts.office_diff.corpus import load_expectations, partition_corpus
 from scripts.office_diff.models import CaptureResult, DiffResult, DocumentTarget
@@ -271,43 +267,35 @@ def test_run_office_diff_cli_dry_run():
     assert "Active targets: 73" in res.stdout
 
 
-def test_align_pixmap_to_canvas():
-    from PySide6.QtGui import QColor, QPixmap
+def test_crop_to_size_never_pads():
+    from PySide6.QtGui import QPixmap
 
-    # 1. Pixmap larger than target
+    # Larger grabs are cropped to the baseline size.
     src = QPixmap(1440, 900)
     src.fill(QColor("blue"))
-    aligned = align_pixmap_to_canvas(src, (1178, 798))
-    assert aligned.width() == 1178
-    assert aligned.height() == 798
+    cropped = crop_to_size(src, (1178, 798))
+    assert (cropped.width(), cropped.height()) == (1178, 798)
 
-    # 2. Pixmap smaller than target
+    # Smaller grabs keep their size: no white padding is ever added.
     src_small = QPixmap(500, 400)
     src_small.fill(QColor("green"))
-    aligned_small = align_pixmap_to_canvas(src_small, (982, 745))
-    assert aligned_small.width() == 982
-    assert aligned_small.height() == 745
+    kept = crop_to_size(src_small, (982, 745))
+    assert (kept.width(), kept.height()) == (500, 400)
 
-    # 3. Already matching size
-    src_exact = QPixmap(1178, 767)
-    aligned_exact = align_pixmap_to_canvas(src_exact, (1178, 767))
-    assert aligned_exact.width() == 1178
-    assert aligned_exact.height() == 767
+    # Mixed: only the oversized axis shrinks.
+    mixed = crop_to_size(QPixmap(1300, 700), (1178, 767))
+    assert (mixed.width(), mixed.height()) == (1178, 700)
 
 
-def test_cdp_canvas_rects_and_viewport_isolation():
-    assert CDP_CANVAS_RECTS["excel"] == (1178, 798)
-    assert CDP_CANVAS_RECTS["powerpoint"] == (982, 745)
-    assert CDP_CANVAS_RECTS["word"] == (1178, 767)
-
+def test_resolve_capture_widget_falls_back_to_central_widget():
     class DummyWindow:
         def centralWidget(self):
             return "central_widget"
 
     w = DummyWindow()
-    assert resolve_canvas_target(w, "word") == "central_widget"
-    assert resolve_canvas_target(w, "excel") == "central_widget"
-    assert resolve_canvas_target(w, "powerpoint") == "central_widget"
+    for app in ("word", "excel", "powerpoint"):
+        for region in ("canvas", "workspace"):
+            assert resolve_capture_widget(w, app, region) == "central_widget"
 
 
 def test_filled_rectangle_vs_blank_below_cosmetic_minor(tmp_path):

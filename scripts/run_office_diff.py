@@ -26,7 +26,8 @@ if str(REPO_ROOT) not in sys.path:
 from scripts.office_diff.capture import run_isolated_capture
 from scripts.office_diff.comparator import compare_canvases
 from scripts.office_diff.corpus import load_expectations, partition_corpus
-from scripts.office_diff.models import DiffResult, DocumentTarget
+from scripts.office_diff.models import CaptureResult, DiffResult, DocumentTarget
+from scripts.office_diff.regions import MANIFEST_NAME, baseline_region, default_region, region_names
 from scripts.office_diff.reporter import generate_report, parse_visual_verdicts
 
 
@@ -84,9 +85,11 @@ def run_diff_suite(
     normalize_size: bool = False,
     canvas_only: bool = False,
     timeout: int = 30,
+    region: str | None = None,
 ) -> list[DiffResult]:
     """Execute capture (optional) and visual diff comparison across document targets."""
     results: list[DiffResult] = []
+    captures: list[CaptureResult] = []
 
     for idx, target in enumerate(targets, start=1):
         # 1. Capture candidate if requested
@@ -97,8 +100,11 @@ def run_diff_suite(
                 out_dir=candidate_dir,
                 timeout=timeout,
                 canvas_only=canvas_only,
+                region=region,
+                baseline_dir=baseline_dir,
             )
-            print(f"status={cap_res.status}")
+            captures.append(cap_res)
+            print(f"status={cap_res.status} region={cap_res.region} {cap_res.width}x{cap_res.height}")
 
         # 2. Locate baseline PNG
         orig_png = baseline_dir / target.app / f"{target.file}.png"
@@ -123,6 +129,12 @@ def run_diff_suite(
         )
         results.append(diff_res)
 
+    if captures:
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+        manifest = candidate_dir / MANIFEST_NAME
+        manifest.write_text(json.dumps([c.to_dict() for c in captures], indent=2), encoding="utf-8")
+        print(f"Capture manifest written: {manifest}")
+
     return results
 
 
@@ -142,7 +154,8 @@ def main() -> int:
     parser.add_argument("--capture", action="store_true", help="Perform offscreen capture before comparison")
     parser.add_argument("--score-only", action="store_true", help="Score existing screenshots without capturing")
     parser.add_argument("--json", help="Optional path to write diff results JSON")
-    parser.add_argument("--canvas-only", action="store_true", help="Capture only inner document canvas")
+    parser.add_argument("--canvas-only", action="store_true", help="Alias for --region canvas")
+    parser.add_argument("--region", choices=region_names(), default=None, help="Capture region (default: the baseline manifest's region, else regions.json default)")
     parser.add_argument("--normalize-size", action="store_true", help="Normalize sample dimensions during comparison")
     parser.add_argument("--strict", action="store_true", help="Exit with non-zero code if quality gates fail")
     parser.add_argument("--dry-run", action="store_true", help="Parse corpus and display plan without executing")
@@ -198,6 +211,9 @@ def main() -> int:
         diff_dir = baseline_dir.parent / "diff"
     else:
         diff_dir = repo_root / "screenshots" / "docs_diff"
+    region = (
+        "canvas" if args.canvas_only else args.region
+    ) or baseline_region(baseline_dir) or default_region()
     report_out = Path(args.out).resolve() if args.out else (repo_root / "docs" / "clone" / "OFFICE_DOCS_DIFF.md")
 
     print("=== ATBOffice Document Visual Diff Runner ===")
@@ -205,6 +221,7 @@ def main() -> int:
     print(f"Active targets: {len(targets)}")
     print(f"Baseline directory:  {baseline_dir}")
     print(f"Candidate directory: {candidate_dir}")
+    print(f"Capture region:      {region}")
     print(f"Report output:       {report_out}")
 
     if args.dry_run:
@@ -224,7 +241,7 @@ def main() -> int:
         diff_dir=diff_dir,
         do_capture=do_capture,
         normalize_size=args.normalize_size,
-        canvas_only=args.canvas_only,
+        region=region,
     )
 
     json_out = Path(args.json).resolve() if args.json else (diff_dir / "diff_results.json" if args.score_only else None)
