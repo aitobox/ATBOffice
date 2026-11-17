@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from atboffice.modules.presentation.io import alternate_content as mce
+from atboffice.modules.presentation.io import pptx_table_styles as tstyles
 from atboffice.modules.presentation.models.comment import (
     Comment,
     CommentAuthor,
@@ -361,6 +362,8 @@ class PptxReader:
         self._masters: dict[str, MasterInfo] = {}
         self._warnings: list[LoadWarning] = []
         self._theme_fonts: dict[str, tuple[str | None, str | None]] = {}
+        self._table_styles = tstyles.TableStyleCatalog()
+        self._table_style_cache: dict[tuple[str, int], dict[str, Any] | None] = {}
 
     @classmethod
     def open(cls, file_path: Path | str) -> Presentation:
@@ -431,6 +434,9 @@ class PptxReader:
 
         # 4. Parse Themes
         self._parse_themes(pres_part, pres_rels, pres)
+
+        # 4.0 Table style catalog (ppt/tableStyles.xml)
+        self._load_table_styles(pres_part, pres_rels)
 
         # 4.1 Parse Comment Authors
         self._parse_comment_authors(pres_part, pres_rels, pres)
@@ -698,6 +704,24 @@ class PptxReader:
                 clr, _ = self._extract_color_detail(child)
                 return clr
         return None
+
+    def _load_table_styles(self, pres_part: str, pres_rels: list[Any]) -> None:
+        """Load the table style catalog referenced by the presentation part."""
+        ts_path = "ppt/tableStyles.xml"
+        for rel in pres_rels:
+            if str(getattr(rel, "type", "")).endswith("/tableStyles"):
+                ts_path = _resolve_path(pres_part, rel.target)
+                break
+        if not self.package.has_part(ts_path):
+            return
+        try:
+            self._table_styles = tstyles.TableStyleCatalog.from_xml(
+                self.package.read_part(ts_path)
+            )
+        except ET.ParseError as exc:
+            self._warnings.append(
+                LoadWarning(scope="tableStyles", location=ts_path, message=str(exc))
+            )
 
     def _get_theme_colors(self, theme_path: str) -> ColorScheme | None:
         themes = getattr(self, "themes", {})
@@ -1813,45 +1837,7 @@ class PptxReader:
         tbl_elem = _get_child(graphic_data, "tbl") if graphic_data is not None else None
 
         if tbl_elem is not None:
-            master_info = layout_info.master if layout_info else None
-            other_style = master_info.other_style if master_info else {}
-            default_style = getattr(self, "default_text_style", {})
-
-            tbl_grid = _get_child(tbl_elem, "tblGrid")
-            if tbl_grid is not None:
-                for col_elem in _get_children(tbl_grid, "gridCol"):
-                    tbl_dict["cols"].append(emu_to_pt(_get_attr(col_elem, "w"), default=100.0))
-
-            for tr_elem in _get_children(tbl_elem, "tr"):
-                h_pt = emu_to_pt(_get_attr(tr_elem, "h"), default=30.0)
-                row_cells: list[dict[str, Any]] = []
-                for tc_elem in _get_children(tr_elem, "tc"):
-                    tx_body = _get_child(tc_elem, "txBody")
-                    cell_text = (
-                        self._parse_text_body(tx_body) if tx_body is not None else TextBody()
-                    )
-                    # Table cells inherit text properties from otherStyle and defaultTextStyle
-                    for p in cell_text.paragraphs:
-                        lvl = p.level
-                        def_s = default_style.get(lvl) or default_style.get(0) or {}
-                        oth_s = other_style.get(lvl) or other_style.get(0) or {}
-                        base_s = copy.deepcopy(def_s)
-                        base_s.update(oth_s)
-                        sz = base_s.get("sz", 18.0)
-                        font = (
-                            base_s.get("font")
-                            or (master_info.minor_font if master_info else "Arial")
-                        )
-                        clr = base_s.get("color")
-                        for r in p.runs:
-                            if r.size is None:
-                                r.size = sz
-                            if r.font is None:
-                                r.font = font
-                            if r.color is None and clr:
-                                r.color = clr
-                    row_cells.append({"tx": cell_text, "text": cell_text.plain_text})
-                tbl_dict["rows"].append({"h": h_pt, "cells": row_cells})
+            self._parse_table(tbl_elem, tbl_dict, layout_info, slide_clr_map_ovr)
 
         return Shape(
             id=frame_id or "tbl_1",
@@ -1864,6 +1850,136 @@ class PptxReader:
             rot=rot,
             tbl=tbl_dict,
         )
+
+    def _parse_table(
+        self,
+        tbl_elem: ET.Element,
+        tbl_dict: dict[str, Any],
+        layout_info: LayoutInfo | None,
+        slide_clr_map_ovr: dict[str, str] | None,
+    ) -> None:
+        """Parse <a:tbl> grid, cells, cell properties and the referenced table style."""
+        master_info = layout_info.master if layout_info else None
+        other_style = master_info.other_style if master_info else {}
+        default_style = getattr(self, "default_text_style", {})
+        theme_colors, _fmt, clr_map, clr_map_ovr = self._resolve_theme_context(
+            layout_info, slide_clr_map_ovr
+        )
+
+        def cell_color(e: ET.Element) -> tuple[str | None, float]:
+            return self._extract_color_detail(
+                e,
+                theme_colors=theme_colors,
+                clr_map=clr_map,
+                clr_map_ovr=clr_map_ovr,
+                keep_scheme=True,
+            )
+
+        def style_color(e: ET.Element) -> tuple[str | None, float]:
+            return self._extract_color_detail(
+                e, theme_colors=theme_colors, clr_map=clr_map, clr_map_ovr=clr_map_ovr
+            )
+
+        def line_of(e: ET.Element) -> dict[str, Any]:
+            ln = self._parse_line(
+                e,
+                theme_colors=theme_colors,
+                clr_map=clr_map,
+                clr_map_ovr=clr_map_ovr,
+            )
+            if ln.type == "none":
+                return {"c": None, "w": 0.0, "dash": "solid"}
+            return {"c": ln.color or "tx1", "w": float(ln.width or 0.75), "dash": ln.dash}
+
+        tbl_pr = _get_child(tbl_elem, "tblPr")
+        flags = {
+            name: _get_attr(tbl_pr, name) in ("1", "true", "on")
+            for name in ("firstRow", "lastRow", "firstCol", "lastCol", "bandRow", "bandCol")
+        }
+        style_id = tstyles.table_style_id(tbl_pr)
+        if style_id:
+            tbl_dict["style_id"] = style_id
+        tbl_dict.update(flags)
+
+        tbl_grid = _get_child(tbl_elem, "tblGrid")
+        if tbl_grid is not None:
+            for col_elem in _get_children(tbl_grid, "gridCol"):
+                tbl_dict["cols"].append(emu_to_pt(_get_attr(col_elem, "w"), default=100.0))
+
+        for tr_elem in _get_children(tbl_elem, "tr"):
+            h_pt = emu_to_pt(_get_attr(tr_elem, "h"), default=30.0)
+            row_cells: list[dict[str, Any]] = []
+            for tc_elem in _get_children(tr_elem, "tc"):
+                tx_body = _get_child(tc_elem, "txBody")
+                cell_text = self._parse_text_body(tx_body) if tx_body is not None else TextBody()
+                fill, bd, own = tstyles.parse_cell_properties(
+                    _get_child(tc_elem, "tcPr"), cell_color, line_of
+                )
+                cell: dict[str, Any] = {
+                    "tx": cell_text,
+                    "text": cell_text.plain_text,
+                    "fill": fill,
+                    "bd": bd,
+                    "own": own,
+                }
+                for key, attr in (("gs", "gridSpan"), ("rs", "rowSpan")):
+                    span = safe_int(_get_attr(tc_elem, attr, "1"), 1)
+                    if span > 1:
+                        cell[key] = span
+                for key, attr in (("hm", "hMerge"), ("vm", "vMerge")):
+                    if _get_attr(tc_elem, attr) in ("1", "true", "on"):
+                        cell[key] = True
+                row_cells.append(cell)
+            tbl_dict["rows"].append({"h": h_pt, "cells": row_cells})
+
+        if style_id:
+            cache_key = (style_id, id(theme_colors))
+            if cache_key not in self._table_style_cache:
+
+                def scheme_hex(token: str) -> str:
+                    slot = COLOR_SLOT_MAP.get(token, token)
+                    if theme_colors is not None and hasattr(theme_colors, slot):
+                        return str(getattr(theme_colors, slot))
+                    return resolve_color(token, fallback="#4472C4")
+
+                def tint(hex_color: str, val: float) -> str:
+                    return apply_color_mods(hex_color, [{"name": "tint", "val": val}])
+
+                self._table_style_cache[cache_key] = tstyles.resolve_style_parts(
+                    style_id,
+                    self._table_styles,
+                    style_color,
+                    line_of,
+                    scheme_hex,
+                    tint,
+                )
+            parts = self._table_style_cache[cache_key]
+            if parts:
+                tstyles.apply_table_style(
+                    tbl_dict["rows"], len(tbl_dict["cols"]), copy.deepcopy(parts), flags
+                )
+
+        # Table cells inherit remaining text properties from otherStyle and defaultTextStyle
+        for row in tbl_dict["rows"]:
+            for cell in row["cells"]:
+                for p in cell["tx"].paragraphs:
+                    lvl = p.level
+                    def_s = default_style.get(lvl) or default_style.get(0) or {}
+                    oth_s = other_style.get(lvl) or other_style.get(0) or {}
+                    base_s = copy.deepcopy(def_s)
+                    base_s.update(oth_s)
+                    sz = base_s.get("sz", 18.0)
+                    font = base_s.get("font") or (
+                        master_info.minor_font if master_info else "Arial"
+                    )
+                    clr = base_s.get("color")
+                    for r in p.runs:
+                        if r.size is None:
+                            r.size = sz
+                        if r.font is None:
+                            r.font = font
+                        if r.color is None and clr:
+                            r.color = clr
 
     def _parse_group_element(
         self,
@@ -3019,7 +3135,11 @@ class PptxReader:
         if sp_pr is None:
             return res
 
-        ln_elem = sp_pr if _local_tag(sp_pr.tag) == "ln" else _get_child(sp_pr, "ln")
+        ln_elem = (
+            sp_pr
+            if _local_tag(sp_pr.tag) in ("ln", "lnL", "lnR", "lnT", "lnB")
+            else _get_child(sp_pr, "ln")
+        )
         if ln_elem is None:
             return res
 
