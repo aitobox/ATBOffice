@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QRectF
-from PySide6.QtGui import QGuiApplication, QImage, QPainter, QTextDocument, QTextOption
+from PySide6.QtGui import QImage, QPainter, QTextDocument, QTextOption
+from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.presentation.io.pptx_reader import PptxReader
 from atboffice.modules.presentation.io.writer_text import body_properties_to_xml
@@ -13,8 +14,9 @@ from atboffice.modules.presentation.models.text import Paragraph, TextBody, Text
 from atboffice.modules.presentation.views.text_editor import ShapeTextEditorItem
 
 
-def _ensure_qapp() -> QGuiApplication:
-    return QGuiApplication.instance() or QGuiApplication(["-platform", "offscreen"])
+def _ensure_qapp() -> QApplication:
+    # A QApplication (not QGuiApplication) so widget tests in the same run work.
+    return QApplication.instance() or QApplication(["-platform", "offscreen"])
 
 
 def test_default_text_style_18pt() -> None:
@@ -166,3 +168,154 @@ def test_text_body_model_and_writer() -> None:
     assert 'spcCol="360045"' in xml or "spcCol=" in xml
     assert 'rtlCol="1"' in xml
     assert 'wrap="none"' in xml
+
+
+# ---------------------------------------------------------------------------
+# Issue #407: no-wrap overflow, balanced column flow, RTL column order
+# ---------------------------------------------------------------------------
+
+
+def _shape_with_text(fpath: str, needle: str):  # type: ignore[no-untyped-def]
+    pres = PptxReader.open(Path(fpath))
+    sh = next(s for s in pres.slides[0].shapes if s.text and needle in s.text.plain_text)
+    assert sh.text is not None
+    return sh
+
+
+def _text_rect(sh) -> QRectF:  # type: ignore[no-untyped-def]
+    ins_l, ins_t, ins_r, ins_b = sh.text.insets
+    return QRectF(
+        ins_l,
+        ins_t,
+        max(10.0, sh.w - ins_l - ins_r),
+        max(10.0, sh.h - ins_t - ins_b),
+    )
+
+
+def _render_columns(text_body: TextBody, rect: QRectF, monkeypatch, out: list | None = None) -> list[str]:  # type: ignore[no-untyped-def]
+    """Render through render_static_text and return the text drawn in each column."""
+    from atboffice.modules.presentation.views import text_editor as te
+
+    captured: list[QTextDocument] = []
+
+    class _RecordingDoc(QTextDocument):
+        def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+            super().__init__(*args, **kwargs)
+            captured.append(self)
+
+    monkeypatch.setattr(te, "QTextDocument", _RecordingDoc)
+    img = QImage(int(rect.right()) + 20, int(rect.bottom()) + 20, QImage.Format.Format_ARGB32)
+    img.fill(0)
+    painter = QPainter(img)
+    ShapeTextEditorItem.render_static_text(painter, text_body, rect)
+    painter.end()
+
+    doc = captured[0]  # the render document (autofit solving may create more)
+    if out is not None:
+        out.append(doc)
+    page_h = doc.pageSize().height()
+    columns: list[list[str]] = [[] for _ in range(max(1, doc.pageCount()))]
+    layout = doc.documentLayout()
+    block = doc.begin()
+    while block.isValid():
+        top = layout.blockBoundingRect(block).y()
+        tl = block.layout()
+        for i in range(tl.lineCount()):
+            line = tl.lineAt(i)
+            page = int((top + line.y() + line.height() / 2.0) // page_h)
+            text = block.text()[line.textStart() : line.textStart() + line.textLength()]
+            if text.strip():
+                columns[min(page, len(columns) - 1)].append(text.strip())
+        block = block.next()
+    return [" ".join(c) for c in columns]
+
+
+def _ink_columns(img: QImage) -> list[int]:
+    xs: list[int] = []
+    for x in range(img.width()):
+        for y in range(img.height()):
+            if img.pixelColor(x, y).alpha() > 0:
+                xs.append(x)
+                break
+    return xs
+
+
+def test_nowrap_text_overflows_narrow_box() -> None:
+    """tdf104722: wrap='none' subtitle draws past its narrow text rectangle."""
+    _ensure_qapp()
+    sh = _shape_with_text("tests/docs/powerpoint/pptx/libreoffice__tdf104722.pptx", "Subtitle")
+    rect = _text_rect(sh)
+    img = QImage(int(rect.right() + sh.w * 4), int(rect.bottom()) + 20, QImage.Format.Format_ARGB32)
+    img.fill(0)
+    painter = QPainter(img)
+    ShapeTextEditorItem.render_static_text(painter, sh.text, rect)
+    painter.end()
+    xs = _ink_columns(img)
+    assert xs, "subtitle produced no ink"
+    assert max(xs) > rect.right() + 20, "no-wrap text was clipped to the text rectangle"
+
+
+def test_columns_balance_tdf140852(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """tdf140852: balanced 2-column flow starts column 2 with 'comes to'."""
+    _ensure_qapp()
+    sh = _shape_with_text("tests/docs/powerpoint/pptx/libreoffice__tdf140852.pptx", "Training")
+    cols = _render_columns(sh.text, _text_rect(sh), monkeypatch)
+    assert len(cols) == 2, cols
+    assert cols[0].startswith("Training will be")
+    assert cols[1].startswith("comes to"), cols
+    assert cols[1].endswith("cream")
+
+
+def test_columns_balance_rtlcol_fixture_reaches_third_column(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """main_bodyPr_rtlCol: the trailing instructions land in the third column."""
+    _ensure_qapp()
+    sh = _shape_with_text(
+        "tests/docs/powerpoint/pptx/openxml-sdk__main_bodyPr_rtlCol.pptx", "rtlCol"
+    )
+    cols = _render_columns(sh.text, _text_rect(sh), monkeypatch)
+    assert len(cols) == 3, cols
+    assert cols[0].startswith("rtlCol")
+    assert "Insert Text box" in cols[2], cols
+    assert "Columns" in cols[2]
+
+
+def test_columns_overflowing_capacity_keep_full_height(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """Text exceeding every column keeps the full text-rect height per column."""
+    _ensure_qapp()
+    tb = TextBody(
+        cols=2,
+        col_gap=10.0,
+        paragraphs=[Paragraph(runs=[TextRun(text="word " * 400, size=18.0)])],
+    )
+    rect = QRectF(0.0, 0.0, 300.0, 80.0)
+    docs: list[QTextDocument] = []
+    _render_columns(tb, rect, monkeypatch, docs)
+    assert docs[0].pageCount() > 2
+    assert abs(docs[0].pageSize().height() - rect.height()) < 0.01
+
+
+def test_rtl_col_places_first_column_on_the_right() -> None:
+    """rtlCol=1 draws the first column at the right edge of the text rect."""
+    _ensure_qapp()
+
+    def render(rtl: bool) -> list[int]:
+        tb = TextBody(
+            cols=2,
+            col_gap=20.0,
+            rtl_col=rtl,
+            paragraphs=[
+                Paragraph(runs=[TextRun(text="X", size=18.0)]),
+            ],
+        )
+        img = QImage(260, 120, QImage.Format.Format_ARGB32)
+        img.fill(0)
+        painter = QPainter(img)
+        ShapeTextEditorItem.render_static_text(painter, tb, QRectF(0.0, 0.0, 260.0, 120.0))
+        painter.end()
+        return _ink_columns(img)
+
+    ltr = render(False)
+    rtl = render(True)
+    assert ltr and rtl
+    assert max(ltr) < 120, "LTR first column should sit on the left"
+    assert min(rtl) >= 140, "RTL first column should sit on the right"
