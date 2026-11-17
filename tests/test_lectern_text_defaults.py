@@ -192,7 +192,9 @@ def _text_rect(sh) -> QRectF:  # type: ignore[no-untyped-def]
     )
 
 
-def _render_columns(text_body: TextBody, rect: QRectF, monkeypatch, out: list | None = None) -> list[str]:  # type: ignore[no-untyped-def]
+def _render_columns(  # type: ignore[no-untyped-def]
+    text_body: TextBody, rect: QRectF, monkeypatch, out: list | None = None
+) -> list[str]:
     """Render through render_static_text and return the text drawn in each column."""
     from atboffice.modules.presentation.views import text_editor as te
 
