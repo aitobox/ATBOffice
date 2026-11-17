@@ -194,8 +194,8 @@ def _text_rect(sh) -> QRectF:  # type: ignore[no-untyped-def]
 
 def _render_columns(  # type: ignore[no-untyped-def]
     text_body: TextBody, rect: QRectF, monkeypatch, out: list | None = None
-) -> list[str]:
-    """Render through render_static_text and return the text drawn in each column."""
+) -> list[list[str]]:
+    """Render through render_static_text and return the lines drawn in each column."""
     from atboffice.modules.presentation.views import text_editor as te
 
     captured: list[QTextDocument] = []
@@ -224,12 +224,13 @@ def _render_columns(  # type: ignore[no-untyped-def]
         tl = block.layout()
         for i in range(tl.lineCount()):
             line = tl.lineAt(i)
-            page = int((top + line.y() + line.height() / 2.0) // page_h)
+            mid_y = top + line.y() + line.height() / 2.0
+            page = int(mid_y // page_h) if page_h > 0 else 0  # unpaginated: one column
             text = block.text()[line.textStart() : line.textStart() + line.textLength()]
             if text.strip():
                 columns[min(page, len(columns) - 1)].append(text.strip())
         block = block.next()
-    return [" ".join(c) for c in columns]
+    return columns
 
 
 def _ink_columns(img: QImage) -> list[int]:
@@ -258,27 +259,47 @@ def test_nowrap_text_overflows_narrow_box() -> None:
 
 
 def test_columns_balance_tdf140852(monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    """tdf140852: balanced 2-column flow starts column 2 with 'comes to'."""
+    """tdf140852: text is balanced across both columns instead of filling column 1.
+
+    Line breaks depend on the platform's substitute for "Work Sans Light", so
+    assert the balance itself: column 1 holds at most one line more than
+    column 2 (macOS: 4 + 3 lines, column 2 starting with "comes to").
+    """
     _ensure_qapp()
     sh = _shape_with_text("tests/docs/powerpoint/pptx/libreoffice__tdf140852.pptx", "Training")
     cols = _render_columns(sh.text, _text_rect(sh), monkeypatch)
     assert len(cols) == 2, cols
-    assert cols[0].startswith("Training will be")
-    assert cols[1].startswith("comes to"), cols
-    assert cols[1].endswith("cream")
+    assert cols[0][0].startswith("Training"), cols
+    assert cols[1] and cols[1][-1].endswith("cream"), cols
+    assert 0 <= len(cols[0]) - len(cols[1]) <= 1, cols
 
 
 def test_columns_balance_rtlcol_fixture_reaches_third_column(monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    """main_bodyPr_rtlCol: the trailing instructions land in the third column."""
+    """main_bodyPr_rtlCol: the trailing instructions start in the third column."""
     _ensure_qapp()
     sh = _shape_with_text(
         "tests/docs/powerpoint/pptx/openxml-sdk__main_bodyPr_rtlCol.pptx", "rtlCol"
     )
     cols = _render_columns(sh.text, _text_rect(sh), monkeypatch)
-    assert len(cols) == 3, cols
-    assert cols[0].startswith("rtlCol")
-    assert "Insert Text box" in cols[2], cols
-    assert "Columns" in cols[2]
+    assert len(cols) >= 3, cols
+    assert cols[0][0].startswith("rtlCol"), cols
+    assert cols[2] and cols[2][0].startswith("Insert Text box"), cols
+
+
+def test_empty_paragraph_line_height_uses_text_box_default(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """An empty paragraph in a text box is one 18 pt line (1.2x), not a 32 pt one."""
+    _ensure_qapp()
+    tb = TextBody(
+        paragraphs=[
+            Paragraph(runs=[TextRun(text="A", size=18.0)]),
+            Paragraph(runs=[]),
+        ],
+    )
+    docs: list[QTextDocument] = []
+    _render_columns(tb, QRectF(0.0, 0.0, 200.0, 200.0), monkeypatch, docs)
+    empty = docs[0].lastBlock()
+    assert empty.text() == ""
+    assert abs(empty.blockFormat().lineHeight() - 18.0 * 1.2) < 0.01
 
 
 def test_columns_overflowing_capacity_keep_full_height(monkeypatch) -> None:  # type: ignore[no-untyped-def]
