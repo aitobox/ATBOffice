@@ -1,5 +1,5 @@
 """Tests for shared capture regions (issue #359): both engines capture the same region."""
-# ruff: noqa: E402
+# ruff: noqa: E402, E501
 
 from __future__ import annotations
 
