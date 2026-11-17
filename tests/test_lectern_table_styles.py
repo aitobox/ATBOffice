@@ -284,3 +284,20 @@ def test_paint_table_draws_style_fill(qtbot):
     sx = shape.w / sum(shape.tbl["cols"])
     px = img.pixelColor(int(shape.tbl["cols"][0] * sx) - 4, int(shape.tbl["rows"][0]["h"] / 2))
     assert px.alpha() > 0 and _luma(px.name()) < 160
+
+
+def test_paint_table_fill_does_not_cover_neighbour_border(qtbot):
+    shape = _tables(read_pptx(POI))[0]
+    tbl = shape.tbl
+    for row in tbl["rows"]:
+        for cell in row["cells"]:
+            cell["fill"] = {"t": "solid", "c": "#000000", "a": 1.0}
+            cell["bd"] = {"r": {"c": "#FF0000", "w": 4.0, "dash": "solid"}}
+            cell["tx"] = None
+            cell["text"] = ""
+    img = _render_table(shape)
+    sx = shape.w / sum(tbl["cols"])
+    edge = int(tbl["cols"][0] * sx)
+    y = int(tbl["rows"][1]["h"] / 2 + tbl["rows"][0]["h"])
+    # the right half of cell(0)'s border lies inside cell(1) and must survive its fill
+    assert img.pixelColor(edge + 1, y).name().upper() == "#FF0000"

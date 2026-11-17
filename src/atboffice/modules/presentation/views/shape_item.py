@@ -983,77 +983,79 @@ class ShapeGraphicsItem(QGraphicsObject):
             row_y.append(row_y[-1] + rh)
         styled = bool(tbl_data.get("style_id"))
 
+        # Continuation cells of a merge are covered by their origin cell
+        placed: list[tuple[dict[str, Any], QRectF]] = []
         for r_idx, row in enumerate(rows):
-            cells = row.get("cells", [])
-            for c_idx, cell in enumerate(cells):
-                # Continuation cells of a merge are covered by their origin cell
-                if cell.get("hm") or cell.get("vm"):
+            for c_idx, cell in enumerate(row.get("cells", [])):
+                if cell.get("hm") or cell.get("vm") or c_idx >= len(col_ws):
                     continue
-                gs = max(1, int(cell.get("gs") or 1))
-                rs = max(1, int(cell.get("rs") or 1))
-                c_end = min(len(col_ws), c_idx + gs)
-                r_end = min(len(rows), r_idx + rs)
-                cell_rect = QRectF(
+                c_end = min(len(col_ws), c_idx + max(1, int(cell.get("gs") or 1)))
+                r_end = min(len(rows), r_idx + max(1, int(cell.get("rs") or 1)))
+                rect = QRectF(
                     col_x[c_idx],
                     row_y[r_idx],
                     col_x[c_end] - col_x[c_idx],
                     row_y[r_end] - row_y[r_idx],
                 )
+                placed.append((cell, rect))
 
-                # Fill
-                c_fill = cell.get("fill")
-                if c_fill and isinstance(c_fill, dict) and c_fill.get("t") == "solid":
-                    fill_c = self._resolve_color(c_fill.get("c"))
-                    alpha = c_fill.get("a", 1.0)
-                    if isinstance(alpha, (int, float)) and 0.0 <= alpha < 1.0:
-                        fill_c.setAlphaF(float(alpha))
-                    painter.fillRect(cell_rect, fill_c)
-                elif c_fill and hasattr(c_fill, "color") and c_fill.color:
-                    painter.fillRect(cell_rect, self._resolve_color(c_fill.color))
+        # Pass 1: fills, so that no fill covers a neighbour's border
+        for cell, cell_rect in placed:
+            c_fill = cell.get("fill")
+            if c_fill and isinstance(c_fill, dict) and c_fill.get("t") == "solid":
+                fill_c = self._resolve_color(c_fill.get("c"))
+                alpha = c_fill.get("a", 1.0)
+                if isinstance(alpha, (int, float)) and 0.0 <= alpha < 1.0:
+                    fill_c.setAlphaF(float(alpha))
+                painter.fillRect(cell_rect, fill_c)
+            elif c_fill and hasattr(c_fill, "color") and c_fill.color:
+                painter.fillRect(cell_rect, self._resolve_color(c_fill.color))
 
-                # Borders: per side from tcPr / table style; legacy grid for plain tables
-                bd = cell.get("bd") or {}
-                painter.setBrush(Qt.BrushStyle.NoBrush)
-                if bd:
-                    for side, p1, p2 in (
-                        ("l", cell_rect.topLeft(), cell_rect.bottomLeft()),
-                        ("r", cell_rect.topRight(), cell_rect.bottomRight()),
-                        ("t", cell_rect.topLeft(), cell_rect.topRight()),
-                        ("b", cell_rect.bottomLeft(), cell_rect.bottomRight()),
-                    ):
-                        line = bd.get(side)
-                        if not isinstance(line, dict):
-                            continue
-                        lw = float(line.get("w") or 0.0)
-                        if lw <= 0 or not line.get("c"):
-                            continue
-                        painter.setPen(QPen(self._resolve_color(line.get("c")), lw))
-                        painter.drawLine(p1, p2)
-                elif not styled:
-                    painter.setPen(QPen(QColor(180, 180, 180), 1.0))
-                    painter.drawRect(cell_rect)
+        # Pass 2: borders and text
+        for cell, cell_rect in placed:
+            # Borders: per side from tcPr / table style; legacy grid for plain tables
+            bd = cell.get("bd") or {}
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            if bd:
+                for side, p1, p2 in (
+                    ("l", cell_rect.topLeft(), cell_rect.bottomLeft()),
+                    ("r", cell_rect.topRight(), cell_rect.bottomRight()),
+                    ("t", cell_rect.topLeft(), cell_rect.topRight()),
+                    ("b", cell_rect.bottomLeft(), cell_rect.bottomRight()),
+                ):
+                    line = bd.get(side)
+                    if not isinstance(line, dict):
+                        continue
+                    lw = float(line.get("w") or 0.0)
+                    if lw <= 0 or not line.get("c"):
+                        continue
+                    painter.setPen(QPen(self._resolve_color(line.get("c")), lw))
+                    painter.drawLine(p1, p2)
+            elif not styled:
+                painter.setPen(QPen(QColor(180, 180, 180), 1.0))
+                painter.drawRect(cell_rect)
 
-                # Text
-                cell_tx = cell.get("tx")
-                if isinstance(cell_tx, dict):
-                    try:
-                        cell_tx = TextBody.from_dict(cell_tx)
-                    except Exception:
-                        cell_tx = None
-                if cell_tx and hasattr(cell_tx, "is_empty") and not cell_tx.is_empty():
-                    pad_rect = cell_rect.adjusted(6.0, 3.0, -6.0, -3.0)
-                    ShapeTextEditorItem.render_static_text(
-                        painter, cell_tx, pad_rect, self._resolve_color
-                    )
-                elif cell.get("text"):
-                    painter.setPen(QColor("#000000"))
-                    font = QFont("Arial", 11)
-                    painter.setFont(font)
-                    painter.drawText(
-                        cell_rect.adjusted(6.0, 3.0, -6.0, -3.0),
-                        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                        str(cell["text"]),
-                    )
+            # Text
+            cell_tx = cell.get("tx")
+            if isinstance(cell_tx, dict):
+                try:
+                    cell_tx = TextBody.from_dict(cell_tx)
+                except Exception:
+                    cell_tx = None
+            if cell_tx and hasattr(cell_tx, "is_empty") and not cell_tx.is_empty():
+                pad_rect = cell_rect.adjusted(6.0, 3.0, -6.0, -3.0)
+                ShapeTextEditorItem.render_static_text(
+                    painter, cell_tx, pad_rect, self._resolve_color
+                )
+            elif cell.get("text"):
+                painter.setPen(QColor("#000000"))
+                font = QFont("Arial", 11)
+                painter.setFont(font)
+                painter.drawText(
+                    cell_rect.adjusted(6.0, 3.0, -6.0, -3.0),
+                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                    str(cell["text"]),
+                )
 
     def _paint_diagram(self, painter: QPainter, w: float, h: float) -> None:
         """Render SmartArt diagram layout and text."""
