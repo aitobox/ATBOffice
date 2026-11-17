@@ -29,6 +29,7 @@ from atboffice.modules.writer.models.document import (
 from atboffice.modules.writer.models.field import (
     ensure_para_bookmark,
     insert_field,
+    update_fields,
 )
 from atboffice.modules.writer.models.properties import (
     ParagraphProperties,
@@ -445,14 +446,12 @@ def test_dynamic_fields_date_time_and_toc_convergence():
 
     assert res.total_pages >= 2
 
-    # Verify DATE was evaluated to today's date
+    # DATE keeps its stored result through pagination (issue #376); only an explicit
+    # Update Fields re-evaluates it to today's date.
+    assert any(isinstance(r, TextItem) and r.text == "old-date" for r in p_hdr.runs)
+    update_fields(doc)
     today_str = datetime.datetime.now().strftime("%Y-%m-%d")
-    found_today = False
-    for r in p_hdr.runs:
-        if isinstance(r, TextItem) and r.text == today_str:
-            found_today = True
-            break
-    assert found_today is True
+    assert any(isinstance(r, TextItem) and r.text == today_str for r in p_hdr.runs)
 
     # Verify TOC contains PAGEREF fields pointing to correct page numbers
     toc_pagerefs = []
