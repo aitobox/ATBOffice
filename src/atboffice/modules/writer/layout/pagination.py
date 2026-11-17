@@ -273,7 +273,13 @@ def _evaluate_hf_paragraph(
         FieldSeparateItem,
         TextItem,
     )
-    from atboffice.modules.writer.models.field import FieldContext, evaluate_field
+    from atboffice.modules.writer.models.field import (
+        HF_LAYOUT_FIELD_TYPES,
+        FieldContext,
+        evaluate_field,
+        field_result_r_pr,
+        parse_field_instruction,
+    )
 
     has_fields = any(
         isinstance(r, (FieldBeginItem, FieldEndItem, FieldSeparateItem)) for r in p.runs
@@ -307,12 +313,19 @@ def _evaluate_hf_paragraph(
         elif isinstance(it, FieldEndItem) and fb_idx >= 0:
             fb_item = runs_copy[fb_idx]
             instr = fb_item.instr or fb_item.field_type or ""
+            if parse_field_instruction(instr).type not in HF_LAYOUT_FIELD_TYPES:
+                # Non-layout fields (DATE, AUTHOR, ...) keep their stored result
+                fb_idx = -1
+                fs_idx = -1
+                i += 1
+                continue
             eval_res = evaluate_field(instr, doc, ctx)
 
             start_repl = (fs_idx + 1) if fs_idx >= 0 else (fb_idx + 1)
             end_repl = i
 
-            runs_copy[start_repl:end_repl] = [TextItem(text=eval_res, r_pr=fb_item.r_pr)]
+            res_r_pr = field_result_r_pr(runs_copy, start_repl, end_repl, fb_item.r_pr)
+            runs_copy[start_repl:end_repl] = [TextItem(text=eval_res, r_pr=res_r_pr)]
             i = start_repl + 1
             fb_idx = -1
             fs_idx = -1
@@ -655,14 +668,14 @@ def _update_dynamic_fields(
     section_pages: list[int],
 ) -> bool:
     """Evaluate and update text values of dynamic fields across all pages."""
-    from atboffice.modules.writer.models.field import update_fields
+    from atboffice.modules.writer.models.field import LAYOUT_FIELD_TYPES, update_fields
 
     p_res = PaginationResult(
         pages=pages,
         total_pages=len(pages),
         section_pages=section_pages,
     )
-    return update_fields(doc, p_res)
+    return update_fields(doc, p_res, types=LAYOUT_FIELD_TYPES)
 
 
 def _balance_multicolumn_region(region: PageRegion | None) -> None:
@@ -1198,13 +1211,14 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
 def paginate_document(doc: Document, max_passes: int = 4) -> PaginationResult:
     """Execute multi-page pagination with dynamic field evaluation and convergence loop.
 
-    Iterates through pagination and dynamic field updates (PAGE, NUMPAGES, SECTIONPAGES,
-    SECTION, DATE, TIME, TOC/PAGEREF) until layout geometry and field values stabilize,
-    preventing circular layout oscillation loops.
+    Iterates through pagination and layout-dependent field updates (PAGE, NUMPAGES,
+    SECTIONPAGES, SECTION, TOC/PAGEREF) until layout geometry and field values stabilize,
+    preventing circular layout oscillation loops. Other fields (DATE, TIME, ...) keep their
+    stored result until an explicit ``update_fields``.
     """
     t0 = time.perf_counter()
     from atboffice.modules.writer.models.document import reindex
-    from atboffice.modules.writer.models.field import update_fields
+    from atboffice.modules.writer.models.field import LAYOUT_FIELD_TYPES, update_fields
 
     if not doc.main.paras and doc.main.blocks:
         reindex(doc)
@@ -1218,7 +1232,7 @@ def paginate_document(doc: Document, max_passes: int = 4) -> PaginationResult:
     current_pass = 1
     while current_pass < max_passes:
         # Evaluate dynamic fields with current pagination geometry
-        changed = update_fields(doc, res)
+        changed = update_fields(doc, res, types=LAYOUT_FIELD_TYPES)
 
         has_hf = bool(doc.hf)
         needs_hf_stabilization = has_hf and res.total_pages > 1 and current_pass == 1
@@ -1243,7 +1257,7 @@ def paginate_document(doc: Document, max_passes: int = 4) -> PaginationResult:
             res_next.total_pages == res.total_pages
             and res_next.section_pages == res.section_pages
         ):
-            changed_final = update_fields(doc, res_next)
+            changed_final = update_fields(doc, res_next, types=LAYOUT_FIELD_TYPES)
             res = res_next
             if not changed_final:
                 break

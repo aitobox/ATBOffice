@@ -609,6 +609,27 @@ def remove_bookmark(doc: Document, name: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
+# Fields whose value depends on pagination geometry. Only these are refreshed automatically
+# after layout; every other field (DATE, TIME, AUTHOR, REF, ...) keeps its stored result
+# until the user explicitly updates fields (matches Word and the original layout refresh).
+LAYOUT_FIELD_TYPES: frozenset[str] = frozenset(
+    {"PAGE", "NUMPAGES", "SECTIONPAGES", "SECTION", "PAGEREF"}
+)
+# Headers/footers additionally refresh STYLEREF per page (running heads).
+HF_LAYOUT_FIELD_TYPES: frozenset[str] = LAYOUT_FIELD_TYPES | {"STYLEREF"}
+
+
+def field_result_r_pr(
+    runs: list[RunItem], start: int, end: int, fallback: RunProperties
+) -> RunProperties:
+    """Formatting for a replaced field result: the first existing result run's properties
+    (Word's MERGEFORMAT behaviour), else the field-begin run's."""
+    for run in runs[start:end]:
+        if isinstance(run, TextItem):
+            return run.r_pr
+    return fallback
+
+
 @dataclass
 class FieldContext:
     """Contextual metadata provided to field evaluation."""
@@ -762,9 +783,12 @@ def insert_field(
 def update_fields(
     doc: Document,
     pagination_result: PaginationResult | None = None,
+    types: frozenset[str] | set[str] | None = None,
 ) -> bool:
     """Traverse all paragraphs and update dynamic fields with current document state.
 
+    ``types`` restricts the update to those field types (e.g. ``LAYOUT_FIELD_TYPES`` after
+    pagination); ``None`` updates every field, as an explicit "Update Fields" does.
     Returns True if any field's cached text was modified.
     """
     from atboffice.modules.writer.models.document import reindex
@@ -829,6 +853,11 @@ def update_fields(
                 elif isinstance(it, FieldEndItem) and fb_idx >= 0:
                     fb_item = p.runs[fb_idx]
                     instr = fb_item.instr or fb_item.field_type
+                    if types is not None and parse_field_instruction(instr).type not in types:
+                        fb_idx = -1
+                        fs_idx = -1
+                        i += 1
+                        continue
                     eval_res = evaluate_field(instr, doc, ctx)
 
                     # Replace runs between fs and fe (or between fb and fe if no fs)
@@ -842,9 +871,8 @@ def update_fields(
                     )
                     if old_text != eval_res:
                         changed = True
-                        p.runs[start_repl:end_repl] = [
-                            TextItem(text=eval_res, r_pr=fb_item.r_pr)
-                        ]
+                        res_r_pr = field_result_r_pr(p.runs, start_repl, end_repl, fb_item.r_pr)
+                        p.runs[start_repl:end_repl] = [TextItem(text=eval_res, r_pr=res_r_pr)]
                         # Recalculate i
                         i = start_repl + 1
 
