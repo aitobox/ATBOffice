@@ -8,6 +8,7 @@ from PySide6.QtCore import QCoreApplication, Qt, Signal
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from atboffice.core.diagnostics import record_action
+from atboffice.modules.spreadsheet.calc.references import cell_name
 from atboffice.modules.spreadsheet.models.selection_model import (
     SelectionModel,
     SelectionRange,
@@ -57,7 +58,7 @@ class SpreadsheetView(QWidget):
         if selection is not None:
             self._sheet_selections[active_sheet] = selection
         else:
-            self._sheet_selections[active_sheet] = SelectionModel()
+            self._sheet_selections[active_sheet] = self._create_selection(active_sheet)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -190,8 +191,48 @@ class SpreadsheetView(QWidget):
 
     def _get_selection_for_sheet(self, sheet: SheetDataModel) -> SelectionModel:
         if sheet not in self._sheet_selections:
-            self._sheet_selections[sheet] = SelectionModel()
+            self._sheet_selections[sheet] = self._create_selection(sheet)
         return self._sheet_selections[sheet]
+
+    @staticmethod
+    def _create_selection(sheet: SheetDataModel) -> SelectionModel:
+        """Create a SelectionModel seeded from the sheet's saved view state.
+
+        Later selection changes are written back to ``sheet.view_state`` so that
+        saving keeps the current active cell and selection.
+        """
+        sel = SelectionModel()
+        vs = getattr(sheet, "view_state", None)
+        if vs is None:
+            return sel
+        ranges = vs.selection_ranges()
+        active = vs.active_cell_rc()
+        if active is not None or ranges:
+            if active is None:
+                active = (ranges[0][0], ranges[0][1])
+            sel_ranges = [SelectionRange(*rg) for rg in ranges] or [
+                SelectionRange(active[0], active[1], active[0], active[1])
+            ]
+            # The range holding the active cell is the primary (last) range.
+            sel_ranges.sort(key=lambda rg: rg.contains(*active))
+            sel.restore_snapshot(
+                {"active_cell": active, "anchor_cell": active, "ranges": sel_ranges}
+            )
+
+        def _sync() -> None:
+            vs = sheet.view_state
+            r, c = sel.active_cell
+            vs.active_cell = cell_name(r, c)
+            parts = [
+                cell_name(rg.min_r, rg.min_c)
+                if (rg.min_r, rg.min_c) == (rg.max_r, rg.max_c)
+                else f"{cell_name(rg.min_r, rg.min_c)}:{cell_name(rg.max_r, rg.max_c)}"
+                for rg in sel.ranges
+            ]
+            vs.sqref = " ".join(parts) or vs.active_cell
+
+        sel.selection_changed.connect(_sync)
+        return sel
 
     def set_active_sheet_index(self, index: int) -> None:
         """Switch active worksheet by index."""

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
+import weakref
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Final
@@ -140,6 +141,23 @@ class DragSnapshot:
     move_grab_cell: tuple[int, int] | None = None
 
 
+def page_bounds(breaks: list[int], total: int, per_page: int) -> list[int]:
+    """Return page boundary indices from 0 covering ``total`` rows/cols.
+
+    Stored manual breaks (first index of the next page) are honoured; gaps
+    longer than ``per_page`` are split with automatic breaks every ``per_page``.
+    """
+    per_page = max(1, per_page)
+    stored = sorted(b for b in breaks if b > 0)
+    bounds = [0]
+    cur = 0
+    while cur < max(1, total):
+        nxt = next((b for b in stored if b > cur), None)
+        cur = nxt if nxt is not None and nxt <= cur + per_page else cur + per_page
+        bounds.append(cur)
+    return bounds
+
+
 class GridViewport(QAbstractScrollArea):
     """High-performance virtualized 2D grid viewport for ATBOffice Ledger.
 
@@ -216,6 +234,7 @@ class GridViewport(QAbstractScrollArea):
         self._view_mode: str = "normal"  # "normal" | "page_break"
         self._page_break_welcome_shown: bool = False
         self._zoom: float = 1.0
+        self._view_state_applied: weakref.WeakSet[SheetDataModel] = weakref.WeakSet()
         self._hover_comment_cell: tuple[int, int] | None = None
         self.last_status_message: str = ""
 
@@ -228,6 +247,7 @@ class GridViewport(QAbstractScrollArea):
         self.verticalScrollBar().valueChanged.connect(self._on_scroll)
 
         self._update_scrollbars()
+        self._apply_sheet_view_state()
         self.retranslate_ui()
 
     @property
@@ -411,13 +431,42 @@ class GridViewport(QAbstractScrollArea):
         self.model = model
         self.selection = selection
         self.geometry_mapper = model.geometry
+        self._apply_sheet_view_state()
+        self._update_scrollbars()
+        self.viewport().update()
+
+    @property
+    def show_grid_lines(self) -> bool:
+        """Whether cell gridlines are painted for the current sheet (``showGridLines``)."""
+        vs = getattr(self.model, "view_state", None)
+        return vs.show_grid_lines if vs is not None else True
+
+    def _apply_sheet_view_state(self) -> None:
+        """Apply the sheet's saved zoom, and on its first display its view mode and scroll origin."""
+        model = self.model
         if hasattr(model, "extra") and "zoom" in model.extra:
             try:
                 self.set_zoom(model.extra["zoom"] / 100.0)
-            except Exception:
+            except (TypeError, ValueError):
                 pass
+        vs = getattr(model, "view_state", None)
+        if vs is None or model in self._view_state_applied:
+            return
+        self._view_state_applied.add(model)
+        mode = "page_break" if vs.view == "pageBreakPreview" else "normal"
+        self.set_view_mode(mode, prompt_welcome=False)
+        top_left = vs.top_left_rc()
+        if top_left is None:
+            return
         self._update_scrollbars()
-        self.viewport().update()
+        r, c = top_left
+        fz_r, fz_c = self.freeze_rows, self.freeze_cols
+        if r >= fz_r:
+            fz_h = self.geometry_mapper.row_pos(fz_r) if fz_r > 0 else 0
+            self.verticalScrollBar().setValue(max(0, self.geometry_mapper.row_pos(r) - fz_h))
+        if c >= fz_c:
+            fz_w = self.geometry_mapper.col_pos(fz_c) if fz_c > 0 else 0
+            self.horizontalScrollBar().setValue(max(0, self.geometry_mapper.col_pos(c) - fz_w))
 
     def retranslate_ui(self) -> None:
         """Update localized UI text and trigger repaint."""
@@ -1098,29 +1147,30 @@ class GridViewport(QAbstractScrollArea):
             painter.drawRect(QRect(px1, py1, px2 - px1, py2 - py1))
             painter.restore()
 
-        # 3. Draw Gridlines
-        painter.save()
-        painter.setClipRect(pane_clip)
-        painter.setPen(QPen(self.COLOR_GRIDLINE, 1))
+        # 3. Draw Gridlines (unless the sheet hides them: showGridLines="0")
+        if self.show_grid_lines:
+            painter.save()
+            painter.setClipRect(pane_clip)
+            painter.setPen(QPen(self.COLOR_GRIDLINE, 1))
 
-        # Vertical gridlines
-        for c in range(pc_start, pc_end + 2):
-            x = (
-                self.row_header_width
-                + self.geometry_mapper.col_pos(c)
-                - psx
-            )
-            painter.drawLine(x, self.col_header_height, x, vh)
+            # Vertical gridlines
+            for c in range(pc_start, pc_end + 2):
+                x = (
+                    self.row_header_width
+                    + self.geometry_mapper.col_pos(c)
+                    - psx
+                )
+                painter.drawLine(x, self.col_header_height, x, vh)
 
-        # Horizontal gridlines
-        for r in range(pr_start, pr_end + 2):
-            y = (
-                self.col_header_height
-                + self.geometry_mapper.row_pos(r)
-                - psy
-            )
-            painter.drawLine(self.row_header_width, y, vw, y)
-        painter.restore()
+            # Horizontal gridlines
+            for r in range(pr_start, pr_end + 2):
+                y = (
+                    self.col_header_height
+                    + self.geometry_mapper.row_pos(r)
+                    - psy
+                )
+                painter.drawLine(self.row_header_width, y, vw, y)
+            painter.restore()
 
         # 3.5 Draw Dynamic PivotTable Bands, Headers, Subtotals & Grand Totals
         self._paint_pivot_reports(
@@ -2550,8 +2600,11 @@ class GridViewport(QAbstractScrollArea):
         total_rows = max(rows_per_page, max_r + 1)
         total_cols = max(cols_per_page, max_c + 1)
 
-        page_rows = math.ceil(total_rows / rows_per_page) * rows_per_page
-        page_cols = math.ceil(total_cols / cols_per_page) * cols_per_page
+        vs = getattr(self.model, "view_state", None)
+        row_bounds = page_bounds(vs.row_breaks if vs else [], total_rows, rows_per_page)
+        col_bounds = page_bounds(vs.col_breaks if vs else [], total_cols, cols_per_page)
+        page_rows = row_bounds[-1]
+        page_cols = col_bounds[-1]
 
         print_x1 = self.row_header_width + self.geometry_mapper.col_pos(0) - scroll_x
         print_y1 = self.col_header_height + self.geometry_mapper.row_pos(0) - scroll_y
@@ -2591,19 +2644,15 @@ class GridViewport(QAbstractScrollArea):
             painter.fillRect(cell_clip, gray_color)
 
         # 2. Draw Page Watermarks and internal dashed lines
-        num_pages_y = page_rows // rows_per_page
-        num_pages_x = page_cols // cols_per_page
         page_num = 1
 
         watermark_font = QFont("Arial", 46, QFont.Weight.Bold)
         watermark_color = QColor(160, 160, 160, 130)
 
-        for py in range(num_pages_y):
-            r_start = py * rows_per_page
-            r_end = (py + 1) * rows_per_page
-            for px in range(num_pages_x):
-                c_start = px * cols_per_page
-                c_end = (px + 1) * cols_per_page
+        for py in range(len(row_bounds) - 1):
+            r_start, r_end = row_bounds[py], row_bounds[py + 1]
+            for px in range(len(col_bounds) - 1):
+                c_start, c_end = col_bounds[px], col_bounds[px + 1]
 
                 pg_x1 = self.row_header_width + self.geometry_mapper.col_pos(c_start) - scroll_x
                 pg_y1 = self.col_header_height + self.geometry_mapper.row_pos(r_start) - scroll_y

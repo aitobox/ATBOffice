@@ -752,6 +752,54 @@ def _parse_cell_value(val_str: str | None, cell_type: str | None, sst: list[str]
         return _unescape_xml_text(val_str)
 
 
+def _parse_int_attr(element: ET.Element | None, name: str) -> int | None:
+    """Return attribute ``name`` as a positive int, or None when missing/invalid."""
+    raw = _attr(element, name)
+    if not raw:
+        return None
+    try:
+        val = int(float(raw))
+    except ValueError:
+        return None
+    return val if val > 0 else None
+
+
+def _parse_sheet_view_state(sv_el: ET.Element, sheet: SheetDataModel) -> None:
+    """Fill ``sheet.view_state`` from a ``<sheetView>`` element (ledger/js/xlsx-read.js:591)."""
+    vs = sheet.view_state
+    vs.show_grid_lines = _attr(sv_el, "showGridLines", "1") not in ("0", "false")
+    view = _attr(sv_el, "view", "normal")
+    vs.view = view if view in ("normal", "pageBreakPreview", "pageLayout") else "normal"
+    zoom = _parse_int_attr(sv_el, "zoomScale")
+    if vs.view == "pageBreakPreview":
+        zoom = _parse_int_attr(sv_el, "zoomScaleSheetLayoutView") or zoom or 60
+    if zoom is not None:
+        vs.zoom_scale = zoom
+        sheet.extra["zoom"] = zoom
+    vs.top_left_cell = _attr(sv_el, "topLeftCell") or None
+
+    # The selection belonging to the active pane wins; otherwise the last one.
+    sels = _find_children(sv_el, "selection")
+    if sels:
+        active_pane = _attr(_find_child(sv_el, "pane"), "activePane")
+        sel_el = next(
+            (el for el in sels if active_pane and _attr(el, "pane") == active_pane),
+            sels[-1],
+        )
+        vs.active_cell = _attr(sel_el, "activeCell") or None
+        vs.sqref = _attr(sel_el, "sqref") or vs.active_cell
+
+
+def _parse_breaks(breaks_el: ET.Element | None) -> list[int]:
+    """Return sorted break ids from ``<rowBreaks>``/``<colBreaks>`` (first index of the next page)."""
+    out: set[int] = set()
+    for brk in _find_children(breaks_el, "brk"):
+        val = _parse_int_attr(brk, "id")
+        if val is not None:
+            out.add(val)
+    return sorted(out)
+
+
 def _parse_worksheet(
     zip_file: zipfile.ZipFile,
     sheet_path: str,
@@ -805,17 +853,12 @@ def _parse_worksheet(
         else:
             sheet.auto_filter = None
 
-    # 0b. Sheet Views (Freeze panes & Zoom)
+    # 0b. Sheet Views (freeze panes, zoom, gridlines, view mode, selection)
     svs_el = _find_child(root, "sheetViews")
     if svs_el is not None:
         sv_el = _find_child(svs_el, "sheetView")
         if sv_el is not None:
-            z_str = _attr(sv_el, "zoomScale")
-            if z_str:
-                try:
-                    sheet.extra["zoom"] = int(z_str)
-                except ValueError:
-                    pass
+            _parse_sheet_view_state(sv_el, sheet)
             pane_el = _find_child(sv_el, "pane")
             if pane_el is not None:
                 p_state = _attr(pane_el, "state", "split")
@@ -827,6 +870,10 @@ def _parse_worksheet(
                         sheet.freeze_rows = max(0, int(float(ys_str or 0)))
                     except ValueError:
                         pass
+
+    # 0b2. Stored manual page breaks (<rowBreaks>/<colBreaks>)
+    sheet.view_state.row_breaks = _parse_breaks(_find_child(root, "rowBreaks"))
+    sheet.view_state.col_breaks = _parse_breaks(_find_child(root, "colBreaks"))
 
     # 0c. Sheet format (default row height & default col width)
     sfp = _find_child(root, "sheetFormatPr")

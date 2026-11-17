@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, BinaryIO
 
-from atboffice.modules.spreadsheet.calc.references import cell_name
+from atboffice.modules.spreadsheet.calc.references import MAXC, MAXR, cell_name, parse_range
 from atboffice.modules.spreadsheet.io.xlsx_reader import BUILTIN_NUMFMTS
 from atboffice.modules.spreadsheet.models.color_utils import (
     DEFAULT_INDEXED_PALETTE,
@@ -940,6 +940,48 @@ def _x14_icon_set_ext_xml(formats: list[tuple[str, list[Any]]]) -> str:
     return "".join(out)
 
 
+def _sheet_views_xml(sheet: SheetDataModel, is_active: bool) -> str:
+    """Serialize ``<sheetViews>`` from ``sheet.view_state`` (attributes in CT_SheetView order)."""
+    vs = sheet.view_state
+    attrs = []
+    if not vs.show_grid_lines:
+        attrs.append('showGridLines="0"')
+    if is_active:
+        attrs.append('tabSelected="1"')
+    if vs.view in ("pageBreakPreview", "pageLayout"):
+        attrs.append(f'view="{vs.view}"')
+    if vs.top_left_cell and vs.top_left_rc() is not None:
+        attrs.append(f'topLeftCell="{_xml_escape(vs.top_left_cell)}"')
+    if vs.zoom_scale:
+        zoom = max(10, min(400, int(vs.zoom_scale)))
+        attrs.append(f'zoomScale="{zoom}"')
+        if vs.view == "pageBreakPreview":
+            attrs.append(f'zoomScaleSheetLayoutView="{zoom}"')
+    attrs.append('workbookViewId="0"')
+    attr_str = "".join(f" {a}" for a in attrs)
+    sel_xml = ""
+    if vs.active_cell_rc() is not None:
+        ranges = " ".join(
+            p for p in (vs.sqref or "").split() if parse_range(p) is not None
+        ) or vs.active_cell
+        sel_xml = (
+            f'<selection activeCell="{_xml_escape(vs.active_cell)}" '
+            f'sqref="{_xml_escape(ranges)}"/>'
+        )
+    if sel_xml:
+        return f"<sheetViews><sheetView{attr_str}>{sel_xml}</sheetView></sheetViews>"
+    return f"<sheetViews><sheetView{attr_str}/></sheetViews>"
+
+
+def _breaks_xml(tag: str, breaks: list[int], max_index: int) -> str:
+    """Serialize stored manual page breaks as ``<rowBreaks>``/``<colBreaks>``."""
+    ids = sorted({b for b in breaks if b > 0})
+    if not ids:
+        return ""
+    brks = "".join(f'<brk id="{b}" max="{max_index}" man="1"/>' for b in ids)
+    return f'<{tag} count="{len(ids)}" manualBreakCount="{len(ids)}">{brks}</{tag}>'
+
+
 def _serialize_worksheet(
     sheet: SheetDataModel,
     style_manager: StyleManager,
@@ -962,12 +1004,11 @@ def _serialize_worksheet(
     else:
         dim_ref = "A1"
 
-    tab_sel_attr = ' tabSelected="1"' if is_active else ""
     parts = [
         XML_HEADER,
         f'<worksheet xmlns="{NS_MAIN}" xmlns:r="{NS_R}">',
         f'<dimension ref="{dim_ref}"/>',
-        f'<sheetViews><sheetView workbookViewId="0"{tab_sel_attr}/></sheetViews>',
+        _sheet_views_xml(sheet, is_active),
         '<sheetFormatPr defaultRowHeight="20"/>',
     ]
 
@@ -1119,6 +1160,8 @@ def _serialize_worksheet(
     parts.append(
         '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>'
     )
+    parts.append(_breaks_xml("rowBreaks", sheet.view_state.row_breaks, MAXC - 1))
+    parts.append(_breaks_xml("colBreaks", sheet.view_state.col_breaks, MAXR - 1))
     if drawing_rid:
         parts.append(f'<drawing r:id="{drawing_rid}"/>')
     if x14_icon_formats:
