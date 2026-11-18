@@ -691,6 +691,10 @@ def _balance_multicolumn_region(region: PageRegion | None) -> None:
     """Balance line fragments across columns in a multi-column region before section breaks."""
     if region is None or len(region.columns) < 2:
         return
+    if any(abs(col.width - region.columns[0].width) > 0.01 for col in region.columns):
+        # This balancer moves measured lines; unequal columns require a complete
+        # content reflow. Keep the valid natural fill instead of overflowing them.
+        return
     all_items: list[tuple[Paragraph, LayoutLine]] = []
     for col in region.columns:
         for frag in col.fragments:
@@ -1016,9 +1020,25 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
 
                 lines_to_place = list(p_layout.lines)
                 line_offset = 0
+                layout_width = col.width if col else col_w
 
                 while lines_to_place:
                     col = ctx.current_column()
+                    if abs(col.width - layout_width) > 0.01:
+                        start_char = min(
+                            (pt.char_offset for ln in lines_to_place for pt in ln.portions
+                             if pt.length > 0),
+                            default=0,
+                        ) if line_offset else 0
+                        p_layout = layout_paragraph(
+                            p=p_seg, container_width=col.width, section_props=sect,
+                            doc=doc, is_page_top=col.used_height == 0.0,
+                            float_boxes=ctx.current_page.float_boxes,
+                            y_offset=col.used_height + sect.mt,
+                            col_left=col.left + sect.ml, start_char_offset=start_char,
+                        )
+                        lines_to_place = list(p_layout.lines)
+                        layout_width = col.width
                     space_left = col.height - col.used_height
 
                     sp_before = p_layout.effective_space_before if is_top else p_layout.space_before
@@ -1192,9 +1212,6 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
                 continue
 
             b_idx += 1
-
-        if ctx.current_region and len(ctx.current_region.columns) > 1:
-            _balance_multicolumn_region(ctx.current_region)
 
     total_pgs = len(ctx.pages)
     sec_pages: list[int] = [0] * len(ctx.sect_list)
