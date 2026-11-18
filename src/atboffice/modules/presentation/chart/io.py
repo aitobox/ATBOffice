@@ -12,6 +12,8 @@ from atboffice.modules.presentation.chart.model import ChartData, SeriesData
 from atboffice.modules.presentation.io.xml_utils import NS_A, NS_R, XML_DECL
 
 NS_C = "http://schemas.openxmlformats.org/drawingml/2006/chart"
+WORKSHEET_CHART_FILL = "#FFFFFF"
+WORKSHEET_CHART_BORDER = "#868686"
 
 
 def chart_to_xml(chart: ChartData | dict[str, Any]) -> str:
@@ -208,8 +210,82 @@ def chart_to_xml(chart: ChartData | dict[str, Any]) -> str:
     )
 
 
-def parse_chart_xml(xml_content: str | bytes) -> ChartData:
-    """Parse a DrawingML <c:chartSpace> XML string or bytes into ChartData."""
+def _color_of(fill: ET.Element, ns: dict[str, str]) -> dict[str, Any] | None:
+    """Read the colour of an <a:solidFill> as a chart colour spec."""
+    node = next(iter(fill), None)
+    if node is None:
+        return None
+    tag = node.tag.split("}")[-1]
+    if tag == "sysClr":
+        value = node.get("lastClr")
+    else:
+        value = node.get("val")
+    if not value:
+        return None
+    spec: dict[str, Any] = {"c": value if tag == "schemeClr" else f"#{value}"}
+    alpha = node.find("a:alpha", ns)
+    if alpha is not None:
+        try:
+            spec["a"] = int(alpha.get("val", "100000")) / 100000
+        except ValueError:
+            pass
+    return spec
+
+
+def _apply_worksheet_defaults(
+    chart: ChartData,
+    root: ET.Element,
+    chart_elem: ET.Element,
+    ns: dict[str, str],
+) -> None:
+    """Fill in what Excel draws for a worksheet chart when the file leaves it implicit."""
+    sp_pr = root.find("c:spPr", ns)
+
+    chart.bg = {"c": WORKSHEET_CHART_FILL}
+    if sp_pr is not None:
+        solid = sp_pr.find("a:solidFill", ns)
+        if sp_pr.find("a:noFill", ns) is not None:
+            chart.bg = None
+        elif solid is not None:
+            chart.bg = _color_of(solid, ns) or chart.bg
+
+    chart.border = {"c": WORKSHEET_CHART_BORDER}
+    line = sp_pr.find("a:ln", ns) if sp_pr is not None else None
+    if line is not None:
+        solid = line.find("a:solidFill", ns)
+        if line.find("a:noFill", ns) is not None:
+            chart.border = {"t": "none"}
+        elif solid is not None:
+            chart.border = _color_of(solid, ns) or chart.border
+
+    if chart.title:
+        return
+    title_elem = chart_elem.find("c:title", ns)
+    if title_elem is not None:
+        linked = title_elem.find("c:tx//c:v", ns)
+        if linked is not None and linked.text:
+            chart.title = linked.text
+        elif len(chart.series) == 1:
+            chart.title = chart.series[0].name
+        else:
+            chart.title = "Chart Title"
+        return
+    deleted = chart_elem.find("c:autoTitleDeleted", ns)
+    is_deleted = deleted is not None and deleted.get("val", "1") in ("1", "true")
+    if not is_deleted and len(chart.series) == 1:
+        chart.title = chart.series[0].name
+
+
+def parse_chart_xml(
+    xml_content: str | bytes,
+    *,
+    worksheet_defaults: bool = False,
+) -> ChartData:
+    """Parse a DrawingML <c:chartSpace> XML string or bytes into ChartData.
+
+    With ``worksheet_defaults``, implicit chart-area and automatic-title
+    properties resolve the way Excel draws them on a worksheet.
+    """
     if isinstance(xml_content, str):
         root = ET.fromstring(xml_content)
     else:
@@ -238,7 +314,10 @@ def parse_chart_xml(xml_content: str | bytes) -> ChartData:
 
     plot_elem = chart_elem.find("c:plotArea", ns)
     if plot_elem is None:
-        return ChartData(title=title, legend=legend)
+        empty_chart = ChartData(title=title, legend=legend)
+        if worksheet_defaults:
+            _apply_worksheet_defaults(empty_chart, root, chart_elem, ns)
+        return empty_chart
 
     # Determine kind from plot children
     kind = "col"
@@ -338,7 +417,7 @@ def parse_chart_xml(xml_content: str | bytes) -> ChartData:
     # Major gridlines
     grid_y = bool(plot_elem.find(".//c:valAx//c:majorGridlines", ns) is not None)
 
-    return ChartData(
+    chart = ChartData(
         v=2,
         kind=kind,
         title=title,
@@ -347,6 +426,9 @@ def parse_chart_xml(xml_content: str | bytes) -> ChartData:
         cats=cats,
         series=series_list,
     )
+    if worksheet_defaults:
+        _apply_worksheet_defaults(chart, root, chart_elem, ns)
+    return chart
 
 
 def create_embedded_workbook(chart: ChartData) -> bytes:

@@ -1420,7 +1420,9 @@ def _parse_worksheet_drawings(
                                     )
 
                                     chart_bytes = zip_file.read(chart_target)
-                                    parsed_chart = parse_chart_xml(chart_bytes)
+                                    parsed_chart = parse_chart_xml(
+                                        chart_bytes, worksheet_defaults=True
+                                    )
                                     chart_dict = parsed_chart.to_dict()
                                 except Exception:
                                     logger.warning(
