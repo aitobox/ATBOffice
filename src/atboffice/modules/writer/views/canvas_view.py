@@ -127,6 +127,22 @@ COLOR_CARET = QColor(0, 0, 0)  # Blinking caret black
 COLOR_MARGIN_GUIDE = QColor(200, 200, 200, 120)  # Subtle margin boundary guides
 
 
+_WAVY_UNDERLINES = frozenset({"wave", "wavyHeavy", "wavyDouble"})
+_UNDERLINE_PEN_STYLES = {
+    "dotted": Qt.PenStyle.DotLine,
+    "dottedHeavy": Qt.PenStyle.DotLine,
+    "dash": Qt.PenStyle.DashLine,
+    "dashed": Qt.PenStyle.DashLine,
+    "dashedHeavy": Qt.PenStyle.DashLine,
+    "dashLong": Qt.PenStyle.DashLine,
+    "dashLongHeavy": Qt.PenStyle.DashLine,
+    "dotDash": Qt.PenStyle.DashDotLine,
+    "dashDotHeavy": Qt.PenStyle.DashDotLine,
+    "dotDotDash": Qt.PenStyle.DashDotDotLine,
+    "dashDotDotHeavy": Qt.PenStyle.DashDotDotLine,
+}
+
+
 class WriterCanvasView(QAbstractScrollArea):
     """Word 2003 styled physical paper canvas viewport."""
 
@@ -636,24 +652,26 @@ class WriterCanvasView(QAbstractScrollArea):
         x2: float,
         y: float,
         color: QColor = QColor(255, 0, 0),
+        amplitude: float = 1.2,
+        pen_width: float = 1.0,
     ) -> None:
-        """Draw classic Word 2003 red wavy underline beneath misspelled text."""
+        """Draw a wavy line; the defaults are the classic red spellcheck squiggle."""
         if x2 <= x1:
             return
         path = QPainterPath()
         path.moveTo(x1, y)
-        step = 2.0
+        step = max(2.0, amplitude * 5.0 / 3.0)
         curr_x = x1
         up = True
         while curr_x < x2:
             next_x = min(curr_x + step, x2)
-            target_y = y - 1.2 if up else y + 1.2
+            target_y = y - amplitude if up else y + amplitude
             path.lineTo(next_x, target_y)
             curr_x = next_x
             up = not up
 
         old_pen = painter.pen()
-        painter.setPen(QPen(color, 1.0))
+        painter.setPen(QPen(color, pen_width))
         painter.drawPath(path)
         painter.setPen(old_pen)
 
@@ -1040,6 +1058,54 @@ class WriterCanvasView(QAbstractScrollArea):
             color_str = "#000000"
         return font, QColor(color_str)
 
+    def _draw_text_decorations(
+        self,
+        painter: QPainter,
+        po: Any,
+        font: QFont,
+        color: QColor,
+        x1_px: float,
+        x2_px: float,
+        baseline_px: float,
+    ) -> None:
+        """Draw a portion's underline and strike over the given horizontal span."""
+        self._draw_underline_decoration(painter, po, font, color, x1_px, x2_px, baseline_px)
+        self._draw_strike_decoration(painter, po, font, color, x1_px, x2_px, baseline_px)
+
+    def _draw_underline_decoration(
+        self,
+        painter: QPainter,
+        po: Any,
+        font: QFont,
+        color: QColor,
+        x1_px: float,
+        x2_px: float,
+        baseline_px: float,
+    ) -> None:
+        """Draw a portion's underline in its Word style; unknown styles draw a single line."""
+        style = getattr(po, "underline", None)
+        if not style or style == "none" or x2_px <= x1_px:
+            return
+        if style == "words" and po.type == PortionType.BLANK:
+            return
+        font_size_pt = getattr(po, "font_size", None) or 12.0
+        y_px = baseline_px + font_size_pt * self._zoom * 0.12
+        thickness = max(0.75 * self._zoom, QFontMetricsF(font).lineWidth())
+        if style == "thick" or "Heavy" in style:
+            thickness *= 2.0
+        if style in _WAVY_UNDERLINES:
+            self._draw_wavy_line(
+                painter, x1_px, x2_px, y_px, color, max(1.2, thickness), thickness
+            )
+            return
+        pen = QPen(color, thickness, _UNDERLINE_PEN_STYLES.get(style, Qt.PenStyle.SolidLine))
+        pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+        painter.setPen(pen)
+        painter.drawLine(QPointF(x1_px, y_px), QPointF(x2_px, y_px))
+        if style == "double":
+            second_y = y_px + max(1.5 * self._zoom, thickness * 2.0)
+            painter.drawLine(QPointF(x1_px, second_y), QPointF(x2_px, second_y))
+
     def _draw_strike_decoration(
         self,
         painter: QPainter,
@@ -1135,7 +1201,7 @@ class WriterCanvasView(QAbstractScrollArea):
                             edge_a = left_px + tline.cursorToX(char_pos)[0]
                             edge_b = left_px + tline.cursorToX(char_end)[0]
                             po_font, po_col = self._build_portion_font(po)
-                            self._draw_strike_decoration(
+                            self._draw_text_decorations(
                                 painter,
                                 po,
                                 po_font,
@@ -1177,7 +1243,7 @@ class WriterCanvasView(QAbstractScrollArea):
                     for p_i, pt in enumerate(trimmed_j):
                         if pt.type == PortionType.BLANK:
                             f, blank_col = self._build_portion_font(pt)
-                            self._draw_strike_decoration(
+                            self._draw_text_decorations(
                                 painter,
                                 pt,
                                 f,
@@ -1196,7 +1262,7 @@ class WriterCanvasView(QAbstractScrollArea):
                                 self._draw_spellcheck_for_text(
                                     painter, font, pt.text, cur_px, baseline_px
                                 )
-                            self._draw_strike_decoration(
+                            self._draw_text_decorations(
                                 painter,
                                 pt,
                                 font,
@@ -1241,7 +1307,7 @@ class WriterCanvasView(QAbstractScrollArea):
                 if should_spell:
                     self._draw_spellcheck_for_text(painter, font, po.text, cur_px, baseline_px)
                 text_adv_px = QFontMetricsF(font).horizontalAdvance(po.text)
-                self._draw_strike_decoration(
+                self._draw_text_decorations(
                     painter, po, font, pen_col, cur_px, cur_px + text_adv_px, baseline_px
                 )
                 cur_px += text_adv_px
@@ -1252,7 +1318,7 @@ class WriterCanvasView(QAbstractScrollArea):
                     QFontMetricsF(font).horizontalAdvance(po.text) if can_coalesce else po_w_px
                 )
                 if po_idx < last_ink_idx:
-                    self._draw_strike_decoration(
+                    self._draw_text_decorations(
                         painter, po, font, pen_col, cur_px, cur_px + blank_adv_px, baseline_px
                     )
                 cur_px += blank_adv_px
@@ -2660,6 +2726,7 @@ class WriterCanvasView(QAbstractScrollArea):
                 r.u = "none" if curr_val else "single"
             elif attr == "strike":
                 r.strike = not curr_val
+                r.strike_off = curr_val
             elif attr == "superscript":
                 r.vert = "baseline" if curr_val else "superscript"
             elif attr == "subscript":

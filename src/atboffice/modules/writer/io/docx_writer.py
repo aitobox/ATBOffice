@@ -779,9 +779,13 @@ class DocxWriter:
 
         if r_pr.strike:
             ET.SubElement(r_pr_elem, _w("strike"))
+        elif r_pr.strike_off:
+            ET.SubElement(r_pr_elem, _w("strike")).set(_w("val"), "0")
 
         if r_pr.dstrike:
             ET.SubElement(r_pr_elem, _w("dstrike"))
+        elif r_pr.dstrike_off:
+            ET.SubElement(r_pr_elem, _w("dstrike")).set(_w("val"), "0")
 
         clean_col = _clean_hex(r_pr.color)
         if clean_col and clean_col != "auto":

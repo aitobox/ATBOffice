@@ -1337,8 +1337,10 @@ class DocxReader:
                 r_pr.highlight = _get_attr(child, "val")
             elif tag == "strike":
                 r_pr.strike = _bool_val(child, True)
+                r_pr.strike_off = not r_pr.strike
             elif tag == "dstrike":
                 r_pr.dstrike = _bool_val(child, True)
+                r_pr.dstrike_off = not r_pr.dstrike
             elif tag == "caps":
                 r_pr.caps = _bool_val(child, True)
             elif tag == "smallCaps":

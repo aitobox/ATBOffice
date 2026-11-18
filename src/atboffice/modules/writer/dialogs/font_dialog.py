@@ -454,6 +454,8 @@ class FontDialog(QDialog):
         # Effects
         res.strike = self.check_strike.isChecked()
         res.dstrike = self.check_dstrike.isChecked()
+        res.strike_off = not res.strike and (self.props.strike or self.props.strike_off)
+        res.dstrike_off = not res.dstrike and (self.props.dstrike or self.props.dstrike_off)
         if self.check_superscript.isChecked():
             res.vert = "superscript"
         elif self.check_subscript.isChecked():
