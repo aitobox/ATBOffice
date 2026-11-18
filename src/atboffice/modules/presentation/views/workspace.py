@@ -65,6 +65,7 @@ from atboffice.modules.presentation.models.shape import Shape
 from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.models.text import Paragraph, TextBody, TextRun
 from atboffice.modules.presentation.views.background_renderer import paint_fill_rect
+from atboffice.modules.presentation.views.picture_painter import paint_picture_shape
 from atboffice.modules.presentation.views.slide_canvas import (
     SlideCanvasView,
     SlideScene,
@@ -120,6 +121,8 @@ def render_slide_thumbnail(
                 if d_sh.w <= 0 or d_sh.h <= 0:
                     continue
                 d_rect = QRectF(d_sh.x * sx, d_sh.y * sy, d_sh.w * sx, d_sh.h * sy)
+                if paint_picture_shape(painter, d_sh, d_rect, presentation, sx):
+                    continue
                 if d_sh.fill and d_sh.fill.type == "solid":
                     painter.fillRect(d_rect, QColor(d_sh.fill.color))
                 if d_sh.line and d_sh.line.width > 0:
@@ -202,6 +205,7 @@ def render_slide_thumbnail(
                 painter.setPen(QPen(QColor(design.colors.accent1 if design else "#2B579A"), 1.0))
                 painter.setBrush(QBrush(QColor(230, 240, 250)))
                 painter.drawRoundedRect(rect, 3.0, 3.0)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
                 if sh.text and not sh.text.is_empty():
                     painter.setPen(QColor(design.colors.dk1 if design else "#000000"))
                     font = QFont("Arial", max(6, int(10 * sy)))
@@ -214,6 +218,8 @@ def render_slide_thumbnail(
             if sh.type == "group" and sh.kids:
                 for kid in sh.kids:
                     k_rect = QRectF(kid.x * sx, kid.y * sy, kid.w * sx, kid.h * sy)
+                    if paint_picture_shape(painter, kid, k_rect, presentation, sx):
+                        continue
                     if kid.fill and kid.fill.type == "solid":
                         painter.fillRect(k_rect, QColor(kid.fill.color))
                     if kid.line and kid.line.width > 0:
@@ -230,6 +236,9 @@ def render_slide_thumbnail(
                             | Qt.TextFlag.TextWordWrap,
                             kid.text.plain_text,
                         )
+                continue
+
+            if paint_picture_shape(painter, sh, rect, presentation, sx):
                 continue
 
             # Fill

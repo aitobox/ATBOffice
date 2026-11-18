@@ -634,3 +634,94 @@ def test_slideshow_decodes_metafile_once_across_frames(
     for _ in range(3):
         render_slide_to_image(slide, pres, 960, 540)
     assert len(calls) == 1
+
+
+# ==============================================================================
+# 9. Slide Thumbnails Draw Pictures
+# ==============================================================================
+
+
+def _thumbnail_image(slide, pres, width: int = 480) -> QImage:
+    return render_slide_thumbnail(slide, pres, width=width).toImage()
+
+
+def test_thumbnail_matches_slideshow_for_cropped_metafile_picture(qapp: QApplication) -> None:
+    pres = read_pptx((PPTX_DIR / "libreoffice__tdf149206.pptx").read_bytes())
+    slide = pres.slides[0]
+    pic = next(s for s in slide.shapes if s.media)
+
+    thumb = _thumbnail_image(slide, pres)
+    show = render_slide_to_image(slide, pres, width=thumb.width(), height=thumb.height())
+
+    k = thumb.width() / pres.w
+    x0, y0 = int(pic.x * k), int(pic.y * k)
+    x1, y1 = int((pic.x + pic.w) * k), int((pic.y + pic.h) * k)
+    diffs = [
+        max(
+            abs(a - b)
+            for a, b in zip(_pixel_rgb(thumb, x, y), _pixel_rgb(show, x, y), strict=True)
+        )
+        for x in range(x0 + 3, x1 - 3, 5)
+        for y in range(y0 + 3, y1 - 3, 5)
+    ]
+    assert sum(1 for d in diffs if d > 40) < len(diffs) * 0.02
+
+
+def test_thumbnail_picture_applies_crop_and_flip(qapp: QApplication) -> None:
+    crop = {"l": 0.0, "t": 0.0, "r": 0.0, "b": 0.5}
+    slide, pres = _picture_slide(_split_png(vertical=False), crop=crop)
+    img = _thumbnail_image(slide, pres)
+    for y in (55, 100, 145):
+        _assert_rgb_near(_pixel_rgb(img, 150, y), _BLUE)
+    assert _pixel_rgb(img, 150, 153) == (255, 255, 255)
+
+    slide, pres = _picture_slide(_split_png(vertical=True), crop=None)
+    slide.shapes[0].flip_h = True
+    img = _thumbnail_image(slide, pres)
+    _assert_rgb_near(_pixel_rgb(img, 75, 100), _GREEN)
+    _assert_rgb_near(_pixel_rgb(img, 225, 100), _BLUE)
+
+
+def test_thumbnail_draws_grouped_and_master_pictures(qapp: QApplication) -> None:
+    import copy
+
+    from atboffice.modules.presentation.models.shape import Shape
+
+    slide, pres = _picture_slide(_split_png(vertical=True), crop=None)
+    media = slide.shapes[0].media
+    slide.shapes.clear()
+    slide.add_shape(
+        Shape(
+            id="grp",
+            type="group",
+            x=100,
+            y=100,
+            w=200,
+            h=100,
+            kids=[Shape(id="kid", type="image", x=100, y=100, w=200, h=100, media=media)],
+        )
+    )
+    design = copy.deepcopy(pres.get_design_for_slide(slide))
+    design.decorations = [Shape(id="logo", type="image", x=500, y=300, w=200, h=100, media=media)]
+    pres.get_design_for_slide = lambda _slide: design  # type: ignore[method-assign]
+
+    img = _thumbnail_image(slide, pres)
+    _assert_rgb_near(_pixel_rgb(img, 75, 75), _BLUE)
+    _assert_rgb_near(_pixel_rgb(img, 125, 75), _GREEN)
+    _assert_rgb_near(_pixel_rgb(img, 275, 175), _BLUE)
+    _assert_rgb_near(_pixel_rgb(img, 325, 175), _GREEN)
+
+
+def test_thumbnail_smartart_brush_does_not_cover_picture(qapp: QApplication) -> None:
+    from atboffice.modules.presentation.models.shape import Shape
+
+    slide, pres = _picture_slide(_split_png(vertical=True), crop=None)
+    slide.shapes.insert(0, Shape(id="dgm", type="diagram", x=600, y=50, w=100, h=100, sa={"n": 1}))
+    img = _thumbnail_image(slide, pres)
+    _assert_rgb_near(_pixel_rgb(img, 75, 100), _BLUE)
+    assert _pixel_rgb(img, 20, 20) == (255, 255, 255)
+
+
+def test_thumbnail_undecodable_picture_shows_placeholder(qapp: QApplication) -> None:
+    slide, pres = _picture_slide(b"not an image" * 4, crop=None)
+    assert _pixel_rgb(_thumbnail_image(slide, pres), 150, 100) == _PLACEHOLDER_RGB

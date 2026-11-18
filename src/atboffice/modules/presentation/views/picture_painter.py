@@ -8,7 +8,10 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPainterPath, QPen, QPixmap
 
-from atboffice.modules.presentation.views.geometry_helper import flip_transform
+from atboffice.modules.presentation.views.geometry_helper import (
+    create_shape_path,
+    flip_transform,
+)
 from atboffice.vfs.metafile import is_emf, is_wmf, render_metafile_to_image
 
 if TYPE_CHECKING:
@@ -99,3 +102,46 @@ def paint_missing_picture(painter: QPainter, w: float, h: float) -> None:
     painter.setPen(QPen(QColor(200, 200, 200), 1.0, Qt.PenStyle.DashLine))
     painter.setBrush(QBrush(QColor(245, 245, 245)))
     painter.drawRect(QRectF(0.0, 0.0, w, h))
+
+
+def paint_picture_shape(
+    painter: QPainter,
+    shape: Shape,
+    rect: QRectF,
+    presentation: Presentation,
+    line_scale: float,
+) -> bool:
+    """Paint a picture or media poster into ``rect``; return False for any other shape.
+
+    Used by the renderers that draw a whole slide in one pass (slideshow, thumbnails).
+    """
+    data = picture_bytes(shape, presentation)
+    picture = decode_picture_bytes(data) if data else None
+    if picture is None and shape.type != "image":
+        return False
+
+    w = max(1.0, rect.width())
+    h = max(1.0, rect.height())
+    painter.save()
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+    painter.translate(rect.topLeft())
+    if shape.rot:
+        painter.translate(w / 2.0, h / 2.0)
+        painter.rotate(shape.rot)
+        painter.translate(-w / 2.0, -h / 2.0)
+
+    outline = flip_transform(w, h, shape.flip_h, shape.flip_v).map(
+        create_shape_path(shape.geom, w, h, shape.adj, shape.custom_path)
+    )
+    if picture is None:
+        paint_missing_picture(painter, w, h)
+    else:
+        clip_path = outline if shape.geom and shape.geom != "rect" else None
+        paint_picture(painter, picture, shape, w, h, clip_path)
+
+    if shape.line and shape.line.type != "none" and shape.line.width > 0:
+        painter.setPen(QPen(QColor(shape.line.color), max(1.0, shape.line.width * line_scale)))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawPath(outline)
+    painter.restore()
+    return True
