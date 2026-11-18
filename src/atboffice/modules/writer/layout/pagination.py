@@ -561,14 +561,20 @@ class _PaginationContext:
         height: float,
     ) -> PageRegion:
         body_w = self.current_page.body_width if self.current_page else sect.pg_w
-        num_cols = getattr(sect.cols, "num", None) or getattr(sect.cols, "n", 1) or 1
-        col_space = getattr(sect.cols, "space", 36.0) or 36.0
+        num_cols = max(1, sect.cols.num)
+        col_space = max(0.0, sect.cols.space)
         total_space = (num_cols - 1) * col_space
-        col_w = max(10.0, (body_w - total_space) / num_cols)
+        equal_w = max(10.0, (body_w - total_space) / num_cols)
 
         columns: list[ColumnFrame] = []
         cur_x = 0.0
         for c in range(num_cols):
+            col_w, gap = equal_w, col_space
+            if not sect.cols.equal_width:
+                if c < len(sect.cols.widths) and sect.cols.widths[c] > 0.0:
+                    col_w = sect.cols.widths[c]
+                if c < len(sect.cols.spaces):
+                    gap = max(0.0, sect.cols.spaces[c])
             columns.append(
                 ColumnFrame(
                     index=c,
@@ -580,7 +586,7 @@ class _PaginationContext:
                     fragments=[],
                 )
             )
-            cur_x += col_w + col_space
+            cur_x += col_w + gap
 
         region = PageRegion(
             section_index=sect_idx,

@@ -94,6 +94,7 @@ class ColumnsProperties:
     sep: bool = False
     equal_width: bool = True
     widths: list[float] = field(default_factory=list)
+    spaces: list[float] = field(default_factory=list)  # Gap after each explicit column.
 
 
 @dataclass
