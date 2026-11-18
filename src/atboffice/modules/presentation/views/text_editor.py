@@ -392,6 +392,47 @@ def resolve_color(color_name: str | None) -> QColor:
     return QColor(preset_map.get(color_name.lower(), "#000000"))
 
 
+def balance_column_height(
+    doc: QTextDocument, col_w: float, max_h: float, num_cols: int
+) -> float:
+    """Return the balanced column height for a multi-column text body.
+
+    Matches the reference renderer's CSS ``column-count`` (``column-fill:
+    balance``): the smallest height at which the text fits in ``num_cols``
+    columns, capped at ``max_h``. Leaves ``doc`` paginated at that height.
+    """
+    doc.setTextWidth(col_w)
+    doc.setPageSize(QSizeF(col_w, max_h))
+    if num_cols <= 1 or doc.pageCount() > num_cols:
+        return max_h  # one column, or the text overflows every column anyway
+    # Content height when laid out as a single tall column.
+    doc.setPageSize(QSizeF(col_w, -1.0))
+    content_h = doc.size().height()
+    # A column must hold at least its tallest line, or that line is split.
+    tallest = 1.0
+    block = doc.begin()
+    while block.isValid():
+        layout = block.layout()
+        for i in range(layout.lineCount()):
+            tallest = max(tallest, layout.lineAt(i).height())
+        block = block.next()
+    lo = min(max_h, max(tallest, content_h / num_cols))
+    hi = max_h
+    doc.setPageSize(QSizeF(col_w, lo))
+    if doc.pageCount() <= num_cols:
+        hi = lo
+    else:
+        while hi - lo > 0.5:
+            mid = (lo + hi) / 2.0
+            doc.setPageSize(QSizeF(col_w, mid))
+            if doc.pageCount() <= num_cols:
+                hi = mid
+            else:
+                lo = mid
+    doc.setPageSize(QSizeF(col_w, hi))
+    return hi
+
+
 class ShapeTextEditorItem(QGraphicsTextItem):
     """In-place interactive rich text editor attached to a ShapeGraphicsItem."""
 
@@ -603,11 +644,19 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                 block_fmt.setLeftMargin(mar_l_val * font_scale)
                 block_fmt.setTextIndent(0.0)
 
+            # Runs without an explicit size (including the empty run of an
+            # empty paragraph) render at this size; size the line from it too.
+            fallback_sz = (
+                18.0
+                if level == 0 and not getattr(text_body, "_is_placeholder", False)
+                else BODY_SIZES[level]
+            )
+
             # Line spacing & reduction (matching .vibeoffice 1.2x factor in FixedHeight)
             first_run_sz = (
                 para.runs[0].size
                 if (para.runs and para.runs[0].size is not None)
-                else BODY_SIZES[level]
+                else (BODY_SIZES[level] if para.runs else fallback_sz)
             ) * font_scale
             ln_spc = para.props.get("lnSpc")
             if ln_spc and isinstance(ln_spc, dict):
@@ -671,11 +720,6 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                 else:
                     char_fmt.setFontFamily(fam)
 
-                fallback_sz = (
-                    18.0
-                    if level == 0 and not getattr(text_body, "_is_placeholder", False)
-                    else BODY_SIZES[level]
-                )
                 sz = (run.size if run.size is not None else fallback_sz) * font_scale
                 char_fmt.setFontPointSize(max(1.0, sz * 72.0 / 96.0))
                 if run.bold:
@@ -701,11 +745,12 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         cursor.endEditBlock()
 
         painter.save()
-        painter.setClipRect(text_rect)
+        if text_body.wrap:
+            painter.setClipRect(text_rect)
 
         if num_cols > 1:
             col_w = max(10.0, (avail_w - (num_cols - 1) * col_gap) / num_cols)
-            col_h = avail_h
+            col_h = balance_column_height(doc, col_w, avail_h, num_cols)
             for c in range(min(num_cols, doc.pageCount())):
                 col_x = (
                     (num_cols - 1 - c) * (col_w + col_gap)
@@ -727,7 +772,10 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                 dy = max(0.0, avail_h - doc_h)
 
             painter.translate(text_rect.x(), text_rect.y() + dy)
-            doc.drawContents(painter, QRectF(0.0, 0.0, avail_w, max(avail_h, doc_h)))
+            # drawContents() replaces the clip with this rect; let no-wrap
+            # lines keep their full width so they overflow the box like Office.
+            draw_w = avail_w if text_body.wrap else max(avail_w, doc.size().width())
+            doc.drawContents(painter, QRectF(0.0, 0.0, draw_w, max(avail_h, doc_h)))
 
         painter.restore()
 
