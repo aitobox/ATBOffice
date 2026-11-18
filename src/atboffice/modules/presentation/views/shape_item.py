@@ -12,7 +12,6 @@ from PySide6.QtGui import (
     QBrush,
     QColor,
     QFont,
-    QImage,
     QPainter,
     QPainterPath,
     QPen,
@@ -38,15 +37,18 @@ from atboffice.modules.presentation.views.geometry_helper import (
     get_adjustment_handles,
     get_shape_connection_sites,
 )
-from atboffice.vfs.metafile import is_emf, is_wmf, render_metafile_to_image
+from atboffice.modules.presentation.views.picture_painter import (
+    decode_picture_bytes,
+    paint_missing_picture,
+    paint_picture,
+    picture_bytes,
+)
 
 if TYPE_CHECKING:
     pass
 
 
 HANDLE_SIZE = 8.0
-# Longest side, in pixels, a WMF/EMF picture is rasterized to (sharp when zoomed, bounded memory).
-METAFILE_RASTER_MAX_PX = 2048
 ROT_HANDLE_OFFSET = 24.0
 
 DASH_PATTERNS: dict[str, list[float] | None] = {
@@ -113,25 +115,6 @@ def build_prompt_body(text_body: TextBody | None, ph_type: str | None) -> TextBo
             run = TextRun(text=line)
         paragraphs.append(Paragraph(level=level, props=copy.deepcopy(props), runs=[run]))
     return dataclasses.replace(text_body, paragraphs=paragraphs, prompt_run=None)
-
-
-def _decode_picture_bytes(data: bytes) -> QImage | None:
-    """Decode picture bytes, rasterizing WMF/EMF metafiles that Qt cannot read.
-
-    Metafiles are recognized by content, not part name: PowerPoint files may store an
-    EMF in a ``.wmf`` part. Returns None when the bytes cannot be decoded.
-    """
-    qimg = QImage.fromData(data)
-    if not qimg.isNull():
-        return qimg
-    if is_emf(data) or is_wmf(data):
-        try:
-            qimg = render_metafile_to_image(data, max_px=METAFILE_RASTER_MAX_PX)
-        except Exception:  # a malformed metafile must never break painting
-            return None
-        if qimg is not None and not qimg.isNull():
-            return qimg
-    return None
 
 
 class HandleType:
@@ -757,14 +740,7 @@ class ShapeGraphicsItem(QGraphicsObject):
 
         # 1. Background / Poster frame
         drawn_image = False
-        poster_bytes = None
-        if m_item and m_item.poster_bytes:
-            poster_bytes = m_item.poster_bytes
-        elif self.model.media:
-            sc = self.scene()
-            if sc and hasattr(sc, "presentation") and sc.presentation:
-                media_map = sc.presentation.props.get("_media_map", {})
-                poster_bytes = media_map.get(self.model.media)
+        poster_bytes = picture_bytes(self.model, getattr(self.scene(), "presentation", None))
 
         if poster_bytes:
             m_id = str(getattr(m_item, "id", "") or self.model.media or self.model.id)
@@ -772,7 +748,7 @@ class ShapeGraphicsItem(QGraphicsObject):
             if self._cached_media_key != media_key:
                 self._cached_pixmap = None
                 self._media_decode_failed = False
-                qimg = _decode_picture_bytes(poster_bytes)
+                qimg = decode_picture_bytes(poster_bytes)
                 if qimg is not None:
                     self._cached_pixmap = QPixmap.fromImage(qimg)
                 else:
@@ -780,14 +756,7 @@ class ShapeGraphicsItem(QGraphicsObject):
                 self._cached_media_key = media_key
 
             if self._cached_pixmap is not None and not self._cached_pixmap.isNull():
-                pix = self._cached_pixmap
-                painter.save()
-                painter.setTransform(
-                    flip_transform(w, h, self.model.flip_h, self.model.flip_v), True
-                )
-                painter.setClipRect(QRectF(0.0, 0.0, w, h), Qt.ClipOperation.IntersectClip)
-                painter.drawPixmap(self._image_target_rect(w, h), pix, QRectF(pix.rect()))
-                painter.restore()
+                paint_picture(painter, self._cached_pixmap, self.model, w, h)
                 drawn_image = True
 
         if not drawn_image:
@@ -804,35 +773,11 @@ class ShapeGraphicsItem(QGraphicsObject):
                 painter.setBrush(QBrush(QColor(25, 27, 32)))
                 painter.drawRoundedRect(bg_rect, 4.0, 4.0)
             else:
-                bg_rect = QRectF(0.0, 0.0, w, h)
-                painter.setPen(QPen(QColor(200, 200, 200), 1.0, Qt.PenStyle.DashLine))
-                painter.setBrush(QBrush(QColor(245, 245, 245)))
-                painter.drawRect(bg_rect)
+                paint_missing_picture(painter, w, h)
 
         # 2. Multimedia Playback Controls Overlay
         if m_item and (getattr(m_item, "is_video", False) or getattr(m_item, "is_audio", False)):
             self._paint_playback_controls(painter, w, h)
-
-    def _image_target_rect(self, w: float, h: float) -> QRectF:
-        """Where the whole picture lands so its srcRect crop fills the frame.
-
-        The visible fraction (1 - l - r, 1 - t - b) is stretched to the frame and the
-        rest falls outside it (or, for negative crops, leaves padding inside it).
-        """
-        crop = self.model.crop if isinstance(self.model.crop, dict) else None
-        if not crop:
-            return QRectF(0.0, 0.0, w, h)
-        cl = float(crop.get("l", 0.0) or 0.0)
-        ct = float(crop.get("t", 0.0) or 0.0)
-        cr = float(crop.get("r", 0.0) or 0.0)
-        cb = float(crop.get("b", 0.0) or 0.0)
-        vis_w = 1.0 - cl - cr
-        vis_h = 1.0 - ct - cb
-        if vis_w <= 0.001 or vis_h <= 0.001:
-            return QRectF(0.0, 0.0, w, h)
-        full_w = w / vis_w
-        full_h = h / vis_h
-        return QRectF(-cl * full_w, -ct * full_h, full_w, full_h)
 
     def _draw_speaker_icon(self, painter: QPainter, w: float, h: float) -> None:
         """Draw classic audio speaker symbol with sound waves."""

@@ -22,10 +22,20 @@ from PySide6.QtWidgets import QApplication
 from atboffice.modules.presentation.models.slide import Slide, Transition
 from atboffice.modules.presentation.models.text import TextBody
 from atboffice.modules.presentation.views.background_renderer import paint_fill_rect
-from atboffice.modules.presentation.views.geometry_helper import create_shape_path
+from atboffice.modules.presentation.views.geometry_helper import (
+    create_shape_path,
+    flip_transform,
+)
+from atboffice.modules.presentation.views.picture_painter import (
+    decode_picture_bytes,
+    paint_missing_picture,
+    paint_picture,
+    picture_bytes,
+)
 
 if TYPE_CHECKING:
     from atboffice.modules.presentation.models.presentation import Presentation
+    from atboffice.modules.presentation.models.shape import Shape
 
 
 def safe_tr(text: str) -> str:
@@ -231,6 +241,45 @@ def _direction_vector(d: str | None) -> tuple[float, float]:
 # ==============================================================================
 
 
+def _paint_picture_shape(
+    painter: QPainter,
+    sh: Shape,
+    rect: QRectF,
+    presentation: Presentation,
+    line_scale: float,
+) -> bool:
+    """Paint a picture or media poster into ``rect``; return False for any other shape."""
+    data = picture_bytes(sh, presentation)
+    picture = decode_picture_bytes(data) if data else None
+    if picture is None and sh.type != "image":
+        return False
+
+    w = max(1.0, rect.width())
+    h = max(1.0, rect.height())
+    painter.save()
+    painter.translate(rect.topLeft())
+    if sh.rot:
+        painter.translate(w / 2.0, h / 2.0)
+        painter.rotate(sh.rot)
+        painter.translate(-w / 2.0, -h / 2.0)
+
+    outline = flip_transform(w, h, sh.flip_h, sh.flip_v).map(
+        create_shape_path(sh.geom, w, h, sh.adj, sh.custom_path)
+    )
+    if picture is None:
+        paint_missing_picture(painter, w, h)
+    else:
+        clip_path = outline if sh.geom and sh.geom != "rect" else None
+        paint_picture(painter, picture, sh, w, h, clip_path)
+
+    if sh.line and sh.line.type != "none" and sh.line.width > 0:
+        painter.setPen(QPen(QColor(sh.line.color), max(1.0, sh.line.width * line_scale)))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawPath(outline)
+    painter.restore()
+    return True
+
+
 def render_slide_to_image(
     slide: Slide,
     presentation: Presentation,
@@ -272,6 +321,8 @@ def render_slide_to_image(
                 if d_sh.w <= 0 or d_sh.h <= 0:
                     continue
                 d_rect = QRectF(d_sh.x * sx, d_sh.y * sy, d_sh.w * sx, d_sh.h * sy)
+                if _paint_picture_shape(painter, d_sh, d_rect, presentation, sx):
+                    continue
                 if d_sh.fill and d_sh.fill.type == "solid":
                     painter.fillRect(d_rect, QColor(d_sh.fill.color))
                 if d_sh.line and d_sh.line.width > 0:
@@ -372,6 +423,8 @@ def render_slide_to_image(
             if sh.type == "group" and sh.kids:
                 for kid in sh.kids:
                     k_rect = QRectF(kid.x * sx, kid.y * sy, kid.w * sx, kid.h * sy)
+                    if _paint_picture_shape(painter, kid, k_rect, presentation, sx):
+                        continue
                     if kid.fill and kid.fill.type == "solid":
                         painter.fillRect(k_rect, QColor(kid.fill.color))
                     if kid.line and kid.line.width > 0:
@@ -413,6 +466,11 @@ def render_slide_to_image(
                 painter.translate(-rect.width() / 2.0, -rect.height() / 2.0)
             else:
                 painter.translate(rect.topLeft())
+
+            local_rect = QRectF(0.0, 0.0, rect.width(), rect.height())
+            if _paint_picture_shape(painter, sh, local_rect, presentation, sx):
+                painter.restore()
+                continue
 
             # Fill
             if sh.fill and sh.fill.type == "solid":

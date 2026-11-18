@@ -460,3 +460,177 @@ def test_corrupt_metafile_picture_falls_back_to_placeholder(qapp: QApplication) 
         slide, pres = _picture_slide(junk, crop=None)
         img = _render_canvas_view_offscreen(SlideScene(slide, pres), 960, 540)
         assert _pixel_rgb(img, 300, 200) == _PLACEHOLDER_RGB
+
+
+# ==============================================================================
+# 8. Slideshow Pictures Match the Editing Canvas
+# ==============================================================================
+
+_BLUE = (0, 0, 255)
+_GREEN = (0, 200, 0)
+
+
+def _split_png(*, vertical: bool) -> bytes:
+    """100x100 PNG: blue top/green bottom, or blue left/green right when ``vertical``."""
+    from PySide6.QtCore import QBuffer, QIODevice
+    from PySide6.QtGui import QColor
+
+    src = QImage(100, 100, QImage.Format.Format_RGB32)
+    src.fill(QColor(*_BLUE))
+    p = QPainter(src)
+    if vertical:
+        p.fillRect(50, 0, 50, 100, QColor(*_GREEN))
+    else:
+        p.fillRect(0, 50, 100, 50, QColor(*_GREEN))
+    p.end()
+    buf = QBuffer()
+    buf.open(QIODevice.OpenModeFlag.WriteOnly)
+    src.save(buf, "PNG")
+    return bytes(buf.data())
+
+
+def _assert_rgb_near(actual: tuple[int, int, int], expected: tuple[int, int, int]) -> None:
+    assert all(abs(a - e) <= 12 for a, e in zip(actual, expected, strict=True)), (actual, expected)
+
+
+def test_slideshow_matches_canvas_for_cropped_metafile_picture(qapp: QApplication) -> None:
+    pres = read_pptx((PPTX_DIR / "libreoffice__tdf149206.pptx").read_bytes())
+    slide = pres.slides[0]
+    pic = next(s for s in slide.shapes if s.media)
+    width, height = int(pres.w), int(pres.h)
+
+    canvas = _render_canvas_view_offscreen(SlideScene(slide, pres), width, height)
+    show = render_slide_to_image(slide, pres, width=width, height=height)
+
+    x0, y0 = int(pic.x), int(pic.y)
+    x1, y1 = int(pic.x + pic.w), int(pic.y + pic.h)
+    diffs = [
+        max(
+            abs(a - b)
+            for a, b in zip(_pixel_rgb(canvas, x, y), _pixel_rgb(show, x, y), strict=True)
+        )
+        for x in range(x0 + 4, x1 - 4, 9)
+        for y in range(y0 + 4, y1 - 4, 9)
+    ]
+    assert sum(1 for d in diffs if d > 40) < len(diffs) * 0.02
+    assert all(_pixel_rgb(show, x, y1 + 3) == (255, 255, 255) for x in range(x0 + 4, x1 - 4, 7))
+
+
+def test_slideshow_draws_bitmap_wmf_picture(qapp: QApplication) -> None:
+    slide, pres = _picture_slide(_bitmap_wmf((0, 0, 255)), crop=None)  # BGR -> red
+    r, g, b = _pixel_rgb(render_slide_to_image(slide, pres, 960, 540), 300, 200)
+    assert r > 200 and g < 40 and b < 40
+
+
+def test_slideshow_picture_applies_src_rect_crop(qapp: QApplication) -> None:
+    crop = {"l": 0.0, "t": 0.0, "r": 0.0, "b": 0.5}
+    slide, pres = _picture_slide(_split_png(vertical=False), crop=crop)
+    img = render_slide_to_image(slide, pres, 960, 540)
+    for y in (110, 200, 290):
+        _assert_rgb_near(_pixel_rgb(img, 300, y), _BLUE)
+    assert _pixel_rgb(img, 300, 304) == (255, 255, 255)
+
+
+def test_slideshow_picture_applies_flip(qapp: QApplication) -> None:
+    slide, pres = _picture_slide(_split_png(vertical=True), crop=None)
+    slide.shapes[0].flip_h = True
+    img = render_slide_to_image(slide, pres, 960, 540)
+    _assert_rgb_near(_pixel_rgb(img, 150, 200), _GREEN)
+    _assert_rgb_near(_pixel_rgb(img, 450, 200), _BLUE)
+
+
+def test_slideshow_picture_applies_rotation(qapp: QApplication) -> None:
+    slide, pres = _picture_slide(_split_png(vertical=True), crop=None)
+    pic = slide.shapes[0]
+    pic.x, pic.y, pic.w, pic.h = 200, 100, 200, 200
+    pic.rot = 90.0
+    img = render_slide_to_image(slide, pres, 960, 540)
+    _assert_rgb_near(_pixel_rgb(img, 300, 150), _BLUE)  # left half turns to the top
+    _assert_rgb_near(_pixel_rgb(img, 300, 250), _GREEN)
+
+
+def test_slideshow_picture_clips_to_shape_geometry(qapp: QApplication) -> None:
+    slide, pres = _picture_slide(_split_png(vertical=True), crop=None)
+    slide.shapes[0].geom = "ellipse"
+    img = render_slide_to_image(slide, pres, 960, 540)
+    assert _pixel_rgb(img, 104, 104) == (255, 255, 255)
+    _assert_rgb_near(_pixel_rgb(img, 200, 200), _BLUE)
+
+
+def test_slideshow_picture_follows_animation_frame_state(qapp: QApplication) -> None:
+    from types import SimpleNamespace
+
+    slide, pres = _picture_slide(_split_png(vertical=True), crop=None)
+    state = SimpleNamespace(visible=True, opacity=1.0, translate_x=300.0, translate_y=0.0)
+    img = render_slide_to_image(slide, pres, 960, 540, frame_states={"pic": state})
+    assert _pixel_rgb(img, 150, 200) == (255, 255, 255)
+    _assert_rgb_near(_pixel_rgb(img, 450, 200), _BLUE)
+
+
+def test_slideshow_draws_grouped_and_master_pictures(qapp: QApplication) -> None:
+    import copy
+
+    from atboffice.modules.presentation.models.shape import Shape
+
+    slide, pres = _picture_slide(_split_png(vertical=True), crop=None)
+    media = slide.shapes[0].media
+    slide.shapes.clear()
+    slide.add_shape(
+        Shape(
+            id="grp",
+            type="group",
+            x=100,
+            y=100,
+            w=200,
+            h=100,
+            kids=[Shape(id="kid", type="image", x=100, y=100, w=200, h=100, media=media)],
+        )
+    )
+    design = copy.deepcopy(pres.get_design_for_slide(slide))
+    design.decorations = [Shape(id="logo", type="image", x=500, y=300, w=200, h=100, media=media)]
+    pres.get_design_for_slide = lambda _slide: design  # type: ignore[method-assign]
+
+    img = render_slide_to_image(slide, pres, 960, 540)
+    _assert_rgb_near(_pixel_rgb(img, 150, 150), _BLUE)
+    _assert_rgb_near(_pixel_rgb(img, 250, 150), _GREEN)
+    _assert_rgb_near(_pixel_rgb(img, 550, 350), _BLUE)
+    _assert_rgb_near(_pixel_rgb(img, 650, 350), _GREEN)
+
+
+def test_slideshow_picture_outline_does_not_cover_picture(qapp: QApplication) -> None:
+    from atboffice.modules.presentation.models.shape import Line, Shape
+
+    slide, pres = _picture_slide(_split_png(vertical=True), crop=None)
+    pic = slide.shapes[0]
+    pic.line = Line(type="solid", color="#FF0000", width=4.0)
+    slide.shapes.insert(0, Shape(id="dgm", type="diagram", x=600, y=50, w=100, h=100, sa={"n": 1}))
+    img = render_slide_to_image(slide, pres, 960, 540)
+    _assert_rgb_near(_pixel_rgb(img, 150, 200), _BLUE)
+    r, g, b = _pixel_rgb(img, 100, 200)
+    assert r > 200 and g < 60 and b < 60
+
+
+def test_slideshow_undecodable_picture_matches_canvas_placeholder(qapp: QApplication) -> None:
+    slide, pres = _picture_slide(b"not an image" * 4, crop=None)
+    img = render_slide_to_image(slide, pres, 960, 540)
+    assert _pixel_rgb(img, 300, 200) == _PLACEHOLDER_RGB
+
+
+def test_slideshow_decodes_metafile_once_across_frames(
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from atboffice.modules.presentation.views import picture_painter
+
+    calls: list[bytes] = []
+    real = picture_painter.render_metafile_to_image
+
+    def counting(data: bytes, **kwargs: object) -> QImage | None:
+        calls.append(data)
+        return real(data, **kwargs)
+
+    monkeypatch.setattr(picture_painter, "render_metafile_to_image", counting)
+    picture_painter.decode_picture_bytes.cache_clear()
+    slide, pres = _picture_slide(_bitmap_wmf((0, 0, 255)), crop=None)
+    for _ in range(3):
+        render_slide_to_image(slide, pres, 960, 540)
+    assert len(calls) == 1
