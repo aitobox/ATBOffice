@@ -1040,6 +1040,30 @@ class WriterCanvasView(QAbstractScrollArea):
             color_str = "#000000"
         return font, QColor(color_str)
 
+    def _draw_strike_decoration(
+        self,
+        painter: QPainter,
+        po: Any,
+        font: QFont,
+        color: QColor,
+        x1_px: float,
+        x2_px: float,
+        baseline_px: float,
+    ) -> None:
+        """Draw a portion's strike; double strike wins when both flags are set."""
+        is_double = bool(getattr(po, "dstrike", False))
+        if not is_double and not getattr(po, "strikethrough", False):
+            return
+        font_size_pt = getattr(po, "font_size", None) or 12.0
+        mid_y = baseline_px - font_size_pt * self._zoom * 0.3
+        thickness = max(0.75 * self._zoom, QFontMetricsF(font).lineWidth())
+        pen = QPen(color, thickness)
+        pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+        painter.setPen(pen)
+        gap = max(1.5 * self._zoom, thickness)
+        for offset in (-gap, gap) if is_double else (0.0,):
+            painter.drawLine(QPointF(x1_px, mid_y + offset), QPointF(x2_px, mid_y + offset))
+
     def _draw_spellcheck_for_text(
         self,
         painter: QPainter,
@@ -1105,6 +1129,22 @@ class WriterCanvasView(QAbstractScrollArea):
                         right_px = page_rect.left() + self.pt_to_px(start_x_pt + line.width)
                         left_px = right_px - box_w_px
                         tline.draw(painter, QPointF(left_px, baseline_px - tline.ascent()))
+                        char_pos = 0
+                        for po in text_pts:
+                            char_end = char_pos + len(po.text)
+                            edge_a = left_px + tline.cursorToX(char_pos)[0]
+                            edge_b = left_px + tline.cursorToX(char_end)[0]
+                            po_font, po_col = self._build_portion_font(po)
+                            self._draw_strike_decoration(
+                                painter,
+                                po,
+                                po_font,
+                                po_col,
+                                min(edge_a, edge_b),
+                                max(edge_a, edge_b),
+                                baseline_px,
+                            )
+                            char_pos = char_end
                         return
 
         portions = line.portions
@@ -1136,6 +1176,16 @@ class WriterCanvasView(QAbstractScrollArea):
                     cur_px = page_rect.left() + self.pt_to_px(start_x_pt)
                     for p_i, pt in enumerate(trimmed_j):
                         if pt.type == PortionType.BLANK:
+                            f, blank_col = self._build_portion_font(pt)
+                            self._draw_strike_decoration(
+                                painter,
+                                pt,
+                                f,
+                                blank_col,
+                                cur_px,
+                                cur_px + per_blank_px,
+                                baseline_px,
+                            )
                             cur_px += per_blank_px
                         elif pt.text:
                             font, pen_col = self._build_portion_font(pt)
@@ -1146,6 +1196,15 @@ class WriterCanvasView(QAbstractScrollArea):
                                 self._draw_spellcheck_for_text(
                                     painter, font, pt.text, cur_px, baseline_px
                                 )
+                            self._draw_strike_decoration(
+                                painter,
+                                pt,
+                                font,
+                                pen_col,
+                                cur_px,
+                                cur_px + word_adv_px[p_i],
+                                baseline_px,
+                            )
                             cur_px += word_adv_px[p_i]
                     return
 
@@ -1169,7 +1228,10 @@ class WriterCanvasView(QAbstractScrollArea):
                 else:
                     cur_px += layout_w_px - qt_w_px
 
-        for po in portions:
+        last_ink_idx = max(
+            (i for i, po in enumerate(portions) if po.type != PortionType.BLANK), default=-1
+        )
+        for po_idx, po in enumerate(portions):
             po_w_px = self.pt_to_px(po.width)
             if po.type == PortionType.TEXT and po.text:
                 font, pen_col = self._build_portion_font(po)
@@ -1178,14 +1240,22 @@ class WriterCanvasView(QAbstractScrollArea):
                 painter.drawText(QPointF(cur_px, baseline_px), po.text)
                 if should_spell:
                     self._draw_spellcheck_for_text(painter, font, po.text, cur_px, baseline_px)
-                cur_px += QFontMetricsF(font).horizontalAdvance(po.text)
+                text_adv_px = QFontMetricsF(font).horizontalAdvance(po.text)
+                self._draw_strike_decoration(
+                    painter, po, font, pen_col, cur_px, cur_px + text_adv_px, baseline_px
+                )
+                cur_px += text_adv_px
                 continue
             if po.type == PortionType.BLANK and po.text:
-                if can_coalesce:
-                    font, _ = self._build_portion_font(po)
-                    cur_px += QFontMetricsF(font).horizontalAdvance(po.text)
-                else:
-                    cur_px += po_w_px
+                font, pen_col = self._build_portion_font(po)
+                blank_adv_px = (
+                    QFontMetricsF(font).horizontalAdvance(po.text) if can_coalesce else po_w_px
+                )
+                if po_idx < last_ink_idx:
+                    self._draw_strike_decoration(
+                        painter, po, font, pen_col, cur_px, cur_px + blank_adv_px, baseline_px
+                    )
+                cur_px += blank_adv_px
                 continue
             if po.type == PortionType.TAB and po.width > 0:
                 tab_data = getattr(po, "data", None)
