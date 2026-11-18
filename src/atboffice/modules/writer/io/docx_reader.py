@@ -1570,9 +1570,23 @@ class DocxReader:
 
         cols_elem = _find_elem(sect_elem, "cols", W_NAMESPACES)
         if cols_elem is not None:
-            num = int(_get_attr(cols_elem, "num", "1") or "1")
+            children = _findall_elems(cols_elem, "col", W_NAMESPACES)
+            try:
+                num = int(_get_attr(cols_elem, "num", "1") or "1")
+            except ValueError:
+                num = 1
             space = _twips_to_pt(_get_attr(cols_elem, "space", "720"))
-            sect.cols = ColumnsProperties(num=num, space=space)
+            equal = _get_attr(cols_elem, "equalWidth")
+            sect.cols = ColumnsProperties(
+                num=max(1, num, len(children)),
+                space=max(0.0, space),
+                sep=(_get_attr(cols_elem, "sep", "0") or "0").lower()
+                not in ("0", "false", "off", "no"),
+                equal_width=(not children if equal is None else
+                             equal.lower() not in ("0", "false", "off", "no")),
+                widths=[_twips_to_pt(_get_attr(c, "w")) for c in children],
+                spaces=[max(0.0, _twips_to_pt(_get_attr(c, "space"))) for c in children],
+            )
 
         type_elem = _find_elem(sect_elem, "type", W_NAMESPACES)
         if type_elem is not None:

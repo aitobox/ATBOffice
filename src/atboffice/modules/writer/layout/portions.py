@@ -1231,12 +1231,29 @@ def layout_paragraph(
     float_boxes: list[FloatBox] | None = None,
     y_offset: float = 0.0,
     col_left: float = 0.0,
+    start_char_offset: int = 0,
 ) -> ParagraphLayout:
     """Layout a paragraph into lines with OpenOffice portions and Word typography rules."""
     d = doc or Document()
     p_pr = resolve_p_props(d, p)
     sect = section_props or SectionProperties()
     portions = decompose_paragraph_to_portions(p, d)
+    if start_char_offset > 0:
+        # Rebuild from source metrics when a continuation enters a different-width
+        # column. Already justified portions carry expanded spaces and cannot be reused.
+        portions = [
+            pt for pt in portions if pt.char_offset + pt.length > start_char_offset
+        ]
+        if portions and portions[0].char_offset < start_char_offset:
+            first = portions[0]
+            consumed = start_char_offset - first.char_offset
+            first.text = first.text[consumed:]
+            first.length -= consumed
+            first.char_offset = start_char_offset
+            first.width = measure_text_width(
+                first.text, first.font_size, first.font_family,
+                bold=first.bold, italic=first.italic,
+            )
 
     # Indentations
     ind_left = p_pr.ind.left
@@ -1258,6 +1275,8 @@ def layout_paragraph(
         if ind_first == 0.0 and lvl_ind.get("fl") is not None:
             ind_first = float(lvl_ind["fl"])
 
+    if start_char_offset > 0:
+        ind_first = 0.0
     first_line_available = max(10.0, container_width - ind_left - ind_right - ind_first)
     subsequent_line_available = max(10.0, container_width - ind_left - ind_right)
 

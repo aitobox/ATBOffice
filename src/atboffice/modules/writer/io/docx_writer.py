@@ -1070,6 +1070,15 @@ class DocxWriter:
         if cols.num > 1:
             cols_elem.set(_w("num"), str(cols.num))
         cols_elem.set(_w("space"), str(pt_to_dxa(cols.space)))
+        if cols.sep:
+            cols_elem.set(_w("sep"), "1")
+        if not cols.equal_width:
+            cols_elem.set(_w("equalWidth"), "0")
+            for index, width in enumerate(cols.widths):
+                col_elem = ET.SubElement(cols_elem, _w("col"))
+                col_elem.set(_w("w"), str(pt_to_dxa(width)))
+                gap = cols.spaces[index] if index < len(cols.spaces) else cols.space
+                col_elem.set(_w("space"), str(pt_to_dxa(gap)))
 
         if sect.title_pg:
             ET.SubElement(sect_elem, _w("titlePg"))
