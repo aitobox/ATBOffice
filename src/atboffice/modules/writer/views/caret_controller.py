@@ -501,7 +501,7 @@ class CaretController(QObject):
         """Find character offset within portion closest to target_x using binary search."""
         text = portion.text
         length = len(text)
-        if length == 0:
+        if length == 0 or portion.length == 0:
             return portion.char_offset
 
         low = 0

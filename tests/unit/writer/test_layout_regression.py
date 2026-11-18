@@ -11,13 +11,19 @@ Covers:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
+from atboffice.modules.writer.io import read_docx
 from atboffice.modules.writer.layout.pagination import (
+    PageFragment,
+    PaginationResult,
     format_number,
     paginate_document,
 )
 from atboffice.modules.writer.layout.portions import (
+    LayoutLine,
     layout_paragraph,
 )
 from atboffice.modules.writer.models.document import (
@@ -32,12 +38,14 @@ from atboffice.modules.writer.models.document import (
 from atboffice.modules.writer.models.drawing import PictureItem
 from atboffice.modules.writer.models.properties import (
     DocGridProperties,
+    NumberingRef,
     PageNumberProperties,
     ParagraphProperties,
     RunProperties,
     SectionProperties,
     SpacingProperties,
 )
+from atboffice.modules.writer.views.caret_controller import CaretController
 
 
 class TestPortionsSegmentationAndMeasuring:
@@ -341,3 +349,108 @@ class TestDynamicNumberFormatting:
         self, number: int, fmt: str, expected: str
     ) -> None:
         assert format_number(number, fmt) == expected
+
+
+class TestInheritedListNumbering:
+    """Numbering inherited from a paragraph style renders in body text and tables (#410)."""
+
+    FIXTURE = Path(__file__).parents[2] / "docs/word/docx/libreoffice__tdf132802.docx"
+
+    @staticmethod
+    def _body_fragments(result: PaginationResult) -> list[PageFragment]:
+        return [
+            frag
+            for page in result.pages
+            for region in page.regions
+            for col in region.columns
+            for frag in col.fragments
+        ]
+
+    @staticmethod
+    def _marker(line: LayoutLine) -> str:
+        """Return the list marker text of a line, or an empty string."""
+        first = line.portions[0]
+        return first.text if first.length == 0 else ""
+
+    @staticmethod
+    def _numbered_doc(*texts: str) -> Document:
+        doc = Document()
+        doc.numbering = {
+            "nums": {"1": {"id": "1", "abs": "0", "ov": {}}},
+            "abs": {
+                "0": {
+                    "levels": [
+                        {
+                            "start": 1,
+                            "fmt": "decimal",
+                            "text": "%1.",
+                            "ind": {"l": 36.0, "fl": -18.0},
+                        }
+                    ]
+                }
+            },
+        }
+        doc.main.blocks = [
+            Paragraph(
+                runs=[TextItem(text)],
+                p_pr=ParagraphProperties(num=NumberingRef(id="1", lvl=0)),
+            )
+            for text in texts
+        ]
+        reindex(doc)
+        return doc
+
+    def test_style_numbering_continues_across_table_in_reading_order(self) -> None:
+        doc = read_docx(self.FIXTURE.read_bytes())
+        markers: list[str] = []
+        unnumbered: list[str] = []
+
+        for frag in self._body_fragments(paginate_document(doc)):
+            if frag.table_layout is not None:
+                for row in frag.table_layout.rows:
+                    for cell in row.cells:
+                        markers += [self._marker(p.lines[0]) for p in cell.paragraphs_layout]
+            else:
+                marker = self._marker(frag.lines[0])
+                (markers if marker else unnumbered).append(marker or frag.lines[0].portions[0].text)
+
+        assert markers == ["1.", "2.", "3.", "4.", "5.", "6.", "7.", "8."]
+        assert unnumbered == ["Not", "Normal"]
+
+    def test_hard_page_break_keeps_number_on_first_segment_only(self) -> None:
+        doc = self._numbered_doc("Before")
+        doc.main.blocks[0].runs += [BreakItem(break_type="page"), TextItem("After")]
+        reindex(doc)
+
+        frags = self._body_fragments(paginate_document(doc))
+
+        assert [self._marker(frag.lines[0]) for frag in frags] == ["1.", ""]
+
+    def test_removing_numbered_paragraph_renumbers_on_next_pagination(self) -> None:
+        doc = self._numbered_doc("One", "Two", "Three")
+        paginate_document(doc)
+
+        del doc.main.blocks[1]
+        reindex(doc)
+        frags = self._body_fragments(paginate_document(doc))
+
+        assert [self._marker(frag.lines[0]) for frag in frags] == ["1.", "2."]
+
+    def test_marker_does_not_shift_model_character_offsets(self) -> None:
+        doc = self._numbered_doc("Text")
+
+        line = self._body_fragments(paginate_document(doc))[0].lines[0]
+
+        assert [(po.text, po.char_offset, po.length) for po in line.portions] == [
+            ("1.", 0, 0),
+            ("\t", 0, 0),
+            ("Text", 0, 4),
+        ]
+
+    def test_click_on_marker_resolves_to_paragraph_start(self) -> None:
+        doc = self._numbered_doc("Text")
+        marker = self._body_fragments(paginate_document(doc))[0].lines[0].portions[0]
+
+        offset = CaretController._binary_search_char_offset(None, marker, 0.0, marker.width)
+
+        assert offset == 0

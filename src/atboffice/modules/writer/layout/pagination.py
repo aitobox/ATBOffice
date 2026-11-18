@@ -20,6 +20,7 @@ from typing import Any
 
 from atboffice.modules.writer.layout.portions import (
     LayoutLine,
+    compute_lists,
     layout_paragraph,
 )
 from atboffice.modules.writer.layout.table_layout import (
@@ -616,6 +617,7 @@ def _split_paragraph_by_hard_breaks(p: Paragraph) -> list[tuple[Paragraph, str |
                 runs=list(cur_runs),
                 p_pr=p.p_pr,
                 sect=p.sect,
+                label="" if sub_paras else p.label,
             )
             sub_paras.append((sub_p, it.break_type))
             cur_runs = []
@@ -629,6 +631,7 @@ def _split_paragraph_by_hard_breaks(p: Paragraph) -> list[tuple[Paragraph, str |
             runs=list(cur_runs),
             p_pr=p.p_pr,
             sect=p.sect,
+            label="" if sub_paras else p.label,
         )
         sub_paras.append((sub_p, None))
     return sub_paras
@@ -1222,6 +1225,8 @@ def paginate_document(doc: Document, max_passes: int = 4) -> PaginationResult:
 
     if not doc.main.paras and doc.main.blocks:
         reindex(doc)
+
+    compute_lists(doc)
 
     seen_signatures: set[tuple[int, tuple[int, ...]]] = set()
 
