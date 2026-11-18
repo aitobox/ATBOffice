@@ -38,12 +38,15 @@ from atboffice.modules.presentation.views.geometry_helper import (
     get_adjustment_handles,
     get_shape_connection_sites,
 )
+from atboffice.vfs.metafile import is_emf, is_wmf, render_metafile_to_image
 
 if TYPE_CHECKING:
     pass
 
 
 HANDLE_SIZE = 8.0
+# Longest side, in pixels, a WMF/EMF picture is rasterized to (sharp when zoomed, bounded memory).
+METAFILE_RASTER_MAX_PX = 2048
 ROT_HANDLE_OFFSET = 24.0
 
 DASH_PATTERNS: dict[str, list[float] | None] = {
@@ -111,6 +114,25 @@ def build_prompt_body(text_body: TextBody | None, ph_type: str | None) -> TextBo
         paragraphs.append(Paragraph(level=level, props=copy.deepcopy(props), runs=[run]))
     return dataclasses.replace(text_body, paragraphs=paragraphs, prompt_run=None)
 
+
+
+def _decode_picture_bytes(data: bytes) -> QImage | None:
+    """Decode picture bytes, rasterizing WMF/EMF metafiles that Qt cannot read.
+
+    Metafiles are recognized by content, not part name: PowerPoint files may store an
+    EMF in a ``.wmf`` part. Returns None when the bytes cannot be decoded.
+    """
+    qimg = QImage.fromData(data)
+    if not qimg.isNull():
+        return qimg
+    if is_emf(data) or is_wmf(data):
+        try:
+            qimg = render_metafile_to_image(data, max_px=METAFILE_RASTER_MAX_PX)
+        except Exception:  # a malformed metafile must never break painting
+            return None
+        if qimg is not None and not qimg.isNull():
+            return qimg
+    return None
 
 class HandleType:
     NW = "nw"
@@ -750,8 +772,8 @@ class ShapeGraphicsItem(QGraphicsObject):
             if self._cached_media_key != media_key:
                 self._cached_pixmap = None
                 self._media_decode_failed = False
-                qimg = QImage.fromData(poster_bytes)
-                if not qimg.isNull():
+                qimg = _decode_picture_bytes(poster_bytes)
+                if qimg is not None:
                     self._cached_pixmap = QPixmap.fromImage(qimg)
                 else:
                     self._media_decode_failed = True
