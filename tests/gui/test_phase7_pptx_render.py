@@ -324,3 +324,139 @@ def test_safe_unsupported_external_media_handling(qapp: QApplication) -> None:
     scene = SlideScene(slide)
     img = _render_canvas_view_offscreen(scene, 960, 540)
     assert not img.isNull()
+
+
+# ==============================================================================
+# 7. Metafile Pictures and srcRect Cropping (Issue #408)
+# ==============================================================================
+
+_PLACEHOLDER_RGB = (245, 245, 245)
+
+
+def _pixel_rgb(img: QImage, x: int, y: int) -> tuple[int, int, int]:
+    c = img.pixelColor(x, y)
+    return (c.red(), c.green(), c.blue())
+
+
+def _bitmap_wmf(bgr: tuple[int, int, int], size: int = 8) -> bytes:
+    """Placeable WMF whose only drawing record is a META_STRETCHDIB of a solid 24-bit DIB."""
+    import struct
+
+    header_words = struct.pack("<IHhhhhHI", 0x9AC6CDD7, 0, 0, 0, 100, 100, 1440, 0)
+    checksum = 0
+    for word in struct.unpack("<10H", header_words):
+        checksum ^= word
+    placeable = header_words + struct.pack("<H", checksum)
+
+    row = bytes(bgr) * size
+    row += b"\x00" * ((4 - len(row) % 4) % 4)
+    dib = struct.pack("<IiiHHIIiiII", 40, size, size, 1, 24, 0, len(row) * size, 0, 0, 0, 0)
+    dib += row * size
+
+    records = bytearray()
+
+    def add_rec(fn: int, params: bytes) -> None:
+        records.extend(struct.pack("<IH", 3 + len(params) // 2, fn) + params)
+
+    add_rec(0x020B, struct.pack("<hh", 0, 0))  # SETWINDOWORG
+    add_rec(0x020C, struct.pack("<hh", 100, 100))  # SETWINDOWEXT
+    # META_STRETCHDIB: rop, usage, src h/w/y/x, dest h/w/y/x, DIB
+    params = struct.pack("<IH", 0x00CC0020, 0)
+    params += struct.pack("<8h", size, size, 0, 0, 100, 100, 0, 0)
+    add_rec(0x0F43, params + dib)
+    add_rec(0x0000, b"")  # EOF
+
+    total_words = 9 + len(records) // 2
+    header = struct.pack("<HHHIHIH", 1, 9, 0x0300, total_words, 0, total_words, 0)
+    return placeable + header + bytes(records)
+
+
+def _picture_slide(media_bytes: bytes, crop: dict[str, float] | None):
+    from atboffice.modules.presentation.models.presentation import Presentation
+    from atboffice.modules.presentation.models.shape import Shape
+    from atboffice.modules.presentation.models.slide import Slide
+
+    pres = Presentation(w=960.0, h=540.0)
+    pres.props["_media_map"] = {"ppt/media/pic.bin": media_bytes}
+    slide = Slide(id="s_pic", layout="blank")
+    slide.add_shape(
+        Shape(
+            id="pic",
+            type="image",
+            x=100,
+            y=100,
+            w=400,
+            h=200,
+            media="ppt/media/pic.bin",
+            crop=crop,
+        )
+    )
+    pres.slides.append(slide)
+    return slide, pres
+
+
+def test_emf_picture_in_wmf_part_renders_with_bottom_crop(qapp: QApplication) -> None:
+    pres = read_pptx((PPTX_DIR / "libreoffice__tdf149206.pptx").read_bytes())
+    slide = pres.slides[0]
+    pics = [s for s in slide.shapes if s.media]
+    assert len(pics) == 1
+    pic = pics[0]
+    assert pic.crop is not None and abs(pic.crop["b"] - 0.37396) < 1e-6
+
+    scene = SlideScene(slide, pres)
+    img = _render_canvas_view_offscreen(scene, int(pres.w), int(pres.h))
+
+    # The embedded bitmap is an email client screenshot: the toolbar and the white
+    # message pane draw non-placeholder colors inside the frame.
+    x0, y0 = int(pic.x), int(pic.y)
+    x1, y1 = int(pic.x + pic.w), int(pic.y + pic.h)
+    samples = [
+        _pixel_rgb(img, x, y) for x in range(x0 + 4, x1 - 4, 9) for y in range(y0 + 4, y1 - 4, 9)
+    ]
+    placeholder_hits = sum(1 for rgb in samples if rgb == _PLACEHOLDER_RGB)
+    assert placeholder_hits < len(samples) * 0.05
+    assert len(set(samples)) > 20
+
+    # Nothing of the cropped-off lower part may spill below the frame.
+    below = [_pixel_rgb(img, x, y1 + 3) for x in range(x0 + 4, x1 - 4, 7)]
+    assert all(rgb == (255, 255, 255) for rgb in below)
+
+
+def test_bitmap_bearing_wmf_picture_renders_bitmap(qapp: QApplication) -> None:
+    slide, pres = _picture_slide(_bitmap_wmf((0, 0, 255)), crop=None)  # BGR -> red
+    img = _render_canvas_view_offscreen(SlideScene(slide, pres), 960, 540)
+    r, g, b = _pixel_rgb(img, 300, 200)
+    assert r > 200 and g < 40 and b < 40
+
+
+def test_png_picture_bottom_crop_shows_only_top_half(qapp: QApplication) -> None:
+    from PySide6.QtCore import QBuffer, QIODevice
+    from PySide6.QtGui import QColor
+
+    src = QImage(100, 100, QImage.Format.Format_RGB32)
+    src.fill(QColor(0, 0, 255))
+    p = QPainter(src)
+    p.fillRect(0, 50, 100, 50, QColor(0, 200, 0))
+    p.end()
+    buf = QBuffer()
+    buf.open(QIODevice.OpenModeFlag.WriteOnly)
+    src.save(buf, "PNG")
+    png = bytes(buf.data())
+
+    slide, pres = _picture_slide(png, crop={"l": 0.0, "t": 0.0, "r": 0.0, "b": 0.5})
+    img = _render_canvas_view_offscreen(SlideScene(slide, pres), 960, 540)
+    for y in (110, 200, 290):
+        r, g, b = _pixel_rgb(img, 300, y)
+        assert b > 200 and g < 40, (y, r, g, b)
+    assert _pixel_rgb(img, 300, 304) == (255, 255, 255)
+
+
+def test_corrupt_metafile_picture_falls_back_to_placeholder(qapp: QApplication) -> None:
+    import struct
+
+    truncated_emf = struct.pack("<II", 1, 88) + b"\x00" * 32 + b" EMF" + b"\x00" * 8
+    truncated_wmf = struct.pack("<I", 0x9AC6CDD7) + b"\x00" * 30
+    for junk in (truncated_emf, truncated_wmf, b"not an image" * 4):
+        slide, pres = _picture_slide(junk, crop=None)
+        img = _render_canvas_view_offscreen(SlideScene(slide, pres), 960, 540)
+        assert _pixel_rgb(img, 300, 200) == _PLACEHOLDER_RGB
