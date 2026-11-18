@@ -323,8 +323,16 @@ def merge_r_props(base: RunProperties, over: RunProperties | None) -> RunPropert
         res.highlight = over.highlight
     if over.strike:
         res.strike = True
+        res.strike_off = False
+    elif over.strike_off:
+        res.strike = False
+        res.strike_off = True
     if over.dstrike:
         res.dstrike = True
+        res.dstrike_off = False
+    elif over.dstrike_off:
+        res.dstrike = False
+        res.dstrike_off = True
     if over.caps:
         res.caps = True
     if over.small_caps:

@@ -283,6 +283,10 @@ class RunProperties:
     font_explicit: bool = field(default=False, repr=False, compare=False)
     font_ea_explicit: bool = field(default=False, repr=False, compare=False)
     font_cs_explicit: bool = field(default=False, repr=False, compare=False)
+    # True when strike is explicitly off, so the run clears a strike inherited from a style.
+    # These take part in equality so normalize() keeps such runs apart from unset neighbors.
+    strike_off: bool = field(default=False, repr=False)
+    dstrike_off: bool = field(default=False, repr=False)
 
     @property
     def bold(self) -> bool:
