@@ -49,7 +49,7 @@ class ChartPainter:
 
         # 1. Background & Border
         if chart.bg:
-            bg_col = resolve_color(chart.bg.get("c"), "#FFFFFF")
+            bg_col = resolve_color(chart.bg, "#FFFFFF")
             painter.setBrush(QBrush(bg_col))
         else:
             painter.setBrush(Qt.BrushStyle.NoBrush)
