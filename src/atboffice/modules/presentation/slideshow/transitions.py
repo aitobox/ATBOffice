@@ -23,6 +23,7 @@ from atboffice.modules.presentation.models.slide import Slide, Transition
 from atboffice.modules.presentation.models.text import TextBody
 from atboffice.modules.presentation.views.background_renderer import paint_fill_rect
 from atboffice.modules.presentation.views.geometry_helper import create_shape_path
+from atboffice.modules.presentation.views.picture_painter import paint_picture_shape
 
 if TYPE_CHECKING:
     from atboffice.modules.presentation.models.presentation import Presentation
@@ -272,6 +273,8 @@ def render_slide_to_image(
                 if d_sh.w <= 0 or d_sh.h <= 0:
                     continue
                 d_rect = QRectF(d_sh.x * sx, d_sh.y * sy, d_sh.w * sx, d_sh.h * sy)
+                if paint_picture_shape(painter, d_sh, d_rect, presentation, sx):
+                    continue
                 if d_sh.fill and d_sh.fill.type == "solid":
                     painter.fillRect(d_rect, QColor(d_sh.fill.color))
                 if d_sh.line and d_sh.line.width > 0:
@@ -372,6 +375,8 @@ def render_slide_to_image(
             if sh.type == "group" and sh.kids:
                 for kid in sh.kids:
                     k_rect = QRectF(kid.x * sx, kid.y * sy, kid.w * sx, kid.h * sy)
+                    if paint_picture_shape(painter, kid, k_rect, presentation, sx):
+                        continue
                     if kid.fill and kid.fill.type == "solid":
                         painter.fillRect(k_rect, QColor(kid.fill.color))
                     if kid.line and kid.line.width > 0:
@@ -413,6 +418,11 @@ def render_slide_to_image(
                 painter.translate(-rect.width() / 2.0, -rect.height() / 2.0)
             else:
                 painter.translate(rect.topLeft())
+
+            local_rect = QRectF(0.0, 0.0, rect.width(), rect.height())
+            if paint_picture_shape(painter, sh, local_rect, presentation, sx):
+                painter.restore()
+                continue
 
             # Fill
             if sh.fill and sh.fill.type == "solid":
