@@ -115,7 +115,6 @@ def build_prompt_body(text_body: TextBody | None, ph_type: str | None) -> TextBo
     return dataclasses.replace(text_body, paragraphs=paragraphs, prompt_run=None)
 
 
-
 def _decode_picture_bytes(data: bytes) -> QImage | None:
     """Decode picture bytes, rasterizing WMF/EMF metafiles that Qt cannot read.
 
@@ -133,6 +132,7 @@ def _decode_picture_bytes(data: bytes) -> QImage | None:
         if qimg is not None and not qimg.isNull():
             return qimg
     return None
+
 
 class HandleType:
     NW = "nw"

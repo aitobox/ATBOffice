@@ -351,7 +351,8 @@ class WMFParser:
                         ext_pal=s.palette,
                     )
                     rop = struct.unpack_from("<I", data, payload_off)[0]
-                    # MS-WMF 2.3.1.3.1: SrcHeight, SrcWidth, YSrc, XSrc, DestHeight, DestWidth, yDst, xDst
+                    # MS-WMF field order: SrcHeight, SrcWidth, YSrc, XSrc,
+                    # DestHeight, DestWidth, yDst, xDst
                     src_h, src_w, src_y, src_x = struct.unpack_from("<hhhh", data, payload_off + 6)
                     dst_h, dst_w, dst_y, dst_x = struct.unpack_from("<hhhh", data, payload_off + 14)
                     player.draw_blit(
@@ -368,7 +369,7 @@ class WMFParser:
                             ext_pal=s.palette,
                         )
                         rop = struct.unpack_from("<I", data, payload_off)[0]
-                        # MS-WMF 2.3.1.3.1: SrcHeight, SrcWidth, YSrc, XSrc, DestHeight, ...
+                        # MS-WMF field order: SrcHeight, SrcWidth, YSrc, XSrc, DestHeight, ...
                         src_h, src_w, src_y, src_x = struct.unpack_from(
                             "<hhhh", data, payload_off + 4
                         )

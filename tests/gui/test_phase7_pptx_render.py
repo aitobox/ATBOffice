@@ -380,7 +380,16 @@ def _picture_slide(media_bytes: bytes, crop: dict[str, float] | None):
     pres.props["_media_map"] = {"ppt/media/pic.bin": media_bytes}
     slide = Slide(id="s_pic", layout="blank")
     slide.add_shape(
-        Shape(id="pic", type="image", x=100, y=100, w=400, h=200, media="ppt/media/pic.bin", crop=crop)
+        Shape(
+            id="pic",
+            type="image",
+            x=100,
+            y=100,
+            w=400,
+            h=200,
+            media="ppt/media/pic.bin",
+            crop=crop,
+        )
     )
     pres.slides.append(slide)
     return slide, pres
@@ -402,9 +411,7 @@ def test_emf_picture_in_wmf_part_renders_with_bottom_crop(qapp: QApplication) ->
     x0, y0 = int(pic.x), int(pic.y)
     x1, y1 = int(pic.x + pic.w), int(pic.y + pic.h)
     samples = [
-        _pixel_rgb(img, x, y)
-        for x in range(x0 + 4, x1 - 4, 9)
-        for y in range(y0 + 4, y1 - 4, 9)
+        _pixel_rgb(img, x, y) for x in range(x0 + 4, x1 - 4, 9) for y in range(y0 + 4, y1 - 4, 9)
     ]
     placeholder_hits = sum(1 for rgb in samples if rgb == _PLACEHOLDER_RGB)
     assert placeholder_hits < len(samples) * 0.05
