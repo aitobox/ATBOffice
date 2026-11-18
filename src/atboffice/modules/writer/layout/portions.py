@@ -679,6 +679,7 @@ def decompose_paragraph_to_portions(
     _fn_seq: list[int] = [0]
 
     # Numbering & Bullet Portion Synthesis
+    # Markers are not document text: they occupy no model characters (length=0).
     num = getattr(p_pr, "num", None)
     if (
         num is not None
@@ -724,11 +725,10 @@ def decompose_paragraph_to_portions(
                         color=color,
                         counts_for_height=True,
                         char_offset=0,
-                        length=1,
+                        length=0,
                         data=pic_item,
                     )
                 )
-                char_offset += 1
             elif p.label:
                 glyph = p.label
                 w_glyph = measure_text_width(glyph, font_s, font_f)
@@ -745,10 +745,9 @@ def decompose_paragraph_to_portions(
                         color=color,
                         counts_for_height=True,
                         char_offset=0,
-                        length=len(glyph),
+                        length=0,
                     )
                 )
-                char_offset += len(glyph)
 
             # Suffix tab or space
             if pic_bullet or p.label:
@@ -764,11 +763,10 @@ def decompose_paragraph_to_portions(
                             font_size=font_s,
                             font_family=font_f,
                             counts_for_height=False,
-                            char_offset=char_offset,
-                            length=1,
+                            char_offset=0,
+                            length=0,
                         )
                     )
-                    char_offset += 1
                 elif suff == "space":
                     sp_w = measure_text_width(" ", font_s, font_f)
                     b_ascent, b_descent = compute_font_metrics(font_s, font_f)
@@ -782,11 +780,10 @@ def decompose_paragraph_to_portions(
                             font_size=font_s,
                             font_family=font_f,
                             counts_for_height=False,
-                            char_offset=char_offset,
-                            length=1,
+                            char_offset=0,
+                            length=0,
                         )
                     )
-                    char_offset += 1
 
     for item in p.runs:
         r_pr = resolve_r_props(d, p, item)
