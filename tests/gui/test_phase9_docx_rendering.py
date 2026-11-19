@@ -14,8 +14,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
 from PySide6.QtCore import QPoint
-from PySide6.QtGui import QImage, QPainter
+from PySide6.QtGui import QFontInfo, QFontMetricsF, QImage, QPainter
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -299,3 +300,36 @@ def test_canvas_view_comment_gutter_and_justified_render(qapp: QApplication) -> 
     finally:
         painter.end()
     assert not is_blank_canvas(img)
+
+
+def test_ieee_heading_measurement_and_painting_parity(qapp: QApplication) -> None:
+    """IEEE title uses the same font metrics and effective width for layout and painting (#415)."""
+    fixture = DOCX_DIR / "libreoffice__tdf105035_framePrB.docx"
+    doc = read_docx(fixture.read_bytes())
+    reindex(doc)
+
+    view = WriterCanvasView(doc=doc)
+    page = view.pagination.pages[0]
+    sect = page.section
+    title_box = page.float_boxes[0]
+
+    assert len(title_box.lines) == 2
+    assert title_box.x >= sect.ml
+    assert title_box.x + title_box.w <= sect.pg_w - sect.mr
+
+    for line in title_box.lines:
+        trimmed = list(line.portions)
+        while trimmed and trimmed[-1].type == PortionType.BLANK:
+            trimmed.pop()
+        painted_w_px = 0.0
+        for po in trimmed:
+            font, _ = view._build_portion_font(po)
+            resolved_family = QFontInfo(font).family()
+            assert resolved_family in ("Times New Roman", "Tinos", "Liberation Serif")
+            painted_w_px += QFontMetricsF(font).horizontalAdvance(po.text)
+        painted_w_pt = painted_w_px / (view.pt_to_px_ratio * view._zoom)
+        assert painted_w_pt == pytest.approx(line.width, rel=0.02)
+        assert painted_w_pt <= title_box.w
+        left_pt = title_box.x + (title_box.w - painted_w_pt) / 2.0
+        assert left_pt >= sect.ml
+        assert left_pt + painted_w_pt <= sect.pg_w - sect.mr

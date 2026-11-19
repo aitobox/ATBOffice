@@ -1,9 +1,9 @@
 """Bundled metric-compatible fonts and Office-face substitutions.
 
-Port of the original's ``public/fonts`` + ``common/core.js`` font stacks: Carlito (Calibri) and
-Caladea (Cambria) ship with the app under the SIL OFL; Arial and Times New Roman fall back to the
-Arimo/Tinos or Liberation faces when the computer has them. Each substitution is only installed
-when the Office face itself is missing, so a real Calibri is always preferred.
+Port of the original's ``public/fonts`` + ``common/core.js`` font stacks: Carlito (Calibri),
+Caladea (Cambria), and Tinos (Times New Roman) ship with the app under the SIL OFL; Arial falls
+back to Arimo or Liberation Sans when available. Each substitution is only installed when the
+Office face itself is missing, so a real Office font is always preferred.
 """
 
 from __future__ import annotations

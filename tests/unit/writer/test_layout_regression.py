@@ -454,3 +454,59 @@ class TestInheritedListNumbering:
         offset = CaretController._binary_search_char_offset(None, marker, 0.0, marker.width)
 
         assert offset == 0
+
+
+class TestIEEEHeadingFrameWrapping:
+    """IEEE title frame wraps in two lines inside the page body with stable metrics (#415)."""
+
+    FIXTURE = Path(__file__).parents[2] / "docs/word/docx/libreoffice__tdf105035_framePrB.docx"
+
+    def test_ieee_heading_wraps_in_two_lines_inside_page_body(self) -> None:
+        doc = read_docx(self.FIXTURE.read_bytes())
+        res = paginate_document(doc)
+        page = res.pages[0]
+        sect = page.section
+
+        assert len(page.float_boxes) >= 1
+        title_box = page.float_boxes[0]
+        assert title_box.w == pytest.approx(468.0, abs=0.1)
+        assert title_box.x >= sect.ml
+        assert title_box.x + title_box.w <= sect.pg_w - sect.mr
+
+        assert len(title_box.lines) == 2
+        line_texts = [
+            "".join(po.text for po in line.portions).strip() for line in title_box.lines
+        ]
+        assert line_texts == [
+            "Preparation of Papers for IEEE TRANSACTIONS",
+            "and JOURNALS (November 2012)",
+        ]
+
+        for line in title_box.lines:
+            assert 0.0 < line.width <= title_box.w
+            assert line.indent_left >= 0.0
+            assert title_box.x + line.indent_left >= sect.ml
+            assert title_box.x + line.indent_left + line.width <= sect.pg_w - sect.mr
+            for po in line.portions:
+                if po.text.strip():
+                    assert po.font_family == "Times New Roman"
+
+    def test_ieee_heading_metrics_are_stable_without_gui(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from atboffice.modules.writer.layout import portions
+
+        doc = read_docx(self.FIXTURE.read_bytes())
+        gui_box = paginate_document(doc).pages[0].float_boxes[0]
+        gui_widths = [line.width for line in gui_box.lines]
+
+        monkeypatch.setattr(portions, "_em_metrics", lambda *_a, **_kw: None)
+        headless_box = paginate_document(doc).pages[0].float_boxes[0]
+        headless_texts = [
+            "".join(po.text for po in line.portions).strip() for line in headless_box.lines
+        ]
+        assert headless_texts == [
+            "Preparation of Papers for IEEE TRANSACTIONS",
+            "and JOURNALS (November 2012)",
+        ]
+        assert [line.width for line in headless_box.lines] == pytest.approx(gui_widths, abs=0.5)
