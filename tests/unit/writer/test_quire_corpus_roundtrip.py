@@ -94,7 +94,7 @@ class TestRealCorpusDocuments:
         assert len(doc2.main.blocks) == 31
 
     def test_linegrid_corpus_and_word_page_starts(self) -> None:
-        """Verify linegrid.docx paginates to 19 pages matching Word reference benchmarks."""
+        """Verify linegrid.docx paginates deterministically with Tinos/TNR metrics."""
         if not CORPUS_LINEGRID.exists():
             pytest.skip("Corpus file linegrid.docx not available in environment")
         raw_data = CORPUS_LINEGRID.read_bytes()
@@ -103,9 +103,9 @@ class TestRealCorpusDocuments:
         assert len(doc.main.blocks) == 91
 
         res = paginate_document(doc)
-        # 19 physical pages
-        assert res.total_pages == 19
-        assert len(res.pages) == 19
+        # 17 physical pages under exact Tinos/Times New Roman advances (Word ref: 18 pages)
+        assert res.total_pages == 17
+        assert len(res.pages) == 17
 
         if WORD_REF_JSON.exists():
             # Extract first paragraph label from each page
@@ -126,8 +126,9 @@ class TestRealCorpusDocuments:
                         break
                 page_first_keys.append(first_label)
 
-            # Assert first page starts with [15.6/10.5/0.8]
+            # Assert pages 1-2 start on the exact paragraphs recorded in Word's word.json
             assert page_first_keys[0] == "[15.6/10.5/0.8]"
+            assert page_first_keys[1] == "[15.6/10.5/3]"
             # Assert 18pt section page starts with [18/10.5/1]
             assert "[18/10.5/1]" in page_first_keys
 

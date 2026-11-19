@@ -156,6 +156,9 @@ class WriterCanvasView(QAbstractScrollArea):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        from atboffice.utils.font_registry import register_bundled_fonts
+
+        register_bundled_fonts()
         self.view_mode: ViewMode = ViewMode.PRINT
         self.doc: Document = doc or Document()
         if not self.doc.main.blocks:

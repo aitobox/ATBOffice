@@ -41,13 +41,14 @@ from atboffice.utils.font_metrics import (
     compute_font_metrics as calibrated_font_metrics,
 )
 from atboffice.utils.font_metrics import (
+    get_calibrated_char_em,
+    normalize_font_key,
+)
+from atboffice.utils.font_metrics import (
     get_line_factor as calibrated_line_factor,
 )
 from atboffice.utils.font_metrics import (
     get_space_em as calibrated_space_em,
-)
-from atboffice.utils.font_metrics import (
-    normalize_font_key,
 )
 
 # ---------------------------------------------------------------------------
@@ -529,6 +530,10 @@ _BUNDLED_METRICS = {
     "carlito": "Carlito",
     "cambria": "Caladea",
     "caladea": "Caladea",
+    "times new roman": "Tinos",
+    "times": "Tinos",
+    "tinos": "Tinos",
+    "liberation serif": "Tinos",
 }
 
 
@@ -538,7 +543,7 @@ def _em_metrics(font_family: str, bold: bool = False, italic: bool = False) -> A
     None when the face has no bundled stand-in or no GUI application exists. Advances divided
     by 1000 are em fractions, independent of screen DPI and hinting.
     """
-    bundled = _BUNDLED_METRICS.get((font_family or "").strip().lower())
+    bundled = _BUNDLED_METRICS.get(get_font_key(font_family))
     if bundled is None:
         return None
     key = (bundled, bool(bold), bool(italic))
@@ -578,6 +583,9 @@ def measure_char_width(
     fm = _em_metrics(font_family, bold, italic)
     if fm is not None:
         return fm.horizontalAdvance(ch) * font_size / _EM_PX
+    calibrated_em = get_calibrated_char_em(ch, font_family, bold=bold, italic=italic)
+    if calibrated_em is not None:
+        return font_size * calibrated_em
     if ch in (" ", "\u00a0"):
         return font_size * get_space_em(font_family)
     # Proportional Latin widths

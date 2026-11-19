@@ -1,9 +1,14 @@
-Fonts in this folder: TrueType files converted (unchanged glyph data) from the
-WOFF2 copies of https://github.com/google/fonts/tree/51303ca9e8ac9dcea7b12d307ba568fd0e6fcfca/ofl
-(carlito, caladea). Carlito stands in for Calibri, Caladea for Cambria.
+Fonts in this folder:
+- Carlito and Caladea: TrueType files converted (unchanged glyph data) from the
+  WOFF2 copies of https://github.com/google/fonts/tree/51303ca9e8ac9dcea7b12d307ba568fd0e6fcfca/ofl
+  (carlito, caladea). Carlito stands in for Calibri, Caladea for Cambria.
+- Tinos: unmodified TrueType files from
+  https://github.com/google/fonts/tree/84b6886414da172f80f966b3789c8271d39f3578/ofl/tinos.
+  Tinos stands in for Times New Roman.
 
 Carlito: Copyright 2013 The Carlito Project Authors (https://github.com/googlefonts/carlito), with Reserved Font Name "Carlito"
 Caladea: Copyright 2012 The Caladea Project Authors (https://github.com/huertatipografica/Caladea)
+Tinos: Copyright 2026 The Tinos Project Authors (https://github.com/googlefonts/tinos)
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:

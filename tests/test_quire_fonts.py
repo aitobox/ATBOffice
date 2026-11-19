@@ -144,14 +144,20 @@ def test_bundled_fonts_registered(qapp) -> None:
     families = QFontDatabase.families()
     assert "Carlito" in families
     assert "Caladea" in families
-    styles = QFontDatabase.styles("Carlito")
-    assert {"Regular", "Bold", "Italic", "Bold Italic"} <= set(styles)
+    assert "Tinos" in families
+    for family in ("Carlito", "Tinos"):
+        styles = QFontDatabase.styles(family)
+        assert {"Regular", "Bold", "Italic", "Bold Italic"} <= set(styles)
 
 
 def test_office_faces_map_to_metric_compatible_substitutes(qapp) -> None:
     register_bundled_fonts()
     families = set(QFontDatabase.families())
-    for office, sub in (("Calibri", "Carlito"), ("Cambria", "Caladea")):
+    for office, sub in (
+        ("Calibri", "Carlito"),
+        ("Cambria", "Caladea"),
+        ("Times New Roman", "Tinos"),
+    ):
         resolved = QFontInfo(QFont(office)).family()
         if office in families:
             assert resolved == office
@@ -168,13 +174,14 @@ def test_widths_follow_the_substituted_face(qapp) -> None:
     from atboffice.modules.writer.layout.portions import measure_text_width
 
     register_bundled_fonts()
-    f = QFont("Carlito")
-    f.setPixelSize(1000)
-    expected = QFontMetricsF(f).horizontalAdvance("m") * 11 / 1000
-    assert measure_text_width("m", 11, "Calibri") == pytest.approx(expected, rel=0.02)
+    for office, bundled, size in (("Calibri", "Carlito", 11), ("Times New Roman", "Tinos", 10)):
+        f = QFont(bundled)
+        f.setPixelSize(1000)
+        expected = QFontMetricsF(f).horizontalAdvance("m") * size / 1000
+        assert measure_text_width("m", size, office) == pytest.approx(expected, rel=0.02)
     assert measure_text_width("\t", 11, "Calibri") == 0.0
     # Faces without a bundled stand-in keep the machine-independent estimates.
-    assert measure_text_width("m", 10, "Times New Roman") == pytest.approx(8.5)
+    assert measure_text_width("m", 10, "Garamond") == pytest.approx(8.5)
 
 
 def test_tdf43100_two_row_paragraphs_take_two_lines(qapp) -> None:
