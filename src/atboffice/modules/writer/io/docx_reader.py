@@ -303,6 +303,23 @@ def _parse_border_set(bds_elem: ET.Element, sides: tuple[str, ...]) -> dict[str,
     return out
 
 
+def _parse_cell_mar(mar_elem: ET.Element) -> dict[str, float]:
+    """Parse w:tblCellMar or w:tcMar into a side->pt dict (supporting start/end aliases)."""
+    margins: dict[str, float] = {}
+    for side, tag_names in (
+        ("t", ("top",)),
+        ("b", ("bottom",)),
+        ("l", ("left", "start")),
+        ("r", ("right", "end")),
+    ):
+        for tag_name in tag_names:
+            mar_side = _find_elem(mar_elem, tag_name, W_NAMESPACES)
+            if mar_side is not None:
+                margins[side] = _twips_to_pt(_get_attr(mar_side, "w", "0"))
+                break
+    return margins
+
+
 def _parse_tbl_ind(tbl_pr_elem: ET.Element) -> float | None:
     """Return w:tblInd in points, or None when absent / not an absolute (dxa) width."""
     ind_elem = _find_elem(tbl_pr_elem, "tblInd", W_NAMESPACES)
@@ -563,7 +580,7 @@ class DocxReader:
             if r_pr_elem is not None:
                 r_pr = self._parse_r_pr(r_pr_elem)
 
-            # Table style tblPr: borders and indent (resolved along basedOn at layout time)
+            # Table style tblPr: borders, indent, and cell margins (resolved along basedOn)
             style_tbl_pr: dict[str, Any] = {}
             if s_type == "table":
                 st_tbl_pr_elem = _find_elem(style_elem, "tblPr", W_NAMESPACES)
@@ -574,6 +591,11 @@ class DocxReader:
                     st_ind = _parse_tbl_ind(st_tbl_pr_elem)
                     if st_ind is not None:
                         style_tbl_pr["ind"] = st_ind
+                    st_mar_elem = _find_elem(st_tbl_pr_elem, "tblCellMar", W_NAMESPACES)
+                    if st_mar_elem is not None:
+                        st_mar = _parse_cell_mar(st_mar_elem)
+                        if st_mar:
+                            style_tbl_pr["cell_mar"] = st_mar
 
             styles[s_id] = Style(
                 id=s_id,
@@ -1204,10 +1226,13 @@ class DocxReader:
             elif tag == "bidi":
                 p_pr.bidi = _bool_val(child, True)
             elif tag == "spacing":
-                b = _twips_to_pt(_get_attr(child, "before"))
-                a = _twips_to_pt(_get_attr(child, "after"))
-                rule = _get_attr(child, "lineRule", "auto")
+                before_attr = _get_attr(child, "before")
+                after_attr = _get_attr(child, "after")
+                rule_attr = _get_attr(child, "lineRule")
                 line_val = _get_attr(child, "line")
+                b = _twips_to_pt(before_attr)
+                a = _twips_to_pt(after_attr)
+                rule = rule_attr if rule_attr is not None else "auto"
                 if line_val is not None:
                     line_str = str(line_val).strip()
                     if line_str.endswith(("pt", "in")):
@@ -1228,8 +1253,10 @@ class DocxReader:
                     line = 1.0
                 b_elem = _find_elem(child, "beforeAutospacing", W_NAMESPACES)
                 a_elem = _find_elem(child, "afterAutospacing", W_NAMESPACES)
-                b_auto = _bool_val(b_elem, False) or _get_attr(child, "beforeAutospacing") == "1"
-                a_auto = _bool_val(a_elem, False) or _get_attr(child, "afterAutospacing") == "1"
+                b_auto_attr = _get_attr(child, "beforeAutospacing")
+                a_auto_attr = _get_attr(child, "afterAutospacing")
+                b_auto = _bool_val(b_elem, False) or b_auto_attr in ("1", "true", "on")
+                a_auto = _bool_val(a_elem, False) or a_auto_attr in ("1", "true", "on")
                 p_pr.sp = SpacingProperties(
                     before=b,
                     after=a,
@@ -1237,6 +1264,12 @@ class DocxReader:
                     line_rule=rule,
                     before_auto=b_auto,
                     after_auto=a_auto,
+                    before_explicit=before_attr is not None,
+                    after_explicit=after_attr is not None,
+                    line_explicit=line_val is not None,
+                    line_rule_explicit=rule_attr is not None or line_val is not None,
+                    before_auto_explicit=b_elem is not None or b_auto_attr is not None,
+                    after_auto_explicit=a_elem is not None or a_auto_attr is not None,
                 )
             elif tag == "ind":
                 ind_left = _twips_to_pt(_get_attr(child, "left") or _get_attr(child, "start"))
@@ -1422,18 +1455,10 @@ class DocxReader:
             # Table Cell Margins (w:tblCellMar)
             tbl_cell_mar_elem = _find_elem(tbl_pr_elem, "tblCellMar", W_NAMESPACES)
             if tbl_cell_mar_elem is not None:
-                cell_mar: dict[str, float] = {}
-                for side, tag_name in (
-                    ("t", "top"),
-                    ("b", "bottom"),
-                    ("l", "left"),
-                    ("r", "right"),
-                ):
-                    mar_side = _find_elem(tbl_cell_mar_elem, tag_name, W_NAMESPACES)
-                    if mar_side is not None:
-                        cell_mar[side] = _twips_to_pt(_get_attr(mar_side, "w", "0"))
+                cell_mar = _parse_cell_mar(tbl_cell_mar_elem)
                 if cell_mar:
                     tbl_pr.cell_mar = cell_mar
+                    tbl_pr.cell_mar_explicit = True
 
             # Table Borders (w:tblBorders)
             tbl_bds_elem = _find_elem(tbl_pr_elem, "tblBorders", W_NAMESPACES)
@@ -1469,8 +1494,14 @@ class DocxReader:
                 tr_pr = row.tr_pr
                 h_elem = _find_elem(tr_pr_elem, "trHeight", W_NAMESPACES)
                 if h_elem is not None:
-                    tr_pr.h = _twips_to_pt(_get_attr(h_elem, "val", "0"))
-                    tr_pr.h_rule = _get_attr(h_elem, "hRule", "auto")
+                    h_val = _get_attr(h_elem, "val")
+                    if h_val is not None:
+                        tr_pr.h = _twips_to_pt(h_val)
+                        # ECMA-376 §17.4.80: omitted w:hRule defaults to "atLeast".
+                        tr_pr.h_rule = _get_attr(h_elem, "hRule") or "atLeast"
+                    else:
+                        tr_pr.h = None
+                        tr_pr.h_rule = _get_attr(h_elem, "hRule") or "auto"
                 if _find_elem(tr_pr_elem, "tblHeader", W_NAMESPACES) is not None:
                     tr_pr.tbl_header = True
                 if _find_elem(tr_pr_elem, "cantSplit", W_NAMESPACES) is not None:

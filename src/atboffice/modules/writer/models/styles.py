@@ -260,14 +260,24 @@ def merge_p_props(
         res.ind.first_line = over.ind.first_line
 
     # Spacing
-    if over.sp.before != 0.0:
+    if over.sp.before != 0.0 or getattr(over.sp, "before_explicit", False):
         res.sp.before = over.sp.before
-    if over.sp.after != 0.0:
+        res.sp.before_explicit = True
+    if over.sp.after != 0.0 or getattr(over.sp, "after_explicit", False):
         res.sp.after = over.sp.after
-    if over.sp.line != 1.0:
+        res.sp.after_explicit = True
+    if over.sp.line != 1.0 or getattr(over.sp, "line_explicit", False):
         res.sp.line = over.sp.line
-    if over.sp.line_rule != "auto":
+        res.sp.line_explicit = True
+    if over.sp.line_rule != "auto" or getattr(over.sp, "line_rule_explicit", False):
         res.sp.line_rule = over.sp.line_rule
+        res.sp.line_rule_explicit = True
+    if over.sp.before_auto or getattr(over.sp, "before_auto_explicit", False):
+        res.sp.before_auto = over.sp.before_auto
+        res.sp.before_auto_explicit = True
+    if over.sp.after_auto or getattr(over.sp, "after_auto_explicit", False):
+        res.sp.after_auto = over.sp.after_auto
+        res.sp.after_auto_explicit = True
 
     # Tabs
     if over.tabs:
@@ -347,15 +357,81 @@ def merge_r_props(base: RunProperties, over: RunProperties | None) -> RunPropert
     return res
 
 
+def _default_style_id(doc: Any, style_type: str) -> str:
+    """Return the document's default style ID for a given style type."""
+    styles = getattr(doc, "styles", {}) or {}
+    defaults = [
+        s
+        for s in styles.values()
+        if getattr(s, "style_type", "") == style_type and getattr(s, "is_default", False)
+    ]
+    defaults.sort(key=lambda s: bool(getattr(s, "builtin", True)))
+    if defaults:
+        return defaults[0].id
+    return "Normal" if style_type == "paragraph" else "TableNormal"
+
+
+def _is_default_para_style(doc: Any, sid: str) -> bool:
+    """Return True if sid is absent or matches the document's default paragraph style."""
+    styles = getattr(doc, "styles", {}) or {}
+    return sid not in styles or sid == _default_style_id(doc, "paragraph")
+
+
+def _extract_tbl_context(
+    context: Any,
+) -> tuple[ParagraphProperties | None, RunProperties | None]:
+    """Extract optional table-style (p_pr, r_pr) from a layout/style context."""
+    if not context:
+        return None, None
+    if isinstance(context, dict):
+        return context.get("tbl_p_pr"), context.get("tbl_r_pr")
+    return getattr(context, "tbl_p_pr", None), getattr(context, "tbl_r_pr", None)
+
+
 def resolve_p_props(doc: Any, para: Any, context: Any = None) -> ParagraphProperties:
     """Resolve full cascading paragraph properties for a paragraph."""
     defaults = getattr(doc, "defaults", {})
     base = copy.deepcopy(defaults.get("p_pr", ParagraphProperties()))
 
-    # Apply style chain
+    # Apply style chain with Word / LibreOffice table-style precedence:
+    # docDefaults < table style < non-default paragraph style < direct.
+    # For the default paragraph style (e.g. Normal), its own properties sit
+    # below the table style while inherited ancestor properties still win.
     sid = getattr(para.p_pr, "style", "Normal") or "Normal"
-    for s in style_chain(doc, sid):
-        base = merge_p_props(base, s.p_pr)
+    chain = style_chain(doc, sid)
+    tbl_p_pr, _ = _extract_tbl_context(context)
+    if tbl_p_pr is not None:
+        if _is_default_para_style(doc, sid):
+            own = chain[-1].p_pr if chain else None
+            if own is not None:
+                base = merge_p_props(base, own)
+            base = merge_p_props(base, tbl_p_pr)
+            if len(chain) > 1:
+                anc_merged = ParagraphProperties()
+                for anc in chain[:-1]:
+                    anc_merged = merge_p_props(anc_merged, anc.p_pr)
+                # Only ancestor properties NOT overridden by own still inherit over tbl_p_pr.
+                if own is not None:
+                    if own.sp.before != 0.0 or getattr(own.sp, "before_explicit", False):
+                        anc_merged.sp.before = 0.0
+                        anc_merged.sp.before_explicit = False
+                    if own.sp.after != 0.0 or getattr(own.sp, "after_explicit", False):
+                        anc_merged.sp.after = 0.0
+                        anc_merged.sp.after_explicit = False
+                    if own.sp.line != 1.0 or getattr(own.sp, "line_explicit", False):
+                        anc_merged.sp.line = 1.0
+                        anc_merged.sp.line_explicit = False
+                    if own.sp.line_rule != "auto" or getattr(own.sp, "line_rule_explicit", False):
+                        anc_merged.sp.line_rule = "auto"
+                        anc_merged.sp.line_rule_explicit = False
+                base = merge_p_props(base, anc_merged)
+        else:
+            base = merge_p_props(base, tbl_p_pr)
+            for s in chain:
+                base = merge_p_props(base, s.p_pr)
+    else:
+        for s in chain:
+            base = merge_p_props(base, s.p_pr)
 
     # Direct paragraph formatting
     base = merge_p_props(base, getattr(para, "p_pr", None))
@@ -369,10 +445,19 @@ def resolve_r_props(doc: Any, para: Any, item: Any = None, context: Any = None) 
     defaults = getattr(doc, "defaults", {})
     base = copy.deepcopy(defaults.get("r_pr", RunProperties()))
 
-    # Apply paragraph style chain run properties
+    # Apply table style and paragraph style chain run properties
     sid = getattr(para.p_pr, "style", "Normal") or "Normal"
-    for s in style_chain(doc, sid):
-        base = merge_r_props(base, s.r_pr)
+    chain = style_chain(doc, sid)
+    _, tbl_r_pr = _extract_tbl_context(context)
+    if tbl_r_pr is not None:
+        base = merge_r_props(base, tbl_r_pr)
+        for s in chain:
+            base = merge_r_props(base, s.r_pr)
+        if _is_default_para_style(doc, sid) and tbl_r_pr.sz != 12.0:
+            base.sz = tbl_r_pr.sz
+    else:
+        for s in chain:
+            base = merge_r_props(base, s.r_pr)
 
     rp = item.r_pr if item and hasattr(item, "r_pr") else getattr(para, "r_pr", None)
 

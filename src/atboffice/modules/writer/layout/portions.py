@@ -36,7 +36,7 @@ from atboffice.modules.writer.models.omml import OfficeMathItem
 from atboffice.modules.writer.models.properties import (
     SectionProperties,
 )
-from atboffice.modules.writer.models.styles import resolve_p_props, resolve_r_props
+from atboffice.modules.writer.models.styles import merge_r_props, resolve_p_props, resolve_r_props
 from atboffice.utils.font_metrics import (
     compute_font_metrics as calibrated_font_metrics,
 )
@@ -669,11 +669,12 @@ def _norm_underline(r_pr: Any) -> str | None:
 def decompose_paragraph_to_portions(
     p: Paragraph,
     doc: Document | None = None,
+    table_context: dict[str, Any] | None = None,
 ) -> list[Portion]:
     """Decompose a Paragraph into atomic portions (Text, Blank, Tab, Break, Graphic)."""
     portions: list[Portion] = []
     d = doc or Document()
-    p_pr = resolve_p_props(d, p)
+    p_pr = resolve_p_props(d, p, context=table_context)
     char_offset = 0
     # Sequential fallback counter for footnote/endnote references whose note_id is "0"
     _fn_seq: list[int] = [0]
@@ -786,7 +787,7 @@ def decompose_paragraph_to_portions(
                     )
 
     for item in p.runs:
-        r_pr = resolve_r_props(d, p, item)
+        r_pr = resolve_r_props(d, p, item, context=table_context)
         font_sz = r_pr.sz
         font_family = r_pr.font
 
@@ -1232,12 +1233,13 @@ def layout_paragraph(
     y_offset: float = 0.0,
     col_left: float = 0.0,
     start_char_offset: int = 0,
+    table_context: dict[str, Any] | None = None,
 ) -> ParagraphLayout:
     """Layout a paragraph into lines with OpenOffice portions and Word typography rules."""
     d = doc or Document()
-    p_pr = resolve_p_props(d, p)
+    p_pr = resolve_p_props(d, p, context=table_context)
     sect = section_props or SectionProperties()
-    portions = decompose_paragraph_to_portions(p, d)
+    portions = decompose_paragraph_to_portions(p, d, table_context=table_context)
     if start_char_offset > 0:
         # Rebuild from source metrics when a continuation enters a different-width
         # column. Already justified portions carry expanded spaces and cannot be reused.
@@ -1287,9 +1289,11 @@ def layout_paragraph(
     cur_line_top = 0.0
 
     # Paragraph mark metrics for empty lines & picture minimum heights
-    mark_r_pr = getattr(p, "mark", None) or getattr(p, "r_pr", None)
-    mark_sz = getattr(mark_r_pr, "sz", 12.0) if mark_r_pr else 12.0
-    mark_font = getattr(mark_r_pr, "font", "Times New Roman") if mark_r_pr else "Times New Roman"
+    mark_r_pr = resolve_r_props(d, p, None, context=table_context)
+    if getattr(p, "mark", None) is not None:
+        mark_r_pr = merge_r_props(mark_r_pr, p.mark)
+    mark_sz = getattr(mark_r_pr, "sz", 12.0) or 12.0
+    mark_font = getattr(mark_r_pr, "font", "Times New Roman") or "Times New Roman"
     mark_ascent, mark_descent = compute_font_metrics(mark_sz, mark_font)
     mark_line_factor = get_line_factor(mark_font)
     mark_natural_height = mark_sz * mark_line_factor

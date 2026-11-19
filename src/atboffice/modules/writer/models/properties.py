@@ -147,6 +147,12 @@ class SpacingProperties:
     line_rule: str = "auto"  # "auto", "exact", "atLeast"
     before_auto: bool = False
     after_auto: bool = False
+    before_explicit: bool = field(default=False, repr=False, compare=False)
+    after_explicit: bool = field(default=False, repr=False, compare=False)
+    line_explicit: bool = field(default=False, repr=False, compare=False)
+    line_rule_explicit: bool = field(default=False, repr=False, compare=False)
+    before_auto_explicit: bool = field(default=False, repr=False, compare=False)
+    after_auto_explicit: bool = field(default=False, repr=False, compare=False)
 
     @property
     def space_before(self) -> float:
@@ -378,6 +384,7 @@ class TableProperties:
     cell_mar: dict[str, float] = field(
         default_factory=lambda: {"t": 0.0, "b": 0.0, "l": 5.4, "r": 5.4}
     )
+    cell_mar_explicit: bool = field(default=False, repr=False, compare=False)
     sdts: list[dict[str, Any]] = field(default_factory=list)
     sdte: list[str] = field(default_factory=list)
 
