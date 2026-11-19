@@ -25,8 +25,11 @@ from atboffice.modules.writer.models.document import (
 )
 from atboffice.modules.writer.models.properties import (
     BorderProperties,
+    ParagraphProperties,
+    RunProperties,
     ShadingProperties,
 )
+from atboffice.modules.writer.models.styles import merge_p_props, merge_r_props
 from atboffice.modules.writer.models.table import table_map
 
 
@@ -148,24 +151,47 @@ def _table_style_chain(doc: Document, table: Table) -> list[Any]:
     return chain
 
 
+_DEFAULT_CELL_MAR: dict[str, float] = {"t": 0.0, "b": 0.0, "l": 5.4, "r": 5.4}
+
+
 def resolve_table_style_props(doc: Document, table: Table) -> dict[str, Any]:
-    """Resolve effective table borders and indent.
+    """Resolve effective table borders, indent, cell margins, and style pPr/rPr.
 
     Style values cascade along ``basedOn``; direct ``w:tblPr`` values override
-    the style per border side, and a direct ``w:tblInd`` overrides the style indent.
+    the style per border side, indent, and cell margin side.
     """
     borders: dict[str, BorderProperties] = {}
     ind = 0.0
+    cell_mar: dict[str, float] = dict(_DEFAULT_CELL_MAR)
+    p_pr = ParagraphProperties()
+    r_pr = RunProperties()
     for st in reversed(_table_style_chain(doc, table)):
         st_tbl_pr = getattr(st, "tbl_pr", None) or {}
         borders.update(st_tbl_pr.get("borders") or {})
         if st_tbl_pr.get("ind") is not None:
             ind = float(st_tbl_pr["ind"])
+        if st_tbl_pr.get("cell_mar"):
+            cell_mar.update(st_tbl_pr["cell_mar"])
+        if getattr(st, "p_pr", None) is not None:
+            p_pr = merge_p_props(p_pr, st.p_pr)
+        if getattr(st, "r_pr", None) is not None:
+            r_pr = merge_r_props(r_pr, st.r_pr)
     borders.update(table.tbl_pr.borders or {})
     direct_ind = getattr(table.tbl_pr, "ind", None)
     if direct_ind is not None:
         ind = float(direct_ind)
-    return {"borders": borders, "ind": ind}
+    direct_mar = table.tbl_pr.cell_mar
+    if direct_mar and (
+        getattr(table.tbl_pr, "cell_mar_explicit", False) or direct_mar != _DEFAULT_CELL_MAR
+    ):
+        cell_mar.update(direct_mar)
+    return {
+        "borders": borders,
+        "ind": ind,
+        "cell_mar": cell_mar,
+        "p_pr": p_pr,
+        "r_pr": r_pr,
+    }
 
 
 def layout_table(
@@ -206,11 +232,12 @@ def layout_table(
         col_xs.append(col_xs[-1] + w)
 
     table_width = col_xs[-1]
-    cell_mar = table.tbl_pr.cell_mar or {"t": 0.0, "b": 0.0, "l": 5.4, "r": 5.4}
+    cell_mar = style_props["cell_mar"]
     mar_l = float(cell_mar.get("l", 5.4))
     mar_r = float(cell_mar.get("r", 5.4))
     mar_t = float(cell_mar.get("t", 0.0))
     mar_b = float(cell_mar.get("b", 0.0))
+    tbl_ctx = {"tbl_p_pr": style_props["p_pr"], "tbl_r_pr": style_props["r_pr"]}
 
     m = table_map(table)
     num_rows = len(table.rows)
@@ -250,6 +277,7 @@ def layout_table(
                         container_width=inner_w,
                         section_props=doc.sect,
                         doc=doc,
+                        table_context=tbl_ctx,
                     )
                     p_layouts.append(playout)
                     items.append(playout)
