@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtGui import QColor
+
 from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
 from atboffice.modules.spreadsheet.models.conditional_format import (
     evaluate_cf_for_cell,
@@ -408,3 +410,69 @@ def test_corpus_cell_value_grid_boundaries_match_reference(qtbot):
     for c in range(5):
         right = grid.device_cell_rect(0, c).right() + 1 - origin.left()
         assert abs(right - 82 * (c + 1)) <= 2, c
+
+
+def _left_edge_colors(view, r: int, c: int) -> set[str]:
+    """Colors on a short horizontal run straddling the left gridline of cell (r, c)."""
+    img = view.grid.grab().toImage()
+    dpr = img.devicePixelRatio() or 1.0
+    rect = view.grid.device_cell_rect(r, c)
+    y = int(rect.center().y() * dpr)
+    return {
+        img.pixelColor(int(x * dpr), y).name()
+        for x in range(rect.left() - 2, rect.left() + 3)
+    }
+
+
+def test_page_layout_form_hides_gridlines_under_filled_column_styles(qtbot):
+    """Issue #417: poi__45540_form_Header.xlsx opens in its stored pageLayout view and
+    every column carries a solid white default style, so the blank form regions (empty
+    rows, columns past the form) show no gridlines, as in the reference."""
+    wb = read_xlsx(XLSX_CORPUS / "poi__45540_form_Header.xlsx")
+    sh = wb.sheets[0]
+    assert sh.view_state.view == "pageLayout"
+    assert sh.view_state.show_grid_lines is True
+    # Row 2 is empty; column Q lies past the form (`<col min=16 max=16384 style=3>`).
+    assert sh.get_cell(1, 3) is None and sh.get_cell(1, 16) is None
+    assert sh.default_fill_at(1, 3) == "#FFFFFF"
+    assert sh.default_fill_at(40, 16) == "#FFFFFF"
+
+    view = SpreadsheetView(workbook=wb)
+    qtbot.addWidget(view)
+    view.resize(1400, 800)
+    view.show()
+    qtbot.waitExposed(view)
+
+    gridline = QColor(view.grid.COLOR_GRIDLINE).name()
+    for r, c in ((1, 3), (1, 16), (5, 17)):
+        assert _left_edge_colors(view, r, c) == {"#ffffff"}, (r, c)
+    assert gridline  # the control test below proves the probe sees gridlines
+
+
+def test_gridlines_kept_without_fill_styles_and_follow_row_style_fill(qtbot):
+    """Control for #417: a sheet with no default fills keeps its gridlines on empty
+    cells; a filled row default style (row precedes column) hides them on that row."""
+    wb = WorkbookModel()
+    sh = wb.sheets[0]
+    sh.set_cell(0, 0, CellData(value="x"))
+    assert sh.default_fill_at(3, 3) is None
+
+    view = SpreadsheetView(workbook=wb)
+    qtbot.addWidget(view)
+    view.resize(900, 600)
+    view.show()
+    qtbot.waitExposed(view)
+
+    gridline = QColor(view.grid.COLOR_GRIDLINE).name()
+    assert gridline in _left_edge_colors(view, 3, 3)
+
+    sh.col_fills.append((2, 4, "#FFFF00"))
+    sh.row_fills[3] = "#FFFFFF"
+    assert sh.default_fill_at(3, 3) == "#FFFFFF"
+    assert sh.default_fill_at(4, 3) == "#FFFF00"
+    view.grid.update()
+    assert _left_edge_colors(view, 3, 3) == {"#ffffff"}
+    # Column C..E filled yellow: the gridline between D and C on row 5 is covered.
+    assert _left_edge_colors(view, 4, 3) == {"#ffff00"}
+    # Outside any styled row/column the gridline stays.
+    assert gridline in _left_edge_colors(view, 6, 7)

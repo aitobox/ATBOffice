@@ -1924,8 +1924,13 @@ class GridViewport(QAbstractScrollArea):
                 if (r, c) in merge_by_cell:
                     continue
                 cell = self.model.get_cell(r, c)
-                # Empty cells inside a table still paint the table style.
-                if cell is None and not (has_tables and self.model.table_at(r, c)):
+                # Empty cells inside a table still paint the table style, and
+                # empty cells under a filled row/column style paint that fill.
+                if (
+                    cell is None
+                    and not (has_tables and self.model.table_at(r, c))
+                    and self._default_fill_at(r, c) is None
+                ):
                     continue
                 col_w = self.geometry_mapper.col_size(c)
                 if col_w <= 0:
@@ -1935,6 +1940,11 @@ class GridViewport(QAbstractScrollArea):
                 items.append((r, c, cell, None, QRect(col_x, row_y, col_w, row_h), cf_res))
 
         return items, merge_by_cell
+
+    def _default_fill_at(self, r: int, c: int) -> str | None:
+        """Row/column default-style fill an empty cell inherits (hides gridlines)."""
+        lookup = getattr(self.model, "default_fill_at", None)
+        return lookup(r, c) if lookup is not None else None
 
     def _default_font_color(self) -> str | None:
         extra = getattr(self.model, "extra", None)
@@ -1970,7 +1980,7 @@ class GridViewport(QAbstractScrollArea):
         bg_col = (
             cf_res.bg_color
             if (cf_res and cf_res.bg_color)
-            else (cell.bg_color if cell is not None else None)
+            else (cell.bg_color if cell is not None else self._default_fill_at(r, c))
         )
         pattern = cell.pattern if cell is not None else None
 

@@ -485,6 +485,20 @@ class SheetDataModel:
         self.dirty: bool = False
         self.extra: dict[str, Any] = {}
         self.code_name: str | None = None
+        # Solid fills inherited by *empty* cells from row/column default styles
+        # (<row s customFormat="1">, <col style>). Stored cells carry their own.
+        self.row_fills: dict[int, str] = {}
+        self.col_fills: list[tuple[int, int, str]] = []
+
+    def default_fill_at(self, r: int, c: int) -> str | None:
+        """Fill an empty cell inherits: row default style first, then column."""
+        fill = self.row_fills.get(r)
+        if fill is not None:
+            return fill
+        for c1, c2, col_fill in reversed(self.col_fills):
+            if c1 <= c <= c2:
+                return col_fill
+        return None
 
     def table_at(self, r: int, c: int) -> Table | None:
         """Return the table covering cell (r, c), if any."""
