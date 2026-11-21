@@ -6073,6 +6073,6 @@
   "另存为": "Enregistrer sous",
   "文件“{name}”已存在。\n是否替换现有文件？": "Un fichier nommé « {name} » existe déjà.\nVoulez-vous le remplacer ?",
   "无法保存文件“{target}”：权限不足，无法写入目标目录或文件。\n{exc}": "Impossible d enregistrer le fichier « {target} » : Permission refusée.\n{exc}",
-  "无法打开文件“{path}”：文件已损坏或格式不兼容。": "Impossible d ouvrir le fichier « {path} » : Le fichier est corrompu ou incompatible.",
-  "无法打开文件“{path}”：文件已损坏或格式不兼容。\n{exc}": "Impossible d ouvrir le fichier « {path} » : Le fichier est corrompu ou incompatible.\n{exc}"
+  "Open Failed": "Échec de l’ouverture",
+  "Cannot open \"{name}\": the file is corrupt or unreadable.": "Impossible d’ouvrir « {name} » : le fichier est endommagé ou illisible."
 }
