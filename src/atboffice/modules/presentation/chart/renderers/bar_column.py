@@ -7,15 +7,42 @@ from PySide6.QtGui import QBrush, QColor, QPainter, QPen
 
 from atboffice.modules.presentation.chart.model import ChartData
 from atboffice.modules.presentation.chart.renderers.common import get_series_color
+from atboffice.modules.presentation.chart.renderers.three_d import draw_box, is_deep
 from atboffice.modules.presentation.chart.scale import format_val, scale
+
+
+def _paint_bar(
+    painter: QPainter,
+    rect: QRectF,
+    col: QColor,
+    dep: tuple[float, float],
+) -> None:
+    """A flat bar, or a box when the chart is seen in 3-D."""
+    if dep == (0.0, 0.0):
+        painter.setPen(QPen(col.darker(110), 0.5))
+        painter.setBrush(QBrush(col))
+        painter.drawRect(rect)
+    else:
+        draw_box(painter, rect, col, dep[0], dep[1])
+
+
+def _draw_order(n_cats: int, n_series: int, deep: bool) -> list[tuple[int, int]]:
+    """(category, series) pairs in paint order; depth rows are painted from the back."""
+    if deep:
+        return [(ci, si) for si in reversed(range(n_series)) for ci in range(n_cats)]
+    return [(ci, si) for ci in range(n_cats) for si in range(n_series)]
 
 
 def draw_columns(
     painter: QPainter,
     chart: ChartData,
     plot_rect: QRectF,
+    dep: tuple[float, float] = (0.0, 0.0),
 ) -> None:
-    """Render Clustered, Stacked, and 100% Stacked Column charts."""
+    """Render Clustered, Stacked, and 100% Stacked Column charts.
+
+    ``dep`` is the 3-D depth offset; ``(0, 0)`` draws flat columns.
+    """
     cats = chart.cats or [""]
     series = chart.series or []
     n_cats = len(cats)
@@ -60,10 +87,10 @@ def draw_columns(
     cat_pad = slot_w * 0.2
     avail_w = slot_w - cat_pad * 2
 
-    for ci in range(n_cats):
-        cat_left = plot_rect.left() + ci * slot_w + cat_pad
+    if is_stacked:
+        for ci in range(n_cats):
+            cat_left = plot_rect.left() + ci * slot_w + cat_pad
 
-        if is_stacked:
             total = 0.0
             if is_pct:
                 for s in series:
@@ -78,8 +105,6 @@ def draw_columns(
             for si, s in enumerate(series):
                 v = s.vals[ci] if ci < len(s.vals) else 0.0
                 col = get_series_color(s, si)
-                painter.setPen(QPen(col.darker(110), 0.5))
-                painter.setBrush(QBrush(col))
 
                 if is_pct:
                     pct = (v / total) * 100.0 if total > 0 else 0.0
@@ -99,42 +124,55 @@ def draw_columns(
                         bar_rect = QRectF(cat_left, cur_neg_y, avail_w, h_px)
                         cur_neg_y += h_px
 
-                painter.drawRect(bar_rect)
+                _paint_bar(painter, bar_rect, col, dep)
                 if chart.labels and bar_rect.height() > 12:
                     lbl_text = f"{v:.1f}%" if is_pct else format_val(v)
                     painter.setPen(QPen(QColor("#FFFFFF")))
                     painter.drawText(bar_rect, int(Qt.AlignmentFlag.AlignCenter), lbl_text)
+        return
+
+    # Clustered: side by side, or one depth row per series for standard 3-D
+    deep = dep != (0.0, 0.0) and is_deep(chart)
+    bar_w = avail_w if deep else avail_w / n_series
+    for ci, si in _draw_order(n_cats, n_series, deep):
+        s = series[si]
+        cat_left = plot_rect.left() + ci * slot_w + cat_pad
+        v = s.vals[ci] if ci < len(s.vals) else 0.0
+        col = get_series_color(s, si)
+
+        bx = cat_left + (0.0 if deep else si * bar_w)
+        y_val = val_to_y(v)
+        by = min(y_val, y_zero)
+        bh = abs(y_val - y_zero)
+        bar_rect = QRectF(bx, by, bar_w, bh)
+        if deep:
+            row = si / n_series
+            bar_rect.translate(dep[0] * row, dep[1] * row)
+            depth = 0.75 / n_series
+            _paint_bar(painter, bar_rect, col, (dep[0] * depth, dep[1] * depth))
         else:
-            bar_w = avail_w / n_series
-            for si, s in enumerate(series):
-                v = s.vals[ci] if ci < len(s.vals) else 0.0
-                col = get_series_color(s, si)
-                painter.setPen(QPen(col.darker(110), 0.5))
-                painter.setBrush(QBrush(col))
+            _paint_bar(painter, bar_rect, col, dep)
 
-                bx = cat_left + si * bar_w
-                y_val = val_to_y(v)
-                by = min(y_val, y_zero)
-                bh = abs(y_val - y_zero)
-                bar_rect = QRectF(bx, by, bar_w, bh)
-                painter.drawRect(bar_rect)
-
-                if chart.labels:
-                    painter.setPen(QPen(QColor("#333333")))
-                    lbl_y = by - 12 if v >= 0 else by + bh + 2
-                    painter.drawText(
-                        QRectF(bx - 10, lbl_y, bar_w + 20, 12),
-                        int(Qt.AlignmentFlag.AlignCenter),
-                        format_val(v),
-                    )
+        if chart.labels:
+            painter.setPen(QPen(QColor("#333333")))
+            lbl_y = bar_rect.top() - 12 if v >= 0 else bar_rect.bottom() + 2
+            painter.drawText(
+                QRectF(bar_rect.left() - 10, lbl_y, bar_w + 20, 12),
+                int(Qt.AlignmentFlag.AlignCenter),
+                format_val(v),
+            )
 
 
 def draw_bars(
     painter: QPainter,
     chart: ChartData,
     plot_rect: QRectF,
+    dep: tuple[float, float] = (0.0, 0.0),
 ) -> None:
-    """Render Clustered, Stacked, and 100% Stacked Bar (Horizontal) charts."""
+    """Render Clustered, Stacked, and 100% Stacked Bar (Horizontal) charts.
+
+    ``dep`` is the 3-D depth offset; ``(0, 0)`` draws flat bars.
+    """
     cats = chart.cats or [""]
     series = chart.series or []
     n_cats = len(cats)
@@ -178,10 +216,11 @@ def draw_bars(
     cat_pad = slot_h * 0.2
     avail_h = slot_h - cat_pad * 2
 
-    for ci in range(n_cats):
-        cat_top = plot_rect.top() + ci * slot_h + cat_pad
+    # Bottom categories first: in 3-D a lower bar's top face sits behind the bar above it
+    if is_stacked:
+        for ci in reversed(range(n_cats)):
+            cat_top = plot_rect.top() + ci * slot_h + cat_pad
 
-        if is_stacked:
             total = 0.0
             if is_pct:
                 for s in series:
@@ -196,8 +235,6 @@ def draw_bars(
             for si, s in enumerate(series):
                 v = s.vals[ci] if ci < len(s.vals) else 0.0
                 col = get_series_color(s, si)
-                painter.setPen(QPen(col.darker(110), 0.5))
-                painter.setBrush(QBrush(col))
 
                 if is_pct:
                     pct = (v / total) * 100.0 if total > 0 else 0.0
@@ -217,18 +254,27 @@ def draw_bars(
                         bar_rect = QRectF(cur_neg_x - w_px, cat_top, w_px, avail_h)
                         cur_neg_x -= w_px
 
-                painter.drawRect(bar_rect)
-        else:
-            bar_h = avail_h / n_series
-            for si, s in enumerate(series):
-                v = s.vals[ci] if ci < len(s.vals) else 0.0
-                col = get_series_color(s, si)
-                painter.setPen(QPen(col.darker(110), 0.5))
-                painter.setBrush(QBrush(col))
+                _paint_bar(painter, bar_rect, col, dep)
+        return
 
-                by = cat_top + si * bar_h
-                x_val = val_to_x(v)
-                bx = min(x_val, x_zero)
-                bw = abs(x_val - x_zero)
-                bar_rect = QRectF(bx, by, bw, bar_h)
-                painter.drawRect(bar_rect)
+    deep = dep != (0.0, 0.0) and is_deep(chart)
+    bar_h = avail_h if deep else avail_h / n_series
+    for ci, si in _draw_order(n_cats, n_series, deep):
+        ci = n_cats - 1 - ci
+        s = series[si]
+        cat_top = plot_rect.top() + ci * slot_h + cat_pad
+        v = s.vals[ci] if ci < len(s.vals) else 0.0
+        col = get_series_color(s, si)
+
+        by = cat_top + (0.0 if deep else si * bar_h)
+        x_val = val_to_x(v)
+        bx = min(x_val, x_zero)
+        bw = abs(x_val - x_zero)
+        bar_rect = QRectF(bx, by, bw, bar_h)
+        if deep:
+            row = si / n_series
+            bar_rect.translate(dep[0] * row, dep[1] * row)
+            depth = 0.75 / n_series
+            _paint_bar(painter, bar_rect, col, (dep[0] * depth, dep[1] * depth))
+        else:
+            _paint_bar(painter, bar_rect, col, dep)

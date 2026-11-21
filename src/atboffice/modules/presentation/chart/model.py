@@ -124,6 +124,8 @@ class ChartData:
     border: dict[str, Any] | None = None
     pie_colors: list[str] = field(default_factory=list)
     embedded_workbook: bytes | None = None
+    # 3-D view of a bar3DChart: {"rotX", "rotY", "depth", "deep"}; None for 2-D
+    view3d: dict[str, Any] | None = None
 
     @classmethod
     def create_sample(cls, kind: str = "col") -> ChartData:
@@ -173,6 +175,8 @@ class ChartData:
             d["pieColors"] = list(self.pie_colors)
         if self.embedded_workbook:
             d["embedded_workbook"] = self.embedded_workbook
+        if self.view3d:
+            d["view3D"] = dict(self.view3d)
         return d
 
     @classmethod
@@ -197,4 +201,5 @@ class ChartData:
             border=copy.deepcopy(data.get("border")),
             pie_colors=list(data.get("pieColors", [])),
             embedded_workbook=data.get("embedded_workbook"),
+            view3d=dict(data["view3D"]) if data.get("view3D") else None,
         )
