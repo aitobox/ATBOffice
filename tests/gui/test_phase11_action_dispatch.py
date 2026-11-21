@@ -8,8 +8,8 @@ import pytest
 from PySide6.QtWidgets import QMainWindow
 
 from atboffice.core.action_registry import ActionRegistry, ActionSpec
-from atboffice.ui.shell.ledger_window import LedgerWindow
 from atboffice.ui.shell.lectern_window import LecternWindow
+from atboffice.ui.shell.ledger_window import LedgerWindow
 from atboffice.ui.shell.mac_menu import MacMenuBar
 from atboffice.ui.shell.quire_window import QuireWindow
 from atboffice.ui.shell.start_center import StartCenterWindow
