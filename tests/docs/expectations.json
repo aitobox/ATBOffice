@@ -1618,18 +1618,18 @@
     "path": "tests/docs/excel/xls/libreoffice__AutoFilter.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "libreoffice",
     "license": "MPL-2.0",
     "sha256": "2f5e9c7608c4619ded6de7b335ec1e97756951f25c9ea234bab90133fac01905",
     "size": 13824,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -1644,18 +1644,18 @@
     "path": "tests/docs/excel/xls/libreoffice__CVE-2010-1246-1.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "corrupt",
     "source": "libreoffice",
     "license": "MPL-2.0",
     "sha256": "2cea48932c91fe651de43cbf04b814c0ea652b93666850a3c1bad6ef2a9626ff",
     "size": 23552,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Malformed legacy XLS stream (no valid workbook BOF record); the XLS reader raises a parse error and open shows a corrupt-file dialog",
     "expectations": {
-      "parse": "rejected_unsupported_format",
+      "parse": "rejected_corrupt",
       "model": "skip",
       "render": "skip",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "corrupt"
     },
     "real_open": {
       "expected_outcome": "rejected",
@@ -1670,18 +1670,18 @@
     "path": "tests/docs/excel/xls/libreoffice__Cumprinc.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "libreoffice",
     "license": "MPL-2.0",
     "sha256": "b7affae1fe390e1b4d9b4409dbbe45779ed9f65cf8438e3957afd3f4ac3d00d5",
     "size": 7680,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -1696,18 +1696,18 @@
     "path": "tests/docs/excel/xls/libreoffice__PPMT.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "libreoffice",
     "license": "MPL-2.0",
     "sha256": "f72cadf790da1ed5abd66419ba40863b62871336e3e33e3e4b5e1d2344ebe3d0",
     "size": 7168,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -1722,18 +1722,18 @@
     "path": "tests/docs/excel/xls/libreoffice__StDevA.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "libreoffice",
     "license": "MPL-2.0",
     "sha256": "26bc1aa28fe44afd55f8a9de9b3e3522434e90b854add42d4727821f4459dcd4",
     "size": 8704,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -1748,18 +1748,18 @@
     "path": "tests/docs/excel/xls/libreoffice__crash-5.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "corrupt",
     "source": "libreoffice",
     "license": "MPL-2.0",
     "sha256": "ea0866ced3f4b3b8c772036b12dd80495659efbe3411621cee212cd04f419a7e",
     "size": 183,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Malformed legacy XLS stream (no valid workbook BOF record); the XLS reader raises a parse error and open shows a corrupt-file dialog",
     "expectations": {
-      "parse": "rejected_unsupported_format",
+      "parse": "rejected_corrupt",
       "model": "skip",
       "render": "skip",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "corrupt"
     },
     "real_open": {
       "expected_outcome": "rejected",
@@ -1774,18 +1774,18 @@
     "path": "tests/docs/excel/xls/libreoffice__ddb.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "libreoffice",
     "license": "MPL-2.0",
     "sha256": "00ffb2718546991415799bf310d085663c7819f3a69ddd5d4ce7a5a19deb8c7e",
     "size": 6656,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -1800,18 +1800,18 @@
     "path": "tests/docs/excel/xls/libreoffice__dsum.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "libreoffice",
     "license": "MPL-2.0",
     "sha256": "044aa4c78ca7a831d2b1b6e14bbcd8182280faf12cdb9ca3f80063ae18473057",
     "size": 31232,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -1826,18 +1826,18 @@
     "path": "tests/docs/excel/xls/libreoffice__pivottable_ext_grouping.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "libreoffice",
     "license": "MPL-2.0",
     "sha256": "6c83c3e8e4619ee6786f10e66898320c3494e352b3389812b4801ae1511e3e02",
     "size": 90624,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -1852,18 +1852,18 @@
     "path": "tests/docs/excel/xls/libreoffice__sqrtpi.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "libreoffice",
     "license": "MPL-2.0",
     "sha256": "6b2b04a62658861add63264be63afc4dda552bcbf0fe960195764bfa3d2ac314",
     "size": 24576,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -1878,18 +1878,18 @@
     "path": "tests/docs/excel/xls/libreoffice__tdf158483.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "libreoffice",
     "license": "MPL-2.0",
     "sha256": "4174ce9db6cf0acf46cf94b2c3116843055120c79ae03dd993eb30808d5e0236",
     "size": 26291,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "SpreadsheetML 2003 XML workbook with a .xls extension; imports through the XML Spreadsheet reader",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -1904,18 +1904,18 @@
     "path": "tests/docs/excel/xls/poi__13796.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "poi",
     "license": "Apache-2.0",
     "sha256": "043684d1184d84420afbe7576dd1a448c39bf80438f3fe5a3e45d81bf642bad3",
     "size": 49152,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -1930,18 +1930,18 @@
     "path": "tests/docs/excel/xls/poi__36947.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "poi",
     "license": "Apache-2.0",
     "sha256": "dc213bea08f35cd6081d6a78d38f92be58880931e1369fe7965937a8267f76e9",
     "size": 142336,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -1956,18 +1956,18 @@
     "path": "tests/docs/excel/xls/poi__49524.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "poi",
     "license": "Apache-2.0",
     "sha256": "ecfbf574b8bd26ebd7987b42039c38b4e8914a3c3d7be505a72742eb7d4b21a2",
     "size": 13824,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -1982,18 +1982,18 @@
     "path": "tests/docs/excel/xls/poi__51535.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "poi",
     "license": "Apache-2.0",
     "sha256": "e8b99584a069b9462e4e4d586a13c2b0c7246b7a353ff098ae7a1189491d7341",
     "size": 41984,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -2008,18 +2008,18 @@
     "path": "tests/docs/excel/xls/poi__53109.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "poi",
     "license": "Apache-2.0",
     "sha256": "55f7125e8809907c22c35581fc2ff1adee411c4037654ceb190e6c495694701a",
     "size": 19456,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -2034,18 +2034,18 @@
     "path": "tests/docs/excel/xls/poi__ContinueRecordProblem.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "poi",
     "license": "Apache-2.0",
     "sha256": "ca91fdd3701ad681356be97ea3db21c5c7d34eced47b8adbb603f23e83c23e4d",
     "size": 64512,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -2060,18 +2060,18 @@
     "path": "tests/docs/excel/xls/poi__EmbeddedChartHeaderTest.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "poi",
     "license": "Apache-2.0",
     "sha256": "964cd5cbd45e13e3a76a7249a502e9589e3ba0f3adcf57ec3a03b072f1ca4978",
     "size": 15360,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -2086,18 +2086,18 @@
     "path": "tests/docs/excel/xls/poi__FormulaRefs.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "poi",
     "license": "Apache-2.0",
     "sha256": "4ad5856035aadace3ee46bfe0ad8e26e8a31f1f39eb67f28e4524a84276976cd",
     "size": 17408,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -2112,18 +2112,18 @@
     "path": "tests/docs/excel/xls/poi__IfNaTestCaseData.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "poi",
     "license": "Apache-2.0",
     "sha256": "809f57c11771f5735af0b4ab371c9527eff52af3f3a83b1ad842466f682555bc",
     "size": 28160,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -2138,18 +2138,18 @@
     "path": "tests/docs/excel/xls/poi__ImaginaryFunctionTestCaseData.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "poi",
     "license": "Apache-2.0",
     "sha256": "d75ca8896f8407543c1065110ae1a170a7e496624cbaaed941f54369ed19a1d6",
     "size": 35840,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -2164,18 +2164,18 @@
     "path": "tests/docs/excel/xls/poi__bug69021.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "poi",
     "license": "Apache-2.0",
     "sha256": "45793abcf2c7d88ffc96cf3ccc6ca2b5926c1582c777e1282aea0203b7aa0249",
     "size": 13824,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -2190,18 +2190,18 @@
     "path": "tests/docs/excel/xls/poi__ex41187-19267.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "poi",
     "license": "Apache-2.0",
     "sha256": "54c637d1fe1e042ae5034abb13c7622775ea17558e0f45ac07e6aef00b0aa23f",
     "size": 5632,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -2216,18 +2216,18 @@
     "path": "tests/docs/excel/xls/poi__poi-fuzz.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "poi",
     "license": "Apache-2.0",
     "sha256": "dc74cb971c25adcd1b31645e849ce00965bc8a72ba0ddac327bba18fec7a1e2f",
     "size": 7680,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
@@ -2242,18 +2242,18 @@
     "path": "tests/docs/excel/xls/poi__tile-range-test.xls",
     "format": "xls",
     "app": "excel",
-    "category": "unsupported_format",
+    "category": "legacy_imported",
     "source": "poi",
     "license": "Apache-2.0",
     "sha256": "c7ac561b8cc509beaa268eff67c4030a126b481634056927544bbe3b6ec499b6",
     "size": 20992,
-    "notes": "Legacy binary XLS 97-2003 format (native parser intentionally out of scope in Phase 7)",
+    "notes": "Legacy binary BIFF8 XLS 97-2003 workbook; imports read-only through the native XLS reader (save as .xlsx to keep edits)",
     "expectations": {
-      "parse": "rejected_unsupported_format",
-      "model": "skip",
-      "render": "skip",
+      "parse": "ok",
+      "model": "ok",
+      "render": "ok",
       "roundtrip": "skip",
-      "expected_status": "unsupported_format"
+      "expected_status": "imported"
     },
     "real_open": {
       "expected_outcome": "imported",
