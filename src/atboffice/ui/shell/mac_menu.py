@@ -19,6 +19,23 @@ def safe_tr(text: str) -> str:
     return core_safe_tr(text)
 
 
+# Menu items that only make sense inside specific editors. Every other app type
+# (including the Start Center and the generic shell) hides them.
+_APP_SPECIFIC_ACTIONS: dict[str, frozenset[str]] = {
+    "view_web": frozenset({"quire"}),
+    "view_print": frozenset({"quire"}),
+    "view_reading": frozenset({"quire"}),
+    "view_outline": frozenset({"quire"}),
+    "view_doc_map": frozenset({"quire"}),
+    "view_thumbnails": frozenset({"quire"}),
+    "tools_word_count": frozenset({"quire"}),
+    "stylesPane": frozenset({"quire"}),
+    "view_page_break": frozenset({"ledger"}),
+    "insert_function": frozenset({"ledger"}),
+    "background": frozenset({"lectern"}),
+}
+
+
 class MacMenuBar(QMenuBar):
     """System menu bar adhering to Apple HIG and Office 2003 9-menu layout."""
 
@@ -84,9 +101,16 @@ class MacMenuBar(QMenuBar):
         self.action_map[aid] = action
         if alias:
             self.action_map[alias] = action
-            self.action_registry._actions[alias] = action
+            self.action_registry.register_alias(alias, aid)
 
         return action
+
+    def _update_app_specific_visibility(self) -> None:
+        """Show editor-specific menu items only inside the editors that support them."""
+        for aid, app_types in _APP_SPECIFIC_ACTIONS.items():
+            action = self.action_map.get(aid)
+            if action is not None:
+                action.setVisible(self.app_type in app_types)
 
     def _update_format_cells_visibility(self) -> None:
         """Update visibility of format cells action and separator based on app context."""
@@ -334,11 +358,6 @@ class MacMenuBar(QMenuBar):
         self._reg_act(menu_picture, "insert_picture", "insert_picture")
         self._reg_act(menu_picture, "insert_wordart", "insert_wordart")
         self._reg_act(menu_picture, "insert_shape", "insert_shape")
-
-        self._reg_act(menu_insert, "insert_clipart", "insert_clipart")
-        self._reg_act(menu_insert, "insert_picture", "insert_picture")
-        self._reg_act(menu_insert, "insert_wordart", "insert_wordart")
-        self._reg_act(menu_insert, "insert_shape", "insert_shape")
         menu_insert.addSeparator()
 
         self._reg_act(menu_insert, "hyperlink", "insert_hyperlink", shortcut=QKeySequence("Ctrl+K"))
@@ -446,25 +465,39 @@ class MacMenuBar(QMenuBar):
         self._reg_act(menu_help, "about", "help_about")
 
     def _bind_window_slots(self, window: QMainWindow | None) -> None:
-        """Bind action signals to target window callback handlers."""
+        """Bind default window callbacks as ActionRegistry handlers.
+
+        The registry's single ``triggered`` connection is the only dispatch path, so a
+        menu or toolbar trigger runs exactly one handler. Defaults are only installed for
+        actions that have no handler yet; a window's own ``set_handler`` call (made after
+        the menu bar is built) replaces the default instead of stacking on top of it.
+        """
         if window is None:
             return
 
+        registry = self.action_registry
+
+        def bind_default(action_key: str, handler: Any) -> None:
+            if action_key not in self.action_map:
+                return
+            spec = registry.get_spec(action_key)
+            if spec is not None and spec.handler is not None:
+                return
+            registry.set_handler(action_key, handler)
+
         def connect_if(action_key: str, attr_name: str) -> None:
-            if action_key in self.action_map and hasattr(window, attr_name):
-                try:
-                    self.action_map[action_key].triggered.connect(
-                        lambda *args, w=window, a=attr_name: getattr(w, a)()
-                    )
-                except Exception:
-                    pass
+            if hasattr(window, attr_name):
+                bind_default(
+                    action_key, lambda w=window, a=attr_name: getattr(w, a)()
+                )
 
         connect_if("file_new", "new_file")
         connect_if("file_open", "open_file_dialog")
         connect_if("file_save", "save_file")
         connect_if("file_save_as", "save_file_as")
-        connect_if("file_print", "print_document")
+        # Prefer the workbook-aware printer when the window provides one.
         connect_if("file_print", "print_workbook")
+        connect_if("file_print", "print_document")
         connect_if("file_print_preview", "print_preview")
         connect_if("file_close", "close")
 
@@ -477,7 +510,6 @@ class MacMenuBar(QMenuBar):
         connect_if("edit_find", "open_find_dialog")
         connect_if("edit_replace", "open_replace_dialog")
         connect_if("edit_format_cells", "format_cells")
-        connect_if("background", "open_background_dialog")
         connect_if("format_background", "open_background_dialog")
 
         connect_if("view_normal", "set_normal_view")
@@ -488,32 +520,18 @@ class MacMenuBar(QMenuBar):
         connect_if("view_zoom_reset", "zoom_reset")
 
         if hasattr(window, "set_theme"):
-            if "theme_luna_blue" in self.action_map:
-                self.action_map["theme_luna_blue"].triggered.connect(
-                    lambda: window.set_theme("blue")
-                )
-            if "theme_luna_silver" in self.action_map:
-                self.action_map["theme_luna_silver"].triggered.connect(
-                    lambda: window.set_theme("silver")
-                )
-            if "theme_luna_olive" in self.action_map:
-                self.action_map["theme_luna_olive"].triggered.connect(
-                    lambda: window.set_theme("olive")
-                )
-            if "theme_classic" in self.action_map:
-                self.action_map["theme_classic"].triggered.connect(
-                    lambda: window.set_theme("classic")
-                )
+            for action_key, theme in (
+                ("theme_luna_blue", "blue"),
+                ("theme_luna_silver", "silver"),
+                ("theme_luna_olive", "olive"),
+                ("theme_classic", "classic"),
+            ):
+                bind_default(action_key, lambda w=window, t=theme: w.set_theme(t))
 
-        if hasattr(window, "show_theme_dialog"):
-            if "theme_selector" in self.action_map:
-                self.action_map["theme_selector"].triggered.connect(
-                    lambda *args, w=window: getattr(w, "show_theme_dialog")()
-                )
+        connect_if("theme_selector", "show_theme_dialog")
 
         connect_if("tools_options", "show_options_dialog")
         connect_if("tools_goal_seek", "open_goal_seek")
-        connect_if("goalSeek", "open_goal_seek")
         connect_if("data_pivottable", "open_pivot_wizard")
         connect_if("insert_function", "open_function_wizard")
         connect_if("insert_clipart", "open_clipart_dialog")
@@ -532,6 +550,7 @@ class MacMenuBar(QMenuBar):
     def retranslate_ui(self) -> None:
         """Translate all menus and actions dynamically."""
         self._update_format_cells_visibility()
+        self._update_app_specific_visibility()
 
         # Top-level menu titles
         if "file" in self.menu_map:
