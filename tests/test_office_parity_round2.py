@@ -134,11 +134,14 @@ def test_default_size_survives_save(tmp_path) -> None:
 
 
 def test_liberation_serif_has_a_serif_substitute(qapp) -> None:
-    from PySide6.QtGui import QFont
+    from PySide6.QtGui import QFont, QFontDatabase
 
     from atboffice.utils.font_registry import register_bundled_fonts
 
     register_bundled_fonts()
+    if "Liberation Serif" in QFontDatabase.families():
+        # The real face is installed (e.g. Linux CI); substitutes apply only when it is missing.
+        return
     subs = [s.lower() for s in QFont.substitutes("Liberation Serif")]
     assert subs, "Liberation Serif should map to Times New Roman / Tinos"
     assert any(s in ("times new roman", "tinos", "times") for s in subs)
