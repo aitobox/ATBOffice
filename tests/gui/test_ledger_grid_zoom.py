@@ -33,7 +33,8 @@ def _grid(qtbot, sheet: SheetDataModel | None = None, w: int = 800, h: int = 500
 
 
 def _mouse(vp: GridViewport, kind, pos: QPoint, buttons=Qt.MouseButton.LeftButton) -> None:
-    button = Qt.MouseButton.LeftButton if kind != QMouseEvent.Type.MouseMove else Qt.MouseButton.NoButton
+    is_move = kind == QMouseEvent.Type.MouseMove
+    button = Qt.MouseButton.NoButton if is_move else Qt.MouseButton.LeftButton
     ev = QMouseEvent(
         kind,
         QPointF(pos),
@@ -175,7 +176,8 @@ def test_column_resize_grab_and_drag_at_zoom(qtbot, z: float) -> None:
 
     _mouse(vp, QMouseEvent.Type.MouseButtonPress, QPoint(edge_x, hdr_y))
     _mouse(vp, QMouseEvent.Type.MouseMove, QPoint(edge_x + 40, hdr_y))
-    _mouse(vp, QMouseEvent.Type.MouseButtonRelease, QPoint(edge_x + 40, hdr_y), Qt.MouseButton.NoButton)
+    end = QPoint(edge_x + 40, hdr_y)
+    _mouse(vp, QMouseEvent.Type.MouseButtonRelease, end, Qt.MouseButton.NoButton)
     # 40 screen pixels are 40 / z sheet pixels.
     assert geo.col_size(1) == pytest.approx(w0 + 40 / z, abs=2)
 
