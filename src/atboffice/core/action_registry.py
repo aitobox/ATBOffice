@@ -54,6 +54,7 @@ class ActionRegistry(QObject):
         self._actions: dict[str, QAction] = {}
         self._specs: dict[str, ActionSpec] = {}
         self._handlers: dict[str, Callable[[], Any]] = {}
+        self._aliases: dict[str, str] = {}
         self._whitelist_actions: dict[str, dict[str, str]] = {}
 
     def register_whitelist_action(
@@ -73,18 +74,46 @@ class ActionRegistry(QObject):
         """Retrieve whitelist metadata for the action."""
         return self._whitelist_actions.get(action_id)
 
+    def resolve_id(self, action_id: str) -> str:
+        """Return the canonical action ID for ``action_id`` (aliases resolve to their target)."""
+        return self._aliases.get(action_id, action_id)
+
+    def register_alias(self, alias: str, canonical: str) -> None:
+        """Make ``alias`` an alternative ID for the canonical action ``canonical``.
+
+        Every lookup, state update and ``set_handler`` call made with the alias then
+        operates on the canonical QAction and ActionSpec, so handlers bound by alias are
+        never silently dropped. A handler stored under the alias before it was registered
+        is migrated to the canonical action when the canonical one has none yet.
+        """
+        canonical = self.resolve_id(canonical)
+        if not alias or alias == canonical:
+            return
+        self._aliases[alias] = canonical
+
+        pending = self._handlers.pop(alias, None)
+        if pending is not None and canonical not in self._handlers:
+            self._handlers[canonical] = pending
+            spec = self._specs.get(canonical)
+            if spec is not None:
+                spec.handler = pending
+
     def register_action(
         self,
         spec: ActionSpec,
         parent: QWidget | None = None,
     ) -> QAction:
         """Register an action spec and return a shared QAction instance."""
-        if spec.id in self._handlers and spec.handler is None:
-            spec.handler = self._handlers[spec.id]
+        canonical = self.resolve_id(spec.id)
+        if spec.handler is None:
+            if canonical in self._handlers:
+                spec.handler = self._handlers[canonical]
+            elif canonical in self._specs and self._specs[canonical].handler is not None:
+                spec.handler = self._specs[canonical].handler
 
-        if spec.id in self._actions:
-            action = self._actions[spec.id]
-            self._specs[spec.id] = spec
+        if canonical in self._actions:
+            action = self._actions[canonical]
+            self._specs[canonical] = spec
             self._apply_spec_to_action(action, spec)
             return action
 
@@ -139,28 +168,29 @@ class ActionRegistry(QObject):
 
     def get_action(self, action_id: str) -> QAction | None:
         """Retrieve the QAction associated with the given ID, if registered."""
-        return self._actions.get(action_id)
+        return self._actions.get(self.resolve_id(action_id))
 
     def get_spec(self, action_id: str) -> ActionSpec | None:
         """Retrieve the ActionSpec associated with the given ID, if registered."""
-        return self._specs.get(action_id)
+        return self._specs.get(self.resolve_id(action_id))
 
     def has_action(self, action_id: str) -> bool:
         """Check whether an action with the given ID is registered."""
-        return action_id in self._actions
+        return self.resolve_id(action_id) in self._actions
 
     def is_enabled(self, action_id: str) -> bool:
         """Return whether the specified action is registered and enabled."""
-        action = self._actions.get(action_id)
+        action = self.get_action(action_id)
         return action.isEnabled() if action is not None else False
 
     def is_checked(self, action_id: str) -> bool:
         """Return whether the specified action is registered and checked."""
-        action = self._actions.get(action_id)
+        action = self.get_action(action_id)
         return action.isChecked() if action is not None else False
 
     def set_enabled(self, action_id: str, enabled: bool) -> None:
         """Update the enabled state of an action across all UI bindings."""
+        action_id = self.resolve_id(action_id)
         action = self._actions.get(action_id)
         if action is not None:
             action.setEnabled(enabled)
@@ -171,6 +201,7 @@ class ActionRegistry(QObject):
 
     def set_checked(self, action_id: str, checked: bool) -> None:
         """Update the checked state of an action across all UI bindings."""
+        action_id = self.resolve_id(action_id)
         action = self._actions.get(action_id)
         if action is not None:
             action.setChecked(checked)
@@ -180,7 +211,12 @@ class ActionRegistry(QObject):
             self.action_state_changed.emit(action_id, action.isEnabled(), checked)
 
     def set_handler(self, action_id: str, handler: Callable[[], Any]) -> None:
-        """Dynamically attach or replace the callback handler for an action."""
+        """Dynamically attach or replace the callback handler for an action.
+
+        The handler replaces (never stacks onto) any previous one, and aliases bind the
+        canonical action.
+        """
+        action_id = self.resolve_id(action_id)
         self._handlers[action_id] = handler
         spec = self._specs.get(action_id)
         if spec is not None:
@@ -188,8 +224,11 @@ class ActionRegistry(QObject):
 
     def trigger_action(self, action_id: str) -> bool:
         """Programmatically trigger an action if registered and enabled."""
+        action_id = self.resolve_id(action_id)
         action = self._actions.get(action_id)
-        if action is not None and action.isEnabled():
+        if action is not None:
+            if not action.isEnabled():
+                return False
             action.trigger()
             return True
         if action_id in self._handlers:

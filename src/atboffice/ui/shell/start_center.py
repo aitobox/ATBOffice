@@ -235,6 +235,7 @@ class StartCenterWindow(BaseOfficeWindow):
         self.menu_bar: MacMenuBar = setup_mac_menu(self)
 
         self._build_ui()
+        self._bind_start_center_actions()
         self.retranslate_ui()
         self.refresh_recent_files()
 
@@ -659,6 +660,46 @@ class StartCenterWindow(BaseOfficeWindow):
             cards_row.addWidget(card)
         cards_row.addStretch(1)
         container_layout.addLayout(cards_row)
+
+    # Menu commands the launcher can execute; every other editor command is disabled.
+    _SUPPORTED_MENU_ACTIONS: frozenset[str] = frozenset(
+        {
+            "new",
+            "open",
+            "close",
+            "tools_options",
+            "theme_luna_blue",
+            "theme_luna_silver",
+            "theme_luna_olive",
+            "theme_classic",
+            "theme_selector",
+            "window_minimize",
+            "window_zoom",
+            "window_bring_all",
+            "help",
+            "help_assistant",
+            "check_updates",
+            "about",
+        }
+    )
+
+    def _bind_start_center_actions(self) -> None:
+        """Bind launcher handlers and cleanly disable editor-only menu commands."""
+        registry = self.menu_bar.action_registry
+        registry.set_handler("new", self._on_nav_templates_clicked)
+        registry.set_handler("open", self.open_file_dialog)
+        registry.set_handler("close", self.close)
+        registry.set_handler("tools_options", self._on_settings_clicked)
+        registry.set_handler("about", self.show_about)
+        registry.set_handler("help", self.show_help)
+
+        reason = safe_tr("启动中心不支持此命令，请先新建或打开一份文档")
+        canonical_ids = {registry.resolve_id(key) for key in self.menu_bar.action_map}
+        for action_id in canonical_ids - self._SUPPORTED_MENU_ACTIONS:
+            spec = registry.get_spec(action_id)
+            if spec is not None:
+                spec.disabled_reason = reason
+            registry.set_enabled(action_id, False)
 
     # -------------------------------------------------------------------------
     # Navigation and Action Slots
