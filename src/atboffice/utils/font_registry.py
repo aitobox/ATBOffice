@@ -20,9 +20,14 @@ FONTS_DIR = Path(__file__).resolve().parent.parent / "resources" / "fonts"
 # Office face → metric-compatible stand-ins, in order of preference.
 SUBSTITUTES: dict[str, tuple[str, ...]] = {
     "Calibri": ("Carlito",),
+    "Calibri Light": ("Carlito",),
     "Cambria": ("Caladea",),
     "Arial": ("Arimo", "Liberation Sans"),
     "Times New Roman": ("Tinos", "Liberation Serif"),
+    # LibreOffice's faces map back to the Office faces they mirror (common/core.js FONT_FALLBACK).
+    "Liberation Sans": ("Arial", "Arimo", "Helvetica"),
+    "Liberation Serif": ("Times New Roman", "Tinos", "Times"),
+    "Liberation Mono": ("Courier New", "Cousine", "Courier"),
 }
 
 _registered = False

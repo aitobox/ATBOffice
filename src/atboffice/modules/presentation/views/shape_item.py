@@ -441,8 +441,9 @@ class ShapeGraphicsItem(QGraphicsObject):
                 painter.drawRect(QRectF(0.0, 0.0, w, h))
             return
 
-        # 0.3 SmartArt Diagram rendering
-        if self.model.is_diagram or bool(self.model.sa):
+        # 0.3 SmartArt Diagram rendering (placeholder until the engine has laid out its shapes;
+        # a laid-out diagram is drawn as the group below)
+        if (self.model.is_diagram or bool(self.model.sa)) and not self.model.kids:
             self._paint_diagram(painter, w, h)
             if self.isSelected():
                 sel_pen = QPen(QColor(0, 120, 215, 180), 1.0, Qt.PenStyle.DashLine)

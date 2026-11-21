@@ -103,6 +103,49 @@ def safe_int(val: Any, default: int = 0) -> int:
             return default
 
 
+def _theme_typeface(font: str | None, major: str | None, minor: str | None) -> str | None:
+    """Theme font references (+mj-lt, +mn-lt, +mj-ea, …) to the master theme's faces.
+
+    Only the Latin faces are read from the theme, so other slots fall back to them.
+    """
+    if not font or not font.startswith("+"):
+        return font
+    if font.startswith("+mj"):
+        return major or minor or font
+    if font.startswith("+mn"):
+        return minor or major or font
+    return font
+
+
+def _resolve_theme_typefaces(shapes: list[Any], major: str | None, minor: str | None) -> None:
+    """Replace theme font references on every run of the given shapes, in place."""
+    if not major and not minor:
+        return
+
+    def fix_body(body: Any) -> None:
+        if body is None:
+            return
+        runs = [r for p in getattr(body, "paragraphs", []) for r in p.runs]
+        prompt = getattr(body, "prompt_run", None)
+        if prompt is not None:
+            runs.append(prompt)
+        for run in runs:
+            run.font = _theme_typeface(run.font, major, minor)
+            run.font_ea = _theme_typeface(run.font_ea, major, minor)
+
+    for sh in shapes:
+        fix_body(getattr(sh, "text", None))
+        tbl = getattr(sh, "tbl", None)
+        if isinstance(tbl, dict):
+            for row in tbl.get("rows", []):
+                for cell in row.get("cells", []):
+                    if isinstance(cell, dict):
+                        fix_body(cell.get("tx"))
+        kids = getattr(sh, "kids", None)
+        if kids:
+            _resolve_theme_typefaces(kids, major, minor)
+
+
 def safe_float(val: Any, default: float = 0.0) -> float:
     """Safely parse finite floats including percentage strings, rejecting NaN/Inf."""
     if val is None or isinstance(val, bool):
@@ -227,6 +270,9 @@ class PlaceholderTemplate:
     text_body: TextBody | None = None
     # <p:ph hasCustomPrompt="1">: the layout's own text is the slide's prompt
     custom_prompt: bool = False
+    # The placeholder's <a:lstStyle> levels: what slides inherit (its sample paragraphs'
+    # own formatting stays on the layout)
+    lst_levels: dict[int, dict[str, Any]] = field(default_factory=dict)
 
 
 @dataclass
@@ -699,7 +745,15 @@ class PptxReader:
             elif tag == "schemeClr":
                 val = _get_attr(child, "val")
                 if val:
-                    return val
+                    # Keep tint/shade/lumMod… on the slot ("tx1|tint=75000"); alpha is
+                    # not part of the color
+                    mods = [
+                        f"{_local_tag(m.tag)}={_get_attr(m, 'val')}"
+                        for m in child
+                        if _get_attr(m, "val") is not None
+                        and not _local_tag(m.tag).startswith("alpha")
+                    ]
+                    return f"{val}|{','.join(mods)}" if mods else val
             elif tag == "scrgbClr":
                 clr, _ = self._extract_color_detail(child)
                 return clr
@@ -1052,6 +1106,14 @@ class PptxReader:
                                 message=str(exc),
                             )
                         )
+
+        # 1.0 Theme typefaces (+mj-lt / +mn-lt) still on runs become the master's fonts
+        m_fonts = layout_info.master if layout_info else None
+        _resolve_theme_typefaces(
+            slide.shapes,
+            m_fonts.major_font if m_fonts else None,
+            m_fonts.minor_font if m_fonts else None,
+        )
 
         # 1.1 Animation Timings
         try:
@@ -1710,7 +1772,15 @@ class PptxReader:
                         from atboffice.modules.presentation.chart.io import parse_chart_xml
 
                         chart_bytes = self.package.read_part(chart_path)
-                        chart_obj = parse_chart_xml(chart_bytes)
+                        scheme = self._resolve_theme_context(layout_info, slide_clr_map_ovr)[0]
+                        accents = (
+                            [getattr(scheme, f"accent{i}") for i in range(1, 7)]
+                            if scheme is not None
+                            else None
+                        )
+                        chart_obj = parse_chart_xml(
+                            chart_bytes, theme_accents=accents, auto_title=True
+                        )
 
                         # Look for embedded workbook in chart rels
                         chart_rels = self.package.get_relationships(chart_path)
@@ -1818,7 +1888,7 @@ class PptxReader:
                 "items": sa_items,
             }
             combined_txt = "\n".join(diag_texts) if diag_texts else "SmartArt"
-            return Shape(
+            diagram = Shape(
                 id=frame_id or "diag_1",
                 type="group" if diag_texts else "shape",
                 name=frame_name or "Diagram",
@@ -1831,6 +1901,21 @@ class PptxReader:
                 sa=sa_obj,
                 text=TextBody.from_text(combined_txt),
             )
+            if diag_texts:
+                # Lay out diagrams whose Office layout the engine draws, so they are painted
+                # from their own shapes; any other layout keeps the placeholder.
+                try:
+                    from atboffice.modules.presentation.smartart.engine import relayout
+                    from atboffice.modules.presentation.smartart.layouts import get_layout
+
+                    if get_layout(diag_layout) is not None:
+                        relayout(diagram)
+                except Exception as exc:
+                    self._warnings.append(
+                        LoadWarning(scope="smartart", location=slide_path, message=str(exc))
+                    )
+                    diagram.kids = []
+            return diagram
 
         # 2. Find table in graphicData
         tbl_dict: dict[str, Any] = {"cols": [], "rows": []}
@@ -2353,6 +2438,7 @@ class PptxReader:
             line = self._parse_line(sp_pr) if sp_pr is not None else None
             tx_body = _get_child(sp, "txBody")
             text_body = self._parse_text_body(tx_body) if tx_body is not None else None
+            lst_el = _get_child(tx_body, "lstStyle") if tx_body is not None else None
 
             placeholders.append(
                 PlaceholderTemplate(
@@ -2364,6 +2450,7 @@ class PptxReader:
                     line=line,
                     text_body=text_body,
                     custom_prompt=_get_attr(ph_elem, "hasCustomPrompt") in ("1", "true"),
+                    lst_levels=self._parse_style_levels(lst_el) if lst_el is not None else {},
                 )
             )
         return placeholders
@@ -2669,6 +2756,9 @@ class PptxReader:
             lvl = p.level
             lp_p = next((x for x in lp_paras if x.level == lvl), lp_paras[0] if lp_paras else None)
             mp_p = next((x for x in mp_paras if x.level == lvl), mp_paras[0] if mp_paras else None)
+            # Paragraph formatting comes from the layout's and master's lstStyle only
+            lp_props = lp.lst_levels.get(lvl, {}) if lp is not None else {}
+            mp_props = mp.lst_levels.get(lvl, {}) if mp is not None else {}
             def_lvl_s = default_style.get(lvl) or default_style.get(0) or {}
             master_lvl_s = style_dict.get(lvl) or style_dict.get(0) or {}
             lvl_style = copy.deepcopy(def_lvl_s)
@@ -2676,61 +2766,65 @@ class PptxReader:
 
             # Alignment
             if "algn" not in p.props:
-                if lp_p and "algn" in lp_p.props:
-                    p.props["algn"] = lp_p.props["algn"]
-                elif mp_p and "algn" in mp_p.props:
-                    p.props["algn"] = mp_p.props["algn"]
+                if "algn" in lp_props:
+                    p.props["algn"] = lp_props["algn"]
+                elif "algn" in mp_props:
+                    p.props["algn"] = mp_props["algn"]
                 elif "algn" in lvl_style:
                     p.props["algn"] = lvl_style["algn"]
+                else:
+                    # Nothing in the file aligns it: PowerPoint's default, not the
+                    # app's design default (a subtitle on a body layout is left-aligned)
+                    p.props["algn"] = "l"
 
             # Bullet
             if "bu" not in p.props:
-                if lp_p and "bu" in lp_p.props:
-                    p.props["bu"] = copy.deepcopy(lp_p.props["bu"])
-                elif mp_p and "bu" in mp_p.props:
-                    p.props["bu"] = copy.deepcopy(mp_p.props["bu"])
+                if "bu" in lp_props:
+                    p.props["bu"] = copy.deepcopy(lp_props["bu"])
+                elif "bu" in mp_props:
+                    p.props["bu"] = copy.deepcopy(mp_props["bu"])
                 elif "bu" in lvl_style:
                     p.props["bu"] = copy.deepcopy(lvl_style["bu"])
 
             # Left margin and indent
             if "marL" not in p.props:
-                if lp_p and "marL" in lp_p.props:
-                    p.props["marL"] = lp_p.props["marL"]
-                elif mp_p and "marL" in mp_p.props:
-                    p.props["marL"] = mp_p.props["marL"]
+                if "marL" in lp_props:
+                    p.props["marL"] = lp_props["marL"]
+                elif "marL" in mp_props:
+                    p.props["marL"] = mp_props["marL"]
                 elif "marL" in lvl_style:
                     p.props["marL"] = lvl_style["marL"]
 
             if "indent" not in p.props:
-                if lp_p and "indent" in lp_p.props:
-                    p.props["indent"] = lp_p.props["indent"]
-                elif mp_p and "indent" in mp_p.props:
-                    p.props["indent"] = mp_p.props["indent"]
+                if "indent" in lp_props:
+                    p.props["indent"] = lp_props["indent"]
+                elif "indent" in mp_props:
+                    p.props["indent"] = mp_props["indent"]
                 elif "indent" in lvl_style:
                     p.props["indent"] = lvl_style["indent"]
 
             # Spacing
             if "lnSpc" not in p.props:
-                if lp_p and "lnSpc" in lp_p.props:
-                    p.props["lnSpc"] = copy.deepcopy(lp_p.props["lnSpc"])
-                elif mp_p and "lnSpc" in mp_p.props:
-                    p.props["lnSpc"] = copy.deepcopy(mp_p.props["lnSpc"])
+                if "lnSpc" in lp_props:
+                    p.props["lnSpc"] = copy.deepcopy(lp_props["lnSpc"])
+                elif "lnSpc" in mp_props:
+                    p.props["lnSpc"] = copy.deepcopy(mp_props["lnSpc"])
                 elif "lnSpc" in lvl_style:
                     p.props["lnSpc"] = copy.deepcopy(lvl_style["lnSpc"])
 
             if "spcBef" not in p.props:
-                if lp_p and "spcBef" in lp_p.props:
-                    p.props["spcBef"] = copy.deepcopy(lp_p.props["spcBef"])
-                elif mp_p and "spcBef" in mp_p.props:
-                    p.props["spcBef"] = copy.deepcopy(mp_p.props["spcBef"])
+                if "spcBef" in lp_props:
+                    p.props["spcBef"] = copy.deepcopy(lp_props["spcBef"])
+                elif "spcBef" in mp_props:
+                    p.props["spcBef"] = copy.deepcopy(mp_props["spcBef"])
                 elif "spcBef" in lvl_style:
                     p.props["spcBef"] = copy.deepcopy(lvl_style["spcBef"])
 
             if "spcAft" not in p.props:
-                if lp_p and "spcAft" in lp_p.props:
-                    p.props["spcAft"] = copy.deepcopy(lp_p.props["spcAft"])
-                elif mp_p and "spcAft" in mp_p.props:
-                    p.props["spcAft"] = copy.deepcopy(mp_p.props["spcAft"])
+                if "spcAft" in lp_props:
+                    p.props["spcAft"] = copy.deepcopy(lp_props["spcAft"])
+                elif "spcAft" in mp_props:
+                    p.props["spcAft"] = copy.deepcopy(mp_props["spcAft"])
                 elif "spcAft" in lvl_style:
                     p.props["spcAft"] = copy.deepcopy(lvl_style["spcAft"])
 
@@ -3276,6 +3370,9 @@ class PptxReader:
             norm_elem = _get_child(body_pr, "normAutofit")
             if norm_elem is not None:
                 autofit = "norm"
+                # The stored scale is the file's fitted state; no fontScale means 100%.
+                # PowerPoint (and the original) only re-fit once the text is edited.
+                has_explicit_font_scale = True
                 fs_attr = _get_attr(norm_elem, "fontScale")
                 if fs_attr:
                     fs_num = safe_float(fs_attr, float("nan"))

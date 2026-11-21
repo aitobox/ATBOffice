@@ -154,8 +154,11 @@ class TestLineHeightAndSpacingRules:
         # First paragraph at top of page suppresses space_before to 0.0
         assert col.fragments[0].space_before == 0.0
         assert col.fragments[0].space_after == pytest.approx(20.0)
-        # Second paragraph preserves space_before
-        assert col.fragments[1].space_before == pytest.approx(15.0)
+        # Word separates them by the larger of space after (20) and space before (15)
+        assert col.fragments[1].space_before == pytest.approx(20.0)
+        assert col.fragments[1].top == pytest.approx(
+            col.fragments[0].top + col.fragments[0].height + 20.0
+        )
 
 
 class TestEastAsianLineGrid:

@@ -924,7 +924,7 @@ class WriterCanvasView(QAbstractScrollArea):
                 if color_str == "auto":
                     color_str = "#000000"
                 painter.setPen(QPen(QColor(color_str)))
-                painter.drawText(QPointF(cur_x, baseline), po.text)
+                painter.drawText(QPointF(cur_x, baseline - po.baseline_shift), po.text)
             cur_x += po.width
 
     def _paint_header_footer(
@@ -976,7 +976,9 @@ class WriterCanvasView(QAbstractScrollArea):
 
                         # Subdued gray for screen view (#666666)
                         painter.setPen(QPen(QColor("#666666")))
-                        painter.drawText(QPointF(x_px, baseline_px), text_str)
+                        painter.drawText(
+                            QPointF(x_px, baseline_px - self.pt_to_px(po.baseline_shift)), text_str
+                        )
 
                         _ul = getattr(po, "underline", None)
                         if _ul and _ul != "none":
@@ -1260,10 +1262,11 @@ class WriterCanvasView(QAbstractScrollArea):
                             font, pen_col = self._build_portion_font(pt)
                             painter.setFont(font)
                             painter.setPen(QPen(pen_col))
-                            painter.drawText(QPointF(cur_px, baseline_px), pt.text)
+                            pt_base_px = baseline_px - self.pt_to_px(pt.baseline_shift)
+                            painter.drawText(QPointF(cur_px, pt_base_px), pt.text)
                             if should_spell:
                                 self._draw_spellcheck_for_text(
-                                    painter, font, pt.text, cur_px, baseline_px
+                                    painter, font, pt.text, cur_px, pt_base_px
                                 )
                             self._draw_text_decorations(
                                 painter,
@@ -1272,7 +1275,7 @@ class WriterCanvasView(QAbstractScrollArea):
                                 pen_col,
                                 cur_px,
                                 cur_px + word_adv_px[p_i],
-                                baseline_px,
+                                pt_base_px,
                             )
                             cur_px += word_adv_px[p_i]
                     return
@@ -1306,12 +1309,13 @@ class WriterCanvasView(QAbstractScrollArea):
                 font, pen_col = self._build_portion_font(po)
                 painter.setFont(font)
                 painter.setPen(QPen(pen_col))
-                painter.drawText(QPointF(cur_px, baseline_px), po.text)
+                po_base_px = baseline_px - self.pt_to_px(po.baseline_shift)
+                painter.drawText(QPointF(cur_px, po_base_px), po.text)
                 if should_spell:
-                    self._draw_spellcheck_for_text(painter, font, po.text, cur_px, baseline_px)
+                    self._draw_spellcheck_for_text(painter, font, po.text, cur_px, po_base_px)
                 text_adv_px = QFontMetricsF(font).horizontalAdvance(po.text)
                 self._draw_text_decorations(
-                    painter, po, font, pen_col, cur_px, cur_px + text_adv_px, baseline_px
+                    painter, po, font, pen_col, cur_px, cur_px + text_adv_px, po_base_px
                 )
                 cur_px += text_adv_px
                 continue
@@ -1433,7 +1437,7 @@ class WriterCanvasView(QAbstractScrollArea):
                             color_str = "#000000"
                         painter.setPen(QPen(QColor(color_str)))
                         baseline = line_y + (line.baseline - line.top)
-                        painter.drawText(QPointF(cur_x, baseline), po.text)
+                        painter.drawText(QPointF(cur_x, baseline - po.baseline_shift), po.text)
                     cur_x += po_w
             return
 
@@ -1651,7 +1655,9 @@ class WriterCanvasView(QAbstractScrollArea):
                         baseline_px = y_px + self.pt_to_px(line.baseline - line.top)
 
                         painter.setPen(QPen(QColor(0, 0, 0)))
-                        painter.drawText(QPointF(x_px, baseline_px), po.text)
+                        painter.drawText(
+                            QPointF(x_px, baseline_px - self.pt_to_px(po.baseline_shift)), po.text
+                        )
                     cur_x += po_w
 
     def _paint_table_layout(
@@ -1754,7 +1760,8 @@ class WriterCanvasView(QAbstractScrollArea):
                                 y_px = page_rect.top() + self.pt_to_px(line_y)
                                 baseline_px = y_px + self.pt_to_px(line.baseline_offset)
                                 painter.setPen(QPen(QColor(0, 0, 0)))
-                                painter.drawText(QPointF(x_px, baseline_px), po.text)
+                                po_base_px = baseline_px - self.pt_to_px(po.baseline_shift)
+                                painter.drawText(QPointF(x_px, po_base_px), po.text)
                                 if (
                                     self.spell_engine.is_enabled("spelling/check_as_you_type", True)
                                     and po.text
@@ -1914,7 +1921,9 @@ class WriterCanvasView(QAbstractScrollArea):
                                     painter.setFont(font)
                                     painter.setPen(pen)
                                     baseline = line_y + (line.baseline - line.top)
-                                    painter.drawText(QPointF(cur_x, baseline), po.text)
+                                    painter.drawText(
+                                        QPointF(cur_x, baseline - po.baseline_shift), po.text
+                                    )
                                 elif po.type == PortionType.GRAPHIC:
                                     baseline = line_y + (line.baseline - line.top)
                                     if isinstance(po.data, OfficeMathItem):
@@ -1969,7 +1978,7 @@ class WriterCanvasView(QAbstractScrollArea):
                             painter.setFont(font)
                             painter.setPen(pen)
                             baseline = line_y + (line.baseline - line.top)
-                            painter.drawText(QPointF(cur_x, baseline), text_str)
+                            painter.drawText(QPointF(cur_x, baseline - po.baseline_shift), text_str)
                         elif po.type == PortionType.GRAPHIC:
                             baseline = line_y + (line.baseline - line.top)
                             if isinstance(po.data, OfficeMathItem):
@@ -2013,7 +2022,9 @@ class WriterCanvasView(QAbstractScrollArea):
                                 painter.setFont(font)
                                 painter.setPen(pen)
                                 baseline = line_y + (line.baseline - line.top)
-                                painter.drawText(QPointF(cur_x, baseline), po.text)
+                                painter.drawText(
+                                    QPointF(cur_x, baseline - po.baseline_shift), po.text
+                                )
 
                                 _ul2 = getattr(po, "underline", None)
                                 if _ul2 and _ul2 != "none":
@@ -2121,7 +2132,7 @@ class WriterCanvasView(QAbstractScrollArea):
                             painter.setFont(font)
                             painter.setPen(pen)
                             baseline = line_y + (line.baseline - line.top)
-                            painter.drawText(QPointF(cur_x, baseline), po.text)
+                            painter.drawText(QPointF(cur_x, baseline - po.baseline_shift), po.text)
                         cur_x += po_w
 
         # 3. Render Footer if present
@@ -2150,7 +2161,7 @@ class WriterCanvasView(QAbstractScrollArea):
                             painter.setFont(font)
                             painter.setPen(pen)
                             baseline = line_y + (line.baseline - line.top)
-                            painter.drawText(QPointF(cur_x, baseline), text_str)
+                            painter.drawText(QPointF(cur_x, baseline - po.baseline_shift), text_str)
                         elif po.type == PortionType.GRAPHIC:
                             baseline = line_y + (line.baseline - line.top)
                             if isinstance(po.data, OfficeMathItem):

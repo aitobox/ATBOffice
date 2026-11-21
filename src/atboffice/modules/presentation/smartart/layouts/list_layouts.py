@@ -381,3 +381,56 @@ def make_v_box(items: list[SmartArtItem], box: dict[str, float]) -> list[dict[st
         )
         y += u * (1.0 + tab_h * 0.5 + g)
     return out
+
+
+def make_grouped_list(items: list[SmartArtItem], box: dict[str, float]) -> list[dict[str, Any]]:
+    """Grouped List (Office lProcess2): a tinted column per item, its text at the top and
+    each sub-item as a box inside. Port of the original's pptx-read.js lProcess branch."""
+    n = max(1, len(items))
+    gap = min(box["w"] / (n * 8), 16.0)
+    bw = (box["w"] - gap * (n - 1)) / n
+    hh = box["h"] * 0.2
+    out: list[dict[str, Any]] = []
+    for i, it in enumerate(items):
+        x = box["x"] + i * (bw + gap)
+        out.append(
+            node_shape(
+                it,
+                i,
+                n,
+                "roundRect",
+                x,
+                box["y"],
+                bw,
+                box["h"],
+                {
+                    "tint": True,
+                    "styleLbl": "alignAcc1",
+                    "text": {
+                        "lines": lines_of(it, False),
+                        "box": tb(x, box["y"], bw, hh),
+                        "anchor": "t",
+                        "align": "ctr",
+                    },
+                },
+            )
+        )
+        kids = it.kids
+        if not kids:
+            continue
+        ch = (box["h"] - hh - gap * (len(kids) + 1)) / len(kids)
+        for j, kid in enumerate(kids):
+            out.append(
+                node_shape(
+                    kid,
+                    i,
+                    n,
+                    "roundRect",
+                    x + bw * 0.1,
+                    box["y"] + hh + gap + j * (ch + gap),
+                    bw * 0.8,
+                    max(0.01, ch),
+                    {"level": 1},
+                )
+            )
+    return out

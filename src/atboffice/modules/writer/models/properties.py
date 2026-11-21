@@ -135,6 +135,11 @@ class IndentProperties:
     left: float = 0.0
     right: float = 0.0
     first_line: float = 0.0  # Positive: first line indent; Negative: hanging indent
+    # True when the value was written on w:ind, so an explicit 0 still overrides an
+    # inherited indent (0.0 above doubles as "unset").
+    left_explicit: bool = field(default=False, repr=False, compare=False)
+    right_explicit: bool = field(default=False, repr=False, compare=False)
+    first_line_explicit: bool = field(default=False, repr=False, compare=False)
 
 
 @dataclass
@@ -216,6 +221,8 @@ class ParagraphProperties:
     borders: dict[str, Any] = field(default_factory=dict)
     frame_pr: dict[str, str] | None = None
     bidi: bool | None = None
+    # w:contextualSpacing: no space between paragraphs of the same style (None = unset)
+    contextual: bool | None = None
     jc_explicit: bool = field(default=False, repr=False, compare=False)
     chg: RevisionStamp | None = None
     sdts: list[dict[str, Any]] = field(default_factory=list)
@@ -294,6 +301,17 @@ class RunProperties:
     # These take part in equality so normalize() keeps such runs apart from unset neighbors.
     strike_off: bool = field(default=False, repr=False)
     dstrike_off: bool = field(default=False, repr=False)
+    # True once sz is assigned after construction (w:sz, the font dialog, the toolbar), so an
+    # explicit 12pt still overrides an inherited size — 12.0 above doubles as "unset".
+    sz_explicit: bool = field(default=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_sz_tracking", True)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        object.__setattr__(self, name, value)
+        if name == "sz" and self.__dict__.get("_sz_tracking"):
+            object.__setattr__(self, "sz_explicit", True)
 
     @property
     def bold(self) -> bool:

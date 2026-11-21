@@ -200,8 +200,8 @@ def render_slide_thumbnail(
                         cur_y += rh
                 continue
 
-            # SmartArt
-            if sh.is_diagram or bool(sh.sa):
+            # SmartArt (a laid-out diagram is drawn as the group below)
+            if (sh.is_diagram or bool(sh.sa)) and not sh.kids:
                 painter.setPen(QPen(QColor(design.colors.accent1 if design else "#2B579A"), 1.0))
                 painter.setBrush(QBrush(QColor(230, 240, 250)))
                 painter.drawRoundedRect(rect, 3.0, 3.0)

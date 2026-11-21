@@ -263,6 +263,21 @@ def apply_color_mods(hex_color: str, mods: list[dict[str, Any]] | None) -> str:
     return f"#{r:02X}{g:02X}{b:02X}"
 
 
+def split_color_token(c: str) -> tuple[str, list[dict[str, Any]]]:
+    """Split ``slot|tint=75000,lumMod=50000`` into the slot and DrawingML color transforms."""
+    base, _, mod_str = c.partition("|")
+    mods: list[dict[str, Any]] = []
+    for part in mod_str.split(","):
+        name, _, raw = part.partition("=")
+        if not name:
+            continue
+        try:
+            mods.append({"name": name, "val": float(raw)})
+        except ValueError:
+            continue
+    return base, mods
+
+
 def resolve_color(
     c: str | None,
     design: DesignTemplate | None = None,
@@ -274,6 +289,11 @@ def resolve_color(
         return fallback
     if c.startswith("#"):
         return c
+    if "|" in c:
+        # A scheme slot with its transforms (the reader keeps tint/shade/lumMod… on it)
+        base, mods = split_color_token(c)
+        base_hex = resolve_color(base, design, "", clr_map_ovr)
+        return apply_color_mods(base_hex, mods) if base_hex else fallback
     token = c
     if clr_map_ovr and token in clr_map_ovr:
         token = clr_map_ovr[token]

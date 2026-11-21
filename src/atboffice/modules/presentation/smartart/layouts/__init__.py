@@ -16,6 +16,7 @@ from atboffice.modules.presentation.smartart.layouts.hierarchy_layouts import (
 )
 from atboffice.modules.presentation.smartart.layouts.list_layouts import (
     make_block_list,
+    make_grouped_list,
     make_h_bullet,
     make_lined_list,
     make_stacked_list,
@@ -260,11 +261,26 @@ LAYOUTS: list[dict[str, Any]] = [
 ]
 
 
+# Layouts that only stand in for Office diagrams read from files (not offered in the gallery)
+OFFICE_LAYOUTS: list[dict[str, Any]] = [
+    {
+        "id": "groupedList",
+        "name": "Grouped List",
+        "cat": "list",
+        "desc": "A column per item with its sub-items as boxes inside.",
+        "make": make_grouped_list,
+    },
+]
+
+
 def get_layout(layout_id: str) -> dict[str, Any] | None:
-    """Find layout definition dictionary by id."""
-    for layout_def in LAYOUTS:
+    """Find layout definition dictionary by id (or by an Office layout's uniqueId name)."""
+    for layout_def in LAYOUTS + OFFICE_LAYOUTS:
         if layout_def["id"] == layout_id:
             return layout_def
+    family = (layout_id or "").rsplit("/", 1)[-1].split("#", 1)[0].lower()
+    if family.startswith("lprocess"):
+        return OFFICE_LAYOUTS[0]
     return None
 
 

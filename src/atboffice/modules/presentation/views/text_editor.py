@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QMenu,
 )
 
+from atboffice.modules.presentation.models.designs import apply_color_mods, split_color_token
 from atboffice.modules.presentation.models.placeholder_resolver import evaluate_field_text
 from atboffice.modules.presentation.models.text import (
     BODY_BULLETS,
@@ -389,7 +390,9 @@ def resolve_color(color_name: str | None) -> QColor:
         "blue": "#0000FF",
         "green": "#008000",
     }
-    return QColor(preset_map.get(color_name.lower(), "#000000"))
+    base, mods = split_color_token(color_name)
+    hex_val = preset_map.get(base.lower(), "#000000")
+    return QColor(apply_color_mods(hex_val, mods) if mods else hex_val)
 
 
 def balance_column_height(
