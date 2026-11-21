@@ -940,9 +940,11 @@ def _parse_worksheet(
                         try:
                             cs_idx = int(col_style_str)
                             if 0 <= cs_idx < len(style_deltas):
-                                col_style_ranges.append(
-                                    (c1, min(c2, sheet.geometry.max_cols - 1), cs_idx)
-                                )
+                                cs_c2 = min(c2, sheet.geometry.max_cols - 1)
+                                col_style_ranges.append((c1, cs_c2, cs_idx))
+                                cs_fill = style_deltas[cs_idx].bg_color
+                                if cs_fill:
+                                    sheet.col_fills.append((c1, cs_c2, cs_fill))
                         except ValueError:
                             pass
 
@@ -985,6 +987,9 @@ def _parse_worksheet(
                     rs = int(row_s_str)
                     if 0 <= rs < len(style_deltas):
                         row_style_idx = rs
+                        rs_fill = style_deltas[rs].bg_color
+                        if rs_fill:
+                            sheet.row_fills[curr_r] = rs_fill
                 except ValueError:
                     pass
 
