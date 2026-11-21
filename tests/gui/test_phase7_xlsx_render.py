@@ -386,3 +386,25 @@ def test_freeze_panes_and_zoom_rendering(qtbot):
     # Paint with freeze lines and zoom
     pix = view.grab()
     assert not pix.isNull()
+
+
+def test_corpus_cell_value_grid_boundaries_match_reference(qtbot):
+    """Issue #416: at 100% zoom, measured from the cell-grid origin, the first ten row and
+    first five column boundaries of libreoffice__cell-value.xlsx sit within 2 px of the
+    reference (17 px rows from ``ht="12.8"``, 82 px columns from ``width="11.67"``)."""
+    wb = read_xlsx(XLSX_CORPUS / "libreoffice__cell-value.xlsx")
+    view = SpreadsheetView(workbook=wb)
+    qtbot.addWidget(view)
+    view.resize(1100, 700)
+    view.show()
+    qtbot.waitExposed(view)
+
+    grid = view.grid
+    assert grid.zoom == 1.0
+    origin = grid.device_cell_rect(0, 0)
+    for r in range(10):
+        bottom = grid.device_cell_rect(r, 0).bottom() + 1 - origin.top()
+        assert abs(bottom - round((r + 1) * 12.8 * 96 / 72)) <= 2, r
+    for c in range(5):
+        right = grid.device_cell_rect(0, c).right() + 1 - origin.left()
+        assert abs(right - 82 * (c + 1)) <= 2, c

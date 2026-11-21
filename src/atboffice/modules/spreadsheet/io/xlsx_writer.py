@@ -806,7 +806,8 @@ def _serialize_sheet_data(
 
         if r in sheet.geometry.custom_row_heights:
             ht_px = sheet.geometry.row_size(r)
-            ht_str = f"{(ht_px + 0.1) / 1.33:.2f}"
+            # exact inverse of the reader's round(pt / 0.75): px * 0.75 is a 0.25 pt multiple
+            ht_str = f"{ht_px * 0.75:g}"
             row_attrs.append(f'ht="{ht_str}" customHeight="1"')
 
         if r in sheet.geometry.hidden_rows:
