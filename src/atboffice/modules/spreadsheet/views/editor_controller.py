@@ -236,6 +236,8 @@ class EditorController(QObject):
         self._syncing = False
 
         self._style_in_cell_editor(cell)
+        # Active before positioning: reposition_editor() is a no-op otherwise.
+        self.mode = mode
         self.reposition_editor()
         self.in_cell_editor.show()
         self.in_cell_editor.setFocus()
@@ -262,6 +264,8 @@ class EditorController(QObject):
             font.setBold(cell.bold)
             font.setItalic(cell.italic)
             font.setUnderline(cell.underline)
+        # Unzoomed cell font; reposition_editor() applies the view zoom.
+        self._editor_base_font = QFont(font)
         self.in_cell_editor.setFont(font)
 
         align = Qt.AlignmentFlag.AlignLeft
@@ -278,35 +282,35 @@ class EditorController(QObject):
         self.in_cell_editor.setAlignment(align)
 
     def reposition_editor(self) -> None:
-        """Position and size in-cell editor over active cell in viewport coordinates."""
+        """Position and size in-cell editor over active cell in viewport coordinates.
+
+        The cell rect comes from the grid (which accounts for frozen panes) and
+        is mapped to widget pixels at the current zoom; the editor font scales
+        with the zoom like the painted cell text (ledger/js/editor.js).
+        """
         if not self.is_active:
             return
 
-        scroll_x = self.viewport.horizontalScrollBar().value()
-        scroll_y = self.viewport.verticalScrollBar().value()
-        mapper = self.viewport.geometry_mapper
+        vp = self.viewport
+        zoom = float(getattr(vp, "zoom", 1.0) or 1.0)
+        base = getattr(self, "_editor_base_font", None)
+        if base is not None:
+            font = QFont(base)
+            if base.pointSizeF() > 0:
+                font.setPointSizeF(max(1.0, base.pointSizeF() * zoom))
+            if font != self.in_cell_editor.font():
+                self.in_cell_editor.setFont(font)
 
-        cell_x = (
-            self.viewport.row_header_width
-            + mapper.col_pos(self.active_col)
-            - scroll_x
-        )
-        cell_y = (
-            self.viewport.col_header_height
-            + mapper.row_pos(self.active_row)
-            - scroll_y
-        )
-        cell_w = mapper.col_size(self.active_col)
-        cell_h = mapper.row_size(self.active_row)
+        rect = vp.device_cell_rect(self.active_row, self.active_col)
 
         # Grow horizontally to fit text without clipping
         fm = QFontMetrics(self.in_cell_editor.font())
         text_w = fm.horizontalAdvance(self.in_cell_editor.text()) + 16
-        vw = self.viewport.viewport().width()
-        w = max(cell_w, min(vw - cell_x - 2, text_w))
-        h = max(cell_h, 20)
+        vw = vp.viewport().width()
+        w = max(rect.width(), min(vw - rect.x() - 2, text_w))
+        h = max(rect.height(), round(20 * zoom))
 
-        self.in_cell_editor.setGeometry(cell_x, cell_y, w, h)
+        self.in_cell_editor.setGeometry(rect.x(), rect.y(), w, h)
 
     def commit_and_move(self, dr: int, dc: int) -> None:
         """Commit current entry and navigate active cell by (dr, dc)."""

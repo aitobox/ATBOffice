@@ -105,6 +105,7 @@ class SpreadsheetView(QWidget):
             model=active_sheet, parent=self.grid.viewport()
         )
         self.grid.object_layer = self.object_layer
+        self.object_layer.set_zoom(self.grid.zoom)
         self.object_layer.set_header_dimensions(
             self.grid.row_header_width, self.grid.col_header_height
         )

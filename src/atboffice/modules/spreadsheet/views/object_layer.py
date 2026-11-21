@@ -8,6 +8,7 @@ anchoring and DrawingML synchronization.
 from __future__ import annotations
 
 import copy
+import math
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
@@ -377,6 +378,9 @@ class SpreadsheetObjectLayer(QWidget):
         self.col_header_height: int = 22
         self.scroll_x: int = 0
         self.scroll_y: int = 0
+        # View zoom of the owning grid; object geometry is in unzoomed grid
+        # pixels, scaled when painting and un-scaled for mouse input.
+        self.zoom: float = 1.0
 
         # Mouse interaction drag state
         self._drag_mode: HandleType = HandleType.NONE
@@ -413,6 +417,18 @@ class SpreadsheetObjectLayer(QWidget):
         self.scroll_x = scroll_x
         self.scroll_y = scroll_y
         self.update()
+
+    def set_zoom(self, zoom: float) -> None:
+        """Set the view zoom factor (1.0 = 100%) and repaint."""
+        self.zoom = zoom if zoom > 0 else 1.0
+        self.update()
+
+    def _grid_pos(self, pos: QPoint) -> QPoint:
+        """Map a widget-pixel point to unzoomed grid coordinates."""
+        z = self.zoom
+        if z == 1.0:
+            return QPoint(pos)
+        return QPoint(math.floor(pos.x() / z), math.floor(pos.y() / z))
 
     def set_header_dimensions(self, row_header_w: int, col_header_h: int) -> None:
         """Update header dimensions and repaint."""
@@ -605,12 +621,16 @@ class SpreadsheetObjectLayer(QWidget):
     def paintEvent(self, event: Any) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        z = self.zoom
+        if z != 1.0:
+            painter.scale(z, z)
+        visible = QRect(0, 0, math.ceil(self.width() / z), math.ceil(self.height() / z))
 
         # Draw objects sorted by Z-index
         for obj in self.objects:
             rect = self.get_object_rect(obj)
             # Only draw if intersects visible widget region
-            if not rect.intersects(self.rect()):
+            if not rect.intersects(visible):
                 continue
             self._paint_object(painter, obj, rect)
 
@@ -720,12 +740,13 @@ class SpreadsheetObjectLayer(QWidget):
 
     # Mouse & Keyboard Events
     def mousePressEvent(self, event: QMouseEvent) -> None:
+        pos = self._grid_pos(event.pos())
         if event.button() == Qt.MouseButton.LeftButton:
-            hit_obj, handle = self.hit_test(event.pos().x(), event.pos().y())
+            hit_obj, handle = self.hit_test(pos.x(), pos.y())
             if hit_obj is not None:
                 self.select_object(hit_obj)
                 self._drag_mode = handle
-                self._drag_start_pos = event.pos()
+                self._drag_start_pos = pos
                 self._drag_start_rect = self.get_object_rect(hit_obj)
                 event.accept()
                 return
@@ -736,7 +757,7 @@ class SpreadsheetObjectLayer(QWidget):
                 event.ignore()
                 super().mousePressEvent(event)
         elif event.button() == Qt.MouseButton.RightButton:
-            hit_obj, _ = self.hit_test(event.pos().x(), event.pos().y())
+            hit_obj, _ = self.hit_test(pos.x(), pos.y())
             if hit_obj is not None:
                 self.select_object(hit_obj)
                 event.accept()
@@ -748,7 +769,7 @@ class SpreadsheetObjectLayer(QWidget):
             super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        pos = event.pos()
+        pos = self._grid_pos(event.pos())
 
         # If currently in a drag operation
         if (
@@ -867,7 +888,8 @@ class SpreadsheetObjectLayer(QWidget):
         super().keyPressEvent(event)
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
-        hit_obj, _ = self.hit_test(event.pos().x(), event.pos().y())
+        grid_pos = self._grid_pos(event.pos())
+        hit_obj, _ = self.hit_test(grid_pos.x(), grid_pos.y())
         if hit_obj is not None:
             self.select_object(hit_obj)
         else:
