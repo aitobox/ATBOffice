@@ -29,8 +29,8 @@ The per-file `real_open` blocks are already correct; the top-level classificatio
 Any XLS reader change, XLS writing, `.doc`/`.ppt` handling.
 
 ## Task list
-- [ ] Task 1: Regression tests (manifest per-fixture expectations, successful XLS stage audit, corrupt XLS handling, loaded-path assertion)
-- [ ] Task 2: Update the 25 XLS manifest entries
-- [ ] Task 3: Audit worker + summary support for imported/corrupt XLS
-- [ ] Task 4: Update dependent count assertions; full test suite pass
-- [ ] Task 5: Grill audit
+- [x] Task 1: Regression tests (manifest per-fixture expectations, successful XLS stage audit, corrupt XLS handling, loaded-path assertion)
+- [x] Task 2: Update the 25 XLS manifest entries
+- [x] Task 3: Audit worker + summary support for imported/corrupt XLS
+- [x] Task 4: Update dependent count assertions; full test suite pass
+- [x] Task 5: Grill audit
