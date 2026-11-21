@@ -972,7 +972,7 @@ def _parse_worksheet(
                     # points to pixels like ledger/js M.ptToPx: round(pt * 96 / 72)
                     ht_px = int(round(float(ht_str) / 0.75))
                     sheet.geometry.set_row_height(curr_r, ht_px)
-                except ValueError:
+                except (ValueError, OverflowError):
                     pass
 
             if _attr(row_el, "hidden") in ("1", "true"):

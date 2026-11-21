@@ -456,6 +456,18 @@ def test_custom_row_and_col_sizes_override_sheet_defaults():
     assert geo.col_size(1) == geo.col_size(2) == 140  # 20 chars override the default
 
 
+@pytest.mark.parametrize("ht", ["inf", "nan", "abc"])
+def test_malformed_row_ht_keeps_default_height(ht):
+    """A non-finite or non-numeric ``ht`` is ignored instead of aborting the import."""
+    ws_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData><row r="1" ht="{ht}"><c r="A1"><v>1</v></c></row></sheetData>
+</worksheet>"""
+    wb = read_xlsx(build_test_xlsx(sheets=[{"name": "S", "xml": ws_xml}]))
+    assert wb[0].geometry.row_size(0) == wb[0].geometry.default_row_height
+    assert wb[0].get_cell_value(0, 0) == 1
+
+
 @pytest.mark.parametrize("px", [17, 20, 41, 400, 546])
 def test_custom_row_height_round_trips_through_writer(px):
     """A custom row height survives write -> read unchanged, including very tall rows."""
