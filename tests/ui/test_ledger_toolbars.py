@@ -144,3 +144,20 @@ def test_retranslate_ui(qtbot) -> None:
 
     for key, tb in win.toolbars.items():
         assert tb.windowTitle(), f"Toolbar {key} title should remain non-empty after retranslate"
+
+
+def test_zoom_combo_drives_and_follows_grid_zoom(qtbot) -> None:
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+    combo = win.toolbars["standard"].findChild(QComboBox, "Ledger_ZoomCombo")
+    grid = win.spreadsheet_view.grid
+    assert combo.currentText() == "100%"
+
+    combo.setCurrentText("75%")
+    assert abs(grid.zoom - 0.75) < 1e-9
+
+    # A zoom set elsewhere (a sheet's saved zoomScale) shows in the combo
+    # without being re-applied through it.
+    grid.set_zoom(1.5)
+    assert combo.currentText() == "150%"
+    assert abs(grid.zoom - 1.5) < 1e-9

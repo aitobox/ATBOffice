@@ -171,6 +171,7 @@ class GridViewport(QAbstractScrollArea):
     pivot_refresh_requested = Signal(object)
     pivot_field_list_requested = Signal(object)
     pivot_selection_changed = Signal(object)
+    zoom_changed = Signal(float)
 
     # Classic Office / Luna color palette
     COLOR_GRIDLINE: Final[QColor] = QColor(208, 215, 229)
@@ -403,13 +404,71 @@ class GridViewport(QAbstractScrollArea):
         return getattr(self, "_zoom", 1.0)
 
     def set_zoom(self, zoom: float) -> None:
-        """Set view zoom factor (clamped between 0.1 and 4.0)."""
-        self._zoom = max(0.1, min(4.0, float(zoom)))
+        """Set the sheet's view zoom (1.0 = 100%, clamped to 10%..400%).
+
+        Like ledger/js/grid.js ``G.setZoom`` the zoom belongs to the sheet: it is
+        stored in ``model.extra["zoom"]`` / ``view_state.zoom_scale`` so a sheet
+        keeps its own zoom across tab switches and is saved as ``zoomScale``.
+        """
+        pct = max(10, min(400, round(float(zoom) * 100)))
+        # A drag measured at the old zoom is meaningless at the new one.
         self.cancel_drag(why="api")
+        self._zoom = pct / 100.0
+        model = self.model
+        extra = getattr(model, "extra", None)
+        if isinstance(extra, dict) and extra.get("zoom", 100) != pct:
+            if pct == 100:
+                extra.pop("zoom", None)
+            else:
+                extra["zoom"] = pct
+            vs = getattr(model, "view_state", None)
+            if vs is not None:
+                vs.zoom_scale = None if pct == 100 else pct
+        if self.object_layer is not None and hasattr(self.object_layer, "set_zoom"):
+            self.object_layer.set_zoom(self._zoom)
         if self.editor_controller is not None:
             self.editor_controller.reposition_editor()
         self._update_scrollbars()
         self.viewport().update()
+        self.zoom_changed.emit(self._zoom)
+
+    # ---- zoom coordinate mapping ------------------------------------------
+    # Every grid computation (cell_rect, hit_test, scroll values, header sizes)
+    # works in unzoomed "grid" pixels; the paint path scales the painter by the
+    # zoom (render.js multiplies the same geometry by ``z``) and mouse input is
+    # divided by it, so only the boundary to real widget pixels needs mapping.
+
+    def _view_size(self) -> tuple[int, int]:
+        """Viewport width/height in grid (unzoomed) pixels."""
+        vp = self.viewport()
+        z = self.zoom
+        return math.ceil(vp.width() / z), math.ceil(vp.height() / z)
+
+    def map_from_device(self, x: float, y: float) -> tuple[int, int]:
+        """Map a viewport (widget pixel) point to grid coordinates."""
+        z = self.zoom
+        return math.floor(x / z), math.floor(y / z)
+
+    def map_to_device(self, point: QPoint) -> QPoint:
+        """Map a grid-coordinate point to viewport (widget pixel) coordinates."""
+        z = self.zoom
+        return QPoint(round(point.x() * z), round(point.y() * z))
+
+    def map_rect_to_device(self, rect: QRect) -> QRect:
+        """Map a grid-coordinate rect to viewport (widget pixel) coordinates."""
+        z = self.zoom
+        x1, y1 = round(rect.x() * z), round(rect.y() * z)
+        x2 = round((rect.x() + rect.width()) * z)
+        y2 = round((rect.y() + rect.height()) * z)
+        return QRect(x1, y1, x2 - x1, y2 - y1)
+
+    def device_cell_rect(self, r: int, c: int) -> QRect:
+        """Viewport (widget pixel) rect of cell (r, c) at the current zoom."""
+        return self.map_rect_to_device(self.cell_rect(r, c))
+
+    def _global_pos(self, point: QPoint) -> QPoint:
+        """Screen position of a grid-coordinate point."""
+        return self.viewport().mapToGlobal(self.map_to_device(point))
 
     def clear_undo_stack(self) -> None:
         """Clear all undo and redo history and reset transient interaction states."""
@@ -444,11 +503,13 @@ class GridViewport(QAbstractScrollArea):
     def _apply_sheet_view_state(self) -> None:
         """Apply the sheet's saved zoom; on first display also its view mode and scroll origin."""
         model = self.model
+        zoom_pct: Any = 100
         if hasattr(model, "extra") and "zoom" in model.extra:
-            try:
-                self.set_zoom(model.extra["zoom"] / 100.0)
-            except (TypeError, ValueError):
-                pass
+            zoom_pct = model.extra["zoom"]
+        try:
+            self.set_zoom(float(zoom_pct) / 100.0)
+        except (TypeError, ValueError):
+            self.set_zoom(1.0)
         vs = getattr(model, "view_state", None)
         if vs is None or model in self._view_state_applied:
             return
@@ -485,8 +546,9 @@ class GridViewport(QAbstractScrollArea):
 
     def _update_scrollbars(self) -> None:
         """Synchronize Qt scrollbars with virtualized sheet dimensions."""
-        vw = max(1, self.viewport().width() - self.row_header_width)
-        vh = max(1, self.viewport().height() - self.col_header_height)
+        view_w, view_h = self._view_size()
+        vw = max(1, view_w - self.row_header_width)
+        vh = max(1, view_h - self.col_header_height)
 
         # Allow scrolling beyond used data by 30 rows / 10 cols
         max_vis_r = min(self.geometry_mapper.max_rows - 1, 1000)
@@ -501,7 +563,14 @@ class GridViewport(QAbstractScrollArea):
         self.verticalScrollBar().setPageStep(vh)
 
     def hit_test(self, x: int, y: int) -> HitResult:
-        """Determine hit zone and target coordinates under mouse position (x, y)."""
+        """Determine hit zone and target under grid point (x, y).
+
+        (x, y) are grid (unzoomed) coordinates; mouse handlers map widget
+        pixels with :meth:`map_from_device`.  Grab tolerances are kept
+        constant in screen pixels, as in ledger/js/grid.js ``zone()``.
+        """
+        z = self.zoom
+        tol2, tol3, tol5 = 2 / z, 3 / z, 5 / z
         scroll_x = self.horizontalScrollBar().value()
         scroll_y = self.verticalScrollBar().value()
 
@@ -524,9 +593,9 @@ class GridViewport(QAbstractScrollArea):
             col = self.geometry_mapper.find_col_at(sheet_x)
             col_end = self.geometry_mapper.col_pos(col) + self.geometry_mapper.col_size(col)
             # Check resize boundary (+/- 3px)
-            if abs(sheet_x - col_end) <= 3:
+            if abs(sheet_x - col_end) <= tol3:
                 return HitResult(HitZone.COL_RESIZE, col=col, pos=x)
-            if col > 0 and abs(sheet_x - self.geometry_mapper.col_pos(col)) <= 3:
+            if col > 0 and abs(sheet_x - self.geometry_mapper.col_pos(col)) <= tol3:
                 return HitResult(HitZone.COL_RESIZE, col=col - 1, pos=x)
             return HitResult(HitZone.COL_HEADER, col=col)
 
@@ -539,9 +608,9 @@ class GridViewport(QAbstractScrollArea):
                 sheet_y = scroll_y + y_rel
             row = self.geometry_mapper.find_row_at(sheet_y)
             row_end = self.geometry_mapper.row_pos(row) + self.geometry_mapper.row_size(row)
-            if abs(sheet_y - row_end) <= 2:
+            if abs(sheet_y - row_end) <= tol2:
                 return HitResult(HitZone.ROW_RESIZE, row=row, pos=y)
-            if row > 0 and abs(sheet_y - self.geometry_mapper.row_pos(row)) <= 2:
+            if row > 0 and abs(sheet_y - self.geometry_mapper.row_pos(row)) <= tol2:
                 return HitResult(HitZone.ROW_RESIZE, row=row - 1, pos=y)
             return HitResult(HitZone.ROW_HEADER, row=row)
 
@@ -567,13 +636,17 @@ class GridViewport(QAbstractScrollArea):
             by2 = r_br.bottom() + 1
 
             # AutoFill Handle has priority (+/- 5px at bottom-right)
-            if abs(x - bx2) <= 5 and abs(y - by2) <= 5:
+            if abs(x - bx2) <= tol5 and abs(y - by2) <= tol5:
                 return HitResult(HitZone.FILL_HANDLE, row=pr.max_r, col=pr.max_c)
 
             # Selection Border (+/- 2px along perimeter)
             if not is_editing and not is_whole_rows and not is_whole_cols:
-                on_v = (abs(x - bx1) <= 2 or abs(x - bx2) <= 2) and (by1 - 2 <= y <= by2 + 2)
-                on_h = (abs(y - by1) <= 2 or abs(y - by2) <= 2) and (bx1 - 2 <= x <= bx2 + 2)
+                on_v = (abs(x - bx1) <= tol2 or abs(x - bx2) <= tol2) and (
+                    by1 - tol2 <= y <= by2 + tol2
+                )
+                on_h = (abs(y - by1) <= tol2 or abs(y - by2) <= tol2) and (
+                    bx1 - tol2 <= x <= bx2 + tol2
+                )
                 if on_v or on_h:
                     x_rel = x - self.row_header_width
                     y_rel = y - self.col_header_height
@@ -860,8 +933,9 @@ class GridViewport(QAbstractScrollArea):
         """Ensure cell (r, c) is visible in the viewport by scrolling if needed."""
         scroll_x = self.horizontalScrollBar().value()
         scroll_y = self.verticalScrollBar().value()
-        vw = max(1, self.viewport().width() - self.row_header_width)
-        vh = max(1, self.viewport().height() - self.col_header_height)
+        view_w, view_h = self._view_size()
+        vw = max(1, view_w - self.row_header_width)
+        vh = max(1, view_h - self.col_header_height)
 
         fz_r = self.freeze_rows
         fz_c = self.freeze_cols
@@ -924,11 +998,14 @@ class GridViewport(QAbstractScrollArea):
 
     def _render_paint_event(self, painter: QPainter, event: QPaintEvent) -> None:
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        # All grid geometry is in unzoomed pixels; scale it once here
+        # (ledger/js/render.js multiplies the same geometry by the zoom).
+        if self.zoom != 1.0:
+            painter.scale(self.zoom, self.zoom)
 
         scroll_x = self.horizontalScrollBar().value()
         scroll_y = self.verticalScrollBar().value()
-        vw = self.viewport().width()
-        vh = self.viewport().height()
+        vw, vh = self._view_size()
 
         # Background
         painter.fillRect(0, 0, vw, vh, Qt.GlobalColor.white)
@@ -1046,8 +1123,7 @@ class GridViewport(QAbstractScrollArea):
         pane_clip: QRect,
     ) -> None:
         """Render gridlines, selection, cells, and indicators for a single pane."""
-        vw = self.width()
-        vh = self.height()
+        vw, vh = self._view_size()
         # 2. Draw Selection Overlays
         painter.save()
         painter.setClipRect(pane_clip)
@@ -1620,8 +1696,7 @@ class GridViewport(QAbstractScrollArea):
             cell = self.cell_rect(r, c)
         bw = int(getattr(cm, "w", 140) or 140)
         bh = int(getattr(cm, "h", 65) or 65)
-        view_w = self.viewport().width()
-        view_h = self.viewport().height()
+        view_w, view_h = self._view_size()
         right = cell.x() + cell.width()
 
         bx = right + self._COMMENT_GAP
@@ -1983,9 +2058,9 @@ class GridViewport(QAbstractScrollArea):
         if cf_res and cf_res.icon:
             # Icon sets: the icon sits at the cell's left edge, bottom-aligned
             # (ledger/js/render.js drawIcon call site).
-            size = icon_size(item_rect.height(), self._zoom)
+            size = icon_size(item_rect.height())
             if size > 2:
-                pad = max(2, round(2 * self._zoom))
+                pad = 2
                 painter.save()
                 painter.setClipRect(item_rect, Qt.ClipOperation.IntersectClip)
                 draw_icon(
@@ -1993,7 +2068,7 @@ class GridViewport(QAbstractScrollArea):
                     str(cf_res.icon.get("set", "3TrafficLights1")),
                     int(cf_res.icon.get("i", 0)),
                     item_rect.x() + pad,
-                    item_rect.y() + item_rect.height() - size - max(1, round(2 * self._zoom)),
+                    item_rect.y() + item_rect.height() - size - 2,
                     size,
                 )
                 painter.restore()
@@ -2083,7 +2158,7 @@ class GridViewport(QAbstractScrollArea):
             return
         if cf_res and cf_res.icon and not cf_res.icon.get("show_value", True):
             return
-        icon_w = round(16 * self._zoom) if (cf_res and cf_res.icon) else 0
+        icon_w = 16 if (cf_res and cf_res.icon) else 0
 
         col_x = item_rect.x()
         row_y = item_rect.y()
@@ -3224,9 +3299,8 @@ class GridViewport(QAbstractScrollArea):
                     event.accept()
                     return
 
-            x = event.position().x()
-            y = event.position().y()
-            hit = self.hit_test(int(x), int(y))
+            x, y = self.map_from_device(event.position().x(), event.position().y())
+            hit = self.hit_test(x, y)
 
             if hit.zone == HitZone.CELL and hit.row is not None and hit.col is not None:
                 if not self.selection.is_selected(hit.row, hit.col):
@@ -3256,8 +3330,7 @@ class GridViewport(QAbstractScrollArea):
             super().mousePressEvent(event)
             return
 
-        x = event.position().x()
-        y = event.position().y()
+        x, y = self.map_from_device(event.position().x(), event.position().y())
 
         # Check click on List Validation dropdown arrow button
         if (
@@ -3469,8 +3542,7 @@ class GridViewport(QAbstractScrollArea):
             self.viewport().update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        x = int(event.position().x())
-        y = int(event.position().y())
+        x, y = self.map_from_device(event.position().x(), event.position().y())
         self._last_mouse_pos = QPoint(x, y)
 
         # Update cursor when hovering
@@ -3524,8 +3596,7 @@ class GridViewport(QAbstractScrollArea):
                 self._drag_moved = True
 
         # 3. Auto-scroll boundary check
-        vw = self.viewport().width()
-        vh = self.viewport().height()
+        vw, vh = self._view_size()
 
         fz_r_h = (
             self.geometry_mapper.row_pos(self.freeze_rows)
@@ -3612,7 +3683,7 @@ class GridViewport(QAbstractScrollArea):
                     }
                 )
                 QToolTip.showText(
-                    self.viewport().mapToGlobal(QPoint(x + 14, y + 18)),
+                    self.viewport().mapToGlobal(self.map_to_device(QPoint(x, y)) + QPoint(14, 18)),
                     tip,
                     self.viewport(),
                 )
@@ -3632,7 +3703,7 @@ class GridViewport(QAbstractScrollArea):
             self._update_scrollbars()
             tip = safe_tr("宽度: {0} 像素").format(new_w)
             QToolTip.showText(
-                self.viewport().mapToGlobal(QPoint(x + 14, 18)),
+                self.viewport().mapToGlobal(self.map_to_device(QPoint(x, 0)) + QPoint(14, 18)),
                 tip,
                 self.viewport(),
             )
@@ -3651,7 +3722,7 @@ class GridViewport(QAbstractScrollArea):
             self._update_scrollbars()
             tip = safe_tr("高度: {0} 像素").format(new_h)
             QToolTip.showText(
-                self.viewport().mapToGlobal(QPoint(14, y + 18)),
+                self.viewport().mapToGlobal(self.map_to_device(QPoint(0, y)) + QPoint(14, 18)),
                 tip,
                 self.viewport(),
             )
@@ -3761,7 +3832,7 @@ class GridViewport(QAbstractScrollArea):
                 self._move_preview_range = SelectionRange(to_r1, to_c1, to_r2, to_c2)
                 tip = range_name({"r1": to_r1, "c1": to_c1, "r2": to_r2, "c2": to_c2})
                 QToolTip.showText(
-                    self.viewport().mapToGlobal(QPoint(x + 14, y + 18)),
+                    self.viewport().mapToGlobal(self.map_to_device(QPoint(x, y)) + QPoint(14, 18)),
                     tip,
                     self.viewport(),
                 )
@@ -3960,8 +4031,7 @@ class GridViewport(QAbstractScrollArea):
         self.viewport().update()
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
-        x = int(event.position().x())
-        y = int(event.position().y())
+        x, y = self.map_from_device(event.position().x(), event.position().y())
         hit = self.hit_test(x, y)
 
         if hit.zone == HitZone.COL_RESIZE and hit.col is not None:
@@ -4269,7 +4339,7 @@ class GridViewport(QAbstractScrollArea):
             action.triggered.connect(on_triggered)
 
         if self._dv_dropdown_rect is not None:
-            pt = self.viewport().mapToGlobal(self._dv_dropdown_rect.bottomLeft())
+            pt = self._global_pos(self._dv_dropdown_rect.bottomLeft())
             menu.exec(pt)
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
@@ -4331,10 +4401,10 @@ class GridViewport(QAbstractScrollArea):
         if reason == QContextMenuEvent.Reason.Keyboard or pos is None:
             ar, ac = self.selection.active_cell
             c_rect = self.cell_rect(ar, ac)
-            global_pos = self.viewport().mapToGlobal(c_rect.center())
+            global_pos = self._global_pos(c_rect.center())
             hit = HitResult(HitZone.CELL, row=ar, col=ac)
         else:
-            hit = self.hit_test(pos.x(), pos.y())
+            hit = self.hit_test(*self.map_from_device(pos.x(), pos.y()))
 
         # 3. Build appropriate menu based on hit target and selection
         pr = self.selection.primary_range
@@ -5278,7 +5348,7 @@ class GridViewport(QAbstractScrollArea):
             )
 
         c_rect = self.cell_rect(r, c)
-        pt = self.viewport().mapToGlobal(c_rect.bottomLeft())
+        pt = self._global_pos(c_rect.bottomLeft())
         menu.exec(pt)
 
     def open_chart_type_dialog(self, obj: Any) -> None:
@@ -6506,7 +6576,7 @@ class GridViewport(QAbstractScrollArea):
 
                 menu.addAction(item, on_sel)
             rect = self.cell_rect(ar, ac)
-            menu.exec(self.viewport().mapToGlobal(rect.bottomLeft()))
+            menu.exec(self._global_pos(rect.bottomLeft()))
 
     def add_watch(self, r: int, c: int) -> None:
         """Add cell to Watch Window dialog."""
@@ -6766,7 +6836,7 @@ class GridViewport(QAbstractScrollArea):
             - scroll_y
         )
         row_h = self.geometry_mapper.row_size(af.r1)
-        global_pos = self.viewport().mapToGlobal(QPoint(col_x, row_y + row_h))
+        global_pos = self._global_pos(QPoint(col_x, row_y + row_h))
         dropdown.move(global_pos)
         dropdown.show()
 

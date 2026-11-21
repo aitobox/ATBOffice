@@ -624,6 +624,13 @@ class LedgerWindow(BaseOfficeWindow):
             zoom_combo = std_tb.findChild(QComboBox, "Ledger_ZoomCombo")
             if zoom_combo:
                 zoom_combo.currentTextChanged.connect(self._apply_zoom)
+                grid = getattr(self.spreadsheet_view, "grid", None)
+                if grid is not None and hasattr(grid, "zoom_changed"):
+                    # Show the active sheet's zoom (a file may open at 75%).
+                    grid.zoom_changed.connect(
+                        lambda z, combo=zoom_combo: self._sync_zoom_combo(combo, z)
+                    )
+                    self._sync_zoom_combo(zoom_combo, grid.zoom)
 
         # Connect drawing toolbar fill color and z-order drop actions
         draw_tb = self.toolbars.get("drawing")
@@ -784,6 +791,18 @@ class LedgerWindow(BaseOfficeWindow):
                 model.set_cell(r, c, cell)
         self.spreadsheet_view.grid.viewport().update()
         self.set_modified(True)
+
+    @staticmethod
+    def _sync_zoom_combo(combo: QComboBox, zoom: float) -> None:
+        """Show ``zoom`` in the zoom combo without re-applying it."""
+        text = f"{round(zoom * 100)}%"
+        if combo.currentText() == text:
+            return
+        combo.blockSignals(True)
+        try:
+            combo.setCurrentText(text)
+        finally:
+            combo.blockSignals(False)
 
     def _apply_zoom(self, zoom_text: str) -> None:
         clean = zoom_text.replace("%", "").strip()
