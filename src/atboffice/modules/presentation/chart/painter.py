@@ -26,6 +26,13 @@ from atboffice.modules.presentation.chart.renderers import (
     resolve_color,
     wrap_text,
 )
+from atboffice.modules.presentation.chart.renderers.three_d import (
+    depth_grid_segments,
+    depth_offset,
+    draw_walls,
+    is_3d_bar,
+    shrink_for_depth,
+)
 from atboffice.modules.presentation.chart.scale import format_val, scale
 
 
@@ -127,12 +134,13 @@ class ChartPainter:
             "areaStacked",
             "areaPct",
         )
+        dep = (0.0, 0.0)
         if kind in cartesian_col_line:
-            plot_rect = cls._draw_cartesian_axes_and_grid(
+            plot_rect, dep = cls._draw_cartesian_axes_and_grid(
                 painter, chart, plot_area, is_bar=False
             )
         elif kind in ("bar", "barStacked", "barPct"):
-            plot_rect = cls._draw_cartesian_axes_and_grid(
+            plot_rect, dep = cls._draw_cartesian_axes_and_grid(
                 painter, chart, plot_area, is_bar=True
             )
         elif kind in ("scatter", "bubble"):
@@ -142,9 +150,9 @@ class ChartPainter:
 
         # 6. Dispatch Plot Rendering
         if kind in ("col", "colStacked", "colPct"):
-            draw_columns(painter, chart, plot_rect)
+            draw_columns(painter, chart, plot_rect, dep)
         elif kind in ("bar", "barStacked", "barPct"):
-            draw_bars(painter, chart, plot_rect)
+            draw_bars(painter, chart, plot_rect, dep)
         elif kind in ("line", "lineMarkers"):
             draw_lines(painter, chart, plot_rect)
         elif kind in ("area", "areaStacked", "areaPct"):
@@ -165,8 +173,12 @@ class ChartPainter:
         chart: ChartData,
         area: QRectF,
         is_bar: bool = False,
-    ) -> QRectF:
-        """Draw axes, tick marks, gridlines, and labels for Column/Line/Area and Bar charts."""
+    ) -> tuple[QRectF, tuple[float, float]]:
+        """Draw axes, tick marks, gridlines, and labels for Column/Line/Area and Bar charts.
+
+        Returns the front plot rectangle and the 3-D depth offset ``(dx, dy)``,
+        which is ``(0, 0)`` for flat charts.
+        """
         font = QFont("sans-serif")
         font.setPointSizeF(max(7.0, chart.fsz * 0.85))
         painter.setFont(font)
@@ -204,16 +216,22 @@ class ChartPainter:
                 area.width() - left_margin,
                 area.height() - bottom_margin,
             )
+            plot_rect, dep = cls._fit_depth(chart, plot_rect, horizontal=True)
 
             # Draw value gridlines & ticks on bottom
             ticks = sc["ticks"]
             min_v, max_v = sc["min"], sc["max"]
             v_range = max_v - min_v if max_v != min_v else 1.0
+            if dep != (0.0, 0.0):
+                xs = [
+                    plot_rect.left() + (t - min_v) / v_range * plot_rect.width() for t in ticks
+                ]
+                cls._draw_depth_grid(painter, chart, plot_rect, dep, xs, horizontal=True)
 
             for tick in ticks:
                 ratio = (tick - min_v) / v_range
                 x = plot_rect.left() + ratio * plot_rect.width()
-                if chart.grid_y:
+                if chart.grid_y and dep == (0.0, 0.0):
                     painter.setPen(QPen(QColor("#E5E5E5"), 0.75))
                     painter.drawLine(QPointF(x, plot_rect.top()), QPointF(x, plot_rect.bottom()))
 
@@ -240,7 +258,7 @@ class ChartPainter:
             painter.setPen(QPen(QColor("#868686"), 1.0))
             painter.drawLine(plot_rect.topLeft(), plot_rect.bottomLeft())
             painter.drawLine(plot_rect.bottomLeft(), plot_rect.bottomRight())
-            return plot_rect
+            return plot_rect, dep
         else:
             sc = scale(lo, hi, chart.ax.get("v"), length=area.height(), label_sz=chart.fsz)
             ticks = sc["ticks"]
@@ -255,15 +273,22 @@ class ChartPainter:
                 area.width() - left_margin,
                 area.height() - bottom_margin,
             )
+            plot_rect, dep = cls._fit_depth(chart, plot_rect, horizontal=False)
 
             # Draw horizontal gridlines & value labels
             min_v, max_v = sc["min"], sc["max"]
             v_range = max_v - min_v if max_v != min_v else 1.0
+            if dep != (0.0, 0.0):
+                ys = [
+                    plot_rect.bottom() - (t - min_v) / v_range * plot_rect.height()
+                    for t in ticks
+                ]
+                cls._draw_depth_grid(painter, chart, plot_rect, dep, ys, horizontal=False)
 
             for tick in ticks:
                 ratio = (tick - min_v) / v_range
                 y = plot_rect.bottom() - ratio * plot_rect.height()
-                if chart.grid_y:
+                if chart.grid_y and dep == (0.0, 0.0):
                     painter.setPen(QPen(QColor("#E5E5E5"), 0.75))
                     painter.drawLine(QPointF(plot_rect.left(), y), QPointF(plot_rect.right(), y))
 
@@ -291,7 +316,44 @@ class ChartPainter:
             painter.setPen(QPen(QColor("#868686"), 1.0))
             painter.drawLine(plot_rect.bottomLeft(), plot_rect.bottomRight())
             painter.drawLine(plot_rect.topLeft(), plot_rect.bottomLeft())
-            return plot_rect
+            return plot_rect, dep
+
+    @classmethod
+    def _fit_depth(
+        cls,
+        chart: ChartData,
+        plot_rect: QRectF,
+        horizontal: bool,
+    ) -> tuple[QRectF, tuple[float, float]]:
+        """Shrink the plot box to leave room for the depth of a 3-D bar chart."""
+        if not is_3d_bar(chart) or chart.view3d is None:
+            return plot_rect, (0.0, 0.0)
+        dep = depth_offset(
+            chart.view3d,
+            plot_rect,
+            len(chart.cats or [""]),
+            len(chart.series or []),
+            horizontal,
+        )
+        return shrink_for_depth(plot_rect, *dep), dep
+
+    @classmethod
+    def _draw_depth_grid(
+        cls,
+        painter: QPainter,
+        chart: ChartData,
+        plot_rect: QRectF,
+        dep: tuple[float, float],
+        positions: list[float],
+        horizontal: bool,
+    ) -> None:
+        """Walls and floor of a 3-D plot with the value gridlines on its walls."""
+        draw_walls(painter, plot_rect, dep[0], dep[1], horizontal)
+        if not chart.grid_y:
+            return
+        painter.setPen(QPen(QColor("#D9D9D9"), 0.75))
+        for p1, p2 in depth_grid_segments(plot_rect, dep[0], dep[1], positions, horizontal):
+            painter.drawLine(p1, p2)
 
     @classmethod
     def _draw_xy_axes_and_grid(

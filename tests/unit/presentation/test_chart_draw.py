@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import zipfile
+from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QRectF
-from PySide6.QtGui import QImage, QPainter
+from PySide6.QtGui import QColor, QImage, QPainter
 from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.presentation.chart.io import (
@@ -19,6 +20,13 @@ from atboffice.modules.presentation.chart.model import (
     ChartData,
 )
 from atboffice.modules.presentation.chart.painter import ChartPainter
+from atboffice.modules.presentation.chart.renderers.common import get_series_color
+from atboffice.modules.presentation.chart.renderers.three_d import (
+    depth_grid_segments,
+    depth_offset,
+    shade,
+    shrink_for_depth,
+)
 from atboffice.modules.presentation.chart.scale import format_val, nice_step, scale
 from atboffice.modules.presentation.dialogs.datasheet_dialog import (
     ChartPreviewWidget,
@@ -280,3 +288,124 @@ class TestDatasheetDialogAndItem:
         c2 = ChartData.create_sample("area")
         pw.set_chart(c2)
         assert pw.chart.kind == "area"
+
+
+FIXTURE_3D_COLUMN = (
+    Path(__file__).resolve().parents[2]
+    / "docs"
+    / "powerpoint"
+    / "pptx"
+    / "openxml-sdk__Chart_3D (Column).pptx"
+)
+
+
+def _render(chart: ChartData, w: int = 640, h: int = 400) -> QImage:
+    img = QImage(w, h, QImage.Format.Format_ARGB32)
+    img.fill(QColor("#FFFFFF"))
+    painter = QPainter(img)
+    ChartPainter.paint_chart(painter, chart, QRectF(0, 0, w, h))
+    painter.end()
+    return img
+
+
+def _count_near(img: QImage, target: QColor, tol: int = 6) -> int:
+    n = 0
+    for y in range(0, img.height(), 2):
+        for x in range(0, img.width(), 2):
+            c = img.pixelColor(x, y)
+            if (
+                abs(c.red() - target.red()) <= tol
+                and abs(c.green() - target.green()) <= tol
+                and abs(c.blue() - target.blue()) <= tol
+            ):
+                n += 1
+    return n
+
+
+class TestChart3D:
+    """Imported 3-D column/bar charts render boxes, walls and a depth grid (#413)."""
+
+    def _fixture_chart(self) -> ChartData:
+        with zipfile.ZipFile(FIXTURE_3D_COLUMN) as z:
+            return parse_chart_xml(z.read("ppt/charts/chart1.xml"))
+
+    def test_fixture_imports_view3d_without_changing_data(self):
+        chart = self._fixture_chart()
+        assert chart.kind == "col"
+        assert chart.view3d == {"rotX": 15.0, "rotY": 20.0, "depth": 100.0, "deep": True}
+        assert [s.name for s in chart.series] == ["Series 1", "Series 2", "Series 3"]
+        assert chart.cats == ["Category 1", "Category 2", "Category 3", "Category 4"]
+        assert chart.series[0].vals == [4.3, 2.5, 3.5, 4.5]
+
+    def test_plain_bar_chart_has_no_view3d(self):
+        xml = chart_to_xml(ChartData.create_sample("col"))
+        assert parse_chart_xml(xml).view3d is None
+
+    def test_view3d_roundtrips_through_dict_and_xml(self):
+        chart = ChartData.create_sample("col")
+        chart.view3d = {"rotX": 10.0, "rotY": 30.0, "depth": 150.0, "deep": True}
+        assert ChartData.from_dict(chart.to_dict()).view3d == chart.view3d
+        xml = chart_to_xml(chart)
+        assert "<c:bar3DChart>" in xml and '<c:grouping val="standard"/>' in xml
+        assert "<c:serAx>" in xml
+        back = parse_chart_xml(xml)
+        assert back.view3d == chart.view3d
+        assert back.kind == "col"
+        assert [s.vals for s in back.series] == [s.vals for s in chart.series]
+
+    def test_clustered_3d_bar_exports_clustered_grouping(self):
+        chart = ChartData.create_sample("bar")
+        chart.view3d = {"rotX": 15.0, "rotY": 20.0, "depth": 100.0, "deep": False}
+        back = parse_chart_xml(chart_to_xml(chart))
+        assert back.kind == "bar"
+        assert back.view3d == chart.view3d
+
+    def test_depth_offset_follows_view_angles(self):
+        rect = QRectF(0, 0, 400, 300)
+        tilted = {"rotX": 15, "rotY": 20, "depth": 100, "deep": True}
+        dx, dy = depth_offset(tilted, rect, 4, 3, False)
+        assert dx > 0 and dy < 0
+        flat = {"rotX": 0, "rotY": 0, "depth": 100, "deep": False}
+        assert depth_offset(flat, rect, 4, 1, False) == (0.0, 0.0)
+        shrunk = shrink_for_depth(rect, dx, dy)
+        assert shrunk.right() + dx == pytest.approx(rect.right())
+        assert shrunk.top() + dy == pytest.approx(rect.top())
+
+    def test_depth_grid_segments_run_onto_back_and_side_walls(self):
+        rect = QRectF(50, 60, 300, 200)
+        segs = depth_grid_segments(rect, 30.0, -20.0, [80.0, 160.0], horizontal=False)
+        # one back-wall line and one side-wall diagonal per tick
+        assert len(segs) == 4
+        back, side = segs[0], segs[1]
+        assert back[0].x() == pytest.approx(80.0) and back[1].x() == pytest.approx(380.0)
+        assert back[0].y() == pytest.approx(60.0)
+        assert side[0].x() == pytest.approx(50.0) and side[1].x() == pytest.approx(80.0)
+
+    def test_3d_fixture_renders_side_faces_and_2d_control_does_not(self):
+        chart = self._fixture_chart()
+        base = get_series_color(chart.series[0], 0)
+        side = shade(base, -0.25)
+        top = shade(base, 0.25)
+
+        img3d = _render(chart)
+        assert _count_near(img3d, side) > 40
+        assert _count_near(img3d, top) > 10
+
+        flat = ChartData.from_dict(chart.to_dict())
+        flat.view3d = None
+        img2d = _render(flat)
+        assert _count_near(img2d, side) == 0
+        # the 2D control still draws the front faces
+        assert _count_near(img2d, base, tol=2) > 100
+
+    def test_3d_variants_render_without_errors(self):
+        for kind in ("col", "colStacked", "colPct", "bar", "barStacked", "barPct"):
+            for deep in (False, True):
+                chart = ChartData.create_sample(kind)
+                chart.series[0].vals = [-5.0, 0.0, 20.0, 30.0]
+                chart.view3d = {"rotX": 15.0, "rotY": 20.0, "depth": 100.0, "deep": deep}
+                img = _render(chart, 320, 240)
+                # the last series is never hidden behind a neighbour: its side face shows
+                last = len(chart.series) - 1
+                side = shade(get_series_color(chart.series[last], last), -0.25)
+                assert _count_near(img, side) > 0, (kind, deep)

@@ -132,6 +132,30 @@ def chart_to_xml(chart: ChartData | dict[str, Any]) -> str:
         f"</c:valAx>"
     )
 
+    bar_kinds = ("col", "colStacked", "colPct", "bar", "barStacked", "barPct")
+    v3 = c.view3d if kind in bar_kinds else None
+    bar_tag = "bar3DChart" if v3 else "barChart"
+    deep = bool(v3 and v3.get("deep") and kind in ("col", "bar"))
+    view3d_xml = ""
+    if v3:
+        view3d_xml = (
+            f'<c:view3D><c:rotX val="{int(round(float(v3.get("rotX", 15))))}"/>'
+            f'<c:rotY val="{int(round(float(v3.get("rotY", 20))))}"/>'
+            f'<c:depthPercent val="{int(round(float(v3.get("depth", 100))))}"/>'
+            f'<c:rAngAx val="0"/></c:view3D>'
+        )
+    ax3 = 50010003
+    if deep:
+        ax_ids += f'<c:axId val="{ax3}"/>'
+    ser_ax = (
+        f'<c:serAx><c:axId val="{ax3}"/><c:scaling><c:orientation val="minMax"/>'
+        f'</c:scaling><c:delete val="1"/><c:axPos val="b"/>'
+        f'<c:tickLblPos val="nextTo"/><c:crossAx val="{ax2}"/>'
+        f'<c:crosses val="autoZero"/></c:serAx>'
+        if deep
+        else ""
+    )
+
     # Plot area according to kind
     if kind in ("bar", "barStacked", "barPct"):
         grp = (
@@ -139,13 +163,17 @@ def chart_to_xml(chart: ChartData | dict[str, Any]) -> str:
             if kind == "barPct"
             else "stacked"
             if kind == "barStacked"
+            else "standard"
+            if deep
             else "clustered"
         )
         plot_type = (
-            f'<c:barChart><c:barDir val="bar"/><c:grouping val="{grp}"/>'
-            f"{all_ser}{ax_ids}</c:barChart>"
+            f'<c:{bar_tag}><c:barDir val="bar"/><c:grouping val="{grp}"/>'
+            f"{all_ser}{ax_ids}</c:{bar_tag}>"
         )
-        plot_area = f"<c:plotArea><c:layout/>{plot_type}{cat_ax}{val_ax}</c:plotArea>"
+        plot_area = (
+            f"<c:plotArea><c:layout/>{plot_type}{cat_ax}{val_ax}{ser_ax}</c:plotArea>"
+        )
     elif kind in ("line", "lineMarkers"):
         plot_type = (
             f'<c:lineChart><c:grouping val="standard"/>'
@@ -193,19 +221,23 @@ def chart_to_xml(chart: ChartData | dict[str, Any]) -> str:
             if kind == "colPct"
             else "stacked"
             if kind == "colStacked"
+            else "standard"
+            if deep
             else "clustered"
         )
         plot_type = (
-            f'<c:barChart><c:barDir val="col"/><c:grouping val="{grp}"/>'
-            f"{all_ser}{ax_ids}</c:barChart>"
+            f'<c:{bar_tag}><c:barDir val="col"/><c:grouping val="{grp}"/>'
+            f"{all_ser}{ax_ids}</c:{bar_tag}>"
         )
-        plot_area = f"<c:plotArea><c:layout/>{plot_type}{cat_ax}{val_ax}</c:plotArea>"
+        plot_area = (
+            f"<c:plotArea><c:layout/>{plot_type}{cat_ax}{val_ax}{ser_ax}</c:plotArea>"
+        )
 
     return (
         f"{XML_DECL}"
         f'<c:chartSpace xmlns:c="{NS_C}" xmlns:a="{NS_A}" xmlns:r="{NS_R}">'
         f'<c:date1904 val="0"/><c:lang val="en-US"/><c:roundedCorners val="0"/>'
-        f"<c:chart>{title_xml}{plot_area}{legend_xml}"
+        f"<c:chart>{title_xml}{view3d_xml}{plot_area}{legend_xml}"
         f'<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>'
         f"</c:chartSpace>"
     )
@@ -282,6 +314,23 @@ def _resolve_auto_title(chart: ChartData, chart_elem: ET.Element, ns: dict[str, 
         chart.title = chart.series[0].name
 
 
+def _parse_view3d(v3: ET.Element | None, ns: dict[str, str]) -> dict[str, Any]:
+    """Read c:view3D with Office's defaults for column/bar charts."""
+
+    def num(tag: str, default: float) -> float:
+        node = v3.find(f"c:{tag}", ns) if v3 is not None else None
+        try:
+            return float(node.get("val")) if node is not None else default
+        except (TypeError, ValueError):
+            return default
+
+    return {
+        "rotX": num("rotX", 15.0),
+        "rotY": num("rotY", 20.0),
+        "depth": num("depthPercent", 100.0),
+    }
+
+
 def parse_chart_xml(
     xml_content: str | bytes,
     *,
@@ -332,6 +381,7 @@ def parse_chart_xml(
 
     # Determine kind from plot children
     kind = "col"
+    view3d: dict[str, Any] | None = None
     chart_type_elem = None
     for child in plot_elem:
         tag_name = child.tag.split("}")[-1]
@@ -341,6 +391,9 @@ def parse_chart_xml(
                 bar_dir = child.find("c:barDir", ns)
                 grouping = child.find("c:grouping", ns)
                 grp_val = grouping.get("val") if grouping is not None else "clustered"
+                if tag_name == "bar3DChart":
+                    view3d = _parse_view3d(chart_elem.find("c:view3D", ns), ns)
+                    view3d["deep"] = grp_val == "standard"
                 is_h_bar = bar_dir is not None and bar_dir.get("val") == "bar"
                 if is_h_bar:
                     kind = (
@@ -446,6 +499,7 @@ def parse_chart_xml(
         grid_y=grid_y,
         cats=cats,
         series=series_list,
+        view3d=view3d,
     )
     if worksheet_defaults:
         _apply_worksheet_defaults(chart, root, chart_elem, ns)
