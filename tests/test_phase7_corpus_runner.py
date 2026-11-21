@@ -34,11 +34,14 @@ def test_expectations_manifest_completeness() -> None:
     assert categories.get("encrypted", 0) == 1, (
         f"Expected 1 encrypted file, got {categories.get('encrypted')}"
     )
-    assert categories.get("corrupt", 0) == 1, (
-        f"Expected 1 corrupt file, got {categories.get('corrupt')}"
+    assert categories.get("corrupt", 0) == 3, (
+        f"Expected 3 corrupt files, got {categories.get('corrupt')}"
     )
-    assert categories.get("unsupported_format", 0) == 75, (
-        f"Expected 75 unsupported_format files, got {categories.get('unsupported_format')}"
+    assert categories.get("legacy_imported", 0) == 23, (
+        f"Expected 23 legacy_imported files, got {categories.get('legacy_imported')}"
+    )
+    assert categories.get("unsupported_format", 0) == 50, (
+        f"Expected 50 unsupported_format files, got {categories.get('unsupported_format')}"
     )
 
     # Verify SHA-256 for all 150 files on disk
@@ -140,11 +143,13 @@ def test_runner_corrupt_rejection() -> None:
 
 
 def test_runner_legacy_binary_rejection_no_fake_compat() -> None:
-    """Verify that legacy binary files (.doc, .xls, .ppt) are marked unsupported_format."""
+    """Verify that legacy binary files (.doc, .ppt) are marked unsupported_format.
+
+    Legacy .xls imports through the native reader (see test_issue418_xls_expectations.py).
+    """
     manifest = CorpusExpectations(Path("tests/docs/expectations.json"))
     samples = [
         "tests/docs/word/doc/libreoffice__cp1000044.doc",
-        "tests/docs/excel/xls/libreoffice__AutoFilter.xls",
         "tests/docs/powerpoint/ppt/libreoffice__tdf157636.ppt",
     ]
     for s in samples:

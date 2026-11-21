@@ -236,6 +236,68 @@ def _probe_legacy_open_outcome(
     }
 
 
+def _audit_legacy_xls(
+    path: Path, raw_data: bytes, fault: str | None, execute_render: bool
+) -> dict[str, Any]:
+    """Stage-audit a legacy .xls through the same readers the Ledger open path uses.
+
+    Imported workbooks report status 'imported' (roundtrip is skipped: binary XLS is a
+    read-only import and saving requires .xlsx). Parse errors report 'corrupt'.
+    """
+    base: dict[str, Any] = {
+        "file": path.name,
+        "path": str(path),
+        "app": "excel",
+        "format": "xls",
+    }
+    real_open_info = _probe_legacy_open_outcome(path, raw_data, "excel", ".xls")
+    base["real_open"] = real_open_info
+
+    if real_open_info["outcome"] != "imported":
+        kind = real_open_info.get("rejection_kind") or "corrupt"
+        return {
+            **base,
+            "status": kind,
+            "stages": {
+                "parse": f"rejected_{kind}",
+                "model": "skip",
+                "render": "skip",
+                "roundtrip": "skip",
+            },
+            "reason": real_open_info.get("error", f"Legacy .xls rejected as {kind}"),
+        }
+
+    if real_open_info["dispatched_format"] == "xmlss":
+        from atboffice.modules.spreadsheet.io.xmlss_io import read_xmlss_workbook
+
+        model = read_xmlss_workbook(raw_data)
+    else:
+        from atboffice.modules.spreadsheet.io.xls_reader import read_xls
+
+        model = read_xls(path)
+
+    if fault == "render_fail":
+        render_stage = "fail"
+    elif execute_render:
+        render_stage = "ok" if _render_model_offscreen("excel", model) else "fail"
+    else:
+        render_stage = "skip"
+
+    stages = {"parse": "ok", "model": "ok", "render": render_stage, "roundtrip": "skip"}
+    if render_stage == "fail":
+        return {**base, "status": "fail", "stages": stages,
+                "reason": "Offscreen render execution failed"}
+    return {
+        **base,
+        "status": "imported",
+        "stages": stages,
+        "reason": (
+            f"Legacy .xls imported via {real_open_info['dispatched_format']} "
+            f"(read_only={real_open_info['read_only']})"
+        ),
+    }
+
+
 def _execute_file_audit_worker(
     queue: multiprocessing.Queue,
     file_path_str: str,
@@ -261,8 +323,13 @@ def _execute_file_audit_worker(
     elif ext in (".pptx", ".pptm", ".ppt"):
         app = "powerpoint"
 
+    # Legacy .xls imports through the real readers (BIFF8 read-only or SpreadsheetML XML)
+    if ext == ".xls":
+        queue.put(_audit_legacy_xls(path, raw_data, fault, execute_render))
+        return
+
     # Legacy binary / disguised extension handling (probed rather than blindly skipped)
-    if ext in (".doc", ".xls", ".ppt"):
+    if ext in (".doc", ".ppt"):
         real_open_info = _probe_legacy_open_outcome(path, raw_data, app, ext)
         queue.put({
             "file": path.name,
@@ -1111,6 +1178,7 @@ class AuditSession:
         return {
             "attempted": len(self.results),
             "ok": statuses.get("ok", 0),
+            "imported": statuses.get("imported", 0),
             "failed": failed_cnt,
             "excluded": excluded_cnt,
             "encrypted": statuses.get("encrypted", 0),

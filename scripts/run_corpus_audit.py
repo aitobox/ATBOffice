@@ -191,6 +191,7 @@ def main() -> None:
     print(f"\nAudit complete in {elapsed:.2f}s:")
     print(f"  Attempted:           {summ['attempted']}")
     print(f"  OK (Valid):          {summ['ok']}")
+    print(f"  Imported (legacy):   {summ['imported']}")
     print(f"  Encrypted:           {summ['encrypted']}")
     print(f"  Corrupt:             {summ['corrupt']}")
     print(f"  Unsupported format:  {summ['unsupported_format']}")

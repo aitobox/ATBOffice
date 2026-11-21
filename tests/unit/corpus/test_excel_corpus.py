@@ -87,7 +87,8 @@ def test_curated_xls_binary_safe_handling() -> None:
     for xls_path in xls_files:
         exp = expectations.get(xls_path.name)
         assert exp is not None, f"File {xls_path.name} must be cataloged in expectations.json"
-        assert exp.get("category") == "unsupported_format"
+        # 23 import via the native XLS/XMLSS readers; 2 are malformed (issue #418)
+        assert exp.get("category") in ("legacy_imported", "corrupt")
 
         raw_data = xls_path.read_bytes()
         assert len(raw_data) > 0
