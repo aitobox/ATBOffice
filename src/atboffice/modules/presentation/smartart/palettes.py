@@ -140,8 +140,8 @@ def paint_shape(s: dict[str, Any], sa: dict[str, Any], pal: Any = None) -> dict[
     else:
         c = base
 
-    # Sub-item bullets / cards
-    if role == "child" and s.get("tint") and not s.get("noFill"):
+    # Sub-item bullets / cards, and tinted group containers (groupedList)
+    if role in ("child", "node") and s.get("tint") and not s.get("noFill"):
         return {
             "fill": {"t": "solid", "c": c, "a": 0.18},
             "line": {"c": c, "w": 1.0, "dash": "solid"} if s.get("line") else {"t": "none"},

@@ -17,6 +17,7 @@ from atboffice.modules.spreadsheet.models.color_utils import (
     normalize_hex_color,
     resolve_color_spec,
 )
+from atboffice.modules.spreadsheet.models.excel_units import DEFAULT_MDW, px_to_width
 from atboffice.modules.spreadsheet.models.pivot_model import write_pivots_to_package
 from atboffice.modules.spreadsheet.models.sheet_model import (
     BorderStyle,
@@ -1021,7 +1022,8 @@ def _serialize_worksheet(
             parts.append("<cols>")
             for c in col_indices:
                 w_px = sheet.geometry.col_size(c)
-                w_str = f"{(w_px + 0.1) / 8.0:.2f}"
+                mdw = int(sheet.extra.get("excel_mdw") or DEFAULT_MDW)
+                w_str = f"{px_to_width(w_px, mdw):.8g}"
                 c_1 = c + 1
                 hidden_attr = ' hidden="1"' if c in sheet.geometry.hidden_cols else ""
                 parts.append(

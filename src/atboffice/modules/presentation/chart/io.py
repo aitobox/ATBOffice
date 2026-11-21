@@ -6,6 +6,7 @@ import html
 import io
 import xml.etree.ElementTree as ET
 import zipfile
+from collections.abc import Sequence
 from typing import Any
 
 from atboffice.modules.presentation.chart.model import ChartData, SeriesData
@@ -258,6 +259,11 @@ def _apply_worksheet_defaults(
         elif solid is not None:
             chart.border = _color_of(solid, ns) or chart.border
 
+    _resolve_auto_title(chart, chart_elem, ns)
+
+
+def _resolve_auto_title(chart: ChartData, chart_elem: ET.Element, ns: dict[str, str]) -> None:
+    """Office's automatic title: a text-less <c:title> or an undeleted auto title."""
     if chart.title:
         return
     title_elem = chart_elem.find("c:title", ns)
@@ -280,11 +286,16 @@ def parse_chart_xml(
     xml_content: str | bytes,
     *,
     worksheet_defaults: bool = False,
+    theme_accents: Sequence[str] | None = None,
+    auto_title: bool = False,
 ) -> ChartData:
     """Parse a DrawingML <c:chartSpace> XML string or bytes into ChartData.
 
     With ``worksheet_defaults``, implicit chart-area and automatic-title
-    properties resolve the way Excel draws them on a worksheet.
+    properties resolve the way Excel draws them on a worksheet; ``auto_title``
+    applies only the automatic title (PowerPoint). ``theme_accents`` (accent1..
+    accent6 as "#RRGGBB") resolve series scheme colours and colour series that
+    set none.
     """
     if isinstance(xml_content, str):
         root = ET.fromstring(xml_content)
@@ -393,6 +404,16 @@ def parse_chart_xml(
             clr_node = ser.find(".//c:spPr//a:srgbClr", ns)
             if clr_node is not None and clr_node.get("val"):
                 col_hex = f"#{clr_node.get('val')}"
+            elif theme_accents:
+                scheme_node = ser.find("c:spPr/a:solidFill/a:schemeClr", ns)
+                slot = scheme_node.get("val", "") if scheme_node is not None else ""
+                if slot.startswith("accent") and slot[6:].isdigit():
+                    a_idx = int(slot[6:]) - 1
+                    if 0 <= a_idx < len(theme_accents):
+                        col_hex = theme_accents[a_idx]
+                elif scheme_node is None:
+                    # Office's automatic series colours cycle through the theme accents
+                    col_hex = theme_accents[s_idx % len(theme_accents)]
 
             # Categories (from first series if available)
             if not cats:
@@ -428,6 +449,8 @@ def parse_chart_xml(
     )
     if worksheet_defaults:
         _apply_worksheet_defaults(chart, root, chart_elem, ns)
+    elif auto_title:
+        _resolve_auto_title(chart, chart_elem, ns)
     return chart
 
 

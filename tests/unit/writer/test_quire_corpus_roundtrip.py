@@ -103,9 +103,10 @@ class TestRealCorpusDocuments:
         assert len(doc.main.blocks) == 91
 
         res = paginate_document(doc)
-        # 17 physical pages under exact Tinos/Times New Roman advances (Word ref: 18 pages)
-        assert res.total_pages == 17
-        assert len(res.pages) == 17
+        # 18 physical pages, as Word lays it out (word.json lists 18 page starts) now that each
+        # paragraph's space after is kept
+        assert res.total_pages == 18
+        assert len(res.pages) == 18
 
         if WORD_REF_JSON.exists():
             # Extract first paragraph label from each page

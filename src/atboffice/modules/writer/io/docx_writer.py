@@ -469,16 +469,28 @@ class DocxWriter:
 
         # Indent
         ind = p_pr.ind
-        if ind.left or ind.right or ind.first_line:
+        if (
+            ind.left
+            or ind.right
+            or ind.first_line
+            or ind.left_explicit
+            or ind.right_explicit
+            or ind.first_line_explicit
+        ):
             ind_elem = ET.SubElement(p_pr_elem, _w("ind"))
-            if ind.left:
+            if ind.left or ind.left_explicit:
                 ind_elem.set(_w("left"), str(pt_to_dxa(ind.left)))
-            if ind.right:
+            if ind.right or ind.right_explicit:
                 ind_elem.set(_w("right"), str(pt_to_dxa(ind.right)))
-            if ind.first_line > 0:
+            if ind.first_line > 0 or (ind.first_line_explicit and not ind.first_line):
                 ind_elem.set(_w("firstLine"), str(pt_to_dxa(ind.first_line)))
             elif ind.first_line < 0:
                 ind_elem.set(_w("hanging"), str(pt_to_dxa(-ind.first_line)))
+
+        if p_pr.contextual is not None:
+            ctx_elem = ET.SubElement(p_pr_elem, _w("contextualSpacing"))
+            if not p_pr.contextual:
+                ctx_elem.set(_w("val"), "0")
 
         # Alignment
         if p_pr.jc and p_pr.jc != "left":
@@ -800,7 +812,7 @@ class DocxWriter:
             kern_elem = ET.SubElement(r_pr_elem, _w("kern"))
             kern_elem.set(_w("val"), str(round(r_pr.kern * 2)))
 
-        if r_pr.sz != 12.0:
+        if r_pr.sz != 12.0 or r_pr.sz_explicit:
             sz_elem = ET.SubElement(r_pr_elem, _w("sz"))
             sz_elem.set(_w("val"), str(round(r_pr.sz * 2)))
 
@@ -1107,8 +1119,10 @@ class DocxWriter:
         r_fonts.set(_w("hAnsi"), "Times New Roman")
         r_fonts.set(_w("eastAsia"), "SimSun")
         r_fonts.set(_w("cs"), "Times New Roman")
+        def_r_pr = (getattr(self.doc, "defaults", None) or {}).get("r_pr")
+        def_sz = def_r_pr.sz if def_r_pr is not None else 12.0
         sz = ET.SubElement(r_pr_def, _w("sz"))
-        sz.set(_w("val"), "24")
+        sz.set(_w("val"), str(round(def_sz * 2)))
 
         # Styles
         styles_dict = self.doc.styles or builtin_styles()

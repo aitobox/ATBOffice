@@ -64,6 +64,7 @@ from atboffice.modules.spreadsheet.calc.tokens import CellRefNode
 from atboffice.modules.spreadsheet.models.conditional_format import (
     evaluate_cf_for_cell,
 )
+from atboffice.modules.spreadsheet.models.excel_units import excel_mdw
 from atboffice.modules.spreadsheet.models.selection_model import (
     SelectionModel,
     SelectionRange,
@@ -1716,23 +1717,7 @@ class GridViewport(QAbstractScrollArea):
     @staticmethod
     def _excel_mdw(font_family: str, font_size: int) -> int:
         """Maximum digit width (px) matching Excel/VibeOffice font sizing rules."""
-        name = (font_family or "Arial").strip().lower()
-        sz = font_size or 11
-        ratios = {
-            "calibri": 7.0 / 11.0,
-            "arial": 7.0 / 10.0,
-            "aptos narrow": 7.0 / 11.0,
-            "aptos": 7.5 / 11.0,
-            "cambria": 7.0 / 11.0,
-            "times new roman": 7.0 / 12.0,
-            "verdana": 8.0 / 10.0,
-            "tahoma": 7.0 / 10.0,
-            "courier new": 8.0 / 10.0,
-            "segoe ui": 7.0 / 10.0,
-            "ms pgothic": 8.0 / 11.0,
-        }
-        k = ratios.get(name, 7.0 / 11.0)
-        return max(5, int(round(k * sz)))
+        return excel_mdw(font_family, font_size)
 
     @classmethod
     def _hinted_text_width(cls, text: str, font_family: str, font_size: int) -> float:

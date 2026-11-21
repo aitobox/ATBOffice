@@ -15,6 +15,7 @@ from typing import Any
 from atboffice.modules.writer.layout.portions import (
     ParagraphLayout,
     layout_paragraph,
+    spacing_between,
 )
 from atboffice.modules.writer.models.document import (
     Cell,
@@ -270,7 +271,9 @@ def layout_table(
             items: list[ParagraphLayout | TableLayout] = []
             item_tops: list[float] = []
             cur_p_y = c_mar_t
-            for block in entry.cell.blocks:
+            cell_blocks = entry.cell.blocks
+            prev_pl: ParagraphLayout | None = None
+            for b_idx, block in enumerate(cell_blocks):
                 if isinstance(block, Paragraph):
                     playout = layout_paragraph(
                         p=block,
@@ -279,6 +282,26 @@ def layout_table(
                         doc=doc,
                         table_context=tbl_ctx,
                     )
+                    # Word drops Auto spacing at the cell's edges, and adjacent paragraphs
+                    # are separated by the larger of space after / space before.
+                    sp_b = playout.space_before
+                    sp_a = playout.space_after
+                    if b_idx == 0 and playout.before_auto:
+                        sp_b = 0.0
+                    if b_idx == len(cell_blocks) - 1 and playout.after_auto:
+                        sp_a = 0.0
+                    if prev_pl is not None:
+                        # prev_pl's effective space after is already counted below it
+                        prev_a = prev_pl.effective_space_after
+                        gap = spacing_between(prev_pl, playout, prev_after=prev_a, cur_before=sp_b)
+                        if prev_pl.contextual and prev_pl.style_id == playout.style_id:
+                            cur_p_y -= prev_a
+                            prev_pl.effective_space_after = 0.0
+                            prev_a = 0.0
+                        sp_b = max(0.0, gap - prev_a)
+                    playout.effective_space_before = sp_b
+                    playout.effective_space_after = sp_a
+                    prev_pl = playout
                     p_layouts.append(playout)
                     items.append(playout)
                     item_tops.append(cur_p_y - c_mar_t)
@@ -295,6 +318,7 @@ def layout_table(
                     items.append(inner_tl)
                     item_tops.append(cur_p_y - c_mar_t)
                     cur_p_y += inner_tl.height
+                    prev_pl = None
 
             total_h = cur_p_y + c_mar_b
             cell_content_heights[id(entry.cell)] = total_h

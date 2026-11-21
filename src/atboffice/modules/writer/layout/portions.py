@@ -34,6 +34,7 @@ from atboffice.modules.writer.models.document import (
 from atboffice.modules.writer.models.drawing import PictureItem, WrapMode
 from atboffice.modules.writer.models.omml import OfficeMathItem
 from atboffice.modules.writer.models.properties import (
+    RunProperties,
     SectionProperties,
 )
 from atboffice.modules.writer.models.styles import merge_r_props, resolve_p_props, resolve_r_props
@@ -132,6 +133,14 @@ FORBIDDEN_LINE_STARTS: frozenset[str] = frozenset(
     "，。！？、；：）》」』’”·…—～〉】｝］,.!?):;]}>\"'”’»›"
 )
 
+# Portion.data of the tab that follows a list number
+LABEL_TAB = "label-tab"
+
+# Superscript/subscript glyph size and baseline offsets, as fractions of the run's size
+VERT_SIZE_RATIO = 0.65
+SUPERSCRIPT_RISE = 1.0 / 3.0
+SUBSCRIPT_DROP = 0.2
+
 FORBIDDEN_LINE_ENDS: frozenset[str] = frozenset('（《「『‘“【〈｛［([{"“‘«‹')
 
 # CJK character detection regex
@@ -194,7 +203,7 @@ def map_symbol_char(ch: str, font: str = "") -> str:
             "ª": "✦", "¨": "◻",
             "\uF06E": "■", "\uF06C": "●", "\uF075": "◆",
             "\uF0FC": "✓", "\uF0D8": "➢", "\uF0A7": "▪",
-            "\uF04A": "☺", "\uF049": "☹", "\uF0B2": "❖",
+            "\uF04A": "☺", "\uF049": "☹", "\uF0B2": "✧",
         }
         if ch in w_map:
             return w_map[ch]
@@ -222,11 +231,25 @@ def map_symbol_char(ch: str, font: str = "") -> str:
         p_map = {
             "\uF06E": "■", "\uF06C": "●", "\uF075": "◆",
             "\uF0FC": "✓", "\uF0D8": "➢", "\uF0A7": "▪",
-            "\uF0B7": "•", "\uF04A": "☺", "\uF049": "☹", "\uF0B2": "❖",
+            "\uF0B7": "•", "\uF04A": "☺", "\uF049": "☹", "\uF0B2": "✧",
         }
         return p_map.get(ch, "•")
 
     return ch
+
+
+_COMPLEX_SCRIPT_RE = re.compile(
+    "[֐-׿؀-ۿ܀-ݏݐ-ݿހ-޿"
+    "ࢠ-ࣿיִ-﷿ﹰ-﻿]"
+)
+
+
+def _uses_complex_script(r_pr: Any, item: Any) -> bool:
+    """A run Word formats with its complex-script font and size: w:rtl, or Hebrew/Arabic text."""
+    if getattr(r_pr, "rtl", False):
+        return True
+    text = getattr(item, "text", None)
+    return bool(text) and _COMPLEX_SCRIPT_RE.search(text) is not None
 
 
 def num_def(doc: Any, num_id: str | int) -> dict[str, Any] | None:
@@ -443,6 +466,8 @@ class Portion:
     char_offset: int = 0
     length: int = 0
     data: Any = None
+    # Points the glyphs are drawn above (+) or below (-) the line baseline (super/subscript).
+    baseline_shift: float = 0.0
 
     @property
     def height(self) -> float:
@@ -487,6 +512,45 @@ class ParagraphLayout:
     space_after: float = 0.0
     effective_space_before: float = 0.0
     effective_space_after: float = 0.0
+    # Spacing came from w:beforeAutospacing / w:afterAutospacing (dropped at a cell's edges)
+    before_auto: bool = False
+    after_auto: bool = False
+    # w:contextualSpacing and the paragraph's own style id, for same-style spacing suppression
+    contextual: bool = False
+    style_id: str = "Normal"
+
+
+# Word's "Auto" paragraph spacing (HTML-style autospacing) in points
+AUTO_SPACING_PT = 14.0
+
+
+def spacing_between(
+    prev: ParagraphLayout,
+    cur: ParagraphLayout,
+    prev_after: float | None = None,
+    cur_before: float | None = None,
+) -> float:
+    """Gap between two adjacent paragraphs, as Word draws it.
+
+    The larger of the previous space after and this space before separates them; a
+    contextual paragraph next to one of the same style contributes none. ``prev_after`` /
+    ``cur_before`` override the layouts' own values (cell edges, split paragraphs).
+    """
+    same_style = prev.style_id == cur.style_id
+    after = prev.space_after if prev_after is None else prev_after
+    before = cur.space_before if cur_before is None else cur_before
+    if prev.contextual and same_style:
+        after = 0.0
+    if cur.contextual and same_style:
+        before = 0.0
+    return max(after, before)
+
+
+def resolved_paragraph_spacing(sp: Any) -> tuple[float, float]:
+    """Space before/after in points, with Word's Auto spacing turned into 14pt."""
+    before = AUTO_SPACING_PT if getattr(sp, "before_auto", False) else float(sp.before or 0.0)
+    after = AUTO_SPACING_PT if getattr(sp, "after_auto", False) else float(sp.after or 0.0)
+    return before, after
 
 
 # ---------------------------------------------------------------------------
@@ -704,14 +768,24 @@ def decompose_paragraph_to_portions(
             lvl_idx = num.lvl if num.lvl is not None else 0
             lvl = num_level_def(d, num.id, lvl_idx)
             pic_bullet = lvl.get("pic_bullet")
-            r_pr = lvl.get("r_pr")
-            font_f = (
-                r_pr.font
-                if (r_pr and getattr(r_pr, "font", None))
-                else ("Symbol" if lvl.get("fmt") == "bullet" else "Times New Roman")
-            )
-            font_s = r_pr.sz if (r_pr and getattr(r_pr, "sz", None)) else 10.0
-            color = r_pr.color if (r_pr and getattr(r_pr, "color", None)) else "#000000"
+            # The number takes the paragraph mark's formatting with the level's rPr on top,
+            # without underline or highlight (the original's render.js label run).
+            lvl_r_pr = lvl.get("r_pr")
+            label_r_pr = resolve_r_props(d, p, None, context=table_context)
+            if getattr(p, "mark", None) is not None:
+                label_r_pr = merge_r_props(label_r_pr, p.mark)
+            if isinstance(lvl_r_pr, RunProperties):
+                label_r_pr = merge_r_props(label_r_pr, lvl_r_pr)
+            font_f = label_r_pr.font or "Times New Roman"
+            if lvl.get("fmt") == "bullet" and any(
+                k in font_f.lower() for k in ("symbol", "wingdings", "webdings")
+            ):
+                # The glyph is mapped to Unicode, so it is drawn in a text face
+                font_f = "Arial"
+            font_s = label_r_pr.sz or 10.0
+            color = label_r_pr.color if label_r_pr.color not in (None, "auto") else "#000000"
+            label_bold = bool(label_r_pr.b)
+            label_italic = bool(label_r_pr.i)
 
             # 1. Picture Bullet
             if pic_bullet and pic_bullet.get("image_part"):
@@ -740,8 +814,12 @@ def decompose_paragraph_to_portions(
                 )
             elif p.label:
                 glyph = p.label
-                w_glyph = measure_text_width(glyph, font_s, font_f)
-                b_ascent, b_descent = compute_font_metrics(font_s, font_f)
+                w_glyph = measure_text_width(
+                    glyph, font_s, font_f, bold=label_bold, italic=label_italic
+                )
+                b_ascent, b_descent = compute_font_metrics(
+                    font_s, font_f, bold=label_bold, italic=label_italic
+                )
                 portions.append(
                     Portion(
                         type=PortionType.TEXT,
@@ -751,6 +829,8 @@ def decompose_paragraph_to_portions(
                         descent=b_descent,
                         font_size=font_s,
                         font_family=font_f,
+                        bold=label_bold,
+                        italic=label_italic,
                         color=color,
                         counts_for_height=True,
                         char_offset=0,
@@ -774,6 +854,7 @@ def decompose_paragraph_to_portions(
                             counts_for_height=False,
                             char_offset=0,
                             length=0,
+                            data=LABEL_TAB,
                         )
                     )
                 elif suff == "space":
@@ -794,10 +875,25 @@ def decompose_paragraph_to_portions(
                         )
                     )
 
+    # (first portion index, baseline shift) per run, applied once all portions exist
+    vert_spans: list[tuple[int, float]] = []
     for item in p.runs:
         r_pr = resolve_r_props(d, p, item, context=table_context)
         font_sz = r_pr.sz
         font_family = r_pr.font
+        if _uses_complex_script(r_pr, item):
+            # Word draws right-to-left and complex-script text with w:cs / w:szCs
+            font_family = r_pr.font_cs or font_family
+            font_sz = r_pr.sz_cs or font_sz
+        base_font_sz = font_sz
+        vert = getattr(r_pr, "vert", "baseline")
+        if vert in ("superscript", "subscript") and not isinstance(item, NoteRefItem):
+            # Matches the original's CSS: 65% size, vertical-align super (+1/3) / sub (-1/5).
+            font_sz = round(base_font_sz * VERT_SIZE_RATIO, 2)
+            shift = base_font_sz * (SUPERSCRIPT_RISE if vert == "superscript" else -SUBSCRIPT_DROP)
+            vert_spans.append((len(portions), shift))
+        else:
+            vert_spans.append((len(portions), 0.0))
 
         if isinstance(item, TextItem):
             text = item.text or ""
@@ -1095,7 +1191,7 @@ def decompose_paragraph_to_portions(
                 # Fallback: use a sequential counter tracked across this paragraph
                 _fn_seq[0] += 1
                 ref_str = str(_fn_seq[0])
-            fn_font_sz = max(6.0, round(font_sz * 0.65, 2))
+            fn_font_sz = max(6.0, round(base_font_sz * VERT_SIZE_RATIO, 2))
             w = measure_text_width(
                 ref_str, fn_font_sz, font_family, bold=bool(r_pr.b), italic=bool(r_pr.i)
             )
@@ -1118,6 +1214,7 @@ def decompose_paragraph_to_portions(
                     char_offset=char_offset,
                     length=len(ref_str),
                     data=item,
+                    baseline_shift=shift,
                 )
             )
             char_offset += len(ref_str)
@@ -1169,6 +1266,19 @@ def decompose_paragraph_to_portions(
                     )
                     char_offset += 1
 
+    # Raise/lower super- and subscript runs inside the line their own size would give it
+    for span_i, (start, shift) in enumerate(vert_spans):
+        if not shift:
+            continue
+        end = vert_spans[span_i + 1][0] if span_i + 1 < len(vert_spans) else len(portions)
+        for pt in portions[start:end]:
+            if pt.type not in (PortionType.TEXT, PortionType.BLANK):
+                continue
+            pt.baseline_shift = shift
+            if pt.counts_for_height:
+                pt.ascent = max(0.0, pt.ascent + shift)
+                pt.descent = max(0.0, pt.descent - shift)
+
     # Empty paragraph or paragraph with no text: provide a Mark portion
     if not portions:
         mark_r_pr = getattr(p, "mark", None) or getattr(p, "r_pr", None)
@@ -1209,14 +1319,30 @@ def find_next_tab_stop(
     """Find the next tab stop position in points and the tab stop object if any."""
     rel_x = current_x - left_margin
     # Check explicit paragraph tab stops
-    for tab in tabs:
-        pos = getattr(tab, "pos", None)
+    positions = [getattr(tab, "pos", None) for tab in tabs]
+    for tab, pos in zip(tabs, positions, strict=True):
         if pos is not None and pos > rel_x + 0.1:
             return left_margin + pos, tab
 
-    # Fall back to default regular tab stops (e.g. 0.5 in = 36 pt)
-    next_tab = (math.floor(rel_x / default_tab_pitch) + 1.0) * default_tab_pitch
+    # Fall back to default regular tab stops (e.g. 0.5 in = 36 pt), which Word only sets
+    # after the last custom stop
+    pitch = default_tab_pitch if default_tab_pitch > 0 else 36.0
+    last_custom = max((p for p in positions if p is not None), default=0.0)
+    next_tab = (math.floor(max(rel_x, last_custom) / pitch) + 1.0) * pitch
+    while next_tab <= rel_x + 0.1:
+        next_tab += pitch
     return left_margin + next_tab, None
+
+
+def default_tab_pitch(doc: Any) -> float:
+    """w:defaultTabStop in points (36pt when the document sets none)."""
+    settings = getattr(doc, "settings", None) or {}
+    raw = settings.get("defaultTabStop") if isinstance(settings, dict) else None
+    try:
+        pitch = float(raw) / 20.0 if raw not in (None, True) else 36.0
+    except (TypeError, ValueError):
+        pitch = 36.0
+    return pitch if pitch > 0 else 36.0
 
 
 def compute_next_tab_stop(
@@ -1265,25 +1391,23 @@ def layout_paragraph(
                 bold=first.bold, italic=first.italic,
             )
 
-    # Indentations
-    ind_left = p_pr.ind.left
-    ind_right = p_pr.ind.right
-    ind_first = p_pr.ind.first_line
-
-    # Inherit indents from numbering level if not explicitly defined
+    # Tab stops: the document's default pitch and the list level's own number tab
+    tab_pitch = default_tab_pitch(d)
+    label_tab_pos: float | None = None
     num = getattr(p_pr, "num", None)
     if (
         num is not None
         and getattr(d, "numbering", None)
         and str(getattr(num, "id", "0")) not in ("0", "")
     ):
-        lvl_idx = num.lvl if num.lvl is not None else 0
-        lvl = num_level_def(d, num.id, lvl_idx)
-        lvl_ind = lvl.get("ind", {}) if isinstance(lvl, dict) else {}
-        if ind_left == 0.0 and lvl_ind.get("l") is not None:
-            ind_left = float(lvl_ind["l"])
-        if ind_first == 0.0 and lvl_ind.get("fl") is not None:
-            ind_first = float(lvl_ind["fl"])
+        lvl_def = num_level_def(d, num.id, num.lvl if num.lvl is not None else 0)
+        if isinstance(lvl_def, dict) and lvl_def.get("tab_pos") is not None:
+            label_tab_pos = float(lvl_def["tab_pos"])
+
+    # Indentations (resolve_p_props already layers the numbering level's indents)
+    ind_left = p_pr.ind.left
+    ind_right = p_pr.ind.right
+    ind_first = p_pr.ind.first_line
 
     if start_char_offset > 0:
         ind_first = 0.0
@@ -1483,13 +1607,35 @@ def layout_paragraph(
             continue
 
         if pt.type == PortionType.TAB:
-            # Tab advance
+            # Tab advance. Stops are measured from the column's left edge (Word / the
+            # original's render.js): custom stops, the hanging indent, then default stops.
             cur_x = target_indent_left() + current_width
-            if line_idx == 0 and ind_first < 0.0 and cur_x < ind_left:
-                next_x = ind_left
-                tab_obj = None
-            else:
-                next_x, tab_obj = find_next_tab_stop(cur_x, target_indent_left(), p_pr.tabs)
+            is_label_tab = pt.data == LABEL_TAB
+            stop: tuple[float, Any] | None = None
+            if is_label_tab and label_tab_pos is not None and label_tab_pos > cur_x + 0.1:
+                stop = (label_tab_pos, None)
+            if stop is None:
+                stop = next(
+                    (
+                        (t.pos, t)
+                        for t in p_pr.tabs
+                        if getattr(t, "pos", None) is not None and t.pos > cur_x + 0.1
+                    ),
+                    None,
+                )
+            if (
+                line_idx == 0
+                and ind_first < 0.0
+                and cur_x + 0.1 < ind_left
+                and (stop is None or ind_left < stop[0])
+            ):
+                stop = (ind_left, None)
+            if stop is None:
+                stop = find_next_tab_stop(cur_x, 0.0, p_pr.tabs, tab_pitch)
+            next_x, tab_obj = stop
+            if is_label_tab and next_x - cur_x < 1.0:
+                # The tab after a list number never collapses below a space
+                next_x = cur_x + max(tab_pitch - (cur_x % tab_pitch), 4.0)
             pt.data = tab_obj
             align = getattr(tab_obj, "align", "left") if tab_obj else "left"
             if align == "right":
@@ -1701,16 +1847,24 @@ def layout_paragraph(
     total_width = max((line.width for line in lines), default=0.0)
 
     # Word Spacing Collapse
-    prev_after = prev_paragraph.p_pr.sp.after if prev_paragraph else 0.0
-    eff_before = collapse_paragraph_spacing(prev_after, p_pr.sp.before, is_page_top=is_page_top)
-    eff_after = p_pr.sp.after
+    sp_before, sp_after = resolved_paragraph_spacing(p_pr.sp)
+    prev_after = (
+        resolved_paragraph_spacing(resolve_p_props(d, prev_paragraph, context=table_context).sp)[1]
+        if prev_paragraph
+        else 0.0
+    )
+    eff_before = collapse_paragraph_spacing(prev_after, sp_before, is_page_top=is_page_top)
 
     return ParagraphLayout(
         lines=lines,
         width=total_width,
         height=total_height,
-        space_before=p_pr.sp.before,
-        space_after=p_pr.sp.after,
+        space_before=sp_before,
+        space_after=sp_after,
         effective_space_before=eff_before,
-        effective_space_after=eff_after,
+        effective_space_after=sp_after,
+        before_auto=bool(p_pr.sp.before_auto),
+        after_auto=bool(p_pr.sp.after_auto),
+        contextual=bool(p_pr.contextual),
+        style_id=(p.p_pr.style if p.p_pr else None) or "Normal",
     )

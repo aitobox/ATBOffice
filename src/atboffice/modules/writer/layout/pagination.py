@@ -20,8 +20,10 @@ from typing import Any
 
 from atboffice.modules.writer.layout.portions import (
     LayoutLine,
+    ParagraphLayout,
     compute_lists,
     layout_paragraph,
+    spacing_between,
 )
 from atboffice.modules.writer.layout.table_layout import (
     TableLayout,
@@ -129,6 +131,8 @@ class PageFragment:
     char_start: int = 0
     char_end: int = 0
     table_layout: TableLayout | None = None
+    # Layout of the paragraph this fragment came from (spacing against the next paragraph)
+    p_layout: ParagraphLayout | None = None
 
 
 @dataclass
@@ -622,6 +626,7 @@ def _split_paragraph_by_hard_breaks(p: Paragraph) -> list[tuple[Paragraph, str |
                 id=p.id,
                 runs=list(cur_runs),
                 p_pr=p.p_pr,
+                r_pr=p.r_pr,
                 sect=p.sect,
                 label="" if sub_paras else p.label,
             )
@@ -636,6 +641,7 @@ def _split_paragraph_by_hard_breaks(p: Paragraph) -> list[tuple[Paragraph, str |
             id=p.id,
             runs=list(cur_runs),
             p_pr=p.p_pr,
+            r_pr=p.r_pr,
             sect=p.sect,
             label="" if sub_paras else p.label,
         )
@@ -852,6 +858,13 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
                         ctx.advance_column_or_page(si, sect)
                         col = ctx.current_column()
                         space_left = col.height - col.used_height
+                    if is_first_slice and col.fragments and col.used_height > 0.0:
+                        # The paragraph above keeps its space after
+                        prev_frag = col.fragments[-1]
+                        gap = prev_frag.space_after if prev_frag.table_layout is None else 0.0
+                        if 0.0 < gap < space_left:
+                            col.used_height += gap
+                            space_left -= gap
 
                     sliced_tbl, next_row = split_table_for_page(
                         t_layout,
@@ -1044,6 +1057,19 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
                     sp_before = p_layout.effective_space_before if is_top else p_layout.space_before
                     if col.used_height == 0.0:
                         sp_before = 0.0
+                    elif line_offset == 0 and col.fragments:
+                        # Word: the larger of the previous paragraph's space after and this
+                        # paragraph's space before separates them (a table adds none).
+                        prev_frag = col.fragments[-1]
+                        if prev_frag.table_layout is None and prev_frag.p_layout is not None:
+                            sp_before = spacing_between(
+                                prev_frag.p_layout,
+                                p_layout,
+                                prev_after=prev_frag.space_after,
+                                cur_before=sp_before,
+                            )
+                        elif prev_frag.table_layout is None:
+                            sp_before = max(sp_before, prev_frag.space_after)
 
                     avail_h = space_left - sp_before
 
@@ -1118,6 +1144,7 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
                         height=frag_h,
                         space_before=sp_before,
                         space_after=p_layout.space_after if k == len(lines_to_place) else 0.0,
+                        p_layout=p_layout,
                     )
                     col.fragments.append(frag)
                     col.used_height += frag_h + sp_before

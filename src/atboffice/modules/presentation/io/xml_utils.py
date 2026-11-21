@@ -6,7 +6,11 @@ import html
 import xml.etree.ElementTree as ET
 from typing import Any
 
-from atboffice.modules.presentation.models.designs import DesignTemplate, resolve_color
+from atboffice.modules.presentation.models.designs import (
+    DesignTemplate,
+    resolve_color,
+    split_color_token,
+)
 from atboffice.modules.presentation.models.shape import Fill, Line, Shadow
 
 # Standard Namespaces
@@ -208,6 +212,13 @@ def color_to_xml(
         alpha_xml = f'<a:alpha val="{alpha_val}"/>'
 
     c = color or "#000000"
+    if "|" in c:
+        base, mods = split_color_token(c)
+        if base in SCHEME_COLORS:
+            mods_xml = "".join(
+                f'<a:{m["name"]} val="{int(m["val"])}"/>' for m in mods if m["name"].isalnum()
+            )
+            return f'<a:schemeClr val="{base}">{mods_xml}{alpha_xml}</a:schemeClr>'
     if c and not c.startswith("#") and c in SCHEME_COLORS:
         return (
             f'<a:schemeClr val="{c}">{alpha_xml}</a:schemeClr>'

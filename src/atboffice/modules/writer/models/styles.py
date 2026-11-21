@@ -240,6 +240,8 @@ def merge_p_props(
         res.jc_explicit = True
     if getattr(over, "bidi", None) is not None:
         res.bidi = over.bidi
+    if getattr(over, "contextual", None) is not None:
+        res.contextual = over.contextual
     if over.keep_next:
         res.keep_next = True
     if over.keep_lines:
@@ -252,12 +254,15 @@ def merge_p_props(
         res.outline_level = over.outline_level
 
     # Indent
-    if over.ind.left != 0.0:
+    if over.ind.left != 0.0 or over.ind.left_explicit:
         res.ind.left = over.ind.left
-    if over.ind.right != 0.0:
+        res.ind.left_explicit = True
+    if over.ind.right != 0.0 or over.ind.right_explicit:
         res.ind.right = over.ind.right
-    if over.ind.first_line != 0.0:
+        res.ind.right_explicit = True
+    if over.ind.first_line != 0.0 or over.ind.first_line_explicit:
         res.ind.first_line = over.ind.first_line
+        res.ind.first_line_explicit = True
 
     # Spacing
     if over.sp.before != 0.0 or getattr(over.sp, "before_explicit", False):
@@ -315,7 +320,7 @@ def merge_r_props(base: RunProperties, over: RunProperties | None) -> RunPropert
         res.font_ea = over.font_ea
     if over.font_cs != "Times New Roman" or over.font_cs_explicit:
         res.font_cs = over.font_cs
-    if over.sz != 12.0:
+    if over.sz != 12.0 or over.sz_explicit:
         res.sz = over.sz
     if over.sz_ea is not None:
         res.sz_ea = over.sz_ea
@@ -388,6 +393,44 @@ def _extract_tbl_context(
     return getattr(context, "tbl_p_pr", None), getattr(context, "tbl_r_pr", None)
 
 
+def _apply_numbering_indent(
+    doc: Any, para: Any, chain: list[Style], base: ParagraphProperties
+) -> ParagraphProperties:
+    """Merge the list level's w:ind over the styles (the original's dmodel.js D.pProps).
+
+    When the numbering comes from the paragraph style, indents set in the style that brings
+    the numbering (or in styles derived from it) still win over the level's.
+    """
+    direct = getattr(para, "p_pr", None)
+    direct_num = getattr(direct, "num", None) if direct is not None else None
+    num = direct_num if direct_num is not None else base.num
+    if num is None or str(getattr(num, "id", "0")) in ("0", "") or not getattr(
+        doc, "numbering", None
+    ):
+        return base
+    from atboffice.modules.writer.layout.portions import num_level_def
+
+    lvl = num_level_def(doc, num.id, num.lvl if num.lvl is not None else 0)
+    lvl_ind = lvl.get("ind") if isinstance(lvl, dict) else None
+    if not lvl_ind:
+        return base
+    res = copy.deepcopy(base)
+    if lvl_ind.get("l") is not None:
+        res.ind.left = float(lvl_ind["l"])
+        res.ind.left_explicit = True
+    if lvl_ind.get("fl") is not None:
+        res.ind.first_line = float(lvl_ind["fl"])
+        res.ind.first_line_explicit = True
+    if direct_num is None:
+        k = max((i for i, s in enumerate(chain) if s.p_pr.num is not None), default=-1)
+        if k >= 0:
+            style_ind = ParagraphProperties()
+            for s in chain[k:]:
+                style_ind = merge_p_props(style_ind, ParagraphProperties(ind=s.p_pr.ind))
+            res = merge_p_props(res, style_ind)
+    return res
+
+
 def resolve_p_props(doc: Any, para: Any, context: Any = None) -> ParagraphProperties:
     """Resolve full cascading paragraph properties for a paragraph."""
     defaults = getattr(doc, "defaults", {})
@@ -433,6 +476,9 @@ def resolve_p_props(doc: Any, para: Any, context: Any = None) -> ParagraphProper
         for s in chain:
             base = merge_p_props(base, s.p_pr)
 
+    # Numbering level indents sit between the styles and direct formatting
+    base = _apply_numbering_indent(doc, para, chain, base)
+
     # Direct paragraph formatting
     base = merge_p_props(base, getattr(para, "p_pr", None))
     if getattr(base, "bidi", False) and not getattr(base, "jc_explicit", False):
@@ -453,7 +499,7 @@ def resolve_r_props(doc: Any, para: Any, item: Any = None, context: Any = None) 
         base = merge_r_props(base, tbl_r_pr)
         for s in chain:
             base = merge_r_props(base, s.r_pr)
-        if _is_default_para_style(doc, sid) and tbl_r_pr.sz != 12.0:
+        if _is_default_para_style(doc, sid) and (tbl_r_pr.sz != 12.0 or tbl_r_pr.sz_explicit):
             base.sz = tbl_r_pr.sz
     else:
         for s in chain:

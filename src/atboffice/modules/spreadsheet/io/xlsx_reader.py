@@ -42,6 +42,12 @@ from atboffice.modules.spreadsheet.models.conditional_format import (
     DataBarRule,
     IconSetRule,
 )
+from atboffice.modules.spreadsheet.models.excel_units import (
+    default_col_px,
+    excel_mdw,
+    font_row_pt,
+    width_to_px,
+)
 from atboffice.modules.spreadsheet.models.pivot_model import read_pivots_from_zip
 from atboffice.modules.spreadsheet.models.sheet_model import (
     BorderStyle,
@@ -875,25 +881,43 @@ def _parse_worksheet(
     sheet.view_state.row_breaks = _parse_breaks(_find_child(root, "rowBreaks"))
     sheet.view_state.col_breaks = _parse_breaks(_find_child(root, "colBreaks"))
 
-    # 0c. Sheet format (default row height & default col width)
+    # 0c. Sheet format (default row height & default col width). Both follow the workbook
+    # default font (cellXfs[0]); a stored defaultRowHeight only counts with customHeight=1.
+    def_font = style_deltas[0] if style_deltas else None
+    def_family = getattr(def_font, "font_family", None) or "Calibri"
+    def_size = getattr(def_font, "font_size", None) or 11.0
+    mdw = excel_mdw(def_family, def_size)
+    sheet.extra["excel_mdw"] = mdw
+    row_h_px = int(round(font_row_pt(def_family, def_size) / 0.75))
+    def_col_w: float | None = None
+    base_col_w: float | None = None
     sfp = _find_child(root, "sheetFormatPr")
     if sfp is not None:
         def_row_h = _attr(sfp, "defaultRowHeight")
-        if def_row_h:
+        custom_h = _attr(sfp, "customHeight") in ("1", "true") or _attr(
+            sfp, "zeroHeight"
+        ) in ("1", "true")
+        if def_row_h and custom_h:
             try:
                 # points to pixels: pt * 96 / 72 = pt / 0.75
                 h_px = int(round(float(def_row_h) / 0.75))
                 if h_px > 0:
-                    sheet.geometry.default_row_height = h_px
-                    sheet.extra["default_row_height"] = h_px
+                    row_h_px = h_px
             except ValueError:
                 pass
-        def_col_w = _attr(sfp, "defaultColWidth")
-        if def_col_w:
-            try:
-                sheet.extra["default_col_width"] = float(def_col_w)
-            except ValueError:
-                pass
+        try:
+            def_col_w = float(_attr(sfp, "defaultColWidth") or "")
+            sheet.extra["default_col_width"] = def_col_w
+        except ValueError:
+            def_col_w = None
+        try:
+            base_col_w = float(_attr(sfp, "baseColWidth") or "")
+        except ValueError:
+            base_col_w = None
+    if row_h_px > 0:
+        sheet.geometry.default_row_height = row_h_px
+        sheet.extra["default_row_height"] = row_h_px
+    sheet.geometry.default_col_width = default_col_px(mdw, def_col_w, base_col_w)
 
     # 1. Custom column widths, hidden columns, and column style ranges
     col_style_ranges: list[tuple[int, int, int]] = []
@@ -910,11 +934,7 @@ def _parse_worksheet(
                 try:
                     c1 = max(0, int(min_c_str) - 1)
                     c2 = max(c1, int(max_c_str) - 1)
-                    w_px = (
-                        int(float(width_str) * 8)
-                        if width_str
-                        else None
-                    )
+                    w_px = width_to_px(float(width_str), mdw) if width_str else None
 
                     if col_style_str:
                         try:

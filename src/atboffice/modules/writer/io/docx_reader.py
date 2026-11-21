@@ -79,6 +79,9 @@ from atboffice.vfs.opc import Relationship, SourcePackage
 
 # Common XML Namespaces
 NS_W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+
+# Run size Word uses when docDefaults/rPrDefault carries no w:sz (ECMA-376 §17.3.2.38).
+DOCX_DEFAULT_SZ = 10.0
 NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 NS_M = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 NS_WP = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
@@ -330,6 +333,14 @@ def _parse_tbl_ind(tbl_pr_elem: ET.Element) -> float | None:
     return _twips_to_pt(_get_attr(ind_elem, "w", "0"))
 
 
+def _chars_to_pt(val: str | None) -> float:
+    """w:ind *Chars values: hundredths of a 10.5pt character."""
+    try:
+        return float(val or 0) / 100.0 * 10.5
+    except ValueError:
+        return 0.0
+
+
 def _hp_to_pt(val: str | int | float | None, default: float = 12.0) -> float:
     """Convert half-points (1/2 pt) to points."""
     if val is None or val == "":
@@ -529,6 +540,8 @@ class DocxReader:
     def _parse_styles(self) -> None:
         """Parse word/styles.xml into doc.styles and doc.defaults."""
         styles_path = self._rel_target("styles") or "word/styles.xml"
+        # Word's own defaults under docDefaults: Times New Roman 10pt, not the editor's 12pt.
+        self.doc.defaults["r_pr"] = RunProperties(sz=DOCX_DEFAULT_SZ)
         if not self.pkg.has_part(styles_path):
             self.doc.styles = builtin_styles()
             return
@@ -547,7 +560,10 @@ class DocxReader:
             r_pr_def = _find_desc(doc_defaults, "rPr", W_NAMESPACES)
             p_pr_def = _find_desc(doc_defaults, "pPr", W_NAMESPACES)
             if r_pr_def is not None:
-                self.doc.defaults["r_pr"] = self._parse_r_pr(r_pr_def)
+                def_r_pr = self._parse_r_pr(r_pr_def)
+                if _find_elem(r_pr_def, "sz", W_NAMESPACES) is None:
+                    def_r_pr.sz = DOCX_DEFAULT_SZ
+                self.doc.defaults["r_pr"] = def_r_pr
             if p_pr_def is not None:
                 self.doc.defaults["p_pr"] = self._parse_p_pr(p_pr_def)
 
@@ -739,15 +755,16 @@ class DocxReader:
                 p_style = _get_attr(p_style_elem, "val") if p_style_elem is not None else None
 
                 # Indents & Spacing in pPr
-                ind_dict = {"l": 0.0, "fl": 0.0}
+                # Only the indents the level sets: the paragraph style keeps the others
+                ind_dict: dict[str, float] = {}
                 p_pr_elem = _find_elem(lv, "pPr", W_NAMESPACES)
                 tab_pos = None
                 if p_pr_elem is not None:
                     ind_elem = _find_elem(p_pr_elem, "ind", W_NAMESPACES)
                     if ind_elem is not None:
-                        ind_dict["l"] = _twips_to_pt(
-                            _get_attr(ind_elem, "left") or _get_attr(ind_elem, "start")
-                        )
+                        lvl_left = _get_attr(ind_elem, "left") or _get_attr(ind_elem, "start")
+                        if lvl_left is not None:
+                            ind_dict["l"] = _twips_to_pt(lvl_left)
                         if _get_attr(ind_elem, "hanging") is not None:
                             ind_dict["fl"] = -_twips_to_pt(_get_attr(ind_elem, "hanging"))
                         elif _get_attr(ind_elem, "firstLine") is not None:
@@ -1272,16 +1289,35 @@ class DocxReader:
                     after_auto_explicit=a_elem is not None or a_auto_attr is not None,
                 )
             elif tag == "ind":
-                ind_left = _twips_to_pt(_get_attr(child, "left") or _get_attr(child, "start"))
-                ind_right = _twips_to_pt(_get_attr(child, "right") or _get_attr(child, "end"))
-                fl = 0.0
+                left_attr = _get_attr(child, "left") or _get_attr(child, "start")
+                right_attr = _get_attr(child, "right") or _get_attr(child, "end")
+                ind = IndentProperties(
+                    left=_twips_to_pt(left_attr),
+                    right=_twips_to_pt(right_attr),
+                    left_explicit=left_attr is not None,
+                    right_explicit=right_attr is not None,
+                )
                 if _get_attr(child, "hanging") is not None:
-                    fl = -_twips_to_pt(_get_attr(child, "hanging"))
+                    ind.first_line = -_twips_to_pt(_get_attr(child, "hanging"))
+                    ind.first_line_explicit = True
                 elif _get_attr(child, "firstLine") is not None:
-                    fl = _twips_to_pt(_get_attr(child, "firstLine"))
-                p_pr.ind = IndentProperties(left=ind_left, right=ind_right, first_line=fl)
+                    ind.first_line = _twips_to_pt(_get_attr(child, "firstLine"))
+                    ind.first_line_explicit = True
+                # Character-unit indents (East Asian docs), as the original reads them:
+                # hundredths of a 10.5pt character, used when no twips value is given.
+                chars_l = _get_attr(child, "leftChars") or _get_attr(child, "startChars")
+                if chars_l is not None and left_attr is None:
+                    ind.left = _chars_to_pt(chars_l)
+                    ind.left_explicit = True
+                chars_fl = _get_attr(child, "firstLineChars")
+                if chars_fl is not None and not ind.first_line_explicit:
+                    ind.first_line = _chars_to_pt(chars_fl)
+                    ind.first_line_explicit = True
+                p_pr.ind = ind
             elif tag == "keepNext":
                 p_pr.keep_next = _bool_val(child, True)
+            elif tag == "contextualSpacing":
+                p_pr.contextual = _bool_val(child, True)
             elif tag == "keepLines":
                 p_pr.keep_lines = _bool_val(child, True)
             elif tag == "pageBreakBefore":
