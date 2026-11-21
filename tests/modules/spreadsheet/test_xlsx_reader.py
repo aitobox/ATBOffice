@@ -395,3 +395,90 @@ def test_invalid_input_error_handling():
         with zipfile.ZipFile(buf, "w") as z:
             z.writestr("test.txt", "hello")
         read_xlsx(buf.getvalue())
+
+
+# ---- Issue #416: worksheet row and column geometry ----------------------------
+
+_ARIAL_10_STYLES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="1"><font><name val="Arial"/><sz val="10"/></font></fonts>
+  <fills count="1"><fill><patternFill patternType="none"/></fill></fills>
+  <borders count="1"><border/></borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>
+</styleSheet>"""
+
+
+def test_corpus_cell_value_geometry_matches_reference():
+    """libreoffice__cell-value.xlsx: the first ten row and five column boundaries sit within
+    2 px of the reference (``ht="12.8"`` -> 17 px rows, ``width="11.67"`` at MDW 7 -> 82 px)."""
+    wb = read_xlsx("tests/docs/excel/xlsx/libreoffice__cell-value.xlsx")
+    geo = wb[0].geometry
+    assert wb[0].extra["excel_mdw"] == 7
+    for r in range(1, 11):
+        assert abs(geo.row_pos(r) - round(r * 12.8 * 96 / 72)) <= 2, r
+    for c in range(1, 6):
+        assert abs(sum(geo.col_size(i) for i in range(c)) - 82 * c) <= 2, c
+
+
+@pytest.mark.parametrize(
+    ("ht", "px"), [("12.8", 17), ("12.75", 17), ("15", 20), ("30", 40), ("409.5", 546)]
+)
+def test_row_ht_points_round_to_pixels(ht, px):
+    """Row ``ht`` converts like the reference ``M.ptToPx``: round(pt * 96 / 72)."""
+    ws_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData><row r="1" ht="{ht}" customHeight="1"><c r="A1"><v>1</v></c></row></sheetData>
+</worksheet>"""
+    wb = read_xlsx(build_test_xlsx(sheets=[{"name": "S", "xml": ws_xml}]))
+    assert wb[0].geometry.row_size(0) == px
+
+
+def test_custom_row_and_col_sizes_override_sheet_defaults():
+    """Stored row heights and column widths win over ``<sheetFormatPr>`` defaults."""
+    ws_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetFormatPr defaultRowHeight="18" customHeight="1" defaultColWidth="12"/>
+  <cols><col min="2" max="3" width="20" customWidth="1"/></cols>
+  <sheetData>
+    <row r="2" ht="30" customHeight="1"><c r="A2"><v>1</v></c></row>
+  </sheetData>
+</worksheet>"""
+    wb = read_xlsx(
+        build_test_xlsx(sheets=[{"name": "S", "xml": ws_xml}], styles_xml=_ARIAL_10_STYLES)
+    )
+    geo = wb[0].geometry
+    assert geo.default_row_height == 24  # 18 pt
+    assert geo.default_col_width == 84  # 12 chars at MDW 7
+    assert geo.row_size(0) == 24 and geo.row_size(2) == 24
+    assert geo.row_size(1) == 40  # 30 pt overrides the default
+    assert geo.col_size(0) == 84 and geo.col_size(3) == 84
+    assert geo.col_size(1) == geo.col_size(2) == 140  # 20 chars override the default
+
+
+@pytest.mark.parametrize("ht", ["inf", "nan", "abc"])
+def test_malformed_row_ht_keeps_default_height(ht):
+    """A non-finite or non-numeric ``ht`` is ignored instead of aborting the import."""
+    ws_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData><row r="1" ht="{ht}"><c r="A1"><v>1</v></c></row></sheetData>
+</worksheet>"""
+    wb = read_xlsx(build_test_xlsx(sheets=[{"name": "S", "xml": ws_xml}]))
+    assert wb[0].geometry.row_size(0) == wb[0].geometry.default_row_height
+    assert wb[0].get_cell_value(0, 0) == 1
+
+
+@pytest.mark.parametrize("px", [17, 20, 41, 400, 546])
+def test_custom_row_height_round_trips_through_writer(px):
+    """A custom row height survives write -> read unchanged, including very tall rows."""
+    from atboffice.modules.spreadsheet.io.xlsx_writer import write_xlsx
+
+    ws_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData>
+</worksheet>"""
+    wb = read_xlsx(build_test_xlsx(sheets=[{"name": "S", "xml": ws_xml}]))
+    wb[0].geometry.set_row_height(0, px)
+    wb[0].dirty = True
+    again = read_xlsx(write_xlsx(wb))
+    assert again[0].geometry.row_size(0) == px
