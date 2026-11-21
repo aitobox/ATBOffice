@@ -32445,6 +32445,6 @@
   "另存为": "Save As",
   "文件“{name}”已存在。\n是否替换现有文件？": "A file named \"{name}\" already exists.\nDo you want to replace it?",
   "无法保存文件“{target}”：权限不足，无法写入目标目录或文件。\n{exc}": "Cannot save file \"{target}\": Permission denied.\n{exc}",
-  "无法打开文件“{path}”：文件已损坏或格式不兼容。": "Cannot open file \"{path}\": File is corrupted or format is incompatible.",
-  "无法打开文件“{path}”：文件已损坏或格式不兼容。\n{exc}": "Cannot open file \"{path}\": File is corrupted or format is incompatible.\n{exc}"
+  "Open Failed": "Open Failed",
+  "Cannot open \"{name}\": the file is corrupt or unreadable.": "Cannot open \"{name}\": the file is corrupt or unreadable."
 }

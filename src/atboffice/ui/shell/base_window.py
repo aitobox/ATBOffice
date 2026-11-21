@@ -283,6 +283,16 @@ class BaseOfficeWindow(QMainWindow):
             return self.open_file(file_path)
         return False
 
+    def _show_unreadable_file_error(self, path: Path) -> None:
+        """Tell the user, in the UI language, that the named file is unreadable."""
+        QMessageBox.critical(
+            self,
+            safe_tr("Open Failed"),
+            safe_tr('Cannot open "{name}": the file is corrupt or unreadable.').format(
+                name=path.name
+            ),
+        )
+
     def open_file(self, file_path: str | Path) -> bool:
         """Open a file from the specified path, prompting to save if dirty."""
         if not self.maybe_save_prompt():
@@ -320,11 +330,8 @@ class BaseOfficeWindow(QMainWindow):
 
         try:
             if not self.do_open(path):
-                QMessageBox.critical(
-                    self,
-                    safe_tr("打开失败"),
-                    safe_tr("无法打开文件“{path}”：文件已损坏或格式不兼容。").format(path=path),
-                )
+                logger.error("do_open returned False for %s", path)
+                self._show_unreadable_file_error(path)
                 return False
         except FileOpenCancelled:
             # User cleanly cancelled the operation (e.g. password dialog)
@@ -332,14 +339,10 @@ class BaseOfficeWindow(QMainWindow):
         except FileOpenWarningHandled:
             # Informative message or rejection guidance was already presented
             return False
-        except Exception as exc:
-            QMessageBox.critical(
-                self,
-                safe_tr("打开失败"),
-                safe_tr("无法打开文件“{path}”：文件已损坏或格式不兼容。\n{exc}").format(
-                    path=path, exc=exc
-                ),
-            )
+        except Exception:
+            # Keep the raw parser diagnostic in the logs, out of the dialog.
+            logger.exception("Failed to open %s", path)
+            self._show_unreadable_file_error(path)
             return False
 
         self.current_file_path = path
