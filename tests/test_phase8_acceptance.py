@@ -129,7 +129,11 @@ class TestVisualParitySignoff:
         self.candidate_dir = (
             self.repo_root / "screenshots" / "office_audit_20261106" / "atboffice"
         )
-        self.diff_report_path = self.repo_root / "docs" / "clone" / "OFFICE_DOCS_DIFF.md"
+        # Phase 8/9 sign-off is pinned to the archived Phase 9 report; the live
+        # docs/clone/OFFICE_DOCS_DIFF.md tracks the ongoing Phase 11 re-audit.
+        self.diff_report_path = (
+            self.repo_root / "docs" / "clone" / "archive" / "OFFICE_DOCS_DIFF_PHASE9_2026-11-12.md"
+        )
 
     def test_corpus_partition_counts(self) -> None:
         """Confirm 73 core supported OOXML and 77 legacy/corrupt partition."""
@@ -144,8 +148,8 @@ class TestVisualParitySignoff:
             assert not is_blank_canvas(img)
 
     def test_overall_visual_similarity_report_meets_target(self) -> None:
-        """Verify that overall visual similarity in OFFICE_DOCS_DIFF.md >= 90.0%."""
-        assert self.diff_report_path.exists(), "OFFICE_DOCS_DIFF.md deliverable missing"
+        """Verify that overall visual similarity in the Phase 9 sign-off report >= 90.0%."""
+        assert self.diff_report_path.exists(), "Phase 9 OFFICE_DOCS_DIFF archive missing"
         report_text = self.diff_report_path.read_text(encoding="utf-8")
         m = re.search(r"\|\s*\*\*Average Visual Similarity\*\*\s*\|\s*`([\d\.]+)%`", report_text)
         assert m is not None, "Average visual similarity metric not found in report"

@@ -92,9 +92,12 @@ def test_phase9_corpus_audit_gate():
 
 
 def test_phase9_visual_parity_gate():
-    """Verify Dual-Engine Visual Parity Gate metrics from OFFICE_DOCS_DIFF.md."""
-    diff_report = Path("docs/clone/OFFICE_DOCS_DIFF.md")
-    assert diff_report.exists(), "Parity report docs/clone/OFFICE_DOCS_DIFF.md missing"
+    """Verify Dual-Engine Visual Parity Gate metrics from the Phase 9 sign-off report.
+
+    The live docs/clone/OFFICE_DOCS_DIFF.md tracks the ongoing Phase 11 re-audit.
+    """
+    diff_report = Path("docs/clone/archive/OFFICE_DOCS_DIFF_PHASE9_2026-11-12.md")
+    assert diff_report.exists(), f"Phase 9 parity report {diff_report} missing"
     content = diff_report.read_text(encoding="utf-8")
 
     # Assert 73 documents evaluated
