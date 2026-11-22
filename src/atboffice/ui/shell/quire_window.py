@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPainter
 from PySide6.QtPrintSupport import QPrinter
-from PySide6.QtWidgets import QComboBox, QMessageBox, QWidget
+from PySide6.QtWidgets import QComboBox, QDialog, QMessageBox, QWidget
 
 from atboffice.core.action_registry import ActionRegistry
 from atboffice.core.i18n import safe_tr as core_safe_tr
@@ -52,6 +53,7 @@ from atboffice.modules.writer.views import (
     CloseFullScreenBar,
     QuireNavDock,
     ViewMode,
+    doc_actions,
 )
 from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.toolbar import OfficeToolBar
@@ -315,12 +317,21 @@ class QuireWindow(BaseOfficeWindow):
         )
 
         # Outlining
-        self.action_registry.set_handler("promoteH1", lambda: canvas.set_outline_level(1))
-        self.action_registry.set_handler("promote", lambda: canvas.change_outline_level(-1))
-        self.action_registry.set_handler("demote", lambda: canvas.change_outline_level(1))
-        self.action_registry.set_handler("demoteBody", lambda: canvas.set_outline_level(None))
-        self.action_registry.set_handler("moveUp", lambda: canvas.move_paragraph(-1))
-        self.action_registry.set_handler("moveDown", lambda: canvas.move_paragraph(1))
+        # Outline commands act on the outline pane in Outline view, else on the caret
+        # paragraph in the canvas (the earlier pane-only bindings were overwritten here).
+        outline = self.writer_view.outline_widget
+        for aid, pane_cmd, canvas_cmd in (
+            ("promoteH1", outline.promote_selected_h1, lambda: canvas.set_outline_level(1)),
+            ("promote", outline.promote_selected, lambda: canvas.change_outline_level(-1)),
+            ("demote", outline.demote_selected, lambda: canvas.change_outline_level(1)),
+            ("demoteBody", outline.demote_selected_body,
+             lambda: canvas.set_outline_level(None)),
+            ("moveUp", outline.move_selected_up, lambda: canvas.move_paragraph(-1)),
+            ("moveDown", outline.move_selected_down, lambda: canvas.move_paragraph(1)),
+        ):
+            self.action_registry.set_handler(
+                aid, lambda p=pane_cmd, c=canvas_cmd: self._outline_dispatch(p, c)
+            )
 
         # Mail merge
         self.action_registry.set_handler("mmMainDoc", self.writer_view.open_mail_merge_wizard)
@@ -358,15 +369,15 @@ class QuireWindow(BaseOfficeWindow):
         )
         self.action_registry.set_handler(
             "col_1",
-            lambda: canvas.set_columns(1) if hasattr(canvas, "set_columns") else None,
+            lambda: self._apply_dialog(lambda: doc_actions.set_columns(canvas, 1)),
         )
         self.action_registry.set_handler(
             "col_2",
-            lambda: canvas.set_columns(2) if hasattr(canvas, "set_columns") else None,
+            lambda: self._apply_dialog(lambda: doc_actions.set_columns(canvas, 2)),
         )
         self.action_registry.set_handler(
             "col_3",
-            lambda: canvas.set_columns(3) if hasattr(canvas, "set_columns") else None,
+            lambda: self._apply_dialog(lambda: doc_actions.set_columns(canvas, 3)),
         )
 
         # Formatting toolbar dropdowns and split actions
@@ -506,91 +517,434 @@ class QuireWindow(BaseOfficeWindow):
         self.action_registry.set_handler("tableSort", self.open_table_sort_dialog)
         self.action_registry.set_handler("formula", self.open_table_formula_dialog)
         self.action_registry.set_handler("tableFormula", self.open_table_formula_dialog)
+        self._bind_menu_dialog_handlers()
+        from atboffice.ui.shell.quire_commands import bind_quire_toolbar_commands
+
+        self.toolbar_commands = bind_quire_toolbar_commands(self)
+
+
+    def _outline_dispatch(self, pane_cmd: Any, canvas_cmd: Any) -> None:
+        if getattr(self.writer_view, "view_mode", None) == ViewMode.OUTLINE:
+            pane_cmd()
+        else:
+            canvas_cmd()
+
+    # --- Format / Table / Tools menu dialogs ----------------------------------------
+    def _bind_menu_dialog_handlers(self) -> None:
+        """Bind the menu bar's Format/Table/Insert/Tools commands (issue #443)."""
+        canvas = self.writer_view.canvas_view
+        reg = self.action_registry
+        reg.set_handler("format_font", self.open_font_dialog)
+        reg.set_handler("format_paragraph", self.open_paragraph_dialog)
+        reg.set_handler("format_borders", self.open_borders_dialog)
+        reg.set_handler("format_tabs", self.writer_view._on_tabs_dialog_requested)
+        reg.set_handler("tools_language", self.open_language_dialog)
+        reg.set_handler("table_insert", self.open_insert_table_dialog)
+        reg.set_handler("table_delete", self.open_delete_cells_dialog)
+        reg.set_handler("table_select", lambda: doc_actions.select_table(canvas))
+        reg.set_handler("table_properties", self.open_table_properties_dialog)
+        reg.set_handler("insert_page_break", lambda: self._apply_dialog(
+            lambda: doc_actions.insert_page_break(canvas)))
+        reg.set_handler("insert_page_number", self.open_page_numbers_dialog)
+        reg.set_handler("insert_date_time", self.open_date_time_dialog)
+        reg.set_handler("insert_symbol", self.open_symbol_dialog)
+        reg.set_handler("columns", self.open_columns_dialog)
+        reg.set_handler("col_left", lambda: self._apply_dialog(
+            lambda: doc_actions.set_columns(canvas, "left")))
+        reg.set_handler("col_right", lambda: self._apply_dialog(
+            lambda: doc_actions.set_columns(canvas, "right")))
+        # Toolbar IDs that name the same commands as the View menu.
+        reg.register_alias("docMap", "view_doc_map")
+        reg.register_alias("viewReading", "view_reading")
+        reg.set_handler("pageSetup", self.writer_view._on_page_setup_requested)
+
+    def _selection_run_props(self) -> Any:
+        from atboffice.modules.writer.models.properties import RunProperties
+
+        p = doc_actions.current_paragraph(self.writer_view.canvas_view)
+        if p is None:
+            return RunProperties()
+        return doc_actions._caret_r_pr(p, self.writer_view.canvas_view.controller.pos.offset)
+
+    def open_font_dialog(self) -> Any:
+        from atboffice.modules.writer.dialogs.font_dialog import FontDialog
+
+        canvas = self.writer_view.canvas_view
+        dlg = FontDialog(props=self._selection_run_props(), parent=self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            new = dlg.get_properties()
+            fields = ("font", "font_ea", "font_cs", "sz", "b", "i", "u", "color", "vert",
+                      "strike", "dstrike", "caps", "small_caps", "spacing", "highlight")
+
+            def apply(r_pr: Any) -> None:
+                for name in fields:
+                    if hasattr(new, name):
+                        setattr(r_pr, name, getattr(new, name))
+
+            self._apply_dialog(lambda: canvas.format_range(apply))
+        return dlg
+
+    def open_paragraph_dialog(self) -> Any:
+        from atboffice.modules.writer.dialogs.paragraph_dialog import ParagraphDialog
+
+        canvas = self.writer_view.canvas_view
+        p = doc_actions.current_paragraph(canvas)
+        dlg = ParagraphDialog(props=p.p_pr if p is not None else None, parent=self)
+        if dlg.exec() == QDialog.DialogCode.Accepted and p is not None:
+            new = dlg.get_properties()
+
+            def apply() -> None:
+                for para in self._selected_paragraphs():
+                    for name in ("jc", "ind", "sp", "keep_next", "keep_lines",
+                                 "page_break_before", "widow_control", "outline_level"):
+                        setattr(para.p_pr, name, copy.deepcopy(getattr(new, name)))
+
+            self._apply_dialog(apply)
+        return dlg
+
+    def _selected_paragraphs(self) -> list[Any]:
+        canvas = self.writer_view.canvas_view
+        ctrl = canvas.controller
+        if ctrl.selection.is_collapsed:
+            p = doc_actions.current_paragraph(canvas)
+            return [p] if p is not None else []
+        start, end = ctrl.selection.ordered_range(canvas.doc)
+        paras = canvas.doc.all_paras()
+        ids = [x.id for x in paras]
+        try:
+            a, b = ids.index(start.para_id), ids.index(end.para_id)
+        except ValueError:
+            return []
+        return paras[a : b + 1]
+
+    def open_borders_dialog(self) -> Any:
+        from atboffice.modules.writer.dialogs.borders_shading import BordersShadingDialog
+
+        canvas = self.writer_view.canvas_view
+        ctx = canvas.get_current_table_context()
+        dlg = BordersShadingDialog(
+            parent=self,
+            borders=dict(ctx["tbl"].tbl_pr.borders) if ctx else None,
+            target_type="table" if ctx else "paragraph",
+        )
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            props = dlg.get_properties()
+
+            def apply() -> None:
+                borders = copy.deepcopy(props.get("borders") or {})
+                shading = props.get("shading")
+                if ctx is not None and props.get("apply_to") in (None, "table"):
+                    ctx["tbl"].tbl_pr.borders = borders
+                elif ctx is not None and props.get("apply_to") == "cell":
+                    ctx["cell"].tc_pr.borders = borders
+                    if shading is not None:
+                        ctx["cell"].tc_pr.shd = copy.deepcopy(shading)
+                else:
+                    for para in self._selected_paragraphs():
+                        para.p_pr.borders = copy.deepcopy(borders)
+                        if shading is not None:
+                            para.p_pr.shd = copy.deepcopy(shading)  # type: ignore[attr-defined]
+
+            self._apply_dialog(apply)
+        return dlg
+
+    def open_columns_dialog(self) -> Any:
+        from atboffice.modules.writer.dialogs.columns_dialog import ColumnsDialog
+
+        canvas = self.writer_view.canvas_view
+        sect = canvas.doc.sect
+        dlg = ColumnsDialog(parent=self, cols=sect.cols, page_width=sect.pg_w,
+                            margins=(sect.ml, sect.mr))
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            cols = dlg.get_columns()
+            self._apply_dialog(lambda: setattr(canvas.doc.sect, "cols", copy.deepcopy(cols)))
+        return dlg
+
+    def open_insert_table_dialog(self) -> Any:
+        from atboffice.modules.writer.dialogs.insert_table import InsertTableDialog
+
+        canvas = self.writer_view.canvas_view
+        dlg = InsertTableDialog(parent=self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            cols, rows, _fit, _width = dlg.get_dimensions()
+            self._apply_dialog(lambda: canvas.insert_table(rows=rows, cols=cols))
+        return dlg
+
+    def open_table_properties_dialog(self) -> Any:
+        from atboffice.modules.writer.dialogs.table_properties import TablePropertiesDialog
+
+        canvas = self.writer_view.canvas_view
+        ctx = canvas.get_current_table_context()
+        if ctx is None:
+            self.statusBar().showMessage(safe_tr("请先将光标置于表格中"), 3000)
+            return None
+        dlg = TablePropertiesDialog(
+            parent=self,
+            table=ctx["tbl"],
+            table_props=ctx["tbl"].tbl_pr,
+            row_idx=ctx["row_idx"],
+            col_idx=ctx["col_idx"],
+            cell_props=ctx["cell"].tc_pr,
+        )
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(lambda: dlg.apply_to_table(ctx["tbl"]))
+        return dlg
+
+    def open_language_dialog(self) -> str | None:
+        from PySide6.QtWidgets import QInputDialog
+
+        languages = [
+            ("English (United States)", "en-US"), ("English (United Kingdom)", "en-GB"),
+            ("中文(中国)", "zh-CN"), ("中文(台湾)", "zh-TW"), ("日本語", "ja-JP"),
+            ("한국어", "ko-KR"), ("Deutsch", "de-DE"), ("Français", "fr-FR"),
+            ("Español", "es-ES"), ("Русский", "ru-RU"),
+        ]
+        labels = [name for name, _ in languages]
+        choice, ok = QInputDialog.getItem(
+            self, safe_tr("语言"), safe_tr("将所选文字标记为(&M):"), labels, 0, False
+        )
+        if not ok:
+            return None
+        code = dict(languages)[choice]
+        canvas = self.writer_view.canvas_view
+        self._apply_dialog(lambda: doc_actions.set_language(canvas, code))
+        return code
+
+    # --- Applying dialog results -------------------------------------------------
+    def _apply_dialog(self, mutate: Any) -> Any:
+        """Apply a dialog's result to the document as one undoable, repainted edit."""
+        canvas = self.writer_view.canvas_view
+        result = canvas.run_undoable(mutate)
+        self.set_modified(True)
+        self._sync_toolbar_states()
+        return result
+
+    def _apply_index_tables(self, dlg: Any) -> None:
+        canvas = self.writer_view.canvas_view
+        data = dlg.get_index_tables_data()
+        tab = dlg.tab_widget.tabText(int(data.get("active_tab", 1)))
+        if tab == safe_tr("目录"):
+            self._apply_dialog(lambda: doc_actions.insert_table_of_contents(canvas, data))
+        elif tab == safe_tr("图表目录"):
+            label = data.get("tof_caption") or "Figure"
+            self._apply_dialog(
+                lambda: doc_actions.insert_field(canvas, f'TOC \\c "{label}"', label, "TOC")
+            )
+        elif tab == safe_tr("引文目录"):
+            category = data.get("toa_category") or "1"
+            self._apply_dialog(
+                lambda: doc_actions.insert_field(canvas, f"TOA \\c {category}", "", "TOA")
+            )
+        else:
+            self._apply_dialog(lambda: doc_actions.insert_field(canvas, "INDEX", "", "INDEX"))
+
+    def _apply_bookmarks(self, dlg: Any) -> None:
+        canvas = self.writer_view.canvas_view
+        wanted = dlg.get_bookmarks()
+        existing = doc_actions.document_bookmarks(canvas.doc)
+
+        def sync() -> bool:
+            changed = False
+            for name in existing:
+                if name not in wanted:
+                    changed = doc_actions.delete_bookmark(canvas, name) or changed
+            for name in wanted:
+                if name not in existing:
+                    changed = doc_actions.add_bookmark(canvas, name) or changed
+            return changed
+
+        if wanted != existing:
+            self._apply_dialog(sync)
+        target = dlg.get_selected_bookmark()
+        if target and target in doc_actions.document_bookmarks(canvas.doc):
+            canvas.jump_to_bookmark(target)
+
+    def _apply_autocorrect(self, settings: dict[str, Any]) -> None:
+        from atboffice.core.settings import get_app_settings
+
+        app_settings = get_app_settings()
+        for key, setting in (
+            ("smart_quotes", "autocorrect/smart_quotes"),
+            ("replace_type", "autocorrect/replace_text_as_you_type"),
+            ("smart_fractions", "autocorrect/fractions"),
+            ("two_caps", "autocorrect/two_initial_caps"),
+            ("sentence_cap", "autocorrect/capitalize_sentences"),
+            ("table_cell_cap", "autocorrect/capitalize_table_cells"),
+            ("day_cap", "autocorrect/capitalize_days"),
+            ("caps_lock", "autocorrect/caps_lock"),
+        ):
+            if key in settings:
+                app_settings.set_value(setting, bool(settings[key]))
+        rules = settings.get("rules") or {}
+        engine = getattr(self.writer_view.canvas_view.controller, "autocorrect", None)
+        if engine is not None and rules:
+            engine.typos = dict(rules)
+
+    def _apply_quire_options(self, data: dict[str, Any]) -> None:
+        from atboffice.core.settings import get_app_settings
+
+        app_settings = get_app_settings()
+        for key, value in data.items():
+            if key == "password":
+                continue  # never persisted in plain settings
+            app_settings.set_value(f"quire/{key}", value)
+        canvas = self.writer_view.canvas_view
+        if "spell_check" in data:
+            canvas.doc.hide_spelling_errors = not bool(data["spell_check"])
+            canvas.viewport().update()
+        if "status_bar" in data and getattr(self, "status_bar", None) is not None:
+            self.status_bar.setVisible(bool(data["status_bar"]))
+
+    def _apply_split_cells(self, dims: tuple[int, int, bool]) -> None:
+        rows, cols, _merge_first = dims
+        canvas = self.writer_view.canvas_view
+        if canvas.get_current_table_context() is None:
+            return
+        self._apply_dialog(lambda: canvas.split_table_cells(num_rows=rows, num_cols=cols))
+
+    def _apply_table_sort(self, criteria: dict[str, Any]) -> None:
+        canvas = self.writer_view.canvas_view
+        ascending = bool((criteria.get("key1") or {}).get("ascending", True))
+        self._apply_dialog(lambda: canvas.sort_table(ascending=ascending))
 
     # --- Quire Missing Dialog Cluster Openers ---
     def open_break_dialog(self) -> BreakDialog:
         dlg = BreakDialog(self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(lambda: doc_actions.insert_break(canvas, *dlg.get_break_type()))
         return dlg
 
     def open_drop_cap_dialog(self) -> DropCapDialog:
         dlg = DropCapDialog(parent=self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(lambda: doc_actions.apply_drop_cap(canvas, dlg.get_drop_cap_data()))
         return dlg
 
     def open_text_direction_dialog(self) -> TextDirectionDialog:
         dlg = TextDirectionDialog(parent=self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(
+                lambda: doc_actions.apply_text_direction(canvas, dlg.get_direction())
+            )
         return dlg
 
     def open_watermark_dialog(self) -> WatermarkDialog:
         dlg = WatermarkDialog(parent=self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(
+                lambda: doc_actions.apply_watermark(canvas, dlg.get_watermark_data())
+            )
         return dlg
 
     def open_page_numbers_dialog(self) -> PageNumbersDialog:
         dlg = PageNumbersDialog(parent=self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(
+                lambda: doc_actions.apply_page_numbers(canvas, dlg.get_page_number_settings())
+            )
         return dlg
 
     def open_change_case_dialog(self) -> ChangeCaseDialog:
         dlg = ChangeCaseDialog(self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(lambda: doc_actions.change_case(canvas, dlg.get_case_mode()))
         return dlg
 
     def open_document_theme_dialog(self) -> DocumentThemeDialog:
         dlg = DocumentThemeDialog(parent=self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(
+                lambda: canvas.doc.settings.__setitem__("theme", dlg.get_selected_theme())
+            )
         return dlg
 
     def open_footnote_dialog(self) -> FootnoteDialog:
         dlg = FootnoteDialog(self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(
+                lambda: doc_actions.insert_footnote(canvas, dlg.get_footnote_settings())
+            )
         return dlg
 
     def open_caption_dialog(self) -> CaptionDialog:
         dlg = CaptionDialog(self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(lambda: doc_actions.insert_caption(canvas, dlg.get_caption_data()))
         return dlg
 
     def open_cross_ref_dialog(self) -> CrossRefDialog:
         dlg = CrossRefDialog(self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(
+                lambda: doc_actions.insert_cross_reference(canvas, dlg.get_cross_ref_data())
+            )
         return dlg
 
     def open_index_tables_dialog(self) -> IndexTablesDialog:
         dlg = IndexTablesDialog(self)
-        dlg.exec()
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_index_tables(dlg)
         return dlg
 
     def open_bookmark_dialog(self) -> BookmarkDialog:
-        dlg = BookmarkDialog(parent=self)
-        dlg.exec()
+        dlg = BookmarkDialog(
+            initial_bookmarks=doc_actions.document_bookmarks(self.writer_view.canvas_view.doc),
+            parent=self,
+        )
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_bookmarks(dlg)
         return dlg
 
     def open_hyperlink_dialog(self) -> HyperlinkDialog:
         dlg = HyperlinkDialog(parent=self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(
+                lambda: doc_actions.insert_hyperlink(canvas, dlg.get_hyperlink_data())
+            )
         return dlg
 
     def open_date_time_dialog(self) -> DateTimeDialog:
         dlg = DateTimeDialog(self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(
+                lambda: doc_actions.insert_date_time(canvas, *dlg.get_selected_format())
+            )
         return dlg
 
     def open_field_dialog(self) -> FieldDialog:
         dlg = FieldDialog(self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(
+                lambda: doc_actions.insert_field_from_dialog(canvas, dlg.get_field_data())
+            )
         return dlg
 
     def open_symbol_dialog(self) -> SymbolDialog:
         dlg = SymbolDialog(self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(
+                lambda: doc_actions.insert_symbol(canvas, dlg.get_selected_character())
+            )
         return dlg
 
     def open_autocorrect_dialog(self) -> AutoCorrectDialog:
         dlg = AutoCorrectDialog(self)
-        dlg.exec()
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_autocorrect(dlg.get_autocorrect_settings())
         return dlg
 
     def open_customize_dialog(self) -> CustomizeDialog:
@@ -600,57 +954,80 @@ class QuireWindow(BaseOfficeWindow):
 
     def open_quire_options_dialog(self) -> QuireOptionsDialog:
         dlg = QuireOptionsDialog(self)
-        dlg.exec()
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_quire_options(dlg.get_options_data())
         return dlg
 
     def open_envelopes_labels_dialog(self) -> EnvelopesLabelsDialog:
         dlg = EnvelopesLabelsDialog(self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(lambda: doc_actions.insert_envelope(canvas, dlg.get_envelope_data()))
         return dlg
 
     def open_letter_wizard_dialog(self) -> LetterWizardDialog:
         dlg = LetterWizardDialog(self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(lambda: doc_actions.insert_letter(canvas, dlg.get_letter_data()))
         return dlg
 
     def open_autosummarize_dialog(self) -> AutoSummarizeDialog:
         dlg = AutoSummarizeDialog(self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(lambda: doc_actions.auto_summarize(canvas, dlg.get_summarize_data()))
         return dlg
 
     def open_hyphenation_dialog(self) -> HyphenationDialog:
         dlg = HyphenationDialog(self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(
+                lambda: doc_actions.apply_hyphenation(canvas, dlg.get_hyphenation_settings())
+            )
         return dlg
 
     def open_insert_cells_dialog(self) -> InsertCellsDialog:
         dlg = InsertCellsDialog(self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            doc_actions.table_insert_cells(canvas, dlg.get_action())
         return dlg
 
     def open_delete_cells_dialog(self) -> DeleteCellsDialog:
         dlg = DeleteCellsDialog(self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            doc_actions.table_delete_cells(canvas, dlg.get_action())
         return dlg
 
     def open_split_cells_dialog(self) -> SplitCellsDialog:
         dlg = SplitCellsDialog(parent=self)
-        dlg.exec()
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_split_cells(dlg.get_dimensions())
         return dlg
 
     def open_table_autoformat_dialog(self) -> TableAutoFormatDialog:
         dlg = TableAutoFormatDialog(parent=self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(
+                lambda: doc_actions.table_autoformat(canvas, dlg.get_format_settings())
+            )
         return dlg
 
     def open_table_sort_dialog(self) -> TableSortDialog:
         dlg = TableSortDialog(parent=self)
-        dlg.exec()
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_table_sort(dlg.get_sort_criteria())
         return dlg
 
     def open_table_formula_dialog(self) -> TableFormulaDialog:
         dlg = TableFormulaDialog(parent=self)
-        dlg.exec()
+        canvas = self.writer_view.canvas_view
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._apply_dialog(lambda: doc_actions.table_formula(canvas, *dlg.get_formula_data()))
         return dlg
 
     def _ensure_find_replace_dialog(self) -> FindReplaceDialog:
@@ -895,7 +1272,7 @@ class QuireWindow(BaseOfficeWindow):
         for cp in self.toolbars["formatting"].findChildren(ColorPickerButton):
             if cp.mode == "font":
                 self.btn_font_color = cp
-            elif cp.mode == "fill":
+            elif cp.mode in ("highlight", "fill"):
                 self.btn_highlight_color = cp
 
         # Default display modes for all 10 toolbars
@@ -995,22 +1372,39 @@ class QuireWindow(BaseOfficeWindow):
     def _on_style_combo_changed(self, text: str) -> None:
         if self._syncing_toolbars or not text:
             return
-        if "1" in text:
-            self.writer_view.canvas_view.set_outline_level(1)
-        elif "2" in text:
-            self.writer_view.canvas_view.set_outline_level(2)
-        elif "3" in text:
-            self.writer_view.canvas_view.set_outline_level(3)
-        elif "正文" in text:
-            self.writer_view.canvas_view.set_outline_level(None)
+        style_ids = {
+            safe_tr("正文"): "Normal", safe_tr("标题 1"): "Heading1",
+            safe_tr("标题 2"): "Heading2", safe_tr("标题 3"): "Heading3",
+            safe_tr("副标题"): "Subtitle", safe_tr("页眉"): "Header", safe_tr("页脚"): "Footer",
+        }
+        style_id = style_ids.get(text)
+        if style_id is None:
+            return
+        canvas = self.writer_view.canvas_view
+        self._apply_dialog(lambda: canvas.apply_style(style_id))
 
     def _on_zoom_combo_changed(self, text: str) -> None:
         if self._syncing_toolbars or not text:
             return
+        canvas = self.writer_view.canvas_view
+        if text in (safe_tr("页宽"), safe_tr("整页")):
+            pages = getattr(canvas.pagination, "pages", None) or []
+            if not pages:
+                return
+            page = pages[0]
+            vp = canvas.viewport()
+            ratio = canvas.pt_to_px_ratio
+            fit_w = (vp.width() - 48) / max(1.0, page.width * ratio)
+            if text == safe_tr("页宽"):
+                canvas.set_zoom(fit_w)
+            else:
+                fit_h = (vp.height() - 40) / max(1.0, page.height * ratio)
+                canvas.set_zoom(min(fit_w, fit_h))
+            return
         clean = text.replace("%", "").strip()
         try:
             val = float(clean) / 100.0
-            self.writer_view.canvas_view.set_zoom(val)
+            canvas.set_zoom(val)
         except ValueError:
             pass
 
@@ -1037,8 +1431,13 @@ class QuireWindow(BaseOfficeWindow):
             self.toolbars[name].setVisible(mode)
 
     def update_context_toolbars(self, context: dict[str, Any] | None = None) -> None:
-        """Update contextual toolbar visibility based on selection and document state."""
-        ctx = context or {}
+        """Update contextual toolbar visibility based on selection and document state.
+
+        Context keys persist between calls (e.g. header/footer editing stays on while
+        the caret moves) until a later call changes them.
+        """
+        ctx = {**getattr(self, "_toolbar_context", {}), **(context or {})}
+        self._toolbar_context = ctx
         for name, mode in self.toolbar_modes.items():
             tb = self.toolbars.get(name)
             if tb is None:
@@ -1306,13 +1705,30 @@ class QuireWindow(BaseOfficeWindow):
             self.apply_table_border(preset)
             return
 
-        pos = canvas.controller.pos
-        p = canvas.controller._paragraph_by_id(pos.para_id)
-        if p and p.p_pr:
-            p.p_pr.borders = {"preset": preset}
-            canvas.controller.document_modified.emit()
-            canvas.update()
-        self.show_status_message(safe_tr(f"应用边框: {preset}"))
+        from atboffice.modules.writer.models.properties import BorderProperties
+
+        sides = {
+            "none": (),
+            "all": ("top", "left", "bottom", "right", "between"),
+            "outside": ("top", "left", "bottom", "right"),
+            "top": ("top",), "bottom": ("bottom",), "left": ("left",), "right": ("right",),
+            "inside": ("between",),
+        }.get(preset)
+        if sides is None:
+            return
+
+        def apply() -> None:
+            for para in self._selected_paragraphs():
+                if preset == "none":
+                    para.p_pr.borders = {}
+                    continue
+                borders = dict(para.p_pr.borders) if preset not in ("all", "outside") else {}
+                for side in sides:
+                    borders[side] = BorderProperties(val="single", sz=0.5, color="auto")
+                para.p_pr.borders = borders
+
+        self._apply_dialog(apply)
+        self.show_status_message(safe_tr("已应用边框"))
 
     def apply_table_border(self, border_type: str) -> None:
         """Apply border styling to active table."""

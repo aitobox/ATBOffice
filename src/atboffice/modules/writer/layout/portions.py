@@ -1009,6 +1009,10 @@ def decompose_paragraph_to_portions(
                             and not is_cjk_char(line_str[pos])
                         ):
                             pos += 1
+                        if pos == start:
+                            # A tab (or other separator) stored inside a text run: take it
+                            # as one character so the scan always advances.
+                            pos += 1
                         word = line_str[start:pos]
                         # Apply caps / small_caps: uppercase the display text only
                         _latin_caps = bool(getattr(r_pr, "caps", False))
