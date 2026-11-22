@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, QObject
+from PySide6.QtCore import QCoreApplication, QObject, QTimer
 from PySide6.QtWidgets import QApplication
 
 from atboffice.core.recent_files import RecentFilesManager
@@ -56,6 +56,9 @@ class WindowManager(QObject):
         super().__init__(parent)
         self._start_center: BaseOfficeWindow | None = None
         self._active_windows: set[BaseOfficeWindow] = set()
+        # Closed windows kept alive until control returns to the event loop, so their
+        # wrappers are never destroyed while Qt is still inside QWidget::close().
+        self._closing_windows: list[BaseOfficeWindow] = []
         self.recent_files: RecentFilesManager = RecentFilesManager()
         self._is_quitting: bool = False
 
@@ -141,6 +144,7 @@ class WindowManager(QObject):
                 from atboffice.ui.shell.start_center import StartCenterWindow
 
                 self._start_center = StartCenterWindow()
+                self._start_center.window_closed.connect(self._retarget_main_window)
             except (ImportError, Exception) as exc:
                 logger.debug(
                     "StartCenterWindow not yet available, falling back to BaseOfficeWindow: %s",
@@ -203,9 +207,36 @@ class WindowManager(QObject):
                 win.window_closed.disconnect(self.unregister_window)
             except (TypeError, RuntimeError):
                 pass
+            self._defer_release(win)
 
         if was_active and not self._is_quitting and len(self._active_windows) == 0:
             self.show_start_center()
+
+        self._retarget_main_window(win)
+
+    def _defer_release(self, win: Any) -> None:
+        """Hold a strong reference to ``win`` until the next event-loop iteration."""
+        if win in self._closing_windows:
+            return
+        self._closing_windows.append(win)
+
+        def release(w: Any = win) -> None:
+            try:
+                self._closing_windows.remove(w)
+            except ValueError:
+                pass
+
+        QTimer.singleShot(0, self, release)
+
+    def _retarget_main_window(self, closed: Any) -> None:
+        """Point the application's main window at a live window after ``closed`` goes away."""
+        app = QApplication.instance()
+        if app is None or getattr(app, "_main_window", None) is not closed:
+            return
+        replacement: Any | None = next(iter(self._active_windows), None)
+        if replacement is None and self._start_center is not closed:
+            replacement = self._start_center
+        app._main_window = replacement
 
     def open_quire(
         self,
