@@ -253,6 +253,33 @@ class WriterCanvasView(QAbstractScrollArea):
     # Undo / Redo Transaction Engine
     # -----------------------------------------------------------------------
 
+    # Document parts a dialog-driven edit may change; snapshotted for undo/redo.
+    _SNAPSHOT_PARTS: tuple[str, ...] = (
+        "main", "sect", "hf", "fn", "en", "comments", "settings", "styles", "numbering",
+    )
+
+    def _snapshot_doc(self) -> dict[str, Any]:
+        import copy
+
+        return {attr: copy.deepcopy(getattr(self.doc, attr)) for attr in self._SNAPSHOT_PARTS}
+
+    def run_undoable(self, mutate: Any) -> Any:
+        """Run ``mutate()`` on the document as one undoable step and relayout.
+
+        Used by dialog and toolbar commands that change arbitrary document parts.
+        Nothing is recorded when ``mutate`` returns ``False``.
+        """
+        before = self._snapshot_doc()
+        result = mutate()
+        if result is False:
+            return result
+        after = self._snapshot_doc()
+        if after != before:
+            self._undo_stack.append({"type": "doc_snapshot", "before": before, "after": after})
+            self._redo_stack.clear()
+        self.refresh_layout()
+        return result
+
     def push_undo_command(self, cmd: dict[str, Any]) -> None:
         """Push an undoable command onto the undo stack and clear redo stack."""
         self._undo_stack.append(cmd)
@@ -302,6 +329,12 @@ class WriterCanvasView(QAbstractScrollArea):
             p = self.controller._paragraph_by_id(cmd["para_id"])
             if p:
                 p.p_pr.tabs = copy.deepcopy(state)
+        elif cmd_type == "doc_snapshot":
+            for attr, value in state.items():
+                setattr(self.doc, attr, copy.deepcopy(value))
+            reindex(self.doc)
+            self.controller.doc = self.doc
+            self.controller._ensure_valid_pos()
         elif cmd_type == "section_margins":
             sect = cmd.get("sect")
             if sect:
