@@ -9,7 +9,7 @@ from typing import Any
 
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QCloseEvent
-from PySide6.QtPrintSupport import QPrintDialog, QPrinter, QPrintPreviewDialog
+from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QWidget
 
 from atboffice.core.i18n import get_i18n_manager
@@ -749,7 +749,7 @@ class BaseOfficeWindow(QMainWindow):
             return False
 
     def print_preview(self, printer: QPrinter | None = None) -> bool:
-        """Display interactive full-featured print preview viewport dialog."""
+        """File > Print Preview: open the in-window Office 2003 preview (non-modal)."""
         if printer is None:
             printer = QPrinter(QPrinter.PrinterMode.HighResolution)
 
@@ -766,10 +766,7 @@ class BaseOfficeWindow(QMainWindow):
                 return False
 
         try:
-            dialog = QPrintPreviewDialog(printer, self)
-            dialog.setWindowTitle(safe_tr("打印预览 — {name}").format(name=self.app_name))
-            dialog.paintRequested.connect(self.render_to_printer)
-            dialog.exec()
+            self.open_print_preview_panel(printer)
             return True
         except Exception as exc:
             QMessageBox.critical(
@@ -778,6 +775,45 @@ class BaseOfficeWindow(QMainWindow):
                 safe_tr("无法打开打印预览视口：\n{exc}").format(exc=exc),
             )
             return False
+
+    def open_print_preview_panel(self, printer: QPrinter | None = None) -> Any:
+        """Show the preview over the document area; returns the ``PrintPreviewPanel``."""
+        from atboffice.ui.printing.preview_panel import PrintPreviewPanel
+
+        existing = getattr(self, "_print_preview_panel", None)
+        if existing is not None:
+            try:
+                existing.close_preview()
+            except RuntimeError:
+                pass
+        if printer is None:
+            printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        host = self.centralWidget()
+        panel = PrintPreviewPanel(printer, self.render_to_printer, parent=self, host=host)
+        panel.print_requested.connect(lambda: self.print_document())
+        panel.page_setup_requested.connect(lambda: self._preview_page_setup(panel))
+        panel.closed.connect(self._on_print_preview_closed)
+        self.print_preview_extras(panel)
+        self._print_preview_panel = panel
+        panel.show()
+        panel.raise_()
+        panel.setFocus()
+        panel.refresh()
+        return panel
+
+    def _preview_page_setup(self, panel: Any) -> None:
+        if self.open_page_setup():
+            panel.refresh()
+
+    def _on_print_preview_closed(self) -> None:
+        self._print_preview_panel = None
+
+    def print_preview_extras(self, panel: Any) -> None:
+        """Subclass hook: add module controls (Print What, Color, Margins) to the preview."""
+
+    def open_page_setup(self) -> bool:
+        """Subclass hook for File > Page Setup; returns True when settings changed."""
+        return False
 
     def export_pdf(self, output_path: str | Path | None = None) -> bool:
         """Export current document as lossless vector PDF file."""

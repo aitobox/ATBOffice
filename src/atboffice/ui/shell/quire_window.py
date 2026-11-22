@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QPainter
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QComboBox, QDialog, QMessageBox, QWidget
 
@@ -1941,16 +1940,27 @@ class QuireWindow(BaseOfficeWindow):
         if not pages:
             return
 
-        painter = QPainter(printer)
-        scale = printer.resolution() / 72.0
-        painter.scale(scale, scale)
+        from atboffice.ui.printing.printer_setup import (
+            begin_points_painter,
+            configure_page,
+            new_page,
+        )
 
-        for p_idx, page in enumerate(pages):
-            if p_idx > 0:
-                printer.newPage()
-            canvas.render_page_to_painter(painter, page)
+        # Each page keeps its section's own paper size and orientation, full page.
+        configure_page(printer, pages[0].width, pages[0].height)
+        painter = begin_points_painter(printer)
+        try:
+            for p_idx, page in enumerate(pages):
+                if p_idx > 0:
+                    new_page(printer, page.width, page.height)
+                canvas.render_page_to_painter(painter, page)
+        finally:
+            painter.end()
 
-        painter.end()
+    def open_page_setup(self) -> bool:
+        """File > Page Setup (also the Print Preview "Page Setup" button)."""
+        self.writer_view._on_page_setup_requested()
+        return True  # re-rendering the preview is cheap; always refresh
 
     def show_about(self) -> None:
         """Show about dialog for ATBOffice Quire."""

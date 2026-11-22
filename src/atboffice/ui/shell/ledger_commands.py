@@ -379,6 +379,7 @@ class LedgerCommands:
             "showAllFilter": w.show_all_filtered_rows,
             "insertChart": w.open_chart_wizard,
             "spelling": self.check_spelling,
+            "pageSetup": w.open_page_setup,
             # Toolbar buttons
             "drawBorder": self.draw_border,
             "draw_ungroup": self.ungroup,
