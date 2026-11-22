@@ -51,7 +51,6 @@ from atboffice.modules.writer.layout.pagination import (
     paginate_document,
 )
 from atboffice.modules.writer.layout.portions import (
-    Portion,
     PortionType,
     measure_text_width,
 )
@@ -1167,7 +1166,7 @@ class WriterCanvasView(QAbstractScrollArea):
             return
         font_size_pt = getattr(po, "font_size", None) or 12.0
         y_px = baseline_px + font_size_pt * self._zoom * 0.12
-        thickness = max(0.75 * self._zoom, QFontMetricsF(font).lineWidth())
+        thickness = max(0.75 * self._zoom, self._metrics(font).lineWidth())
         if style == "thick" or "Heavy" in style:
             thickness *= 2.0
         if style in _WAVY_UNDERLINES:
@@ -1193,7 +1192,7 @@ class WriterCanvasView(QAbstractScrollArea):
         hex_color = WORD_HIGHLIGHT_COLORS.get(name, name if str(name).startswith("#") else None)
         if not hex_color:
             return
-        fm = QFontMetricsF(font)
+        fm = self._metrics(font)
         painter.fillRect(
             QRectF(x1, baseline - fm.ascent(), x2 - x1, fm.ascent() + fm.descent()),
             QColor(hex_color),
@@ -1215,7 +1214,7 @@ class WriterCanvasView(QAbstractScrollArea):
             return
         font_size_pt = getattr(po, "font_size", None) or 12.0
         mid_y = baseline_px - font_size_pt * self._zoom * 0.3
-        thickness = max(0.75 * self._zoom, QFontMetricsF(font).lineWidth())
+        thickness = max(0.75 * self._zoom, self._metrics(font).lineWidth())
         pen = QPen(color, thickness)
         pen.setCapStyle(Qt.PenCapStyle.FlatCap)
         painter.setPen(pen)
@@ -1232,7 +1231,9 @@ class WriterCanvasView(QAbstractScrollArea):
         baseline_px: float,
     ) -> None:
         """Draw wavy red spellcheck underlines for misspelled tokens in text."""
-        fm = QFontMetricsF(font)
+        if getattr(self, "_printing", False):
+            return
+        fm = self._metrics(font)
         for w, w_start, w_end in self.spell_engine.tokenize_words(text):
             if not self.spell_engine.is_valid_word(w):
                 w_x1 = x_px + fm.horizontalAdvance(text[:w_start])
@@ -1274,7 +1275,7 @@ class WriterCanvasView(QAbstractScrollArea):
                     font, pen_col = self._build_portion_font(rep_po)
                     painter.setFont(font)
                     painter.setPen(QPen(pen_col))
-                    tl = QTextLayout(full_text, font)
+                    tl = self._text_layout(full_text, font)
                     opt = QTextOption(Qt.AlignmentFlag.AlignRight)
                     opt.setTextDirection(Qt.LayoutDirection.RightToLeft)
                     tl.setTextOption(opt)
@@ -1328,7 +1329,7 @@ class WriterCanvasView(QAbstractScrollArea):
                         word_adv_px.append(0.0)
                     else:
                         f, _ = self._build_portion_font(pt)
-                        word_adv_px.append(QFontMetricsF(f).horizontalAdvance(pt.text))
+                        word_adv_px.append(self._metrics(f).horizontalAdvance(pt.text))
                 total_words_px = sum(word_adv_px)
                 if blank_indices:
                     per_blank_px = max(2.5, (target_w_px - total_words_px) / len(blank_indices))
@@ -1384,7 +1385,7 @@ class WriterCanvasView(QAbstractScrollArea):
                 for pt in trimmed_a:
                     if pt.text:
                         f, _ = self._build_portion_font(pt)
-                        qt_w_px += QFontMetricsF(f).horizontalAdvance(pt.text)
+                        qt_w_px += self._metrics(f).horizontalAdvance(pt.text)
                 layout_w_px = self.pt_to_px(line.width)
                 if line_jc == "center":
                     cur_px += (layout_w_px - qt_w_px) / 2.0
@@ -1401,14 +1402,14 @@ class WriterCanvasView(QAbstractScrollArea):
                 po_base_px = baseline_px - self.pt_to_px(po.baseline_shift)
                 self._paint_highlight(
                     painter, po, font, cur_px,
-                    cur_px + QFontMetricsF(font).horizontalAdvance(po.text), po_base_px,
+                    cur_px + self._metrics(font).horizontalAdvance(po.text), po_base_px,
                 )
                 painter.setFont(font)
                 painter.setPen(QPen(pen_col))
                 painter.drawText(QPointF(cur_px, po_base_px), po.text)
                 if should_spell:
                     self._draw_spellcheck_for_text(painter, font, po.text, cur_px, po_base_px)
-                text_adv_px = QFontMetricsF(font).horizontalAdvance(po.text)
+                text_adv_px = self._metrics(font).horizontalAdvance(po.text)
                 self._draw_text_decorations(
                     painter, po, font, pen_col, cur_px, cur_px + text_adv_px, po_base_px
                 )
@@ -1417,7 +1418,7 @@ class WriterCanvasView(QAbstractScrollArea):
             if po.type == PortionType.BLANK and po.text:
                 font, pen_col = self._build_portion_font(po)
                 blank_adv_px = (
-                    QFontMetricsF(font).horizontalAdvance(po.text) if can_coalesce else po_w_px
+                    self._metrics(font).horizontalAdvance(po.text) if can_coalesce else po_w_px
                 )
                 if po_idx < last_ink_idx:
                     self._draw_text_decorations(
@@ -1492,60 +1493,6 @@ class WriterCanvasView(QAbstractScrollArea):
             painter.save()
             painter.setBrush(QColor(fill_color))
             painter.setPen(QPen(QColor(stroke_color), self.pt_to_px(stroke_width)))
-            painter.drawRect(dest_rect)
-            painter.restore()
-
-    def _paint_float_box_vector(
-        self,
-        painter: QPainter,
-        page: Page,
-        fb: FloatBox,
-        origin_x: float = 0.0,
-        origin_y: float = 0.0,
-    ) -> None:
-        """Render a floating drawing object in vector point coordinates (e.g. printing/PDF)."""
-        item = fb.item
-        if not item:
-            return
-        x_pt = origin_x + fb.x
-        y_pt = origin_y + fb.y
-        dest_rect = QRectF(x_pt, y_pt, fb.w, fb.h)
-
-        if fb.lines:
-            for line in fb.lines:
-                line_y = origin_y + fb.y + line.top
-                cur_x = origin_x + fb.x + line.indent_left
-                for po in line.portions:
-                    po_w = po.width
-                    if po.type == PortionType.TEXT and po.text:
-                        font_family = po.font_family or "Times New Roman"
-                        font_size_pt = po.font_size or 12.0
-                        font = QFont(font_family)
-                        font.setPointSizeF(font_size_pt)
-                        if getattr(po, "bold", False):
-                            font.setBold(True)
-                        if getattr(po, "italic", False):
-                            font.setItalic(True)
-                        painter.setFont(font)
-                        color_str = getattr(po, "color", None) or "#000000"
-                        if color_str == "auto":
-                            color_str = "#000000"
-                        painter.setPen(QPen(QColor(color_str)))
-                        baseline = line_y + (line.baseline - line.top)
-                        painter.drawText(QPointF(cur_x, baseline - po.baseline_shift), po.text)
-                    cur_x += po_w
-            return
-
-        if isinstance(item, PictureItem) or getattr(item, "t", "") in ("picture", "img"):
-            self._paint_picture(painter, item, dest_rect, 1.0, is_vector=True)
-        else:
-            fill_color = getattr(item, "fill_color", None) or "#E8EEF5"
-            stroke_color = getattr(item, "stroke_color", None) or "#4A709C"
-            stroke_width = getattr(item, "stroke_width", 1.0) or 1.0
-
-            painter.save()
-            painter.setBrush(QColor(fill_color))
-            painter.setPen(QPen(QColor(stroke_color), stroke_width))
             painter.drawRect(dest_rect)
             painter.restore()
 
@@ -1861,7 +1808,7 @@ class WriterCanvasView(QAbstractScrollArea):
                                     self.spell_engine.is_enabled("spelling/check_as_you_type", True)
                                     and po.text
                                 ):
-                                    fm = QFontMetricsF(font)
+                                    fm = self._metrics(font)
                                     for (
                                         w,
                                         w_start,
@@ -1947,6 +1894,15 @@ class WriterCanvasView(QAbstractScrollArea):
         if page.footer:
             self._paint_header_footer(painter, page_rect, page, page.footer, is_header=False)
 
+    def _metrics(self, font: QFont) -> QFontMetricsF:
+        """Font metrics for the device being painted (the printer while printing)."""
+        device = getattr(self, "_print_device", None)
+        return QFontMetricsF(font, device) if device is not None else QFontMetricsF(font)
+
+    def _text_layout(self, text: str, font: QFont) -> QTextLayout:
+        device = getattr(self, "_print_device", None)
+        return QTextLayout(text, font, device) if device is not None else QTextLayout(text, font)
+
     def render_page_to_painter(
         self,
         painter: QPainter,
@@ -1954,322 +1910,36 @@ class WriterCanvasView(QAbstractScrollArea):
         origin_x: float = 0.0,
         origin_y: float = 0.0,
     ) -> None:
-        """Render page contents in vector points directly onto a QPainter target (e.g. QPrinter)."""
+        """Paint ``page`` in points onto ``painter`` (printer, PDF, image) with screen fidelity.
 
-        def _setup_font_and_pen(
-            po: Portion, default_size: float = 12.0, default_color: str = "#000000"
-        ) -> tuple[QFont, QPen]:
-            family = getattr(po, "font_family", None) or "Times New Roman"
-            sz = getattr(po, "font_size", None) or default_size
-            f = QFont(family)
-            f.setPointSizeF(sz)
-            is_bold = bool(
-                getattr(po, "bold", False)
-                or (isinstance(getattr(po, "data", None), dict) and po.data.get("bold"))
-            )
-            is_italic = bool(
-                getattr(po, "italic", False)
-                or (isinstance(getattr(po, "data", None), dict) and po.data.get("italic"))
-            )
-            f.setBold(is_bold)
-            f.setItalic(is_italic)
-            col = getattr(po, "color", None) or default_color
-            return f, QPen(QColor(col))
-
-        def _paint_table(tl: TableLayout, frag_x: float, frag_y: float) -> None:
-            """Paint a table, recursing into nested tables, at origin (frag_x, frag_y) in pt."""
-            for rl in tl.rows:
-                for cl in rl.cells:
-                    cell_x = frag_x + cl.x
-                    cell_y = frag_y + cl.y
-                    cell_rect = QRectF(cell_x, cell_y, cl.width, cl.height)
-
-                    # Shading
-                    fill_val = getattr(cl.shd, "fill", "auto")
-                    if fill_val and fill_val not in ("auto", "clear", "none"):
-                        hex_fill = fill_val if fill_val.startswith("#") else f"#{fill_val}"
-                        painter.fillRect(cell_rect, QColor(hex_fill))
-
-                    # Border
-                    painter.setPen(QPen(QColor(120, 120, 120), 0.75))
-                    painter.drawRect(cell_rect)
-
-                    # Cell text content
-                    cell_inner_x = frag_x + cl.x + cl.mar_l
-                    cell_inner_y = frag_y + cl.y + cl.content_offset_y + cl.mar_t
-                    for item, item_top in zip(cl.block_layouts, cl.block_tops):
-                        if isinstance(item, TableLayout):
-                            painter.save()
-                            painter.setClipRect(cell_rect, Qt.ClipOperation.IntersectClip)
-                            _paint_table(item, cell_inner_x + item.x, cell_inner_y + item_top)
-                            painter.restore()
-                            continue
-                        playout = item
-                        p_top = cell_inner_y + item_top + playout.effective_space_before
-                        for line in playout.lines:
-                            line_y = p_top + line.top
-                            cur_x = cell_inner_x + line.indent_left
-                            for po in line.portions:
-                                po_w = po.width
-                                if po.type == PortionType.TEXT and po.text:
-                                    font, pen = _setup_font_and_pen(po, 12.0, "#000000")
-                                    painter.setFont(font)
-                                    painter.setPen(pen)
-                                    baseline = line_y + (line.baseline - line.top)
-                                    painter.drawText(
-                                        QPointF(cur_x, baseline - po.baseline_shift), po.text
-                                    )
-                                elif po.type == PortionType.GRAPHIC:
-                                    baseline = line_y + (line.baseline - line.top)
-                                    if isinstance(po.data, OfficeMathItem):
-                                        paint_math(
-                                            painter,
-                                            po.data,
-                                            cur_x,
-                                            baseline,
-                                            1.0,
-                                        )
-                                    elif isinstance(po.data, PictureItem) or getattr(
-                                        po.data, "t", ""
-                                    ) in ("picture", "img"):
-                                        dest_rect = QRectF(
-                                            cur_x,
-                                            baseline - po.ascent,
-                                            po.width,
-                                            po.ascent,
-                                        )
-                                        self._paint_picture(
-                                            painter,
-                                            po.data,
-                                            dest_rect,
-                                            1.0,
-                                            is_vector=True,
-                                        )
-                                cur_x += po_w
-
-        # 1. Render Header if present
-        if page.header:
-            header_top = origin_y + page.header.y
-            for frag in page.header.fragments:
-                for line in frag.lines:
-                    line_y = header_top + line.top
-                    cur_x = origin_x + page.body_left + line.indent_left
-                    for po in line.portions:
-                        po_w = po.width
-                        if po.type == PortionType.TEXT and po.text:
-                            text_str = po.text
-                            if text_str == "PAGE":
-                                from atboffice.modules.writer.layout.pagination import format_number
-
-                                text_str = format_number(page.page_number, page.page_number_format)
-                            elif text_str == "NUMPAGES":
-                                total_pgs = (
-                                    len(self.pagination.pages)
-                                    if (self.pagination and self.pagination.pages)
-                                    else (page.index + 1)
-                                )
-                                text_str = str(total_pgs)
-                            font, pen = _setup_font_and_pen(po, 10.0, "#666666")
-                            painter.setFont(font)
-                            painter.setPen(pen)
-                            baseline = line_y + (line.baseline - line.top)
-                            painter.drawText(QPointF(cur_x, baseline - po.baseline_shift), text_str)
-                        elif po.type == PortionType.GRAPHIC:
-                            baseline = line_y + (line.baseline - line.top)
-                            if isinstance(po.data, OfficeMathItem):
-                                paint_math(painter, po.data, cur_x, baseline, 1.0)
-                            elif isinstance(po.data, PictureItem) or getattr(po.data, "t", "") in (
-                                "picture",
-                                "img",
-                            ):
-                                dest_rect = QRectF(cur_x, baseline - po.ascent, po.width, po.ascent)
-                                self._paint_picture(
-                                    painter, po.data, dest_rect, 1.0, is_vector=True
-                                )
-                        cur_x += po_w
-
-        # 1.5. Render background floating shapes (behind == True)
-        for fb in getattr(page, "float_boxes", []):
-            if fb.behind:
-                self._paint_float_box_vector(painter, page, fb, origin_x, origin_y)
-
-        # 2. Render Page Regions and Paragraphs/Tables
-        for reg in page.regions:
-            for col in reg.columns:
-                for frag in col.fragments:
-                    if frag.table_layout is not None:
-                        tl = frag.table_layout
-                        frag_x = origin_x + page.body_left + col.left
-                        frag_y = origin_y + page.body_top + col.top + frag.top
-
-                        _paint_table(tl, frag_x + tl.x, frag_y)
-                        continue
-
-                    frag_top = origin_y + page.body_top + col.top + frag.top
-                    for line in frag.lines:
-                        line_y = frag_top + line.top
-                        cur_x = origin_x + page.body_left + col.left + line.indent_left
-
-                        for po in line.portions:
-                            po_w = po.width
-                            if po.type == PortionType.TEXT and po.text:
-                                font, pen = _setup_font_and_pen(po, 12.0, "#000000")
-                                painter.setFont(font)
-                                painter.setPen(pen)
-                                baseline = line_y + (line.baseline - line.top)
-                                painter.drawText(
-                                    QPointF(cur_x, baseline - po.baseline_shift), po.text
-                                )
-
-                                _ul2 = getattr(po, "underline", None)
-                                if _ul2 and _ul2 != "none":
-                                    pen_u = QPen(pen.color(), 0.75)
-                                    painter.setPen(pen_u)
-                                    painter.drawLine(
-                                        QPointF(cur_x, baseline + 1.5),
-                                        QPointF(cur_x + po_w, baseline + 1.5),
-                                    )
-                                if getattr(po, "strikethrough", False):
-                                    pen_s = QPen(pen.color(), 0.75)
-                                    painter.setPen(pen_s)
-                                    mid_y = (
-                                        line_y + line.baseline_offset - (po.font_size or 12.0) * 0.3
-                                    )
-                                    painter.drawLine(
-                                        QPointF(cur_x, mid_y),
-                                        QPointF(cur_x + po_w, mid_y),
-                                    )
-                                if getattr(po, "dstrike", False):
-                                    pen_ds = QPen(pen.color(), 0.75)
-                                    painter.setPen(pen_ds)
-                                    mid_y = (
-                                        line_y + line.baseline_offset - (po.font_size or 12.0) * 0.3
-                                    )
-                                    painter.drawLine(
-                                        QPointF(cur_x, mid_y - 1.5),
-                                        QPointF(cur_x + po_w, mid_y - 1.5),
-                                    )
-                                    painter.drawLine(
-                                        QPointF(cur_x, mid_y + 1.5),
-                                        QPointF(cur_x + po_w, mid_y + 1.5),
-                                    )
-                            elif po.type == PortionType.TAB and po_w > 0:
-                                tab_data = getattr(po, "data", None)
-                                leader = getattr(tab_data, "leader", "none") if tab_data else "none"
-                                if leader and leader != "none":
-                                    baseline = line_y + (line.baseline - line.top)
-                                    p1 = QPointF(cur_x, baseline)
-                                    p2 = QPointF(cur_x + po_w, baseline)
-                                    if leader == "dot":
-                                        pen_l = QPen(
-                                            QColor(100, 100, 100), 0.75, Qt.PenStyle.DotLine
-                                        )
-                                        painter.setPen(pen_l)
-                                        painter.drawLine(p1, p2)
-                                    elif leader == "hyphen":
-                                        pen_l = QPen(
-                                            QColor(100, 100, 100), 0.75, Qt.PenStyle.DashLine
-                                        )
-                                        painter.setPen(pen_l)
-                                        painter.drawLine(p1, p2)
-                                    elif leader == "underscore":
-                                        pen_l = QPen(
-                                            QColor(100, 100, 100), 0.75, Qt.PenStyle.SolidLine
-                                        )
-                                        painter.setPen(pen_l)
-                                        painter.drawLine(
-                                            QPointF(cur_x, baseline + 1.5),
-                                            QPointF(cur_x + po_w, baseline + 1.5),
-                                        )
-
-                            elif po.type == PortionType.GRAPHIC:
-                                baseline = line_y + (line.baseline - line.top)
-                                if isinstance(po.data, OfficeMathItem):
-                                    paint_math(painter, po.data, cur_x, baseline, 1.0)
-                                elif isinstance(po.data, PictureItem) or getattr(
-                                    po.data, "t", ""
-                                ) in ("picture", "img"):
-                                    dest_rect = QRectF(
-                                        cur_x,
-                                        baseline - po.ascent,
-                                        po.width,
-                                        po.ascent,
-                                    )
-                                    self._paint_picture(
-                                        painter, po.data, dest_rect, 1.0, is_vector=True
-                                    )
-
-                            cur_x += po_w
-
-        # 2.5. Render foreground floating shapes (behind == False)
-        for fb in getattr(page, "float_boxes", []):
-            if not fb.behind:
-                self._paint_float_box_vector(painter, page, fb, origin_x, origin_y)
-
-        # 2.6. Render Footnote Area if present
-        if getattr(page, "footnote_area", None) and page.footnote_area.fragments:
-            fn_area = page.footnote_area
-            sep_x = origin_x + page.body_left
-            sep_y = origin_y + fn_area.y
-            sep_w = fn_area.separator_width
-            painter.setPen(QPen(QColor(0, 0, 0), 0.75))
-            painter.drawLine(QPointF(sep_x, sep_y), QPointF(sep_x + sep_w, sep_y))
-
-            for frag in fn_area.fragments:
-                frag_top = origin_y + fn_area.y + frag.top
-                for line in frag.lines:
-                    line_y = frag_top + line.top
-                    cur_x = origin_x + page.body_left + line.indent_left
-                    for po in line.portions:
-                        po_w = po.width
-                        if po.type == PortionType.TEXT and po.text:
-                            font, pen = _setup_font_and_pen(po, 10.0, "#000000")
-                            painter.setFont(font)
-                            painter.setPen(pen)
-                            baseline = line_y + (line.baseline - line.top)
-                            painter.drawText(QPointF(cur_x, baseline - po.baseline_shift), po.text)
-                        cur_x += po_w
-
-        # 3. Render Footer if present
-        if page.footer:
-            footer_top = origin_y + page.footer.y
-            for frag in page.footer.fragments:
-                for line in frag.lines:
-                    line_y = footer_top + line.top
-                    cur_x = origin_x + page.body_left + line.indent_left
-                    for po in line.portions:
-                        po_w = po.width
-                        if po.type == PortionType.TEXT and po.text:
-                            text_str = po.text
-                            if text_str == "PAGE":
-                                from atboffice.modules.writer.layout.pagination import format_number
-
-                                text_str = format_number(page.page_number, page.page_number_format)
-                            elif text_str == "NUMPAGES":
-                                total_pgs = (
-                                    len(self.pagination.pages)
-                                    if (self.pagination and self.pagination.pages)
-                                    else (page.index + 1)
-                                )
-                                text_str = str(total_pgs)
-                            font, pen = _setup_font_and_pen(po, 10.0, "#666666")
-                            painter.setFont(font)
-                            painter.setPen(pen)
-                            baseline = line_y + (line.baseline - line.top)
-                            painter.drawText(QPointF(cur_x, baseline - po.baseline_shift), text_str)
-                        elif po.type == PortionType.GRAPHIC:
-                            baseline = line_y + (line.baseline - line.top)
-                            if isinstance(po.data, OfficeMathItem):
-                                paint_math(painter, po.data, cur_x, baseline, 1.0)
-                            elif isinstance(po.data, PictureItem) or getattr(po.data, "t", "") in (
-                                "picture",
-                                "img",
-                            ):
-                                dest_rect = QRectF(cur_x, baseline - po.ascent, po.width, po.ascent)
-                                self._paint_picture(
-                                    painter, po.data, dest_rect, 1.0, is_vector=True
-                                )
-                        cur_x += po_w
+        Uses the on-screen page painter (bullets, highlights, justification, borders and
+        shading, watermarks, charts, shapes, headers/footers) in a print mode: coordinates
+        are points, fonts are sized for the target device, and editing aids (selection,
+        caret, spell-check squiggles, comments, formatting marks) are not drawn.
+        """
+        device = painter.device()
+        dpi = float(device.logicalDpiY()) if device is not None else 72.0
+        if dpi <= 0:
+            dpi = 72.0
+        saved = (
+            self.pt_to_px_ratio,
+            self._zoom,
+            getattr(self, "_printing", False),
+            getattr(self, "_print_device", None),
+        )
+        self.pt_to_px_ratio = dpi / 72.0
+        self._zoom = 72.0 / dpi
+        self._printing = True
+        self._print_device = device
+        painter.save()
+        try:
+            painter.translate(origin_x, origin_y)
+            page_rect = QRectF(0.0, 0.0, float(page.width), float(page.height))
+            painter.fillRect(page_rect, COLOR_PAGE_PAPER)
+            self._paint_page_content(painter, page_rect, page)
+        finally:
+            painter.restore()
+            (self.pt_to_px_ratio, self._zoom, self._printing, self._print_device) = saved
 
     def _paint_selection(
         self, painter: QPainter, page_idx: int, page_rect: QRectF, page: Page

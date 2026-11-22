@@ -802,10 +802,10 @@ class GridViewport(QAbstractScrollArea):
 
             rf = QFont(fam, int(sz) if isinstance(sz, int) else round(sz))
             if isinstance(sz, float):
-                rf.setPointSizeF(sz)
+                rf.setPointSizeF(sz * self._print_font_factor)
             rf.setBold(r.bold if r.bold is not None else cell.bold)
             rf.setItalic(r.italic if r.italic is not None else cell.italic)
-            rfm = QFontMetricsF(rf)
+            rfm = self._fm(rf)
 
             run_text = self._normalize_unwrapped_text(r.text, cell.wrap_text)
             parts = run_text.split("\n")
@@ -843,7 +843,7 @@ class GridViewport(QAbstractScrollArea):
                     )
                     cell_font.setBold(cell.bold)
                     cell_font.setItalic(cell.italic)
-                    w = QFontMetrics(cell_font).horizontalAdvance(text) + 12
+                    w = self._fm(cell_font).horizontalAdvance(text) + 12
                 if w > max_width:
                     max_width = int(w)
 
@@ -1130,6 +1130,63 @@ class GridViewport(QAbstractScrollArea):
             painter.drawLine(0, self._resize_preview_pos, vw, self._resize_preview_pos)
             painter.restore()
 
+    # ---- printing -----------------------------------------------------------
+    _printing: bool = False
+    _print_gridlines: bool = False
+    _print_font_factor: float = 1.0
+    _print_device: Any = None
+
+    def _cell_font(self, family: str | None, size: float | None) -> QFont:
+        font = QFont(family or "Arial")
+        font.setPointSizeF(float(size or 10) * self._print_font_factor)
+        return font
+
+    def _fm(self, font: QFont) -> QFontMetricsF:
+        device = self._print_device
+        return QFontMetricsF(font, device) if device is not None else QFontMetricsF(font)
+
+    def paint_print_region(
+        self,
+        painter: QPainter,
+        r1: int,
+        r2: int,
+        c1: int,
+        c2: int,
+        gridlines: bool = False,
+        font_factor: float = 1.0,
+    ) -> None:
+        """Paint cells r1..r2 × c1..c2 with the on-screen painter, origin at (0, 0).
+
+        Units are grid pixels. Fills, conditional formats, merges, wrapped/rotated text,
+        rich text, table styles and borders print exactly as on screen; selection, the
+        active cell, handles, filter buttons and comment indicators do not.
+        ``font_factor`` scales point sizes (the caller maps grid pixels to points).
+        """
+        geo = self.geometry_mapper
+        x0 = self.row_header_width
+        y0 = self.col_header_height
+        width = geo.col_pos(c2 + 1) - geo.col_pos(c1)
+        height = geo.row_pos(r2 + 1) - geo.row_pos(r1)
+        saved = (self._printing, self._print_gridlines, self._print_font_factor,
+                 self._print_device)
+        self._printing = True
+        self._print_gridlines = gridlines
+        self._print_font_factor = font_factor
+        self._print_device = painter.device()
+        painter.save()
+        try:
+            # Pane x = header + col_pos(c) - psx, so psx = col_pos(c1) puts c1 at the
+            # clip origin; translating by the header size moves that to (0, 0).
+            painter.translate(-x0, -y0)
+            psx = geo.col_pos(c1)
+            psy = geo.row_pos(r1)
+            clip = QRect(x0, y0, int(math.ceil(width)), int(math.ceil(height)))
+            self._paint_pane(painter, r1, r2, c1, c2, psx, psy, clip)
+        finally:
+            painter.restore()
+            (self._printing, self._print_gridlines, self._print_font_factor,
+             self._print_device) = saved
+
     def _paint_pane(
         self,
         painter: QPainter,
@@ -1143,6 +1200,9 @@ class GridViewport(QAbstractScrollArea):
     ) -> None:
         """Render gridlines, selection, cells, and indicators for a single pane."""
         vw, vh = self._view_size()
+        printing = self._printing
+        if printing:
+            vw, vh = pane_clip.right() + 1, pane_clip.bottom() + 1
         # 2. Draw Selection Overlays
         painter.save()
         painter.setClipRect(pane_clip)
@@ -1151,7 +1211,7 @@ class GridViewport(QAbstractScrollArea):
 
         # Like render.js: single cells are not shaded and the active cell stays white.
         act_r, act_c = self.selection.active_cell
-        for rg in self.selection.ranges:
+        for rg in [] if printing else self.selection.ranges:
             if rg.min_r == rg.max_r and rg.min_c == rg.max_c:
                 continue
             if rg.max_r < pr_start or rg.min_r > pr_end:
@@ -1191,7 +1251,7 @@ class GridViewport(QAbstractScrollArea):
         painter.restore()
 
         # 2b. Draw AutoFill Drag Preview Rectangle
-        if self._fill_preview_range is not None:
+        if self._fill_preview_range is not None and not printing:
             painter.save()
             painter.setClipRect(pane_clip)
             pr = self._fill_preview_range
@@ -1256,7 +1316,7 @@ class GridViewport(QAbstractScrollArea):
             painter.restore()
 
         # 3. Draw Gridlines (unless the sheet hides them: showGridLines="0")
-        if self.show_grid_lines:
+        if (self._print_gridlines if printing else self.show_grid_lines):
             painter.save()
             painter.setClipRect(pane_clip)
             painter.setPen(QPen(self.COLOR_GRIDLINE, 1))
@@ -1289,7 +1349,7 @@ class GridViewport(QAbstractScrollArea):
         painter.save()
         painter.setClipRect(pane_clip)
 
-        fz_c = self.freeze_cols
+        fz_c = 0 if printing else self.freeze_cols
         pane_min_col = fz_c if (fz_c > 0 and pc_start >= fz_c) else 0
         pane_max_col = (
             fz_c - 1
@@ -1359,6 +1419,8 @@ class GridViewport(QAbstractScrollArea):
             )
 
         painter.restore()
+        if printing:
+            return  # editing aids below (active cell, handles, buttons, comments) never print
 
         # 5. Draw Active Cell 2px Border & AutoFill Handle
         painter.save()
@@ -1684,7 +1746,7 @@ class GridViewport(QAbstractScrollArea):
                 if cm.author and cm.author.strip():
                     author_header = f"{cm.author.strip()}:"
                     painter.setFont(bold_font)
-                    fm_bold = QFontMetrics(bold_font)
+                    fm_bold = self._fm(bold_font)
                     author_h = fm_bold.height()
                     painter.drawText(
                         QRect(inner_rect.x(), inner_rect.y(), inner_rect.width(), author_h + 2),
@@ -2249,7 +2311,7 @@ class GridViewport(QAbstractScrollArea):
             )
             return
 
-        font = QFont(cell.font_family, cell.font_size)
+        font = self._cell_font(cell.font_family, cell.font_size)
         is_bold = (
             cf_res.bold
             if (cf_res and cf_res.bold is not None)
@@ -2263,7 +2325,7 @@ class GridViewport(QAbstractScrollArea):
         font.setBold(is_bold)
         font.setItalic(is_italic)
         font.setUnderline(cell.underline)
-        cell_fm = QFontMetricsF(font)
+        cell_fm = self._fm(font)
 
         fmt_res = self._format_cell_for_paint(cell, disp_val, cell_fm, col_w)
         text = self._normalize_unwrapped_text(fmt_res.text, cell.wrap_text)
@@ -2527,11 +2589,11 @@ class GridViewport(QAbstractScrollArea):
         painter.setClipRect(effective_clip, Qt.ClipOperation.IntersectClip)
 
         # Base font metrics for baseline calculation
-        base_font = QFont(cell.font_family or "Arial", cell.font_size or 10)
+        base_font = self._cell_font(cell.font_family or "Arial", cell.font_size or 10)
         base_font.setBold(cell.bold)
         base_font.setItalic(cell.italic)
         base_font.setUnderline(cell.underline)
-        base_fm = QFontMetricsF(base_font)
+        base_fm = self._fm(base_font)
 
         avail_w = max(0.0, float(span_w - 6))
 
@@ -2554,7 +2616,7 @@ class GridViewport(QAbstractScrollArea):
 
             rf = QFont(fam, int(sz) if isinstance(sz, int) else round(sz))
             if isinstance(sz, float):
-                rf.setPointSizeF(sz)
+                rf.setPointSizeF(sz * self._print_font_factor)
 
             bold = (
                 r.bold
@@ -2600,7 +2662,7 @@ class GridViewport(QAbstractScrollArea):
             )
             rc = QColor(col_str) if col_str else Qt.GlobalColor.black
 
-            rfm = QFontMetricsF(rf)
+            rfm = self._fm(rf)
 
             run_text = self._normalize_unwrapped_text(r.text, cell.wrap_text)
             text_parts = run_text.split("\n")

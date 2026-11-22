@@ -1009,6 +1009,7 @@ def _serialize_worksheet(
     parts = [
         XML_HEADER,
         f'<worksheet xmlns="{NS_MAIN}" xmlns:r="{NS_R}">',
+        _sheet_pr_xml(sheet),
         f'<dimension ref="{dim_ref}"/>',
         _sheet_views_xml(sheet, is_active),
         '<sheetFormatPr defaultRowHeight="20"/>',
@@ -1159,10 +1160,8 @@ def _serialize_worksheet(
             parts.append("</dataValidation>")
         parts.append("</dataValidations>")
 
-    # Page margins
-    parts.append(
-        '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>'
-    )
+    # Print options, margins, page setup and header/footer (File > Page Setup)
+    parts.append(_page_setup_block_xml(sheet))
     parts.append(_breaks_xml("rowBreaks", sheet.view_state.row_breaks, MAXC - 1))
     parts.append(_breaks_xml("colBreaks", sheet.view_state.col_breaks, MAXR - 1))
     if drawing_rid:
@@ -1172,6 +1171,114 @@ def _serialize_worksheet(
     parts.append("</worksheet>")
 
     return "".join(parts).encode("utf-8")
+
+
+def _page_setup(sheet: Any) -> Any:
+    from atboffice.modules.spreadsheet.printing.setup import get_print_setup
+
+    return get_print_setup(sheet)
+
+
+def _sheet_pr_xml(sheet: Any) -> str:
+    return '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>' if _page_setup(sheet).fit_to else ""
+
+
+def _page_setup_block_xml(sheet: Any) -> str:
+    """``printOptions``, ``pageMargins``, ``pageSetup`` and ``headerFooter`` (schema order)."""
+    from atboffice.modules.spreadsheet.printing.setup import PAPER_CODES
+
+    st = _page_setup(sheet)
+    out: list[str] = []
+    opts = []
+    if st.center_h:
+        opts.append('horizontalCentered="1"')
+    if st.center_v:
+        opts.append('verticalCentered="1"')
+    if st.headings:
+        opts.append('headings="1"')
+    if st.gridlines:
+        opts.append('gridLines="1"')
+    if opts:
+        out.append(f"<printOptions {' '.join(opts)}/>")
+    m = {k: round(v / 72.0, 4) for k, v in st.margins.items()}
+    out.append(
+        f'<pageMargins left="{m["left"]}" right="{m["right"]}" top="{m["top"]}" '
+        f'bottom="{m["bottom"]}" header="{m["header"]}" footer="{m["footer"]}"/>'
+    )
+    ps = [f'paperSize="{PAPER_CODES.get(st.paper, 9)}"']
+    if st.fit_to:
+        ps.append(f'fitToWidth="{st.fit_width}"')
+        ps.append(f'fitToHeight="{st.fit_height}"')
+    elif st.scale != 100:
+        ps.append(f'scale="{st.scale}"')
+    if st.first_page_number is not None:
+        ps.append(f'firstPageNumber="{st.first_page_number}"')
+    if st.page_order == "over_then_down":
+        ps.append('pageOrder="overThenDown"')
+    ps.append(f'orientation="{st.orientation}"')
+    if st.black_white:
+        ps.append('blackAndWhite="1"')
+    if st.first_page_number is not None:
+        ps.append('useFirstPageNumber="1"')
+    out.append(f"<pageSetup {' '.join(ps)}/>")
+    if st.header or st.footer:
+        hf = "<headerFooter>"
+        if st.header:
+            hf += f"<oddHeader>{_xml_escape(st.header)}</oddHeader>"
+        if st.footer:
+            hf += f"<oddFooter>{_xml_escape(st.footer)}</oddFooter>"
+        out.append(hf + "</headerFooter>")
+    return "".join(out)
+
+
+_PAGE_ELEMENTS = re.compile(
+    r"<(printOptions|pageMargins|pageSetup|headerFooter)\b(?:[^>]*/>|[^>]*>.*?</\1>)",
+    re.DOTALL,
+)
+_AFTER_PAGE = re.compile(
+    r"<(rowBreaks|colBreaks|customProperties|cellWatches|ignoredErrors|smartTags|drawing|"
+    r"legacyDrawing|legacyDrawingHF|picture|oleObjects|controls|webPublishItems|tableParts|"
+    r"extLst)\b|</worksheet>"
+)
+
+
+def _patch_page_setup(xml: str, sheet: Any) -> str:
+    """Rewrite page-setup elements of preserved XML only when the user changed them."""
+    from atboffice.modules.spreadsheet.printing.setup import get_print_setup
+
+    extra = getattr(sheet, "extra", {}) or {}
+    if "print_setup" not in extra:
+        return xml
+    if extra.get("print_setup_loaded") == get_print_setup(sheet).to_dict():
+        return xml
+    xml = _PAGE_ELEMENTS.sub("", xml)
+    m = _AFTER_PAGE.search(xml)
+    if m is None:
+        return xml
+    xml = xml[: m.start()] + _page_setup_block_xml(sheet) + xml[m.start():]
+    fit = get_print_setup(sheet).fit_to
+    if re.search(r"<pageSetUpPr\b", xml):
+        xml = re.sub(
+            r"<pageSetUpPr\b[^>]*/>",
+            '<pageSetUpPr fitToPage="1"/>' if fit else "",
+            xml,
+            count=1,
+        )
+    elif fit:
+        if re.search(r"<sheetPr\b[^>]*/>", xml):
+            xml = re.sub(
+                r"<sheetPr\b([^>]*)/>",
+                r'<sheetPr\1><pageSetUpPr fitToPage="1"/></sheetPr>',
+                xml,
+                count=1,
+            )
+        elif "</sheetPr>" in xml:
+            # pageSetUpPr is the last child of sheetPr (after tabColor, outlinePr)
+            xml = xml.replace("</sheetPr>", '<pageSetUpPr fitToPage="1"/></sheetPr>', 1)
+        else:
+            xml = re.sub(r"(<worksheet\b[^>]*>)",
+                         r'\1<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>', xml, count=1)
+    return xml
 
 
 _GROUP_CHILD_EXTENT = 1_000_000  # virtual child coordinate space for written groups
@@ -1719,6 +1826,7 @@ def write_xlsx(
                     patched,
                     count=1,
                 )
+                patched = _patch_page_setup(patched, sheet)
                 ws_bytes = patched.encode("utf-8")
         else:
             ws_bytes = _serialize_worksheet(

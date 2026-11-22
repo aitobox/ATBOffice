@@ -116,6 +116,60 @@ def _clean_tag(tag: str) -> str:
     return tag
 
 
+def _read_page_setup(root: ET.Element, sheet: Any) -> None:
+    """Load page setup into ``sheet.extra["print_setup"]`` (+ a snapshot for round-trip)."""
+    from atboffice.modules.spreadsheet.printing.setup import PAPER_CODES, SheetPrintSetup
+
+    opts = _find_child(root, "printOptions")
+    margins = _find_child(root, "pageMargins")
+    page = _find_child(root, "pageSetup")
+    hf = _find_child(root, "headerFooter")
+    pr = _find_child(_find_child(root, "sheetPr"), "pageSetUpPr")
+    if opts is None and margins is None and page is None and hf is None and pr is None:
+        return
+
+    def flag(el: ET.Element | None, name: str) -> bool:
+        return (_attr(el, name) or "").lower() in ("1", "true")
+
+    def num(el: ET.Element | None, name: str, default: float) -> float:
+        try:
+            return float(_attr(el, name) or default)
+        except ValueError:
+            return default
+
+    st = SheetPrintSetup()
+    st.center_h = flag(opts, "horizontalCentered")
+    st.center_v = flag(opts, "verticalCentered")
+    st.headings = flag(opts, "headings")
+    st.gridlines = flag(opts, "gridLines")
+    if margins is not None:
+        st.margins = {
+            key: num(margins, key, st.margins[key] / 72.0) * 72.0
+            for key in ("left", "right", "top", "bottom", "header", "footer")
+        }
+    if page is not None:
+        code = int(num(page, "paperSize", 9))
+        st.paper = next((n for n, c in PAPER_CODES.items() if c == code), "A4")
+        st.orientation = "landscape" if _attr(page, "orientation") == "landscape" else "portrait"
+        st.scale = max(10, min(400, int(num(page, "scale", 100))))
+        st.fit_width = int(num(page, "fitToWidth", 1))
+        st.fit_height = int(num(page, "fitToHeight", 1))
+        st.black_white = flag(page, "blackAndWhite")
+        st.page_order = (
+            "over_then_down" if _attr(page, "pageOrder") == "overThenDown" else "down_then_over"
+        )
+        if flag(page, "useFirstPageNumber"):
+            st.first_page_number = int(num(page, "firstPageNumber", 1))
+    st.fit_to = flag(pr, "fitToPage")
+    odd_header = _find_child(hf, "oddHeader")
+    odd_footer = _find_child(hf, "oddFooter")
+    st.header = (odd_header.text or "") if odd_header is not None else ""
+    st.footer = (odd_footer.text or "") if odd_footer is not None else ""
+    data = st.to_dict()
+    sheet.extra["print_setup"] = data
+    sheet.extra["print_setup_loaded"] = SheetPrintSetup.from_dict(data).to_dict()
+
+
 def _find_child(element: ET.Element | None, name: str) -> ET.Element | None:
     """Find first direct child with matching local tag name (case-insensitive)."""
     if element is None:
@@ -880,6 +934,9 @@ def _parse_worksheet(
     # 0b2. Stored manual page breaks (<rowBreaks>/<colBreaks>)
     sheet.view_state.row_breaks = _parse_breaks(_find_child(root, "rowBreaks"))
     sheet.view_state.col_breaks = _parse_breaks(_find_child(root, "colBreaks"))
+
+    # 0b3. File > Page Setup (printOptions, pageMargins, pageSetup, headerFooter)
+    _read_page_setup(root, sheet)
 
     # 0c. Sheet format (default row height & default col width). Both follow the workbook
     # default font (cellXfs[0]); a stored defaultRowHeight only counts with customHeight=1.

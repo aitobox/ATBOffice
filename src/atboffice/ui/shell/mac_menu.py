@@ -31,6 +31,7 @@ _APP_SPECIFIC_ACTIONS: dict[str, frozenset[str]] = {
     "tools_word_count": frozenset({"quire"}),
     "stylesPane": frozenset({"quire"}),
     "view_page_break": frozenset({"ledger"}),
+    "pageSetup": frozenset({"quire", "ledger"}),
     "insert_function": frozenset({"ledger"}),
     "background": frozenset({"lectern"}),
     # Word/PowerPoint-only items that have no Excel 2003 equivalent
@@ -201,8 +202,9 @@ class MacMenuBar(QMenuBar):
         )
         menu_file.addSeparator()
 
-        self._reg_act(menu_file, "print", "file_print", shortcut=QKeySequence.StandardKey.Print)
+        self._reg_act(menu_file, "pageSetup", "file_page_setup")
         self._reg_act(menu_file, "printPreview", "file_print_preview")
+        self._reg_act(menu_file, "print", "file_print", shortcut=QKeySequence.StandardKey.Print)
         menu_file.addSeparator()
 
         self._reg_act(menu_file, "properties", "file_properties")
@@ -678,6 +680,14 @@ class MacMenuBar(QMenuBar):
             "save_as": (safe_tr("另存为…"), safe_tr("将当前文件保存到新路径")),
             "file_print": (safe_tr("打印…"), safe_tr("调用打印机配置打印文档")),
             "print": (safe_tr("打印…"), safe_tr("调用打印机配置打印文档")),
+            "file_page_setup": (
+                safe_tr("页面设置(&U)…"),
+                safe_tr("设置纸张大小、方向、页边距和页眉页脚"),
+            ),
+            "pageSetup": (
+                safe_tr("页面设置(&U)…"),
+                safe_tr("设置纸张大小、方向、页边距和页眉页脚"),
+            ),
             "file_print_preview": (
                 safe_tr("打印预览"),
                 safe_tr("打开全功能交互式打印预览视口"),

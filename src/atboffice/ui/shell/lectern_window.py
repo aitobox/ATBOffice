@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QPainter, QPen, QResizeEvent, QShowEvent
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont, QResizeEvent, QShowEvent
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import (
     QComboBox,
@@ -21,7 +21,6 @@ from PySide6.QtWidgets import (
 from atboffice.core.action_registry import ActionRegistry
 from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.modules.presentation.view import PresentationView
-from atboffice.modules.presentation.views.slide_canvas import SlideScene
 from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.toolbar import OfficeToolBar
 from atboffice.ui.shell.base_window import BaseOfficeWindow, UnsupportedSaveFormatError
@@ -2274,145 +2273,87 @@ class LecternWindow(BaseOfficeWindow):
     def render_to_printer(
         self,
         printer: QPrinter,
-        mode: str = "slides",
+        mode: str | None = None,
         grayscale: bool = False,
     ) -> None:
-        """Render presentation slides in vector fidelity (slide mode or 3-slide handout mode)."""
-        pres = self.presentation_view.presentation
-        slides = pres.slides
-        if not slides:
-            return
+        """Print / preview / PDF using the current print options (File > Print What)."""
+        import dataclasses
 
-        dpi = printer.resolution()
-        scale = dpi / 72.0
-        page_rect = printer.pageRect(QPrinter.Unit.Point)
-        paper_w = page_rect.width()
-        paper_h = page_rect.height()
+        from atboffice.modules.presentation.printing import render_presentation
 
-        painter = QPainter(printer)
-        painter.scale(scale, scale)
+        options = dataclasses.replace(self.print_options)
+        if mode is not None:
+            options.what = mode
+        if grayscale:
+            options.color = "grayscale"
+        if not options.title:
+            options.title = (
+                self.current_file_path.stem if self.current_file_path else self.default_doc_name
+            )
+        render_presentation(printer, self.presentation_view.presentation, options)
 
-        if mode == "handouts":
-            # 3 slides per page with note lines on the right
-            slides_per_page = 3
-            margin_left = 36.0
-            margin_right = 36.0
-            margin_top = 40.0
-            margin_bottom = 40.0
-            gap_y = 24.0
+    @property
+    def print_options(self) -> Any:
+        from atboffice.modules.presentation.printing import PresentationPrintOptions
 
-            avail_w = paper_w - margin_left - margin_right
-            avail_h = paper_h - margin_top - margin_bottom
+        opts = getattr(self, "_print_options", None)
+        if opts is None:
+            opts = self._print_options = PresentationPrintOptions()
+        return opts
 
-            thumb_h = (avail_h - (slides_per_page - 1) * gap_y) / slides_per_page
-            thumb_w = thumb_h * (16.0 / 9.0)
-            notes_x = margin_left + thumb_w + 24.0
-            notes_w = paper_w - margin_right - notes_x
+    def print_preview_extras(self, panel: Any) -> None:
+        """PowerPoint 2003 preview controls: Print What, Color/Grayscale, Frame, Hidden."""
+        from PySide6.QtWidgets import QCheckBox, QComboBox
 
-            total_pages = (len(slides) + slides_per_page - 1) // slides_per_page
+        from atboffice.modules.presentation.printing import HANDOUT_COUNTS
 
-            for p_idx in range(total_pages):
-                if p_idx > 0:
-                    printer.newPage()
+        opts = self.print_options
+        what = QComboBox()
+        what.setObjectName("printWhatCombo")
+        choices: list[tuple[str, tuple[str, int]]] = [(safe_tr("幻灯片"), ("slides", 0))]
+        choices += [
+            (safe_tr("讲义（每页 {0} 张幻灯片）").format(n), ("handouts", n))
+            for n in HANDOUT_COUNTS
+        ]
+        choices += [(safe_tr("备注页"), ("notes", 0)), (safe_tr("大纲视图"), ("outline", 0))]
+        for label, data in choices:
+            what.addItem(label, data)
+        current = (opts.what, opts.per_page if opts.what == "handouts" else 0)
+        datas = [d for _label, d in choices]
+        what.setCurrentIndex(datas.index(current) if current in datas else 0)
+        what.setToolTip(safe_tr("打印内容"))
 
-                # Header
-                painter.setFont(QFont("Arial", 9))
-                painter.setPen(QPen(QColor(120, 120, 120)))
-                doc_title = (
-                    self.current_file_path.stem if self.current_file_path else self.default_doc_name
-                )
-                painter.drawText(
-                    QRectF(margin_left, 18.0, avail_w, 20.0),
-                    int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
-                    safe_tr("演示文稿讲义 — {title}").format(title=doc_title),
-                )
+        color = QComboBox()
+        color.setObjectName("printColorCombo")
+        for label, key in ((safe_tr("颜色"), "color"), (safe_tr("灰度"), "grayscale"),
+                           (safe_tr("纯黑白"), "bw")):
+            color.addItem(label, key)
+        color.setCurrentIndex(max(0, color.findData(opts.color)))
+        color.setToolTip(safe_tr("颜色/灰度"))
 
-                # Render up to 3 slides on this page
-                start_s = p_idx * slides_per_page
-                page_slides = slides[start_s : start_s + slides_per_page]
+        frame = QCheckBox(safe_tr("幻灯片加框"))
+        frame.setObjectName("printFrameCheck")
+        frame.setChecked(opts.frame_slides)
+        hidden = QCheckBox(safe_tr("打印隐藏幻灯片"))
+        hidden.setObjectName("printHiddenCheck")
+        hidden.setChecked(opts.print_hidden)
 
-                for s_sub_idx, slide in enumerate(page_slides):
-                    slide_idx = start_s + s_sub_idx
-                    y = margin_top + s_sub_idx * (thumb_h + gap_y)
-                    thumb_rect = QRectF(margin_left, y, thumb_w, thumb_h)
+        def apply() -> None:
+            kind, per = what.currentData()
+            opts.what = kind
+            if per:
+                opts.per_page = per
+            opts.color = color.currentData()
+            opts.frame_slides = frame.isChecked()
+            opts.print_hidden = hidden.isChecked()
+            panel.refresh()
 
-                    # 1. Fill slide background & border
-                    painter.fillRect(thumb_rect, QColor("#FFFFFF"))
-                    painter.setPen(QPen(QColor(180, 180, 180), 0.75))
-                    painter.drawRect(thumb_rect)
-
-                    # 2. Render slide vector scene
-                    scene = SlideScene(slide=slide, slide_width=960.0, slide_height=540.0)
-                    scene.show_placeholder_prompts = False
-                    scene.render(painter, thumb_rect, QRectF(0, 0, 960.0, 540.0))
-
-                    # 3. Slide index caption
-                    painter.setFont(QFont("Arial", 8))
-                    painter.setPen(QPen(QColor(120, 120, 120)))
-                    painter.drawText(
-                        QRectF(margin_left, y + thumb_h + 2.0, thumb_w, 14.0),
-                        int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
-                        safe_tr("幻灯片 {num}").format(num=slide_idx + 1),
-                    )
-
-                    # 4. Note lines on the right (3 horizontal ruled lines)
-                    line_gap = thumb_h / 4.0
-                    painter.setPen(QPen(QColor(200, 200, 200), 0.75, Qt.PenStyle.SolidLine))
-                    for line_i in range(1, 4):
-                        ly = y + line_i * line_gap
-                        painter.drawLine(QPointF(notes_x, ly), QPointF(notes_x + notes_w, ly))
-
-                # Footer: Page number
-                painter.setFont(QFont("Arial", 9))
-                painter.setPen(QPen(QColor(120, 120, 120)))
-                footer_rect = QRectF(margin_left, paper_h - 28.0, avail_w, 20.0)
-                painter.drawText(
-                    footer_rect,
-                    int(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter),
-                    safe_tr("第 {page} 页，共 {total} 页").format(
-                        page=p_idx + 1, total=total_pages
-                    ),
-                )
-
-        else:
-            # Standard Slides Mode: 1 slide per page
-            total_slides = len(slides)
-            margin = 36.0
-            avail_w = paper_w - margin * 2.0
-            avail_h = paper_h - margin * 2.0 - 24.0
-
-            scale_fit = min(avail_w / 960.0, avail_h / 540.0)
-            target_w = 960.0 * scale_fit
-            target_h = 540.0 * scale_fit
-            target_x = margin + (avail_w - target_w) / 2.0
-            target_y = margin + (avail_h - target_h) / 2.0
-            target_rect = QRectF(target_x, target_y, target_w, target_h)
-
-            for s_idx, slide in enumerate(slides):
-                if s_idx > 0:
-                    printer.newPage()
-
-                # Slide background and border
-                painter.fillRect(target_rect, QColor("#FFFFFF"))
-                painter.setPen(QPen(QColor(160, 160, 160), 0.75))
-                painter.drawRect(target_rect)
-
-                # Render vector slide scene
-                scene = SlideScene(slide=slide, slide_width=960.0, slide_height=540.0)
-                scene.show_placeholder_prompts = False
-                scene.render(painter, target_rect, QRectF(0, 0, 960.0, 540.0))
-
-                # Footer caption: Slide X of Y
-                caption_rect = QRectF(margin, paper_h - 32.0, avail_w, 20.0)
-                painter.setFont(QFont("Arial", 9))
-                painter.setPen(QPen(QColor(120, 120, 120)))
-                painter.drawText(
-                    caption_rect,
-                    int(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter),
-                    safe_tr("幻灯片 {num} / {total}").format(num=s_idx + 1, total=total_slides),
-                )
-
-        painter.end()
+        what.currentIndexChanged.connect(lambda _i: apply())
+        color.currentIndexChanged.connect(lambda _i: apply())
+        frame.toggled.connect(lambda _c: apply())
+        hidden.toggled.connect(lambda _c: apply())
+        for w in (what, color, frame, hidden):
+            panel.add_extra_widget(w)
 
     def show_about(self) -> None:
         """Show about dialog for ATBOffice Lectern."""
