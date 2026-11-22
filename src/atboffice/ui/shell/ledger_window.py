@@ -1952,6 +1952,8 @@ class LedgerWindow(BaseOfficeWindow):
         if dlg.exec() != QDialog.DialogCode.Accepted or not created:
             return
         chart_obj = created[0]
+        # Keep the legacy attribute that set_chart_type / the chart toolbar read.
+        setattr(chart_obj, "chart_type", dlg.selected_type_id)
         if dlg.created_sheet is not None and workbook is not None:
             idx = workbook.sheet_index(dlg.created_sheet)
             if hasattr(self.spreadsheet_view, "set_active_sheet_index") and idx >= 0:
