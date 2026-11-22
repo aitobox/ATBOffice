@@ -165,7 +165,12 @@ class WriterView(QWidget):
     def _on_document_modified(self) -> None:
         self.h_ruler.update_geometry_from_canvas()
         self.v_ruler.update_geometry_from_canvas()
-        self.review_pane.refresh_items()
+        # Rebuilding the review list on every keystroke is wasted work while the
+        # pane is hidden; refresh lazily when it is shown again.
+        if self.review_pane.isHidden():
+            self._review_pane_stale = True
+        else:
+            self.review_pane.refresh_items()
 
     def _on_tabs_dialog_requested(self) -> None:
         """Open classic Tabs dialog on ruler double-click."""
@@ -323,6 +328,9 @@ class WriterView(QWidget):
 
     def set_review_pane_visible(self, visible: bool) -> None:
         """Toggle Reviewing Pane visibility."""
+        if visible and getattr(self, "_review_pane_stale", False):
+            self.review_pane.refresh_items()
+            self._review_pane_stale = False
         self.review_pane.setVisible(visible)
         self.review_toolbar.set_pane_state(visible)
 

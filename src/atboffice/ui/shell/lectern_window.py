@@ -2180,6 +2180,13 @@ class LecternWindow(BaseOfficeWindow):
         if ext in {".pptx", ".pptm", ".ppsx", ".potx"}:
             from atboffice.modules.presentation.io.pptx_writer import write_pptx
 
+            # Text typed into an open in-place editor must reach the file (and drafts)
+            # without ending the user's editing session.
+            ws = getattr(self.presentation_view, "workspace", None)
+            scene = getattr(ws, "scene", None)
+            if scene is not None and hasattr(scene, "sync_active_text_editing"):
+                scene.sync_active_text_editing()
+
             if not self.confirm_compatibility_losses(
                 getattr(self.presentation, "losses", None)
             ):

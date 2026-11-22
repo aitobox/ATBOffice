@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPainter
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QComboBox, QMessageBox, QWidget
@@ -171,8 +171,17 @@ class QuireWindow(BaseOfficeWindow):
         self.writer_view.canvas_view.controller.document_modified.connect(
             self._on_document_modified
         )
+        # Caret moves refresh toolbars/context immediately. Selection-only changes are
+        # coalesced into one deferred refresh, which a caret move in the same
+        # keystroke cancels, so each edit syncs the toolbars once instead of 2-3 times.
+        self._caret_ui_timer = QTimer(self)
+        self._caret_ui_timer.setSingleShot(True)
+        self._caret_ui_timer.setInterval(0)
+        self._caret_ui_timer.timeout.connect(self._flush_caret_ui_sync)
         self.writer_view.canvas_view.caret_moved.connect(self._on_caret_moved)
-        self.writer_view.canvas_view.controller.selection_changed.connect(self._sync_toolbar_states)
+        self.writer_view.canvas_view.controller.selection_changed.connect(
+            self._schedule_caret_ui_sync
+        )
 
         # 6. Load file or set initial document title
         if file_path is not None:
@@ -664,6 +673,7 @@ class QuireWindow(BaseOfficeWindow):
 
     def _on_document_modified(self) -> None:
         """Mark document as modified when content edits occur."""
+        self._doc_revision = getattr(self, "_doc_revision", 0) + 1
         self.set_modified(True)
 
     @property
@@ -1056,8 +1066,56 @@ class QuireWindow(BaseOfficeWindow):
 
             tb.setVisible(target_visible)
 
+    def _schedule_caret_ui_sync(self, *_: Any) -> None:
+        """Queue one caret-driven UI refresh (toolbars, context bars, side panes)."""
+        timer = getattr(self, "_caret_ui_timer", None)
+        if timer is None:
+            self._flush_caret_ui_sync()
+            return
+        timer.start()
+
+    def _flush_caret_ui_sync(self) -> None:
+        """Run the queued caret-driven UI refresh for the current caret position."""
+        if getattr(self, "_is_closed", False):
+            return
+        controller = self.writer_view.canvas_view.controller
+        if self._caret_sync_key() == getattr(self, "_last_caret_sync_key", None):
+            return  # the caret refresh in this keystroke already covered this state
+        pos = controller.pos
+        self._on_caret_moved(pos.para_id, pos.offset)
+
+    def _end_caret_sync_turn(self) -> None:
+        self._caret_sync_in_turn = False
+
+    def _caret_sync_key(self) -> tuple[Any, ...]:
+        controller = self.writer_view.canvas_view.controller
+        sel = controller.selection
+        return (
+            getattr(self, "_doc_revision", 0),
+            controller.pos.para_id,
+            controller.pos.offset,
+            getattr(sel.anchor, "para_id", None),
+            getattr(sel.anchor, "offset", None),
+            getattr(sel.focus, "para_id", None),
+            getattr(sel.focus, "offset", None),
+        )
+
     def _on_caret_moved(self, para_id: int, offset: int) -> None:
         """Handle caret movement: sync toolbar controls and contextual visibility."""
+        timer = getattr(self, "_caret_ui_timer", None)
+        if timer is not None:
+            timer.stop()  # this refresh supersedes any queued selection refresh
+        # One edit emits caret_changed several times (repaginate + blink reset);
+        # identical refreshes within the same event-loop turn are skipped.
+        key = self._caret_sync_key()
+        if key == getattr(self, "_last_caret_sync_key", None) and getattr(
+            self, "_caret_sync_in_turn", False
+        ):
+            return
+        self._last_caret_sync_key = key
+        if not getattr(self, "_caret_sync_in_turn", False):
+            self._caret_sync_in_turn = True
+            QTimer.singleShot(0, self, self._end_caret_sync_turn)
         canvas = self.writer_view.canvas_view
         in_table = canvas.get_current_table_context() is not None
         has_revisions = bool(getattr(canvas.doc, "comments", [])) or is_tracking(canvas.doc)

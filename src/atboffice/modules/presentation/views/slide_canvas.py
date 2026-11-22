@@ -123,8 +123,35 @@ class SlideScene(QGraphicsScene):
                     item.finish_text_editing()
         self.clearFocus()
 
+    def has_active_text_editing(self) -> bool:
+        """Return True while any shape on this slide is being edited in place."""
+        return any(
+            shiboken6.isValid(item) and getattr(item, "is_editing_text", False)
+            for item in self._items_by_id.values()
+        )
+
+    def sync_active_text_editing(self) -> None:
+        """Write in-progress editor text back to its shape model without ending the edit."""
+        for item in list(self._items_by_id.values()):
+            if not shiboken6.isValid(item) or not getattr(item, "is_editing_text", False):
+                continue
+            ed = getattr(item, "_text_editor", None)
+            if ed is not None and shiboken6.isValid(ed) and hasattr(ed, "to_text_body"):
+                ed.model.text = ed.to_text_body()
+
     def load_slide(self, slide: Slide) -> None:
         """Load a slide model and populate graphics items safely."""
+        # Typed text belongs to the slide being left: commit it before rebuilding.
+        if (
+            not getattr(self, "_is_loading_slide", False)
+            and not getattr(self, "_committing_before_load", False)
+            and self.has_active_text_editing()
+        ):
+            self._committing_before_load = True
+            try:
+                self.finish_active_text_editing(commit=True)
+            finally:
+                self._committing_before_load = False
         self.slide = slide
         self._is_loading_slide = True
         try:
@@ -553,7 +580,12 @@ class SlideScene(QGraphicsScene):
         # Commit any active text editor if clicked outside
         for it in list(self._items_by_id.values()):
             if it.is_editing_text and it != item and getattr(it, "_text_editor", None) != item:
-                it.finish_text_editing()
+                ed = getattr(it, "_text_editor", None)
+                if ed is not None and shiboken6.isValid(ed):
+                    # Commit typed text; finishing alone would silently discard it.
+                    ed.commit_and_finish()
+                if shiboken6.isValid(it) and it.is_editing_text:
+                    it.finish_text_editing()
 
         if isinstance(item, ShapeGraphicsItem):
             self._dragged_item = item
@@ -1042,6 +1074,12 @@ class SlideCanvasView(QGraphicsView):
     # Keyboard & Wheel events
     # ------------------------------------------------------------------
     def keyPressEvent(self, event: QKeyEvent) -> None:
+        # While a shape's text is edited in place, every key belongs to the editor:
+        # Delete/Backspace/arrows must edit text, not delete or nudge the shape (and
+        # must never rebuild the scene under the focused editor item).
+        if self._scene is not None and self._scene.has_active_text_editing():
+            super().keyPressEvent(event)
+            return
         if event.key() == Qt.Key.Key_Escape:
             if self._scene and getattr(self._scene, "current_tool", None):
                 self._scene.set_drawing_tool(None)
