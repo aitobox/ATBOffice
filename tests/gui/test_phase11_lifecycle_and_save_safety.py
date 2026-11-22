@@ -390,3 +390,20 @@ def test_recovery_draft_of_encrypted_document_is_encrypted(
     (draft,) = list(drafts_dir.iterdir())
     assert is_encrypted_package(draft)
     win.set_modified(False)
+
+
+def test_failed_recovery_draft_leaves_no_partial_file(qtbot, tmp_path: Path, monkeypatch) -> None:
+    win = _quire_with_text("Broken")
+    qtbot.addWidget(win)
+    monkeypatch.setattr(win.recovery_service, "_recovery_dir", tmp_path)
+
+    def broken_save(path: Path) -> bool:
+        path.write_bytes(b"partial")
+        raise OSError("disk full")
+
+    monkeypatch.setattr(win, "do_save", broken_save)
+    win.set_modified(True)
+
+    assert win.recovery_service.trigger_autosave() is False
+    assert list(tmp_path.iterdir()) == []
+    win.set_modified(False)

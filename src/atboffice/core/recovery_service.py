@@ -151,6 +151,7 @@ class RecoveryService(QObject):
         if self._stop_event.is_set():
             return False
 
+        target_path: Path | None = None
         try:
             doc_name: Any = "untitled"
             if self._window is not None:
@@ -192,6 +193,11 @@ class RecoveryService(QObject):
             return True
         except Exception as exc:
             logger.warning("Failed to save recovery draft: %s", exc)
+            if target_path is not None and target_path != self._current_draft_file:
+                try:
+                    target_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
             return False
 
     def clear_draft(self) -> None:
