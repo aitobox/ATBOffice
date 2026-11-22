@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -209,15 +210,18 @@ class ScenarioManagerDialog(QDialog):
 
     scenario_applied = Signal(dict)
     scenarios_updated = Signal(list)
+    summary_created = Signal(object)
 
     def __init__(
         self,
         sheet_model: SheetDataModel | None = None,
         initial_scenarios: list[dict[str, Any]] | None = None,
         parent: QWidget | None = None,
+        workbook_model: Any = None,
     ) -> None:
         super().__init__(parent)
         self.sheet_model = sheet_model
+        self.workbook_model = workbook_model
         self.scenarios: list[dict[str, Any]] = list(initial_scenarios or [])
 
         if not self.scenarios:
@@ -284,7 +288,7 @@ class ScenarioManagerDialog(QDialog):
         self.btn_delete.clicked.connect(self._on_delete)
         self.btn_edit.clicked.connect(self._on_edit)
         self.btn_merge.clicked.connect(self._on_merge)
-        self.btn_summary.clicked.connect(self._on_summary)
+        self.btn_summary.clicked.connect(lambda: self._on_summary())
 
         btn_layout.addWidget(self.btn_show)
         btn_layout.addWidget(self.btn_close)
@@ -374,12 +378,31 @@ class ScenarioManagerDialog(QDialog):
             self.list_scenarios.setCurrentRow(row)
             self.scenarios_updated.emit(self.scenarios)
 
-    def _on_summary(self) -> None:
-        QMessageBox.information(
-            self,
-            safe_tr("方案摘要"),
-            safe_tr("已成功创建方案摘要工作表。"),
-        )
+    def _on_summary(self, result_cells: str | None = None) -> None:
+        """Build a Scenario Summary worksheet for the current scenarios."""
+        from atboffice.modules.spreadsheet.tools.data_tools import scenario_summary
+
+        if not self.scenarios:
+            QMessageBox.information(self, safe_tr("方案摘要"), safe_tr("没有可汇总的方案。"))
+            return
+        if result_cells is None:
+            text, ok = QInputDialog.getText(
+                self,
+                safe_tr("方案摘要"),
+                safe_tr("结果单元格(&R)（以逗号分隔，可留空）:"),
+            )
+            if not ok:
+                return
+            result_cells = text
+        try:
+            sheet = scenario_summary(
+                self.workbook_model, self.sheet_model, self.scenarios, result_cells or ""
+            )
+        except ValueError as exc:
+            QMessageBox.warning(self, safe_tr("方案摘要"), str(exc))
+            return
+        self.summary_created.emit(sheet)
+        self.accept()
 
     def _on_merge(self) -> None:
         sheets: list[str] = []

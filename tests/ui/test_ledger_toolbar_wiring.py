@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from PySide6.QtWidgets import QComboBox
 
 from atboffice.core.i18n import load_locale
@@ -10,6 +11,17 @@ from atboffice.modules.spreadsheet.models.sheet_model import CellData
 from atboffice.modules.spreadsheet.views.object_layer import FloatingObject
 from atboffice.ui.shell.ledger_window import LedgerWindow
 
+
+@pytest.fixture(autouse=True)
+def _finish_chart_wizard(monkeypatch):
+    """Chart actions open the modal Chart Wizard; drive it straight to Finish."""
+    from atboffice.modules.spreadsheet.dialogs.chart_wizard import ChartWizardDialog
+
+    def fake_exec(dlg: ChartWizardDialog) -> int:
+        dlg._on_finish()
+        return dlg.result()
+
+    monkeypatch.setattr(ChartWizardDialog, "exec", fake_exec)
 
 def test_autosum_above_single_cell(qtbot) -> None:
     win = LedgerWindow()

@@ -33,6 +33,29 @@ _APP_SPECIFIC_ACTIONS: dict[str, frozenset[str]] = {
     "view_page_break": frozenset({"ledger"}),
     "insert_function": frozenset({"ledger"}),
     "background": frozenset({"lectern"}),
+    # Word/PowerPoint-only items that have no Excel 2003 equivalent
+    "format_paragraph": frozenset({"quire", "lectern"}),
+    "bullets": frozenset({"quire", "lectern"}),
+    "numbering": frozenset({"quire", "lectern"}),
+    "format_tabs": frozenset({"quire", "lectern"}),
+    "insert_page_number": frozenset({"quire", "lectern"}),
+    "insert_date_time": frozenset({"quire", "lectern"}),
+    "tools_language": frozenset({"quire", "lectern"}),
+    "view_ruler": frozenset({"quire", "lectern"}),
+    # Spreadsheet items (some shared with the editor that has the same Office command)
+    "headerFooter": frozenset({"ledger", "quire"}),
+    "insertChart": frozenset({"ledger", "lectern"}),
+    "insertComment": frozenset({"ledger", "quire"}),
+    "condFormat": frozenset({"ledger"}),
+    "autoFormat": frozenset({"ledger"}),
+    "scenarios": frozenset({"ledger"}),
+}
+
+# Submenus that only exist inside specific editors (menu_map key -> app types).
+_APP_SPECIFIC_MENUS: dict[str, frozenset[str]] = {
+    "edit_clear": frozenset({"ledger"}),
+    "insert_name": frozenset({"ledger"}),
+    "tools_protection": frozenset({"ledger"}),
 }
 
 
@@ -111,6 +134,10 @@ class MacMenuBar(QMenuBar):
             action = self.action_map.get(aid)
             if action is not None:
                 action.setVisible(self.app_type in app_types)
+        for key, app_types in _APP_SPECIFIC_MENUS.items():
+            menu = self.menu_map.get(key)
+            if menu is not None:
+                menu.menuAction().setVisible(self.app_type in app_types)
 
     def _update_format_cells_visibility(self) -> None:
         """Update visibility of format cells action and separator based on app context."""
@@ -204,6 +231,14 @@ class MacMenuBar(QMenuBar):
             menu_edit, "replace", "edit_replace", shortcut=QKeySequence.StandardKey.Replace
         )
 
+        # Edit > Clear (Ledger)
+        menu_clear = menu_edit.addMenu("")
+        self.menu_map["edit_clear"] = menu_clear
+        self._reg_act(menu_clear, "clearAll", "edit_clear_all")
+        self._reg_act(menu_clear, "clearFormats", "edit_clear_formats")
+        self._reg_act(menu_clear, "clearContents", "edit_clear_contents")
+        self._reg_act(menu_clear, "clearComments", "edit_clear_comments")
+
         self.sep_format_cells = menu_edit.addSeparator()
         self._reg_act(
             menu_edit, "format_cells", "edit_format_cells", shortcut=QKeySequence("Ctrl+1")
@@ -285,6 +320,7 @@ class MacMenuBar(QMenuBar):
             checkable=True,
             checked=True,
         )
+        self._reg_act(menu_view, "headerFooter", "view_header_footer")
         menu_view.addSeparator()
 
         self._reg_act(
@@ -350,6 +386,13 @@ class MacMenuBar(QMenuBar):
             "insert_function",
             shortcut=QKeySequence("Shift+F3"),
         )
+        menu_name = menu_insert.addMenu("")
+        self.menu_map["insert_name"] = menu_name
+        self._reg_act(
+            menu_name, "defineName", "insert_name_define", shortcut=QKeySequence("Ctrl+F3")
+        )
+        self._reg_act(menu_insert, "insertComment", "insert_comment")
+        self._reg_act(menu_insert, "insertChart", "insert_chart_menu")
         menu_insert.addSeparator()
 
         menu_picture = menu_insert.addMenu(safe_tr("图片(&P)"))
@@ -379,6 +422,8 @@ class MacMenuBar(QMenuBar):
         self._reg_act(menu_format, "stylesPane", "format_styles")
         menu_format.addSeparator()
         self._reg_act(menu_format, "background", "format_background")
+        self._reg_act(menu_format, "autoFormat", "format_autoformat")
+        self._reg_act(menu_format, "condFormat", "format_conditional")
 
         # 6. Tools Menu
         menu_tools = self.addMenu("")
@@ -389,6 +434,11 @@ class MacMenuBar(QMenuBar):
         self._reg_act(menu_tools, "tools_language", "tools_language")
         menu_tools.addSeparator()
         self._reg_act(menu_tools, "tools_goal_seek", "tools_goal_seek")
+        self._reg_act(menu_tools, "scenarios", "tools_scenarios_menu")
+        menu_protect = menu_tools.addMenu("")
+        self.menu_map["tools_protection"] = menu_protect
+        self._reg_act(menu_protect, "protectSheet", "tools_protect_sheet_menu")
+        self._reg_act(menu_protect, "protectWorkbook", "tools_protect_workbook_menu")
         menu_tools.addSeparator()
 
         self._reg_act(menu_tools, "tools_options", "tools_options")
@@ -418,7 +468,16 @@ class MacMenuBar(QMenuBar):
         self._reg_act(menu_data, "data_filter", "data_filter")
         self._reg_act(menu_data, "data_validation", "data_validation")
         menu_data.addSeparator()
+        self._reg_act(menu_data, "sortDlg", "data_sort")
+        menu_data.addSeparator()
+        self._reg_act(menu_data, "advancedFilter", "data_advanced_filter_menu")
+        self._reg_act(menu_data, "showAllFilter", "data_show_all")
+        menu_data.addSeparator()
         self._reg_act(menu_data, "data_subtotals", "data_subtotals")
+        self._reg_act(menu_data, "dataTable", "data_table_menu")
+        self._reg_act(menu_data, "textToColumns", "data_text_to_columns_menu")
+        self._reg_act(menu_data, "consolidate", "data_consolidate_menu")
+        menu_data.addSeparator()
         self._reg_act(menu_data, "data_pivottable", "data_pivottable")
 
         # 7c. Slide Show Menu (Lectern)
@@ -567,6 +626,12 @@ class MacMenuBar(QMenuBar):
             self.menu_map["insert_picture_menu"].setTitle(safe_tr("图片(&P)"))
         if "format" in self.menu_map:
             self.menu_map["format"].setTitle(safe_tr("格式"))
+        if "edit_clear" in self.menu_map:
+            self.menu_map["edit_clear"].setTitle(safe_tr("清除(&A)"))
+        if "insert_name" in self.menu_map:
+            self.menu_map["insert_name"].setTitle(safe_tr("名称(&N)"))
+        if "tools_protection" in self.menu_map:
+            self.menu_map["tools_protection"].setTitle(safe_tr("保护(&P)"))
         if "tools" in self.menu_map:
             self.menu_map["tools"].setTitle(safe_tr("工具"))
         if "table" in self.menu_map:
@@ -875,6 +940,55 @@ class MacMenuBar(QMenuBar):
             "data_validation": (
                 safe_tr("数据有效性…"),
                 safe_tr("限制输入范围并设置错误警报提示"),
+            ),
+            "clearAll": (safe_tr("全部(&A)"), safe_tr("清除选定单元格的内容、格式和批注")),
+            "clearFormats": (safe_tr("格式(&F)"), safe_tr("仅清除选定单元格的格式")),
+            "clearContents": (safe_tr("内容(&C)"), safe_tr("仅清除选定单元格的内容 (Del)")),
+            "clearComments": (safe_tr("批注(&M)"), safe_tr("删除选定单元格中的批注")),
+            "headerFooter": (
+                safe_tr("页眉和页脚(&H)..."),
+                safe_tr("设置打印时每页顶端与底端显示的文字"),
+            ),
+            "defineName": (
+                safe_tr("定义(&D)..."),
+                safe_tr("为选定单元格区域命名，以便在公式中引用"),
+            ),
+            "insertComment": (safe_tr("批注(&M)"), safe_tr("为活动单元格添加批注")),
+            "insertChart": (safe_tr("图表(&H)..."), safe_tr("启动图表向导，根据选定数据创建图表")),
+            "autoFormat": (
+                safe_tr("自动套用格式(&A)..."),
+                safe_tr("为选定的数据列表套用一组预设表格格式"),
+            ),
+            "condFormat": (
+                safe_tr("条件格式(&D)..."),
+                safe_tr("根据单元格的值自动改变字体、底纹、色阶、数据条或图标"),
+            ),
+            "scenarios": (safe_tr("方案(&E)..."), safe_tr("创建、显示和汇总假设分析方案")),
+            "protectSheet": (
+                safe_tr("保护工作表(&P)..."),
+                safe_tr("防止对锁定单元格和工作表结构进行修改"),
+            ),
+            "protectWorkbook": (
+                safe_tr("保护工作簿(&W)..."),
+                safe_tr("保护工作簿结构与窗口不被更改"),
+            ),
+            "sortDlg": (safe_tr("排序(&S)..."), safe_tr("按一个或多个关键字对选定区域排序")),
+            "advancedFilter": (
+                safe_tr("高级筛选(&A)..."),
+                safe_tr("使用条件区域筛选列表，或将结果复制到其他位置"),
+            ),
+            "showAllFilter": (safe_tr("全部显示(&S)"), safe_tr("取消高级筛选并显示全部行")),
+            "dataTable": (
+                safe_tr("模拟运算表(&T)..."),
+                safe_tr("用一个或两个输入变量计算公式的多组结果"),
+            ),
+            "textToColumns": (
+                safe_tr("分列(&E)..."),
+                safe_tr("按分隔符或固定宽度把一列文本拆分成多列"),
+            ),
+            "consolidate": (
+                safe_tr("合并计算(&N)..."),
+                safe_tr("汇总多个区域中的数据到一个区域"),
             ),
             "data_subtotals": (
                 safe_tr("分类汇总…"),

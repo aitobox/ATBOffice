@@ -4,7 +4,7 @@ from collections.abc import Generator
 from typing import Any
 
 import pytest
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox
 
 from atboffice.core.app import ATBApplication, create_application
 
@@ -113,8 +113,10 @@ def cleanup_dirty_windows_fixture() -> Generator[None, None, None]:
     yield
     app = QApplication.instance()
     if app is not None and hasattr(app, "topLevelWidgets"):
+        # Only main windows carry dirty state; skipping the many top-level QMenus
+        # keeps this per-test walk cheap as closed windows accumulate.
         for top_w in app.topLevelWidgets():
-            if hasattr(top_w, "set_modified"):
+            if isinstance(top_w, QMainWindow) and hasattr(top_w, "set_modified"):
                 top_w.set_modified(False)
 
 
@@ -130,6 +132,21 @@ def pytest_runtest_teardown(item: pytest.Item) -> None:
 
     app = QApplication.instance()
     if app is not None and hasattr(app, "topLevelWidgets"):
+        # Only main windows carry dirty state; skipping the many top-level QMenus
+        # keeps this per-test walk cheap as closed windows accumulate.
         for top_w in app.topLevelWidgets():
-            if hasattr(top_w, "set_modified"):
+            if isinstance(top_w, QMainWindow) and hasattr(top_w, "set_modified"):
                 top_w.set_modified(False)
+
+
+def pytest_runtest_logfinish(nodeid: str, location: tuple) -> None:
+    """Flush deferred deletions after every test (runs after widget teardown).
+
+    Closed windows are only ``deleteLater``-ed; letting hundreds pile up makes the
+    next event-loop drain destroy them all at once, and PySide's per-object
+    signal-tracker cleanup turns that into a multi-minute (quadratic) stall.
+    """
+    from PySide6.QtCore import QCoreApplication, QEvent
+
+    if QCoreApplication.instance() is not None:
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
