@@ -37,6 +37,17 @@ OFFICE_2003_STANDARD_COLORS: Final[list[str]] = [
     "#FF99CC", "#FFCC99", "#FFFF99", "#CCFFCC", "#CCFFFF", "#99CCFF", "#CC99FF", "#FFFFFF",
 ]
 
+# Word's 15 text-highlight colours (Formatting toolbar ▸ Highlight), in Word 2003 order,
+# with their w:highlight names.
+WORD_HIGHLIGHT_PALETTE: Final[list[tuple[str, str]]] = [
+    ("#FFFF00", "yellow"), ("#00FF00", "green"), ("#00FFFF", "cyan"), ("#FF00FF", "magenta"),
+    ("#0000FF", "blue"), ("#FF0000", "red"), ("#000080", "darkBlue"), ("#008080", "darkCyan"),
+    ("#008000", "darkGreen"), ("#800080", "darkMagenta"), ("#800000", "darkRed"),
+    ("#808000", "darkYellow"), ("#808080", "darkGray"), ("#C0C0C0", "lightGray"),
+    ("#000000", "black"),
+]
+HIGHLIGHT_NAME_BY_HEX: Final[dict[str, str]] = {h: n for h, n in WORD_HIGHLIGHT_PALETTE}
+
 # Accurate Office 2003 localized Chinese names for the 40 standard colors
 COLOR_NAMES: Final[dict[str, str]] = {
     "#000000": "黑色",
@@ -153,7 +164,10 @@ class ColorPickerPopup(QFrame):
         # 1. Top Action Button: Automatic or No Fill / No Line
         self.btn_auto_or_none = QPushButton(self)
         self.btn_auto_or_none.setProperty("class", "action-btn")
-        if self.mode in ("fill", "line"):
+        if self.mode == "highlight":
+            self.btn_auto_or_none.setText(safe_tr("无"))
+            self.btn_auto_or_none.clicked.connect(lambda: self._select_special("none"))
+        elif self.mode in ("fill", "line"):
             btn_text = safe_tr("无填充颜色") if self.mode == "fill" else safe_tr("无线条颜色")
             self.btn_auto_or_none.setText(btn_text)
             self.btn_auto_or_none.clicked.connect(lambda: self._select_special("none"))
@@ -175,9 +189,15 @@ class ColorPickerPopup(QFrame):
         grid_layout.setSpacing(2)
 
         self.swatch_buttons: list[SwatchButton] = []
-        for index, hex_code in enumerate(OFFICE_2003_STANDARD_COLORS):
-            row = index // 8
-            col = index % 8
+        palette = (
+            [hex_code for hex_code, _name in WORD_HIGHLIGHT_PALETTE]
+            if self.mode == "highlight"
+            else OFFICE_2003_STANDARD_COLORS
+        )
+        per_row = 5 if self.mode == "highlight" else 8
+        for index, hex_code in enumerate(palette):
+            row = index // per_row
+            col = index % per_row
             btn = SwatchButton(hex_code, grid_widget)
             btn.clicked.connect(lambda checked=False, c=hex_code: self._select_color(c))
             grid_layout.addWidget(btn, row, col)
@@ -196,11 +216,17 @@ class ColorPickerPopup(QFrame):
         self.btn_more_colors.setProperty("class", "action-btn")
         self.btn_more_colors.clicked.connect(self._open_more_colors_dialog)
         layout.addWidget(self.btn_more_colors)
+        if self.mode == "highlight":
+            # Word offers only its 15 highlight colours: no custom colour dialog.
+            sep2.setVisible(False)
+            self.btn_more_colors.setVisible(False)
 
     def retranslate_ui(self, tr_func: Callable[[str], str] | None = None) -> None:
         """Update localized text for action buttons and color swatches."""
         translate = tr_func or safe_tr
-        if self.mode in ("fill", "line"):
+        if self.mode == "highlight":
+            btn_text = translate("无")
+        elif self.mode in ("fill", "line"):
             btn_text = translate("无填充颜色") if self.mode == "fill" else translate("无线条颜色")
         else:
             btn_text = translate("自动")

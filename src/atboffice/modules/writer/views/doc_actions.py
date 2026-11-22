@@ -23,6 +23,7 @@ from atboffice.modules.writer.models.document import (
     NoteRefItem,
     Paragraph,
     Story,
+    TabItem,
     Table,
     TextItem,
     ilen,
@@ -406,7 +407,9 @@ def insert_table_of_contents(canvas: Any, data: dict[str, Any]) -> None:
     for lvl, text in entries:
         entry = Paragraph()
         entry.p_pr.style = f"TOC{lvl}"
-        entry.runs.append(TextItem(text + ("\t1" if show_pages else "")))
+        entry.runs.append(TextItem(text))
+        if show_pages:
+            entry.runs.extend([TabItem(), TextItem("1")])
         new.append(entry)
     new[0].runs.insert(0, FieldBeginItem(field_type="TOC", instr=f' TOC \\o "1-{levels}" \\h '))
     new[0].runs.insert(1, FieldSeparateItem())
@@ -443,7 +446,7 @@ def update_table_of_contents(canvas: Any) -> bool:
             for lvl, text in headings(doc, levels):
                 entry = Paragraph()
                 entry.p_pr.style = f"TOC{lvl}"
-                entry.runs.append(TextItem(text + "\t1"))
+                entry.runs.extend([TextItem(text), TabItem(), TextItem("1")])
                 entries.append(entry)
             if not entries:
                 entry = Paragraph()

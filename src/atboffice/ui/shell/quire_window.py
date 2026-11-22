@@ -317,12 +317,21 @@ class QuireWindow(BaseOfficeWindow):
         )
 
         # Outlining
-        self.action_registry.set_handler("promoteH1", lambda: canvas.set_outline_level(1))
-        self.action_registry.set_handler("promote", lambda: canvas.change_outline_level(-1))
-        self.action_registry.set_handler("demote", lambda: canvas.change_outline_level(1))
-        self.action_registry.set_handler("demoteBody", lambda: canvas.set_outline_level(None))
-        self.action_registry.set_handler("moveUp", lambda: canvas.move_paragraph(-1))
-        self.action_registry.set_handler("moveDown", lambda: canvas.move_paragraph(1))
+        # Outline commands act on the outline pane in Outline view, else on the caret
+        # paragraph in the canvas (the earlier pane-only bindings were overwritten here).
+        outline = self.writer_view.outline_widget
+        for aid, pane_cmd, canvas_cmd in (
+            ("promoteH1", outline.promote_selected_h1, lambda: canvas.set_outline_level(1)),
+            ("promote", outline.promote_selected, lambda: canvas.change_outline_level(-1)),
+            ("demote", outline.demote_selected, lambda: canvas.change_outline_level(1)),
+            ("demoteBody", outline.demote_selected_body,
+             lambda: canvas.set_outline_level(None)),
+            ("moveUp", outline.move_selected_up, lambda: canvas.move_paragraph(-1)),
+            ("moveDown", outline.move_selected_down, lambda: canvas.move_paragraph(1)),
+        ):
+            self.action_registry.set_handler(
+                aid, lambda p=pane_cmd, c=canvas_cmd: self._outline_dispatch(p, c)
+            )
 
         # Mail merge
         self.action_registry.set_handler("mmMainDoc", self.writer_view.open_mail_merge_wizard)
@@ -509,7 +518,16 @@ class QuireWindow(BaseOfficeWindow):
         self.action_registry.set_handler("formula", self.open_table_formula_dialog)
         self.action_registry.set_handler("tableFormula", self.open_table_formula_dialog)
         self._bind_menu_dialog_handlers()
+        from atboffice.ui.shell.quire_commands import bind_quire_toolbar_commands
 
+        self.toolbar_commands = bind_quire_toolbar_commands(self)
+
+
+    def _outline_dispatch(self, pane_cmd: Any, canvas_cmd: Any) -> None:
+        if getattr(self.writer_view, "view_mode", None) == ViewMode.OUTLINE:
+            pane_cmd()
+        else:
+            canvas_cmd()
 
     # --- Format / Table / Tools menu dialogs ----------------------------------------
     def _bind_menu_dialog_handlers(self) -> None:
@@ -1254,7 +1272,7 @@ class QuireWindow(BaseOfficeWindow):
         for cp in self.toolbars["formatting"].findChildren(ColorPickerButton):
             if cp.mode == "font":
                 self.btn_font_color = cp
-            elif cp.mode == "fill":
+            elif cp.mode in ("highlight", "fill"):
                 self.btn_highlight_color = cp
 
         # Default display modes for all 10 toolbars
@@ -1354,22 +1372,39 @@ class QuireWindow(BaseOfficeWindow):
     def _on_style_combo_changed(self, text: str) -> None:
         if self._syncing_toolbars or not text:
             return
-        if "1" in text:
-            self.writer_view.canvas_view.set_outline_level(1)
-        elif "2" in text:
-            self.writer_view.canvas_view.set_outline_level(2)
-        elif "3" in text:
-            self.writer_view.canvas_view.set_outline_level(3)
-        elif "正文" in text:
-            self.writer_view.canvas_view.set_outline_level(None)
+        style_ids = {
+            safe_tr("正文"): "Normal", safe_tr("标题 1"): "Heading1",
+            safe_tr("标题 2"): "Heading2", safe_tr("标题 3"): "Heading3",
+            safe_tr("副标题"): "Subtitle", safe_tr("页眉"): "Header", safe_tr("页脚"): "Footer",
+        }
+        style_id = style_ids.get(text)
+        if style_id is None:
+            return
+        canvas = self.writer_view.canvas_view
+        self._apply_dialog(lambda: canvas.apply_style(style_id))
 
     def _on_zoom_combo_changed(self, text: str) -> None:
         if self._syncing_toolbars or not text:
             return
+        canvas = self.writer_view.canvas_view
+        if text in (safe_tr("页宽"), safe_tr("整页")):
+            pages = getattr(canvas.pagination, "pages", None) or []
+            if not pages:
+                return
+            page = pages[0]
+            vp = canvas.viewport()
+            ratio = canvas.pt_to_px_ratio
+            fit_w = (vp.width() - 48) / max(1.0, page.width * ratio)
+            if text == safe_tr("页宽"):
+                canvas.set_zoom(fit_w)
+            else:
+                fit_h = (vp.height() - 40) / max(1.0, page.height * ratio)
+                canvas.set_zoom(min(fit_w, fit_h))
+            return
         clean = text.replace("%", "").strip()
         try:
             val = float(clean) / 100.0
-            self.writer_view.canvas_view.set_zoom(val)
+            canvas.set_zoom(val)
         except ValueError:
             pass
 
@@ -1396,8 +1431,13 @@ class QuireWindow(BaseOfficeWindow):
             self.toolbars[name].setVisible(mode)
 
     def update_context_toolbars(self, context: dict[str, Any] | None = None) -> None:
-        """Update contextual toolbar visibility based on selection and document state."""
-        ctx = context or {}
+        """Update contextual toolbar visibility based on selection and document state.
+
+        Context keys persist between calls (e.g. header/footer editing stays on while
+        the caret moves) until a later call changes them.
+        """
+        ctx = {**getattr(self, "_toolbar_context", {}), **(context or {})}
+        self._toolbar_context = ctx
         for name, mode in self.toolbar_modes.items():
             tb = self.toolbars.get(name)
             if tb is None:
@@ -1665,13 +1705,30 @@ class QuireWindow(BaseOfficeWindow):
             self.apply_table_border(preset)
             return
 
-        pos = canvas.controller.pos
-        p = canvas.controller._paragraph_by_id(pos.para_id)
-        if p and p.p_pr:
-            p.p_pr.borders = {"preset": preset}
-            canvas.controller.document_modified.emit()
-            canvas.update()
-        self.show_status_message(safe_tr(f"应用边框: {preset}"))
+        from atboffice.modules.writer.models.properties import BorderProperties
+
+        sides = {
+            "none": (),
+            "all": ("top", "left", "bottom", "right", "between"),
+            "outside": ("top", "left", "bottom", "right"),
+            "top": ("top",), "bottom": ("bottom",), "left": ("left",), "right": ("right",),
+            "inside": ("between",),
+        }.get(preset)
+        if sides is None:
+            return
+
+        def apply() -> None:
+            for para in self._selected_paragraphs():
+                if preset == "none":
+                    para.p_pr.borders = {}
+                    continue
+                borders = dict(para.p_pr.borders) if preset not in ("all", "outside") else {}
+                for side in sides:
+                    borders[side] = BorderProperties(val="single", sz=0.5, color="auto")
+                para.p_pr.borders = borders
+
+        self._apply_dialog(apply)
+        self.show_status_message(safe_tr("已应用边框"))
 
     def apply_table_border(self, border_type: str) -> None:
         """Apply border styling to active table."""

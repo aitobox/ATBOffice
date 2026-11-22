@@ -580,7 +580,7 @@ class QuireToolBarCluster:
             ["无边框", "全框线", "外侧框线", "下框线"],
         )
 
-        highlight_btn = ColorPickerButton(mode="fill", default_color="#FFFF00", parent=tb)
+        highlight_btn = ColorPickerButton(mode="highlight", default_color="#FFFF00", parent=tb)
         highlight_btn.setObjectName("Quire_HighlightBtn")
         highlight_btn.setToolTip(safe_tr("突出显示"))
         highlight_btn.setStatusTip(safe_tr("突出显示所选文本"))

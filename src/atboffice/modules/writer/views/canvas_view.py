@@ -122,6 +122,14 @@ COLOR_PAGE_PAPER = QColor(255, 255, 255)  # Pure white paper sheet
 COLOR_PAGE_BORDER = QColor(112, 112, 112)  # 1px border around page
 COLOR_SHADOW_DARK = QColor(58, 58, 58, 160)  # Classic drop shadow (dark core)
 COLOR_SHADOW_LIGHT = QColor(80, 80, 80, 70)  # Soft drop shadow ambient falloff
+# w:highlight names (ST_HighlightColor) → screen colours
+WORD_HIGHLIGHT_COLORS: dict[str, str] = {
+    "yellow": "#FFFF00", "green": "#00FF00", "cyan": "#00FFFF", "magenta": "#FF00FF",
+    "blue": "#0000FF", "red": "#FF0000", "darkBlue": "#000080", "darkCyan": "#008080",
+    "darkGreen": "#008000", "darkMagenta": "#800080", "darkRed": "#800000",
+    "darkYellow": "#808000", "darkGray": "#808080", "lightGray": "#C0C0C0", "black": "#000000",
+    "white": "#FFFFFF",
+}
 COLOR_SELECTION = QColor(51, 153, 255, 110)  # Word selection highlight blue
 COLOR_CARET = QColor(0, 0, 0)  # Blinking caret black
 COLOR_MARGIN_GUIDE = QColor(200, 200, 200, 120)  # Subtle margin boundary guides
@@ -175,6 +183,16 @@ class WriterCanvasView(QAbstractScrollArea):
         self._max_zoom: float = 4.0
         self.pt_to_px_ratio: float = 96.0 / 72.0  # 1.33333
         self.page_gap_pt: float = 20.0
+        # View options driven by the Standard / Reviewing toolbars (issue #443).
+        self.show_formatting_marks: bool = False
+        # Review display mode: final_markup | final | original_markup | original
+        self.revision_view: str = "final_markup"
+        self.show_comments: bool = True
+        self.show_ins_del: bool = True
+        self.show_formatting_changes: bool = True
+        # Format Painter: run properties captured from the caret, applied on the next selection.
+        self.format_painter_props: RunProperties | None = None
+        self.format_painter_sticky: bool = False
 
         # Mouse drag state
         self._is_dragging: bool = False
@@ -630,7 +648,12 @@ class WriterCanvasView(QAbstractScrollArea):
             self._paint_page_content(painter, rect_vp, page)
 
             # 5.1 Paint Comment Balloons & Range Annotations
-            self._paint_comments(painter, rect_vp, page)
+            if self.show_comments:
+                self._paint_comments(painter, rect_vp, page)
+
+        # 5.2 Formatting marks (¶ at each paragraph end) when toggled on
+        if self.show_formatting_marks:
+            self._paint_formatting_marks(painter)
 
         # 6. Paint Blinking Caret
         if self.hasFocus() and self.controller.caret_visible:
@@ -1160,6 +1183,22 @@ class WriterCanvasView(QAbstractScrollArea):
             second_y = y_px + max(1.5 * self._zoom, thickness * 2.0)
             painter.drawLine(QPointF(x1_px, second_y), QPointF(x2_px, second_y))
 
+    def _paint_highlight(
+        self, painter: QPainter, po: Any, font: QFont, x1: float, x2: float, baseline: float
+    ) -> None:
+        """Fill the text-highlight colour (w:highlight) behind a portion."""
+        name = getattr(po, "highlight", None)
+        if not name or name == "none" or x2 <= x1:
+            return
+        hex_color = WORD_HIGHLIGHT_COLORS.get(name, name if str(name).startswith("#") else None)
+        if not hex_color:
+            return
+        fm = QFontMetricsF(font)
+        painter.fillRect(
+            QRectF(x1, baseline - fm.ascent(), x2 - x1, fm.ascent() + fm.descent()),
+            QColor(hex_color),
+        )
+
     def _draw_strike_decoration(
         self,
         painter: QPainter,
@@ -1309,9 +1348,12 @@ class WriterCanvasView(QAbstractScrollArea):
                             cur_px += per_blank_px
                         elif pt.text:
                             font, pen_col = self._build_portion_font(pt)
+                            pt_base_px = baseline_px - self.pt_to_px(pt.baseline_shift)
+                            self._paint_highlight(
+                                painter, pt, font, cur_px, cur_px + word_adv_px[p_i], pt_base_px
+                            )
                             painter.setFont(font)
                             painter.setPen(QPen(pen_col))
-                            pt_base_px = baseline_px - self.pt_to_px(pt.baseline_shift)
                             painter.drawText(QPointF(cur_px, pt_base_px), pt.text)
                             if should_spell:
                                 self._draw_spellcheck_for_text(
@@ -1356,9 +1398,13 @@ class WriterCanvasView(QAbstractScrollArea):
             po_w_px = self.pt_to_px(po.width)
             if po.type == PortionType.TEXT and po.text:
                 font, pen_col = self._build_portion_font(po)
+                po_base_px = baseline_px - self.pt_to_px(po.baseline_shift)
+                self._paint_highlight(
+                    painter, po, font, cur_px,
+                    cur_px + QFontMetricsF(font).horizontalAdvance(po.text), po_base_px,
+                )
                 painter.setFont(font)
                 painter.setPen(QPen(pen_col))
-                po_base_px = baseline_px - self.pt_to_px(po.baseline_shift)
                 painter.drawText(QPointF(cur_px, po_base_px), po.text)
                 if should_spell:
                     self._draw_spellcheck_for_text(painter, font, po.text, cur_px, po_base_px)
@@ -2304,6 +2350,75 @@ class WriterCanvasView(QAbstractScrollArea):
                                 COLOR_SELECTION,
                             )
 
+    def _paint_formatting_marks(self, painter: QPainter) -> None:
+        """Draw a pilcrow at the end of every visible paragraph (Show/Hide ¶)."""
+        scroll_x = self.horizontalScrollBar().value()
+        scroll_y = self.verticalScrollBar().value()
+        vp_h = self.viewport().height()
+        painter.save()
+        mark_font = QFont("Arial")
+        painter.setPen(QColor(74, 111, 165))
+        for p in self.doc.all_paras():
+            end = plen(p)
+            try:
+                page_idx, pt_page, h_pt = self.controller.pos_to_canvas(DocPos(p.id, end))
+            except Exception:
+                continue
+            page_rect = self.page_rect_canvas(page_idx)
+            x = page_rect.left() - scroll_x + self.pt_to_px(pt_page.x()) + 1
+            y = page_rect.top() - scroll_y + self.pt_to_px(pt_page.y())
+            h = max(6.0, self.pt_to_px(h_pt))
+            if y + h < 0 or y > vp_h:
+                continue
+            mark_font.setPixelSize(max(6, int(h * 0.8)))
+            painter.setFont(mark_font)
+            painter.drawText(QPointF(x, y + h * 0.8), "\u00b6")
+        painter.restore()
+
+    def start_format_painter(self, sticky: bool = False) -> bool:
+        """Copy the caret's character formatting for the next selection (Format Painter)."""
+        p = self.controller._paragraph_by_id(self.controller.pos.para_id)
+        if p is None:
+            return False
+        import copy as _copy
+
+        offset = self.controller.pos.offset
+        props = None
+        cur = 0
+        for it in p.runs:
+            n = len(getattr(it, "text", "")) if getattr(it, "t", "") == "text" else 1
+            if cur <= offset <= cur + n and getattr(it, "t", "") == "text":
+                props = it.r_pr
+                break
+            cur += n
+        self.format_painter_props = _copy.deepcopy(props or p.r_pr)
+        self.format_painter_sticky = sticky
+        self.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
+        return True
+
+    def stop_format_painter(self) -> None:
+        self.format_painter_props = None
+        self.format_painter_sticky = False
+        self.viewport().unsetCursor()
+
+    def _apply_format_painter(self) -> bool:
+        props = self.format_painter_props
+        if props is None or self.controller.selection.is_collapsed:
+            return False
+        import copy as _copy
+
+        fields = ("font", "font_ea", "font_cs", "sz", "b", "i", "u", "color", "vert",
+                  "highlight", "strike", "dstrike", "caps", "small_caps", "spacing")
+
+        def apply(r_pr: RunProperties) -> None:
+            for name in fields:
+                setattr(r_pr, name, _copy.deepcopy(getattr(props, name)))
+
+        self.run_undoable(lambda: self.format_range(apply))
+        if not self.format_painter_sticky:
+            self.stop_format_painter()
+        return True
+
     def _paint_caret(self, painter: QPainter) -> None:
         """Render blinking caret at active position."""
         page_idx, pt_page, h_pt = self.controller.pos_to_canvas(self.controller.pos)
@@ -2516,6 +2631,8 @@ class WriterCanvasView(QAbstractScrollArea):
                 return
 
             self._is_dragging = False
+            if self.format_painter_props is not None:
+                self._apply_format_painter()
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
         """Handle double-click for word selection."""
@@ -2810,8 +2927,17 @@ class WriterCanvasView(QAbstractScrollArea):
         self.format_range(lambda r: setattr(r, "color", color))
 
     def set_highlight_color(self, color: str | None) -> None:
-        """Set highlight fill color for selection."""
-        self.format_range(lambda r: setattr(r, "highlight", color))
+        """Highlight the selection with a Word highlight colour; ``None``/"none" removes it.
+
+        Accepts a w:highlight name ("yellow") or one of the palette's hex colours.
+        """
+        from atboffice.ui.components.color_picker import HIGHLIGHT_NAME_BY_HEX
+
+        if color in (None, "", "none", "auto"):
+            value: str | None = None
+        else:
+            value = HIGHLIGHT_NAME_BY_HEX.get(str(color).upper(), str(color))
+        self.run_undoable(lambda: self.format_range(lambda r: setattr(r, "highlight", value)))
 
     def get_current_style_id(self) -> str:
         """Return the paragraph style ID at the current caret position."""

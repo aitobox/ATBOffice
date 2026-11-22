@@ -332,10 +332,11 @@ def test_quire_toolbar_actions_trigger_and_state(qtbot) -> None:
 
     # 2. Test border preset on paragraph
     win.action_registry.trigger_action("border_all")
-    assert p.p_pr.borders == {"preset": "all"}
+    assert set(p.p_pr.borders) == {"top", "left", "bottom", "right", "between"}
+    assert all(b.val == "single" for b in p.p_pr.borders.values())
 
     win.action_registry.trigger_action("border_none")
-    assert p.p_pr.borders == {"preset": "none"}
+    assert p.p_pr.borders == {}
 
     # 3. Test table insertion and table cell alignment via dropdown actions
     win.action_registry.trigger_action("tbl_insert_table")
