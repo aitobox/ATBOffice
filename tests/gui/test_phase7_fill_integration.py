@@ -21,6 +21,10 @@ from atboffice.modules.spreadsheet.view import SpreadsheetView
 from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport, HitZone
 
 
+def _cell_pt(grid, x: float, y: float) -> QPointF:
+    """Point given in the old fixed 46x22 header layout, shifted to the grid's real headers."""
+    return QPointF(x - 46 + grid.row_header_width, y - 22 + grid.col_header_height)
+
 def test_fill_handle_linear_drag_real_data(qtbot):
     """A1=1, A2=2 dragged down to A10 yields 1..10, with formula & modifier checks."""
     viewport = GridViewport()
@@ -37,9 +41,9 @@ def test_fill_handle_linear_drag_real_data(qtbot):
     viewport.selection.extend_to(1, 0)
 
     # 1. Hit test fill handle at bottom right of (1, 0)
-    # col 0 end = 46 + 64 = 110, row 1 end = 22 + 40 = 62
-    p_handle = QPointF(110, 62)
-    hit = viewport.hit_test(110, 62)
+    # Bottom-right corner of A2: col 0 ends 64px and row 1 ends 40px past the headers
+    p_handle = _cell_pt(viewport, 110, 62)
+    hit = viewport.hit_test(int(p_handle.x()), int(p_handle.y()))
     assert hit.zone == HitZone.FILL_HANDLE
 
     # 2. Press fill handle
@@ -56,7 +60,7 @@ def test_fill_handle_linear_drag_real_data(qtbot):
     assert viewport._drag_mode == HitZone.FILL_HANDLE
 
     # 3. Drag down to row 9 (y = 22 + 10 * 20 = 222)
-    p_dest = QPointF(110, 215)
+    p_dest = _cell_pt(viewport, 110, 215)
     viewport.mouseMoveEvent(
         QMouseEvent(
             QMouseEvent.Type.MouseMove,
@@ -99,8 +103,8 @@ def test_fill_handle_single_value_modifiers(qtbot):
     viewport.model.set_cell(0, 0, CellData(value=50))
     viewport.selection.select_cell(0, 0)
 
-    p_handle = QPointF(110, 42)
-    p_dest = QPointF(110, 100)
+    p_handle = _cell_pt(viewport, 110, 42)
+    p_dest = _cell_pt(viewport, 110, 100)
 
     # Press, move, release without modifier
     viewport.mousePressEvent(
@@ -141,8 +145,8 @@ def test_fill_handle_single_value_modifiers(qtbot):
     viewport.model.set_cell(0, 1, CellData(value=10))
     viewport.selection.select_cell(0, 1)
 
-    p_handle2 = QPointF(110 + 64, 42)
-    p_dest2 = QPointF(110 + 64, 100)
+    p_handle2 = _cell_pt(viewport, 110 + 64, 42)
+    p_dest2 = _cell_pt(viewport, 110 + 64, 100)
 
     viewport.mousePressEvent(
         QMouseEvent(
@@ -207,8 +211,8 @@ def test_fill_handle_protection_blocks_and_no_dirty(qtbot, monkeypatch):
     initial_undo_len = len(viewport._undo_stack)
 
     # Attempt to drag fill handle
-    p_handle = QPointF(110, 42)
-    p_dest = QPointF(110, 100)
+    p_handle = _cell_pt(viewport, 110, 42)
+    p_dest = _cell_pt(viewport, 110, 100)
 
     viewport.mousePressEvent(
         QMouseEvent(
@@ -267,8 +271,8 @@ def test_fill_handle_sparse_undo_redo(qtbot):
     viewport.selection.select_cell(0, 0)
     viewport.selection.extend_to(1, 0)
 
-    p_handle = QPointF(110, 62)
-    p_dest = QPointF(110, 110)  # Inside row 4 (102..122)
+    p_handle = _cell_pt(viewport, 110, 62)
+    p_dest = _cell_pt(viewport, 110, 110)  # Inside row 4 (102..122)
 
     viewport.mousePressEvent(
         QMouseEvent(
@@ -340,8 +344,8 @@ def test_fill_handle_cancellation_lifecycle(qtbot):
     viewport.model.set_cell(0, 0, CellData(value=777))
     viewport.selection.select_cell(0, 0)
 
-    p_handle = QPointF(110, 42)
-    p_move = QPointF(110, 90)
+    p_handle = _cell_pt(viewport, 110, 42)
+    p_move = _cell_pt(viewport, 110, 90)
 
     # Case 1: Cancel via secondary button
     viewport.mousePressEvent(
@@ -429,7 +433,7 @@ def test_fill_handle_double_click_fill_down(qtbot):
     viewport.selection.extend_to(1, 1)
 
     # Double click at fill handle of B2 (col 1 end = 46 + 128 = 174, row 1 end = 22 + 40 = 62)
-    p_handle = QPointF(174, 62)
+    p_handle = _cell_pt(viewport, 174, 62)
     viewport.mouseDoubleClickEvent(
         QMouseEvent(
             QMouseEvent.Type.MouseButtonDblClick,
@@ -458,7 +462,7 @@ def test_object_layer_cursor_forwarding(qtbot):
     grid.selection.select_cell(0, 0)
 
     # Move mouse over fill handle at (110, 42)
-    p_handle = QPointF(110, 42)
+    p_handle = _cell_pt(grid, 110, 42)
     view.object_layer.mouseMoveEvent(
         QMouseEvent(
             QMouseEvent.Type.MouseMove,

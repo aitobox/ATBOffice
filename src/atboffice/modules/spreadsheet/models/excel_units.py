@@ -11,7 +11,9 @@ import math
 
 # Maximum digit width per point of font size, for the faces Excel workbooks commonly use
 _MDW_PER_PT: dict[str, float] = {
-    "calibri": 7.0 / 11.0,
+    # Calibri 11 measures 8px per digit in the reference renderer (ledger/js layout
+    # L.measureDigit); 7px made every custom-width Calibri column ~12% too narrow.
+    "calibri": 8.0 / 11.0,
     "arial": 7.0 / 10.0,
     "aptos narrow": 7.0 / 11.0,
     "aptos": 7.5 / 11.0,

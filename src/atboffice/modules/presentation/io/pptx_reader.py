@@ -207,6 +207,49 @@ def _get_children(elem: ET.Element | None, local_name: str | None = None) -> lis
     return [c for c in elem if _local_tag(c.tag) == local_name]
 
 
+_OFFICE_DIAGRAM_URN = "urn:microsoft.com/office/officeart/2005/8/"
+
+
+def _diagram_color_style(dm_xml: ET.Element) -> tuple[str | None, str | None]:
+    """Map an Office diagram's colours/quick style ids to the engine's ids.
+
+    Mirrors lectern/js/smartart-io.js: ``colors/accent1_2`` → ``accent1``,
+    ``colors/colorful*`` → ``colorful``; intense/3D quick styles → ``intense``,
+    moderate → ``moderate``, simple2/3 → ``subtle``.
+    """
+    import re
+
+    cs_id = qs_id = ""
+    for el in dm_xml.iter():
+        if _local_tag(el.tag) == "prSet" and el.attrib.get("csTypeId"):
+            cs_id = el.attrib.get("csTypeId", "")
+            qs_id = el.attrib.get("qsTypeId", "")
+            break
+
+    colors: str | None = None
+    prefix = _OFFICE_DIAGRAM_URN + "colors/"
+    if cs_id.startswith(prefix):
+        name = cs_id[len(prefix):]
+        if re.search("colorful", name, re.IGNORECASE):
+            colors = "colorful"
+        else:
+            m = re.match(r"accent([1-6])", name)
+            if m:
+                colors = f"accent{m.group(1)}"
+
+    style: str | None = None
+    prefix = _OFFICE_DIAGRAM_URN + "quickstyle/"
+    if qs_id.startswith(prefix):
+        name = qs_id[len(prefix):]
+        if re.search(r"intense|3d|polished|cartoon", name, re.IGNORECASE):
+            style = "intense"
+        elif re.search(r"moderate|simple[45]", name, re.IGNORECASE):
+            style = "moderate"
+        elif re.search(r"simple[23]", name, re.IGNORECASE):
+            style = "subtle"
+    return colors, style
+
+
 def _resolve_path(base_part: str, relative_target: str) -> str:
     """Resolve an OPC relative target path from the base part directory."""
     if not base_part:
@@ -1829,6 +1872,8 @@ class PptxReader:
 
             diag_texts: list[str] = []
             diag_layout = "process"
+            diag_colors: str | None = None
+            diag_style: str | None = None
             if rel_ids_elem is not None and rel_map is not None:
                 dm_rid = ""
                 lo_rid = ""
@@ -1845,6 +1890,7 @@ class PptxReader:
                     if self.package.has_part(dm_path):
                         try:
                             dm_xml = ET.fromstring(self.package.read_part(dm_path))
+                            diag_colors, diag_style = _diagram_color_style(dm_xml)
                             for pt in dm_xml.iter():
                                 if pt.tag.endswith("pt"):
                                     pt_type = pt.attrib.get("type", "node")
@@ -1883,10 +1929,25 @@ class PptxReader:
                             )
 
             sa_items = [{"text": t} for t in diag_texts] if diag_texts else [{"text": "SmartArt"}]
-            sa_obj = {
+            sa_obj: dict[str, Any] = {
                 "layout": diag_layout,
                 "items": sa_items,
             }
+            if diag_colors:
+                # Colour the diagram from this file's theme, as PowerPoint does.
+                sa_obj["colors"] = diag_colors
+                theme = self._get_theme_colors("")
+                if theme is not None:
+                    sa_obj["theme"] = {
+                        slot: getattr(theme, slot)
+                        for slot in (
+                            "dk1", "lt1", "dk2", "lt2",
+                            "accent1", "accent2", "accent3", "accent4", "accent5", "accent6",
+                        )
+                        if getattr(theme, slot, None)
+                    }
+            if diag_style:
+                sa_obj["style"] = diag_style
             combined_txt = "\n".join(diag_texts) if diag_texts else "SmartArt"
             diagram = Shape(
                 id=frame_id or "diag_1",
