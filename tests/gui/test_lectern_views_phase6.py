@@ -375,12 +375,14 @@ def test_lectern_workspace_all_four_views(qtbot, phase6_presentation: Presentati
     # 4. Master View
     ws.set_view_mode("master")
     assert ws.view_mode == "master"
-    assert ws.master_close_bar.isVisible()
+    assert ws.center_stack.currentWidget() is ws.master_view
+    assert ws.master_view.toolbar.isVisible()
+    assert ws.master_view.scene is ws.scene
 
     # Exit Master View
     ws.exit_master_view()
     assert ws.view_mode == "normal"
-    assert not ws.master_close_bar.isVisible()
+    assert ws.center_stack.currentWidget() is ws.center_normal_widget
 
 
 def test_lectern_window_status_bar_and_actions(qtbot, phase6_presentation: Presentation) -> None:

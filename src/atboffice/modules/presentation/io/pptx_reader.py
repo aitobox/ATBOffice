@@ -1629,6 +1629,11 @@ class PptxReader:
         blip_fill = _get_child(elem, "blipFill")
         blip = _get_child(blip_fill, "blip") if blip_fill is not None else None
         crop = self._parse_src_rect(blip_fill)
+        clr_change = None
+        clr_from = _get_child(_get_child(blip, "clrChange"), "clrFrom")
+        srgb = _get_child(clr_from, "srgbClr") if clr_from is not None else None
+        if srgb is not None and _get_attr(srgb, "val"):
+            clr_change = "#" + str(_get_attr(srgb, "val")).upper()
         embed_id = ""
         if blip is not None:
             for k, v in blip.attrib.items():
@@ -1748,6 +1753,7 @@ class PptxReader:
             media=media_key,
             media_item=media_item,
             crop=crop,
+            clr_change=clr_change,
         )
 
     @staticmethod
@@ -2058,9 +2064,10 @@ class PptxReader:
             for tc_elem in _get_children(tr_elem, "tc"):
                 tx_body = _get_child(tc_elem, "txBody")
                 cell_text = self._parse_text_body(tx_body) if tx_body is not None else TextBody()
-                fill, bd, own = tstyles.parse_cell_properties(
-                    _get_child(tc_elem, "tcPr"), cell_color, line_of
-                )
+                tc_pr = _get_child(tc_elem, "tcPr")
+                if _get_attr(tc_pr, "anchor") in ("ctr", "b"):
+                    cell_text.anchor = _get_attr(tc_pr, "anchor")
+                fill, bd, own = tstyles.parse_cell_properties(tc_pr, cell_color, line_of)
                 cell: dict[str, Any] = {
                     "tx": cell_text,
                     "text": cell_text.plain_text,
@@ -3335,6 +3342,17 @@ class PptxReader:
             if dashes:
                 res.custom_dash = dashes
                 res.dash = "custom"
+
+        for end_name, attr in (("headEnd", "head"), ("tailEnd", "tail")):
+            end_elem = _get_child(ln_elem, end_name)
+            end_type = _get_attr(end_elem, "type") if end_elem is not None else None
+            if end_type and end_type != "none":
+                end_dict = {"type": end_type}
+                for key in ("w", "len"):
+                    val = _get_attr(end_elem, key)
+                    if val:
+                        end_dict[key] = val
+                setattr(res, attr, end_dict)
 
         if res.type == "none" and (
             solid_fill is not None

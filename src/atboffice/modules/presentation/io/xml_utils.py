@@ -316,6 +316,15 @@ def line_to_xml(
     if line.dash and line.dash != "solid":
         inner += f'<a:prstDash val="{line.dash}"/>'
 
+    # Schema order: ... prstDash, (round|bevel|miter), headEnd, tailEnd
+    for end_tag, end in (("a:headEnd", line.head), ("a:tailEnd", line.tail)):
+        if isinstance(end, dict) and end.get("type") and end["type"] != "none":
+            end_attrs = f'type="{end["type"]}"'
+            for key in ("w", "len"):
+                if end.get(key):
+                    end_attrs += f' {key}="{end[key]}"'
+            inner += f"<{end_tag} {end_attrs}/>"
+
     return f"<{tag} {attr_str}>{inner}</{tag}>"
 
 

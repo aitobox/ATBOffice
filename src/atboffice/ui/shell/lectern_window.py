@@ -104,6 +104,13 @@ class LecternWindow(BaseOfficeWindow):
         else:
             self.update_window_title()
 
+        # 7. Real handlers for formerly stubbed / unbound commands (after menus & toolbars)
+        from atboffice.ui.shell.lectern_commands import bind_lectern_commands
+
+        self.lectern_commands = bind_lectern_commands(self)
+        # The window's task pane dock replaces the workspace's embedded task pane
+        ws.set_embedded_task_pane_enabled(False)
+
         self.set_modified(False)
         self._setup_status_bar_view_buttons()
         self.menu_bar.retranslate_ui()
@@ -194,7 +201,6 @@ class LecternWindow(BaseOfficeWindow):
         self.action_registry.set_handler("edit_redo", self.redo)
         self.action_registry.set_handler("selectAll", self.select_all)
         self.action_registry.set_handler("edit_select_all", self.select_all)
-        self.action_registry.set_handler("formatPainter", self.toggle_format_painter)
 
         # 3. Formatting (Character & Paragraph)
         self.action_registry.set_handler("bold", self._toggle_bold)
@@ -243,10 +249,6 @@ class LecternWindow(BaseOfficeWindow):
         self.action_registry.set_handler("insertChart", self.insert_chart)
         self.action_registry.set_handler("insertTable", self.insert_table)
         self.action_registry.set_handler("tb_tables", self.toggle_tables_toolbar)
-        self.action_registry.set_handler("hyperlink", self.open_hyperlink_dialog)
-        self.action_registry.set_handler("insert_hyperlink", self.open_hyperlink_dialog)
-        self.action_registry.set_handler("expandAll", self.expand_all_outline)
-        self.action_registry.set_handler("showFormatting", self.toggle_show_formatting)
         self.action_registry.set_handler("showGrid", self.toggle_grid)
         self.action_registry.set_handler("viewGray", lambda: self.set_view_color_mode("grayscale"))
         self.action_registry.set_handler("view_color", lambda: self.set_view_color_mode("color"))
@@ -256,10 +258,6 @@ class LecternWindow(BaseOfficeWindow):
         self.action_registry.set_handler(
             "view_black_and_white", lambda: self.set_view_color_mode("bw")
         )
-        self.action_registry.set_handler("spelling", self.run_spelling)
-        self.action_registry.set_handler("tools_spelling", self.run_spelling)
-        self.action_registry.set_handler("help", self.show_help)
-        self.action_registry.set_handler("help_contents", self.show_help)
 
         # 5. Slideshow
         self.action_registry.set_handler("start_slideshow", self.start_slideshow)
@@ -356,58 +354,16 @@ class LecternWindow(BaseOfficeWindow):
         self.action_registry.set_handler("diagramTextPane", self.show_smartart_pane)
 
         # 11. Tables and Borders Toolbar
-        self.action_registry.set_handler("tableMergeCells", self.table_merge_cells)
-        self.action_registry.set_handler("tableSplitCell", self.table_split_cell)
-        self.action_registry.set_handler("cellTop", lambda: self.set_table_cell_valign("top"))
-        self.action_registry.set_handler("cellMiddle", lambda: self.set_table_cell_valign("middle"))
-        self.action_registry.set_handler("cellBottom", lambda: self.set_table_cell_valign("bottom"))
-        self.action_registry.set_handler("distRows", self.table_distribute_rows)
-        self.action_registry.set_handler("distCols", self.table_distribute_cols)
-        self.action_registry.set_handler("tableBordersAll", lambda: self.apply_table_border("all"))
-        self.action_registry.set_handler("tbl_border_all", lambda: self.apply_table_border("all"))
-        self.action_registry.set_handler(
-            "tbl_border_outside", lambda: self.apply_table_border("outside")
-        )
-        self.action_registry.set_handler(
-            "tbl_border_inside", lambda: self.apply_table_border("inside")
-        )
-        self.action_registry.set_handler("tbl_border_none", lambda: self.apply_table_border("none"))
-        self.action_registry.set_handler("tbl_border_top", lambda: self.apply_table_border("top"))
-        self.action_registry.set_handler(
-            "tbl_border_bottom", lambda: self.apply_table_border("bottom")
-        )
-        self.action_registry.set_handler("tbl_border_left", lambda: self.apply_table_border("left"))
-        self.action_registry.set_handler(
-            "tbl_border_right", lambda: self.apply_table_border("right")
-        )
         self.action_registry.set_handler("tbl_insert_table", self.insert_table)
-        self.action_registry.set_handler(
-            "tbl_insert_col_left", lambda: self.table_insert_col(left=True)
-        )
-        self.action_registry.set_handler(
-            "tbl_insert_col_right", lambda: self.table_insert_col(left=False)
-        )
-        self.action_registry.set_handler(
-            "tbl_insert_row_above", lambda: self.table_insert_row(above=True)
-        )
-        self.action_registry.set_handler(
-            "tbl_insert_row_below", lambda: self.table_insert_row(above=False)
-        )
-        self.action_registry.set_handler("tbl_delete_col", self.table_delete_col)
-        self.action_registry.set_handler("tbl_delete_row", self.table_delete_row)
-        self.action_registry.set_handler("tbl_select_table", self.table_select)
-        self.action_registry.set_handler("tbl_borders_and_shading", self.table_borders_and_shading)
 
         # 12. Picture Toolbar
         self.action_registry.set_handler("pic_insert", self.insert_picture_from_file)
         self.action_registry.set_handler("insert_picture", self.insert_picture_from_file)
         self.action_registry.set_handler("draw_insertPicture", self.insert_picture_from_file)
-        self.action_registry.set_handler("insertClipArt", self.insert_picture_from_file)
+        self.action_registry.set_handler("insertClipArt", self.open_clipart_dialog)
         self.action_registry.set_handler("rotateLeft", self.rotate_selected_left)
         self.action_registry.set_handler("picCrop", self.toggle_picture_crop)
         self.action_registry.set_handler("picReset", self.reset_picture)
-        self.action_registry.set_handler("formatObject", self.format_object_dialog)
-        self.action_registry.set_handler("picTransparent", self.toggle_picture_transparent)
         self.action_registry.set_handler(
             "picMoreContrast", lambda: self.adjust_picture_contrast(0.1)
         )
@@ -437,7 +393,6 @@ class LecternWindow(BaseOfficeWindow):
         self.action_registry.set_handler("wa_insert", self.open_wordart_gallery)
         self.action_registry.set_handler("wordartGallery", self.open_wordart_gallery)
         self.action_registry.set_handler("wordartEdit", self.open_wordart_gallery)
-        self.action_registry.set_handler("wa_format", self.open_wordart_format)
         self.action_registry.set_handler("waSameHeight", self.toggle_wordart_same_height)
         self.action_registry.set_handler("waVertical", self.toggle_wordart_vertical)
         self.action_registry.set_handler("wa_shape_plain", lambda: self.set_wordart_shape("plain"))
@@ -451,26 +406,14 @@ class LecternWindow(BaseOfficeWindow):
         # 14. Slide Sorter Toolbar
         self.action_registry.set_handler("hideSlide", self.toggle_hide_slide)
         self.action_registry.set_handler("rehearse", self.start_rehearse)
-        self.action_registry.set_handler("summarySlide", self.create_summary_slide)
-        self.action_registry.set_handler("speakerNotes", self.edit_speaker_notes)
-        self.action_registry.set_handler("transitionPane", self.open_transition_pane)
         self.action_registry.set_handler("sorter_slideDesign", self.open_slide_design_pane)
         self.action_registry.set_handler("sorter_newSlide", self.add_new_slide)
 
         # 15. Master View Toolbar
-        self.action_registry.set_handler("insertSlideMaster", self.insert_slide_master)
-        self.action_registry.set_handler("insertTitleMaster", self.insert_title_master)
-        self.action_registry.set_handler("preserveMaster", self.preserve_master)
-        self.action_registry.set_handler("renameMaster", self.rename_master)
-        self.action_registry.set_handler("deleteTitleMaster", self.delete_title_master)
 
         # 16. Outlining Toolbar
         self.action_registry.set_handler("outline_promote", self.promote_indent)
         self.action_registry.set_handler("outline_demote", self.demote_indent)
-        self.action_registry.set_handler("moveParaUp", self.move_para_up)
-        self.action_registry.set_handler("moveParaDown", self.move_para_down)
-        self.action_registry.set_handler("outline_summarySlide", self.create_summary_slide)
-        self.action_registry.set_handler("outline_showFormatting", self.toggle_show_formatting)
 
         # 17. Background Formatting
         self.action_registry.set_handler("background", self.open_background_dialog)
@@ -938,12 +881,15 @@ class LecternWindow(BaseOfficeWindow):
     def insert_table(self, rows: int = 2, cols: int = 2) -> None:
         """Insert a new table shape on the active slide."""
         from atboffice.modules.presentation.models.shape import Shape
+        from atboffice.modules.presentation.tools import table_ops
 
         ws = getattr(self.presentation_view, "workspace", None)
         if not ws or not ws.current_slide:
             return
         slide = ws.current_slide
-        tid = f"tbl_{len(slide.shapes) + 1}"
+        from atboffice.modules.presentation.tools.pictures import unique_shape_id
+
+        tid = unique_shape_id(slide, "tbl")
         w, h = 360.0, 160.0
         x = (960.0 - w) / 2.0
         y = (540.0 - h) / 2.0
@@ -955,19 +901,7 @@ class LecternWindow(BaseOfficeWindow):
             y=y,
             w=w,
             h=h,
-            tbl={
-                "cols": [w / cols] * cols,
-                "rows": [
-                    {
-                        "h": h / rows,
-                        "cells": [
-                            {"tx": {"paragraphs": [{"runs": [{"text": f"R{r + 1}C{c + 1}"}]}]}}
-                            for c in range(cols)
-                        ],
-                    }
-                    for r in range(rows)
-                ],
-            },
+            tbl=table_ops.new_table(rows, cols, w, h),
         )
         slide.shapes.append(tbl_shape)
         ws.scene.load_slide(slide)
@@ -978,34 +912,78 @@ class LecternWindow(BaseOfficeWindow):
         self.set_modified(True)
         self.show_status_message(safe_tr("已插入表格"))
 
-    def insert_chart(self) -> None:
-        """Insert a statistical chart shape."""
+    def insert_chart(self, edit_data: bool = True) -> None:
+        """Insert > Chart: a sample column chart, then its datasheet (PowerPoint 2003)."""
+        from atboffice.modules.presentation.chart.model import ChartData
         from atboffice.modules.presentation.models.shape import Shape
+        from atboffice.modules.presentation.tools.pictures import unique_shape_id
 
         ws = getattr(self.presentation_view, "workspace", None)
         if not ws or not ws.current_slide:
             return
         slide = ws.current_slide
-        cid = f"chart_{len(slide.shapes) + 1}"
-        w, h = 400.0, 240.0
+        pres = self.presentation_view.presentation
+        cid = unique_shape_id(slide, "chart")
+        w, h = pres.w * 0.6, pres.h * 0.6
         chart_shape = Shape(
             id=cid,
-            type="shape",
-            geom="rect",
-            name=f"Chart {cid}",
-            x=(960.0 - w) / 2.0,
-            y=(540.0 - h) / 2.0,
+            type="chart",
+            name=f"Chart {cid.split('_')[-1]}",
+            x=(pres.w - w) / 2.0,
+            y=(pres.h - h) / 2.0,
             w=w,
             h=h,
+            chart=ChartData.create_sample("col").to_dict(),
         )
-        slide.shapes.append(chart_shape)
+        self.add_shape(chart_shape, message=safe_tr("已插入图表"))
+        if edit_data:
+            self.edit_chart_data(chart_shape)
+
+    def edit_chart_data(self, chart_shape: Any) -> bool:
+        """Open the Datasheet for ``chart_shape``; returns True when data changed."""
+        from atboffice.modules.presentation.chart.model import ChartData
+        from atboffice.modules.presentation.dialogs.datasheet_dialog import DatasheetDialog
+
+        data = (
+            chart_shape.chart
+            if isinstance(chart_shape.chart, ChartData)
+            else ChartData.from_dict(chart_shape.chart)
+        )
+        dlg = DatasheetDialog(chart=data, parent=self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return False
+        chart_shape.chart = dlg.get_chart_data().to_dict()
+        item = self.presentation_view.workspace.scene.get_shape_item(chart_shape.id)
+        if item is not None:
+            item.update()
+        self.set_modified(True)
+        return True
+
+    def add_shape(self, shape: Any, message: str = "") -> Any:
+        """Add ``shape`` to the slide being edited, select it and mark the document dirty.
+
+        Used by Insert commands and the shared WordArt / Clip Art insertion helpers.
+        """
+        ws = getattr(self.presentation_view, "workspace", None)
+        if ws is None:
+            return None
+        slide = ws.master_slide if ws.view_mode == "master" and ws.master_slide else (
+            ws.current_slide if ws.presentation.slides else None
+        )
+        if slide is None:
+            return None
+        slide.shapes.append(shape)
         ws.scene.load_slide(slide)
-        item = ws.scene.get_shape_item(cid)
-        if item:
+        item = ws.scene.get_shape_item(shape.id)
+        if item is not None:
             ws.scene.clearSelection()
             item.setSelected(True)
+        if ws.view_mode != "master" and hasattr(ws, "_refresh_current_thumbnail"):
+            ws._refresh_current_thumbnail()
         self.set_modified(True)
-        self.show_status_message(safe_tr("已插入图表"))
+        if message:
+            self.show_status_message(message)
+        return item
 
     def toggle_tables_toolbar(self) -> None:
         """Toggle visibility of the tables toolbar."""
@@ -1029,143 +1007,6 @@ class LecternWindow(BaseOfficeWindow):
                 ws.update()
         self.show_status_message(safe_tr("显示网格与参考线" if show else "隐藏网格与参考线"))
 
-    def toggle_format_painter(self) -> None:
-        """Activate format painter."""
-        self.show_status_message(safe_tr("格式刷已激活"))
-
-    def open_hyperlink_dialog(self) -> None:
-        """Open hyperlink insertion dialog."""
-        self.show_status_message(safe_tr("插入超链接"))
-
-    def expand_all_outline(self) -> None:
-        """Expand all nodes in outline view."""
-        self.show_status_message(safe_tr("全部展开大纲"))
-
-    def toggle_show_formatting(self) -> None:
-        """Toggle showing formatting in outline view."""
-        self.show_status_message(safe_tr("显示格式"))
-
-    def run_spelling(self) -> None:
-        """Run spell check dialog."""
-        self.show_status_message(safe_tr("拼写检查完成"))
-
-    def show_help(self) -> None:
-        """Show PowerPoint help."""
-        self.show_status_message(safe_tr("PowerPoint 帮助"))
-
-    def _get_active_table_shape(self) -> Any | None:
-        ws = getattr(self.presentation_view, "workspace", None)
-        if not ws or not ws.scene:
-            return None
-        for item in ws.scene.selectedItems():
-            shape = getattr(item, "model", None)
-            if shape and (shape.type == "table" or getattr(shape, "tbl", None)):
-                return shape
-        return None
-
-    def table_merge_cells(self) -> None:
-        shape = self._get_active_table_shape()
-        if shape and shape.tbl:
-            shape.tbl.setdefault("merged", True)
-            self.show_status_message(safe_tr("合并单元格"))
-            self.set_modified(True)
-
-    def table_split_cell(self) -> None:
-        shape = self._get_active_table_shape()
-        if shape and shape.tbl:
-            shape.tbl.setdefault("split", True)
-            self.show_status_message(safe_tr("拆分单元格"))
-            self.set_modified(True)
-
-    def set_table_cell_valign(self, valign: str) -> None:
-        shape = self._get_active_table_shape()
-        if shape and shape.tbl:
-            shape.tbl["valign"] = valign
-            self.show_status_message(safe_tr(f"单元格对齐: {valign}"))
-            self.set_modified(True)
-
-    def table_distribute_rows(self) -> None:
-        shape = self._get_active_table_shape()
-        if shape and shape.tbl and "rows" in shape.tbl:
-            rows = shape.tbl["rows"]
-            if rows:
-                avg_h = sum(r.get("h", 30.0) for r in rows) / len(rows)
-                for r in rows:
-                    r["h"] = avg_h
-                self.show_status_message(safe_tr("平均分布各行"))
-                self.set_modified(True)
-
-    def table_distribute_cols(self) -> None:
-        shape = self._get_active_table_shape()
-        if shape and shape.tbl and "cols" in shape.tbl:
-            cols = shape.tbl["cols"]
-            if cols:
-                avg_w = sum(cols) / len(cols)
-                shape.tbl["cols"] = [avg_w] * len(cols)
-                self.show_status_message(safe_tr("平均分布各列"))
-                self.set_modified(True)
-
-    def apply_table_border(self, border_type: str) -> None:
-        shape = self._get_active_table_shape()
-        if shape and shape.tbl:
-            shape.tbl["border_type"] = border_type
-            self.show_status_message(safe_tr(f"应用表格边框: {border_type}"))
-            self.set_modified(True)
-
-    def table_insert_col(self, left: bool = True) -> None:
-        shape = self._get_active_table_shape()
-        if shape and shape.tbl and "cols" in shape.tbl:
-            cols = shape.tbl["cols"]
-            idx = 0 if left else len(cols)
-            new_w = shape.w / (len(cols) + 1)
-            cols.insert(idx, new_w)
-            for r in shape.tbl.get("rows", []):
-                cells = r.setdefault("cells", [])
-                cells.insert(idx, {"tx": {"paragraphs": [{"runs": [{"text": ""}]}]}})
-            self.show_status_message(safe_tr("插入列"))
-            self.set_modified(True)
-
-    def table_insert_row(self, above: bool = True) -> None:
-        shape = self._get_active_table_shape()
-        if shape and shape.tbl and "rows" in shape.tbl:
-            rows = shape.tbl["rows"]
-            cols_count = len(shape.tbl.get("cols", [100.0, 100.0]))
-            idx = 0 if above else len(rows)
-            new_row = {
-                "h": 30.0,
-                "cells": [
-                    {"tx": {"paragraphs": [{"runs": [{"text": ""}]}]}} for _ in range(cols_count)
-                ],
-            }
-            rows.insert(idx, new_row)
-            self.show_status_message(safe_tr("插入行"))
-            self.set_modified(True)
-
-    def table_delete_col(self) -> None:
-        shape = self._get_active_table_shape()
-        if shape and shape.tbl and len(shape.tbl.get("cols", [])) > 1:
-            shape.tbl["cols"].pop()
-            for r in shape.tbl.get("rows", []):
-                if r.get("cells"):
-                    r["cells"].pop()
-            self.show_status_message(safe_tr("删除列"))
-            self.set_modified(True)
-
-    def table_delete_row(self) -> None:
-        shape = self._get_active_table_shape()
-        if shape and shape.tbl and len(shape.tbl.get("rows", [])) > 1:
-            shape.tbl["rows"].pop()
-            self.show_status_message(safe_tr("删除行"))
-            self.set_modified(True)
-
-    def table_select(self) -> None:
-        shape = self._get_active_table_shape()
-        if shape:
-            self.show_status_message(safe_tr("选择表格"))
-
-    def table_borders_and_shading(self) -> None:
-        self.show_status_message(safe_tr("边框和底纹"))
-
     def _get_active_picture_shape(self) -> Any | None:
         ws = getattr(self.presentation_view, "workspace", None)
         if not ws or not ws.scene:
@@ -1176,33 +1017,76 @@ class LecternWindow(BaseOfficeWindow):
                 return shape
         return None
 
-    def insert_picture_from_file(self) -> None:
-        """Prompt for an image file and insert on current slide."""
-        from atboffice.modules.presentation.models.shape import Shape
+    def insert_picture_from_file(self, path: str | Path | None = None) -> Any:
+        """Insert > Picture > From File: prompt for an image and embed its bytes."""
+        from PySide6.QtWidgets import QFileDialog
+
+        from atboffice.modules.presentation.tools.pictures import (
+            IMAGE_EXTENSIONS,
+            picture_shape_from_file,
+        )
+
+        ws = getattr(self.presentation_view, "workspace", None)
+        if not ws or not ws.current_slide:
+            return None
+        if path is None:
+            patterns = " ".join(f"*.{ext}" for ext in IMAGE_EXTENSIONS)
+            chosen, _ = QFileDialog.getOpenFileName(
+                self,
+                safe_tr("插入图片"),
+                "",
+                safe_tr("所有图片") + f" ({patterns});;" + safe_tr("所有文件") + " (*)",
+            )
+            if not chosen:
+                return None
+            path = chosen
+        try:
+            shape = picture_shape_from_file(
+                self.presentation_view.presentation, ws.current_slide, path
+            )
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(
+                self,
+                safe_tr("插入图片"),
+                safe_tr("无法插入图片“{0}”：{1}").format(
+                    Path(path).name,
+                    safe_tr("文件不是可识别的图片格式")
+                    if isinstance(exc, ValueError)
+                    else exc.strerror or str(exc),
+                ),
+            )
+            return None
+        return self.add_shape(shape, message=safe_tr("已插入图片"))
+
+    def open_clipart_dialog(self) -> None:
+        """Insert > Picture > Clip Art: insert the chosen clip as an embedded picture."""
+        from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+
+        from atboffice.modules.common.clipart_dialog import ClipartDialog, render_clipart_pixmap
+        from atboffice.modules.presentation.tools.pictures import picture_shape_from_bytes
 
         ws = getattr(self.presentation_view, "workspace", None)
         if not ws or not ws.current_slide:
             return
-        slide = ws.current_slide
-        pid = f"pic_{len(slide.shapes) + 1}"
-        w, h = 300.0, 200.0
-        pic_shape = Shape(
-            id=pid,
-            type="image",
-            name=f"Picture {pid}",
-            x=(960.0 - w) / 2.0,
-            y=(540.0 - h) / 2.0,
-            w=w,
-            h=h,
+        dlg = ClipartDialog(parent=self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        clip = dlg.get_selected_clipart()
+        if clip is None:
+            return
+        buf = QByteArray()
+        dev = QBuffer(buf)
+        dev.open(QIODevice.OpenModeFlag.WriteOnly)
+        render_clipart_pixmap(clip, size=256).save(dev, "PNG")
+        dev.close()
+        shape = picture_shape_from_bytes(
+            self.presentation_view.presentation,
+            ws.current_slide,
+            bytes(buf.data()),
+            ext="png",
+            name=f"Clip Art {clip.name_zh}",
         )
-        slide.shapes.append(pic_shape)
-        ws.scene.load_slide(slide)
-        item = ws.scene.get_shape_item(pid)
-        if item:
-            ws.scene.clearSelection()
-            item.setSelected(True)
-        self.set_modified(True)
-        self.show_status_message(safe_tr("已插入图片"))
+        self.add_shape(shape, message=safe_tr("已插入剪贴画"))
 
     def rotate_selected_left(self) -> None:
         """Rotate selected object 90 degrees counter-clockwise."""
@@ -1233,12 +1117,6 @@ class LecternWindow(BaseOfficeWindow):
                     item.update()
         self.show_status_message(safe_tr("重设图片"))
         self.set_modified(True)
-
-    def toggle_picture_transparent(self) -> None:
-        self.show_status_message(safe_tr("设置透明色"))
-
-    def format_object_dialog(self) -> None:
-        self.show_status_message(safe_tr("设置对象格式"))
 
     def adjust_picture_contrast(self, delta: float) -> None:
         shape = self._get_active_picture_shape()
@@ -1287,9 +1165,6 @@ class LecternWindow(BaseOfficeWindow):
             self.show_status_message(safe_tr("艺术字垂直文字"))
             self.set_modified(True)
 
-    def open_wordart_format(self) -> None:
-        self.show_status_message(safe_tr("设置艺术字格式"))
-
     def set_wordart_shape(self, shape_name: str) -> None:
         shape = self._get_active_wordart_shape()
         if shape:
@@ -1316,16 +1191,6 @@ class LecternWindow(BaseOfficeWindow):
     def start_rehearse(self) -> None:
         self.start_slideshow()
         self.show_status_message(safe_tr("启动排练计时"))
-
-    def create_summary_slide(self) -> None:
-        self.add_new_slide()
-        self.show_status_message(safe_tr("生成摘要幻灯片"))
-
-    def edit_speaker_notes(self) -> None:
-        self.show_status_message(safe_tr("编辑演讲者备注"))
-
-    def open_transition_pane(self) -> None:
-        self.show_status_message(safe_tr("打开幻灯片切换窗格"))
 
     def _setup_lectern_task_panes(self) -> None:
         """Register Lectern specific task panes (Layout, Design, Color, Animation)."""
@@ -1466,7 +1331,7 @@ class LecternWindow(BaseOfficeWindow):
         self.set_modified(True)
 
     def _on_play_slide_animation(self) -> None:
-        self.show_status_message(safe_tr("播放幻灯片动画预览"))
+        self.lectern_commands.play_slide_animation()
 
     def open_slide_design_pane(self) -> None:
         self.show_status_message(safe_tr("打开幻灯片设计窗格"))
@@ -1523,13 +1388,11 @@ class LecternWindow(BaseOfficeWindow):
         dlg = ActionSettingsDialog(presentation=pres, parent=self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             settings = dlg.get_action_settings()
-            ws = getattr(self.presentation_view, "workspace", None)
-            if ws and ws.scene:
-                for item in ws.scene.selectedItems():
-                    if hasattr(item, "shape") and item.shape:
-                        item.shape.action_settings = settings
-            self.show_status_message(safe_tr("动作设置已应用"))
-            self.set_modified(True)
+            if self.lectern_commands.apply_action_settings(settings):
+                self.show_status_message(safe_tr("动作设置已应用"))
+                self.set_modified(True)
+            else:
+                self.show_status_message(safe_tr("请先选择要设置动作的对象"), 3000)
 
     def open_setup_show_dialog(self) -> None:
         from atboffice.modules.presentation.dialogs import SetUpShowDialog
@@ -1551,26 +1414,32 @@ class LecternWindow(BaseOfficeWindow):
             self.set_modified(True)
 
     def _create_photo_album_slides(self, spec: dict[str, Any]) -> None:
-        from atboffice.modules.presentation.models.shape import Shape
         from atboffice.modules.presentation.models.slide import Slide
+        from atboffice.modules.presentation.tools.pictures import picture_shape_from_file
 
         pres = getattr(self.presentation_view, "presentation", None)
         if not pres:
             return
 
         pics = spec.get("pictures", [])
-        for i, pic_path in enumerate(pics):
-            slide = Slide(id=f"slide_photo_{i + 1}", layout="blank")
-            shape = Shape.create_picture(
-                shape_id=f"pic_{i + 1}",
-                image_path=pic_path,
-                x=50.0,
-                y=50.0,
-                w=pres.w - 100.0,
-                h=pres.h - 100.0,
-            )
+        failed: list[str] = []
+        for pic_path in pics:
+            slide = Slide(id=f"sl_photo_{len(pres.slides) + 1}", layout="blank")
+            try:
+                shape = picture_shape_from_file(
+                    pres, slide, pic_path, box=(50.0, 50.0, pres.w - 100.0, pres.h - 100.0)
+                )
+            except (OSError, ValueError):
+                failed.append(Path(pic_path).name)
+                continue
             slide.shapes.append(shape)
             pres.slides.append(slide)
+        if failed:
+            QMessageBox.warning(
+                self,
+                safe_tr("相册"),
+                safe_tr("以下图片无法插入：\n{0}").format("\n".join(failed)),
+            )
 
         ws = getattr(self.presentation_view, "workspace", None)
         if ws and hasattr(ws, "update_slides"):
@@ -1591,27 +1460,6 @@ class LecternWindow(BaseOfficeWindow):
             self.show_status_message(safe_tr("填充效果已配置"))
             self.set_modified(True)
 
-    def insert_slide_master(self) -> None:
-        self.show_status_message(safe_tr("插入幻灯片母版"))
-
-    def insert_title_master(self) -> None:
-        self.show_status_message(safe_tr("插入标题母版"))
-
-    def preserve_master(self) -> None:
-        self.show_status_message(safe_tr("保留母版"))
-
-    def rename_master(self) -> None:
-        self.show_status_message(safe_tr("重命名母版"))
-
-    def delete_title_master(self) -> None:
-        self.show_status_message(safe_tr("删除母版"))
-
-    def move_para_up(self) -> None:
-        self.show_status_message(safe_tr("上移段落"))
-
-    def move_para_down(self) -> None:
-        self.show_status_message(safe_tr("下移段落"))
-
     def select_all(self) -> None:
         """Select all shapes on current slide or all text in active editor."""
         ws = getattr(self.presentation_view, "workspace", None)
@@ -1626,8 +1474,8 @@ class LecternWindow(BaseOfficeWindow):
         self._sync_toolbar_states()
 
     def save_as_dialog(self) -> bool:
-        """Prompt user with Save As dialog."""
-        return self.save_file()
+        """Prompt user with Save As dialog (never silently overwrites the current file)."""
+        return self.save_file_as()
 
     def _wire_toolbar_widgets(self) -> None:
         """Connect toolbar combo boxes, color pickers, and menus."""

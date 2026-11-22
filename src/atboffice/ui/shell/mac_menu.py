@@ -37,13 +37,16 @@ _APP_SPECIFIC_ACTIONS: dict[str, frozenset[str]] = {
     "format_paragraph": frozenset({"quire", "lectern"}),
     "bullets": frozenset({"quire", "lectern"}),
     "numbering": frozenset({"quire", "lectern"}),
-    "format_tabs": frozenset({"quire", "lectern"}),
+    "format_tabs": frozenset({"quire"}),
+    # No PowerPoint 2003 equivalent
+    "insert_page_break": frozenset({"quire", "ledger"}),
+    "format_borders": frozenset({"quire", "ledger"}),
     "insert_page_number": frozenset({"quire", "lectern"}),
     "insert_date_time": frozenset({"quire", "lectern"}),
     "tools_language": frozenset({"quire", "lectern"}),
     "view_ruler": frozenset({"quire", "lectern"}),
     # Spreadsheet items (some shared with the editor that has the same Office command)
-    "headerFooter": frozenset({"ledger", "quire"}),
+    "headerFooter": frozenset({"ledger", "quire", "lectern"}),
     "insertChart": frozenset({"ledger", "lectern"}),
     "insertComment": frozenset({"ledger", "quire"}),
     "condFormat": frozenset({"ledger"}),

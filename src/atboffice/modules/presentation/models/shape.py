@@ -226,6 +226,8 @@ class Shape:
     custom_path: dict[str, Any] | None = None
     cxn_start: dict[str, Any] | None = None
     cxn_end: dict[str, Any] | None = None
+    # Picture "Set Transparent Color": hex colour rendered fully transparent (a:clrChange)
+    clr_change: str | None = None
     # AltContentSource when loaded from an mc:AlternateContent block (verbatim write-back).
     alt_content: Any = field(default=None, repr=False, compare=False)
 
@@ -328,6 +330,8 @@ class Shape:
             d["cxn_start"] = copy.deepcopy(self.cxn_start)
         if self.cxn_end:
             d["cxn_end"] = copy.deepcopy(self.cxn_end)
+        if self.clr_change:
+            d["clr_change"] = self.clr_change
         return d
 
     @classmethod
@@ -362,4 +366,5 @@ class Shape:
             custom_path=copy.deepcopy(data.get("custom_path")),
             cxn_start=copy.deepcopy(data.get("cxn_start")) if data.get("cxn_start") else None,
             cxn_end=copy.deepcopy(data.get("cxn_end")) if data.get("cxn_end") else None,
+            clr_change=data.get("clr_change"),
         )

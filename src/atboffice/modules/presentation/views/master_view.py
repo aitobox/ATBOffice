@@ -138,9 +138,13 @@ class SlideMasterView(QWidget):
         self,
         presentation: Presentation | None = None,
         parent: QWidget | None = None,
+        scene: SlideScene | None = None,
     ) -> None:
         super().__init__(parent)
         self.presentation = presentation or Presentation()
+        # With a shared scene (the workspace's), window-level editing commands act on the
+        # master being edited; the scene is only loaded while this view is active.
+        self._shared_scene = scene is not None
         self.master_kind: str = "slide"  # "slide" or "title"
         self.master_slide: Slide | None = None
 
@@ -212,7 +216,7 @@ class SlideMasterView(QWidget):
         c_layout.setContentsMargins(0, 0, 0, 0)
         c_layout.setSpacing(0)
 
-        self.scene = SlideScene(parent=self)
+        self.scene = scene if scene is not None else SlideScene(parent=self)
         self.canvas_view = SlideCanvasView(self.scene, parent=self.canvas_container)
         c_layout.addWidget(self.canvas_view)
         self.splitter.addWidget(self.canvas_container)
@@ -226,8 +230,11 @@ class SlideMasterView(QWidget):
     def load_presentation(self, presentation: Presentation) -> None:
         """Load presentation document and prepare master slide."""
         self.presentation = presentation
+        self.master_slide = None
+        self.master_kind = "slide"
         self.refresh_master_list()
-        self.set_master_kind("slide")
+        if not self._shared_scene:
+            self.set_master_kind("slide")
 
     def refresh_master_list(self) -> None:
         """Populate left hierarchy list with slide master and title master."""
@@ -296,6 +303,8 @@ class SlideMasterView(QWidget):
         design = self.presentation.get_design_for_slide(None)
         design.title_decorations = None
         design.title_bg = None
+        # Do not sync the deleted title master back into the design
+        self.master_slide = None
         self.refresh_master_list()
         self.set_master_kind("slide")
 
