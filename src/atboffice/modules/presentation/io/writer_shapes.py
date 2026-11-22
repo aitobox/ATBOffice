@@ -98,7 +98,10 @@ def _cell_properties_xml(cell: dict, design: DesignTemplate | None) -> str:
             )
         elif fill.get("t") == "none":
             parts.append("<a:noFill/>")
-    return f"<a:tcPr>{''.join(parts)}</a:tcPr>" if parts else "<a:tcPr/>"
+    tx = cell.get("tx")
+    anchor = getattr(tx, "anchor", None) if tx is not None else None
+    attrs = f' anchor="{anchor}"' if anchor in ("ctr", "b") else ""
+    return f"<a:tcPr{attrs}>{''.join(parts)}</a:tcPr>" if parts else f"<a:tcPr{attrs}/>"
 
 
 def _cell_attrs(cell: dict) -> str:
@@ -224,8 +227,21 @@ def picture_to_xml(
     nv_pr = placeholder_nv_to_xml(shape)
     nv_pic_pr = f"<p:nvPicPr>{c_nv_pr}{c_nv_pic}{nv_pr}</p:nvPicPr>"
 
+    clr = (shape.clr_change or "").lstrip("#").upper()
+    blip_inner = (
+        f'<a:clrChange><a:clrFrom><a:srgbClr val="{clr}"/></a:clrFrom>'
+        f'<a:clrTo><a:srgbClr val="{clr}"><a:alpha val="0"/></a:srgbClr></a:clrTo>'
+        "</a:clrChange>"
+        if len(clr) == 6
+        else ""
+    )
+    blip = (
+        f'<a:blip r:embed="{embed_rid}">{blip_inner}</a:blip>'
+        if blip_inner
+        else f'<a:blip r:embed="{embed_rid}"/>'
+    )
     blip_fill = (
-        f'<p:blipFill><a:blip r:embed="{embed_rid}"/>{_src_rect_xml(shape)}'
+        f"<p:blipFill>{blip}{_src_rect_xml(shape)}"
         "<a:stretch><a:fillRect/></a:stretch></p:blipFill>"
     )
     sp_pr = shape_properties_to_xml(shape, design=design, tag="p:spPr")

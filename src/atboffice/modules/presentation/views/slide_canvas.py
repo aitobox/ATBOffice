@@ -890,7 +890,64 @@ class SlideCanvasView(QGraphicsView):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setFrameShape(QFrame.Shape.NoFrame)
+        self.show_rulers: bool = False
         self.retranslate_ui()
+
+    RULER_SIZE = 18
+
+    def set_rulers_visible(self, visible: bool) -> None:
+        """View > Ruler: horizontal and vertical inch rulers centred on the slide."""
+        self.show_rulers = bool(visible)
+        self.viewport().update()
+
+    def drawForeground(self, painter: QPainter, rect: QRectF) -> None:
+        super().drawForeground(painter, rect)
+        if self.show_rulers:
+            self._paint_rulers(painter)
+
+    def _paint_rulers(self, painter: QPainter) -> None:
+        scene = self.scene()
+        pres = getattr(scene, "presentation", None) if scene is not None else None
+        slide_w = float(getattr(pres, "w", 960.0) or 960.0)
+        slide_h = float(getattr(pres, "h", 540.0) or 540.0)
+        vp = self.viewport().rect()
+        size = self.RULER_SIZE
+        origin = self.mapFromScene(QPointF(slide_w / 2.0, slide_h / 2.0))
+        inch = self.mapFromScene(QPointF(72.0, 0.0)).x() - self.mapFromScene(QPointF(0, 0)).x()
+        if inch <= 4:
+            return
+        painter.save()
+        painter.resetTransform()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        band = QColor(236, 233, 216)
+        painter.fillRect(QRectF(0, 0, vp.width(), size), band)
+        painter.fillRect(QRectF(0, 0, size, vp.height()), band)
+        painter.setPen(QPen(QColor(128, 128, 128), 1))
+        painter.drawLine(0, size, vp.width(), size)
+        painter.drawLine(size, 0, size, vp.height())
+        font = painter.font()
+        font.setPointSizeF(7.0)
+        painter.setFont(font)
+        step = inch / 8.0
+        for axis in ("h", "v"):
+            o = origin.x() if axis == "h" else origin.y()
+            length = vp.width() if axis == "h" else vp.height()
+            k0 = int((size - o) // step) - 1
+            k1 = int((length - o) // step) + 1
+            for k in range(k0, k1 + 1):
+                pos = o + k * step
+                if pos < size or pos > length:
+                    continue
+                tick = 8 if k % 8 == 0 else (5 if k % 4 == 0 else 3)
+                if axis == "h":
+                    painter.drawLine(int(pos), size - tick, int(pos), size)
+                    if k % 8 == 0:
+                        painter.drawText(int(pos) + 2, 9, str(abs(k // 8)))
+                else:
+                    painter.drawLine(size - tick, int(pos), size, int(pos))
+                    if k % 8 == 0:
+                        painter.drawText(2, int(pos) - 2, str(abs(k // 8)))
+        painter.restore()
 
     @property
     def is_auto_fit(self) -> bool:

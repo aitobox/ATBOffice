@@ -1158,6 +1158,8 @@ class LecternWorkspace(QWidget):
         self._view_mode: str = "normal"
         self.master_kind: str = "slide"
         self.master_slide: Slide | None = None
+        # Hosts that provide their own task pane dock (LecternWindow) turn this off
+        self.use_embedded_task_pane: bool = True
         self._thumb_load_gen: int = 0
 
         self._init_ui()
@@ -1255,8 +1257,11 @@ class LecternWorkspace(QWidget):
         self.notes_view.slide_navigated.connect(self._on_notes_slide_navigated)
         self.center_stack.addWidget(self.notes_view)
 
-        self.master_view = SlideMasterView(presentation=self.presentation, parent=self.center_stack)
+        self.master_view = SlideMasterView(
+            presentation=self.presentation, parent=self.center_stack, scene=self.scene
+        )
         self.master_view.close_requested.connect(self.exit_master_view)
+        self.master_view.master_changed.connect(self._on_master_view_kind_changed)
         self.center_stack.addWidget(self.master_view)
 
         self.main_splitter.addWidget(self.center_stack)
@@ -1611,15 +1616,15 @@ class LecternWorkspace(QWidget):
             self.notes_view.set_current_slide_index(self.current_slide_index)
             self.center_stack.setCurrentWidget(self.notes_view)
         elif mode == "master":
-            self.left_pane.show()
+            self.left_pane.hide()
             self.task_pane.hide()
-            self.master_close_bar.show()
+            self.master_close_bar.hide()
             self.notes_pane.hide()
+            self.center_stack.setCurrentWidget(self.master_view)
             self.enter_master_view(self.master_kind)
-            self.center_stack.setCurrentWidget(self.center_normal_widget)
         else:  # "normal"
             self.left_pane.show()
-            self.task_pane.show()
+            self.task_pane.setVisible(self.use_embedded_task_pane)
             self.master_close_bar.hide()
             self.notes_pane.show()
             self._restore_normal_thumbnails()
@@ -1651,22 +1656,34 @@ class LecternWorkspace(QWidget):
         """Enter master editing view."""
         self._view_mode = "master"
         self.master_kind = master_kind
-        design = self.presentation.get_design_for_slide(
-            self.current_slide if self.presentation.slides else None
-        )
-        self.master_slide = build_master_slide(self.presentation, design, master_kind=master_kind)
-        self.scene.load_slide(self.master_slide)
-        self.canvas_view.zoom_fit()
-        self._refresh_master_thumbnails()
-        if hasattr(self, "master_view"):
-            self.master_view.set_master_kind(master_kind)
+        if self.center_stack.currentWidget() is not self.master_view:
+            self.center_stack.setCurrentWidget(self.master_view)
+            self.left_pane.hide()
+            self.task_pane.hide()
+            self.master_close_bar.hide()
+            self.notes_pane.hide()
+        # Drop the master from a previous session: syncing it again would revert design
+        # changes made since (e.g. a newly applied template).
+        self.master_view.master_slide = None
+        self.master_view.refresh_master_list()
+        self.master_view.set_master_kind(master_kind)
+        self.master_slide = self.master_view.master_slide
+
+    def _on_master_view_kind_changed(self, kind: str) -> None:
+        self.master_kind = kind
+        self.master_slide = self.master_view.master_slide
+
+    def set_embedded_task_pane_enabled(self, enabled: bool) -> None:
+        """Show the built-in task pane in Normal view (off when the host has a dock)."""
+        self.use_embedded_task_pane = enabled
+        self.task_pane.setVisible(enabled and self._view_mode == "normal")
 
     def exit_master_view(self) -> None:
         """Sync master edits back to design and return to normal view."""
-        if hasattr(self, "master_view") and self.master_view.master_slide:
+        if self.master_view.master_slide:
             sync_master_slide(self.presentation, self.master_view.master_slide)
-        elif self.master_slide:
-            sync_master_slide(self.presentation, self.master_slide)
+        self.master_view.master_slide = None
+        self.master_slide = None
         self.set_view_mode("normal")
 
     def _refresh_master_thumbnails(self) -> None:

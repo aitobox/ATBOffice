@@ -28,11 +28,12 @@ def safe_tr(text: str) -> str:
 class SheetSpellingDialog(QDialog):
     """Walk misspellings: Ignore Once / Ignore All / Add / Change / Change All."""
 
-    def __init__(self, checker: SheetSpellChecker, parent: QWidget | None = None) -> None:
+    def __init__(self, checker: SheetSpellChecker | Any, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.checker = checker
         self.issue: SpellIssue | None = None
         self.finished_clean = False
+        self.finished_message = safe_tr("已完成对整个工作表的拼写检查。")
 
         self.resize(460, 320)
         layout = QGridLayout(self)
@@ -88,7 +89,11 @@ class SheetSpellingDialog(QDialog):
             self.finished_clean = True
             return False
         issue = self.issue
-        self.lbl_cell.setText(safe_tr("单元格 {0}").format(cell_name(issue.r, issue.c)))
+        describe = getattr(self.checker, "describe_issue", None)
+        if describe is not None:
+            self.lbl_cell.setText(describe(issue))
+        else:
+            self.lbl_cell.setText(safe_tr("单元格 {0}").format(cell_name(issue.r, issue.c)))
         self.edit_word.setText(issue.word)
         self.list_suggest.clear()
         engine: Any = self.checker.engine
@@ -105,9 +110,7 @@ class SheetSpellingDialog(QDialog):
 
     def _finish_or_next(self) -> None:
         if not self._advance():
-            QMessageBox.information(
-                self, safe_tr("拼写检查"), safe_tr("已完成对整个工作表的拼写检查。")
-            )
+            QMessageBox.information(self, safe_tr("拼写检查"), self.finished_message)
             self.accept()
 
     def _on_suggestion(self, text: str) -> None:

@@ -1001,10 +1001,18 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                     color_hex = cf.foreground().color().name().upper()
 
                     fam = None
-                    if hasattr(cf, "fontFamilies") and cf.fontFamilies():
-                        fam = cf.fontFamilies()[0]
+                    # fontFamilies() crashes in PySide6 when the property is unset
+                    # (e.g. text typed into an empty box), so check it first.
+                    if cf.hasProperty(QTextFormat.Property.FontFamilies):
+                        families = cf.fontFamilies()
+                        if families:
+                            fam = families[0]
                     if not fam:
-                        fam = cf.fontFamily() or "Tahoma"
+                        fam = (
+                            cf.font().family()
+                            if cf.hasProperty(QTextFormat.Property.FontFamily)
+                            else None
+                        ) or "Tahoma"
 
                     runs.append(
                         TextRun(

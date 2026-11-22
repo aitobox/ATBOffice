@@ -274,6 +274,9 @@ class ShapeGraphicsItem(QGraphicsObject):
 
         # Multimedia preview state
         self._is_preview_playing: bool = False
+        # Table cell selection (r1, c1, r2, c2) and the cell being edited in place
+        self.table_sel: tuple[int, int, int, int] | None = None
+        self._editing_cell: dict[str, Any] | None = None
         self.retranslate_ui()
 
         # Handles
@@ -424,6 +427,12 @@ class ShapeGraphicsItem(QGraphicsObject):
         # 0.1 Multimedia / Picture rendering
         if self.model.media_item or self.model.type == "image":
             self._paint_media_or_image(painter, w, h)
+            pic_line = self.model.line
+            if pic_line is not None and pic_line.type != "none" and pic_line.width > 0:
+                painter.setPen(QPen(self._resolve_color(pic_line.color), pic_line.width))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                inset = pic_line.width / 2.0
+                painter.drawRect(QRectF(inset, inset, w - 2 * inset, h - 2 * inset))
             if self.isSelected():
                 sel_pen = QPen(QColor(0, 120, 215, 180), 1.0, Qt.PenStyle.DashLine)
                 painter.setPen(sel_pen)
@@ -434,6 +443,8 @@ class ShapeGraphicsItem(QGraphicsObject):
         # 0.2 Table rendering if shape is a table
         if self.model.type == "table" or bool(self.model.tbl):
             self._paint_table(painter, w, h)
+            if self.isSelected() and self.table_sel is not None:
+                self._paint_table_selection(painter, w)
             if self.isSelected():
                 sel_pen = QPen(QColor(0, 120, 215, 180), 1.0, Qt.PenStyle.DashLine)
                 painter.setPen(sel_pen)
@@ -549,6 +560,10 @@ class ShapeGraphicsItem(QGraphicsObject):
             painter.setPen(line_pen)
             painter.setBrush(fill_brush)
             painter.drawPath(path)
+            if line_obj is not None and line_obj.type != "none" and (
+                line_obj.head or line_obj.tail
+            ):
+                self._paint_line_ends(painter, path, line_obj, line_pen)
 
         # 3. Draw inner text if present and not currently being edited
         if not self.is_editing_text and self.model.text and self.model.text.plain_text.strip():
@@ -733,7 +748,106 @@ class ShapeGraphicsItem(QGraphicsObject):
                 self.update()
                 event.accept()
                 return
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and self.model.tbl
+            and not self.is_editing_text
+        ):
+            self._select_table_cell_at(
+                event.pos(), extend=bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+            )
         super().mousePressEvent(event)
+
+    def _select_table_cell_at(self, pos: QPointF, extend: bool = False) -> tuple[int, int] | None:
+        """Make the cell under ``pos`` the active cell (Shift extends the range)."""
+        from atboffice.modules.presentation.tools import table_ops
+
+        tbl = self.model.tbl or {}
+        hit = table_ops.hit_test(tbl, max(1.0, self.model.w), pos.x(), pos.y())
+        if hit is None:
+            return None
+        r, c = hit
+        if extend and self.table_sel is not None:
+            r1, c1, _r2, _c2 = self.table_sel
+            rect = (min(r1, r), min(c1, c), max(r1, r), max(c1, c))
+            self.table_sel = table_ops.expand_to_merges(tbl, rect)
+        else:
+            self.table_sel = table_ops.span_of(tbl, r, c)
+        self.update()
+        return hit
+
+    def _paint_table_selection(self, painter: QPainter, w: float) -> None:
+        from atboffice.modules.presentation.tools import table_ops
+
+        tbl = self.model.tbl or {}
+        n_rows, n_cols = table_ops.dims(tbl)
+        if not n_rows or not n_cols or self.table_sel is None:
+            return
+        r1, c1, r2, c2 = self.table_sel
+        r2, c2 = min(r2, n_rows - 1), min(c2, n_cols - 1)
+        if r1 > r2 or c1 > c2:
+            self.table_sel = None
+            return
+        x1, y1, _, _ = table_ops.cell_rect(tbl, w, r1, c1)
+        x2, y2, w2, h2 = table_ops.cell_rect(tbl, w, r2, c2)
+        painter.save()
+        painter.setPen(QPen(QColor(0, 120, 215), 1.5))
+        painter.setBrush(QBrush(QColor(0, 120, 215, 40)))
+        painter.drawRect(QRectF(x1, y1, (x2 + w2) - x1, (y2 + h2) - y1))
+        painter.restore()
+
+    def _paint_line_ends(
+        self, painter: QPainter, path: QPainterPath, line_obj: Any, pen: QPen
+    ) -> None:
+        """Draw DrawingML head/tail arrowheads at the ends of an open path."""
+        if path.isEmpty() or path.elementCount() < 2:
+            return
+        lw = max(1.0, float(getattr(line_obj, "width", 1.0) or 1.0))
+        size_map = {"sm": 2.0, "med": 3.0, "lg": 5.0}
+        painter.save()
+        painter.setPen(QPen(pen.color(), lw))
+        painter.setBrush(QBrush(pen.color()))
+        for end, pct, toward in ((line_obj.head, 0.0, 0.02), (line_obj.tail, 1.0, 0.98)):
+            if not isinstance(end, dict) or end.get("type") in (None, "none"):
+                continue
+            tip = path.pointAtPercent(pct)
+            back = path.pointAtPercent(toward)
+            dx, dy = tip.x() - back.x(), tip.y() - back.y()
+            length = math.hypot(dx, dy)
+            if length < 1e-6:
+                continue
+            ux, uy = dx / length, dy / length
+            alen = lw * size_map.get(str(end.get("len", "med")), 3.0) + 4.0
+            awid = lw * size_map.get(str(end.get("w", "med")), 3.0) / 2.0 + 2.5
+            base = QPointF(tip.x() - ux * alen, tip.y() - uy * alen)
+            left = QPointF(base.x() - uy * awid, base.y() + ux * awid)
+            right = QPointF(base.x() + uy * awid, base.y() - ux * awid)
+            kind = end.get("type")
+            head = QPainterPath()
+            if kind == "oval":
+                head.addEllipse(tip, awid, awid)
+            elif kind == "diamond":
+                head.moveTo(tip)
+                head.lineTo(left)
+                head.lineTo(QPointF(tip.x() - ux * alen * 2, tip.y() - uy * alen * 2))
+                head.lineTo(right)
+                head.closeSubpath()
+            elif kind == "arrow":  # open arrowhead
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                head.moveTo(left)
+                head.lineTo(tip)
+                head.lineTo(right)
+            else:  # triangle / stealth
+                notch = QPointF(tip.x() - ux * alen * 0.6, tip.y() - uy * alen * 0.6)
+                head.moveTo(tip)
+                head.lineTo(left)
+                if kind == "stealth":
+                    head.lineTo(notch)
+                head.lineTo(right)
+                head.closeSubpath()
+            painter.drawPath(head)
+            painter.setBrush(QBrush(pen.color()))
+        painter.restore()
 
     def _paint_media_or_image(self, painter: QPainter, w: float, h: float) -> None:
         """Paint image poster frame or multimedia playback preview overlay."""
@@ -1003,7 +1117,9 @@ class ShapeGraphicsItem(QGraphicsObject):
                 painter.setPen(QPen(QColor(180, 180, 180), 1.0))
                 painter.drawRect(cell_rect)
 
-            # Text
+            # Text (the in-place cell editor draws the cell being edited)
+            if cell is self._editing_cell:
+                continue
             cell_tx = cell.get("tx")
             if isinstance(cell_tx, dict):
                 try:
@@ -1170,9 +1286,35 @@ class ShapeGraphicsItem(QGraphicsObject):
                 return
 
             event.accept()
+            if self.model.tbl:
+                hit = self._select_table_cell_at(event.pos())
+                if hit is not None:
+                    self.start_cell_editing(*hit)
+                return
             self.start_text_editing()
         else:
             super().mouseDoubleClickEvent(event)
+
+    def start_cell_editing(self, row: int, col: int) -> Any:
+        """Edit the text of one table cell in place."""
+        from atboffice.modules.presentation.tools import table_ops
+        from atboffice.modules.presentation.views.table_cell_editor import TableCellEditorItem
+
+        if self.is_editing_text and self._text_editor is not None:
+            self._text_editor.commit_and_finish()
+        tbl = self.model.tbl or {}
+        n_rows, n_cols = table_ops.dims(tbl)
+        if not (0 <= row < n_rows and 0 <= col < n_cols):
+            return None
+        self.is_editing_text = True
+        self._update_handles_visibility(False)
+        editor = TableCellEditorItem(self, row, col)
+        self._editing_cell = editor.cell
+        self._text_editor = editor
+        self.table_sel = table_ops.span_of(tbl, editor.row, editor.col)
+        editor.setFocus()
+        self.update()
+        return editor
 
     def start_text_editing(self) -> Any:
         """Activate in-place rich text editor."""
@@ -1202,6 +1344,7 @@ class ShapeGraphicsItem(QGraphicsObject):
 
         self.is_editing_text = False
         self._cached_autofit = None
+        self._editing_cell = None
         ed = self._text_editor
         self._text_editor = None
         if ed is not None and shiboken6.isValid(ed):

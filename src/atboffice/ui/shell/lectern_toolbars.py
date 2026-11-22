@@ -1008,9 +1008,11 @@ class LecternToolBarCluster:
         draw_menu.addSeparator()
 
         align_sub = draw_menu.addMenu(safe_tr("对齐或分布(&A)"))
-        act_al = self._reg_act("alignLeft", "左对齐(&L)", "将选定对象靠左对齐")
-        act_ac = self._reg_act("alignCenter", "水平居中(&C)", "将选定对象水平居中")
-        act_ar = self._reg_act("alignRight", "右对齐(&R)", "将选定对象靠右对齐")
+        # Distinct IDs: "alignLeft"/"alignCenter"/"alignRight" are the checkable
+        # paragraph-alignment buttons (Ctrl+L/E/R) of the Formatting toolbar.
+        act_al = self._reg_act("draw_align_left", "左对齐(&L)", "将选定对象靠左对齐")
+        act_ac = self._reg_act("draw_align_center", "水平居中(&C)", "将选定对象水平居中")
+        act_ar = self._reg_act("draw_align_right", "右对齐(&R)", "将选定对象靠右对齐")
         align_sub.addAction(act_al)
         align_sub.addAction(act_ac)
         align_sub.addAction(act_ar)

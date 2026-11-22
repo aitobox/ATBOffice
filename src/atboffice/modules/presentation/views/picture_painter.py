@@ -90,11 +90,31 @@ def paint_picture(
     painter.setTransform(flip_transform(w, h, shape.flip_h, shape.flip_v), True)
     painter.setClipRect(QRectF(0.0, 0.0, w, h), Qt.ClipOperation.IntersectClip)
     target = picture_target_rect(shape.crop, w, h)
+    if getattr(shape, "clr_change", None):
+        picture = with_transparent_color(picture, shape.clr_change)
     if isinstance(picture, QPixmap):
         painter.drawPixmap(target, picture, QRectF(picture.rect()))
     else:
         painter.drawImage(target, picture, QRectF(picture.rect()))
     painter.restore()
+
+
+_TRANSPARENT_CACHE: dict[tuple[int, str], QPixmap] = {}
+
+
+def with_transparent_color(picture: QPixmap | QImage, color: str) -> QPixmap:
+    """Copy of ``picture`` with every pixel of ``color`` made fully transparent."""
+    key = (picture.cacheKey(), color.upper())
+    cached = _TRANSPARENT_CACHE.get(key)
+    if cached is not None:
+        return cached
+    pix = QPixmap(picture) if isinstance(picture, QPixmap) else QPixmap.fromImage(picture)
+    mask = pix.createMaskFromColor(QColor(color), Qt.MaskMode.MaskInColor)
+    pix.setMask(mask)
+    if len(_TRANSPARENT_CACHE) > 32:
+        _TRANSPARENT_CACHE.clear()
+    _TRANSPARENT_CACHE[key] = pix
+    return pix
 
 
 def paint_missing_picture(painter: QPainter, w: float, h: float) -> None:

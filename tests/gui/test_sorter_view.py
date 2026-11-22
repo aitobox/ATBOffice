@@ -239,12 +239,14 @@ def test_workspace_view_mode_switching(qtbot, sample_presentation: Presentation)
     # Switch to master view
     workspace.set_view_mode("master")
     assert workspace.view_mode == "master"
-    assert workspace.master_close_bar.isVisible()
+    assert workspace.center_stack.currentWidget() is workspace.master_view
+    assert workspace.master_view.toolbar.isVisible()
+    assert workspace.master_view.scene is workspace.scene
 
     # Exit master view
     workspace.exit_master_view()
     assert workspace.view_mode == "normal"
-    assert not workspace.master_close_bar.isVisible()
+    assert workspace.center_stack.currentWidget() is workspace.center_normal_widget
 
 
 def test_presentation_view_mode_api(qtbot, sample_presentation: Presentation) -> None:
