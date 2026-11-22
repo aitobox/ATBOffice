@@ -265,7 +265,9 @@ def test_excel_units_match_the_original() -> None:
         width_to_px,
     )
 
-    assert excel_mdw("Calibri", 11) == 7
+    # The original measures digits at runtime (L.measureDigit): Calibri 11 renders 8px digits
+    # in the reference captures (issue #441), not the 7px of its static fallback table.
+    assert excel_mdw("Calibri", 11) == 8
     assert excel_mdw("Arial", 10) == 7
     assert width_to_px(11.6745098039216, 7) == 82
     assert default_col_px(7, None, None) == 64

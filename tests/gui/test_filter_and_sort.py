@@ -205,12 +205,10 @@ class TestGridViewportFilterIntegration:
         vp.resize(800, 600)
         vp.toggle_auto_filter()
 
-        # Cell (0, 0):
-        # x is row_header_width (46) + col_pos(0) (0) = 46..46+64 = 110
-        # Button is 16px wide at right edge: 110 - 16 - 1 = 93..109
-        # y is col_header_height (22) + row_pos(0) (0) = 22..22+20 = 42
-        # Button is 16px high at bottom edge: 42 - 16 - 1 = 25..41
-        hit = vp.hit_test(100, 30)
+        # The 16px filter button sits in the bottom-right corner of cell (0, 0).
+        right = vp.row_header_width + 64
+        bottom = vp.col_header_height + 20
+        hit = vp.hit_test(right - 10, bottom - 10)
         assert hit.zone == HitZone.FILTER_BUTTON
         assert hit.col == 0
         assert hit.row == 0

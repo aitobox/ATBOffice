@@ -389,9 +389,9 @@ class SlideScene(QGraphicsScene):
 
         slide_rect = QRectF(0.0, 0.0, self.slide_width, self.slide_height)
 
-        # Drop shadow around slide
-        shadow_rect = slide_rect.translated(4.0, 4.0)
-        painter.fillRect(shadow_rect, QColor(0, 0, 0, 40))
+        # Hard 3px drop shadow (lectern/index.html `box-shadow: 3px 3px 0 var(--page-shadow)`)
+        shadow_rect = slide_rect.translated(3.0, 3.0)
+        painter.fillRect(shadow_rect, QColor("#59657C"))
 
         # Slide background fill
         design = None

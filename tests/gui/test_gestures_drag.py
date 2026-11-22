@@ -32,8 +32,9 @@ def test_spreadsheet_fill_handle_drag_escape_cancel(qtbot):
     viewport.model.set_cell(0, 0, CellData(value=999))
     viewport.selection.select_cell(0, 0)
 
-    # 1. Mouse press on fill handle (110, 42)
-    p1 = QPointF(110, 42)
+    # 1. Mouse press on the fill handle
+    fx, fy = viewport.row_header_width + 64, viewport.col_header_height + 20
+    p1 = QPointF(fx, fy)
     press_event = QMouseEvent(
         QMouseEvent.Type.MouseButtonPress,
         p1,
@@ -46,7 +47,7 @@ def test_spreadsheet_fill_handle_drag_escape_cancel(qtbot):
     assert viewport._drag_mode == HitZone.FILL_HANDLE
 
     # 2. Mouse move down to row 3
-    p2 = QPointF(110, 85)
+    p2 = QPointF(fx, fy + 43)
     move_event = QMouseEvent(
         QMouseEvent.Type.MouseMove,
         p2,

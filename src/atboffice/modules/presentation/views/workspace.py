@@ -703,25 +703,31 @@ class SpeakerNotesPane(QWidget):
 
     notes_changed = Signal(str)
 
+    # lectern/index.html: `.notes { height: 92px }`, `.notes-in { padding: 6px 10px;
+    # font: 12px Arial }` with a plain placeholder and no caption or frame.
+    DEFAULT_HEIGHT = 92
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._is_syncing = False
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(6, 4, 6, 4)
-        layout.setSpacing(4)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        header_layout = QHBoxLayout()
+        # Kept for accessibility/compatibility; the notes area itself carries no caption.
         self.title_label = QLabel(safe_tr("演讲者备注:"), self)
-        self.title_label.setFont(QFont("Arial", 9, QFont.Bold))
-        self.title_label.setStyleSheet("color: #555555;")
-        header_layout.addWidget(self.title_label)
-        header_layout.addStretch()
-        layout.addLayout(header_layout)
+        self.title_label.setVisible(False)
 
         self.editor = QTextEdit(self)
-        self.editor.setFont(QFont("Arial", 10))
-        self.editor.setPlaceholderText(safe_tr("单击此处添加备注..."))
+        self.editor.setAccessibleName(safe_tr("演讲者备注"))
+        notes_font = QFont("Arial")
+        notes_font.setPixelSize(12)
+        self.editor.setFont(notes_font)
+        self.editor.setFrameShape(QFrame.Shape.NoFrame)
+        self.editor.setViewportMargins(10, 6, 10, 6)
+        self.editor.setStyleSheet("QTextEdit { background: #FFFFFF; }")
+        self.editor.setPlaceholderText(safe_tr("Click to add notes"))
         self.editor.textChanged.connect(self._on_text_changed)
         layout.addWidget(self.editor)
 
@@ -742,9 +748,13 @@ class SpeakerNotesPane(QWidget):
         if not self._is_syncing:
             self.notes_changed.emit(self.editor.toPlainText())
 
+    def sizeHint(self) -> QSize:
+        return QSize(super().sizeHint().width(), self.DEFAULT_HEIGHT)
+
     def retranslate_ui(self) -> None:
         self.title_label.setText(safe_tr("演讲者备注:"))
-        self.editor.setPlaceholderText(safe_tr("单击此处添加备注..."))
+        self.editor.setAccessibleName(safe_tr("演讲者备注"))
+        self.editor.setPlaceholderText(safe_tr("Click to add notes"))
 
 
 class SlideLayoutPane(QWidget):
@@ -1223,8 +1233,10 @@ class LecternWorkspace(QWidget):
         self.notes_pane.setMinimumHeight(60)
         self.center_splitter.addWidget(self.notes_pane)
 
-        self.center_splitter.setStretchFactor(0, 4)
-        self.center_splitter.setStretchFactor(1, 1)
+        # The slide area takes all extra space; notes keep their 92px default (5px handle).
+        self.center_splitter.setHandleWidth(5)
+        self.center_splitter.setStretchFactor(0, 1)
+        self.center_splitter.setStretchFactor(1, 0)
 
         center_normal_layout.addWidget(self.center_splitter)
         self.center_stack.addWidget(self.center_normal_widget)

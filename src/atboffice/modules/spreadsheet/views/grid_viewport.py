@@ -34,6 +34,7 @@ from PySide6.QtGui import (
     QLinearGradient,
     QMouseEvent,
     QPainter,
+    QPainterPath,
     QPaintEvent,
     QPen,
     QPolygonF,
@@ -168,6 +169,7 @@ class GridViewport(QAbstractScrollArea):
 
     cell_selected = Signal(int, int)
     cell_double_clicked = Signal(int, int)
+    header_dimensions_changed = Signal(int, int)
     view_mode_changed = Signal(str)
     pivot_refresh_requested = Signal(object)
     pivot_field_list_requested = Signal(object)
@@ -175,13 +177,20 @@ class GridViewport(QAbstractScrollArea):
     zoom_changed = Signal(float)
 
     # Classic Office / Luna color palette
-    COLOR_GRIDLINE: Final[QColor] = QColor(208, 215, 229)
-    COLOR_HDR_BG: Final[QColor] = QColor(236, 233, 216)
-    COLOR_HDR_SEL_BG: Final[QColor] = QColor(254, 216, 126)
-    COLOR_HDR_BORDER: Final[QColor] = QColor(158, 182, 206)
+    # Colours follow ledger/js/render.js COL (Excel 2007-style headers and grid).
+    COLOR_GRIDLINE: Final[QColor] = QColor("#C0C0C0")
+    COLOR_HDR_BG: Final[QColor] = QColor("#E4ECF7")
+    COLOR_HDR_TOP: Final[QColor] = QColor("#FFFFFF")
+    COLOR_HDR_SEL_BG: Final[QColor] = QColor("#F8C55E")
+    COLOR_HDR_SEL_TOP: Final[QColor] = QColor("#FFE7A2")
+    COLOR_HDR_BORDER: Final[QColor] = QColor("#9EB6CE")
+    COLOR_HDR_SEL_BORDER: Final[QColor] = QColor("#D7A43C")
     COLOR_HDR_TEXT: Final[QColor] = QColor(0, 0, 0)
-    COLOR_SELECTION: Final[QColor] = QColor(49, 74, 160, 45)
-    COLOR_ACTIVE_BORDER: Final[QColor] = QColor(33, 66, 131)
+    COLOR_SELECTION: Final[QColor] = QColor(49, 74, 160, 51)
+    COLOR_ACTIVE_BORDER: Final[QColor] = QColor("#000000")
+    # Header geometry minimums (logical px), as in render.js RD.frame.
+    MIN_ROW_HEADER_WIDTH: Final[int] = 25
+    MIN_COL_HEADER_HEIGHT: Final[int] = 17
     COLOR_FILL_HANDLE: Final[QColor] = QColor(0, 0, 0)
 
     def __init__(
@@ -199,8 +208,11 @@ class GridViewport(QAbstractScrollArea):
         self.object_layer: Any | None = None
         self._internal_clipboard: dict[str, Any] | None = None
 
-        self.row_header_width: int = 46
-        self.col_header_height: int = 22
+        # Recomputed from the visible rows by update_header_dimensions().
+        self.row_header_width: int = self.MIN_ROW_HEADER_WIDTH
+        self.col_header_height: int = max(
+            self.MIN_COL_HEADER_HEIGHT, int(self.geometry_mapper.default_row_height)
+        )
 
         # Interaction drag state
         self._drag_mode: HitZone = HitZone.NONE
@@ -494,6 +506,7 @@ class GridViewport(QAbstractScrollArea):
         self.model = model
         self.selection = selection
         self.geometry_mapper = model.geometry
+        self.update_header_dimensions()
         self._apply_sheet_view_state()
         self._update_scrollbars()
         self.viewport().update()
@@ -1001,6 +1014,8 @@ class GridViewport(QAbstractScrollArea):
                 painter.end()
 
     def _render_paint_event(self, painter: QPainter, event: QPaintEvent) -> None:
+        # Header sizes follow the visible rows (wider when row numbers gain a digit).
+        self.update_header_dimensions()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
         # All grid geometry is in unzoomed pixels; scale it once here
         # (ledger/js/render.js multiplies the same geometry by the zoom).
@@ -1134,7 +1149,11 @@ class GridViewport(QAbstractScrollArea):
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(self.COLOR_SELECTION))
 
+        # Like render.js: single cells are not shaded and the active cell stays white.
+        act_r, act_c = self.selection.active_cell
         for rg in self.selection.ranges:
+            if rg.min_r == rg.max_r and rg.min_c == rg.max_c:
+                continue
             if rg.max_r < pr_start or rg.min_r > pr_end:
                 continue
             if rg.max_c < pc_start or rg.min_c > pc_end:
@@ -1159,7 +1178,16 @@ class GridViewport(QAbstractScrollArea):
                 + self.geometry_mapper.row_pos(rg.max_r + 1)
                 - psy
             )
-            painter.drawRect(QRect(x1, y1, x2 - x1, y2 - y1))
+            shade = QPainterPath()
+            shade.setFillRule(Qt.FillRule.OddEvenFill)
+            shade.addRect(QRectF(x1, y1, x2 - x1 - 1, y2 - y1 - 1))
+            if rg.contains(act_r, act_c):
+                ax1 = self.row_header_width + self.geometry_mapper.col_pos(act_c) - psx
+                ay1 = self.col_header_height + self.geometry_mapper.row_pos(act_r) - psy
+                ax2 = self.row_header_width + self.geometry_mapper.col_pos(act_c + 1) - psx
+                ay2 = self.col_header_height + self.geometry_mapper.row_pos(act_r + 1) - psy
+                shade.addRect(QRectF(ax1, ay1, ax2 - ax1, ay2 - ay1))
+            painter.drawPath(shade)
         painter.restore()
 
         # 2b. Draw AutoFill Drag Preview Rectangle
@@ -2889,6 +2917,51 @@ class GridViewport(QAbstractScrollArea):
 
         painter.restore()
 
+    def _header_font(self) -> QFont:
+        """Header label font: Arial 10pt (13.33 css px), as render.js ``hdrFont``."""
+        font = QFont("Arial")
+        font.setPixelSize(13)
+        return font
+
+    def update_header_dimensions(self) -> bool:
+        """Size the headers like render.js RD.frame; return True when they changed.
+
+        Row header width fits the last visible row number plus 10px (at least 25px);
+        the column header is as tall as a default row (at least 17px).
+        """
+        model = getattr(self, "model", None)
+        geo = getattr(self, "geometry_mapper", None)
+        if model is None or geo is None:
+            return False
+        z = self.zoom if self.zoom > 0 else 1.0
+        view_h = self.viewport().height() / z
+        scroll_y = max(0, self.verticalScrollBar().value())
+        last_row = geo.find_row_at(int(scroll_y + view_h)) + 2
+        metrics = QFontMetrics(self._header_font())
+        label_w = metrics.horizontalAdvance(str(last_row))
+        width = max(self.MIN_ROW_HEADER_WIDTH, math.ceil(label_w + 10))
+        height = max(self.MIN_COL_HEADER_HEIGHT, int(round(geo.default_row_height)))
+        changed = (width, height) != (self.row_header_width, self.col_header_height)
+        self.row_header_width = width
+        self.col_header_height = height
+        if changed:
+            self.header_dimensions_changed.emit(width, height)
+        return changed
+
+    def _fill_header_cell(
+        self, painter: QPainter, rect: QRect, selected: bool, vertical: bool
+    ) -> None:
+        """Fill a header cell with the render.js gradient (top-down or left-right)."""
+        if vertical:
+            grad = QLinearGradient(0, rect.top(), 0, rect.bottom())
+        else:
+            grad = QLinearGradient(rect.left(), 0, rect.right(), 0)
+        top = self.COLOR_HDR_SEL_TOP if selected else self.COLOR_HDR_TOP
+        bottom = self.COLOR_HDR_SEL_BG if selected else self.COLOR_HDR_BG
+        grad.setColorAt(0.0, top)
+        grad.setColorAt(1.0, bottom)
+        painter.fillRect(rect, QBrush(grad))
+
     def _paint_headers(
         self,
         painter: QPainter,
@@ -2907,13 +2980,13 @@ class GridViewport(QAbstractScrollArea):
         fz_r_h = self.geometry_mapper.row_pos(fz_r) if fz_r > 0 else 0
         fz_c_w = self.geometry_mapper.col_pos(fz_c) if fz_c > 0 else 0
 
+        painter.setFont(self._header_font())
         # A. Top-Left Corner Box
-        painter.fillRect(
-            0,
-            0,
-            self.row_header_width,
-            self.col_header_height,
-            self.COLOR_HDR_BG,
+        self._fill_header_cell(
+            painter,
+            QRect(0, 0, self.row_header_width, self.col_header_height),
+            False,
+            vertical=True,
         )
         painter.setPen(QPen(self.COLOR_HDR_BORDER, 1))
         painter.drawRect(
@@ -2953,8 +3026,9 @@ class GridViewport(QAbstractScrollArea):
                 continue
 
             is_sel = self.selection.is_col_selected(c)
-            bg = self.COLOR_HDR_SEL_BG if is_sel else self.COLOR_HDR_BG
-            painter.fillRect(cx, 0, cw, self.col_header_height, bg)
+            self._fill_header_cell(
+                painter, QRect(cx, 0, cw, self.col_header_height), is_sel, vertical=True
+            )
 
             painter.setPen(QPen(self.COLOR_HDR_BORDER, 1))
             painter.drawLine(
@@ -2994,8 +3068,9 @@ class GridViewport(QAbstractScrollArea):
                     continue
 
                 is_sel = self.selection.is_col_selected(c)
-                bg = self.COLOR_HDR_SEL_BG if is_sel else self.COLOR_HDR_BG
-                painter.fillRect(cx, 0, cw, self.col_header_height, bg)
+                self._fill_header_cell(
+                    painter, QRect(cx, 0, cw, self.col_header_height), is_sel, vertical=True
+                )
 
                 painter.setPen(QPen(self.COLOR_HDR_BORDER, 1))
                 painter.drawLine(
@@ -3040,8 +3115,9 @@ class GridViewport(QAbstractScrollArea):
                 continue
 
             is_sel = self.selection.is_row_selected(r)
-            bg = self.COLOR_HDR_SEL_BG if is_sel else self.COLOR_HDR_BG
-            painter.fillRect(0, ry, self.row_header_width, rh, bg)
+            self._fill_header_cell(
+                painter, QRect(0, ry, self.row_header_width, rh), is_sel, vertical=False
+            )
 
             painter.setPen(QPen(self.COLOR_HDR_BORDER, 1))
             painter.drawLine(
@@ -3057,8 +3133,8 @@ class GridViewport(QAbstractScrollArea):
             # Header text (1-based row number)
             painter.setPen(self.COLOR_HDR_TEXT)
             painter.drawText(
-                QRect(0, ry, self.row_header_width - 4, rh),
-                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
+                QRect(0, ry, self.row_header_width, rh),
+                Qt.AlignmentFlag.AlignCenter,
                 str(r + 1),
             )
         painter.restore()
@@ -3081,8 +3157,9 @@ class GridViewport(QAbstractScrollArea):
                     continue
 
                 is_sel = self.selection.is_row_selected(r)
-                bg = self.COLOR_HDR_SEL_BG if is_sel else self.COLOR_HDR_BG
-                painter.fillRect(0, ry, self.row_header_width, rh, bg)
+                self._fill_header_cell(
+                    painter, QRect(0, ry, self.row_header_width, rh), is_sel, vertical=False
+                )
 
                 painter.setPen(QPen(self.COLOR_HDR_BORDER, 1))
                 painter.drawLine(
@@ -3097,8 +3174,8 @@ class GridViewport(QAbstractScrollArea):
 
                 painter.setPen(self.COLOR_HDR_TEXT)
                 painter.drawText(
-                    QRect(0, ry, self.row_header_width - 4, rh),
-                    Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
+                    QRect(0, ry, self.row_header_width, rh),
+                    Qt.AlignmentFlag.AlignCenter,
                     str(r + 1),
                 )
             painter.restore()

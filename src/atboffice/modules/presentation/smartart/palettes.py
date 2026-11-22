@@ -93,8 +93,68 @@ def style_refs(style_id: str) -> list[int]:
     return list(style_info(style_id)[2])
 
 
+THEME_ACCENTS: tuple[str, ...] = (
+    "accent1", "accent2", "accent3", "accent4", "accent5", "accent6"
+)
+
+
+def _contrast_text(hex_color: str, pal: dict[str, str]) -> str:
+    """Theme text colour readable on ``hex_color`` (dk1 on light, lt1 on dark)."""
+    h = hex_color.lstrip("#")
+    try:
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    except ValueError:
+        return pal.get("dk1", "#000000")
+    lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0
+    return pal.get("dk1", "#000000") if lum > 0.6 else pal.get("lt1", "#FFFFFF")
+
+
+def _theme_color_spec(colors_id: str, pal: dict[str, str]) -> dict[str, Any] | None:
+    """Theme-based colours of imported diagrams (lectern/js/diagram.js DG.colorSpec).
+
+    ``accentN`` colours every item in one accent, ``colorful`` gives each item its own
+    accent, ``dark2`` uses the dark text colour, ``accentN-accentM`` spans two accents.
+    """
+    ref, _, kind = (colors_id or "accent1").partition("-")
+    if ref == "colorful":
+        cols = [pal[a] for a in THEME_ACCENTS if a in pal]
+        if not cols:
+            return None
+        return {
+            "name": "Colorful",
+            "cols": cols,
+            "meth": "cycle",
+            "base": pal.get("accent1", cols[0]),
+            "texts": [_contrast_text(c, pal) for c in cols],
+        }
+    if ref not in THEME_ACCENTS and ref != "dark2":
+        return None
+    base = pal.get("dk2" if ref == "dark2" else ref)
+    if not base:
+        return None
+    if kind in THEME_ACCENTS and pal.get(kind):
+        return {
+            "name": colors_id,
+            "cols": [base, pal[kind]],
+            "meth": "span",
+            "base": base,
+            "texts": [_contrast_text(base, pal)],
+        }
+    return {
+        "name": colors_id,
+        "cols": [base],
+        "meth": "repeat",
+        "base": base,
+        "texts": [_contrast_text(base, pal)],
+    }
+
+
 def color_spec(colors_id: str, pal: Any = None) -> dict[str, Any]:
     """Resolve color specification: colors, method, base color, and text colors."""
+    if colors_id not in PALETTES and isinstance(pal, dict):
+        themed = _theme_color_spec(colors_id, pal)
+        if themed is not None:
+            return themed
     p = PALETTES.get(colors_id) or PALETTES[DEFAULT_COLORS]
     name, cols, meth = p[0], list(p[1]), p[2]
     text_color = p[3] if len(p) > 3 else "#FFFFFF"
@@ -112,6 +172,8 @@ def paint_shape(s: dict[str, Any], sa: dict[str, Any], pal: Any = None) -> dict[
     """Calculate fill, line, shadow, and text formatting for a laid-out SmartArt shape."""
     colors_id = sa.get("colors") or DEFAULT_COLORS
     style_id = sa.get("style") or DEFAULT_STYLE
+    if pal is None:
+        pal = sa.get("theme")
     spec = color_spec(colors_id, pal)
 
     cols = spec["cols"]

@@ -189,14 +189,14 @@ def test_fill_handle_hit_test(qtbot):
 
     viewport.selection.select_cell(0, 0)
     # Cell (0, 0) bounds
-    # row_header_width = 46, col_header_height = 22
-    # col_pos(1) = 64, row_pos(1) = 20
-    # Fill handle is at (46 + 64, 22 + 20) = (110, 42)
-    hit = viewport.hit_test(110, 42)
+    # Fill handle sits at the cell's bottom-right corner:
+    # (row_header_width + col_pos(1), col_header_height + row_pos(1)).
+    fx, fy = viewport.row_header_width + 64, viewport.col_header_height + 20
+    hit = viewport.hit_test(fx, fy)
     assert hit.zone == HitZone.FILL_HANDLE
 
     # Outside threshold (+10px) should not be FILL_HANDLE
-    hit_outside = viewport.hit_test(125, 42)
+    hit_outside = viewport.hit_test(fx + 15, fy)
     assert hit_outside.zone != HitZone.FILL_HANDLE
 
 
@@ -208,8 +208,8 @@ def test_fill_handle_hover_cursor(qtbot):
     viewport.show()
 
     viewport.selection.select_cell(0, 0)
-    # Trigger mouseMove at fill handle position (110, 42)
-    pos = QPointF(110, 42)
+    # Trigger mouseMove at the fill handle position
+    pos = QPointF(viewport.row_header_width + 64, viewport.col_header_height + 20)
     event = QMouseEvent(
         QMouseEvent.Type.MouseMove,
         pos,
@@ -234,7 +234,8 @@ def test_fill_handle_drag_and_release(qtbot):
     viewport.selection.select_cell(0, 0)
 
     # 1. Mouse Press on fill handle
-    p1 = QPointF(110, 42)
+    fx, fy = viewport.row_header_width + 64, viewport.col_header_height + 20
+    p1 = QPointF(fx, fy)
     press_event = QMouseEvent(
         QMouseEvent.Type.MouseButtonPress,
         p1,
@@ -246,8 +247,8 @@ def test_fill_handle_drag_and_release(qtbot):
     viewport.mousePressEvent(press_event)
     assert viewport._drag_mode == HitZone.FILL_HANDLE
 
-    # 2. Mouse Move down to row 2 (y around 22 + 3 * 20 = 82)
-    p2 = QPointF(110, 75)
+    # 2. Mouse Move down into row 2
+    p2 = QPointF(fx, fy + 33)
     move_event = QMouseEvent(
         QMouseEvent.Type.MouseMove,
         p2,

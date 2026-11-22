@@ -116,6 +116,7 @@ class SpreadsheetView(QWidget):
         )
         self.grid.horizontalScrollBar().valueChanged.connect(self._sync_object_layer_scroll)
         self.grid.verticalScrollBar().valueChanged.connect(self._sync_object_layer_scroll)
+        self.grid.header_dimensions_changed.connect(self.object_layer.set_header_dimensions)
 
         self._forward_selection_signals(active_sel)
         self.retranslate_ui()
