@@ -21,6 +21,7 @@ from PySide6.QtGui import (
     QContextMenuEvent,
     QFont,
     QKeyEvent,
+    QKeySequence,
     QMouseEvent,
     QPainter,
     QPen,
@@ -388,7 +389,10 @@ class SpreadsheetObjectLayer(QWidget):
         self._drag_start_rect: QRect | None = None
 
         self.setMouseTracking(True)
-        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        # Never take focus on its own: the layer covers the whole grid viewport, so
+        # click focus would trap every keystroke meant for the grid. Focus is given
+        # explicitly when a floating object is selected (see mousePressEvent).
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         # Transparent background for non-object regions
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
 
@@ -748,12 +752,14 @@ class SpreadsheetObjectLayer(QWidget):
                 self._drag_mode = handle
                 self._drag_start_pos = pos
                 self._drag_start_rect = self.get_object_rect(hit_obj)
+                self.setFocus(Qt.FocusReason.MouseFocusReason)
                 event.accept()
                 return
             else:
                 # Clicked empty grid space: deselect and ignore event so grid viewport handles it
                 if self.selected_object is not None:
                     self.select_object(None)
+                self._return_focus_to_grid()
                 event.ignore()
                 super().mousePressEvent(event)
         elif event.button() == Qt.MouseButton.RightButton:
@@ -871,20 +877,48 @@ class SpreadsheetObjectLayer(QWidget):
         event.ignore()
         super().mouseReleaseEvent(event)
 
+    def _owner_grid(self) -> QWidget | None:
+        """Return the grid viewport widget whose viewport hosts this layer."""
+        widget = self.parentWidget()
+        while widget is not None:
+            if getattr(widget, "object_layer", None) is self:
+                return widget
+            widget = widget.parentWidget()
+        return None
+
+    def _return_focus_to_grid(self) -> QWidget | None:
+        """Give keyboard focus back to the owning grid if this layer holds it."""
+        grid = self._owner_grid()
+        if grid is not None and self.hasFocus():
+            grid.setFocus(Qt.FocusReason.OtherFocusReason)
+        return grid
+
     def keyPressEvent(self, event: QKeyEvent) -> None:
-        if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
-            if self.delete_selected():
+        if self.selected_object is not None:
+            if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
+                if self.delete_selected():
+                    event.accept()
+                    return
+            elif event.matches(QKeySequence.StandardKey.Copy):
+                self.copy_selected()
                 event.accept()
                 return
-        elif event.matches(QKeyEvent.StandardKey.Copy):
-            self.copy_selected()
-            event.accept()
-            return
-        elif event.matches(QKeyEvent.StandardKey.Paste):
-            if self.paste() is not None:
+            elif event.matches(QKeySequence.StandardKey.Paste):
+                if self.paste() is not None:
+                    event.accept()
+                    return
+            elif event.key() == Qt.Key.Key_Escape:
+                self.select_object(None)
+                self._return_focus_to_grid()
                 event.accept()
                 return
 
+        # Anything the layer does not handle belongs to the grid (typing, navigation,
+        # cell copy/paste): hand focus back and forward the keystroke.
+        grid = self._return_focus_to_grid()
+        if grid is not None:
+            QCoreApplication.sendEvent(grid, event)
+            return
         super().keyPressEvent(event)
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:

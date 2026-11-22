@@ -705,6 +705,15 @@ class SheetDataModel:
         self.dirty = True
         self.cells[(r, c)] = cell
 
+    def ensure_cell(self, r: int, c: int) -> CellData:
+        """Return the cell at (r, c), creating and storing an empty one if absent."""
+        cell = self.cells.get((r, c))
+        if cell is None:
+            cell = CellData()
+            self.cells[(r, c)] = cell
+            self.dirty = True
+        return cell
+
     def get_cell_value(self, r: int, c: int, default: Any = None) -> Any:
         cell = self.cells.get((r, c))
         return cell.value if cell is not None else default

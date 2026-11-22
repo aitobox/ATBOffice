@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QTabWidget
 from atboffice.core.i18n import get_i18n_manager
 from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.modules.presentation.view import PresentationView
+from atboffice.modules.spreadsheet.models.sheet_model import CellData
 from atboffice.modules.spreadsheet.view import SpreadsheetView
 from atboffice.modules.writer.view import WriterView
 from atboffice.ui.components.color_picker import ColorPickerButton
@@ -64,10 +65,10 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status_bar)
 
         # Connect spreadsheet selection and mode to status bar
-        self.spreadsheet_view.selection.selection_changed.connect(
+        self.spreadsheet_view.selection_changed.connect(
             self._update_spreadsheet_status
         )
-        self.spreadsheet_view.selection.active_cell_changed.connect(
+        self.spreadsheet_view.active_cell_changed.connect(
             self._update_spreadsheet_status
         )
         self.spreadsheet_view.editor_controller.mode_changed.connect(
@@ -430,48 +431,49 @@ class MainWindow(QMainWindow):
 
     def _get_selected_cell_range(self) -> tuple[int, int, int, int]:
         sel = self.spreadsheet_view.selection
-        box = sel.bounding_box
-        if box:
-            return (box.top, box.left, box.bottom, box.right)
-        return (sel.active_row, sel.active_col, sel.active_row, sel.active_col)
+        pr = sel.primary_range
+        if pr is not None:
+            return (pr.min_r, pr.min_c, pr.max_r, pr.max_c)
+        r, c = sel.active_cell
+        return (r, c, r, c)
 
     def _toggle_bold(self) -> None:
         r1, c1, r2, c2 = self._get_selected_cell_range()
         model = self.spreadsheet_view.model
-        active_cell = model.get_cell(r1, c1)
+        active_cell = model.get_cell(r1, c1) or CellData()
         new_val = not active_cell.bold
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
-                cell = model.get_cell(r, c)
+                cell = model.ensure_cell(r, c)
                 cell.bold = new_val
                 model.set_cell(r, c, cell)
-        self.spreadsheet_view.viewport.update()
+        self.spreadsheet_view.grid.viewport().update()
         self.act_bold.setChecked(new_val)
 
     def _toggle_italic(self) -> None:
         r1, c1, r2, c2 = self._get_selected_cell_range()
         model = self.spreadsheet_view.model
-        active_cell = model.get_cell(r1, c1)
+        active_cell = model.get_cell(r1, c1) or CellData()
         new_val = not active_cell.italic
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
-                cell = model.get_cell(r, c)
+                cell = model.ensure_cell(r, c)
                 cell.italic = new_val
                 model.set_cell(r, c, cell)
-        self.spreadsheet_view.viewport.update()
+        self.spreadsheet_view.grid.viewport().update()
         self.act_italic.setChecked(new_val)
 
     def _toggle_underline(self) -> None:
         r1, c1, r2, c2 = self._get_selected_cell_range()
         model = self.spreadsheet_view.model
-        active_cell = model.get_cell(r1, c1)
+        active_cell = model.get_cell(r1, c1) or CellData()
         new_val = not active_cell.underline
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
-                cell = model.get_cell(r, c)
+                cell = model.ensure_cell(r, c)
                 cell.underline = new_val
                 model.set_cell(r, c, cell)
-        self.spreadsheet_view.viewport.update()
+        self.spreadsheet_view.grid.viewport().update()
         self.act_underline.setChecked(new_val)
 
     def _apply_font_color(self, color: str) -> None:
@@ -480,10 +482,10 @@ class MainWindow(QMainWindow):
         fg = None if color == "auto" else color
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
-                cell = model.get_cell(r, c)
+                cell = model.ensure_cell(r, c)
                 cell.fg_color = fg
                 model.set_cell(r, c, cell)
-        self.spreadsheet_view.viewport.update()
+        self.spreadsheet_view.grid.viewport().update()
 
     def _apply_fill_color(self, color: str) -> None:
         r1, c1, r2, c2 = self._get_selected_cell_range()
@@ -491,10 +493,10 @@ class MainWindow(QMainWindow):
         bg = None if color in ("none", "auto") else color
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
-                cell = model.get_cell(r, c)
+                cell = model.ensure_cell(r, c)
                 cell.bg_color = bg
                 model.set_cell(r, c, cell)
-        self.spreadsheet_view.viewport.update()
+        self.spreadsheet_view.grid.viewport().update()
 
     def _on_locale_changed(self, _locale: str) -> None:
         """Handle locale switch."""

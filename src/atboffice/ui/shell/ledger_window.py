@@ -105,8 +105,8 @@ class LedgerWindow(BaseOfficeWindow):
         self.setStatusBar(self.status_bar)
 
         # 6. Connect spreadsheet selection and mode signals to status bar & dirty hook
-        self.spreadsheet_view.selection.selection_changed.connect(self._update_spreadsheet_status)
-        self.spreadsheet_view.selection.active_cell_changed.connect(self._update_spreadsheet_status)
+        self.spreadsheet_view.selection_changed.connect(self._update_spreadsheet_status)
+        self.spreadsheet_view.active_cell_changed.connect(self._update_spreadsheet_status)
         self.spreadsheet_view.editor_controller.mode_changed.connect(self.status_bar.set_mode)
         self.spreadsheet_view.editor_controller.cell_committed.connect(
             lambda *_: self.set_modified(True)
@@ -775,7 +775,7 @@ class LedgerWindow(BaseOfficeWindow):
         model = self.spreadsheet_view.model
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
-                cell = model.get_cell(r, c)
+                cell = model.ensure_cell(r, c)
                 cell.font_family = family
                 model.set_cell(r, c, cell)
         self.spreadsheet_view.grid.viewport().update()
@@ -790,7 +790,7 @@ class LedgerWindow(BaseOfficeWindow):
         model = self.spreadsheet_view.model
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
-                cell = model.get_cell(r, c)
+                cell = model.ensure_cell(r, c)
                 cell.font_size = pt
                 model.set_cell(r, c, cell)
         self.spreadsheet_view.grid.viewport().update()
@@ -823,11 +823,11 @@ class LedgerWindow(BaseOfficeWindow):
         """Toggle bold formatting on selected cells."""
         r1, c1, r2, c2 = self._get_selected_cell_range()
         model = self.spreadsheet_view.model
-        active_cell = model.get_cell(r1, c1)
+        active_cell = model.get_cell(r1, c1) or CellData()
         new_val = not active_cell.bold
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
-                cell = model.get_cell(r, c)
+                cell = model.ensure_cell(r, c)
                 cell.bold = new_val
                 model.set_cell(r, c, cell)
         self.spreadsheet_view.grid.viewport().update()
@@ -839,11 +839,11 @@ class LedgerWindow(BaseOfficeWindow):
         """Toggle italic formatting on selected cells."""
         r1, c1, r2, c2 = self._get_selected_cell_range()
         model = self.spreadsheet_view.model
-        active_cell = model.get_cell(r1, c1)
+        active_cell = model.get_cell(r1, c1) or CellData()
         new_val = not active_cell.italic
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
-                cell = model.get_cell(r, c)
+                cell = model.ensure_cell(r, c)
                 cell.italic = new_val
                 model.set_cell(r, c, cell)
         self.spreadsheet_view.grid.viewport().update()
@@ -855,11 +855,11 @@ class LedgerWindow(BaseOfficeWindow):
         """Toggle underline formatting on selected cells."""
         r1, c1, r2, c2 = self._get_selected_cell_range()
         model = self.spreadsheet_view.model
-        active_cell = model.get_cell(r1, c1)
+        active_cell = model.get_cell(r1, c1) or CellData()
         new_val = not active_cell.underline
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
-                cell = model.get_cell(r, c)
+                cell = model.ensure_cell(r, c)
                 cell.underline = new_val
                 model.set_cell(r, c, cell)
         self.spreadsheet_view.grid.viewport().update()
@@ -873,7 +873,7 @@ class LedgerWindow(BaseOfficeWindow):
         model = self.spreadsheet_view.model
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
-                cell = model.get_cell(r, c)
+                cell = model.ensure_cell(r, c)
                 cell.align_h = align
                 model.set_cell(r, c, cell)
         self.spreadsheet_view.grid.viewport().update()
@@ -886,7 +886,7 @@ class LedgerWindow(BaseOfficeWindow):
         model = self.spreadsheet_view.model
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
-                cell = model.get_cell(r, c)
+                cell = model.ensure_cell(r, c)
                 cur = getattr(cell, "indent", 0) or 0
                 cell.indent = max(0, cur + delta)
                 model.set_cell(r, c, cell)
@@ -919,7 +919,7 @@ class LedgerWindow(BaseOfficeWindow):
                 model.add_merge(r1, c1, r2, c2)
                 for r in range(r1, r2 + 1):
                     for c in range(c1, c2 + 1):
-                        cell = model.get_cell(r, c)
+                        cell = model.ensure_cell(r, c)
                         cell.align_h = "center"
                         model.set_cell(r, c, cell)
                 if act_merge:
@@ -935,7 +935,7 @@ class LedgerWindow(BaseOfficeWindow):
         model = self.spreadsheet_view.model
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
-                cell = model.get_cell(r, c)
+                cell = model.ensure_cell(r, c)
                 cell.format_code = format_code
                 model.set_cell(r, c, cell)
         self.spreadsheet_view.grid.viewport().update()
@@ -968,7 +968,7 @@ class LedgerWindow(BaseOfficeWindow):
         model = self.spreadsheet_view.model
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
-                cell = model.get_cell(r, c)
+                cell = model.ensure_cell(r, c)
                 cur_fmt = cell.format_code or "General"
                 new_fmt = self._adjust_format_decimals(cur_fmt, delta)
                 cell.format_code = new_fmt
@@ -1358,7 +1358,7 @@ class LedgerWindow(BaseOfficeWindow):
         fg = None if color == "auto" else color
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
-                cell = model.get_cell(r, c)
+                cell = model.ensure_cell(r, c)
                 cell.fg_color = fg
                 model.set_cell(r, c, cell)
         self.spreadsheet_view.grid.viewport().update()
@@ -1371,7 +1371,7 @@ class LedgerWindow(BaseOfficeWindow):
         bg = None if color in ("none", "auto") else color
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
-                cell = model.get_cell(r, c)
+                cell = model.ensure_cell(r, c)
                 cell.bg_color = bg
                 model.set_cell(r, c, cell)
         self.spreadsheet_view.grid.viewport().update()
@@ -2611,7 +2611,7 @@ class LedgerWindow(BaseOfficeWindow):
 
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
-                cell = model.get_cell(r, c)
+                cell = model.ensure_cell(r, c)
                 cell.bold = src.bold
                 cell.italic = src.italic
                 cell.underline = src.underline

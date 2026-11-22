@@ -35,6 +35,10 @@ class SpreadsheetView(QWidget):
     """Top-level view for ATBOffice Ledger spreadsheet editing."""
 
     workbook_changed = Signal(object)
+    # Re-emitted from whichever sheet's SelectionModel is active, so listeners stay
+    # connected across workbook loads and sheet switches.
+    selection_changed = Signal()
+    active_cell_changed = Signal(int, int)
 
     def __init__(
         self,
@@ -54,6 +58,7 @@ class SpreadsheetView(QWidget):
             self._workbook = WorkbookModel()
 
         self._sheet_selections: dict[SheetDataModel, SelectionModel] = {}
+        self._forwarded_selection: SelectionModel | None = None
         active_sheet = self._workbook.active_sheet
         if selection is not None:
             self._sheet_selections[active_sheet] = selection
@@ -112,7 +117,23 @@ class SpreadsheetView(QWidget):
         self.grid.horizontalScrollBar().valueChanged.connect(self._sync_object_layer_scroll)
         self.grid.verticalScrollBar().valueChanged.connect(self._sync_object_layer_scroll)
 
+        self._forward_selection_signals(active_sel)
         self.retranslate_ui()
+
+    def _forward_selection_signals(self, selection: SelectionModel) -> None:
+        """Route the active sheet's selection signals through this view (exactly once)."""
+        previous = self._forwarded_selection
+        if previous is selection:
+            return
+        if previous is not None:
+            try:
+                previous.selection_changed.disconnect(self.selection_changed)
+                previous.active_cell_changed.disconnect(self.active_cell_changed)
+            except (RuntimeError, TypeError):
+                pass
+        selection.selection_changed.connect(self.selection_changed)
+        selection.active_cell_changed.connect(self.active_cell_changed)
+        self._forwarded_selection = selection
 
     def _sync_object_layer_scroll(self, _: int = 0) -> None:
         """Synchronize object layer scroll coordinates with grid viewport."""
@@ -268,9 +289,13 @@ class SpreadsheetView(QWidget):
         self.grid.set_model_and_selection(active_sheet, active_sel)
         self.editor_controller.set_model_and_selection(active_sheet, active_sel)
         if hasattr(self, "object_layer") and self.object_layer is not None:
+            self.object_layer.select_object(None)
             self.object_layer.set_model(active_sheet)
             self._sync_object_layer_scroll()
+        self._forward_selection_signals(active_sel)
         self.grid.viewport().update()
+        # The visible selection changed with the sheet: refresh listeners once.
+        self.selection_changed.emit()
 
     def _on_sheet_removed(self, index: int, name: str) -> None:
         """Clean up cached selections for removed worksheets."""

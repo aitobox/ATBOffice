@@ -488,6 +488,9 @@ class GridViewport(QAbstractScrollArea):
         """Switch active SheetDataModel and SelectionModel."""
         self.cancel_drag(why="api")
         self.clear_undo_stack()
+        # Hover state refers to the previous sheet's cells; never carry it over.
+        self._hover_comment_cell = None
+        QToolTip.hideText()
         self.model = model
         self.selection = selection
         self.geometry_mapper = model.geometry
@@ -3537,6 +3540,9 @@ class GridViewport(QAbstractScrollArea):
             self.viewport().update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if self.model is None or self.selection is None:
+            event.ignore()
+            return
         x, y = self.map_from_device(event.position().x(), event.position().y())
         self._last_mouse_pos = QPoint(x, y)
 
@@ -3581,7 +3587,12 @@ class GridViewport(QAbstractScrollArea):
             self.cancel_drag(why="lost")
             return
 
-        # 2. Check 3px threshold
+        # 2. A drag without a recorded origin is stale (e.g. interrupted by a sheet switch).
+        if self._drag_start_pos is None and not self._drag_moved:
+            self.cancel_drag(why="lost")
+            return
+
+        # 3px threshold
         if not self._drag_moved:
             if self._drag_start_pos is not None:
                 dx = x - self._drag_start_pos.x()
