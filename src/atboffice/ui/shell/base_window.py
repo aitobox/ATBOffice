@@ -25,6 +25,24 @@ def safe_tr(text: str) -> str:
 logger = logging.getLogger(__name__)
 
 
+# OOXML package formats that can be wrapped in an encrypted OLE container.
+ENCRYPTABLE_SUFFIXES: frozenset[str] = frozenset(
+    {".docx", ".docm", ".dotx", ".xlsx", ".xlsm", ".xltx", ".pptx", ".pptm", ".ppsx", ".potx"}
+)
+
+
+class UnsupportedSaveFormatError(ValueError):
+    """Raised by ``do_save`` when the editor cannot serialize the requested format."""
+
+    def __init__(self, suffix: str) -> None:
+        self.suffix = suffix
+        super().__init__(
+            safe_tr("不支持保存为“{suffix}”格式，请选择“另存为”中列出的格式。").format(
+                suffix=suffix or safe_tr("无扩展名")
+            )
+        )
+
+
 class FileOpenCancelled(Exception):
     """Raised when user cleanly cancels file opening (e.g. password dialog)."""
 
@@ -50,6 +68,11 @@ class BaseOfficeWindow(QMainWindow):
         self.clipboard_pane: Any | None = None
         self.command_search_box: Any | None = None
         self._document_metadata: Any | None = None
+        # Password of the encrypted package currently open (in memory only).
+        self._package_password: str | None = None
+        self._pending_package_password: str | None = None
+        # True while RecoveryService writes a draft: suppresses interactive prompts.
+        self._is_autosaving: bool = False
         from atboffice.core.recovery_service import RecoveryService
 
         self.recovery_service: RecoveryService = RecoveryService(self)
@@ -64,6 +87,54 @@ class BaseOfficeWindow(QMainWindow):
             get_i18n_manager().locale_changed.connect(self._on_locale_changed)
         except Exception:
             pass
+        self._start_recovery_service()
+
+    # Native draft format for crash-recovery snapshots; ``None`` disables autosave.
+    recovery_suffix: str | None = None
+
+    def _start_recovery_service(self) -> None:
+        """Start periodic crash-recovery autosave for editors that declare a draft format."""
+        if self.recovery_suffix is None:
+            return
+        minutes = 10
+        try:
+            from atboffice.core.settings import get_app_settings
+
+            minutes = int(get_app_settings().get_value("save/auto_save_interval", 10))
+        except Exception as exc:
+            logger.debug("Falling back to default autosave interval: %s", exc)
+        minutes = min(max(minutes, 1), 60)
+        self.recovery_service.start(minutes * 60 * 1000)
+
+    def confirm_compatibility_losses(self, losses: Any) -> bool:
+        """Ask whether to save despite features the writer cannot preserve.
+
+        Returns True when saving may proceed. Autosave never prompts.
+        """
+        if not losses or self._is_autosaving:
+            return True
+        loss_items = "\n".join(f"- {loss}" for loss in list(losses)[:5])
+        msg = safe_tr(
+            "该文档包含当前版本尚未完全支持的高级格式或特性。保存可能导致以下内容丢失：\n\n{losses}\n\n是否仍要继续保存？"
+        ).format(losses=loss_items)
+        reply = QMessageBox.warning(
+            self,
+            safe_tr("格式兼容性警告"),
+            msg,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return reply == QMessageBox.StandardButton.Yes
+
+    def encrypt_saved_package(self, path: Path, target_suffix: str) -> None:
+        """Re-encrypt a freshly written package with the password it was opened with."""
+        if self._package_password is None:
+            return
+        if target_suffix.lower() not in ENCRYPTABLE_SUFFIXES:
+            return
+        from atboffice.vfs.crypto import encrypt_package
+
+        path.write_bytes(encrypt_package(path.read_bytes(), passcode=self._package_password))
 
     def _on_locale_changed(self, _locale: str) -> None:
         """Handle dynamic language change and trigger retranslate_ui."""
@@ -132,6 +203,7 @@ class BaseOfficeWindow(QMainWindow):
             return False
         self.current_file_path = None
         self.active_template = None
+        self._package_password = None
         self.set_modified(False)
         self.update_window_title()
         return True
@@ -235,6 +307,8 @@ class BaseOfficeWindow(QMainWindow):
 
         try:
             decrypted = decrypt_package(path, passcode=pwd)
+            # Committed by open_file only once the document has loaded successfully.
+            self._pending_package_password = pwd
             return (decrypted, True)
         except ValueError as err:
             err_msg = str(err)
@@ -328,6 +402,7 @@ class BaseOfficeWindow(QMainWindow):
             )
             return False
 
+        self._pending_package_password = None
         try:
             if not self.do_open(path):
                 logger.error("do_open returned False for %s", path)
@@ -347,6 +422,8 @@ class BaseOfficeWindow(QMainWindow):
 
         self.current_file_path = path
         self.active_template = None
+        self._package_password = self._pending_package_password
+        self._pending_package_password = None
         self.set_modified(False)
         self.update_window_title()
 
@@ -575,6 +652,8 @@ class BaseOfficeWindow(QMainWindow):
                 )
                 return False
 
+            self.encrypt_saved_package(staged_temp_path, target.suffix)
+
             # Atomically replace target
             os.replace(staged_temp_path, target)
             staged_temp_path = None
@@ -582,6 +661,7 @@ class BaseOfficeWindow(QMainWindow):
             self.current_file_path = target
             self.set_modified(False)
             self.update_window_title()
+            self.recovery_service.clear_draft()
 
             try:
                 from atboffice.core.window_manager import WindowManager
@@ -818,17 +898,18 @@ class BaseOfficeWindow(QMainWindow):
 
                 record_action("window_close_accepted", "base_window", {"app_name": self.app_name})
 
-                # Perform thorough resource and timer cleanup BEFORE draining event loop
+                # The user saved or discarded changes: the crash-recovery draft is obsolete.
+                try:
+                    self.recovery_service.clear_draft()
+                except Exception as exc:
+                    logger.debug("Could not clear recovery draft: %s", exc)
                 self.cleanup_resources()
 
                 event.accept()
+                # Never spin the event loop or flush DeferredDelete here: Qt is still inside
+                # QWidget::close() for this window. WindowManager keeps the window alive
+                # until control returns to the outer event loop.
                 self.window_closed.emit(self)
-                try:
-                    from atboffice.core.diagnostics import drain_event_loop
-
-                    drain_event_loop(2)
-                except Exception:
-                    pass
             else:
                 event.ignore()
         finally:

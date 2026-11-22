@@ -56,7 +56,7 @@ from atboffice.modules.writer.views import (
 from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.toolbar import OfficeToolBar
 from atboffice.ui.dialogs.find_replace_dialog import FindReplaceDialog
-from atboffice.ui.shell.base_window import BaseOfficeWindow
+from atboffice.ui.shell.base_window import BaseOfficeWindow, UnsupportedSaveFormatError
 from atboffice.ui.shell.mac_menu import MacMenuBar, setup_mac_menu
 from atboffice.ui.shell.quire_toolbars import (
     build_quire_toolbars,
@@ -69,8 +69,36 @@ def safe_tr(text: str) -> str:
     return core_safe_tr(text)
 
 
+def _document_plain_text(doc: Any) -> str:
+    """Flatten a Quire document to plain text: one line per paragraph, tab-separated cells."""
+    from atboffice.modules.writer.models.document import Paragraph, Table, plain_text
+
+    lines: list[str] = []
+
+    def walk(blocks: Any) -> None:
+        for block in blocks or []:
+            if isinstance(block, Paragraph):
+                lines.append(plain_text(block))
+            elif isinstance(block, Table):
+                for row in block.rows:
+                    cell_texts = []
+                    for cell in row.cells:
+                        cell_lines: list[str] = []
+                        for inner in cell.blocks or []:
+                            if isinstance(inner, Paragraph):
+                                cell_lines.append(plain_text(inner))
+                        cell_texts.append(" ".join(t for t in cell_lines if t))
+                    lines.append("\t".join(cell_texts))
+
+    main = getattr(doc, "main", None)
+    walk(getattr(main, "blocks", None))
+    return "\n".join(lines) + ("\n" if lines else "")
+
+
 class QuireWindow(BaseOfficeWindow):
     """Dedicated word-processing window embedding WriterView with Word 2003 styling."""
+
+    recovery_suffix = ".docx"
 
     def __init__(
         self,
@@ -695,32 +723,34 @@ class QuireWindow(BaseOfficeWindow):
 
             write_html(self.writer_view.canvas_view.doc, path)
             return True
+        doc = self.writer_view.canvas_view.doc
         if ext in {".docx", ".docm", ".dotx"}:
             from atboffice.modules.writer.io.docx_writer import write_docx
 
-            doc = self.writer_view.canvas_view.doc
-            if getattr(doc, "losses", None):
-                from PySide6.QtWidgets import QMessageBox
-
-                loss_items = "\n".join(f"- {loss}" for loss in doc.losses[:5])
-                msg = safe_tr(
-                    "该文档包含当前版本尚未完全支持的高级格式或特性。保存可能导致以下内容丢失：\n\n{losses}\n\n是否仍要继续保存？"
-                ).format(losses=loss_items)
-                title = safe_tr("格式兼容性警告")
-                reply = QMessageBox.warning(
-                    self,
-                    title,
-                    msg,
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.No,
-                )
-                if reply != QMessageBox.StandardButton.Yes:
-                    return False
-
+            if not self.confirm_compatibility_losses(getattr(doc, "losses", None)):
+                return False
             write_docx(doc, path)
             return True
-        path.touch(exist_ok=True)
-        return True
+        if ext == ".rtf":
+            from atboffice.modules.writer.io.rtf_io import write_rtf
+
+            path.write_bytes(write_rtf(doc))
+            return True
+        if ext in {".md", ".markdown"}:
+            from atboffice.modules.writer.io.markdown_io import write_markdown
+
+            md_text, _images = write_markdown(doc)
+            path.write_text(md_text, encoding="utf-8")
+            return True
+        if ext == ".zip":
+            from atboffice.modules.writer.io.markdown_io import write_markdown_zip
+
+            path.write_bytes(write_markdown_zip(doc))
+            return True
+        if ext == ".txt":
+            path.write_text(_document_plain_text(doc), encoding="utf-8")
+            return True
+        raise UnsupportedSaveFormatError(ext)
 
     def do_open(self, path: Path) -> bool:
         """Parse and load Quire document from disk with transactional rollback."""

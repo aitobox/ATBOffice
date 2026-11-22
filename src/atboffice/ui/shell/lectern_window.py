@@ -24,7 +24,7 @@ from atboffice.modules.presentation.view import PresentationView
 from atboffice.modules.presentation.views.slide_canvas import SlideScene
 from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.toolbar import OfficeToolBar
-from atboffice.ui.shell.base_window import BaseOfficeWindow
+from atboffice.ui.shell.base_window import BaseOfficeWindow, UnsupportedSaveFormatError
 from atboffice.ui.shell.lectern_toolbars import (
     build_lectern_toolbars,
     retranslate_lectern_toolbars,
@@ -39,6 +39,8 @@ def safe_tr(text: str) -> str:
 
 class LecternWindow(BaseOfficeWindow):
     """Dedicated presentation window embedding PresentationView with PowerPoint 2003 styling."""
+
+    recovery_suffix = ".pptx"
 
     def __init__(
         self,
@@ -2178,10 +2180,13 @@ class LecternWindow(BaseOfficeWindow):
         if ext in {".pptx", ".pptm", ".ppsx", ".potx"}:
             from atboffice.modules.presentation.io.pptx_writer import write_pptx
 
+            if not self.confirm_compatibility_losses(
+                getattr(self.presentation, "losses", None)
+            ):
+                return False
             write_pptx(self.presentation, path)
             return True
-        path.touch(exist_ok=True)
-        return True
+        raise UnsupportedSaveFormatError(ext)
 
     def do_open(self, path: Path) -> bool:
         """Parse and load Lectern presentation from disk with transactional rollback."""

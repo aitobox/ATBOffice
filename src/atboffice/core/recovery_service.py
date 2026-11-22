@@ -11,7 +11,7 @@ import os
 import tempfile
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QCoreApplication, QObject, QTimer
 
@@ -128,8 +128,10 @@ class RecoveryService(QObject):
             return False
 
         try:
-            is_modified = getattr(self._window, "is_modified", None)
-            if callable(is_modified) and not is_modified():
+            is_modified = getattr(self._window, "is_modified", False)
+            if callable(is_modified):
+                is_modified = is_modified()
+            if not is_modified:
                 return False
 
             return self.save_draft()
@@ -149,34 +151,53 @@ class RecoveryService(QObject):
         if self._stop_event.is_set():
             return False
 
+        target_path: Path | None = None
         try:
-            doc_name = (
-                getattr(self._window, "default_doc_name", lambda: "untitled")()
-                if self._window
-                else "untitled"
-            )
+            doc_name: Any = "untitled"
+            if self._window is not None:
+                doc_name = getattr(self._window, "default_doc_name", "untitled")
+            if callable(doc_name):
+                doc_name = doc_name()
+            doc_name = str(doc_name or "untitled")
             file_path = getattr(self._window, "current_file_path", None) if self._window else None
             base_name = file_path.stem if file_path else doc_name
-            ext = file_path.suffix if file_path else ".bak"
+            native_suffix = getattr(self._window, "recovery_suffix", None) if self._window else None
+            # Drafts always use the editor's native format so they round-trip losslessly.
+            ext = native_suffix or (file_path.suffix if file_path else ".bak")
 
             draft_filename = f"{base_name}_recovery_{os.getpid()}{ext}"
             target_path = self._recovery_dir / draft_filename
+            self._recovery_dir.mkdir(parents=True, exist_ok=True)
 
             if custom_content is not None:
                 target_path.write_bytes(custom_content)
             elif self._window is not None:
-                # If window provides do_save or snapshot hook
                 do_save = getattr(self._window, "do_save", None)
-                if callable(do_save):
-                    do_save(target_path)
-                else:
-                    target_path.write_text("autosave_placeholder", encoding="utf-8")
+                if not callable(do_save):
+                    return False
+                previous = getattr(self._window, "_is_autosaving", False)
+                self._window._is_autosaving = True
+                try:
+                    saved = do_save(target_path)
+                finally:
+                    self._window._is_autosaving = previous
+                if not saved:
+                    target_path.unlink(missing_ok=True)
+                    return False
+                encrypt = getattr(self._window, "encrypt_saved_package", None)
+                if callable(encrypt):
+                    encrypt(target_path, ext)
 
             self._current_draft_file = target_path
             logger.debug("Saved recovery draft to %s", target_path)
             return True
         except Exception as exc:
             logger.warning("Failed to save recovery draft: %s", exc)
+            if target_path is not None and target_path != self._current_draft_file:
+                try:
+                    target_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
             return False
 
     def clear_draft(self) -> None:

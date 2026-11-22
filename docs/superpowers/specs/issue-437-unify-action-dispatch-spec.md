@@ -34,9 +34,9 @@
 - Retranslation must not re-show hidden app-specific items.
 
 ## Task list
-- [ ] Task 1: Alias-aware ActionRegistry + unit tests
-- [ ] Task 2: Single-dispatch MacMenuBar binding (no extra triggered connections)
-- [ ] Task 3: Remove duplicate insert actions; gate app-specific items by app_type
-- [ ] Task 4: Start Center handlers + clean disabling of unsupported actions
-- [ ] Task 5: Regression tests (1x execution, alias binding, no fallback toast)
-- [ ] Task 6: Full suite pass + grill audit
+- [x] Task 1: Alias-aware ActionRegistry + unit tests
+- [x] Task 2: Single-dispatch MacMenuBar binding (no extra triggered connections)
+- [x] Task 3: Remove duplicate insert actions; gate app-specific items by app_type
+- [x] Task 4: Start Center handlers + clean disabling of unsupported actions
+- [x] Task 5: Regression tests (1x execution, alias binding, no fallback toast)
+- [x] Task 6: Full suite pass + grill audit

@@ -33,7 +33,7 @@ from atboffice.ui.components.fullscreen_bar import CloseFullScreenBar
 from atboffice.ui.components.status_bar import StatusBar
 from atboffice.ui.components.toolbar import OfficeToolBar
 from atboffice.ui.dialogs.find_replace_dialog import FindReplaceDialog
-from atboffice.ui.shell.base_window import BaseOfficeWindow
+from atboffice.ui.shell.base_window import BaseOfficeWindow, UnsupportedSaveFormatError
 from atboffice.ui.shell.ledger_toolbars import (
     build_ledger_toolbars,
     retranslate_ledger_toolbars,
@@ -48,6 +48,8 @@ def safe_tr(text: str) -> str:
 
 class LedgerWindow(BaseOfficeWindow):
     """Dedicated spreadsheet window embedding SpreadsheetView with Excel 2003 styling."""
+
+    recovery_suffix = ".xlsx"
 
     def __init__(
         self,
@@ -439,7 +441,10 @@ class LedgerWindow(BaseOfficeWindow):
         if ext in {".xlsx", ".xlsm", ".xltx"}:
             from atboffice.modules.spreadsheet.io.xlsx_writer import write_xlsx
 
-            write_xlsx(self.spreadsheet_view.workbook, path)
+            workbook = self.spreadsheet_view.workbook
+            if not self.confirm_compatibility_losses(getattr(workbook, "losses", None)):
+                return False
+            write_xlsx(workbook, path)
             return True
         if ext in {".csv", ".tsv"}:
             from atboffice.modules.spreadsheet.io.csv_io import write_csv
@@ -452,8 +457,7 @@ class LedgerWindow(BaseOfficeWindow):
 
             write_xmlss(self.spreadsheet_view.workbook, path)
             return True
-        path.touch(exist_ok=True)
-        return True
+        raise UnsupportedSaveFormatError(ext)
 
     def do_open(self, path: Path) -> bool:
         """Parse and load Ledger workbook from disk with transactional rollback."""
