@@ -9,7 +9,7 @@ from typing import Any
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtPrintSupport import QPrinter
-from PySide6.QtWidgets import QComboBox, QFileDialog, QMessageBox, QWidget
+from PySide6.QtWidgets import QComboBox, QDialog, QFileDialog, QMessageBox, QWidget
 
 from atboffice.core.action_registry import ActionRegistry
 from atboffice.core.i18n import safe_tr as core_safe_tr
@@ -122,6 +122,11 @@ class LedgerWindow(BaseOfficeWindow):
                 self.update_window_title()
         else:
             self.update_window_title()
+
+        # 8. Ledger menu/toolbar commands (menu ID reconciliation, Clear, Name, ...)
+        from atboffice.ui.shell.ledger_commands import bind_ledger_commands
+
+        self.ledger_commands = bind_ledger_commands(self)
 
         self.set_modified(False)
         self.menu_bar.retranslate_ui()
@@ -268,7 +273,9 @@ class LedgerWindow(BaseOfficeWindow):
         self.action_registry.set_handler("insertCols", self.insert_columns)
         self.action_registry.set_handler("deleteRows", self.delete_rows)
         self.action_registry.set_handler("deleteCols", self.delete_columns)
-        self.action_registry.set_handler("sortDlg", lambda: self.quick_sort(desc=False))
+        self.action_registry.set_handler(
+            "sortDlg", lambda: self.spreadsheet_view.grid.open_sort_dialog()
+        )
         self.action_registry.set_handler("autoFilter", self.toggle_auto_filter)
         self.action_registry.set_handler("convertToRange", self.convert_table_to_range)
         self.action_registry.set_handler("totalRow", self.toggle_total_row)
@@ -809,6 +816,11 @@ class LedgerWindow(BaseOfficeWindow):
             combo.blockSignals(False)
 
     def _apply_zoom(self, zoom_text: str) -> None:
+        if zoom_text.strip() in ("选定区域", safe_tr("选定区域"), "Selection"):
+            commands = getattr(self, "ledger_commands", None)
+            if commands is not None:
+                commands.zoom_to_selection()
+            return
         clean = zoom_text.replace("%", "").strip()
         try:
             val = float(clean) / 100.0
@@ -1259,13 +1271,20 @@ class LedgerWindow(BaseOfficeWindow):
         layer = getattr(self.spreadsheet_view, "object_layer", None)
         sel_obj = getattr(layer, "selected_object", None) if layer else None
         if sel_obj and getattr(sel_obj, "kind", None) == "chart":
+            from atboffice.modules.spreadsheet.tools.chart_builder import chart_kind
+
             setattr(sel_obj, "chart_type", chart_type)
+            data = dict(sel_obj.chart_data or {})
+            if not data:
+                from atboffice.modules.presentation.chart.model import ChartData
+
+                data = ChartData.create_sample().to_dict()
+            data["kind"] = chart_kind(chart_type)
+            sel_obj.chart_data = data
             layer.update()
             self.set_modified(True)
         else:
-            self.chart_wizard()
-            if layer and getattr(layer, "selected_object", None):
-                setattr(layer.selected_object, "chart_type", chart_type)
+            self.open_chart_wizard(initial_type=chart_type)
 
     def toggle_drawing_toolbar(self) -> None:
         """Toggle bottom drawing toolbar visibility."""
@@ -1305,19 +1324,8 @@ class LedgerWindow(BaseOfficeWindow):
         self.set_modified(True)
 
     def chart_wizard(self) -> None:
-        """Launch chart wizard and insert chart object."""
-        sel = self.spreadsheet_view.selection
-        r, c = sel.active_cell
-        obj = FloatingObject(
-            kind="chart",
-            anchor_type=AnchorType.TWO_CELL,
-            from_point=CellAnchorPoint(col=c, row=r),
-            to_point=CellAnchorPoint(col=c + 4, row=r + 8),
-        )
-        self.spreadsheet_view.object_layer.add_object(obj)
-        self.spreadsheet_view.object_layer.select_object(obj)
-        self.set_toolbar_mode("chart", True)
-        self.set_modified(True)
+        """Standard toolbar Chart Wizard button: open the 4-step wizard."""
+        self.open_chart_wizard()
 
     def bring_to_front(self) -> None:
         """Bring selected floating object to top of z-order."""
@@ -1912,71 +1920,208 @@ class LedgerWindow(BaseOfficeWindow):
         if dlg.exec():
             self.spreadsheet_view.grid.viewport().update()
 
-    def open_chart_wizard(self) -> None:
-        """Open Excel 2003 classic Chart Wizard (4 步图表向导)."""
-        from atboffice.modules.spreadsheet.dialogs.chart_wizard import ChartWizardDialog
+    def open_chart_wizard(self, initial_type: str | None = None) -> None:
+        """Open Excel 2003 classic Chart Wizard (4 步图表向导) on the current selection."""
+        from atboffice.modules.spreadsheet.calc.references import abs_range_name
+        from atboffice.modules.spreadsheet.dialogs.chart_wizard import (
+            CHART_TYPES,
+            ChartWizardDialog,
+        )
 
         sheet = getattr(self.spreadsheet_view, "model", None)
         workbook = getattr(self.spreadsheet_view, "workbook", None)
+        r1, c1, r2, c2 = self._get_selected_cell_range()
+        if (r1, c1) == (r2, c2) and sheet is not None:
+            r1, c1, r2, c2 = self._current_region(sheet, r1, c1)
+        rng = abs_range_name({"r1": r1, "c1": c1, "r2": r2, "c2": c2})
+        sheet_name = getattr(sheet, "name", "Sheet1")
+        quoted = f"'{sheet_name}'" if not sheet_name.isalnum() else sheet_name
         dlg = ChartWizardDialog(
             sheet_model=sheet,
             workbook_model=workbook,
+            initial_range=f"={quoted}!{rng}",
             parent=self,
+            anchor_cell=(r1, c2 + 2),
         )
-        if dlg.exec():
-            self.spreadsheet_view.grid.viewport().update()
+        if initial_type:
+            row = next((i for i, t in enumerate(CHART_TYPES) if t["id"] == initial_type), -1)
+            if row >= 0 and hasattr(dlg, "list_types"):
+                dlg.list_types.setCurrentRow(row)
+        created: list[object] = []
+        dlg.chart_created.connect(lambda obj, _target: created.append(obj))
+        if dlg.exec() != QDialog.DialogCode.Accepted or not created:
+            return
+        chart_obj = created[0]
+        if dlg.created_sheet is not None and workbook is not None:
+            idx = workbook.sheet_index(dlg.created_sheet)
+            if hasattr(self.spreadsheet_view, "set_active_sheet_index") and idx >= 0:
+                self.spreadsheet_view.set_active_sheet_index(idx)
+        layer = getattr(self.spreadsheet_view, "object_layer", None)
+        if layer is not None:
+            layer.set_model(getattr(self.spreadsheet_view, "model", None))
+            layer.select_object(chart_obj)
+            layer.update()
+        self.set_toolbar_mode("chart", True)
+        self.set_modified(True)
+
+    @staticmethod
+    def _current_region(sheet: object, r: int, c: int) -> tuple[int, int, int, int]:
+        """Expand a single cell to its contiguous non-empty block (Excel CurrentRegion)."""
+        if sheet.is_empty(r, c):
+            return r, c, r, c
+        r1 = r2 = r
+        c1 = c2 = c
+        changed = True
+        while changed:
+            changed = False
+            if r1 > 0 and any(not sheet.is_empty(r1 - 1, cc) for cc in range(c1, c2 + 1)):
+                r1 -= 1
+                changed = True
+            if any(not sheet.is_empty(r2 + 1, cc) for cc in range(c1, c2 + 1)):
+                r2 += 1
+                changed = True
+            if c1 > 0 and any(not sheet.is_empty(rr, c1 - 1) for rr in range(r1, r2 + 1)):
+                c1 -= 1
+                changed = True
+            if any(not sheet.is_empty(rr, c2 + 1) for rr in range(r1, r2 + 1)):
+                c2 += 1
+                changed = True
+            if r2 - r1 > 10000 or c2 - c1 > 1000:
+                break
+        return r1, c1, r2, c2
+
+    # ------------------------------------------------------------------
+    # Undoable cell edits shared by the Data / Tools dialogs
+    # ------------------------------------------------------------------
+    def _refresh_after_cell_edit(self) -> None:
+        grid = getattr(self.spreadsheet_view, "grid", None)
+        if grid is not None:
+            if hasattr(grid, "_update_scrollbars"):
+                grid._update_scrollbars()
+            grid.viewport().update()
+        layer = getattr(self.spreadsheet_view, "object_layer", None)
+        if layer is not None:
+            layer.update()
+
+    def run_cell_edit(self, mutate: Any, action: str = "edit") -> Any:
+        """Run ``mutate()`` as one undoable worksheet edit and recalculate formulas.
+
+        ``mutate`` may return ``False`` to signal that nothing changed.
+        """
+        grid = getattr(self.spreadsheet_view, "grid", None)
+        before = grid._snapshot_state() if grid is not None else None
+        result = mutate()
+        if result is False:
+            return result
+        workbook = getattr(self.spreadsheet_view, "workbook", None)
+        if workbook is not None and hasattr(workbook, "recalculate"):
+            workbook.recalculate()
+        if grid is not None and before is not None:
+            grid._commit_undo(before, action)
+        self._refresh_after_cell_edit()
+        self.set_modified(True)
+        return result
+
+    def _exec_cell_dialog(self, dlg: Any, action: str) -> bool:
+        """Exec a dialog that edits cells itself; record one undo step when accepted."""
+        grid = getattr(self.spreadsheet_view, "grid", None)
+        before = grid._snapshot_state() if grid is not None else None
+        accepted = dlg.exec() == QDialog.DialogCode.Accepted
+        model = getattr(self.spreadsheet_view, "model", None)
+        changed = before is not None and model is not None and (
+            set(before["before_cells"]) != set(model.cells)
+            or any(
+                vars(before["before_cells"][k]) != vars(v)
+                for k, v in model.cells.items()
+                if k in before["before_cells"]
+            )
+        )
+        if changed:
+            workbook = getattr(self.spreadsheet_view, "workbook", None)
+            if workbook is not None and hasattr(workbook, "recalculate"):
+                workbook.recalculate()
+            grid._commit_undo(before, action)
+            self.set_modified(True)
+        self._refresh_after_cell_edit()
+        return accepted
+
+    def _selection_or_region(self) -> tuple[int, int, int, int]:
+        """Selected range, or the current region around a single selected cell."""
+        r1, c1, r2, c2 = self._get_selected_cell_range()
+        sheet = getattr(self.spreadsheet_view, "model", None)
+        if (r1, c1) == (r2, c2) and sheet is not None:
+            return self._current_region(sheet, r1, c1)
+        return r1, c1, r2, c2
+
+    def _show_tool_error(self, title: str, exc: Exception) -> None:
+        QMessageBox.warning(self, title, str(exc))
 
     def open_text_to_columns_wizard(self) -> None:
         """Open Excel 2003 classic Convert Text to Columns Wizard (文本分列向导)."""
         from atboffice.modules.spreadsheet.dialogs.text_to_columns_wizard import TextToColumnsWizard
 
         sheet = getattr(self.spreadsheet_view, "model", None)
-        sel = getattr(self.spreadsheet_view, "selection", None)
-        if sel and getattr(sel, "active_range", None):
-            ar = sel.active_range
-            sel_range = (ar.top, ar.left, ar.bottom, ar.right)
-        else:
-            sel_range = (0, 0, 0, 0)
-        dlg = TextToColumnsWizard(
-            sheet_model=sheet,
-            selected_range=sel_range,
-            parent=self,
-        )
-        if dlg.exec():
-            self.spreadsheet_view.grid.viewport().update()
+        r1, c1, r2, _c2 = self._get_selected_cell_range()
+        # Excel converts one column at a time.
+        dlg = TextToColumnsWizard(sheet_model=sheet, selected_range=(r1, c1, r2, c1), parent=self)
+        self._exec_cell_dialog(dlg, "text_to_columns")
 
     def open_subtotal_dialog(self) -> None:
         """Open Excel 2003 classic Subtotal Calculation (分类汇总) dialog."""
         from atboffice.modules.spreadsheet.dialogs.subtotal_dialog import SubtotalDialog
+        from atboffice.modules.spreadsheet.tools import data_tools
 
         sheet = getattr(self.spreadsheet_view, "model", None)
-        sel = getattr(self.spreadsheet_view, "selection", None)
-        if sel and getattr(sel, "active_range", None):
-            ar = sel.active_range
-            sel_range = (ar.top, ar.left, ar.bottom, ar.right)
-        else:
-            sel_range = (0, 0, 10, 5)
-        dlg = SubtotalDialog(
-            sheet_model=sheet,
-            selected_range=sel_range,
-            parent=self,
+        if sheet is None:
+            return
+        sel_range = self._selection_or_region()
+        if sel_range[2] <= sel_range[0]:
+            QMessageBox.information(
+                self,
+                safe_tr("分类汇总"),
+                safe_tr("请选择包含标题行的数据列表，再执行分类汇总。"),
+            )
+            return
+        dlg = SubtotalDialog(sheet_model=sheet, selected_range=sel_range, parent=self)
+        dlg.subtotal_applied.connect(
+            lambda cfg: self.run_cell_edit(
+                lambda: data_tools.apply_subtotals(sheet, sel_range, cfg), "subtotal"
+            )
         )
-        if dlg.exec():
-            self.spreadsheet_view.grid.viewport().update()
+        dlg.subtotal_removed.connect(
+            lambda: self.run_cell_edit(
+                lambda: data_tools.remove_subtotals(sheet, sel_range), "subtotal_remove"
+            )
+        )
+        dlg.exec()
 
     def open_consolidate_dialog(self) -> None:
         """Open Excel 2003 classic Consolidate (合并计算) dialog."""
         from atboffice.modules.spreadsheet.dialogs.consolidate_dialog import ConsolidateDialog
+        from atboffice.modules.spreadsheet.tools import data_tools
 
         sheet = getattr(self.spreadsheet_view, "model", None)
         workbook = getattr(self.spreadsheet_view, "workbook", None)
-        dlg = ConsolidateDialog(
-            sheet_model=sheet,
-            workbook_model=workbook,
-            parent=self,
-        )
-        if dlg.exec():
-            self.spreadsheet_view.grid.viewport().update()
+        dest = self.spreadsheet_view.selection.active_cell
+        dlg = ConsolidateDialog(sheet_model=sheet, workbook_model=workbook, parent=self)
+
+        def apply(cfg: dict) -> None:
+            if not cfg.get("references"):
+                QMessageBox.information(
+                    self, safe_tr("合并计算"), safe_tr("请至少添加一个引用位置。")
+                )
+                return
+            result = self.run_cell_edit(
+                lambda: data_tools.consolidate(workbook, sheet, dest, cfg) or False,
+                "consolidate",
+            )
+            if result is False:
+                QMessageBox.warning(
+                    self, safe_tr("合并计算"), safe_tr("引用位置无效，未能合并任何数据。")
+                )
+
+        dlg.consolidate_applied.connect(apply)
+        dlg.exec()
 
     def open_scenario_manager(self) -> None:
         """Open Excel 2003 classic Scenario Manager (方案管理器) dialog."""
@@ -1985,31 +2130,49 @@ class LedgerWindow(BaseOfficeWindow):
         )
 
         sheet = getattr(self.spreadsheet_view, "model", None)
+        workbook = getattr(self.spreadsheet_view, "workbook", None)
+        stored = sheet.extra.get("scenarios") if sheet is not None else None
         dlg = ScenarioManagerDialog(
             sheet_model=sheet,
+            initial_scenarios=stored,
             parent=self,
+            workbook_model=workbook,
         )
-        if dlg.exec():
-            self.spreadsheet_view.grid.viewport().update()
+        if sheet is not None:
+            dlg.scenarios_updated.connect(
+                lambda items: sheet.extra.__setitem__("scenarios", list(items))
+            )
+        created: list[Any] = []
+        dlg.summary_created.connect(created.append)
+        self._exec_cell_dialog(dlg, "scenario_show")
+        if sheet is not None:
+            sheet.extra["scenarios"] = list(dlg.scenarios)
+        if created and workbook is not None:
+            idx = workbook.sheet_index(created[0])
+            if idx >= 0 and hasattr(self.spreadsheet_view, "set_active_sheet_index"):
+                self.spreadsheet_view.set_active_sheet_index(idx)
+            self.set_modified(True)
 
     def open_data_table_dialog(self) -> None:
         """Open Excel 2003 classic Data Table (模拟运算表) dialog."""
         from atboffice.modules.spreadsheet.dialogs.data_table_dialog import DataTableDialog
 
         sheet = getattr(self.spreadsheet_view, "model", None)
-        sel = getattr(self.spreadsheet_view, "selection", None)
-        if sel and getattr(sel, "active_range", None):
-            ar = sel.active_range
-            sel_range = (ar.top, ar.left, ar.bottom, ar.right)
-        else:
-            sel_range = (0, 0, 5, 5)
+        sel_range = self._get_selected_cell_range()
+        if sel_range[0] == sel_range[2] or sel_range[1] == sel_range[3]:
+            QMessageBox.information(
+                self,
+                safe_tr("模拟运算表"),
+                safe_tr("请先选定包含公式和输入值的单元格区域。"),
+            )
+            return
         dlg = DataTableDialog(
             sheet_model=sheet,
             selected_range=sel_range,
             parent=self,
+            workbook_model=getattr(self.spreadsheet_view, "workbook", None),
         )
-        if dlg.exec():
-            self.spreadsheet_view.grid.viewport().update()
+        self._exec_cell_dialog(dlg, "data_table")
 
     def open_protect_sheet_dialog(self) -> None:
         """Open Excel 2003 classic Protect/Unprotect Sheet dialog."""
@@ -2035,14 +2198,38 @@ class LedgerWindow(BaseOfficeWindow):
 
     def open_advanced_filter_dialog(self) -> None:
         """Open Excel 2003 classic Advanced Filter (高级筛选) dialog."""
+        from atboffice.modules.spreadsheet.calc.references import abs_range_name
         from atboffice.modules.spreadsheet.dialogs.advanced_filter_dialog import (
             AdvancedFilterDialog,
         )
+        from atboffice.modules.spreadsheet.tools import data_tools
 
         sheet = getattr(self.spreadsheet_view, "model", None)
-        dlg = AdvancedFilterDialog(sheet_model=sheet, parent=self)
-        if dlg.exec():
-            self.spreadsheet_view.grid.viewport().update()
+        workbook = getattr(self.spreadsheet_view, "workbook", None)
+        r1, c1, r2, c2 = self._selection_or_region()
+        list_range = abs_range_name({"r1": r1, "c1": c1, "r2": r2, "c2": c2})
+        dlg = AdvancedFilterDialog(sheet_model=sheet, initial_list_range=list_range, parent=self)
+
+        def apply(params: dict) -> None:
+            try:
+                self.run_cell_edit(
+                    lambda: data_tools.advanced_filter(workbook, sheet, params),
+                    "advanced_filter",
+                )
+            except ValueError as exc:
+                self._show_tool_error(safe_tr("高级筛选"), exc)
+
+        dlg.filter_applied.connect(apply)
+        dlg.exec()
+
+    def show_all_filtered_rows(self) -> None:
+        """Data > Filter > Show All after an in-place advanced filter."""
+        from atboffice.modules.spreadsheet.tools import data_tools
+
+        sheet = getattr(self.spreadsheet_view, "model", None)
+        if sheet is not None and data_tools.show_all_after_filter(sheet):
+            self._refresh_after_cell_edit()
+            self.set_modified(True)
 
     def open_options_dialog(self) -> None:
         """Open Excel 2003 classic Ledger Options dialog."""
@@ -2219,26 +2406,66 @@ class LedgerWindow(BaseOfficeWindow):
             editor_controller=getattr(self.spreadsheet_view, "editor_controller", None),
         )
 
-    def insert_picture(self) -> None:
-        """Insert image from disk file into floating object layer."""
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            safe_tr("插入图片"),
-            "",
-            safe_tr("图片文件 (*.png *.jpg *.jpeg *.bmp *.gif);;所有文件 (*.*)"),
-        )
+    def insert_picture(self, path: str | None = None) -> None:
+        """Insert an image file from disk into the floating object layer."""
+        if path is None:
+            path, _ = QFileDialog.getOpenFileName(
+                self,
+                safe_tr("插入图片"),
+                "",
+                safe_tr("图片文件 (*.png *.jpg *.jpeg *.bmp *.gif);;所有文件 (*.*)"),
+            )
         if not path:
             return
+        from PySide6.QtGui import QImage
+
+        try:
+            data = Path(path).read_bytes()
+        except OSError as exc:
+            QMessageBox.warning(
+                self, safe_tr("插入图片"), safe_tr("无法读取图片文件：{0}").format(str(exc))
+            )
+            return
+        image = QImage()
+        if not data or not image.loadFromData(data):
+            QMessageBox.warning(
+                self, safe_tr("插入图片"), safe_tr("所选文件不是可识别的图片格式。")
+            )
+            return
+        mime = {
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".gif": "image/gif",
+            ".bmp": "image/bmp",
+        }.get(Path(path).suffix.lower(), "image/png")
         sel = self.spreadsheet_view.selection
         r, c = sel.active_cell
+        model = self.spreadsheet_view.model
+        # Size the anchor from the picture's pixel size, capped to a sensible area.
+        w = min(image.width(), 640)
+        h = max(1, round(image.height() * w / max(1, image.width())))
+        cols, width_px = 0, 0
+        while width_px < w and cols < 60:
+            width_px += model.geometry.col_size(c + cols)
+            cols += 1
+        rows, height_px = 0, 0
+        while height_px < h and rows < 200:
+            height_px += model.geometry.row_size(r + rows)
+            rows += 1
+        layer = self.spreadsheet_view.object_layer
         obj = FloatingObject(
+            id=len(getattr(model, "drawings", []) or []) + 1,
+            name=Path(path).stem,
             kind="image",
             anchor_type=AnchorType.TWO_CELL,
             from_point=CellAnchorPoint(col=c, row=r),
-            to_point=CellAnchorPoint(col=c + 4, row=r + 6),
+            to_point=CellAnchorPoint(col=c + max(1, cols), row=r + max(1, rows)),
+            image_data=data,
+            image_mime=mime,
+            lock_aspect=True,
         )
-        self.spreadsheet_view.object_layer.add_object(obj)
-        self.spreadsheet_view.object_layer.select_object(obj)
+        layer.add_object(obj)
+        layer.select_object(obj)
         self.set_modified(True)
 
     def insert_hyperlink(self) -> None:
@@ -2555,12 +2782,10 @@ class LedgerWindow(BaseOfficeWindow):
         painter.end()
 
     def check_spelling(self) -> None:
-        """Perform spelling check on worksheet contents."""
-        QMessageBox.information(
-            self,
-            safe_tr("拼写检查"),
-            safe_tr("已完成对整个工作表的拼写检查。"),
-        )
+        """Tools > Spelling: check worksheet text cells with the offline SpellEngine."""
+        commands = getattr(self, "ledger_commands", None)
+        if commands is not None:
+            commands.check_spelling()
 
     def toggle_format_painter(self, double_click: bool = False) -> None:
         """Toggle format painter mode."""

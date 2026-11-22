@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QCoreApplication, Qt, Signal
 from PySide6.QtWidgets import (
@@ -36,10 +36,13 @@ class DataTableDialog(QDialog):
         sheet_model: SheetDataModel | None = None,
         selected_range: tuple[int, int, int, int] | None = None,
         parent: QWidget | None = None,
+        workbook_model: Any = None,
     ) -> None:
         super().__init__(parent)
         self.sheet_model = sheet_model
+        self.workbook_model = workbook_model
         self.selected_range = selected_range or (0, 0, 5, 5)
+        self.cells_written: int = 0
 
         self._init_ui()
 
@@ -105,23 +108,22 @@ class DataTableDialog(QDialog):
             )
             return
 
-        # Perform calculation if model is present
+        # Substitute each input value, recalculate the dependency graph and capture
+        # the formula result (Excel's {=TABLE(row, col)} semantics).
         if self.sheet_model is not None and self.selected_range:
-            r1, c1, r2, c2 = self.selected_range
-            formula_val = self.sheet_model.get_cell_value(r1, c1)
+            from atboffice.modules.spreadsheet.tools.data_tools import compute_data_table
 
-            # Two-input table or single-input table
-            for r in range(r1 + 1, r2 + 1):
-                for c in range(c1 + 1, c2 + 1):
-                    # Placeholder simulation evaluation:
-                    # In real Excel, TABLE(row_ref, col_ref) is evaluated dynamically
-                    r_val = self.sheet_model.get_cell_value(r1, c)
-                    c_val = self.sheet_model.get_cell_value(r, c1)
-                    try:
-                        computed = float(r_val or 0) * float(c_val or 0)
-                    except (ValueError, TypeError):
-                        computed = formula_val or 0
-                    self.sheet_model.set_cell_value(r, c, computed)
+            try:
+                self.cells_written = compute_data_table(
+                    self.workbook_model,
+                    self.sheet_model,
+                    self.selected_range,
+                    row_input,
+                    col_input,
+                )
+            except ValueError as exc:
+                QMessageBox.warning(self, safe_tr("模拟运算表"), str(exc))
+                return
 
         self.table_calculated.emit(params)
         self.accept()

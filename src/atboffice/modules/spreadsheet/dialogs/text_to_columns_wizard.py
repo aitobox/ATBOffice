@@ -203,6 +203,7 @@ class TextToColumnsWizard(QDialog):
         layout.setSpacing(10)
 
         grp_delim = QGroupBox(safe_tr("分隔符号:"), page)
+        self.grp_delim = grp_delim
         grid_d = QGridLayout(grp_delim)
         grid_d.setHorizontalSpacing(16)
 
@@ -251,6 +252,22 @@ class TextToColumnsWizard(QDialog):
         self.combo_qualifier.currentIndexChanged.connect(self._refresh_split_preview)
 
         layout.addWidget(grp_delim)
+
+        # Fixed width: column break positions (character offsets), Excel step 2 "分列线".
+        self.grp_fixed = QGroupBox(safe_tr("分列线:"), page)
+        v_fixed = QVBoxLayout(self.grp_fixed)
+        self.lbl_fixed_hint = QLabel(
+            safe_tr("输入分列线所在的字符位置，多个位置用逗号分隔（例如 4, 10）。"),
+            self.grp_fixed,
+        )
+        self.lbl_fixed_hint.setWordWrap(True)
+        self.edit_breaks = QLineEdit(self.grp_fixed)
+        self.edit_breaks.setPlaceholderText(safe_tr("例如：4, 10"))
+        self.edit_breaks.textChanged.connect(self._refresh_split_preview)
+        v_fixed.addWidget(self.lbl_fixed_hint)
+        v_fixed.addWidget(self.edit_breaks)
+        self.grp_fixed.setVisible(False)
+        layout.addWidget(self.grp_fixed)
 
         grp_p2 = QGroupBox(safe_tr("数据预览:"), page)
         v_p2 = QVBoxLayout(grp_p2)
@@ -336,7 +353,19 @@ class TextToColumnsWizard(QDialog):
             delims.append(self.edit_other.text())
         return delims or [","]
 
+    def get_fixed_breaks(self) -> list[int]:
+        """Parse the column break positions typed for fixed-width splitting."""
+        breaks: list[int] = []
+        for part in re.split(r"[,;\s]+", self.edit_breaks.text()):
+            if part.isdigit() and int(part) > 0:
+                breaks.append(int(part))
+        return sorted(set(breaks))
+
     def _split_line(self, line: str) -> list[str]:
+        if self.radio_fixed.isChecked():
+            from atboffice.modules.spreadsheet.tools.data_tools import split_fixed_width
+
+            return split_fixed_width(line, self.get_fixed_breaks())
         delims = self._get_delimiters()
         pattern = "|".join(re.escape(d) for d in delims)
         if self.chk_consecutive.isChecked():
@@ -417,6 +446,15 @@ class TextToColumnsWizard(QDialog):
         self.btn_next.setEnabled(self.current_step < 2)
 
         if self.current_step == 1:
+            fixed = self.radio_fixed.isChecked()
+            self.is_delimited = not fixed
+            self.grp_delim.setVisible(not fixed)
+            self.grp_fixed.setVisible(fixed)
+            if fixed and not self.edit_breaks.text().strip():
+                from atboffice.modules.spreadsheet.tools.data_tools import suggest_fixed_breaks
+
+                guess = suggest_fixed_breaks(self.raw_lines)
+                self.edit_breaks.setText(", ".join(str(b) for b in guess))
             self._refresh_split_preview()
         elif self.current_step == 2:
             self._refresh_split_preview()
@@ -480,4 +518,9 @@ class TextToColumnsWizard(QDialog):
         self.btn_back.setText(safe_tr("< 上一步(&B)"))
         self.btn_next.setText(safe_tr("下一步(&N) >"))
         self.btn_finish.setText(safe_tr("完成(&F)"))
+        self.grp_fixed.setTitle(safe_tr("分列线:"))
+        self.lbl_fixed_hint.setText(
+            safe_tr("输入分列线所在的字符位置，多个位置用逗号分隔（例如 4, 10）。")
+        )
+        self.edit_breaks.setPlaceholderText(safe_tr("例如：4, 10"))
         self._update_step_view()

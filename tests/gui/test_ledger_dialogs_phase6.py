@@ -257,10 +257,11 @@ class TestScenarioManagerDialog:
 class TestDataTableDialog:
     def test_data_table_calculation(self, qapp: QApplication) -> None:
         sheet = SheetDataModel(name="Sheet1")
-        # Setup small simulation table:
-        # Row headers at r=0, cols 1..2: 10, 20
-        # Col headers at c=0, rows 1..2: 2, 3
-        sheet.set_cell_value(0, 0, "=A1*B1")
+        # Two-input table: formula =F1*F2 in the corner, row inputs 10/20 across the
+        # first row, column inputs 2/3 down the first column.
+        sheet.set_cell_value(0, 5, 1)
+        sheet.set_cell_value(1, 5, 1)
+        sheet.ensure_cell(0, 0).formula = "F1*F2"
         sheet.set_cell_value(0, 1, 10)
         sheet.set_cell_value(0, 2, 20)
         sheet.set_cell_value(1, 0, 2)
@@ -269,12 +270,12 @@ class TestDataTableDialog:
         dlg = DataTableDialog(sheet_model=sheet, selected_range=(0, 0, 2, 2))
         assert dlg.windowTitle() == "模拟运算表"
 
-        dlg.edit_row_input.setText("$A$1")
-        dlg.edit_col_input.setText("$B$1")
+        dlg.edit_row_input.setText("$F$1")
+        dlg.edit_col_input.setText("$F$2")
 
         params = dlg.get_table_params()
-        assert params["row_input"] == "$A$1"
-        assert params["col_input"] == "$B$1"
+        assert params["row_input"] == "$F$1"
+        assert params["col_input"] == "$F$2"
 
         dlg._on_ok()
         assert dlg.result() == QDialog.DialogCode.Accepted

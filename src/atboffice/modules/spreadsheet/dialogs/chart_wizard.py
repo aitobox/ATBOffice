@@ -235,9 +235,15 @@ class ChartWizardDialog(QDialog):
         workbook_model: WorkbookModel | None = None,
         initial_range: str = "$A$1:$D$5",
         parent: QWidget | None = None,
+        anchor_cell: tuple[int, int] | None = None,
     ) -> None:
         super().__init__(parent)
         self.sheet_model = sheet_model
+        # (row, col) of the top-left cell the new chart is anchored to
+        self.anchor_cell = anchor_cell
+        # True once the user edits the Series tab; series then come from its refs
+        self._series_dirty: bool = False
+        self.created_sheet: SheetDataModel | None = None
         self.workbook_model = workbook_model
         self.initial_range = initial_range
         self.current_step: int = 0  # 0..3
@@ -500,6 +506,7 @@ class ChartWizardDialog(QDialog):
     def _on_series_name_changed(self, text: str) -> None:
         if self._syncing_series:
             return
+        self._series_dirty = True
         row = self.list_series.currentRow()
         if 0 <= row < len(self.series_list):
             self.series_list[row]["name"] = text
@@ -510,6 +517,7 @@ class ChartWizardDialog(QDialog):
     def _on_series_values_changed(self, text: str) -> None:
         if self._syncing_series:
             return
+        self._series_dirty = True
         row = self.list_series.currentRow()
         if 0 <= row < len(self.series_list):
             self.series_list[row]["values"] = text
@@ -517,11 +525,13 @@ class ChartWizardDialog(QDialog):
     def _on_series_x_changed(self, text: str) -> None:
         if self._syncing_series:
             return
+        self._series_dirty = True
         row = self.list_series.currentRow()
         if 0 <= row < len(self.series_list):
             self.series_list[row]["x_values"] = text
 
     def _on_add_series(self) -> None:
+        self._series_dirty = True
         idx = len(self.series_list) + 1
         new_name = safe_tr(f"系列{idx}")
         new_s = {"name": new_name, "values": "", "x_values": ""}
@@ -530,6 +540,7 @@ class ChartWizardDialog(QDialog):
         self.list_series.setCurrentRow(len(self.series_list) - 1)
 
     def _on_del_series(self) -> None:
+        self._series_dirty = True
         if len(self.series_list) <= 1:
             return
         row = self.list_series.currentRow()
@@ -736,27 +747,70 @@ class ChartWizardDialog(QDialog):
         self.new_sheet_name = self.edit_new_sheet_name.text().strip() or "Chart1"
         self.existing_sheet_name = self.combo_sheets.currentText() or "Sheet1"
 
-        # Construct FloatingObject
-        chart_obj = FloatingObject(
-            id=101,
-            name=self.chart_title or f"Chart ({self.selected_type_id})",
-            kind="chart",
-            anchor_type=AnchorType.TWO_CELL,
-            from_point=CellAnchorPoint(col=1, row=2),
-            to_point=CellAnchorPoint(col=8, row=16),
-            text=self.chart_title or safe_tr("图表"),
+        from atboffice.modules.spreadsheet.tools.chart_builder import (
+            build_chart_data,
+            resolve_range,
         )
 
-        # Attach to sheet model drawings if requested as object in sheet
-        if not self.location_as_new_sheet and self.sheet_model is not None:
-            if not hasattr(self.sheet_model, "drawings"):
-                self.sheet_model.drawings = []
-            chart_obj.id = len(self.sheet_model.drawings) + 1
-            self.sheet_model.drawings.append(chart_obj)
+        spec = self.get_chart_spec()
+        chart_data = build_chart_data(spec, self.workbook_model, self.sheet_model)
+
+        if self.location_as_new_sheet:
+            from_pt, to_pt = CellAnchorPoint(col=0, row=0), CellAnchorPoint(col=10, row=28)
+        else:
+            if self.anchor_cell is not None:
+                row, col = self.anchor_cell
+            else:
+                resolved = resolve_range(self.data_range, self.workbook_model, self.sheet_model)
+                row, col = (resolved[1][0], resolved[1][3] + 2) if resolved else (1, 1)
+            from_pt = CellAnchorPoint(col=col, row=row)
+            to_pt = CellAnchorPoint(col=col + 7, row=row + 15)
+
+        chart_obj = FloatingObject(
+            id=101,
+            name=self.chart_title or safe_tr("图表 {0}").format(1),
+            kind="chart",
+            anchor_type=AnchorType.TWO_CELL,
+            from_point=from_pt,
+            to_point=to_pt,
+            chart_data=chart_data,
+        )
+
+        target_sheet = self._target_sheet()
+        if target_sheet is not None:
+            if not hasattr(target_sheet, "drawings") or target_sheet.drawings is None:
+                target_sheet.drawings = []
+            chart_obj.id = len(target_sheet.drawings) + 1
+            if not self.chart_title:
+                chart_obj.name = safe_tr("图表 {0}").format(chart_obj.id)
+            target_sheet.drawings.append(chart_obj)
 
         target = self.new_sheet_name if self.location_as_new_sheet else self.existing_sheet_name
         self.chart_created.emit(chart_obj, target)
         self.accept()
+
+    def _target_sheet(self) -> SheetDataModel | None:
+        """Return the sheet that receives the chart, creating a chart sheet when asked."""
+        wb = self.workbook_model
+        if self.location_as_new_sheet:
+            if wb is None or not hasattr(wb, "add_sheet"):
+                return None
+            name = self.new_sheet_name
+            existing = {s.name.lower() for s in wb.sheets}
+            base, n = name, 1
+            while name.lower() in existing:
+                n += 1
+                name = f"{base} ({n})"
+            self.new_sheet_name = name
+            sheet = wb.add_sheet(name=name)
+            sheet.extra["chart_sheet"] = True
+            self.created_sheet = sheet
+            return sheet
+        if wb is not None and hasattr(wb, "get_sheet_by_name") and self.existing_sheet_name:
+            found = wb.get_sheet_by_name(self.existing_sheet_name)
+            if found is not None:
+                return found
+        return self.sheet_model
 
     def get_chart_spec(self) -> dict[str, Any]:
         """Return full chart configuration dictionary."""
@@ -779,6 +833,9 @@ class ChartWizardDialog(QDialog):
                 self.new_sheet_name if self.location_as_new_sheet else self.existing_sheet_name
             ),
             "series": [dict(s) for s in self.series_list],
+            "custom_series": (
+                [dict(s) for s in self.series_list] if self._series_dirty else []
+            ),
         }
 
     def set_sheet_model(self, sheet_model: SheetDataModel | None) -> None:

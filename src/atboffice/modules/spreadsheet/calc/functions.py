@@ -405,8 +405,48 @@ def fn_subtotal(function_num: Any, *refs: Any, ctx: EvalContext | None = None) -
     }
     func = sub_map.get(base_code)
     if func is None:
+        name = {7: "STDEV", 8: "STDEVP", 10: "VAR", 11: "VARP"}.get(base_code)
+        func = FUNCTION_REGISTRY.get(name) if name else None
+    if func is None:
         return VALUE
-    return func(*refs, ctx=ctx)
+    # Like Excel, SUBTOTAL skips cells that hold SUBTOTAL formulas themselves (so a
+    # grand total does not double count group subtotals), and codes 101-111 also
+    # skip manually hidden rows.
+    filtered = [_subtotal_values(r, ctx, code_int > 100) for r in refs]
+    return func(*filtered, ctx=ctx)
+
+
+def _subtotal_values(ref: Any, ctx: EvalContext | None, skip_hidden: bool) -> Any:
+    """Return ``ref`` minus nested SUBTOTAL cells (and hidden rows), else ``ref`` itself."""
+    from atboffice.modules.spreadsheet.calc.context import Ref
+
+    if not isinstance(ref, Ref) or ctx is None or ctx.workbook is None:
+        return ref
+    get_sheet = getattr(ctx.workbook, "get_sheet_by_name", None)
+    sheet = get_sheet(ref.sheet) if get_sheet else None
+    if sheet is None:
+        return ref
+    hidden = sheet.geometry.hidden_rows if skip_hidden else set()
+    cells = sheet.cells
+    nested = False
+    for (r, c), cell in cells.items():
+        if ref.r1 <= r <= ref.r2 and ref.c1 <= c <= ref.c2 and cell.formula:
+            if "SUBTOTAL(" in cell.formula.upper():
+                nested = True
+                break
+    if not nested and not (hidden and any(ref.r1 <= r <= ref.r2 for r in hidden)):
+        return ref
+    values = []
+    for r in range(ref.r1, ref.r2 + 1):
+        if r in hidden:
+            continue
+        for c in range(ref.c1, ref.c2 + 1):
+            cell = cells.get((r, c))
+            if cell is None or (cell.formula and "SUBTOTAL(" in cell.formula.upper()):
+                continue
+            if cell.value is not None:
+                values.append(cell.value)
+    return values
 
 
 # ==============================================================================
