@@ -943,7 +943,10 @@ class CaretController(QObject):
         """Reindex document DOM, repaginate, and notify listeners."""
         reindex(self.doc)
         self.pagination = paginate_document(self.doc)
-        self.reset_blink()
+        # Restart the blink without reset_blink(): caret_changed is emitted once below,
+        # and emitting it here as well doubled every caret-driven UI refresh per edit.
+        self.caret_visible = True
+        self._blink_timer.start()
         self.document_modified.emit()
         self.selection_changed.emit()
         self.caret_changed.emit()

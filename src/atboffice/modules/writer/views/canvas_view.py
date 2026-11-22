@@ -228,6 +228,22 @@ class WriterCanvasView(QAbstractScrollArea):
         self._update_scroll_ranges()
         self.viewport().update()
 
+    def refresh_layout(self) -> None:
+        """Repaginate the current document in place after an edit.
+
+        Unlike :meth:`set_document`, this keeps the undo/redo history, the image
+        cache, the caret and the selection.
+        """
+        if not self.doc.main.blocks:
+            self.doc.main.blocks.append(Paragraph())
+        self.controller.doc = self.doc
+        self.controller._ensure_valid_pos()
+        # Emits document_modified, which syncs self.pagination and the scroll ranges.
+        self.controller.repaginate_and_refresh()
+        self.pagination = self.controller.pagination
+        self._update_scroll_ranges()
+        self.viewport().update()
+
     def _on_document_modified(self) -> None:
         self.pagination = self.controller.pagination
         self._update_scroll_ranges()
@@ -2463,7 +2479,7 @@ class WriterCanvasView(QAbstractScrollArea):
                 self._resizing_table = False
                 self._resize_info = None
                 self._resize_guide_pos = None
-                self.set_document(self.doc)
+                self.refresh_layout()
                 return
 
             self._is_dragging = False
@@ -2815,9 +2831,8 @@ class WriterCanvasView(QAbstractScrollArea):
         self._on_formatting_applied()
 
     def _on_formatting_applied(self) -> None:
-        """Repaginate, re-render, and notify modification."""
-        self.set_document(self.doc)
-        self.controller.document_modified.emit()
+        """Repaginate and re-render in place (keeps undo history, caret and selection)."""
+        self.refresh_layout()
 
     # -----------------------------------------------------------------------
     # Table Operations
@@ -2856,7 +2871,7 @@ class WriterCanvasView(QAbstractScrollArea):
         curr_p = self.controller._paragraph_by_id(self.controller.pos.para_id)
         idx = story.blocks.index(curr_p) if curr_p in story.blocks else len(story.blocks)
         story.blocks.insert(idx + 1, tbl)
-        self.set_document(self.doc)
+        reindex(self.doc)
         first_p = tbl.rows[0].cells[0].blocks[0]
         self.controller.pos = DocPos(first_p.id, 0)
         self.controller.selection = Selection(self.controller.pos, self.controller.pos)

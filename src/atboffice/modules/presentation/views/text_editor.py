@@ -1480,7 +1480,26 @@ class ShapeTextEditorItem(QGraphicsTextItem):
         sc = self.scene()
         if sc is None or getattr(sc, "_is_loading_slide", False):
             return
+        if self._focus_moved_to_formatting_control(event):
+            # Picking a font/size/colour from a toolbar must act on this editor,
+            # so keep the session alive. Clicking elsewhere on the slide, switching
+            # slides or saving still commits the text.
+            return
         self.commit_and_finish()
+
+    @staticmethod
+    def _focus_moved_to_formatting_control(event: QFocusEvent) -> bool:
+        """Return True when focus left for a popup or a toolbar control."""
+        if event.reason() == Qt.FocusReason.PopupFocusReason:
+            return True
+        from PySide6.QtWidgets import QApplication, QToolBar
+
+        widget = QApplication.focusWidget()
+        while widget is not None:
+            if isinstance(widget, QToolBar):
+                return True
+            widget = widget.parentWidget()
+        return False
 
     def contextMenuEvent(self, event: Any) -> None:
         """Display rich text formatting context menu."""

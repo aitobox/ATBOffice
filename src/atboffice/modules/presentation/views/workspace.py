@@ -497,6 +497,35 @@ class SlideThumbnailList(QListWidget):
             self.slide_reordered.emit(from_idx, to_idx)
 
 
+def _apply_outline_lines(text_body: TextBody | None, lines: list[str]) -> TextBody:
+    """Return ``text_body`` updated to show ``lines``, keeping existing formatting.
+
+    Paragraph/run properties of the existing non-empty paragraphs are reused line by
+    line, so editing one bullet in the outline does not reset fonts, levels or bullets.
+    """
+    if text_body is None:
+        return TextBody.from_plain_text("\n".join(lines))
+    existing = [p for p in text_body.paragraphs if p.to_plain_text().strip()]
+    if [p.to_plain_text().strip() for p in existing] == lines:
+        return text_body
+
+    new_paragraphs: list[Paragraph] = []
+    for idx, line in enumerate(lines):
+        template = existing[idx] if idx < len(existing) else (existing[-1] if existing else None)
+        if template is None:
+            new_paragraphs.append(Paragraph(runs=[TextRun(text=line)]))
+            continue
+        para = copy.deepcopy(template)
+        first_run = para.runs[0] if para.runs else TextRun()
+        first_run.text = line
+        para.runs = [first_run]
+        new_paragraphs.append(para)
+
+    updated = copy.copy(text_body)
+    updated.paragraphs = new_paragraphs or [Paragraph()]
+    return updated
+
+
 class OutlineEditorWidget(QWidget):
     """Left-pane slide text outline editor with bidirectional canvas sync."""
 
@@ -507,6 +536,13 @@ class OutlineEditorWidget(QWidget):
         super().__init__(parent)
         self.presentation: Presentation | None = None
         self._is_syncing = False
+        # Slide switches requested by caret moves are deferred to the event loop so the
+        # slide canvas is never rebuilt while the outline is still delivering key events.
+        self._pending_slide_index: int | None = None
+        self._slide_select_timer = QTimer(self)
+        self._slide_select_timer.setSingleShot(True)
+        self._slide_select_timer.setInterval(0)
+        self._slide_select_timer.timeout.connect(self._emit_pending_slide_selection)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -581,34 +617,63 @@ class OutlineEditorWidget(QWidget):
         self.reload(self.presentation)
         self.content_changed.emit()
 
+    @staticmethod
+    def _title_shape(slide: Slide) -> Shape | None:
+        return next(
+            (
+                sh
+                for sh in slide.shapes
+                if sh.placeholder and sh.placeholder.type in ("title", "ctrTitle")
+            ),
+            slide.shapes[0] if slide.shapes else None,
+        )
+
+    @staticmethod
+    def _body_shape(slide: Slide) -> Shape | None:
+        return next(
+            (
+                sh
+                for sh in slide.shapes
+                if sh.placeholder and sh.placeholder.type in ("body", "subTitle", "obj")
+            ),
+            None,
+        )
+
     def _on_text_changed(self) -> None:
         if self._is_syncing or not self.presentation:
             return
-        # Parse outline lines back into slide titles
+        # Parse outline lines back into slide titles and body bullets.
         text = self.editor.toPlainText()
-        lines = text.split("\n")
+        titles: dict[int, str] = {}
+        bodies: dict[int, list[str]] = {}
         cur_slide_idx = -1
-        for line in lines:
+        for line in text.split("\n"):
             trimmed = line.strip()
             if trimmed.startswith("[") and "]" in trimmed:
                 try:
-                    num_str = trimmed[1 : trimmed.index("]")]
-                    cur_slide_idx = int(num_str) - 1
-                    after = trimmed[trimmed.index("]") + 1 :].strip()
-                    if 0 <= cur_slide_idx < len(self.presentation.slides):
-                        s = self.presentation.slides[cur_slide_idx]
-                        title_sh = next(
-                            (
-                                sh
-                                for sh in s.shapes
-                                if sh.placeholder and sh.placeholder.type in ("title", "ctrTitle")
-                            ),
-                            s.shapes[0] if s.shapes else None,
-                        )
-                        if title_sh:
-                            title_sh.text = TextBody.from_plain_text(after)
+                    cur_slide_idx = int(trimmed[1 : trimmed.index("]")]) - 1
                 except ValueError:
                     continue
+                titles[cur_slide_idx] = trimmed[trimmed.index("]") + 1 :].strip()
+                bodies.setdefault(cur_slide_idx, [])
+                continue
+            if cur_slide_idx < 0:
+                continue
+            bullet = trimmed.lstrip("•").strip()
+            if bullet:
+                bodies.setdefault(cur_slide_idx, []).append(bullet)
+
+        slides = self.presentation.slides
+        for idx, title in titles.items():
+            if not 0 <= idx < len(slides):
+                continue
+            slide = slides[idx]
+            title_sh = self._title_shape(slide)
+            if title_sh is not None:
+                title_sh.text = _apply_outline_lines(title_sh.text, [title] if title else [])
+            body_sh = self._body_shape(slide)
+            if body_sh is not None and body_sh is not title_sh:
+                body_sh.text = _apply_outline_lines(body_sh.text, bodies.get(idx, []))
         self.content_changed.emit()
 
     def _on_cursor_changed(self) -> None:
@@ -620,9 +685,17 @@ class OutlineEditorWidget(QWidget):
             try:
                 num = int(block_text[1 : block_text.index("]")]) - 1
                 if 0 <= num < len(self.presentation.slides):
-                    self.slide_selected.emit(num)
+                    self._pending_slide_index = num
+                    self._slide_select_timer.start()
             except ValueError:
                 pass
+
+    def _emit_pending_slide_selection(self) -> None:
+        num = self._pending_slide_index
+        self._pending_slide_index = None
+        if num is None or not self.presentation or not 0 <= num < len(self.presentation.slides):
+            return
+        self.slide_selected.emit(num)
 
 
 class SpeakerNotesPane(QWidget):
