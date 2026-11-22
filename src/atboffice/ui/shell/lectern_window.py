@@ -2310,17 +2310,17 @@ class LecternWindow(BaseOfficeWindow):
         opts = self.print_options
         what = QComboBox()
         what.setObjectName("printWhatCombo")
-        choices: list[tuple[str, tuple[str, int]]] = [(safe_tr("幻灯片"), ("slides", 0))]
+        # Item data are plain strings ("handouts:4"): tuples do not survive QVariant.
+        choices: list[tuple[str, str]] = [(safe_tr("幻灯片"), "slides")]
         choices += [
-            (safe_tr("讲义（每页 {0} 张幻灯片）").format(n), ("handouts", n))
+            (safe_tr("讲义（每页 {0} 张幻灯片）").format(n), f"handouts:{n}")
             for n in HANDOUT_COUNTS
         ]
-        choices += [(safe_tr("备注页"), ("notes", 0)), (safe_tr("大纲视图"), ("outline", 0))]
+        choices += [(safe_tr("备注页"), "notes"), (safe_tr("大纲视图"), "outline")]
         for label, data in choices:
             what.addItem(label, data)
-        current = (opts.what, opts.per_page if opts.what == "handouts" else 0)
-        datas = [d for _label, d in choices]
-        what.setCurrentIndex(datas.index(current) if current in datas else 0)
+        current = f"handouts:{opts.per_page}" if opts.what == "handouts" else opts.what
+        what.setCurrentIndex(max(0, what.findData(current)))
         what.setToolTip(safe_tr("打印内容"))
 
         color = QComboBox()
@@ -2339,10 +2339,10 @@ class LecternWindow(BaseOfficeWindow):
         hidden.setChecked(opts.print_hidden)
 
         def apply() -> None:
-            kind, per = what.currentData()
+            kind, _sep, per = str(what.currentData() or "slides").partition(":")
             opts.what = kind
             if per:
-                opts.per_page = per
+                opts.per_page = int(per)
             opts.color = color.currentData()
             opts.frame_slides = frame.isChecked()
             opts.print_hidden = hidden.isChecked()

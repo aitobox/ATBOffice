@@ -118,14 +118,15 @@ def paginate(sheet: Any, setup: SheetPrintSetup) -> PrintLayout:
     title_w = sum(_sizes(geo, *title_cols, False)) if title_cols else 0.0
 
     if setup.fit_to:
-        total_w = sum(col_sizes) * PX_TO_PT
-        total_h = sum(row_sizes) * PX_TO_PT
+        # Repeated titles print on every page, so they count once per page
+        total_w = (sum(col_sizes) + title_w * max(1, setup.fit_width)) * PX_TO_PT
+        total_h = (sum(row_sizes) + title_h * max(1, setup.fit_height)) * PX_TO_PT
         factors = [1.0]
         if setup.fit_width > 0 and total_w > 0:
             factors.append(avail_w * setup.fit_width / total_w)
         if setup.fit_height > 0 and total_h > 0:
             factors.append(avail_h * setup.fit_height / total_h)
-        zoom = max(0.1, min(factors))
+        zoom = max(0.1, min(factors) * 0.999)  # guard against rounding onto a new page
     else:
         zoom = max(0.1, min(4.0, setup.scale / 100.0))
     k = PX_TO_PT * zoom

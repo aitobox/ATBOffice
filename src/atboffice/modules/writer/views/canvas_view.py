@@ -178,6 +178,8 @@ class WriterCanvasView(QAbstractScrollArea):
 
         # Zoom settings: 50% to 400%
         self._zoom: float = 1.0
+        self._printing: bool = False
+        self._print_device: Any = None
         self._min_zoom: float = 0.5
         self._max_zoom: float = 4.0
         self.pt_to_px_ratio: float = 96.0 / 72.0  # 1.33333
@@ -400,10 +402,14 @@ class WriterCanvasView(QAbstractScrollArea):
 
     def pt_to_px(self, pt: float) -> float:
         """Convert document logical points to canvas pixels under active zoom."""
+        if self._printing:
+            return pt  # print mode paints in points (avoid ratio*zoom float drift)
         return pt * self.pt_to_px_ratio * self._zoom
 
     def px_to_pt(self, px: float) -> float:
         """Convert canvas pixels to document logical points."""
+        if self._printing:
+            return px
         return px / (self.pt_to_px_ratio * self._zoom)
 
     def _get_border_pen(self, bp: Any, zoom: float) -> QPen | None:
