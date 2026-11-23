@@ -6074,5 +6074,6 @@
   "文件“{name}”已存在。\n是否替换现有文件？": "ファイル「{name}」は既に存在します。\n既存のファイルを置き換えますか？",
   "无法保存文件“{target}”：权限不足，无法写入目标目录或文件。\n{exc}": "ファイル「{target}」を保存できません：権限が不足しています。\n{exc}",
   "Open Failed": "開けませんでした",
-  "Cannot open \"{name}\": the file is corrupt or unreadable.": "「{name}」を開けません：ファイルが破損しているか、読み取れません。"
+  "Cannot open \"{name}\": the file is corrupt or unreadable.": "「{name}」を開けません：ファイルが破損しているか、読み取れません。",
+  "Paper colours with the classic menus and toolbars; the tabbed Ribbon layout is not available yet.": "紙の配色で従来のメニューとツール バーを使います。タブ形式のリボン レイアウトはまだ使用できません。"
 }

@@ -6074,5 +6074,6 @@
   "文件“{name}”已存在。\n是否替换现有文件？": "文件“{name}”已存在。\n是否替换现有文件？",
   "无法保存文件“{target}”：权限不足，无法写入目标目录或文件。\n{exc}": "无法保存文件“{target}”：权限不足，无法写入目标目录或文件。\n{exc}",
   "Open Failed": "打开失败",
-  "Cannot open \"{name}\": the file is corrupt or unreadable.": "无法打开文件“{name}”：文件已损坏或无法读取。"
+  "Cannot open \"{name}\": the file is corrupt or unreadable.": "无法打开文件“{name}”：文件已损坏或无法读取。",
+  "Paper colours with the classic menus and toolbars; the tabbed Ribbon layout is not available yet.": "纸张配色，沿用经典菜单和工具栏；选项卡式功能区布局暂不可用。"
 }

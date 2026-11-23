@@ -6,7 +6,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QDialog, QMessageBox
 
 from atboffice.core.window_manager import WindowManager
 from atboffice.modules.writer.io.docx_writer import write_docx
@@ -149,8 +149,17 @@ def test_quire_zip_export_contains_markdown(qtbot, tmp_path: Path) -> None:
         assert b"Zipped text" in zf.read(md_names[0])
 
 
-def test_quire_txt_export_includes_table_text(qtbot, tmp_path: Path) -> None:
+def test_quire_txt_export_includes_table_text(qtbot, tmp_path: Path, monkeypatch) -> None:
     from atboffice.modules.writer.models.document import Cell, Row, Table
+    from atboffice.ui.dialogs.compatibility_dialog import CompatibilityDialog
+
+    shown: list[list[str]] = []
+
+    def accept(dlg):
+        shown.append([loss.feature for loss in dlg.losses])
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(CompatibilityDialog, "exec", accept)
 
     win = _quire_with_text("Intro")
     qtbot.addWidget(win)
@@ -167,6 +176,7 @@ def test_quire_txt_export_includes_table_text(qtbot, tmp_path: Path) -> None:
     text = target.read_text(encoding="utf-8")
     assert "Intro" in text
     assert "A1\tB1" in text
+    assert len(shown) == 1 and any("表格" in f for f in shown[0])  # table loss announced once
 
 
 @pytest.mark.parametrize(
@@ -217,18 +227,20 @@ def test_compatibility_losses_prompt_can_cancel_save(
     qtbot.addWidget(win)
     model = win.spreadsheet_view.workbook if window_cls is LedgerWindow else win.presentation
     model.losses = ["Unsupported chart type"]
-    asked: list[str] = []
+    asked: list[list[str]] = []
 
-    def fake_warning(parent, title, text, *args, **kwargs):
-        asked.append(text)
-        return QMessageBox.StandardButton.No
+    from atboffice.ui.dialogs.compatibility_dialog import CompatibilityDialog
 
-    monkeypatch.setattr(QMessageBox, "warning", fake_warning)
+    def fake_exec(dlg):
+        asked.append([loss.feature for loss in dlg.losses])
+        return QDialog.DialogCode.Rejected
+
+    monkeypatch.setattr(CompatibilityDialog, "exec", fake_exec)
     suffix = ".xlsx" if window_cls is LedgerWindow else ".pptx"
     target = tmp_path / f"lossy{suffix}"
 
     assert win.save_file(target, confirm_overwrite=False) is False
-    assert asked and "Unsupported chart type" in asked[0]
+    assert asked == [["Unsupported chart type"]]  # asked exactly once
     assert not target.exists()
 
 

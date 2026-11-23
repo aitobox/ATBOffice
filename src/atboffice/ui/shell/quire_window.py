@@ -197,6 +197,7 @@ class QuireWindow(BaseOfficeWindow):
 
         self.set_modified(False)
         self._sync_toolbar_states()
+        self.attach_undo_history()
         self.menu_bar.retranslate_ui()
 
     def _bind_action_handlers(self) -> None:
@@ -1098,6 +1099,55 @@ class QuireWindow(BaseOfficeWindow):
         self.writer_view.canvas_view.set_document(Document())
         return True
 
+    def compat_model_losses(self) -> list[Any]:
+        return list(getattr(self.writer_view.canvas_view.doc, "losses", None) or [])
+
+    def save_losses(self, target: Path) -> list[Any]:
+        from atboffice.core.compat import quire_losses
+
+        return quire_losses(self.writer_view.canvas_view.doc, target)
+
+    def render_thumbnail(self, width: int = 240) -> Any:
+        """Page 1 as on paper."""
+        from PySide6.QtGui import QColor, QImage, QPainter
+
+        canvas = self.writer_view.canvas_view
+        if not canvas.pagination or not canvas.pagination.pages:
+            return None
+        page = canvas.pagination.pages[0]
+        scale = width / max(1.0, float(page.width))
+        img = QImage(width, max(1, int(page.height * scale)), QImage.Format.Format_ARGB32)
+        img.fill(QColor("#FFFFFF"))
+        painter = QPainter(img)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.scale(scale, scale)
+        canvas.render_page_to_painter(painter, page)
+        painter.end()
+        return img
+
+    def undo_history(self, kind: str) -> list[str]:
+        from atboffice.ui.components.undo_history import entry_label
+
+        canvas = self.writer_view.canvas_view
+        stack = canvas._undo_stack if kind == "undo" else canvas._redo_stack
+        return [entry_label(e) for e in reversed(stack)]
+
+    def undo_steps(self, kind: str, steps: int) -> None:
+        canvas = self.writer_view.canvas_view
+        done = 0
+        for _ in range(max(0, steps)):
+            if not (canvas.undo() if kind == "undo" else canvas.redo()):
+                break
+            done += 1
+        if done:
+            canvas.viewport().update()
+            self.set_modified(True)
+
+    def new_web_page(self) -> None:
+        """New Document pane > Blank Web page: a new document in Web Layout view."""
+        if self.new_file():
+            self.switch_view_mode(ViewMode.WEB)
+
     def do_save(self, path: Path) -> bool:
         """Serialize Quire document to destination path."""
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -1956,6 +2006,18 @@ class QuireWindow(BaseOfficeWindow):
                 canvas.render_page_to_painter(painter, page)
         finally:
             painter.end()
+
+    def insert_image_bytes(self, data: bytes, ext: str = "png", name: str = "") -> bool:
+        """Picture adapter used by Clip Art, WordArt and image paste."""
+        from atboffice.ui.shell.quire_commands import insert_picture_bytes
+
+        safe = "".join(ch for ch in (name or "picture") if ch.isalnum() or ch in "-_ ").strip()
+        ok = insert_picture_bytes(
+            self.writer_view.canvas_view, data, f"{safe or 'picture'}.{ext}", ext
+        )
+        if ok:
+            self.set_modified(True)
+        return ok
 
     def open_page_setup(self) -> bool:
         """File > Page Setup (also the Print Preview "Page Setup" button)."""

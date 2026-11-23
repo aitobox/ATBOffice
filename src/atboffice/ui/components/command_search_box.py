@@ -120,6 +120,7 @@ class CommandSearchResult:
     icon: QIcon | None = None
     enabled: bool = True
     score: float = 0.0
+    breadcrumb: str = ""
 
 
 class CommandSearchPopup(QFrame):
@@ -186,6 +187,8 @@ class CommandSearchPopup(QFrame):
             text = res.label
             if res.shortcut:
                 text = f"{res.label:<30}  [{res.shortcut}]"
+            if res.breadcrumb:
+                text = f"{text}    {res.breadcrumb}"
             item = QListWidgetItem(text, self.list_widget)
             if res.icon is not None and not res.icon.isNull():
                 item.setIcon(res.icon)
@@ -225,6 +228,49 @@ class CommandSearchPopup(QFrame):
         if action_id:
             self.hide()
             self.action_selected.emit(action_id)
+
+
+RECENT_LIMIT = 8
+_RECENT_COMMANDS: list[str] = []  # shared by every window, most recent first
+
+
+def remember_command(action_id: str) -> None:
+    if action_id in _RECENT_COMMANDS:
+        _RECENT_COMMANDS.remove(action_id)
+    _RECENT_COMMANDS.insert(0, action_id)
+    del _RECENT_COMMANDS[RECENT_LIMIT:]
+
+
+def recent_commands() -> list[str]:
+    return list(_RECENT_COMMANDS)
+
+
+def within_one_edit(a: str, b: str) -> bool:
+    """True when ``a`` and ``b`` differ by at most one insertion, deletion or substitution."""
+    if a == b:
+        return True
+    la, lb = len(a), len(b)
+    if abs(la - lb) > 1:
+        return False
+    if la > lb:
+        a, b, la, lb = b, a, lb, la
+    i = j = 0
+    edited = False
+    while i < la and j < lb:
+        if a[i] == b[j]:
+            i += 1
+            j += 1
+            continue
+        if edited:
+            return False
+        edited = True
+        if la == lb:
+            i += 1
+        j += 1
+    return True
+
+
+_WORD = re.compile(r"[a-z0-9]+|[\u4e00-\u9fff]")
 
 
 class CommandSearchBox(QWidget):
@@ -305,7 +351,8 @@ class CommandSearchBox(QWidget):
     def _on_text_changed(self, text: str) -> None:
         q = text.strip()
         if not q:
-            self.popup.hide()
+            if not (self.line_edit.hasFocus() and self.show_recent()):
+                self.popup.hide()
             return
         results = self.search_commands(q)
         self.popup.set_results(results)
@@ -334,10 +381,76 @@ class CommandSearchBox(QWidget):
         self.popup.hide()
         self.line_edit.clear()
         self.line_edit.clearFocus()
+        remember_command(action_id)
 
         if self.action_registry is not None:
             self.action_registry.trigger_action(action_id)
         self.action_executed.emit(action_id)
+
+    def _menu_breadcrumbs(self) -> dict[int, str]:
+        """``id(QAction)`` -> "Menu > Submenu" for every menu command of the host window."""
+        from PySide6.QtWidgets import QMenu, QMenuBar
+
+        host = self.window()
+        bar = host.findChild(QMenuBar) if host is not None else None
+        paths: dict[int, str] = {}
+
+        def walk(menu: QMenu, trail: str) -> None:
+            for act in menu.actions():
+                sub = act.menu()
+                text = act.text().replace("&", "").rstrip(".…")
+                if sub is not None:
+                    walk(sub, f"{trail} > {text}" if trail else text)
+                elif not act.isSeparator():
+                    paths.setdefault(id(act), trail)
+
+        if bar is not None:
+            for act in bar.actions():
+                if act.menu() is not None:
+                    walk(act.menu(), act.text().replace("&", ""))
+        return paths
+
+    def _result_for(self, aid: str, score: float, crumbs: dict[int, str]) -> CommandSearchResult:
+        spec = self.action_registry._specs[aid]  # type: ignore[union-attr]
+        action = self.action_registry._actions.get(aid)  # type: ignore[union-attr]
+        shortcut = ""
+        if spec.shortcut is not None:
+            shortcut = (
+                spec.shortcut.toString()
+                if hasattr(spec.shortcut, "toString")
+                else str(spec.shortcut)
+            )
+        icon = spec.icon if isinstance(spec.icon, QIcon) else None
+        if icon is None and action is not None:
+            icon = action.icon()
+        label = (action.text() if action is not None else "") or spec.label or aid
+        return CommandSearchResult(
+            action_id=aid,
+            label=label.replace("&", ""),
+            tip=spec.tip or "",
+            shortcut=shortcut,
+            icon=icon,
+            enabled=action.isEnabled() if action is not None else spec.enabled,
+            score=score,
+            breadcrumb=crumbs.get(id(action), "") if action is not None else "",
+        )
+
+    def recent_results(self) -> list[CommandSearchResult]:
+        """Recently executed commands (shown when the box is focused while empty)."""
+        if not self.action_registry:
+            return []
+        crumbs = self._menu_breadcrumbs()
+        specs = getattr(self.action_registry, "_specs", {})
+        return [self._result_for(aid, 1.0, crumbs) for aid in recent_commands() if aid in specs]
+
+    def show_recent(self) -> bool:
+        results = self.recent_results()
+        if not results:
+            return False
+        self.popup.set_results(results)
+        self._position_popup()
+        self.popup.show()
+        return True
 
     def search_commands(self, query: str) -> list[CommandSearchResult]:
         """Perform fuzzy & synonym search over all registered actions."""
@@ -362,20 +475,13 @@ class CommandSearchBox(QWidget):
         results: list[CommandSearchResult] = []
         specs = getattr(self.action_registry, "_specs", {})
         actions = getattr(self.action_registry, "_actions", {})
+        crumbs = self._menu_breadcrumbs()
 
         for aid, spec in specs.items():
-            label = spec.label or ""
-            tip = spec.tip or ""
             action = actions.get(aid)
-            enabled = action.isEnabled() if action is not None else spec.enabled
-
-            shortcut_str = ""
-            if spec.shortcut is not None:
-                shortcut_str = (
-                    spec.shortcut.toString()
-                    if hasattr(spec.shortcut, "toString")
-                    else str(spec.shortcut)
-                )
+            label = (action.text() if action is not None else "") or spec.label or ""
+            label = label.replace("&", "")
+            tip = spec.tip or ""
 
             lbl_lower = label.lower()
             aid_lower = aid.lower()
@@ -406,27 +512,29 @@ class CommandSearchBox(QWidget):
                 elif match_count > 0:
                     score += 2.0 * (match_count / len(tokens))
 
-            if score > 0:
-                icon = spec.icon if isinstance(spec.icon, QIcon) else None
-                if icon is None and action is not None:
-                    icon = action.icon()
+            # 6. One typo away (a missing, extra or wrong letter) from a word of the label
+            if score == 0.0:
+                words = set(_WORD.findall(lbl_lower)) | set(_WORD.findall(aid_lower))
+                long_tokens = [t for t in tokens if len(t) >= 3]
+                if long_tokens and all(
+                    any(len(w) >= 3 and within_one_edit(t, w) for w in words)
+                    for t in long_tokens
+                ):
+                    score = 3.0
 
-                results.append(
-                    CommandSearchResult(
-                        action_id=aid,
-                        label=label,
-                        tip=tip,
-                        shortcut=shortcut_str,
-                        icon=icon,
-                        enabled=enabled,
-                        score=score,
-                    )
-                )
+            if score > 0 and label.strip():
+                results.append(self._result_for(aid, score, crumbs))
 
         results.sort(key=lambda x: (not x.enabled, -x.score, len(x.label)))
         return results[:10]
 
     def eventFilter(self, obj: Any, event: QEvent) -> bool:
+        if (
+            obj == self.line_edit
+            and event.type() == QEvent.Type.FocusIn
+            and not self.line_edit.text().strip()
+        ):
+            self.show_recent()
         if obj == self.line_edit and event.type() == QEvent.Type.KeyPress:
             key = event.key()
             if key == Qt.Key.Key_Down:

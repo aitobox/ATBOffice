@@ -124,6 +124,7 @@ class LedgerWindow(BaseOfficeWindow):
         from atboffice.ui.shell.ledger_commands import bind_ledger_commands
 
         self.ledger_commands = bind_ledger_commands(self)
+        self.attach_undo_history()
 
         self.set_modified(False)
         self.menu_bar.retranslate_ui()
@@ -2416,8 +2417,6 @@ class LedgerWindow(BaseOfficeWindow):
             )
         if not path:
             return
-        from PySide6.QtGui import QImage
-
         try:
             data = Path(path).read_bytes()
         except OSError as exc:
@@ -2425,22 +2424,28 @@ class LedgerWindow(BaseOfficeWindow):
                 self, safe_tr("插入图片"), safe_tr("无法读取图片文件：{0}").format(str(exc))
             )
             return
-        image = QImage()
-        if not data or not image.loadFromData(data):
+        if not self.insert_image_bytes(data, Path(path).suffix, Path(path).stem):
             QMessageBox.warning(
                 self, safe_tr("插入图片"), safe_tr("所选文件不是可识别的图片格式。")
             )
-            return
+
+    def insert_image_bytes(self, data: bytes, ext: str = "png", name: str = "") -> bool:
+        """Picture adapter (Insert Picture, Clip Art, WordArt): a floating image at the
+        active cell, sized from its pixels and capped to a sensible area."""
+        from PySide6.QtGui import QImage
+
+        image = QImage()
+        if not data or not image.loadFromData(data):
+            return False
         mime = {
-            ".jpg": "image/jpeg",
-            ".jpeg": "image/jpeg",
-            ".gif": "image/gif",
-            ".bmp": "image/bmp",
-        }.get(Path(path).suffix.lower(), "image/png")
+            "jpg": "image/jpeg",
+            "jpeg": "image/jpeg",
+            "gif": "image/gif",
+            "bmp": "image/bmp",
+        }.get((ext or "png").lower().lstrip("."), "image/png")
         sel = self.spreadsheet_view.selection
         r, c = sel.active_cell
         model = self.spreadsheet_view.model
-        # Size the anchor from the picture's pixel size, capped to a sensible area.
         w = min(image.width(), 640)
         h = max(1, round(image.height() * w / max(1, image.width())))
         cols, width_px = 0, 0
@@ -2454,7 +2459,7 @@ class LedgerWindow(BaseOfficeWindow):
         layer = self.spreadsheet_view.object_layer
         obj = FloatingObject(
             id=len(getattr(model, "drawings", []) or []) + 1,
-            name=Path(path).stem,
+            name=name or "Picture",
             kind="image",
             anchor_type=AnchorType.TWO_CELL,
             from_point=CellAnchorPoint(col=c, row=r),
@@ -2466,6 +2471,7 @@ class LedgerWindow(BaseOfficeWindow):
         layer.add_object(obj)
         layer.select_object(obj)
         self.set_modified(True)
+        return True
 
     def insert_hyperlink(self) -> None:
         """Open insert or edit hyperlink dialog."""
@@ -2801,6 +2807,45 @@ class LedgerWindow(BaseOfficeWindow):
         if grid and hasattr(grid, "redo"):
             grid.redo()
             self.set_modified(True)
+
+    def compat_model_losses(self) -> list[Any]:
+        return list(getattr(self.spreadsheet_view.workbook, "losses", None) or [])
+
+    def save_losses(self, target: Path) -> list[Any]:
+        from atboffice.core.compat import ledger_losses
+
+        return ledger_losses(
+            self.spreadsheet_view.workbook, self.spreadsheet_view.grid.model, target
+        )
+
+    def render_thumbnail(self, width: int = 240) -> Any:
+        """Top-left of the active sheet (cells, fills, borders) as printed."""
+        from PySide6.QtGui import QColor, QImage, QPainter
+
+        grid = getattr(self.spreadsheet_view, "grid", None)
+        if grid is None:
+            return None
+        geo = grid.model.geometry
+        rows, cols = 24, 8
+        w_px = geo.col_pos(cols) - geo.col_pos(0)
+        h_px = geo.row_pos(rows) - geo.row_pos(0)
+        scale = width / max(1.0, float(w_px))
+        img = QImage(width, max(1, int(h_px * scale)), QImage.Format.Format_ARGB32)
+        img.fill(QColor("#FFFFFF"))
+        painter = QPainter(img)
+        painter.scale(scale, scale)
+        grid.paint_print_region(painter, 0, rows - 1, 0, cols - 1, gridlines=True)
+        painter.end()
+        return img
+
+    def undo_history(self, kind: str) -> list[str]:
+        from atboffice.ui.components.undo_history import entry_label
+
+        grid = getattr(self.spreadsheet_view, "grid", None)
+        if grid is None:
+            return []
+        stack = grid._undo_stack if kind == "undo" else grid._redo_stack
+        return [entry_label(e) for e in reversed(stack)]
 
     def set_view_mode(self, mode: str, prompt_welcome: bool = False) -> None:
         """Switch spreadsheet view mode ('normal' or 'page_break')."""

@@ -106,6 +106,22 @@ class ScoutBalloon(QWidget):
         self.label_text.setStyleSheet("color: #222; font-size: 13px; line-height: 1.3;")
         main_layout.addWidget(self.label_text, stretch=1)
 
+        # Office 2003 balloon buttons
+        buttons = QHBoxLayout()
+        buttons.setContentsMargins(0, 0, 0, 0)
+        self.btn_search = QPushButton(safe_tr("搜索命令"), self)
+        self.btn_help = QPushButton(safe_tr("帮助"), self)
+        self.btn_hide_scout = QPushButton(safe_tr("隐藏 Scout"), self)
+        for btn in (self.btn_search, self.btn_help, self.btn_hide_scout):
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setStyleSheet(
+                "QPushButton { border: 1px solid #9DB9E0; border-radius: 3px; "
+                "background: #EEF4FC; padding: 2px 6px; font-size: 11px; }"
+                "QPushButton:hover { background: #DCE8F8; }"
+            )
+            buttons.addWidget(btn)
+        main_layout.addLayout(buttons)
+
     def set_text(self, text: str) -> None:
         """Set speech text and adjust size to fit."""
         self.label_text.setText(text)
@@ -169,11 +185,23 @@ class ScoutWidget(QWidget):
         self._drag_start_pos: QPoint | None = None
         self._drag_mouse_offset: QPoint | None = None
 
-        # Timers
+        # Timers. Animation runs only in short bursts (shown, speaking, reacting to a
+        # command, a blink every few seconds), so an idle Scout uses no CPU.
         self._idle_timer = QTimer(self)
-        self._idle_timer.setInterval(40)  # ~25 fps
+        self._idle_timer.setInterval(40)  # ~25 fps while animating
         self._idle_timer.timeout.connect(self._on_idle_tick)
-        self._idle_timer.start()
+        self._burst_stop = QTimer(self)
+        self._burst_stop.setSingleShot(True)
+        self._burst_stop.timeout.connect(self._end_burst)
+        self._blink_timer = QTimer(self)
+        self._blink_timer.setSingleShot(True)
+        self._blink_timer.setInterval(4000)
+        self._blink_timer.timeout.connect(self._on_blink_due)
+        self._registries: list[Any] = []
+
+        self.balloon.btn_search.clicked.connect(self._on_search_commands)
+        self.balloon.btn_help.clicked.connect(self._on_open_help)
+        self.balloon.btn_hide_scout.clicked.connect(self.hide)
 
         self._trick_timer = QTimer(self)
         self._trick_timer.setInterval(30)
@@ -188,8 +216,63 @@ class ScoutWidget(QWidget):
             geom = screen.availableGeometry()
             self.move(geom.right() - self.width() - 40, geom.bottom() - self.height() - 60)
 
+    # ---- animation bursts / reactions -------------------------------------
+    def animate_for(self, ms: int) -> None:
+        """Animate (breathing, tail) for ``ms`` milliseconds, then go fully idle."""
+        if not self.isVisible():
+            return
+        if not self._idle_timer.isActive():
+            self._idle_timer.start()
+        self._burst_stop.start(max(ms, self._burst_stop.remainingTime()))
+
+    def _end_burst(self) -> None:
+        self._idle_timer.stop()
+        self._is_blinking = False
+        self.update()
+
+    def _on_blink_due(self) -> None:
+        if not self.isVisible():
+            return
+        self._is_blinking = True
+        self._blink_counter = 76
+        self.animate_for(240)
+        self._blink_timer.start()
+
+    def attach_registry(self, registry: Any) -> None:
+        """React to commands run in an editor (ActionRegistry.action_triggered)."""
+        if registry is None or any(r is registry for r in self._registries):
+            return
+        self._registries.append(registry)
+        registry.action_triggered.connect(self.react_to_command)
+        registry.destroyed.connect(
+            lambda *_a, r=registry: self._registries.remove(r) if r in self._registries else None
+        )
+
+    COMMAND_TIPS: dict[str, str] = {
+        "save": "文档已保存。按 Ctrl+S 可以随时保存。",
+        "file_save": "文档已保存。按 Ctrl+S 可以随时保存。",
+        "print": "正在准备打印。可以先用“打印预览”检查分页。",
+        "printPreview": "打印预览：单击“放大镜”可在整页和 100% 之间切换。",
+        "spelling": "拼写检查会跳过全大写的缩写词。",
+        "insertTable": "提示：在表格中按 Tab 可以移到下一个单元格。",
+        "insertChart": "双击图表可以编辑它的数据表。",
+        "find": "按 Ctrl+H 可以直接进行替换。",
+        "undo": "单击“撤销”按钮旁的箭头，可以一次撤销多步操作。",
+    }
+
+    def react_to_command(self, action_id: str) -> None:
+        """Office Assistant style reaction to a command (tip for known ones, a wag)."""
+        if not self.isVisible():
+            return
+        tip = self.COMMAND_TIPS.get(action_id)
+        if tip:
+            self.speak(safe_tr(tip))
+        else:
+            self.animate_for(600)
+
     def speak(self, text: str) -> None:
         """Display speech balloon with provided text."""
+        self.animate_for(1500)
         self.balloon.set_text(text)
         self._position_balloon()
         self.balloon.show()
@@ -305,14 +388,21 @@ class ScoutWidget(QWidget):
         if self.balloon and self.balloon.isVisible():
             self._position_balloon()
 
+    def showEvent(self, event: Any) -> None:
+        super().showEvent(event)
+        self.animate_for(1500)
+        self._blink_timer.start()
+
     def hideEvent(self, event: Any) -> None:
         super().hideEvent(event)
+        for timer in (self._idle_timer, self._burst_stop, self._blink_timer):
+            timer.stop()
         if self.balloon:
             self.balloon.hide()
 
     def closeEvent(self, event: Any) -> None:
-        if self._idle_timer.isActive():
-            self._idle_timer.stop()
+        for timer in (self._idle_timer, self._burst_stop, self._blink_timer):
+            timer.stop()
         if self._trick_timer.isActive():
             self._trick_timer.stop()
         if self.balloon:
@@ -483,9 +573,10 @@ def get_scout_assistant() -> ScoutWidget:
     return _global_scout
 
 
-def toggle_assistant() -> None:
-    """Toggle visibility of global Scout assistant."""
+def toggle_assistant(registry: Any = None) -> None:
+    """Toggle visibility of global Scout assistant (reacting to ``registry`` commands)."""
     scout = get_scout_assistant()
+    scout.attach_registry(registry)
     if scout.isVisible():
         scout.hide()
     else:

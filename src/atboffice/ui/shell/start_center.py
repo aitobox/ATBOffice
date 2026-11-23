@@ -15,11 +15,13 @@ from PySide6.QtGui import (
     QDropEvent,
     QFont,
     QMouseEvent,
+    QPixmap,
 )
 from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -53,10 +55,12 @@ class RecentItemWidget(QWidget):
         item: RecentItem,
         on_remove: Callable[[Path], None],
         parent: QWidget | None = None,
+        thumbnail: Path | None = None,
     ) -> None:
         super().__init__(parent)
         self.item = item
         self.on_remove = on_remove
+        self.thumbnail = thumbnail
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -78,6 +82,18 @@ class RecentItemWidget(QWidget):
         font.setPointSize(20)
         self.lbl_icon.setFont(font)
         self.lbl_icon.setFixedWidth(28)
+        self.has_thumbnail = False
+        if self.thumbnail is not None and self.thumbnail.exists():
+            pix = QPixmap(str(self.thumbnail))
+            if not pix.isNull():
+                self.lbl_icon.setPixmap(
+                    pix.scaled(64, 48, Qt.AspectRatioMode.KeepAspectRatio,
+                               Qt.TransformationMode.SmoothTransformation)
+                )
+                self.lbl_icon.setFixedSize(66, 50)
+                self.lbl_icon.setStyleSheet("border: 1px solid #CBD5E1; background: #FFFFFF;")
+                self.lbl_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.has_thumbnail = True
         layout.addWidget(self.lbl_icon)
 
         # Text column (Title + path & time meta)
@@ -507,6 +523,24 @@ class StartCenterWindow(BaseOfficeWindow):
         self.recent_list_widget.itemActivated.connect(self._on_recent_item_activated)
         layout.addWidget(self.recent_list_widget, stretch=1)
 
+        # Document Recovery: drafts left by a session that did not close cleanly
+        self.recovery_box = QFrame(page)
+        self.recovery_box.setObjectName("recoveryBox")
+        self.recovery_box.setStyleSheet(
+            "#recoveryBox { background: #FFFBEB; border: 1px solid #FCD34D; border-radius: 8px; }"
+        )
+        rec_layout = QVBoxLayout(self.recovery_box)
+        rec_layout.setContentsMargins(12, 8, 12, 8)
+        self.lbl_recovery_title = QLabel(self.recovery_box)
+        rec_font = QFont()
+        rec_font.setBold(True)
+        self.lbl_recovery_title.setFont(rec_font)
+        rec_layout.addWidget(self.lbl_recovery_title)
+        self.recovery_rows = QVBoxLayout()
+        rec_layout.addLayout(self.recovery_rows)
+        self.recovery_box.setVisible(False)
+        layout.insertWidget(1, self.recovery_box)
+
         return page
 
     def _create_templates_page(self) -> QWidget:
@@ -533,102 +567,33 @@ class StartCenterWindow(BaseOfficeWindow):
         scroll_layout.setContentsMargins(0, 0, 12, 12)
         scroll_layout.setSpacing(20)
 
+        from atboffice.core.templates import TemplateRegistry
         from atboffice.core.window_manager import WindowManager
 
-        # Quire Templates Section
-        self._add_template_section(
-            scroll_layout,
-            title="Quire " + safe_tr("文本文档"),
-            items=[
-                (
-                    safe_tr("空白文档"),
-                    safe_tr("标准空白页面"),
-                    "📄",
-                    lambda: WindowManager.get_instance().open_quire(),
-                ),
-                (
-                    safe_tr("会议纪要"),
-                    safe_tr("议程与待办跟进"),
-                    "📝",
-                    lambda: WindowManager.get_instance().open_quire(template_id="minutes"),
-                ),
-                (
-                    safe_tr("工作报告"),
-                    safe_tr("周报/月报结构"),
-                    "📊",
-                    lambda: WindowManager.get_instance().open_quire(template_id="report"),
-                ),
-            ],
+        registry = TemplateRegistry.get_instance()
+        self.template_cards: list[TemplateCard] = []
+        sections = (
+            ("quire", "Quire " + safe_tr("文本文档"), safe_tr("空白文档"),
+             safe_tr("标准空白页面"), "📄"),
+            ("ledger", "Ledger " + safe_tr("电子表格"), safe_tr("空白工作簿"),
+             safe_tr("标准多标签表格"), "📗"),
+            ("lectern", "Lectern " + safe_tr("演示文稿"), safe_tr("空白幻灯片"),
+             safe_tr("16:9 宽屏演示"), "📙"),
         )
-
-        # Ledger Templates Section
-        self._add_template_section(
-            scroll_layout,
-            title="Ledger " + safe_tr("电子表格"),
-            items=[
-                (
-                    safe_tr("空白工作簿"),
-                    safe_tr("标准多标签表格"),
-                    "📗",
-                    lambda: WindowManager.get_instance().open_ledger(),
-                ),
-                (
-                    safe_tr("月度收支预算"),
-                    safe_tr("收支明细与结余"),
-                    "💰",
-                    lambda: WindowManager.get_instance().open_ledger(template_id="budget"),
-                ),
-                (
-                    safe_tr("项目甘特计划"),
-                    safe_tr("里程碑与阶段进度"),
-                    "📅",
-                    lambda: WindowManager.get_instance().open_ledger(template_id="tasks"),
-                ),
-            ],
-        )
-
-        # Lectern Templates Section
-        self._add_template_section(
-            scroll_layout,
-            title="Lectern " + safe_tr("演示文稿"),
-            items=[
-                (
-                    safe_tr("空白幻灯片"),
-                    safe_tr("16:9 宽屏演示"),
-                    "📙",
-                    lambda: WindowManager.get_instance().open_lectern(),
-                    None,
-                ),
-                (
-                    safe_tr("项目状态汇报"),
-                    safe_tr("蓝图设计风格进度报告"),
-                    "📈",
-                    lambda: WindowManager.get_instance().open_lectern(template_id="status"),
-                    "status",
-                ),
-                (
-                    safe_tr("团队例会"),
-                    safe_tr("草地设计风格周会演示"),
-                    "👥",
-                    lambda: WindowManager.get_instance().open_lectern(template_id="meeting"),
-                    "meeting",
-                ),
-                (
-                    safe_tr("课程教案"),
-                    safe_tr("羊皮纸风格课程讲义"),
-                    "🎓",
-                    lambda: WindowManager.get_instance().open_lectern(template_id="lesson"),
-                    "lesson",
-                ),
-                (
-                    safe_tr("活动通告"),
-                    safe_tr("暗夜风格活动宣讲"),
-                    "🎉",
-                    lambda: WindowManager.get_instance().open_lectern(template_id="event"),
-                    "event",
-                ),
-            ],
-        )
+        for app, title, blank_title, blank_sub, blank_icon in sections:
+            opener = getattr(WindowManager.get_instance(), f"open_{app}")
+            items: list[tuple[Any, ...]] = [
+                (blank_title, blank_sub, blank_icon, lambda o=opener: o(), None)
+            ]
+            for info in registry.list_templates(app):
+                items.append((
+                    safe_tr(info.name),
+                    safe_tr(info.description or info.category or ""),
+                    info.icon or "📄",
+                    lambda o=opener, tid=info.id: o(template_id=tid),
+                    info.id,
+                ))
+            self._add_template_section(scroll_layout, title=title, items=items)
 
         scroll_layout.addStretch(1)
         scroll.setWidget(scroll_content)
@@ -651,15 +616,19 @@ class StartCenterWindow(BaseOfficeWindow):
         sec_title.setStyleSheet("color: #334155; margin-top: 8px;")
         container_layout.addWidget(sec_title)
 
-        cards_row = QHBoxLayout()
-        cards_row.setSpacing(14)
-        for item in items:
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(14)
+        grid.setVerticalSpacing(14)
+        per_row = 5
+        for idx, item in enumerate(items):
             card_title, subtitle, icon, callback = item[0], item[1], item[2], item[3]
             tid = item[4] if len(item) > 4 else None
             card = TemplateCard(card_title, subtitle, icon, callback, template_id=tid)
-            cards_row.addWidget(card)
-        cards_row.addStretch(1)
-        container_layout.addLayout(cards_row)
+            if hasattr(self, "template_cards"):
+                self.template_cards.append(card)
+            grid.addWidget(card, idx // per_row, idx % per_row)
+        grid.setColumnStretch(per_row, 1)
+        container_layout.addLayout(grid)
 
     # Menu commands the launcher can execute; every other editor command is disabled.
     _SUPPORTED_MENU_ACTIONS: frozenset[str] = frozenset(
@@ -912,9 +881,71 @@ class StartCenterWindow(BaseOfficeWindow):
     # -------------------------------------------------------------------------
     # Public Refresh and i18n
     # -------------------------------------------------------------------------
+    def refresh_recovery_drafts(self, recovery_dir: Path | None = None) -> int:
+        """List recoverable drafts (badge rows with Open / Discard); returns the count."""
+        from atboffice.core.recovery_service import list_orphan_drafts
+
+        if not hasattr(self, "recovery_rows"):
+            return 0
+        while self.recovery_rows.count():
+            child = self.recovery_rows.takeAt(0)
+            if child.widget() is not None:
+                child.widget().deleteLater()
+        drafts = list_orphan_drafts(recovery_dir)
+        self._recovery_dir_override = recovery_dir
+        self.lbl_recovery_title.setText(
+            safe_tr("文档恢复：发现 {0} 个未保存的恢复版本").format(len(drafts))
+        )
+        for draft in drafts[:8]:
+            row = QWidget(self.recovery_box)
+            h = QHBoxLayout(row)
+            h.setContentsMargins(0, 0, 0, 0)
+            when = datetime.fromtimestamp(draft.modified).strftime("%Y-%m-%d %H:%M")
+            lbl = QLabel(f"🛟 {draft.name}{draft.ext}  ·  {when}", row)
+            btn_open = QPushButton(safe_tr("打开"), row)
+            btn_open.setObjectName("recoveryOpen")
+            btn_discard = QPushButton(safe_tr("放弃"), row)
+            btn_discard.setObjectName("recoveryDiscard")
+            btn_open.clicked.connect(lambda _c=False, d=draft: self._open_recovery_draft(d))
+            btn_discard.clicked.connect(lambda _c=False, d=draft: self._discard_recovery_draft(d))
+            h.addWidget(lbl, 1)
+            h.addWidget(btn_open)
+            h.addWidget(btn_discard)
+            self.recovery_rows.addWidget(row)
+        self.recovery_box.setVisible(bool(drafts))
+        return len(drafts)
+
+    def _open_recovery_draft(self, draft: Any) -> None:
+        from atboffice.core.window_manager import WindowManager
+
+        try:
+            WindowManager.get_instance().open_file_auto(draft.path)
+        except Exception as exc:
+            QMessageBox.warning(
+                self, safe_tr("文档恢复"), safe_tr("无法打开恢复版本：{0}").format(exc)
+            )
+
+    def _discard_recovery_draft(self, draft: Any) -> None:
+        res = QMessageBox.question(
+            self,
+            safe_tr("文档恢复"),
+            safe_tr("永久删除恢复版本“{0}”？此操作无法撤销。").format(draft.name + draft.ext),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if res != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            draft.path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        self.refresh_recovery_drafts(getattr(self, "_recovery_dir_override", None))
+
     def refresh_recent_files(self) -> None:
         """Synchronize the recent documents list with RecentFilesManager."""
         from atboffice.core.window_manager import WindowManager
+
+        self.refresh_recovery_drafts(getattr(self, "_recovery_dir_override", None))
 
         wm = WindowManager.get_instance()
         entries = wm.recent_files.get_entries()
@@ -934,13 +965,14 @@ class StartCenterWindow(BaseOfficeWindow):
         for entry in entries:
             list_item = QListWidgetItem(self.recent_list_widget)
             list_item.setData(Qt.ItemDataRole.UserRole, str(entry.path))
-            list_item.setSizeHint(QSize(0, 56))
-
+            thumb = wm.recent_files.thumbnail_for(entry.path)
             item_widget = RecentItemWidget(
                 item=entry,
                 on_remove=self._remove_recent_item,
                 parent=self.recent_list_widget,
+                thumbnail=thumb,
             )
+            list_item.setSizeHint(QSize(0, 66 if item_widget.has_thumbnail else 56))
             self.recent_list_widget.setItemWidget(list_item, item_widget)
 
     def retranslate_ui(self) -> None:

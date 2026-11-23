@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import tempfile
@@ -152,14 +153,38 @@ class RecentFilesManager:
         initial_count = len(self._entries)
         self._entries = [e for e in self._entries if e.path != target]
         if len(self._entries) < initial_count:
+            self.thumbnail_for(target).unlink(missing_ok=True)
             self.save()
             return True
         return False
 
     def clear_all(self) -> None:
         """Clear all entries from recent history and update storage."""
+        for entry in self._entries:
+            self.thumbnail_for(entry.path).unlink(missing_ok=True)
         self._entries.clear()
         self.save()
+
+    # ---- thumbnails (Start Center previews) -------------------------------
+    @property
+    def thumbnail_dir(self) -> Path:
+        return self.storage_path.parent / "thumbnails"
+
+    def thumbnail_for(self, path: str | Path) -> Path:
+        """Cache file of the page-1 / grid / slide-1 preview of ``path``."""
+        key = hashlib.sha1(str(Path(path).resolve()).encode("utf-8")).hexdigest()[:24]
+        return self.thumbnail_dir / f"{key}.png"
+
+    def save_thumbnail(self, path: str | Path, image: Any) -> bool:
+        """Store a QImage preview for ``path``; False when it cannot be written."""
+        if image is None or image.isNull():
+            return False
+        try:
+            self.thumbnail_dir.mkdir(parents=True, exist_ok=True)
+            return bool(image.save(str(self.thumbnail_for(path)), "PNG"))
+        except OSError as err:
+            logger.debug("Could not save thumbnail for %s: %s", path, err)
+            return False
 
     def load(self) -> None:
         """Load history entries from persistent JSON storage."""

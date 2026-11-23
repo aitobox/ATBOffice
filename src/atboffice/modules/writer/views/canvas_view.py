@@ -2432,12 +2432,43 @@ class WriterCanvasView(QAbstractScrollArea):
         self.viewport().update()
 
     def copy_selection(self) -> None:
-        """Copy selected text to system clipboard."""
+        """Copy the selection as plain text and formatted HTML (Office Clipboard keeps both)."""
+        from PySide6.QtCore import QMimeData
+
         text = self.controller.get_selected_text()
-        if text:
-            cb = QGuiApplication.clipboard()
-            if cb:
-                cb.setText(text)
+        if not text:
+            return
+        cb = QGuiApplication.clipboard()
+        if not cb:
+            return
+        mime = QMimeData()
+        mime.setText(text)
+        html_text = self._selection_html()
+        if html_text:
+            mime.setHtml(html_text)
+        cb.setMimeData(mime)
+
+    def _selection_html(self) -> str:
+        from atboffice.modules.writer.io.clipboard_html import selection_html
+        from atboffice.modules.writer.models.document import paras_between
+
+        ctl = self.controller
+        if ctl.selection.is_collapsed:
+            return ""
+        start, end = ctl.selection.ordered_range(self.doc)
+        p_start = ctl._paragraph_by_id(start.para_id)
+        p_end = ctl._paragraph_by_id(end.para_id)
+        if p_start is None or p_end is None:
+            return ""
+        if p_start is p_end:
+            return selection_html([(p_start, start.offset, end.offset)])
+        paras = paras_between(self.doc, p_start, p_end)
+        segments = []
+        for i, para in enumerate(paras):
+            a = start.offset if i == 0 else 0
+            b = end.offset if i == len(paras) - 1 else None
+            segments.append((para, a, b))
+        return selection_html(segments)
 
     def cut_selection(self) -> None:
         """Cut selected text to system clipboard."""

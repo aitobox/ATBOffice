@@ -109,6 +109,7 @@ class LecternWindow(BaseOfficeWindow):
         self.lectern_commands = bind_lectern_commands(self)
         # The window's task pane dock replaces the workspace's embedded task pane
         ws.set_embedded_task_pane_enabled(False)
+        self.attach_undo_history()  # Lectern has no undo stack yet: shows "nothing to undo"
 
         self.set_modified(False)
         self._setup_status_bar_view_buttons()
@@ -1057,35 +1058,60 @@ class LecternWindow(BaseOfficeWindow):
             return None
         return self.add_shape(shape, message=safe_tr("已插入图片"))
 
-    def open_clipart_dialog(self) -> None:
-        """Insert > Picture > Clip Art: insert the chosen clip as an embedded picture."""
-        from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+    def compat_model_losses(self) -> list[Any]:
+        return list(getattr(self.presentation, "losses", None) or [])
 
-        from atboffice.modules.common.clipart_dialog import ClipartDialog, render_clipart_pixmap
+    def render_thumbnail(self, width: int = 240) -> Any:
+        """Slide 1 with its design background."""
+        from PySide6.QtCore import QRectF
+        from PySide6.QtGui import QColor, QImage, QPainter
+
+        from atboffice.modules.presentation.printing import paint_slide
+
+        pres = self.presentation_view.presentation
+        if not pres.slides:
+            return None
+        height = max(1, int(width * float(pres.h or 540.0) / float(pres.w or 960.0)))
+        img = QImage(width, height, QImage.Format.Format_ARGB32)
+        img.fill(QColor("#FFFFFF"))
+        painter = QPainter(img)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        paint_slide(painter, pres.slides[0], pres, QRectF(0, 0, width, height))
+        painter.end()
+        return img
+
+    def insert_image_bytes(self, data: bytes, ext: str = "png", name: str = "") -> bool:
+        """Picture adapter used by Clip Art (and Paste of images)."""
         from atboffice.modules.presentation.tools.pictures import picture_shape_from_bytes
 
         ws = getattr(self.presentation_view, "workspace", None)
-        if not ws or not ws.current_slide:
-            return
-        dlg = ClipartDialog(parent=self)
-        if dlg.exec() != QDialog.DialogCode.Accepted:
-            return
-        clip = dlg.get_selected_clipart()
-        if clip is None:
-            return
-        buf = QByteArray()
-        dev = QBuffer(buf)
-        dev.open(QIODevice.OpenModeFlag.WriteOnly)
-        render_clipart_pixmap(clip, size=256).save(dev, "PNG")
-        dev.close()
+        if not ws or not ws.presentation.slides:
+            return False
+        try:
+            shape = picture_shape_from_bytes(
+                self.presentation_view.presentation, ws.current_slide, data, ext=ext, name=name
+            )
+        except ValueError:
+            return False
+        return self.add_shape(shape, message=safe_tr("已插入图片")) is not None
+
+    def insert_wordart(self, png: bytes, spec: dict[str, Any]) -> bool:
+        """Insert rendered WordArt and keep its spec so toolbar changes re-render it."""
+        from atboffice.modules.common.wordart_gallery import wordart_box
+        from atboffice.modules.presentation.tools.pictures import picture_shape_from_bytes
+
+        ws = getattr(self.presentation_view, "workspace", None)
+        if not ws or not ws.presentation.slides:
+            return False
+        pres = self.presentation_view.presentation
+        w, h = wordart_box(spec)
+        w, h = min(w + 12.0, pres.w * 0.9), min(h + 12.0, pres.h * 0.9)
+        box = ((pres.w - w) / 2.0, (pres.h - h) / 2.0, w, h)
         shape = picture_shape_from_bytes(
-            self.presentation_view.presentation,
-            ws.current_slide,
-            bytes(buf.data()),
-            ext="png",
-            name=f"Clip Art {clip.name_zh}",
+            pres, ws.current_slide, png, ext="png", name=f"WordArt: {spec['text'][:20]}", box=box
         )
-        self.add_shape(shape, message=safe_tr("已插入剪贴画"))
+        shape.wordart = spec
+        return self.add_shape(shape, message=safe_tr("已插入艺术字")) is not None
 
     def rotate_selected_left(self) -> None:
         """Rotate selected object 90 degrees counter-clockwise."""

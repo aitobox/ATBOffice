@@ -10,7 +10,7 @@ from typing import Any
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
-from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QWidget
+from PySide6.QtWidgets import QDialog, QFileDialog, QMainWindow, QMessageBox, QWidget
 
 from atboffice.core.i18n import get_i18n_manager
 from atboffice.core.i18n import safe_tr as core_safe_tr
@@ -106,25 +106,46 @@ class BaseOfficeWindow(QMainWindow):
         minutes = min(max(minutes, 1), 60)
         self.recovery_service.start(minutes * 60 * 1000)
 
-    def confirm_compatibility_losses(self, losses: Any) -> bool:
-        """Ask whether to save despite features the writer cannot preserve.
+    _compat_confirmed: bool = False
 
-        Returns True when saving may proceed. Autosave never prompts.
+    def confirm_compatibility_losses(self, losses: Any, target_name: str = "") -> bool:
+        """Compatibility Checker for ``losses``; True when saving may proceed.
+
+        Only ``notify`` losses are shown. Autosave never prompts, and a save already
+        confirmed by :meth:`run_compatibility_check` is not asked again.
         """
-        if not losses or self._is_autosaving:
+        from atboffice.core.compat import coerce, notify_only
+
+        if self._is_autosaving or self._compat_confirmed:
             return True
-        loss_items = "\n".join(f"- {loss}" for loss in list(losses)[:5])
-        msg = safe_tr(
-            "该文档包含当前版本尚未完全支持的高级格式或特性。保存可能导致以下内容丢失：\n\n{losses}\n\n是否仍要继续保存？"
-        ).format(losses=loss_items)
-        reply = QMessageBox.warning(
-            self,
-            safe_tr("格式兼容性警告"),
-            msg,
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        return reply == QMessageBox.StandardButton.Yes
+        shown = notify_only(coerce(losses))
+        if not shown:
+            return True
+        from atboffice.ui.dialogs.compatibility_dialog import CompatibilityDialog
+
+        dlg = CompatibilityDialog(shown, target_name or self.default_doc_name, parent=self)
+        return dlg.exec() == QDialog.DialogCode.Accepted
+
+    def compat_model_losses(self) -> list[Any]:
+        """Losses recorded while loading the document (subclass hook)."""
+        return []
+
+    def save_losses(self, target: Path) -> list[Any]:
+        """Losses specific to saving into ``target``'s format (subclass hook)."""
+        return []
+
+    def run_compatibility_check(self, target: Path) -> bool:
+        """Collect model + format losses for ``target`` and ask once before saving."""
+        from atboffice.core.compat import coerce, macro_loss
+
+        try:
+            losses = coerce(self.compat_model_losses()) + macro_loss(
+                self.current_file_path, target
+            ) + coerce(self.save_losses(target))
+        except Exception:
+            logger.debug("Compatibility check failed for %s", target, exc_info=True)
+            return True
+        return self.confirm_compatibility_losses(losses, target.name)
 
     def encrypt_saved_package(self, path: Path, target_suffix: str) -> None:
         """Re-encrypt a freshly written package with the password it was opened with."""
@@ -433,6 +454,7 @@ class BaseOfficeWindow(QMainWindow):
             wm = WindowManager.get_instance()
             app_type = getattr(self, "app_type", wm.detect_app_type(path))
             wm.recent_files.add_file(path, app_type)
+            self._cache_thumbnail(path, wm.recent_files)
         except Exception:
             pass
 
@@ -546,7 +568,7 @@ class BaseOfficeWindow(QMainWindow):
         """Toggle global Scout desktop companion assistant visibility."""
         from atboffice.modules.common.assistant_scout import toggle_assistant
 
-        toggle_assistant()
+        toggle_assistant(getattr(self, "action_registry", None))
 
     def check_for_updates(self) -> None:
         """Check for ATBOffice updates."""
@@ -628,6 +650,11 @@ class BaseOfficeWindow(QMainWindow):
             if res != QMessageBox.StandardButton.Yes:
                 return False
 
+        # 1b. Compatibility Checker: what the chosen format cannot keep (asked once)
+        if not self._is_autosaving and not self.run_compatibility_check(target):
+            return False
+        self._compat_confirmed = True
+
         # 2. Atomic save staging in target directory
         staged_temp_path: Path | None = None
         try:
@@ -669,6 +696,7 @@ class BaseOfficeWindow(QMainWindow):
                 wm = WindowManager.get_instance()
                 app_type = getattr(self, "app_type", wm.detect_app_type(target))
                 wm.recent_files.add_file(target, app_type)
+                self._cache_thumbnail(target, wm.recent_files)
             except Exception:
                 pass
 
@@ -700,6 +728,8 @@ class BaseOfficeWindow(QMainWindow):
                 safe_tr("无法保存文件“{target}”：\n{exc}").format(target=target, exc=exc),
             )
             return False
+        finally:
+            self._compat_confirmed = False
 
     def get_file_filter(self) -> str:
         """Return file filter pattern for save/open dialogs."""
@@ -999,7 +1029,26 @@ class BaseOfficeWindow(QMainWindow):
         return self.command_search_box
 
     def _on_clipboard_item_clicked(self, item: Any) -> None:
-        """Handle click on single clipboard item by executing paste."""
+        """Paste a clip: images go through the editor's picture adapter, the rest via Paste."""
+        mime = getattr(item, "mime_data", None)
+        if (
+            getattr(item, "item_type", "") == "image"
+            and mime is not None
+            and mime.hasImage()
+            and hasattr(self, "insert_image_bytes")
+        ):
+            from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+            from PySide6.QtGui import QImage
+
+            image = QImage(mime.imageData())
+            if not image.isNull():
+                buf = QByteArray()
+                dev = QBuffer(buf)
+                dev.open(QIODevice.OpenModeFlag.WriteOnly)
+                image.save(dev, "PNG")
+                dev.close()
+                if self.insert_image_bytes(bytes(buf.data()), "png", safe_tr("剪贴板图片")):
+                    return
         self.paste()
 
     def _on_clipboard_paste_all(self, items: list[Any]) -> None:
@@ -1038,12 +1087,51 @@ class BaseOfficeWindow(QMainWindow):
             self.open_file_dialog()
         elif action == "new_blank":
             self.new_file()
+        elif action == "new_web":
+            self.new_web_page()
         elif action == "templates":
             self.show_templates_dialog()
         elif action == "help":
             self.show_help()
         elif action.startswith("search:"):
             self.show_help()
+
+    THUMBNAIL_WIDTH = 240
+
+    def render_thumbnail(self, width: int = THUMBNAIL_WIDTH) -> Any:
+        """QImage preview of page 1 / the grid / slide 1 (subclass hook; None = none)."""
+        return None
+
+    def _cache_thumbnail(self, path: Path, recent: Any) -> None:
+        try:
+            image = self.render_thumbnail()
+        except Exception:
+            logger.debug("Thumbnail rendering failed for %s", path, exc_info=True)
+            return
+        if image is not None:
+            recent.save_thumbnail(path, image)
+
+    def undo_history(self, kind: str) -> list[str]:
+        """Labels of the undo (or redo) history, most recent first (subclass hook)."""
+        return []
+
+    def undo_steps(self, kind: str, steps: int) -> None:
+        """Undo (or redo) ``steps`` actions at once (Undo/Redo drop-down)."""
+        for _ in range(max(0, steps)):
+            if kind == "undo":
+                self.undo()
+            else:
+                self.redo()
+
+    def attach_undo_history(self) -> None:
+        """Make the toolbar Undo/Redo drop-downs list the real history."""
+        from atboffice.ui.components.undo_history import attach_undo_history
+
+        attach_undo_history(self)
+
+    def new_web_page(self) -> None:
+        """New Document pane > Blank Web page (editors without a web view: a new document)."""
+        self.new_file()
 
     def show_templates_dialog(self) -> int:
         """Open the Templates dialog to choose and instantiate a template."""

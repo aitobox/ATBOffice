@@ -222,6 +222,7 @@ class MacMenuBar(QMenuBar):
 
         self._reg_act(menu_edit, "cut", "edit_cut", shortcut=QKeySequence.StandardKey.Cut)
         self._reg_act(menu_edit, "copy", "edit_copy", shortcut=QKeySequence.StandardKey.Copy)
+        self._reg_act(menu_edit, "officeClipboard", "edit_office_clipboard")
         self._reg_act(menu_edit, "paste", "edit_paste", shortcut=QKeySequence.StandardKey.Paste)
         menu_edit.addSeparator()
 
@@ -570,6 +571,7 @@ class MacMenuBar(QMenuBar):
         connect_if("edit_cut", "cut")
         connect_if("edit_copy", "copy")
         connect_if("edit_paste", "paste")
+        connect_if("edit_office_clipboard", "open_clipboard_pane")
         connect_if("edit_select_all", "select_all")
         connect_if("edit_find", "open_find_dialog")
         connect_if("edit_replace", "open_replace_dialog")
@@ -707,6 +709,14 @@ class MacMenuBar(QMenuBar):
             "file_close": (close_text, close_tip),
             "close": (close_text, close_tip),
             # Edit
+            "edit_office_clipboard": (
+                safe_tr("Office 剪贴板(&B)…"),
+                safe_tr("显示 Office 剪贴板任务窗格（最多保存 24 项）"),
+            ),
+            "officeClipboard": (
+                safe_tr("Office 剪贴板(&B)…"),
+                safe_tr("显示 Office 剪贴板任务窗格（最多保存 24 项）"),
+            ),
             "edit_undo": (safe_tr("撤销"), safe_tr("撤销上一步操作")),
             "undo": (safe_tr("撤销"), safe_tr("撤销上一步操作")),
             "edit_redo": (safe_tr("重做"), safe_tr("恢复撤销的操作")),
