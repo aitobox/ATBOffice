@@ -352,6 +352,86 @@ class LedgerCommands:
             return
         self.w._exec_cell_dialog(dlg, "spelling")
 
+    # ---------------------------------------------------------------- outline / split
+    def _outline_axis_and_span(self) -> tuple[str, int, int]:
+        """Whole columns selected -> columns; otherwise the selected rows."""
+        r1, c1, r2, c2 = self._range()
+        geo = self.sheet.geometry
+        if r1 == 0 and r2 >= geo.max_rows - 1 and not (c1 == 0 and c2 >= geo.max_cols - 1):
+            return "col", c1, c2
+        return "row", r1, r2
+
+    def outline_group(self) -> None:
+        from atboffice.modules.spreadsheet.models import outline
+
+        axis, a, b = self._outline_axis_and_span()
+        if not outline.group(self.sheet, axis, a, b):
+            QMessageBox.information(self.w, safe_tr("组合"), safe_tr("分组最多只能有 7 级。"))
+            return
+        self.grid.outline_changed()
+
+    def outline_ungroup(self) -> None:
+        from atboffice.modules.spreadsheet.models import outline
+
+        axis, a, b = self._outline_axis_and_span()
+        if outline.ungroup(self.sheet, axis, a, b):
+            self.grid.outline_changed()
+
+    def outline_detail(self, show: bool) -> None:
+        from atboffice.modules.spreadsheet.models import outline
+
+        axis, a, _b = self._outline_axis_and_span()
+        grp = outline.group_at(self.sheet, axis, a)
+        if grp is None:
+            QMessageBox.information(
+                self.w, safe_tr("分级显示"), safe_tr("所选区域不在任何分组中。")
+            )
+            return
+        outline.set_collapsed(self.sheet, axis, grp, not show)
+        self.grid.outline_changed()
+
+    def outline_clear(self) -> None:
+        from atboffice.modules.spreadsheet.models import outline
+
+        outline.clear(self.sheet, "row")
+        outline.clear(self.sheet, "col")
+        self.grid.outline_changed()
+
+    def import_html(self, path: str | None = None) -> bool:
+        """Data > Import web table: the first table of an HTML file at the active cell."""
+        from PySide6.QtWidgets import QFileDialog
+
+        from atboffice.modules.spreadsheet.io.html_io import import_table, read_html_file
+
+        if path is None:
+            path, _ = QFileDialog.getOpenFileName(
+                self.w, safe_tr("导入网页表格"), "", safe_tr("网页 (*.html *.htm);;所有文件 (*.*)")
+            )
+            if not path:
+                return False
+        try:
+            tables = read_html_file(path)
+        except OSError as exc:
+            QMessageBox.warning(self.w, safe_tr("导入网页表格"), str(exc))
+            return False
+        if not tables:
+            QMessageBox.information(self.w, safe_tr("导入网页表格"), safe_tr("该网页中没有表格。"))
+            return False
+        at = self.view.selection.active_cell
+
+        def mutate() -> None:
+            import_table(self.sheet, tables[0], at)
+
+        self.w.run_cell_edit(mutate, "paste")
+        return True
+
+    def toggle_split(self) -> None:
+        split = self.w.spreadsheet_view.toggle_split()
+        act = self.w.action_registry.get_action("windowSplit")
+        if act is not None:
+            act.setCheckable(True)
+            act.setChecked(split)
+
     # ---------------------------------------------------------------- binding
     def bind(self) -> None:
         reg = self.w.action_registry
@@ -380,6 +460,13 @@ class LedgerCommands:
             "insertChart": w.open_chart_wizard,
             "spelling": self.check_spelling,
             "pageSetup": w.open_page_setup,
+            "outlineGroup": self.outline_group,
+            "outlineUngroup": self.outline_ungroup,
+            "outlineHideDetail": lambda: self.outline_detail(False),
+            "outlineShowDetail": lambda: self.outline_detail(True),
+            "outlineClear": self.outline_clear,
+            "importHtml": self.import_html,
+            "windowSplit": self.toggle_split,
             # Toolbar buttons
             "drawBorder": self.draw_border,
             "draw_ungroup": self.ungroup,

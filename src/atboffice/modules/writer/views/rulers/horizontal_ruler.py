@@ -74,6 +74,8 @@ class HorizontalRuler(QWidget):
         self._active_para: Paragraph | None = None
         self._active_sect: SectionProperties | None = None
         self._active_canvas: WriterCanvasView | None = None
+        self.table_markers: list[float] = []
+        self.column_gutters: list[tuple[float, float]] = []
 
         # Drag & Undo state
         self._drag_kind: str | None = None
@@ -157,6 +159,10 @@ class HorizontalRuler(QWidget):
             self._margin_left_pt = 90.0
             self._margin_right_pt = 90.0
 
+        from atboffice.modules.writer.views.rulers import markers
+
+        self.table_markers = markers.table_column_markers(canvas, page_idx)
+        self.column_gutters = markers.column_gutters(canvas, page_idx)
         self.update()
 
     def retranslate_ui(self) -> None:
@@ -274,6 +280,10 @@ class HorizontalRuler(QWidget):
         # 5. Draw Scale Ticks and Unit Numbers
         self._paint_ticks_and_numbers(painter, page_l, page_r, text_l, height)
 
+        # 5.5 Multi-column gutters (margin colour) and table column markers
+        self._paint_column_gutters(painter, height)
+        self._paint_table_markers(painter, height)
+
         # 6. Draw Default Tab Ticks
         self._paint_default_tabs(painter, text_l, text_r, height)
 
@@ -364,6 +374,27 @@ class HorizontalRuler(QWidget):
         for idx, tab, rect in self._get_tab_rects():
             center = QPointF(rect.center().x(), rect.center().y())
             draw_tab_glyph(painter, tab.align, center, size=9.0)
+
+    def _paint_column_gutters(self, painter: QPainter, height: float) -> None:
+        for start, end in self.column_gutters:
+            x0, x1 = self.pt_to_ruler_x(start), self.pt_to_ruler_x(end)
+            painter.fillRect(QRectF(x0, 2.0, x1 - x0, height - 4.0), COLOR_RULER_BG_MARGIN)
+
+    def _paint_table_markers(self, painter: QPainter, height: float) -> None:
+        """Word 2003's hatched "Move Table Column" squares at each column boundary."""
+        painter.save()
+        for pos in self.table_markers:
+            x = self.pt_to_ruler_x(pos)
+            rect = QRectF(x - 4.0, 3.0, 8.0, height - 6.0)
+            painter.fillRect(rect, COLOR_RULER_BG_MARGIN)
+            painter.setPen(QPen(COLOR_RULER_BORDER, 1.0))
+            painter.drawRect(rect)
+            painter.setPen(QPen(COLOR_DEFTAB_TICK, 1.0))
+            y = rect.top() + 2.0
+            while y < rect.bottom() - 1.0:
+                painter.drawLine(QPointF(rect.left() + 1.5, y), QPointF(rect.right() - 1.5, y))
+                y += 2.0
+        painter.restore()
 
     def _paint_indent_markers(self, painter: QPainter) -> None:
         """Render First Line, Hanging, Left, and Right indent triangles and boxes."""

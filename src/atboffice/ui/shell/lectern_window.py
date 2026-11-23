@@ -1213,9 +1213,13 @@ class LecternWindow(BaseOfficeWindow):
             )
             self.set_modified(True)
 
-    def start_rehearse(self) -> None:
-        self.start_slideshow()
-        self.show_status_message(safe_tr("启动排练计时"))
+    def start_rehearse(self) -> Any:
+        """Slide Show > Rehearse Timings: record each slide's time into its transition."""
+        recorder = self.presentation_view.workspace.start_rehearsal(fullscreen=True)
+        if recorder is not None:
+            recorder.timings_saved.connect(lambda _t: self.set_modified(True))
+            self.show_status_message(safe_tr("排练计时：放映结束时可保留新的计时"))
+        return recorder
 
     def _setup_lectern_task_panes(self) -> None:
         """Register Lectern specific task panes (Layout, Design, Color, Animation)."""

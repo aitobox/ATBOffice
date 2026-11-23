@@ -274,6 +274,7 @@ class ShapeGraphicsItem(QGraphicsObject):
 
         # Multimedia preview state
         self._is_preview_playing: bool = False
+        self._media_playback: Any = None
         # Table cell selection (r1, c1, r2, c2) and the cell being edited in place
         self.table_sel: tuple[int, int, int, int] | None = None
         self._editing_cell: dict[str, Any] | None = None
@@ -744,8 +745,7 @@ class ShapeGraphicsItem(QGraphicsObject):
             bar_h = 24.0
             bar_r = QRectF(0.0, h - bar_h, w, bar_h) if h >= 60.0 else QRectF()
             if badge_r.contains(pos) or (bar_r.isValid() and bar_r.contains(pos)):
-                self._is_preview_playing = not self._is_preview_playing
-                self.update()
+                self.toggle_media_preview()
                 event.accept()
                 return
         if (
@@ -848,6 +848,23 @@ class ShapeGraphicsItem(QGraphicsObject):
             painter.drawPath(head)
             painter.setBrush(QBrush(pen.color()))
         painter.restore()
+
+    def toggle_media_preview(self) -> bool:
+        """Play / pause the embedded audio or video (real playback when available)."""
+        from atboffice.modules.presentation.views.media_playback import MediaPlayback
+
+        self._is_preview_playing = not self._is_preview_playing
+        if self._media_playback is None and self.model.media_item is not None:
+            # Parented to the item: the player (and its callbacks) die with it
+            self._media_playback = MediaPlayback(self.model.media_item, self.update, self)
+        playback = self._media_playback
+        if playback is not None:
+            if self._is_preview_playing:
+                playback.play()
+            else:
+                playback.pause()
+        self.update()
+        return self._is_preview_playing
 
     def _paint_media_or_image(self, painter: QPainter, w: float, h: float) -> None:
         """Paint image poster frame or multimedia playback preview overlay."""
@@ -1004,8 +1021,10 @@ class ShapeGraphicsItem(QGraphicsObject):
                     )
                 )
                 painter.drawLine(QPointF(track_left, track_y), QPointF(track_right, track_y))
-                # Active progress
-                prog_w = (track_right - track_left) * (0.35 if self._is_preview_playing else 0.0)
+                # Active progress: the real playback position (nothing when unknown)
+                playback = getattr(self, "_media_playback", None)
+                frac = playback.fraction() if playback is not None else 0.0
+                prog_w = (track_right - track_left) * frac
                 if prog_w > 0:
                     painter.setPen(
                         QPen(
@@ -1026,7 +1045,10 @@ class ShapeGraphicsItem(QGraphicsObject):
             # Time code label
             painter.setFont(QFont("Monospace", 7))
             painter.setPen(QPen(QColor(180, 185, 195)))
-            time_text = "00:15" if self._is_preview_playing else "00:00"
+            from atboffice.modules.presentation.views.media_playback import fmt_ms
+
+            playback = getattr(self, "_media_playback", None)
+            time_text = fmt_ms(playback.position()) if playback is not None else "00:00"
             painter.drawText(
                 QRectF(w - 55.0, h - bar_h, 50.0, bar_h),
                 Qt.AlignmentFlag.AlignCenter,

@@ -140,4 +140,12 @@ def ledger_losses(workbook: Any, active_sheet: Any, target: Path) -> list[Loss]:
         drawings = len(getattr(active_sheet, "drawings", []) or [])
         if drawings:
             out.append(Loss(safe_tr("图表、图片和图形"), active_sheet.name, count=drawings))
+    elif ext in (".html", ".htm"):
+        for sheet in list(getattr(workbook, "sheets", []) or []):
+            formulas = sum(1 for c in sheet.cells.values() if getattr(c, "formula", None))
+            if formulas:
+                out.append(Loss(safe_tr("公式（保存为计算结果）"), sheet.name, count=formulas))
+            drawings = len(getattr(sheet, "drawings", []) or [])
+            if drawings:
+                out.append(Loss(safe_tr("图表、图片和图形"), sheet.name, count=drawings))
     return out

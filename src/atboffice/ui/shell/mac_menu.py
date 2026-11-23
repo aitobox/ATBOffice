@@ -32,6 +32,7 @@ _APP_SPECIFIC_ACTIONS: dict[str, frozenset[str]] = {
     "stylesPane": frozenset({"quire"}),
     "view_page_break": frozenset({"ledger"}),
     "pageSetup": frozenset({"quire", "ledger"}),
+    "windowSplit": frozenset({"ledger"}),
     "insert_function": frozenset({"ledger"}),
     "background": frozenset({"lectern"}),
     # Word/PowerPoint-only items that have no Excel 2003 equivalent
@@ -58,6 +59,7 @@ _APP_SPECIFIC_ACTIONS: dict[str, frozenset[str]] = {
 # Submenus that only exist inside specific editors (menu_map key -> app types).
 _APP_SPECIFIC_MENUS: dict[str, frozenset[str]] = {
     "edit_clear": frozenset({"ledger"}),
+    "data_outline": frozenset({"ledger"}),
     "insert_name": frozenset({"ledger"}),
     "tools_protection": frozenset({"ledger"}),
 }
@@ -483,6 +485,20 @@ class MacMenuBar(QMenuBar):
         self._reg_act(menu_data, "dataTable", "data_table_menu")
         self._reg_act(menu_data, "textToColumns", "data_text_to_columns_menu")
         self._reg_act(menu_data, "consolidate", "data_consolidate_menu")
+        menu_outline = menu_data.addMenu("")
+        self.menu_map["data_outline"] = menu_outline
+        self._reg_act(menu_outline, "outlineHideDetail", "data_hide_detail")
+        self._reg_act(menu_outline, "outlineShowDetail", "data_show_detail")
+        menu_outline.addSeparator()
+        self._reg_act(
+            menu_outline, "outlineGroup", "data_group", shortcut=QKeySequence("Alt+Shift+Right")
+        )
+        self._reg_act(
+            menu_outline, "outlineUngroup", "data_ungroup", shortcut=QKeySequence("Alt+Shift+Left")
+        )
+        self._reg_act(menu_outline, "outlineClear", "data_clear_outline")
+        menu_data.addSeparator()
+        self._reg_act(menu_data, "importHtml", "data_import_html")
         menu_data.addSeparator()
         self._reg_act(menu_data, "data_pivottable", "data_pivottable")
 
@@ -514,6 +530,7 @@ class MacMenuBar(QMenuBar):
             menu_window, "window_minimize", "window_minimize", shortcut=QKeySequence("Ctrl+M")
         )
         self._reg_act(menu_window, "window_zoom", "window_zoom")
+        self._reg_act(menu_window, "windowSplit", "window_split")
         menu_window.addSeparator()
         self._reg_act(menu_window, "window_bring_all", "window_bring_all")
 
@@ -635,6 +652,8 @@ class MacMenuBar(QMenuBar):
             self.menu_map["format"].setTitle(safe_tr("格式"))
         if "edit_clear" in self.menu_map:
             self.menu_map["edit_clear"].setTitle(safe_tr("清除(&A)"))
+        if "data_outline" in self.menu_map:
+            self.menu_map["data_outline"].setTitle(safe_tr("组及分级显示(&G)"))
         if "insert_name" in self.menu_map:
             self.menu_map["insert_name"].setTitle(safe_tr("名称(&N)"))
         if "tools_protection" in self.menu_map:
@@ -1017,6 +1036,20 @@ class MacMenuBar(QMenuBar):
                 safe_tr("分类汇总…"),
                 safe_tr("自动对分组行计算求和或平均值汇总"),
             ),
+            "data_hide_detail": (safe_tr("隐藏明细数据(&H)"), safe_tr("折叠所选分组")),
+            "outlineHideDetail": (safe_tr("隐藏明细数据(&H)"), safe_tr("折叠所选分组")),
+            "data_show_detail": (safe_tr("显示明细数据(&S)"), safe_tr("展开所选分组")),
+            "outlineShowDetail": (safe_tr("显示明细数据(&S)"), safe_tr("展开所选分组")),
+            "data_group": (safe_tr("组合(&G)…"), safe_tr("将所选行或列组合为一个分组")),
+            "outlineGroup": (safe_tr("组合(&G)…"), safe_tr("将所选行或列组合为一个分组")),
+            "data_ungroup": (safe_tr("取消组合(&U)…"), safe_tr("取消所选行或列的分组")),
+            "outlineUngroup": (safe_tr("取消组合(&U)…"), safe_tr("取消所选行或列的分组")),
+            "data_clear_outline": (safe_tr("清除分级显示(&C)"), safe_tr("删除工作表上的全部分组")),
+            "outlineClear": (safe_tr("清除分级显示(&C)"), safe_tr("删除工作表上的全部分组")),
+            "data_import_html": (safe_tr("导入网页表格(&W)…"), safe_tr("从 HTML 文件导入表格数据")),
+            "importHtml": (safe_tr("导入网页表格(&W)…"), safe_tr("从 HTML 文件导入表格数据")),
+            "window_split": (safe_tr("拆分(&S)"), safe_tr("将窗口拆分为可分别滚动的两个窗格")),
+            "windowSplit": (safe_tr("拆分(&S)"), safe_tr("将窗口拆分为可分别滚动的两个窗格")),
             "data_pivottable": (
                 safe_tr("数据透视表向导…"),
                 safe_tr("从现有工作表数据创建多维交互汇总视图"),

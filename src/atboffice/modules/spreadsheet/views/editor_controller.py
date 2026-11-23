@@ -72,6 +72,7 @@ class InCellEditor(QLineEdit):
 
     commit_requested = Signal()
     commit_and_move_requested = Signal(int, int)
+    array_commit_requested = Signal()  # Ctrl+Shift+Enter
     cancel_requested = Signal()
     f2_pressed = Signal()
 
@@ -88,6 +89,13 @@ class InCellEditor(QLineEdit):
         modifiers = event.modifiers()
 
         if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            if (
+                modifiers & Qt.KeyboardModifier.ControlModifier
+                and modifiers & Qt.KeyboardModifier.ShiftModifier
+            ):
+                self.array_commit_requested.emit()
+                event.accept()
+                return
             if modifiers & Qt.KeyboardModifier.ShiftModifier:
                 self.commit_and_move_requested.emit(-1, 0)
             else:
@@ -150,6 +158,7 @@ class EditorController(QObject):
         self.in_cell_editor = InCellEditor(self.viewport.viewport())
         self.in_cell_editor.textChanged.connect(self._on_in_cell_text_changed)
         self.in_cell_editor.commit_requested.connect(self.commit)
+        self.in_cell_editor.array_commit_requested.connect(self.commit_array)
         self.in_cell_editor.commit_and_move_requested.connect(
             self.commit_and_move
         )
@@ -335,6 +344,32 @@ class EditorController(QObject):
             self.viewport.cell_selected.emit(target_r, target_c)
             self.viewport.viewport().update()
 
+    def commit_array(self) -> bool:
+        """Ctrl+Shift+Enter: enter the formula as an array formula over the selection.
+
+        The selection becomes the array range: the result fills it (excess values are
+        dropped, missing ones show #N/A), like a legacy Excel array formula.
+        """
+        text = self.in_cell_editor.text().strip()
+        if not text.startswith("="):
+            return self.commit()
+        r, c = self.active_row, self.active_col
+        rng = self.selection.ranges[-1] if self.selection.ranges else None
+        if rng is not None and rng.contains(r, c):
+            rect = (rng.min_r, rng.min_c, rng.max_r, rng.max_c)
+        else:
+            rect = (r, c, r, c)
+        arrays = self.model.extra.setdefault("_array_formulas", {})
+        anchor = (rect[0], rect[1])
+        if anchor != (r, c):
+            self.active_row, self.active_col = anchor
+        arrays[anchor] = rect
+        self._array_entry = True
+        try:
+            return self.commit()
+        finally:
+            self._array_entry = False
+
     def commit(self) -> bool:
         """Commit current edit text into the model."""
         if not self.is_active:
@@ -342,6 +377,10 @@ class EditorController(QObject):
 
         text = self.in_cell_editor.text().strip()
         r, c = self.active_row, self.active_col
+        if not getattr(self, "_array_entry", False):
+            arrays = getattr(self.model, "extra", {}).get("_array_formulas")
+            if arrays:
+                arrays.pop((r, c), None)  # a normal Enter replaces a legacy array formula
 
         if text.startswith("="):
             # Formula entry
@@ -443,6 +482,7 @@ class EditorController(QObject):
                 self.model.set_cell(r, c, cell)
             else:
                 cell.formula = formula_body
+                cell.spill_origin = None
                 if val is not None:
                     cell.value = val
         else:
@@ -462,6 +502,7 @@ class EditorController(QObject):
                         cell.rich_runs = None
                 cell.value = parsed_val
                 cell.formula = None
+                cell.spill_origin = None  # typed over a spill: blocks it (#SPILL!)
 
         self._end_edit()
         self.cell_committed.emit(r, c, text)

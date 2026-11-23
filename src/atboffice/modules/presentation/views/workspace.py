@@ -1286,6 +1286,7 @@ class LecternWorkspace(QWidget):
         self.transition_pane.slideshowRequested.connect(
             lambda: self.start_slideshow(from_current=True)
         )
+        self.transition_pane.previewRequested.connect(self.preview_transition)
         self.task_pane.register_pane("transition", safe_tr("幻灯片切换"), self.transition_pane)
 
         from atboffice.modules.presentation.views.animation_pane import AnimationPane
@@ -1296,6 +1297,7 @@ class LecternWorkspace(QWidget):
         self.animation_pane.slideshowRequested.connect(
             lambda: self.start_slideshow(from_current=True)
         )
+        self.animation_pane.playRequested.connect(self.preview_animations)
         self.task_pane.register_pane("customAnim", safe_tr("自定义动画"), self.animation_pane)
 
         from atboffice.modules.presentation.smartart.text_pane import SmartArtTextPane
@@ -1386,6 +1388,15 @@ class LecternWorkspace(QWidget):
         self._active_slideshow = show_view
         show_view.show()
         return show_view
+
+    def start_rehearsal(self, fullscreen: bool = True, **kwargs: Any) -> Any | None:
+        """Slide Show > Rehearse Timings: a show with the timing HUD from slide 1."""
+        from atboffice.modules.presentation.slideshow.rehearsal import attach_rehearsal
+
+        show = self.start_slideshow(from_current=False, fullscreen=fullscreen)
+        if show is None:
+            return None
+        return attach_rehearsal(show, self.presentation, **kwargs)
 
     def load_slide(self, slide: Slide) -> None:
         """Switch active slide by reference."""
@@ -1677,6 +1688,29 @@ class LecternWorkspace(QWidget):
         """Show the built-in task pane in Normal view (off when the host has a dock)."""
         self.use_embedded_task_pane = enabled
         self.task_pane.setVisible(enabled and self._view_mode == "normal")
+
+    # ---- live preview on the canvas ------------------------------------------------
+    def preview_transition(self) -> int:
+        """Slide Transition pane "Play" / AutoPreview: play it on the canvas."""
+        from atboffice.modules.presentation.views.live_preview import preview_overlay
+
+        if not self.presentation.slides or self._view_mode != "normal":
+            return 0
+        idx = self.current_slide_index
+        prev = self.presentation.slides[idx - 1] if idx > 0 else None
+        return preview_overlay(self.canvas_view).play_transition(
+            self.presentation, self.current_slide, prev
+        )
+
+    def preview_animations(self, anim_id: str = "") -> int:
+        """Custom Animation pane "Play" (all builds) or AutoPreview of one effect."""
+        from atboffice.modules.presentation.views.live_preview import preview_overlay
+
+        if not self.presentation.slides or self._view_mode != "normal":
+            return 0
+        return preview_overlay(self.canvas_view).play_animations(
+            self.presentation, self.current_slide, anim_id or ""
+        )
 
     def exit_master_view(self) -> None:
         """Sync master edits back to design and return to normal view."""

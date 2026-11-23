@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from atboffice.modules.writer.layout import revisions
 from atboffice.modules.writer.layout.wrap import FloatBox, calculate_line_segments
 from atboffice.modules.writer.models.document import (
     BreakItem,
@@ -30,6 +31,7 @@ from atboffice.modules.writer.models.document import (
     SymbolItem,
     TabItem,
     TextItem,
+    ilen,
 )
 from atboffice.modules.writer.models.drawing import PictureItem, WrapMode
 from atboffice.modules.writer.models.omml import OfficeMathItem
@@ -879,6 +881,11 @@ def decompose_paragraph_to_portions(
     vert_spans: list[tuple[int, float]] = []
     for item in p.runs:
         r_pr = resolve_r_props(d, p, item, context=table_context)
+        r_pr = revisions.apply(d, item, r_pr)
+        if r_pr is revisions.HIDE:
+            # Hidden by the Display for Review mode: keep character offsets aligned
+            char_offset += ilen(item)
+            continue
         font_sz = r_pr.sz
         font_family = r_pr.font
         if _uses_complex_script(r_pr, item):

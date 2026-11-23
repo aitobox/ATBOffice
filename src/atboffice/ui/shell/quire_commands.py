@@ -30,8 +30,9 @@ if TYPE_CHECKING:
     from atboffice.ui.shell.quire_window import QuireWindow
 
 # Commands of floating-object toolbars (Picture, Drawing, WordArt, wrapping) act on a
-# selected picture/shape. On-canvas object selection lands with issue #447, so until
-# then they are disabled with this reason instead of pretending to work.
+# selected picture/shape. The canvas can select, move and resize floating objects
+# (``canvas.selected_float()``), but these toolbar commands are not wired to that
+# selection yet, so they stay disabled with this reason instead of pretending to work.
 OBJECT_COMMANDS: tuple[str, ...] = (
     "picCrop", "picLessBright", "picLessContrast", "picMoreBright", "picMoreContrast",
     "picReset", "picRotate", "pic_color_auto", "pic_color_bw", "pic_color_gray",
@@ -92,11 +93,15 @@ class QuireToolbarCommands:
     # ------------------------------------------------------------- Header & Footer
     def enter_header_footer(self, kind: str = "hdr") -> None:
         self.hf_kind = kind
+        if self.canvas.hf_edit_kind != kind:
+            self.canvas.hf_edit_kind = kind
+            self.canvas.viewport().update()
         self.window.update_context_toolbars({"hf_edit": True})
         self._status(safe_tr("正在编辑页眉") if kind == "hdr" else safe_tr("正在编辑页脚"))
 
     def close_header_footer(self) -> None:
         self.window.update_context_toolbars({"hf_edit": False})
+        self.canvas.exit_header_footer_mode()
         self.canvas.doc.settings.pop("hideBodyText", None)
         self.canvas.viewport().update()
 
@@ -177,13 +182,20 @@ class QuireToolbarCommands:
 
     # ------------------------------------------------------------------- Reviewing
     def set_revision_view(self, mode: str) -> None:
+        """Display for Review: Final Showing Markup / Final / Original … (relayouts)."""
         self.canvas.revision_view = mode
         self.canvas.doc.settings["revisionView"] = mode
-        self.canvas.viewport().update()
+        self.canvas.refresh_layout()
 
     def toggle_show(self, attr: str) -> None:
         setattr(self.canvas, attr, not getattr(self.canvas, attr))
-        self.canvas.viewport().update()
+        setting = {"show_ins_del": "showInsDel",
+                   "show_formatting_changes": "showFormatting"}.get(attr)
+        if setting:
+            self.canvas.doc.settings[setting] = bool(getattr(self.canvas, attr))
+            self.canvas.refresh_layout()
+        else:
+            self.canvas.viewport().update()
 
     def goto_change(self, step: int) -> bool:
         """Previous/Next Change: move to the neighbouring revision or comment mark."""
@@ -386,7 +398,8 @@ def bind_quire_toolbar_commands(window: QuireWindow) -> QuireToolbarCommands:
     reg = window.action_registry
     canvas = window.writer_view.canvas_view
 
-    # Header & Footer
+    # Header & Footer (double-clicking a page's header/footer area enters editing too)
+    canvas.header_footer_requested.connect(cmds.enter_header_footer)
     reg.set_handler("hfPageNum", cmds.hf_page_number)
     reg.set_handler("hfNumPages", cmds.hf_num_pages)
     reg.set_handler("hfDate", cmds.hf_date)

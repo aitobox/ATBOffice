@@ -40,6 +40,7 @@ from atboffice.modules.spreadsheet.calc.tokens import (
     NameNode,
     ParenNode,
     SheetReference,
+    StructuredRefNode,
     UnaryOpNode,
 )
 
@@ -181,10 +182,21 @@ def evaluate_ast(node: ASTNode, ctx: EvalContext | None = None) -> Any:
             matrix.append([evaluate_ast(item, ctx) for item in row])
         return Arr(matrix)
 
+    if isinstance(node, StructuredRefNode):
+        from atboffice.modules.spreadsheet.calc.structured_refs import resolve
+
+        return resolve(node, ctx)
+
     if isinstance(node, UnaryOpNode):
         if node.operand is None:
             return 0
         val = evaluate_ast(node.operand, ctx)
+        if node.op == "@":
+            from atboffice.modules.spreadsheet.calc.structured_refs import (
+                implicit_intersection,
+            )
+
+            return implicit_intersection(val, ctx)
         if is_error(val):
             return val
         n = to_num(val, ctx)

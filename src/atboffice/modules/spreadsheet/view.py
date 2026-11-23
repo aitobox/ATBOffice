@@ -273,6 +273,59 @@ class SpreadsheetView(QWidget):
         record_action("set_view_mode", "spreadsheet_view", {"mode": mode})
         self.grid.set_view_mode(mode, prompt_welcome=prompt_welcome)
 
+    # ---- Window > Split --------------------------------------------------------
+    split_grid: GridViewport | None = None
+
+    def is_split(self) -> bool:
+        return self.split_grid is not None
+
+    def toggle_split(self) -> bool:
+        """Window > Split: a second, independently scrolling pane above the grid.
+
+        Both panes show the active sheet and share its selection; edits made in the
+        main pane repaint the other. Returns the new split state.
+        """
+        from PySide6.QtWidgets import QSplitter
+
+        layout = self.layout()
+        if self.split_grid is None:
+            splitter = QSplitter(Qt.Orientation.Vertical, self)
+            splitter.setObjectName("windowSplitter")
+            idx = layout.indexOf(self.grid)
+            layout.insertWidget(idx, splitter, 1)
+            pane = GridViewport(model=self.grid.model, selection=self.grid.selection,
+                                parent=splitter)
+            pane.workbook = self._workbook
+            pane.setObjectName("splitPane")
+            splitter.addWidget(pane)
+            splitter.addWidget(self.grid)
+            splitter.setSizes([1, 1])
+            self.split_grid = pane
+            self._split_splitter = splitter
+            for a, b in ((self.grid, pane), (pane, self.grid)):
+                a.cell_selected.connect(lambda *_x, other=b: other.viewport().update())
+            self.editor_controller.cell_committed.connect(self._repaint_split)
+            return True
+        splitter = self._split_splitter
+        idx = layout.indexOf(splitter)
+        layout.insertWidget(idx, self.grid, 1)
+        try:
+            self.editor_controller.cell_committed.disconnect(self._repaint_split)
+        except (RuntimeError, TypeError):
+            pass
+        self.split_grid.setParent(None)
+        self.split_grid.deleteLater()
+        splitter.setParent(None)
+        splitter.deleteLater()
+        self.split_grid = None
+        self._split_splitter = None
+        self.grid.setFocus()
+        return False
+
+    def _repaint_split(self, *_args: Any) -> None:
+        if self.split_grid is not None:
+            self.split_grid.viewport().update()
+
     def _on_active_sheet_changed(self, index: int) -> None:
         """Synchronize viewport and editor with newly activated worksheet."""
         if hasattr(self, "grid") and self.grid is not None:
@@ -288,6 +341,8 @@ class SpreadsheetView(QWidget):
         active_sel = self._get_selection_for_sheet(active_sheet)
 
         self.grid.set_model_and_selection(active_sheet, active_sel)
+        if getattr(self, "split_grid", None) is not None:
+            self.split_grid.set_model_and_selection(active_sheet, active_sel)
         self.editor_controller.set_model_and_selection(active_sheet, active_sel)
         if hasattr(self, "object_layer") and self.object_layer is not None:
             self.object_layer.select_object(None)

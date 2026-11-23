@@ -528,8 +528,7 @@ class DependencyGraph:
     ) -> CycleReport:
         """Scan all formula cells across all sheets in workbook, detect cycles, and recompute."""
         from atboffice.modules.spreadsheet.calc.context import EvalContext
-        from atboffice.modules.spreadsheet.calc.errors import CYCLE, VALUE, is_error
-        from atboffice.modules.spreadsheet.calc.evaluator import evaluate
+        from atboffice.modules.spreadsheet.calc.errors import CYCLE
 
         if ctx is None:
             ctx = EvalContext(workbook=workbook)
@@ -568,7 +567,22 @@ class DependencyGraph:
         ]
         eval_order = self.topological_sort(non_circular_dirty)
 
-        # 5. Evaluate in topological order
+        # 5. Evaluate in topological order. Spilled values are not graph nodes, so when a
+        # spill moves, formulas reading the spill area are evaluated once more.
+        from atboffice.modules.spreadsheet.calc.grid_spill import apply_spill
+
+        if self._evaluate_order(eval_order, workbook, ctx, apply_spill):
+            self._evaluate_order(eval_order, workbook, ctx, apply_spill)
+        return cycle_report
+
+    def _evaluate_order(
+        self, eval_order: list[CellAddress], workbook: Any, ctx: Any, apply_spill: Any
+    ) -> bool:
+        """Evaluate cells in order; returns True when any dynamic-array spill changed."""
+        from atboffice.modules.spreadsheet.calc.errors import VALUE, is_error
+        from atboffice.modules.spreadsheet.calc.evaluator import evaluate
+
+        spill_moved = False
         for addr in eval_order:
             sh = (
                 workbook.get_sheet_by_name(addr.sheet)
@@ -591,14 +605,15 @@ class DependencyGraph:
                         if is_err and getattr(cell, "cached_value", None) is not None:
                             cell.value = cell.cached_value
                         else:
-                            cell.value = res
+                            cell.value, moved = apply_spill(sh, addr.r, addr.c, res)
+                            spill_moved = spill_moved or moved
                     except Exception:
                         if getattr(cell, "cached_value", None) is not None:
                             cell.value = cell.cached_value
                         else:
                             cell.value = VALUE
 
-        return cycle_report
+        return spill_moved
 
     def recalculate_cell(
         self,
@@ -631,6 +646,9 @@ class DependencyGraph:
                 if cell is not None:
                     cell.value = CYCLE
 
+        from atboffice.modules.spreadsheet.calc.grid_spill import apply_spill
+
+        spill_moved = False
         for addr in plan.eval_order:
             if addr in plan.cycle_report.circular_cells:
                 continue
@@ -655,11 +673,15 @@ class DependencyGraph:
                         if is_err and getattr(cell, "cached_value", None) is not None:
                             cell.value = cell.cached_value
                         else:
-                            cell.value = res
+                            cell.value, moved = apply_spill(sh, addr.r, addr.c, res)
+                            spill_moved = spill_moved or moved
                     except Exception:
                         if getattr(cell, "cached_value", None) is not None:
                             cell.value = cell.cached_value
                         else:
                             cell.value = VALUE
 
+        if spill_moved:
+            # Cells reading a spill area are not dependents of the anchor in the graph
+            self.recalculate(workbook, ctx)
         return plan
