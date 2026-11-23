@@ -64,6 +64,8 @@ class CellData:
     value: Any = None
     formula: str | None = None
     cached_value: Any = None
+    # Anchor (r, c) of the dynamic array whose result spilled into this cell
+    spill_origin: tuple[int, int] | None = None
     format_code: str = "General"
     bold: bool = False
     italic: bool = False
@@ -726,6 +728,7 @@ class SheetDataModel:
             self.cells[(r, c)] = cell
         else:
             cell.value = value
+            cell.spill_origin = None  # typed over a spill: the user's value blocks it
 
     def is_empty(self, r: int, c: int) -> bool:
         cell = self.cells.get((r, c))

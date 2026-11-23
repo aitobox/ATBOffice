@@ -248,6 +248,7 @@ class GridViewport(QAbstractScrollArea):
         self._view_mode: str = "normal"  # "normal" | "page_break"
         self._page_break_welcome_shown: bool = False
         self._zoom: float = 1.0
+        self._page_break_drag: dict[str, Any] | None = None
         self._view_state_applied: weakref.WeakSet[SheetDataModel] = weakref.WeakSet()
         self._hover_comment_cell: tuple[int, int] | None = None
         self.last_status_message: str = ""
@@ -509,6 +510,28 @@ class GridViewport(QAbstractScrollArea):
         self.update_header_dimensions()
         self._apply_sheet_view_state()
         self._update_scrollbars()
+        self._relayout_outline_gutter()
+        self.viewport().update()
+
+    # ---- outline grouping gutter -----------------------------------------------
+    def _relayout_outline_gutter(self) -> None:
+        from atboffice.modules.spreadsheet.models import outline
+
+        has = bool(outline.levels(self.model, "row") or outline.levels(self.model, "col"))
+        gutter = getattr(self, "outline_gutter", None)
+        if gutter is None:
+            if not has:
+                return
+            from atboffice.modules.spreadsheet.views.outline_gutter import OutlineGutter
+
+            gutter = self.outline_gutter = OutlineGutter(self)
+        gutter.relayout()
+
+    def outline_changed(self) -> None:
+        """Call after grouping changes or a group was expanded / collapsed."""
+        self._relayout_outline_gutter()
+        self._update_scrollbars()
+        self.mark_dirty()
         self.viewport().update()
 
     @property
@@ -554,9 +577,15 @@ class GridViewport(QAbstractScrollArea):
         if self.editor_controller is not None:
             self.editor_controller.reposition_editor()
         self.viewport().update()
+        gutter = getattr(self, "outline_gutter", None)
+        if gutter is not None:
+            gutter.update()
 
     def resizeEvent(self, event: Any) -> None:
         super().resizeEvent(event)
+        gutter = getattr(self, "outline_gutter", None)
+        if gutter is not None:
+            gutter.relayout()
         self._update_scrollbars()
         if self.editor_controller is not None:
             self.editor_controller.reposition_editor()
@@ -1187,6 +1216,26 @@ class GridViewport(QAbstractScrollArea):
             (self._printing, self._print_gridlines, self._print_font_factor,
              self._print_device) = saved
 
+    def _paint_spill_border(self, painter: QPainter, psx: int, psy: int, clip: QRect) -> None:
+        from atboffice.modules.spreadsheet.calc.grid_spill import spill_rect_at
+
+        ar, ac = self.selection.active_cell
+        rect = spill_rect_at(self.model, ar, ac)
+        if rect is None:
+            return
+        r1, c1, r2, c2 = rect
+        geo = self.geometry_mapper
+        x1 = self.row_header_width + geo.col_pos(c1) - psx
+        y1 = self.col_header_height + geo.row_pos(r1) - psy
+        x2 = self.row_header_width + geo.col_pos(c2 + 1) - psx
+        y2 = self.col_header_height + geo.row_pos(r2 + 1) - psy
+        painter.save()
+        painter.setClipRect(clip)
+        painter.setPen(QPen(QColor(68, 114, 196), 1))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(QRect(x1, y1, x2 - x1 - 1, y2 - y1 - 1))
+        painter.restore()
+
     def _paint_pane(
         self,
         painter: QPainter,
@@ -1421,6 +1470,9 @@ class GridViewport(QAbstractScrollArea):
         painter.restore()
         if printing:
             return  # editing aids below (active cell, handles, buttons, comments) never print
+
+        # 4b. Dynamic-array spill border (blue) while the active cell is inside the spill
+        self._paint_spill_border(painter, psx, psy, pane_clip)
 
         # 5. Draw Active Cell 2px Border & AutoFill Handle
         painter.save()
@@ -2752,25 +2804,16 @@ class GridViewport(QAbstractScrollArea):
         if self._view_mode != "page_break":
             return
 
-        used_rows = [r for (r, c) in self.model.cells.keys()]
-        used_cols = [c for (r, c) in self.model.cells.keys()]
-        max_r = max(used_rows) if used_rows else 0
-        max_c = max(used_cols) if used_cols else 0
-
-        rows_per_page = 45
-        cols_per_page = 8
-
-        total_rows = max(rows_per_page, max_r + 1)
-        total_cols = max(cols_per_page, max_c + 1)
-
-        vs = getattr(self.model, "view_state", None)
-        row_bounds = page_bounds(vs.row_breaks if vs else [], total_rows, rows_per_page)
-        col_bounds = page_bounds(vs.col_breaks if vs else [], total_cols, cols_per_page)
+        row_bounds, col_bounds = self.page_break_bounds()
         page_rows = row_bounds[-1]
         page_cols = col_bounds[-1]
 
-        print_x1 = self.row_header_width + self.geometry_mapper.col_pos(0) - scroll_x
-        print_y1 = self.col_header_height + self.geometry_mapper.row_pos(0) - scroll_y
+        print_x1 = (
+            self.row_header_width + self.geometry_mapper.col_pos(col_bounds[0]) - scroll_x
+        )
+        print_y1 = (
+            self.col_header_height + self.geometry_mapper.row_pos(row_bounds[0]) - scroll_y
+        )
         print_x2 = self.row_header_width + self.geometry_mapper.col_pos(page_cols) - scroll_x
         print_y2 = self.col_header_height + self.geometry_mapper.row_pos(page_rows) - scroll_y
         total_print_rect = QRect(print_x1, print_y1, print_x2 - print_x1, print_y2 - print_y1)
@@ -2846,7 +2889,79 @@ class GridViewport(QAbstractScrollArea):
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRect(total_print_rect)
 
+        # 4. Break line being dragged (solid: it becomes a manual break)
+        drag = getattr(self, "_page_break_drag", None)
+        if drag is not None and drag.get("target") is not None:
+            painter.setPen(QPen(QColor(0, 0, 255), 3, Qt.PenStyle.SolidLine))
+            if drag["axis"] == "row":
+                y = self.col_header_height + self.geometry_mapper.row_pos(drag["target"]) - scroll_y
+                painter.drawLine(total_print_rect.left(), y, total_print_rect.right(), y)
+            else:
+                x = self.row_header_width + self.geometry_mapper.col_pos(drag["target"]) - scroll_x
+                painter.drawLine(x, total_print_rect.top(), x, total_print_rect.bottom())
+
         painter.restore()
+
+    def page_break_bounds(self) -> tuple[list[int], list[int]]:
+        """Page start indices (+ end) for rows and columns, from the sheet's page setup."""
+        from atboffice.modules.spreadsheet.printing.layout import paginate
+        from atboffice.modules.spreadsheet.printing.setup import get_print_setup
+
+        layout = paginate(self.model, get_print_setup(self.model))
+        rows = sorted({p.rows[0] for p in layout.pages})
+        cols = sorted({p.cols[0] for p in layout.pages})
+        last_r = max(p.rows[1] for p in layout.pages) + 1
+        last_c = max(p.cols[1] for p in layout.pages) + 1
+        return rows + [last_r], cols + [last_c]
+
+    def _page_break_hit(self, x: int, y: int) -> dict[str, Any] | None:
+        """A page break line (row or column) within 3 px of grid point (x, y)."""
+        if self._view_mode != "page_break":
+            return None
+        rows, cols = self.page_break_bounds()
+        sx, sy = self.horizontalScrollBar().value(), self.verticalScrollBar().value()
+        geo = self.geometry_mapper
+        for idx in rows[1:-1]:
+            if abs(self.col_header_height + geo.row_pos(idx) - sy - y) <= 3:
+                return {"axis": "row", "index": idx, "target": idx}
+        for idx in cols[1:-1]:
+            if abs(self.row_header_width + geo.col_pos(idx) - sx - x) <= 3:
+                return {"axis": "col", "index": idx, "target": idx}
+        return None
+
+    def _page_break_drag_to(self, x: int, y: int) -> None:
+        drag = self._page_break_drag
+        sx, sy = self.horizontalScrollBar().value(), self.verticalScrollBar().value()
+        if drag["axis"] == "row":
+            idx = self.geometry_mapper.find_row_at(max(0, y - self.col_header_height + sy))
+            pos = self.geometry_mapper.row_pos(idx)
+            nxt = self.geometry_mapper.row_pos(idx + 1)
+            if y - self.col_header_height + sy > (pos + nxt) / 2:
+                idx += 1
+        else:
+            idx = self.geometry_mapper.find_col_at(max(0, x - self.row_header_width + sx))
+            pos = self.geometry_mapper.col_pos(idx)
+            nxt = self.geometry_mapper.col_pos(idx + 1)
+            if x - self.row_header_width + sx > (pos + nxt) / 2:
+                idx += 1
+        drag["target"] = max(1, idx)
+        self.viewport().update()
+
+    def finish_page_break_drag(self) -> bool:
+        """Turn the dragged line into a manual break (moving it if it was manual)."""
+        drag = getattr(self, "_page_break_drag", None)
+        self._page_break_drag = None
+        if drag is None or drag.get("target") is None:
+            return False
+        vs = self.model.view_state
+        attr = "row_breaks" if drag["axis"] == "row" else "col_breaks"
+        breaks = [b for b in getattr(vs, attr) if b != drag["index"]]
+        if drag["target"] not in breaks:
+            breaks.append(drag["target"])
+        setattr(vs, attr, sorted(breaks))
+        self.mark_dirty()
+        self.viewport().update()
+        return drag["target"] != drag["index"]
 
     def _paint_audit_arrows(
         self,
@@ -3422,6 +3537,13 @@ class GridViewport(QAbstractScrollArea):
         self.viewport().update()
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton and self._view_mode == "page_break":
+            gx, gy = self.map_from_device(event.position().x(), event.position().y())
+            hit = self._page_break_hit(gx, gy)
+            if hit is not None:
+                self._page_break_drag = hit
+                event.accept()
+                return
         # If already dragging with another button and secondary button pressed, cancel
         if self._drag_mode != HitZone.NONE:
             if event.button() != Qt.MouseButton.LeftButton:
@@ -3679,6 +3801,20 @@ class GridViewport(QAbstractScrollArea):
             self.viewport().update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if getattr(self, "_page_break_drag", None) is not None:
+            gx, gy = self.map_from_device(event.position().x(), event.position().y())
+            self._page_break_drag_to(gx, gy)
+            event.accept()
+            return
+        if self._view_mode == "page_break" and not event.buttons():
+            gx, gy = self.map_from_device(event.position().x(), event.position().y())
+            hit = self._page_break_hit(gx, gy)
+            if hit is not None:
+                self.viewport().setCursor(
+                    Qt.CursorShape.SizeVerCursor
+                    if hit["axis"] == "row"
+                    else Qt.CursorShape.SizeHorCursor
+                )
         if self.model is None or self.selection is None:
             event.ignore()
             return
@@ -3993,6 +4129,10 @@ class GridViewport(QAbstractScrollArea):
             super().leaveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if getattr(self, "_page_break_drag", None) is not None:
+            self.finish_page_break_drag()
+            event.accept()
+            return
         self._stop_auto_scroll()
         if self._drag_mode == HitZone.FILL_HANDLE:
             QToolTip.hideText()

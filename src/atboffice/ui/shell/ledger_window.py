@@ -384,8 +384,9 @@ class LedgerWindow(BaseOfficeWindow):
     def get_file_filter(self) -> str:
         """Return file filter pattern for Ledger save/open dialogs."""
         return safe_tr(
-            "所有支持的格式 (*.xlsx *.xlsm *.xls *.xlt *.csv *.tsv *.xml *.xmlss);;"
+            "所有支持的格式 (*.xlsx *.xlsm *.xls *.xlt *.csv *.tsv *.xml *.xmlss *.html *.htm);;"
             "Excel 工作簿 (*.xlsx *.xlsm);;"
+            "网页 (*.html *.htm);;"
             "CSV 逗号分隔文本 (*.csv);;"
             "TSV 制表符分隔文本 (*.tsv);;"
             "XML 电子表格 (*.xml *.xmlss);;"
@@ -462,6 +463,11 @@ class LedgerWindow(BaseOfficeWindow):
 
             write_xmlss(self.spreadsheet_view.workbook, path)
             return True
+        if ext in {".html", ".htm"}:
+            from atboffice.modules.spreadsheet.io.html_io import write_html
+
+            write_html(self.spreadsheet_view.workbook, path)
+            return True
         raise UnsupportedSaveFormatError(ext)
 
     def do_open(self, path: Path) -> bool:
@@ -519,6 +525,19 @@ class LedgerWindow(BaseOfficeWindow):
             new_sheet = SheetDataModel(name=path.stem or "Sheet1")
             read_csv(path, model=new_sheet, delimiter=delimiter)
             candidate_wb = WorkbookModel(sheets=[new_sheet])
+        elif ext in {".html", ".htm"}:
+            from atboffice.modules.spreadsheet.io.html_io import import_table, read_html_file
+            from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
+            from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
+
+            tables = read_html_file(path) or []
+            sheets = []
+            for n, table in enumerate(tables or [None], start=1):
+                sheet = SheetDataModel(name=f"Sheet{n}")
+                if table is not None:
+                    import_table(sheet, table)
+                sheets.append(sheet)
+            candidate_wb = WorkbookModel(sheets=sheets)
         elif ext in {".xml", ".xmlss"} or (ext in {".xls", ".xlt"} and is_xml_markup):
             from atboffice.modules.spreadsheet.io.xmlss_io import read_xmlss_workbook
 
