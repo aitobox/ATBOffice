@@ -580,17 +580,24 @@ class StartCenterWindow(BaseOfficeWindow):
             ("lectern", "Lectern " + safe_tr("演示文稿"), safe_tr("空白幻灯片"),
              safe_tr("16:9 宽屏演示"), "📙"),
         )
+        def opener(app: str, template_id: str | None = None) -> Callable[[], Any]:
+            # Resolve the WindowManager method at click time, not when the page is built
+            def open_it() -> Any:
+                open_fn = getattr(WindowManager.get_instance(), f"open_{app}")
+                return open_fn(template_id=template_id) if template_id else open_fn()
+
+            return open_it
+
         for app, title, blank_title, blank_sub, blank_icon in sections:
-            opener = getattr(WindowManager.get_instance(), f"open_{app}")
             items: list[tuple[Any, ...]] = [
-                (blank_title, blank_sub, blank_icon, lambda o=opener: o(), None)
+                (blank_title, blank_sub, blank_icon, opener(app), None)
             ]
             for info in registry.list_templates(app):
                 items.append((
                     safe_tr(info.name),
                     safe_tr(info.description or info.category or ""),
                     info.icon or "📄",
-                    lambda o=opener, tid=info.id: o(template_id=tid),
+                    opener(app, info.id),
                     info.id,
                 ))
             self._add_template_section(scroll_layout, title=title, items=items)
