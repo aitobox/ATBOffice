@@ -58,7 +58,7 @@ class RehearsalHud(QFrame):
 class RehearsalRecorder(QObject):
     """Times every slide shown in ``show_view`` (a SlideShowView)."""
 
-    timings_saved = Signal(dict)  # {slide_index: seconds}
+    timings_saved = Signal(object)  # {slide_index: seconds}; dict would drop int keys
 
     def __init__(
         self,

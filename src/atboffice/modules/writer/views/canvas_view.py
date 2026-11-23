@@ -156,6 +156,7 @@ class WriterCanvasView(QAbstractScrollArea):
     zoom_changed = Signal(float)
     caret_moved = Signal(int, int)  # para_id, offset
     view_mode_changed = Signal(object)
+    header_footer_requested = Signal(str)  # "hdr" / "ftr"
 
     def __init__(
         self,
@@ -200,6 +201,9 @@ class WriterCanvasView(QAbstractScrollArea):
 
         # Table divider interactive resizing
         self._resizing_table: bool = False
+        self._float_sel: tuple[int, Any] | None = None  # (page index, drawing item)
+        self._float_drag: Any = None
+        self.hf_edit_kind: str | None = None  # header/footer being edited (body dimmed)
         self._resize_info: dict[str, Any] | None = None
         self._resize_guide_pos: QPoint | None = None
 
@@ -238,6 +242,9 @@ class WriterCanvasView(QAbstractScrollArea):
         self._pixmap_cache.clear()
         self._undo_stack.clear()
         self._redo_stack.clear()
+        self._float_sel = None
+        self._float_drag = None
+        self.hf_edit_kind = None
         self.doc = doc
         if not self.doc.main.blocks:
             self.doc.main.blocks.append(Paragraph())
@@ -445,6 +452,11 @@ class WriterCanvasView(QAbstractScrollArea):
         """Compute the total bounding size (in px) of all pages stacked vertically."""
         if not self.pagination or not self.pagination.pages:
             return QSize(800, 600)
+        if self.view_mode in (ViewMode.NORMAL, ViewMode.WEB, ViewMode.READING):
+            slots = [clip for _rect, clip in self.page_slots() if not clip.isEmpty()]
+            right = max(c.right() for c in slots) + 8.0
+            bottom = max(c.bottom() for c in slots) + 24.0
+            return QSize(int(math.ceil(right)), int(math.ceil(bottom)))
 
         max_w = 0.0
         total_h = 33.0  # Top padding aligning page top border (y=33) with baseline captures
@@ -468,10 +480,35 @@ class WriterCanvasView(QAbstractScrollArea):
             mode = ViewMode(mode)
         if self.view_mode == mode:
             return
+        leaving_web = self.view_mode == ViewMode.WEB
+        leaving_reading = self.view_mode == ViewMode.READING
         self.view_mode = mode
+        if leaving_reading and getattr(self, "_zoom_before_reading", None) is not None:
+            self.set_zoom(self._zoom_before_reading)
+            self._zoom_before_reading = None
+        if mode == ViewMode.WEB or leaving_web:
+            self._apply_web_width()
+        if mode == ViewMode.READING and self.pagination and self.pagination.pages:
+            # Reading Layout: two screens side by side fit the window, like Word
+            pair_pt = sum(pg.width for pg in self.pagination.pages[:2]) + self.page_gap_pt
+            avail = max(200.0, self.viewport().width() - 48.0)
+            fit = avail / (pair_pt * self.pt_to_px_ratio)
+            if fit < self._zoom:
+                self._zoom_before_reading = self._zoom
+                self.set_zoom(max(0.1, fit))
         self._update_scroll_ranges()
         self.viewport().update()
         self.view_mode_changed.emit(self.view_mode)
+
+    def _apply_web_width(self) -> None:
+        """Web Layout reflows text to the window: repaginate at the viewport width."""
+        width = None
+        if self.view_mode == ViewMode.WEB:
+            width = max(144.0, self.viewport().width() / (self.pt_to_px_ratio * self._zoom))
+        if getattr(self.doc, "_web_layout_width", None) == width:
+            return
+        self.doc._web_layout_width = width  # type: ignore[attr-defined]
+        self.refresh_layout()
 
     def scroll_to_page(self, page_idx: int) -> None:
         """Scroll vertical scrollbar so page page_idx is visible at the top."""
@@ -498,9 +535,94 @@ class WriterCanvasView(QAbstractScrollArea):
                             return True
         return False
 
+    # ---- view-mode page placement ------------------------------------------------
+    def _content_height_pt(self, page: Page) -> float:
+        """Bottom of the last laid-out line (Web Layout pages are endless)."""
+        bottom = page.body_top
+        for reg in page.regions:
+            for col in reg.columns:
+                for frag in col.fragments:
+                    bottom = max(bottom, page.body_top + col.top + frag.top + frag.height)
+        return bottom + 18.0
+
+    def page_slots(self) -> list[tuple[QRectF, QRectF]]:
+        """Per page: (page rect, visible clip rect) in canvas px for the current view mode.
+
+        * Print: pages one below the other with a gap (the paper).
+        * Normal: only the text area of each page, stacked without gaps (no margins,
+          headers or footers); page breaks are drawn as dotted lines.
+        * Web: one page as wide as the window, as tall as its text.
+        * Reading: two pages side by side.
+        """
+        pages = self.pagination.pages if self.pagination else []
+        out: list[tuple[QRectF, QRectF]] = []
+        if not pages:
+            return out
+        mode = self.view_mode
+        if mode == ViewMode.NORMAL:
+            cur_y = 8.0
+            for page in pages:
+                w_px = self.pt_to_px(page.width)
+                top_px = self.pt_to_px(page.body_top)
+                left_px = self.pt_to_px(page.body_left)
+                body_px = self.pt_to_px(page.body_height)
+                # The left margin collapses too: text starts near the window edge
+                rect = QRectF(12.0 - left_px, cur_y - top_px, w_px, self.pt_to_px(page.height))
+                clip_w = self.pt_to_px(page.body_width) + 24.0
+                out.append((rect, QRectF(0.0, cur_y, clip_w, body_px)))
+                cur_y += body_px
+            return out
+        if mode == ViewMode.WEB:
+            page = pages[0]
+            rect = QRectF(0.0, 0.0, self.pt_to_px(page.width),
+                          self.pt_to_px(self._content_height_pt(page)))
+            out.append((rect, rect))
+            for _extra in pages[1:]:
+                out.append((QRectF(), QRectF()))
+            return out
+        gap_px = self.pt_to_px(self.page_gap_pt)
+        if mode == ViewMode.READING:
+            vp_w = float(self.viewport().width())
+            cur_y = 24.0
+            for i in range(0, len(pages), 2):
+                pair = pages[i : i + 2]
+                widths = [self.pt_to_px(pg.width) for pg in pair]
+                total_w = sum(widths) + gap_px * (len(pair) - 1)
+                x_px = max(24.0, (vp_w - total_w) / 2.0)
+                row_h = 0.0
+                for pg, w_px in zip(pair, widths):
+                    h_px = self.pt_to_px(pg.height)
+                    rect = QRectF(x_px, cur_y, w_px, h_px)
+                    out.append((rect, rect))
+                    x_px += w_px + gap_px
+                    row_h = max(row_h, h_px)
+                cur_y += row_h + gap_px
+            return out
+        vp_width = max(float(self.viewport().width()), self._print_canvas_width())
+        gutter_px = self._comment_gutter_px()
+        cur_y = 33.0
+        for page in pages:
+            w_px = self.pt_to_px(page.width)
+            h_px = self.pt_to_px(page.height)
+            x_px = max(0.0, (vp_width - gutter_px - w_px) / 2.0)
+            rect = QRectF(x_px, cur_y, w_px, h_px)
+            out.append((rect, rect))
+            cur_y += h_px + gap_px
+        return out
+
+    def _print_canvas_width(self) -> float:
+        gutter_px = self._comment_gutter_px()
+        widths = [self.pt_to_px(p.width) + gutter_px for p in self.pagination.pages]
+        return (max(widths) if widths else 600.0) + 48.0
+
     def page_rect_canvas(self, page_idx: int) -> QRectF:
         """Return the physical QRectF bounding box (in canvas px) of page page_idx."""
         if not self.pagination or not self.pagination.pages:
+            return QRectF(24, 24, 600, 800)
+        if self.view_mode in (ViewMode.NORMAL, ViewMode.WEB, ViewMode.READING):
+            slots = self.page_slots()
+            if 0 <= page_idx < len(slots):
+                return slots[page_idx][0]
             return QRectF(24, 24, 600, 800)
 
         vp_width = max(float(self.viewport().width()), float(self.total_canvas_size().width()))
@@ -556,8 +678,22 @@ class WriterCanvasView(QAbstractScrollArea):
         best_page = 0
         min_dist = float("inf")
 
+        slots = (
+            self.page_slots()
+            if self.view_mode in (ViewMode.NORMAL, ViewMode.WEB, ViewMode.READING)
+            else None
+        )
         for idx in range(len(self.pagination.pages)):
             rect = self.page_rect_canvas(idx)
+            if slots is not None:
+                rect = slots[idx][1]  # the visible part (Normal stacks text areas only)
+                if rect.isEmpty():
+                    continue
+                if self.view_mode == ViewMode.READING and not (
+                    rect.left() <= canvas_pt.x() <= rect.right()
+                ):
+                    if rect.top() <= canvas_pt.y() <= rect.bottom():
+                        continue
             if rect.top() <= canvas_pt.y() <= rect.bottom():
                 best_page = idx
                 min_dist = 0
@@ -623,28 +759,45 @@ class WriterCanvasView(QAbstractScrollArea):
         scroll_x = self.horizontalScrollBar().value()
         scroll_y = self.verticalScrollBar().value()
 
+        paper_view = self.view_mode in (ViewMode.PRINT, ViewMode.READING)
+        if not paper_view:
+            # Normal / Web layout: one continuous white sheet, no paper
+            painter.fillRect(self.viewport().rect(), COLOR_PAGE_PAPER)
+        slots = self.page_slots() if not paper_view else None
+
         # Render each page
         for p_idx, page in enumerate(self.pagination.pages):
             rect_canvas = self.page_rect_canvas(p_idx)
+            if rect_canvas.isEmpty():
+                continue
             rect_vp = QRectF(
                 rect_canvas.left() - scroll_x,
                 rect_canvas.top() - scroll_y,
                 rect_canvas.width(),
                 rect_canvas.height(),
             )
+            clip_vp = rect_vp
+            if slots is not None:
+                clip = slots[p_idx][1]
+                clip_vp = QRectF(clip.left() - scroll_x, clip.top() - scroll_y,
+                                 clip.width(), clip.height())
 
             # Viewport culling
-            if not rect_vp.intersects(QRectF(visible_rect)):
+            if not clip_vp.intersects(QRectF(visible_rect)):
                 continue
 
+            painter.save()
+            if not paper_view:
+                painter.setClipRect(clip_vp)
+
             # 2. Paint Page Drop Shadow (only in PRINT and READING modes)
-            if self.view_mode in (ViewMode.PRINT, ViewMode.READING):
+            if paper_view:
                 self._paint_page_shadow(painter, rect_vp)
 
-            # 3. Paint Page Sheet Background & Border
-            painter.fillRect(rect_vp, COLOR_PAGE_PAPER)
-            painter.setPen(QPen(COLOR_PAGE_BORDER, 1.0))
-            painter.drawRect(rect_vp)
+                # 3. Paint Page Sheet Background & Border
+                painter.fillRect(rect_vp, COLOR_PAGE_PAPER)
+                painter.setPen(QPen(COLOR_PAGE_BORDER, 1.0))
+                painter.drawRect(rect_vp)
 
             # 4. Paint Selection Highlights on this page
             self._paint_selection(painter, p_idx, rect_vp, page)
@@ -652,9 +805,23 @@ class WriterCanvasView(QAbstractScrollArea):
             # 5. Paint Document Content (Text Lines & Portions)
             self._paint_page_content(painter, rect_vp, page)
 
+            # 5.05 Header/footer editing: dim the body, frame the header/footer area
+            if self.hf_edit_kind and paper_view:
+                self._paint_hf_edit_overlay(painter, rect_vp, page)
+
+            # 5.06 Selected floating object: frame and sizing handles
+            self._paint_float_selection(painter, p_idx, rect_vp, page)
+
             # 5.1 Paint Comment Balloons & Range Annotations
-            if self.show_comments:
+            if self.show_comments and paper_view:
                 self._paint_comments(painter, rect_vp, page)
+            painter.restore()
+
+            # Normal view: a dotted line where one page ends and the next begins
+            if self.view_mode == ViewMode.NORMAL and p_idx > 0:
+                painter.setPen(QPen(QColor(128, 128, 128), 1.0, Qt.PenStyle.DotLine))
+                painter.drawLine(QPointF(0.0, clip_vp.top()),
+                                 QPointF(float(self.viewport().width()), clip_vp.top()))
 
         # 5.2 Formatting marks (¶ at each paragraph end) when toggled on
         if self.show_formatting_marks:
@@ -2214,6 +2381,8 @@ class WriterCanvasView(QAbstractScrollArea):
                 return
 
             page_idx, pt_doc = self.viewport_to_doc_coords(pos_pt)
+            if self._float_press(page_idx, pt_doc):
+                return
             pos = self.controller.canvas_to_pos(page_idx, pt_doc)
 
             # Hyperlink navigation check
@@ -2243,6 +2412,13 @@ class WriterCanvasView(QAbstractScrollArea):
         if self._resizing_table:
             self._resize_guide_pos = pos_pt
             self.viewport().update()
+            return
+        if self._float_drag is not None:
+            _page_idx, pt_doc = self.viewport_to_doc_coords(pos_pt)
+            self._float_drag.current = pt_doc
+            self.viewport().update()
+            return
+        if self._float_hover_cursor(pos_pt):
             return
 
         if self._is_dragging and (event.buttons() & Qt.MouseButton.LeftButton):
@@ -2306,23 +2482,208 @@ class WriterCanvasView(QAbstractScrollArea):
                 self.refresh_layout()
                 return
 
+            if self._float_drag is not None:
+                _page_idx, pt_doc = self.viewport_to_doc_coords(pos_pt)
+                self._float_release(pt_doc, bool(event.modifiers()
+                                                 & Qt.KeyboardModifier.ShiftModifier))
+                return
+
             self._is_dragging = False
             if self.format_painter_props is not None:
                 self._apply_format_painter()
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
-        """Handle double-click for word selection."""
+        """Double-click: header/footer area enters header/footer editing, else select a word."""
         pos_pt = self._event_pos(event)
         if event.button() == Qt.MouseButton.LeftButton:
             page_idx, pt_doc = self.viewport_to_doc_coords(pos_pt)
+            kind = self.header_footer_zone(page_idx, pt_doc)
+            if kind is not None:
+                self.enter_header_footer_mode(kind)
+                return
+            if self.hf_edit_kind is not None:
+                self.exit_header_footer_mode()
             pos = self.controller.canvas_to_pos(page_idx, pt_doc)
             self.controller.select_word_at(pos)
             self.viewport().update()
+
+    # ------------------------------------------------------------ header/footer mode
+    def header_footer_zone(self, page_idx: int, pt: QPointF) -> str | None:
+        """"hdr"/"ftr" when ``pt`` (page points) lies in a page's top/bottom margin.
+
+        Only paper views show the margins, so Normal/Web/Reading never match.
+        """
+        if self.view_mode != ViewMode.PRINT or not self.pagination.pages:
+            return None
+        page = self.pagination.pages[max(0, min(page_idx, len(self.pagination.pages) - 1))]
+        if not 0.0 <= pt.x() <= page.width:
+            return None
+        if 0.0 <= pt.y() < page.body_top:
+            return "hdr"
+        if page.height - page.body_bottom_gap < pt.y() <= page.height:
+            return "ftr"
+        return None
+
+    def enter_header_footer_mode(self, kind: str) -> None:
+        self.hf_edit_kind = kind
+        self.header_footer_requested.emit(kind)
+        self.viewport().update()
+
+    def exit_header_footer_mode(self) -> None:
+        self.hf_edit_kind = None
+        self.viewport().update()
+
+    def _paint_hf_edit_overlay(self, painter: QPainter, page_rect: QRectF, page: Page) -> None:
+        body = QRectF(page_rect.left(), page_rect.top() + self.pt_to_px(page.body_top),
+                      page_rect.width(),
+                      self.pt_to_px(page.height - page.body_top - page.body_bottom_gap))
+        painter.save()
+        painter.fillRect(body, QColor(255, 255, 255, 150))
+        pen = QPen(QColor(128, 128, 128), 1.0, Qt.PenStyle.DashLine)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        left = page_rect.left() + self.pt_to_px(page.body_left)
+        width = self.pt_to_px(page.body_width)
+        if self.hf_edit_kind == "hdr":
+            top = page_rect.top() + self.pt_to_px(float(getattr(page.section, "hdr", 36.0)))
+            painter.drawRect(QRectF(left, top, width, max(0.0, body.top() - top)))
+        else:
+            bottom = page_rect.bottom() - self.pt_to_px(float(getattr(page.section, "ftr", 36.0)))
+            painter.drawRect(QRectF(left, body.bottom(), width, max(0.0, bottom - body.bottom())))
+        painter.restore()
+
+    # ------------------------------------------------------------ floating objects
+    def selected_float(self) -> Any | None:
+        return self._float_sel[1] if self._float_sel else None
+
+    def select_float(self, page_idx: int | None, item: Any | None) -> None:
+        self._float_sel = (page_idx, item) if item is not None and page_idx is not None else None
+        self.viewport().update()
+
+    def _selected_float_box(self) -> tuple[int, Any] | None:
+        if not self._float_sel or not self.pagination.pages:
+            return None
+        from atboffice.modules.writer.views import float_edit
+
+        page_idx, item = self._float_sel
+        pages = self.pagination.pages
+        order = [page_idx] + [i for i in range(len(pages)) if i != page_idx]
+        for idx in order:  # relayout may move the object to another page
+            if 0 <= idx < len(pages):
+                fb = float_edit.box_for_item(pages[idx], item)
+                if fb is not None:
+                    return idx, fb
+        return None
+
+    def _float_press(self, page_idx: int, pt: QPointF) -> bool:
+        """Start selecting/moving/resizing a floating object. True when consumed."""
+        from atboffice.modules.writer.views import float_edit
+
+        if not self.pagination.pages:
+            return False
+        tol = self.px_to_pt(5.0)
+        found = self._selected_float_box()
+        if found is not None and found[0] == page_idx:
+            handle = float_edit.handle_at(found[1], pt, tol)
+            if handle is not None:
+                fb = found[1]
+                self._float_drag = float_edit.FloatDrag(
+                    page_idx, fb.item, handle, QPointF(pt), (fb.x, fb.y, fb.w, fb.h))
+                return True
+        page = self.pagination.pages[max(0, min(page_idx, len(self.pagination.pages) - 1))]
+        fb = float_edit.float_at(page, pt)
+        if fb is None or getattr(fb.item, "float_pr", None) is None:
+            if self._float_sel is not None:
+                self.select_float(None, None)
+            return False
+        self.setFocus()
+        self.select_float(page_idx, fb.item)
+        self._float_drag = float_edit.FloatDrag(
+            page_idx, fb.item, None, QPointF(pt), (fb.x, fb.y, fb.w, fb.h))
+        return True
+
+    def _float_release(self, pt: QPointF, lock_aspect: bool = False) -> None:
+        from atboffice.modules.writer.views import float_edit
+
+        drag, self._float_drag = self._float_drag, None
+        if drag is None:
+            return
+        changed = self.run_undoable(lambda: float_edit.apply_drag(drag, pt, lock_aspect))
+        if changed is False:
+            self.viewport().update()
+
+    def delete_selected_float(self) -> bool:
+        """Remove the selected floating object from its paragraph (one undo step)."""
+        item = self.selected_float()
+        if item is None:
+            return False
+
+        from atboffice.modules.writer.models.document import all_stories
+
+        def mutate() -> bool:
+            for story in all_stories(self.doc):
+                for para in story.paras:
+                    for i, run in enumerate(para.runs):
+                        if run is item:
+                            del para.runs[i]
+                            return True
+            return False
+
+        self._float_sel = None
+        return bool(self.run_undoable(mutate))
+
+    def _float_key(self, event: QKeyEvent) -> bool:
+        key = event.key()
+        if key in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
+            return self.delete_selected_float()
+        if key == Qt.Key.Key_Escape:
+            self.select_float(None, None)
+            return True
+        self.select_float(None, None)  # typing returns to the text
+        return False
+
+    def _paint_float_selection(
+        self, painter: QPainter, p_idx: int, page_rect: QRectF, page: Page
+    ) -> None:
+        from atboffice.modules.writer.views import float_edit
+
+        drag = self._float_drag
+        if drag is not None and drag.page_index == p_idx and drag.current is not None:
+            float_edit.paint_selection(painter, page_rect, self.pt_to_px,
+                                       float_edit.preview_box(drag), dashed=True)
+        found = self._selected_float_box()
+        if found is not None and found[0] == p_idx:
+            fb = found[1]
+            float_edit.paint_selection(painter, page_rect, self.pt_to_px,
+                                       (fb.x, fb.y, fb.w, fb.h))
+
+    def _float_hover_cursor(self, vp_pt: QPoint) -> bool:
+        from atboffice.modules.writer.views import float_edit
+
+        if not self.pagination.pages:
+            return False
+        page_idx, pt = self.viewport_to_doc_coords(vp_pt)
+        found = self._selected_float_box()
+        if found is not None and found[0] == page_idx:
+            handle = float_edit.handle_at(found[1], pt, self.px_to_pt(5.0))
+            if handle is not None:
+                self.viewport().setCursor(float_edit.cursor_for(handle))
+                return True
+        page = self.pagination.pages[max(0, min(page_idx, len(self.pagination.pages) - 1))]
+        fb = float_edit.float_at(page, pt)
+        if fb is not None and getattr(fb.item, "float_pr", None) is not None:
+            self.viewport().setCursor(float_edit.cursor_for(None))
+            return True
+        return False
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         """Dispatch keyboard events to CaretController or trigger F7 spelling dialog."""
         if event.key() == Qt.Key.Key_F7:
             self.open_spelling_dialog()
+            event.accept()
+            return
+
+        if self._float_sel is not None and self._float_key(event):
             event.accept()
             return
 
@@ -2486,6 +2847,8 @@ class WriterCanvasView(QAbstractScrollArea):
     def resizeEvent(self, event: QResizeEvent) -> None:
         """Update scroll ranges and repaginate/repaint upon resize."""
         super().resizeEvent(event)
+        if self.view_mode == ViewMode.WEB:
+            self._apply_web_width()
         self._update_scroll_ranges()
 
     # -----------------------------------------------------------------------

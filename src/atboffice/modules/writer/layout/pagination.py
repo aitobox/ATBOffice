@@ -426,7 +426,7 @@ class _PaginationContext:
 
     def __init__(self, doc: Document) -> None:
         self.doc = doc
-        self.sect_list = sections(doc)
+        self.sect_list = _web_layout(doc, sections(doc))
         self.pages: list[Page] = []
         self.current_page: Page | None = None
         self.current_region: PageRegion | None = None
@@ -1259,6 +1259,38 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
         section_pages=sec_pages,
         duration_ms=dur,
     )
+
+
+WEB_MARGIN_PT = 18.0
+WEB_PAGE_HEIGHT_PT = 1_000_000.0
+
+
+def _web_layout(doc: Document, sect_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Web Layout view: text reflows to the window width on one endless page.
+
+    ``doc._web_layout_width`` (points) is set by the canvas while Web Layout is active;
+    the document's own section properties are never changed.
+    """
+    import dataclasses
+
+    width = getattr(doc, "_web_layout_width", None)
+    if not width:
+        return sect_list
+    out = []
+    for info in sect_list:
+        sect = info["sect"]
+        web = dataclasses.replace(
+            sect,
+            pg_w=max(144.0, float(width)),
+            pg_h=WEB_PAGE_HEIGHT_PT,
+            ml=WEB_MARGIN_PT,
+            mr=WEB_MARGIN_PT,
+            mt=WEB_MARGIN_PT,
+            mb=WEB_MARGIN_PT,
+            gutter=0.0,
+        )
+        out.append({**info, "sect": web})
+    return out
 
 
 def paginate_document(doc: Document, max_passes: int = 4) -> PaginationResult:
