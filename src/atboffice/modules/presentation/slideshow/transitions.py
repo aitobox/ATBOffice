@@ -232,6 +232,100 @@ def _direction_vector(d: str | None) -> tuple[float, float]:
 # ==============================================================================
 
 
+def reveal_clip(kind: str, direction: str | None, progress: float, w: float, h: float
+                ) -> QPainterPath | None:
+    """Clip path (local shape coordinates) for mask-based entrance effects.
+
+    ``progress`` 0 = nothing visible, 1 = fully revealed. Returns None for "show all".
+    """
+    import math
+
+    t = max(0.0, min(1.0, progress))
+    if t >= 0.999:
+        return None
+    path = QPainterPath()
+    if t <= 0.0:
+        return path
+    d = (direction or "").lower()
+    k = (kind or "").lower()
+    if k in ("wipe", "peek", "crawl", "stretch"):
+        if d in ("r", "fromright", "right"):
+            path.addRect(QRectF(w * (1 - t), 0, w * t, h))
+        elif d in ("u", "up", "frombottom", "b"):
+            path.addRect(QRectF(0, h * (1 - t), w, h * t))
+        elif d in ("d", "down", "fromtop", "t"):
+            path.addRect(QRectF(0, 0, w, h * t))
+        else:
+            path.addRect(QRectF(0, 0, w * t, h))
+    elif k in ("blinds", "strips", "randombars", "randombar"):
+        bands = 6 if k == "blinds" else 10
+        vertical = d in ("vert", "vertical", "v")
+        size = (w if vertical else h) / bands
+        for i in range(bands):
+            if vertical:
+                path.addRect(QRectF(i * size, 0, size * t, h))
+            else:
+                path.addRect(QRectF(0, i * size, w, size * t))
+    elif k == "box":
+        if d == "out":
+            mw, mh = w * t / 2, h * t / 2
+            path.addRect(QRectF(w / 2 - mw, h / 2 - mh, 2 * mw, 2 * mh))
+        else:
+            path.addRect(QRectF(0, 0, w, h))
+            inner = QPainterPath()
+            iw, ih = w * (1 - t), h * (1 - t)
+            inner.addRect(QRectF((w - iw) / 2, (h - ih) / 2, iw, ih))
+            path = path.subtracted(inner)
+    elif k == "split":
+        horizontal = d.startswith("h") or d in ("horzin", "horzout")
+        if horizontal:
+            path.addRect(QRectF(0, h / 2 - h * t / 2, w, h * t))
+        else:
+            path.addRect(QRectF(w / 2 - w * t / 2, 0, w * t, h))
+    elif k in ("circle", "oval"):
+        r = math.hypot(w, h) / 2 * t
+        path.addEllipse(QPointF(w / 2, h / 2), r, r)
+    elif k == "diamond":
+        rx, ry = w * t, h * t
+        cx, cy = w / 2, h / 2
+        path.moveTo(cx, cy - ry)
+        path.lineTo(cx + rx, cy)
+        path.lineTo(cx, cy + ry)
+        path.lineTo(cx - rx, cy)
+        path.closeSubpath()
+    elif k == "plus":
+        path.addRect(QRectF(w / 2 - w * t / 2, 0, w * t, h))
+        path.addRect(QRectF(0, h / 2 - h * t / 2, w, h * t))
+    elif k in ("wheel", "wedge", "clock"):
+        spokes = 1 if k != "wheel" else 4
+        cx, cy = w / 2, h / 2
+        r = math.hypot(w, h)
+        span = 360.0 * t / spokes
+        for i in range(spokes):
+            path.moveTo(cx, cy)
+            start = 90 - i * 360.0 / spokes
+            if k == "wedge":
+                path.arcTo(QRectF(cx - r, cy - r, 2 * r, 2 * r), 90 + span / 2, -span)
+            else:
+                path.arcTo(QRectF(cx - r, cy - r, 2 * r, 2 * r), start, -span)
+            path.closeSubpath()
+    elif k in ("checkerboard", "dissolve"):
+        cols, rows = (8, 6) if k == "checkerboard" else (16, 12)
+        cw, ch = w / cols, h / rows
+        for i in range(rows):
+            for j in range(cols):
+                if k == "checkerboard":
+                    offset = 0.5 if (i + j) % 2 else 0.0
+                    frac = max(0.0, min(1.0, (t - offset) * 2))
+                    if frac > 0:
+                        path.addRect(QRectF(j * cw, i * ch, cw * frac, ch))
+                elif ((i * 7919 + j * 104729) % 97) / 97.0 < t:
+                    path.addRect(QRectF(j * cw, i * ch, cw, ch))
+    else:
+        path.addRect(QRectF(0, 0, w * t, h))  # unknown masks reveal like a wipe
+    return path
+
+
 def render_slide_to_image(
     slide: Slide,
     presentation: Presentation,
@@ -416,6 +510,15 @@ def render_slide_to_image(
                 if scale_x != 1.0 or scale_y != 1.0:
                     painter.scale(scale_x, scale_y)
                 painter.translate(-rect.width() / 2.0, -rect.height() / 2.0)
+                clip = reveal_clip(
+                    getattr(state, "reveal_type", None) or "",
+                    getattr(state, "reveal_dir", None),
+                    getattr(state, "reveal_progress", 1.0),
+                    rect.width(),
+                    rect.height(),
+                ) if getattr(state, "reveal_type", None) else None
+                if clip is not None:
+                    painter.setClipPath(clip, Qt.ClipOperation.IntersectClip)
             else:
                 painter.translate(rect.topLeft())
 

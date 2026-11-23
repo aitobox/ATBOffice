@@ -925,11 +925,12 @@ class LecternCommands:
         dock.show_pane("customAnim")
 
     def play_slide_animation(self) -> None:
-        """Animation Schemes > Play: preview the current slide's animations in a show."""
+        """Animation Schemes > Play: preview the current slide's animations on the canvas."""
         ws = self.ws
         if ws is None or not ws.presentation.slides:
             return
-        self.w.start_slideshow_current()
+        if not ws.preview_animations():
+            ws.preview_transition()  # schemes without builds still show their transition
 
     # ------------------------------------------------------------------ masters
     def _master_view(self) -> Any | None:
