@@ -32446,5 +32446,10 @@
   "文件“{name}”已存在。\n是否替换现有文件？": "A file named \"{name}\" already exists.\nDo you want to replace it?",
   "无法保存文件“{target}”：权限不足，无法写入目标目录或文件。\n{exc}": "Cannot save file \"{target}\": Permission denied.\n{exc}",
   "Open Failed": "Open Failed",
-  "Cannot open \"{name}\": the file is corrupt or unreadable.": "Cannot open \"{name}\": the file is corrupt or unreadable."
+  "Cannot open \"{name}\": the file is corrupt or unreadable.": "Cannot open \"{name}\": the file is corrupt or unreadable.",
+  "Paper colours with the classic menus and toolbars; the tabbed Ribbon layout is not available yet.": {
+    "where": [
+      "src/atboffice/ui/dialogs/theme_dialog.py"
+    ]
+  }
 }

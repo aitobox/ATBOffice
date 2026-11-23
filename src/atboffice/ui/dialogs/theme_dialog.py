@@ -372,7 +372,10 @@ SUITE_THEMES: list[tuple[str, str, str, str]] = [
     (
         "paper2016",
         "Paper 2016 Ribbon",
-        "Paper with tabs of commands, grouped by task, instead of toolbars.",
+        (
+            "Paper colours with the classic menus and toolbars; "
+            "the tabbed Ribbon layout is not available yet."
+        ),
         "ribbon",
     ),
 ]

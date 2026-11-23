@@ -13,6 +13,7 @@ from PySide6.QtGui import (
     QColor,
     QFont,
     QFontDatabase,
+    QImage,
     QLinearGradient,
     QPainter,
     QPainterPath,
@@ -722,63 +723,69 @@ def prompt_insert_wordart(parent: QWidget | None = None) -> dict[str, Any] | Non
     return res
 
 
-def _try_insert_into_window(window: QWidget, data: dict[str, Any]) -> None:
-    """Inject the generated WordArt object into the active window (Quire, Lectern, or Ledger)."""
-    # 1. Lectern (Presentation)
-    if hasattr(window, "add_shape") or hasattr(window, "current_slide"):
-        from atboffice.modules.presentation.models.shape import Fill, Line, Shadow, Shape
+def wordart_spec(data: dict[str, Any]) -> dict[str, Any]:
+    """Serializable description of an inserted WordArt (style + text + font)."""
+    import dataclasses
 
-        style: WordArtStyle = data["style"]
-        text: str = data["text"]
+    style: WordArtStyle = data["style"]
+    spec_style = dataclasses.asdict(style)
+    spec_style["font_family"] = data.get("font") or style.font_family
+    spec_style["bold"] = bool(data.get("bold", style.bold))
+    spec_style["italic"] = bool(data.get("italic", style.italic))
+    return {
+        "text": str(data.get("text") or "WordArt"),
+        "size": int(data.get("size") or 36),
+        "style": spec_style,
+        "spacing": 0.0,
+    }
 
-        fill = Fill.solid(style.fill_colors[0])
-        if style.fill_type == "gradient" and len(style.fill_colors) >= 2:
-            stops = [{"p": 0.0, "c": style.fill_colors[0]}, {"p": 1.0, "c": style.fill_colors[1]}]
-            fill = Fill.gradient(stops, angle=style.gradient_angle)
 
-        line = Line.none()
-        if style.line_color:
-            line = Line(color=style.line_color, width=style.line_width)
+def wordart_box(spec: dict[str, Any]) -> tuple[float, float]:
+    """Natural (width, height) in points for the WordArt text at its font size."""
+    lines = spec["text"].split("\n")
+    size = float(spec.get("size") or 36)
+    longest = max((len(line) for line in lines), default=1)
+    width = max(size * 2.0, longest * size * 0.72 * (1.0 + float(spec.get("spacing", 0.0))))
+    return width, size * 1.5 * len(lines)
 
-        shadow = None
-        if style.shadow:
-            shadow = Shadow(
-                color=style.shadow_color,
-                alpha=style.shadow_alpha,
-                dist=math.hypot(style.shadow_dx, style.shadow_dy),
-            )
 
-        shape = Shape(
-            id=f"wordart_{id(data)}",
-            type="shape",
-            name=f"WordArt: {text[:10]}",
-            geom="custom",
-            x=100.0,
-            y=100.0,
-            w=240.0,
-            h=90.0,
-            fill=fill,
-            line=line,
-            shadow=shadow,
-        )
-        if hasattr(window, "add_shape"):
-            window.add_shape(shape)
-        elif hasattr(window, "current_slide") and window.current_slide:
-            window.current_slide.shapes.append(shape)
-            if hasattr(window, "update_view"):
-                window.update_view()
+def render_wordart_png(spec: dict[str, Any], scale: float = 3.0) -> bytes:
+    """Render WordArt (fill, outline, shadow and warp) to a transparent PNG."""
+    from PySide6.QtCore import QBuffer, QByteArray, QIODevice
 
-    # 2. Quire (Writer)
-    elif hasattr(window, "writer_view") and hasattr(window.writer_view, "insert_drawing_object"):
-        from atboffice.modules.writer.models.drawing import TextBoxItem
+    style = WordArtStyle(**spec["style"])
+    w_pt, h_pt = wordart_box(spec)
+    pad = 6.0  # room for the shadow offset
+    img = QImage(
+        max(1, int((w_pt + 2 * pad) * scale)),
+        max(1, int((h_pt + 2 * pad) * scale)),
+        QImage.Format.Format_ARGB32_Premultiplied,
+    )
+    img.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(img)
+    painter.scale(scale, scale)
+    render_wordart(painter, spec["text"], style, QRectF(pad, pad, w_pt, h_pt))
+    painter.end()
+    buf = QByteArray()
+    dev = QBuffer(buf)
+    dev.open(QIODevice.OpenModeFlag.WriteOnly)
+    img.save(dev, "PNG")
+    dev.close()
+    return bytes(buf.data())
 
-        tb_item = TextBoxItem(
-            name=f"WordArt: {data['text'][:10]}",
-            width=240.0,
-            height=90.0,
-        )
-        window.writer_view.insert_drawing_object(tb_item)
 
-    # 3. Generic window method fallback
-    elif hasattr(window, "insert_wordart_object"):
-        window.insert_wordart_object(data)
+def _try_insert_into_window(window: QWidget, data: dict[str, Any]) -> bool:
+    """Insert the WordArt into the editor through its picture adapter.
+
+    Editors implement ``insert_wordart(png, spec)`` (keeps the spec for later edits) or
+    ``insert_image_bytes(png, ext, name)``. Returns False when the window cannot host it.
+    """
+    spec = wordart_spec(data)
+    name = f"WordArt: {spec['text'][:20]}"
+    if hasattr(window, "insert_wordart"):
+        return bool(window.insert_wordart(render_wordart_png(spec), spec))
+    if hasattr(window, "insert_image_bytes"):
+        # Picture adapters size images at 96 dpi (1 px = 0.75 pt): render at 4/3 so the
+        # picture lands at the WordArt's natural size.
+        return bool(window.insert_image_bytes(render_wordart_png(spec, 4.0 / 3.0), "png", name))
+    return False

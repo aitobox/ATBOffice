@@ -145,8 +145,9 @@ def test_lossy_save_prompt_cancellation(qapp, tmp_path):
     """Verify saving document with losses prompts user, and cancellation aborts save."""
     from unittest.mock import patch
 
-    from PySide6.QtWidgets import QMessageBox
+    from PySide6.QtWidgets import QDialog
 
+    from atboffice.ui.dialogs.compatibility_dialog import CompatibilityDialog
     from atboffice.ui.shell.quire_window import QuireWindow
 
     win = QuireWindow()
@@ -157,22 +158,22 @@ def test_lossy_save_prompt_cancellation(qapp, tmp_path):
     target_file = tmp_path / "test_lossy.docx"
     target_file.write_bytes(b"original content")
 
-    # Simulate user clicking "No" (Cancel)
+    # Simulate user clicking Cancel in the Compatibility Checker
     with patch.object(
-        QMessageBox, "warning", return_value=QMessageBox.StandardButton.No
-    ) as mock_warn:
+        CompatibilityDialog, "exec", return_value=QDialog.DialogCode.Rejected
+    ) as mock_exec:
         success = win.do_save(target_file)
         assert success is False
-        assert mock_warn.called
+        assert mock_exec.called
         # Verify original file content was preserved untouched
         assert target_file.read_bytes() == b"original content"
 
-    # Simulate user clicking "Yes" (Continue)
+    # Simulate user clicking Continue
     with patch.object(
-        QMessageBox, "warning", return_value=QMessageBox.StandardButton.Yes
-    ) as mock_warn:
+        CompatibilityDialog, "exec", return_value=QDialog.DialogCode.Accepted
+    ) as mock_exec:
         success = win.do_save(target_file)
         assert success is True
-        assert mock_warn.called
+        assert mock_exec.called
         # Verify file was overwritten with valid docx
         assert target_file.read_bytes() != b"original content"

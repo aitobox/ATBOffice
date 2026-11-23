@@ -59,7 +59,7 @@ TABLE_SHADES = {
 PICTURE_WEIGHTS = {"075": 0.75, "15": 1.5, "30": 3.0, "45": 4.5, "60": 6.0}
 WORDART_SHAPES = {
     "plain": "textPlain", "wave": "textWave1", "arch_up": "textArchUp",
-    "arch_down": "textArchDown", "circle": "textCircle", "triangle_down": "textTriangleInverted",
+    "arch_down": "textArchDown", "circle": "textCircle", "triangle_down": "textTriangle",
 }
 WORDART_SPACING = {
     "very_tight": -0.2, "tight": -0.1, "normal": 0.0, "loose": 0.2, "very_loose": 0.4,
@@ -469,10 +469,24 @@ class LecternCommands:
         self._require(bool(items), safe_tr("请先选择艺术字"))
         return items
 
+    def _rerender_wordart(self, item: Any) -> None:
+        """Re-render a WordArt picture from its stored spec (warp / spacing changes)."""
+        from atboffice.modules.common.wordart_gallery import render_wordart_png
+
+        shape = item.model
+        spec = getattr(shape, "wordart", None)
+        if not spec or not shape.media:
+            return
+        self.pres.props.setdefault("_media_map", {})[shape.media] = render_wordart_png(spec)
+        item._cached_media_key = None
+
     def wordart_spacing(self, key: str) -> None:
         items = self._wordart_items()
         for it in items:
             it.model.wa_spacing = WORDART_SPACING[key]
+            if getattr(it.model, "wordart", None):
+                it.model.wordart["spacing"] = WORDART_SPACING[key]
+                self._rerender_wordart(it)
         if items:
             self._update_items(items, safe_tr("已设置艺术字字符间距"))
 
@@ -480,6 +494,9 @@ class LecternCommands:
         items = self._wordart_items()
         for it in items:
             it.model.wa_shape = WORDART_SHAPES[key]
+            if getattr(it.model, "wordart", None):
+                it.model.wordart["style"]["warp"] = WORDART_SHAPES[key]
+                self._rerender_wordart(it)
         if items:
             self._update_items(items, safe_tr("已设置艺术字形状"))
 

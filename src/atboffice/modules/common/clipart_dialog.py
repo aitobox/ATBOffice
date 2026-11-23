@@ -597,36 +597,20 @@ def prompt_insert_clipart(parent_window: QWidget | None = None) -> ClipartItem |
     return clip
 
 
-def _try_insert_clipart_into_window(window: QWidget, clip: ClipartItem) -> None:
-    """Insert clipart vector item into Lectern, Quire, or Ledger."""
-    # 1. Lectern (Presentation Slide)
-    if hasattr(window, "add_shape") or hasattr(window, "current_slide"):
-        from atboffice.modules.presentation.models.shape import Shape
+def clipart_png(clip: ClipartItem, size: int = 256) -> bytes:
+    """Render a clip to PNG bytes (transparent background)."""
+    from PySide6.QtCore import QBuffer, QByteArray, QIODevice
 
-        shape = Shape(
-            id=f"clipart_{clip.id}_{id(clip)}",
-            type="image",
-            name=f"Clipart: {clip.name_zh}",
-            x=120.0,
-            y=120.0,
-            w=160.0,
-            h=160.0,
-            svg_content=clip.to_svg_xml(),
-        )
-        if hasattr(window, "add_shape"):
-            window.add_shape(shape)
-        elif hasattr(window, "current_slide"):
-            slide = window.current_slide
-            if slide and hasattr(slide, "shapes"):
-                slide.shapes.append(shape)
-                if hasattr(window, "update_canvas"):
-                    window.update_canvas()
+    buf = QByteArray()
+    dev = QBuffer(buf)
+    dev.open(QIODevice.OpenModeFlag.WriteOnly)
+    render_clipart_pixmap(clip, size=size).save(dev, "PNG")
+    dev.close()
+    return bytes(buf.data())
 
-    # 2. Quire (Word Processor)
-    elif hasattr(window, "insert_image") or hasattr(window, "editor"):
-        pix = render_clipart_pixmap(clip, size=256)
-        if hasattr(window, "insert_image"):
-            window.insert_image(pix)
-        elif hasattr(window, "editor") and hasattr(window.editor, "textCursor"):
-            cursor = window.editor.textCursor()
-            cursor.insertImage(pix.toImage())
+
+def _try_insert_clipart_into_window(window: QWidget, clip: ClipartItem) -> bool:
+    """Insert ``clip`` through the editor's picture adapter (Quire, Ledger, Lectern)."""
+    if not hasattr(window, "insert_image_bytes"):
+        return False
+    return bool(window.insert_image_bytes(clipart_png(clip), "png", f"Clip Art {clip.name_zh}"))

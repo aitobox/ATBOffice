@@ -348,16 +348,16 @@ class QuireToolbarCommands:
                 self.canvas.refresh_layout()
 
 
-def insert_picture_file(canvas: Any, path: Path) -> bool:
-    """Insert an inline picture from ``path`` scaled to fit the text width."""
+def insert_picture_bytes(canvas: Any, data: bytes, name: str, ext: str = "png") -> bool:
+    """Insert an inline picture from encoded image bytes, scaled to fit the text width."""
     from PySide6.QtGui import QImage
 
     from atboffice.modules.writer.models.drawing import PictureItem
 
-    data = path.read_bytes()
     image = QImage()
-    if not image.loadFromData(data) or image.isNull():
+    if not data or not image.loadFromData(data) or image.isNull():
         return False
+    ext = (ext or "png").lower().lstrip(".")
     sect = canvas.doc.sect
     max_w = max(36.0, sect.pg_w - sect.ml - sect.mr)
     w_pt = image.width() * 0.75
@@ -365,12 +365,19 @@ def insert_picture_file(canvas: Any, path: Path) -> bool:
     if w_pt > max_w:
         h_pt *= max_w / w_pt
         w_pt = max_w
-    pic = PictureItem(name=path.name, width=w_pt, height=h_pt,
-                      raw_data={"bytes": data, "ext": path.suffix.lower().lstrip(".")},
-                      image_part=f"media/{path.name}", alt_text=path.stem)
+    stem = Path(name).stem or "picture"
+    part = name if "." in name else f"{stem}.{ext}"
+    pic = PictureItem(name=name, width=w_pt, height=h_pt,
+                      raw_data={"bytes": data, "ext": ext},
+                      image_part=f"media/{part}", alt_text=stem)
     pic.natural_width, pic.natural_height = w_pt, h_pt
     doc_actions.insert_items(canvas, [pic])
     return True
+
+
+def insert_picture_file(canvas: Any, path: Path) -> bool:
+    """Insert an inline picture from ``path`` scaled to fit the text width."""
+    return insert_picture_bytes(canvas, path.read_bytes(), path.name, path.suffix)
 
 
 def bind_quire_toolbar_commands(window: QuireWindow) -> QuireToolbarCommands:

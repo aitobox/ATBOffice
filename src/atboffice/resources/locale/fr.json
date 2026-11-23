@@ -6074,5 +6074,6 @@
   "文件“{name}”已存在。\n是否替换现有文件？": "Un fichier nommé « {name} » existe déjà.\nVoulez-vous le remplacer ?",
   "无法保存文件“{target}”：权限不足，无法写入目标目录或文件。\n{exc}": "Impossible d enregistrer le fichier « {target} » : Permission refusée.\n{exc}",
   "Open Failed": "Échec de l’ouverture",
-  "Cannot open \"{name}\": the file is corrupt or unreadable.": "Impossible d’ouvrir « {name} » : le fichier est endommagé ou illisible."
+  "Cannot open \"{name}\": the file is corrupt or unreadable.": "Impossible d’ouvrir « {name} » : le fichier est endommagé ou illisible.",
+  "Paper colours with the classic menus and toolbars; the tabbed Ribbon layout is not available yet.": "Couleurs Papier avec les menus et barres d’outils classiques ; le ruban à onglets n’est pas encore disponible."
 }

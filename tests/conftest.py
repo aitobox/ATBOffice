@@ -150,3 +150,17 @@ def pytest_runtest_logfinish(nodeid: str, location: tuple) -> None:
 
     if QCoreApplication.instance() is not None:
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+@pytest.fixture(autouse=True)
+def _no_unexpected_compatibility_dialog(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A modal Compatibility Checker would block the run: fail fast unless a test patches it."""
+    from atboffice.ui.dialogs.compatibility_dialog import CompatibilityDialog
+
+    def unexpected(dlg: Any) -> int:
+        raise AssertionError(
+            "Unexpected Compatibility Checker dialog: "
+            + ", ".join(loss.feature for loss in dlg.losses)
+        )
+
+    monkeypatch.setattr(CompatibilityDialog, "exec", unexpected)

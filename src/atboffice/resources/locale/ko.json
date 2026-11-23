@@ -6074,5 +6074,6 @@
   "文件“{name}”已存在。\n是否替换现有文件？": "“{name}” 파일이 이미 존재합니다.\n기존 파일을 바꾸시겠습니까?",
   "无法保存文件“{target}”：权限不足，无法写入目标目录或文件。\n{exc}": "“{target}” 파일을 저장할 수 없습니다: 권한이 부족합니다.\n{exc}",
   "Open Failed": "열기 실패",
-  "Cannot open \"{name}\": the file is corrupt or unreadable.": "\"{name}\" 파일을 열 수 없습니다. 파일이 손상되었거나 읽을 수 없습니다."
+  "Cannot open \"{name}\": the file is corrupt or unreadable.": "\"{name}\" 파일을 열 수 없습니다. 파일이 손상되었거나 읽을 수 없습니다.",
+  "Paper colours with the classic menus and toolbars; the tabbed Ribbon layout is not available yet.": "종이 색상에 기존 메뉴와 도구 모음을 사용합니다. 탭 형식의 리본 레이아웃은 아직 지원되지 않습니다."
 }

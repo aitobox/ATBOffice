@@ -6074,5 +6074,6 @@
   "文件“{name}”已存在。\n是否替换现有文件？": "Eine Datei namens „{name}“ ist bereits vorhanden.\nMöchten Sie sie ersetzen?",
   "无法保存文件“{target}”：权限不足，无法写入目标目录或文件。\n{exc}": "Datei „{target}“ kann nicht gespeichert werden: Zugriff verweigert.\n{exc}",
   "Open Failed": "Öffnen fehlgeschlagen",
-  "Cannot open \"{name}\": the file is corrupt or unreadable.": "„{name}“ kann nicht geöffnet werden: Die Datei ist beschädigt oder nicht lesbar."
+  "Cannot open \"{name}\": the file is corrupt or unreadable.": "„{name}“ kann nicht geöffnet werden: Die Datei ist beschädigt oder nicht lesbar.",
+  "Paper colours with the classic menus and toolbars; the tabbed Ribbon layout is not available yet.": "Papierfarben mit den klassischen Menüs und Symbolleisten; das Menüband mit Registerkarten ist noch nicht verfügbar."
 }

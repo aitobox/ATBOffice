@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import tempfile
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -214,3 +216,59 @@ class RecoveryService(QObject):
         if not self._is_running or self._stop_event.is_set():
             return
         self.trigger_autosave()
+
+
+DRAFT_NAME = re.compile(r"^(?P<name>.+)_recovery_(?P<pid>\d+)(?P<ext>\.[A-Za-z0-9]+)$")
+
+
+@dataclass
+class RecoveryDraft:
+    """An autosave draft left behind by an ATBOffice session that did not close cleanly."""
+
+    path: Path
+    name: str
+    ext: str
+    pid: int
+    modified: float
+
+
+def _pid_alive(pid: int) -> bool:
+    if pid == os.getpid():
+        return True
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def default_recovery_dir() -> Path:
+    return Path(tempfile.gettempdir()) / "atboffice_recovery"
+
+
+def list_orphan_drafts(recovery_dir: Path | None = None) -> list[RecoveryDraft]:
+    """Drafts whose owning process is gone (crash / forced quit), newest first."""
+    folder = recovery_dir or default_recovery_dir()
+    drafts: list[RecoveryDraft] = []
+    try:
+        entries = list(folder.iterdir())
+    except OSError:
+        return drafts
+    for entry in entries:
+        m = DRAFT_NAME.match(entry.name)
+        if m is None or not entry.is_file():
+            continue
+        pid = int(m.group("pid"))
+        if _pid_alive(pid):
+            continue
+        try:
+            mtime = entry.stat().st_mtime
+        except OSError:
+            continue
+        drafts.append(RecoveryDraft(entry, m.group("name"), m.group("ext"), pid, mtime))
+    drafts.sort(key=lambda d: d.modified, reverse=True)
+    return drafts

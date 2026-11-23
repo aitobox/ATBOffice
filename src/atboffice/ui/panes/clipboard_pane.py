@@ -350,11 +350,16 @@ class ClipboardTaskPane(QWidget):
         if clipboard is not None:
             self._inhibited = True
             try:
+                # Restore every flavour the clip was captured with: text, HTML and image
+                cloned = QMimeData()
                 if item.text:
-                    clipboard.setText(item.text)
-                elif item.html:
-                    cloned = QMimeData()
+                    cloned.setText(item.text)
+                if item.html:
                     cloned.setHtml(item.html)
+                src = item.mime_data
+                if src is not None and src.hasImage():
+                    cloned.setImageData(src.imageData())
+                if cloned.formats():
                     clipboard.setMimeData(cloned)
             finally:
                 self._inhibited = False

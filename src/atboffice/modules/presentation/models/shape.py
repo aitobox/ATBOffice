@@ -228,6 +228,8 @@ class Shape:
     cxn_end: dict[str, Any] | None = None
     # Picture "Set Transparent Color": hex colour rendered fully transparent (a:clrChange)
     clr_change: str | None = None
+    # WordArt inserted as a rendered picture: text/style/warp so it can be re-rendered
+    wordart: dict[str, Any] | None = None
     # AltContentSource when loaded from an mc:AlternateContent block (verbatim write-back).
     alt_content: Any = field(default=None, repr=False, compare=False)
 
@@ -332,6 +334,8 @@ class Shape:
             d["cxn_end"] = copy.deepcopy(self.cxn_end)
         if self.clr_change:
             d["clr_change"] = self.clr_change
+        if self.wordart:
+            d["wordart"] = copy.deepcopy(self.wordart)
         return d
 
     @classmethod
@@ -367,4 +371,5 @@ class Shape:
             cxn_start=copy.deepcopy(data.get("cxn_start")) if data.get("cxn_start") else None,
             cxn_end=copy.deepcopy(data.get("cxn_end")) if data.get("cxn_end") else None,
             clr_change=data.get("clr_change"),
+            wordart=copy.deepcopy(data.get("wordart")),
         )
