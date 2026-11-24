@@ -242,9 +242,16 @@ class ActionRegistry(QObject):
         if spec is None:
             return
 
-        if spec.handler is not None:
+        handler = spec.handler
+        if handler is None:
+            # A QAction created under an ID that later became an alias still has its own
+            # spec; run the canonical command instead of the "not wired" toast.
+            canonical = self._specs.get(self.resolve_id(action_id))
+            if canonical is not None and canonical is not spec:
+                handler = canonical.handler
+        if handler is not None:
             try:
-                spec.handler()
+                handler()
             except Exception:
                 logger.exception("Error executing handler for action %s", action_id)
         else:
