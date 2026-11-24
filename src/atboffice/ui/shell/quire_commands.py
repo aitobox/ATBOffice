@@ -99,6 +99,14 @@ class QuireToolbarCommands:
         self.window.update_context_toolbars({"hf_edit": True})
         self._status(safe_tr("正在编辑页眉") if kind == "hdr" else safe_tr("正在编辑页脚"))
 
+    def open_header_footer(self) -> None:
+        """View > Header and Footer: switch to Print Layout and edit the header."""
+        from atboffice.modules.writer.views.view_modes import ViewMode
+
+        if self.canvas.view_mode != ViewMode.PRINT:
+            self.window.switch_view_mode(ViewMode.PRINT)
+        self.canvas.enter_header_footer_mode("hdr")
+
     def close_header_footer(self) -> None:
         self.window.update_context_toolbars({"hf_edit": False})
         self.canvas.exit_header_footer_mode()
@@ -400,6 +408,7 @@ def bind_quire_toolbar_commands(window: QuireWindow) -> QuireToolbarCommands:
 
     # Header & Footer (double-clicking a page's header/footer area enters editing too)
     canvas.header_footer_requested.connect(cmds.enter_header_footer)
+    reg.set_handler("headerFooter", cmds.open_header_footer)
     reg.set_handler("hfPageNum", cmds.hf_page_number)
     reg.set_handler("hfNumPages", cmds.hf_num_pages)
     reg.set_handler("hfDate", cmds.hf_date)

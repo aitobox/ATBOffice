@@ -269,3 +269,23 @@
    - 对齐 `WriterCanvasView.page_rect_canvas` 顶部空白（`cur_y`）与 `.vibeoffice` 基准，对齐 `GridViewport.row_header_width` 宽度；在 `ChartPainter` 中补充 3D 柱状/条形/折线/饼图透视渲染，目标推动 73 份文档平均前景相似度跨过 `>= 90%` 门禁。
 2. **补全 `.vibeoffice` 主干差异能力**:
    - 实现 Paper 2016 Ribbon 模式与上下文任务窗格自动跟随、Start Center 实景缩略图与全量 22 模板展示、Quire 正文修订标记绘制与浮动图形画布拖拽、Ledger 动态数组溢出/`Table1[Col]`/大纲分组/可拖拽分页虚线、Lectern 动画与切换预览连线及音视频媒体播放。
+
+---
+
+## 八、 第十一期验收签核（Phase 11 Sign-off，#448，2026-11-22 实测，基线提交 `b205424`）
+
+| 门禁 | 结果 | 结论 |
+|---|---|---|
+| `pytest tests/` 全量回归 | GUI 与非 GUI 两部分全部通过（已知 `test_phase9_six_docx_render_and_visual_parity` 除外，主干既有失败） | ✅ |
+| 长程操作压力测试 `tests/gui/test_phase11_acceptance.py` | 3 轮 × 每应用 2 份真实语料：打开、编辑、格式刷（含空单元格）、复制/粘贴、切换视图/工作表/幻灯片、撤销/重做、打印预览、保存、重新打开、关闭；0 崩溃、0 未处理异常，`crash.log` 为空 | ✅ |
+| 语料审计 `run_corpus_audit.py --strict` | 154 份：77 有效 OOXML、23 旧版导入、1 加密、3 损坏、50 不支持格式；**0 崩溃 / 0 超时 / 0 失败 / 0 数据丢失** | ✅ |
+| 视觉 Diff `run_office_diff.py --all --capture --strict` | 73/73 可比，前景加权平均相似度 **93.79%**（基线 65.31%），**0 个 CRITICAL_MISMATCH**；29 PARITY_MATCH、41 COSMETIC_MINOR、3 LAYOUT_DRIFT | ✅ 平均值与零严重门禁达标 |
+| 源码级控件审计 `source_diff.py --check` | 0 ORPHAN_NO_SIGNAL、0 STUB_IMPLEMENTATION | ✅ |
+| ActionRegistry 运行时探针 | 三个应用所有可见菜单/工具栏命令均有处理器或明确的禁用原因，无"正在联调中"兜底提示；已启用菜单项均恰好触发一次命令（无重复触发） | ✅ |
+
+### 8.1 验收中修复的问题
+- 别名 ID 下注册的独立 QAction（如 Quire 的 `docMap`、`viewReading`）点击后只显示"正在联调中"，现改为执行规范命令。
+- Quire「视图 ▸ 页眉和页脚」此前无处理器，现切换到页面视图并进入页眉编辑。
+
+### 8.2 遗留项（非阻断）
+- 3 份 LAYOUT_DRIFT（单份前景相似度低于 85%）：`libreoffice__totalsRowFunction.xlsx`（76.8%）、`openxml-sdk__00d63cdd-….xlsx`（81.9%）、`openxml-sdk__sldsz-Slide Size-type-b4iso.pptx`（83.0%）。前两者源于缺失字体（如 Century Gothic）回退后列宽不同，后者为 B4 幻灯片尺寸的缩放差异；内容与格式（含 `[$£-809]` 货币格式、表格样式）渲染正确。因此 `--strict` 的单份 85% 阈值尚未全部满足。

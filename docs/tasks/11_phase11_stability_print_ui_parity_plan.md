@@ -68,3 +68,13 @@ flowchart TD
 | 10 | [#446](https://github.com/aitobox/ATBOffice/issues/446) | `feature` | `priority:medium` | `#443`, `#444`, `#445` | 打通通用 Clipart/WordArt 插入、多重剪贴板图片粘贴、Undo/Redo 动态历史下拉菜单、Start Center 缩略图/22 模板/崩溃恢复面板、Scout 零空闲 CPU |
 | 11 | [#447](https://github.com/aitobox/ATBOffice/issues/447) | `feature` | `priority:medium` | `#443`, `#444`, `#445` | 补全 Quire 视图模式/画布页眉页脚与浮动图拖拽/正文修订样式、Ledger 动态数组溢出/`Table1[Col]`/大纲分组/可拖拽分页符、Lectern 动效预览与音视频/排练计时 |
 | 12 | [#448](https://github.com/aitobox/ATBOffice/issues/448) | `enhancement` | `priority:high` | `#438`, `#441`, `#442`, `#446`, `#447` | Phase 11 全量回归、长程操作稳定性压力测试、150 语料审计、73 文档视觉门禁与发布签核 |
+
+---
+
+## 验收结果（#448，2026-11-22，基线提交 `b205424`）
+
+- 子任务 #437 – #447 均已合并入 main；#448 完成全量回归、长程压力测试与发布签核。
+- 视觉 Diff：73/73 可比，前景加权平均 **93.79%**（门禁 ≥ 90%），**0 CRITICAL_MISMATCH**；3 份 LAYOUT_DRIFT 由字体回退与幻灯片尺寸缩放导致，作为后续打磨项。
+- 语料审计：154 份 0 崩溃 / 0 超时 / 0 失败 / 0 数据丢失。
+- 控件审计：0 ORPHAN_NO_SIGNAL、0 空桩、0 "正在联调中"兜底、0 重复触发。
+- 详见 [ATBOFFICE_PARITY_AND_STABILITY_AUDIT_2026_11.md](../clone/ATBOFFICE_PARITY_AND_STABILITY_AUDIT_2026_11.md) 第八节与 [OFFICE_DOCS_DIFF.md](../clone/OFFICE_DOCS_DIFF.md)。
