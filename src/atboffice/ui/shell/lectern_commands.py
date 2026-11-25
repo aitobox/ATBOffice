@@ -6,18 +6,15 @@ import copy
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, QEvent, QObject, QPointF, Qt
+from PySide6.QtCore import QEvent, QObject, QPointF, Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QDialog, QInputDialog, QMessageBox
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.tools import shape_styles, table_ops
 
 if TYPE_CHECKING:
     from atboffice.ui.shell.lectern_window import LecternWindow
-
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("LecternCommands", text)
 
 
 CONTAINER_COMMANDS = (
@@ -46,35 +43,66 @@ RECORD_REASON = "录制旁白需要麦克风录音支持，将在后续版本提
 
 TABLE_DASHES = {"single": "solid", "dash": "dash", "dot": "sysDot", "double": "solid"}
 TABLE_WEIGHTS = {
-    "05": 0.5, "10": 1.0, "15": 1.5, "225": 2.25, "30": 3.0, "45": 4.5, "60": 6.0,
+    "05": 0.5,
+    "10": 1.0,
+    "15": 1.5,
+    "225": 2.25,
+    "30": 3.0,
+    "45": 4.5,
+    "60": 6.0,
 }
 TABLE_COLORS = {
-    "auto": "#000000", "black": "#000000", "red": "#FF0000", "blue": "#0000FF",
+    "auto": "#000000",
+    "black": "#000000",
+    "red": "#FF0000",
+    "blue": "#0000FF",
     "gray": "#808080",
 }
 TABLE_SHADES = {
-    "none": None, "gray": "#D9D9D9", "yellow": "#FFFF99", "blue": "#CCECFF",
+    "none": None,
+    "gray": "#D9D9D9",
+    "yellow": "#FFFF99",
+    "blue": "#CCECFF",
     "green": "#CCFFCC",
 }
 PICTURE_WEIGHTS = {"075": 0.75, "15": 1.5, "30": 3.0, "45": 4.5, "60": 6.0}
 WORDART_SHAPES = {
-    "plain": "textPlain", "wave": "textWave1", "arch_up": "textArchUp",
-    "arch_down": "textArchDown", "circle": "textCircle", "triangle_down": "textTriangle",
+    "plain": "textPlain",
+    "wave": "textWave1",
+    "arch_up": "textArchUp",
+    "arch_down": "textArchDown",
+    "circle": "textCircle",
+    "triangle_down": "textTriangle",
 }
 WORDART_SPACING = {
-    "very_tight": -0.2, "tight": -0.1, "normal": 0.0, "loose": 0.2, "very_loose": 0.4,
+    "very_tight": -0.2,
+    "tight": -0.1,
+    "normal": 0.0,
+    "loose": 0.2,
+    "very_loose": 0.4,
 }
 DIAGRAM_LAYOUTS = {
-    "org": "orgChart", "hierarchy": "hierarchy", "cycle": "cycle", "radial": "radial",
-    "pyramid": "pyramid", "venn": "venn", "target": "target",
+    "org": "orgChart",
+    "hierarchy": "hierarchy",
+    "cycle": "cycle",
+    "radial": "radial",
+    "pyramid": "pyramid",
+    "venn": "venn",
+    "target": "target",
 }
 DIAGRAM_COLORS = {"primary": "ocean", "colorful": "vivid", "dark": "midnight", "light": "pastel"}
 DIAGRAM_STYLES = {"flat": "flat", "3d": "lifted", "metal": "gloss", "gradient": "soft"}
 LANGUAGES = [
-    ("中文(中国)", "zh-CN"), ("English (United States)", "en-US"),
-    ("English (United Kingdom)", "en-GB"), ("中文(台湾)", "zh-TW"), ("日本語", "ja-JP"),
-    ("한국어", "ko-KR"), ("Deutsch", "de-DE"), ("Français", "fr-FR"),
-    ("Español", "es-ES"), ("Русский", "ru-RU"),
+    ("中文(中国)", "zh-CN"),
+    ("English (United States)", "en-US"),
+    ("English (United Kingdom)", "en-GB"),
+    ("中文(台湾)", "zh-TW"),
+    ("日本語", "ja-JP"),
+    ("한국어", "ko-KR"),
+    ("Deutsch", "de-DE"),
+    ("Français", "fr-FR"),
+    ("Español", "es-ES"),
+    ("Русский", "ru-RU"),
 ]
 
 
@@ -190,8 +218,12 @@ class LecternCommands:
                     return None
                 rect = it.table_sel or (0, 0, n_rows - 1, n_cols - 1)
                 r1, c1, r2, c2 = rect
-                rect = (min(r1, n_rows - 1), min(c1, n_cols - 1),
-                        min(r2, n_rows - 1), min(c2, n_cols - 1))
+                rect = (
+                    min(r1, n_rows - 1),
+                    min(c1, n_cols - 1),
+                    min(r2, n_rows - 1),
+                    min(c2, n_cols - 1),
+                )
                 return it, shape, rect
         self.w.show_status_message(safe_tr("请先选择一个表格"), 3000)
         return None
@@ -217,8 +249,9 @@ class LecternCommands:
         if tgt is None:
             return
         item, shape, rect = tgt
-        if not self._require(rect[0] != rect[2] or rect[1] != rect[3],
-                             safe_tr("请按住 Shift 选择要合并的多个单元格")):
+        if not self._require(
+            rect[0] != rect[2] or rect[1] != rect[3], safe_tr("请按住 Shift 选择要合并的多个单元格")
+        ):
             return
         self._commit_cell_editor(item)
         item.table_sel = table_ops.merge(shape.tbl, rect)
@@ -230,8 +263,9 @@ class LecternCommands:
             return
         item, shape, rect = tgt
         self._commit_cell_editor(item)
-        if not self._require(table_ops.split(shape.tbl, rect[0], rect[1]),
-                             safe_tr("所选单元格未合并，无需拆分")):
+        if not self._require(
+            table_ops.split(shape.tbl, rect[0], rect[1]), safe_tr("所选单元格未合并，无需拆分")
+        ):
             return
         item.table_sel = (rect[0], rect[1], rect[0], rect[1])
         self._after_table_change(item, shape, safe_tr("已拆分单元格"))
@@ -294,7 +328,9 @@ class LecternCommands:
     def _delete_whole_table(self, item: Any, shape: Any) -> None:
         """Deleting every row/column removes the table (PowerPoint behaviour, confirmed)."""
         res = QMessageBox.question(
-            self.w, safe_tr("删除"), safe_tr("这将删除整个表格。是否继续？"),
+            self.w,
+            safe_tr("删除"),
+            safe_tr("这将删除整个表格。是否继续？"),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -365,14 +401,17 @@ class LecternCommands:
         if tgt is None:
             return
         item, shape, rect = tgt
-        color = QColorDialog.getColor(
-            QColor(self.table_pen["c"]), self.w, safe_tr("边框颜色")
-        )
+        color = QColorDialog.getColor(QColor(self.table_pen["c"]), self.w, safe_tr("边框颜色"))
         if not color.isValid():
             return
         weight, ok = QInputDialog.getDouble(
-            self.w, safe_tr("边框和填充"), safe_tr("边框粗细(磅):"),
-            float(self.table_pen["w"]), 0.25, 6.0, 2,
+            self.w,
+            safe_tr("边框和填充"),
+            safe_tr("边框粗细(磅):"),
+            float(self.table_pen["w"]),
+            0.25,
+            6.0,
+            2,
         )
         if not ok:
             return
@@ -514,8 +553,9 @@ class LecternCommands:
     # ------------------------------------------------------------------ diagrams
     def _diagram(self) -> Any | None:
         diag = self.w._get_active_diagram_shape()
-        if not self._require(diag is not None and bool(getattr(diag, "sa", None)),
-                             safe_tr("请先选择一个图示")):
+        if not self._require(
+            diag is not None and bool(getattr(diag, "sa", None)), safe_tr("请先选择一个图示")
+        ):
             return None
         return diag
 
@@ -698,8 +738,11 @@ class LecternCommands:
             self._update_items([items[0]], safe_tr("已删除超链接"))
             return
         link.update(
-            {"url": target, "kind": data.get("kind", "external"),
-             "tooltip": data.get("screentip") or dlg.screentip}
+            {
+                "url": target,
+                "kind": data.get("kind", "external"),
+                "tooltip": data.get("screentip") or dlg.screentip,
+            }
         )
         shape.link = link
         self._update_items([items[0]], safe_tr("已插入超链接"))
@@ -1042,8 +1085,10 @@ class LecternCommands:
         text = getattr(shape, "text", None)
         for p in getattr(text, "paragraphs", []) or []:
             for r in p.runs:
-                return {k: getattr(r, k) for k in ("font", "size", "color", "bold",
-                                                    "italic", "underline")}
+                return {
+                    k: getattr(r, k)
+                    for k in ("font", "size", "color", "bold", "italic", "underline")
+                }
         return None
 
     def _paint_format_at(self, scene_pos: QPointF) -> bool:

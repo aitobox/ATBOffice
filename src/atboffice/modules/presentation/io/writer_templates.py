@@ -251,7 +251,7 @@ def build_core_properties_xml(title: str = "", author: str = "") -> str:
     now_iso = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     return (
         f"{XML_DECL}"
-        '<cp:coreProperties '
+        "<cp:coreProperties "
         'xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" '
         'xmlns:dc="http://purl.org/dc/elements/1.1/" '
         'xmlns:dcterms="http://purl.org/dc/terms/" '
@@ -270,7 +270,7 @@ def build_app_properties_xml(total_slides: int = 1) -> str:
     """Generate extended application metadata (docProps/app.xml)."""
     return (
         f"{XML_DECL}"
-        '<Properties '
+        "<Properties "
         'xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" '
         'xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">'
         "<Application>ATBOffice Lectern</Application>"

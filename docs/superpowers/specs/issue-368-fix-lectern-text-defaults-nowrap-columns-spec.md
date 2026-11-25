@@ -52,6 +52,7 @@ Properties and aliases:
 def columns(self) -> int:
     return self.cols
 
+
 @columns.setter
 def columns(self, value: int) -> None:
     self.cols = value

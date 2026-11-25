@@ -1,6 +1,5 @@
 """Unit tests for Excel number formatting engine (numfmt.py)."""
 
-
 from atboffice.drawing.numfmt import (
     date_to_serial,
     format_value,

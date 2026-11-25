@@ -490,9 +490,8 @@ def paint_fill_rect(
             elif abs(ang - 0.0) < 0.1:  # Vertical: top to bottom
                 p1 = QPointF(rect.left(), rect.top())
                 p2 = QPointF(rect.left(), rect.bottom())
-            elif (
-                abs(ang - 315.0) < 0.1
-                or (abs(ang - 45.0) < 0.1 and getattr(fill, "path", "") == "dup")
+            elif abs(ang - 315.0) < 0.1 or (
+                abs(ang - 45.0) < 0.1 and getattr(fill, "path", "") == "dup"
             ):  # Diagonal up
                 p1 = QPointF(rect.left(), rect.bottom())
                 p2 = QPointF(rect.right(), rect.top())

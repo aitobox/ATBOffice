@@ -86,9 +86,7 @@ DEFAULT_LISTS: Final[list[list[str]]] = [
 ]
 
 NUMBERED_TEXT_RE: Final[re.Pattern[str]] = re.compile(r"^(.*?)(\d+)(\D*)$")
-ISO_DATE_RE: Final[re.Pattern[str]] = re.compile(
-    r"^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$"
-)
+ISO_DATE_RE: Final[re.Pattern[str]] = re.compile(r"^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$")
 
 
 def _match_list(val_str: str) -> tuple[list[str], int] | None:
@@ -225,38 +223,27 @@ class AutoFillEngine:
 
         # 1. Strict Copy or Formats-Only
         if mode == "copy":
-            return lambda k, tr, tc: cls._clone_and_translate(
-                src_items[((k % n) + n) % n], tr, tc
-            )
+            return lambda k, tr, tc: cls._clone_and_translate(src_items[((k % n) + n) % n], tr, tc)
 
         # Inspect values and formulas
-        vals = [
-            (item.cell.value if item.cell is not None else None)
-            for item in src_items
-        ]
+        vals = [(item.cell.value if item.cell is not None else None) for item in src_items]
         has_formula = any(
-            item.cell is not None and item.cell.formula is not None
-            for item in src_items
+            item.cell is not None and item.cell.formula is not None for item in src_items
         )
 
         # 2. Formulas without numbers: repeat and translate references
         if has_formula:
-            return lambda k, tr, tc: cls._clone_and_translate(
-                src_items[((k % n) + n) % n], tr, tc
-            )
+            return lambda k, tr, tc: cls._clone_and_translate(src_items[((k % n) + n) % n], tr, tc)
 
         # 3. Numeric Sequences & Date Serials
         all_numeric = all(
-            isinstance(v, (int, float)) and not isinstance(v, bool)
-            for v in vals
-            if v is not None
+            isinstance(v, (int, float)) and not isinstance(v, bool) for v in vals if v is not None
         ) and all(v is not None for v in vals)
 
         if all_numeric and n >= 1:
             # Check if all cells have date formatting
             is_date_cells = all(
-                item.cell is not None
-                and _is_date_format(item.cell.format_code)
+                item.cell is not None and _is_date_format(item.cell.format_code)
                 for item in src_items
             )
 
@@ -280,9 +267,7 @@ class AutoFillEngine:
                         base_item, _round15(base_val + k)
                     )
                 else:
-                    return lambda k, tr, tc: cls._clone_and_translate(
-                        src_items[0], tr, tc
-                    )
+                    return lambda k, tr, tc: cls._clone_and_translate(src_items[0], tr, tc)
 
             # Two or more numbers: linear trend
             float_vals = [float(v) for v in vals]
@@ -292,10 +277,7 @@ class AutoFillEngine:
             )
 
         # 4. Text with Built-in Lists (Mon..Sun, Jan..Dec, 周一..周日, etc.)
-        str_vals = [
-            str(v) if v is not None and not isinstance(v, bool) else ""
-            for v in vals
-        ]
+        str_vals = [str(v) if v is not None and not isinstance(v, bool) else "" for v in vals]
         matched_lists = [_match_list(s) for s in str_vals]
 
         if all(m is not None for m in matched_lists) and n >= 1:
@@ -310,11 +292,7 @@ class AutoFillEngine:
                     idx = (((indices[-1] + step * j) % list_len) + list_len) % list_len
                     new_text = _case_like(str_vals[-1], first_list[idx])
                     base_item = src_items[((k % n) + n) % n]
-                    cell = (
-                        copy.copy(base_item.cell)
-                        if base_item.cell
-                        else CellData()
-                    )
+                    cell = copy.copy(base_item.cell) if base_item.cell else CellData()
                     cell.value = new_text
                     return cell
 
@@ -345,11 +323,7 @@ class AutoFillEngine:
                 sep = "-" if "-" in str_vals[0] else "/"
                 val_str = f"{new_date.year:04d}{sep}{new_date.month:02d}{sep}{new_date.day:02d}"
                 base_item = src_items[((k % n) + n) % n]
-                cell = (
-                    copy.copy(base_item.cell)
-                    if base_item.cell
-                    else CellData()
-                )
+                cell = copy.copy(base_item.cell) if base_item.cell else CellData()
                 cell.value = val_str
                 return cell
 
@@ -383,25 +357,17 @@ class AutoFillEngine:
                     last_p = parsed_numbered[-1]
                     next_val = last_p[1] + step_num * j  # type: ignore[index]
                     width = last_p[3]  # type: ignore[index]
-                    num_formatted = (
-                        f"{next_val:0{width}d}" if width > 1 else str(next_val)
-                    )
+                    num_formatted = f"{next_val:0{width}d}" if width > 1 else str(next_val)
                     text = f"{last_p[0]}{num_formatted}{last_p[2]}"  # type: ignore[index]
                     base_item = src_items[((k % n) + n) % n]
-                    cell = (
-                        copy.copy(base_item.cell)
-                        if base_item.cell
-                        else CellData()
-                    )
+                    cell = copy.copy(base_item.cell) if base_item.cell else CellData()
                     cell.value = text
                     return cell
 
                 return _numbered_gen
 
         # 7. Default: Cyclical repetition
-        return lambda k, tr, tc: cls._clone_and_translate(
-            src_items[((k % n) + n) % n], tr, tc
-        )
+        return lambda k, tr, tc: cls._clone_and_translate(src_items[((k % n) + n) % n], tr, tc)
 
     @classmethod
     def _create_date_generator(
@@ -436,11 +402,7 @@ class AutoFillEngine:
             new_v: float
 
             if unit == "m":
-                t = (
-                    last_parts.year * 12
-                    + (last_parts.month - 1)
-                    + int(j * step)
-                )
+                t = last_parts.year * 12 + (last_parts.month - 1) + int(j * step)
                 y = t // 12
                 m = t % 12 + 1
                 # clamp day
@@ -477,9 +439,7 @@ class AutoFillEngine:
         return _date_gen
 
     @classmethod
-    def _create_numeric_cell(
-        cls, base_item: SourceItem, val: int | float
-    ) -> CellData:
+    def _create_numeric_cell(cls, base_item: SourceItem, val: int | float) -> CellData:
         cell = copy.copy(base_item.cell) if base_item.cell else CellData()
         cell.value = val
         cell.formula = None
@@ -534,8 +494,7 @@ class AutoFillEngine:
             for li in range(lines):
                 c = src.min_c + li
                 src_items = [
-                    SourceItem(r, c, model.get_cell(r, c))
-                    for r in range(src.min_r, src.max_r + 1)
+                    SourceItem(r, c, model.get_cell(r, c)) for r in range(src.min_r, src.max_r + 1)
                 ]
                 gen = cls.series_generator(src_items, mode, ctrl_pressed)
 
@@ -559,8 +518,7 @@ class AutoFillEngine:
             for li in range(lines):
                 r = src.min_r + li
                 src_items = [
-                    SourceItem(r, c, model.get_cell(r, c))
-                    for c in range(src.min_c, src.max_c + 1)
+                    SourceItem(r, c, model.get_cell(r, c)) for c in range(src.min_c, src.max_c + 1)
                 ]
                 gen = cls.series_generator(src_items, mode, ctrl_pressed)
 

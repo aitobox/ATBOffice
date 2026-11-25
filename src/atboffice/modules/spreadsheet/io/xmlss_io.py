@@ -5,7 +5,6 @@ from __future__ import annotations
 import datetime
 import html
 import re
-import xml.etree.ElementTree as ET
 from typing import Any
 
 from atboffice.modules.spreadsheet.calc.coercion import date_to_serial
@@ -21,6 +20,7 @@ from atboffice.modules.spreadsheet.models.sheet_model import (
     SheetDataModel,
 )
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
+from atboffice.vfs import etree as ET
 
 SS_URN = "urn:schemas-microsoft-com:office:spreadsheet"
 

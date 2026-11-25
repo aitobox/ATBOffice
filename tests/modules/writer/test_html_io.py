@@ -50,7 +50,7 @@ def test_read_inline_formatting() -> None:
     doc = read_html(html)
     p = doc.main.blocks[0]
     assert isinstance(p, Paragraph)
-    
+
     full_text = ptext(p)
     assert "Bold" in full_text
     assert "Italic" in full_text
@@ -217,7 +217,7 @@ def test_read_table() -> None:
     assert len(tbl.rows) == 3
     assert len(tbl.rows[0].cells) == 2
     assert len(tbl.rows[1].cells) == 2
-    
+
     # Check headers
     cell0 = tbl.rows[0].cells[0]
     p_hdr = cell0.blocks[0]
@@ -238,7 +238,8 @@ def test_read_images() -> None:
 
     # 1x1 transparent PNG data uri
     data_uri = (
-        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+        "data:image/png;base64,"
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
     )
     html = f'<p>Image: <img src="{data_uri}" width="100" height="80" alt="Logo"></p>'
     doc = read_html(html)

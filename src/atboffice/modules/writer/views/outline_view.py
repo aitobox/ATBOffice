@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication, QRect, Qt, Signal
+from PySide6.QtCore import QRect, Qt, Signal
 from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import (
     QComboBox,
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.writer.layout.toc import get_paragraph_heading_level
 from atboffice.modules.writer.models.document import (
     Document,
@@ -30,11 +31,6 @@ from atboffice.modules.writer.models.styles import builtin_styles
 
 if TYPE_CHECKING:
     from atboffice.modules.writer.views.caret_controller import CaretController
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for Outline components."""
-    return QCoreApplication.translate("OutlineView", text)
 
 
 def heading_level(doc: Document, p: Paragraph) -> int:
@@ -310,7 +306,7 @@ class OutlineToolbar(QToolBar):
         self._combo_outline_level.clear()
         self._combo_outline_level.addItem(safe_tr("正文文本"))
         for i in range(1, 10):
-            self._combo_outline_level.addItem(safe_tr(f"{i} 级"))
+            self._combo_outline_level.addItem(safe_tr("{0} 级", i))
         if cur_ol >= 0:
             self._combo_outline_level.setCurrentIndex(cur_ol)
         self._combo_outline_level.blockSignals(False)
@@ -321,7 +317,7 @@ class OutlineToolbar(QToolBar):
         self._combo_show_level.clear()
         self._combo_show_level.addItem(safe_tr("所有级别"))
         for i in range(1, 10):
-            self._combo_show_level.addItem(safe_tr(f"显示至 {i} 级"))
+            self._combo_show_level.addItem(safe_tr("显示至 {0} 级", i))
         if cur_sl >= 0:
             self._combo_show_level.setCurrentIndex(cur_sl)
         self._combo_show_level.blockSignals(False)

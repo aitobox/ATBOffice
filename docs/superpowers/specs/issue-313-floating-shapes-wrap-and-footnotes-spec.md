@@ -47,10 +47,10 @@ This feature implements complete end-to-end support for floating shape text wrap
   ```python
   @dataclass
   class PageFootnoteArea:
-      y: float                     # Top y-coordinate on page where footnote area begins
-      height: float                # Total height of footnote area (separator + notes)
+      y: float  # Top y-coordinate on page where footnote area begins
+      height: float  # Total height of footnote area (separator + notes)
       separator_width: float = 144.0  # 2 inches = 144.0 points (Word 2003 standard)
-      separator_height: float = 14.0 # 1pt rule + padding
+      separator_height: float = 14.0  # 1pt rule + padding
       fragments: list[PageFragment] = field(default_factory=list)
       note_ids: list[str] = field(default_factory=list)
   ```

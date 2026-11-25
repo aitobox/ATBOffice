@@ -5,11 +5,13 @@ from __future__ import annotations
 import re
 import uuid
 from collections.abc import Iterator, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, BinaryIO
 
 from atboffice.modules.spreadsheet.calc.references import MAXC, MAXR, cell_name, parse_range
+from atboffice.modules.spreadsheet.io.xlsx_drawing_shapes import drawings_signature
 from atboffice.modules.spreadsheet.io.xlsx_reader import BUILTIN_NUMFMTS
 from atboffice.modules.spreadsheet.models.color_utils import (
     DEFAULT_INDEXED_PALETTE,
@@ -26,7 +28,18 @@ from atboffice.modules.spreadsheet.models.sheet_model import (
     SheetDataModel,
 )
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
-from atboffice.vfs.opc import PackageWriter, SourcePackage
+from atboffice.vfs.opc import PackageWriter, SourcePackage, get_rels_path, relative_part_uri
+from atboffice.vfs.xml_tree import (
+    LET,
+    ensure_child,
+    find_all_local,
+    find_local,
+    insert_in_order,
+    namespace_of,
+    parse_fragment,
+    parse_lxml,
+    serialize_lxml,
+)
 
 XML_HEADER = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n'
 NS_MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
@@ -146,7 +159,7 @@ def _color_element(
                 if attrs:
                     if spec.get("tint"):
                         attrs.append(f'tint="{spec["tint"]}"')
-                    return f'<{tag} {" ".join(attrs)}/>'
+                    return f"<{tag} {' '.join(attrs)}/>"
     c_hex = _color_hex(hex_color)
     if c_hex:
         return f'<{tag} rgb="{c_hex}"/>'
@@ -231,9 +244,7 @@ class SharedStringsManager:
                 for r in runs:
                     rpr_parts: list[str] = []
                     if r.font_family:
-                        rpr_parts.append(
-                            f'<rFont val="{_xml_escape(r.font_family)}"/>'
-                        )
+                        rpr_parts.append(f'<rFont val="{_xml_escape(r.font_family)}"/>')
                     if r.bold:
                         rpr_parts.append("<b/>")
                     if r.italic:
@@ -245,9 +256,7 @@ class SharedStringsManager:
                         if u_style == "single":
                             rpr_parts.append("<u/>")
                         else:
-                            rpr_parts.append(
-                                f'<u val="{_xml_escape(u_style)}"/>'
-                            )
+                            rpr_parts.append(f'<u val="{_xml_escape(u_style)}"/>')
                     if r.font_size:
                         rpr_parts.append(f'<sz val="{r.font_size}"/>')
                     if r.fg_color or getattr(r, "fg_color_spec", None):
@@ -261,15 +270,9 @@ class SharedStringsManager:
                         if col_xml:
                             rpr_parts.append(col_xml)
                     if r.vert_align:
-                        rpr_parts.append(
-                            f'<vertAlign val="{_xml_escape(r.vert_align)}"/>'
-                        )
+                        rpr_parts.append(f'<vertAlign val="{_xml_escape(r.vert_align)}"/>')
 
-                    rpr_xml = (
-                        f"<rPr>{''.join(rpr_parts)}</rPr>"
-                        if rpr_parts
-                        else ""
-                    )
+                    rpr_xml = f"<rPr>{''.join(rpr_parts)}</rPr>" if rpr_parts else ""
                     t_xml = _text_element(r.text)
                     si_parts.append(f"<r>{rpr_xml}{t_xml}</r>")
                 si_parts.append("</si>")
@@ -279,6 +282,72 @@ class SharedStringsManager:
                 parts.append(f"<si>{_text_element(truncated)}</si>")
         parts.append("</sst>")
         return "".join(parts).encode("utf-8")
+
+
+_STYLESHEET_ORDER = [
+    "numFmts",
+    "fonts",
+    "fills",
+    "borders",
+    "cellStyleXfs",
+    "cellXfs",
+    "cellStyles",
+    "dxfs",
+    "tableStyles",
+    "colors",
+    "extLst",
+]
+
+
+def _freeze(value: Any) -> Any:
+    """Turn nested dicts/lists into hashable tuples for signature keys."""
+    if isinstance(value, dict):
+        return tuple(sorted((k, _freeze(v)) for k, v in value.items()))
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze(v) for v in value)
+    if hasattr(value, "__dataclass_fields__"):
+        return tuple((k, _freeze(getattr(value, k))) for k in value.__dataclass_fields__)
+    return value
+
+
+_SIGNATURE_FIELDS = (
+    "format_code",
+    "bold",
+    "italic",
+    "underline",
+    "underline_style",
+    "strike",
+    "vert_align",
+    "font_size",
+    "font_family",
+    "fg_color",
+    "fg_color_spec",
+    "bg_color",
+    "bg_color_spec",
+    "align_h",
+    "align_v",
+    "indent",
+    "wrap_text",
+    "shrink_to_fit",
+    "text_rotation",
+    "text_direction",
+    "border_top",
+    "border_bottom",
+    "border_left",
+    "border_right",
+    "border_diag_up",
+    "border_diag_down",
+    "pattern",
+    "pattern_color",
+    "pattern_color_spec",
+    "locked",
+    "hidden",
+)
+
+
+def _format_signature(cell: CellData) -> tuple[Any, ...]:
+    """Everything about a cell that its ``<xf>`` record determines."""
+    return tuple(_freeze(getattr(cell, name, None)) for name in _SIGNATURE_FIELDS)
 
 
 class StyleManager:
@@ -291,9 +360,7 @@ class StyleManager:
     ) -> None:
         self.theme_colors = list(theme_colors) if theme_colors else list(DEFAULT_THEME_COLORS)
         self.indexed_palette = list(indexed_palette) if indexed_palette else None
-        self.palette = (
-            list(indexed_palette) if indexed_palette else list(DEFAULT_INDEXED_PALETTE)
-        )
+        self.palette = list(indexed_palette) if indexed_palette else list(DEFAULT_INDEXED_PALETTE)
 
         self.fonts: list[str] = []
         self.font_map: dict[tuple[Any, ...], int] = {}
@@ -336,6 +403,128 @@ class StyleManager:
         )
         self.cell_xf_map[(0, 0, 0, 0, None)] = 0
 
+        # Set by from_source(): the original stylesheet that new records are appended to.
+        self._source_root: Any = None
+        self._base_counts: dict[str, int] = {}
+        self._source_xf_by_signature: dict[tuple[Any, ...], int] = {}
+        self._ns = NS_MAIN
+
+    @classmethod
+    def from_source(
+        cls,
+        styles_xml: bytes,
+        style_deltas: Sequence[Any],
+        theme_colors: Sequence[str] | None = None,
+        indexed_palette: Sequence[str] | None = None,
+    ) -> StyleManager:
+        """Build a manager that appends to an existing ``styles.xml``.
+
+        Every original font, fill, border, number format, cell format and differential
+        format keeps its index, so style references carried verbatim in worksheet XML
+        (``<col style>``, ``<row s>``, conditional-format ``dxfId``) stay valid. Cells whose
+        formatting still matches an original cell format reuse that format's index; only
+        genuinely new formatting is appended.
+        """
+        mgr = cls(theme_colors=theme_colors, indexed_palette=indexed_palette)
+        root = parse_lxml(styles_xml)
+        ns = namespace_of(root)
+
+        def count(container: str, item: str) -> int:
+            return len(find_all_local(find_local(root, container), item))
+
+        mgr._source_root = root
+        mgr._base_counts = {
+            "fonts": count("fonts", "font"),
+            "fills": count("fills", "fill"),
+            "borders": count("borders", "border"),
+            "cellXfs": count("cellXfs", "xf"),
+            "dxfs": count("dxfs", "dxf"),
+        }
+        # Placeholders keep new records' indices after the original ones.
+        mgr.fonts = [""] * mgr._base_counts["fonts"]
+        mgr.fills = [""] * max(mgr._base_counts["fills"], 2)
+        mgr.borders = [""] * max(mgr._base_counts["borders"], 1)
+        mgr.cell_xfs = [{}] * max(mgr._base_counts["cellXfs"], 1)
+        mgr.dxfs = [{}] * mgr._base_counts["dxfs"]
+        mgr.font_map, mgr.fill_map, mgr.border_map, mgr.cell_xf_map = {}, {}, {}, {}
+        mgr._base_counts = {
+            "fonts": len(mgr.fonts),
+            "fills": len(mgr.fills),
+            "borders": len(mgr.borders),
+            "cellXfs": len(mgr.cell_xfs),
+            "dxfs": len(mgr.dxfs),
+        }
+        if not mgr.fonts:
+            mgr._get_or_add_font("Arial", 10, False, False, False, False, None)
+
+        mgr.num_fmts, mgr.num_fmt_map = [], {}
+        max_id = 163
+        for nf in find_all_local(find_local(root, "numFmts"), "numFmt"):
+            try:
+                fid = int(nf.get("numFmtId", ""))
+            except ValueError:
+                continue
+            code = nf.get("formatCode")
+            if code is not None:
+                mgr.num_fmt_map.setdefault(code, fid)
+            max_id = max(max_id, fid)
+        mgr._next_num_fmt_id = max_id + 1
+
+        probe = SheetDataModel()
+        for idx, delta in enumerate(style_deltas):
+            probe.cells.clear()
+            cell = probe.apply_format_delta(0, 0, delta)
+            mgr._source_xf_by_signature.setdefault(_format_signature(cell), idx)
+        mgr._ns = ns
+        return mgr
+
+    def has_new_records(self) -> bool:
+        """True when this save created styles that the original stylesheet lacks."""
+        if self._source_root is None:
+            return True
+        b = self._base_counts
+        return bool(
+            self.num_fmts
+            or len(self.fonts) > b["fonts"]
+            or len(self.fills) > b["fills"]
+            or len(self.borders) > b["borders"]
+            or len(self.cell_xfs) > b["cellXfs"]
+            or len(self.dxfs) > b["dxfs"]
+        )
+
+    def _merge_into_source(self) -> bytes:
+        """Append the records created during this save to the original stylesheet."""
+        root = self._source_root
+        ns = self._ns
+        sections = [
+            (
+                "numFmts",
+                "numFmt",
+                [
+                    f'<numFmt numFmtId="{fid}" formatCode="{_xml_escape(code)}"/>'
+                    for fid, code in self.num_fmts
+                ],
+            ),
+            ("fonts", "font", self.fonts[self._base_counts["fonts"] :]),
+            ("fills", "fill", self.fills[self._base_counts["fills"] :]),
+            ("borders", "border", self.borders[self._base_counts["borders"] :]),
+            (
+                "cellXfs",
+                "xf",
+                [self._xf_xml(xf) for xf in self.cell_xfs[self._base_counts["cellXfs"] :]],
+            ),
+            ("dxfs", "dxf", [self._dxf_xml(d) for d in self.dxfs[self._base_counts["dxfs"] :]]),
+        ]
+        for container_name, item_name, items in sections:
+            items = [x for x in items if x]
+            if not items:
+                continue
+            container = ensure_child(root, container_name, _STYLESHEET_ORDER)
+            for el in parse_fragment("".join(items), ns):
+                container.append(el)
+            container.set("count", str(len(find_all_local(container, item_name))))
+        return serialize_lxml(root)
+
     def _get_or_add_font(
         self,
         name: str,
@@ -372,9 +561,7 @@ class StyleManager:
         if underline:
             parts.append('<u val="single"/>')
         parts.append(f'<sz val="{sz or 10}"/>')
-        col_xml = _color_element(
-            "color", color, color_spec, self.theme_colors, self.palette
-        )
+        col_xml = _color_element("color", color, color_spec, self.theme_colors, self.palette)
         if col_xml:
             parts.append(col_xml)
         parts.append(f'<name val="{_xml_escape(name or "Arial")}"/>')
@@ -508,6 +695,10 @@ class StyleManager:
     def get_style_index(self, cell: CellData | None) -> int:
         if cell is None:
             return 0
+        if self._source_xf_by_signature:
+            original = self._source_xf_by_signature.get(_format_signature(cell))
+            if original is not None:
+                return original
 
         has_font = bool(
             cell.bold
@@ -635,7 +826,81 @@ class StyleManager:
         self.dxfs.append(dxf)
         return len(self.dxfs) - 1
 
+    def _xf_xml(self, xf: dict[str, Any]) -> str:
+        """Serialize one ``<xf>`` record of ``cellXfs``."""
+        attrs = [
+            f'numFmtId="{xf["numFmtId"]}"',
+            f'fontId="{xf["fontId"]}"',
+            f'fillId="{xf["fillId"]}"',
+            f'borderId="{xf["borderId"]}"',
+            'xfId="0"',
+        ]
+        if xf["numFmtId"] != 0:
+            attrs.append('applyNumberFormat="1"')
+        if xf["fontId"] != 0:
+            attrs.append('applyFont="1"')
+        if xf["fillId"] != 0:
+            attrs.append('applyFill="1"')
+        if xf["borderId"] != 0:
+            attrs.append('applyBorder="1"')
+
+        align_attrs = []
+        if xf["align"]:
+            h, v, wrap, shrink, rot, ind, ro = xf["align"]
+            if h:
+                align_attrs.append(f'horizontal="{h}"')
+            if v:
+                align_attrs.append(f'vertical="{v}"')
+            if wrap:
+                align_attrs.append('wrapText="1"')
+            if shrink:
+                align_attrs.append('shrinkToFit="1"')
+            if rot:
+                align_attrs.append(f'textRotation="{rot}"')
+            if ind:
+                align_attrs.append(f'indent="{ind}"')
+            if ro:
+                align_attrs.append(f'readingOrder="{ro}"')
+
+        if align_attrs:
+            attrs.append('applyAlignment="1"')
+            return f"<xf {' '.join(attrs)}><alignment {' '.join(align_attrs)}/></xf>"
+        return f"<xf {' '.join(attrs)}/>"
+
+    def _dxf_xml(self, d: dict[str, Any]) -> str:
+        """Serialize one ``<dxf>`` differential format."""
+        parts = ["<dxf>"]
+        font_parts = []
+        if d.get("bold"):
+            font_parts.append('<b val="1"/>')
+        if d.get("italic"):
+            font_parts.append('<i val="1"/>')
+        if d.get("fg_color") or d.get("fg_color_spec"):
+            col_xml = _color_element(
+                "color", d.get("fg_color"), d.get("fg_color_spec"), self.theme_colors, self.palette
+            )
+            if col_xml:
+                font_parts.append(col_xml)
+        if font_parts:
+            parts.append(f"<font>{''.join(font_parts)}</font>")
+        if d.get("bg_color") or d.get("bg_color_spec"):
+            fg_xml = _color_element(
+                "fgColor",
+                d.get("bg_color"),
+                d.get("bg_color_spec"),
+                self.theme_colors,
+                self.palette,
+            )
+            if fg_xml:
+                parts.append(
+                    f'<fill><patternFill patternType="solid">{fg_xml}</patternFill></fill>'
+                )
+        parts.append("</dxf>")
+        return "".join(parts)
+
     def to_styles_xml(self) -> bytes:
+        if self._source_root is not None:
+            return self._merge_into_source()
         parts = [XML_HEADER, f'<styleSheet xmlns="{NS_MAIN}">']
 
         # 1. numFmts
@@ -669,47 +934,7 @@ class StyleManager:
 
         # 6. cellXfs
         parts.append(f'<cellXfs count="{len(self.cell_xfs)}">')
-        for xf in self.cell_xfs:
-            attrs = [
-                f'numFmtId="{xf["numFmtId"]}"',
-                f'fontId="{xf["fontId"]}"',
-                f'fillId="{xf["fillId"]}"',
-                f'borderId="{xf["borderId"]}"',
-                'xfId="0"',
-            ]
-            if xf["numFmtId"] != 0:
-                attrs.append('applyNumberFormat="1"')
-            if xf["fontId"] != 0:
-                attrs.append('applyFont="1"')
-            if xf["fillId"] != 0:
-                attrs.append('applyFill="1"')
-            if xf["borderId"] != 0:
-                attrs.append('applyBorder="1"')
-
-            align_k = xf["align"]
-            align_attrs = []
-            if align_k:
-                h, v, wrap, shrink, rot, ind, ro = align_k
-                if h:
-                    align_attrs.append(f'horizontal="{h}"')
-                if v:
-                    align_attrs.append(f'vertical="{v}"')
-                if wrap:
-                    align_attrs.append('wrapText="1"')
-                if shrink:
-                    align_attrs.append('shrinkToFit="1"')
-                if rot:
-                    align_attrs.append(f'textRotation="{rot}"')
-                if ind:
-                    align_attrs.append(f'indent="{ind}"')
-                if ro:
-                    align_attrs.append(f'readingOrder="{ro}"')
-
-            if align_attrs:
-                attrs.append('applyAlignment="1"')
-                parts.append(f"<xf {' '.join(attrs)}><alignment {' '.join(align_attrs)}/></xf>")
-            else:
-                parts.append(f"<xf {' '.join(attrs)}/>")
+        parts.extend(self._xf_xml(xf) for xf in self.cell_xfs)
         parts.append("</cellXfs>")
 
         # 7. cellStyles
@@ -722,39 +947,7 @@ class StyleManager:
             parts.append('<dxfs count="0"/>')
         else:
             parts.append(f'<dxfs count="{len(self.dxfs)}">')
-            for d in self.dxfs:
-                parts.append("<dxf>")
-                font_parts = []
-                if d.get("bold"):
-                    font_parts.append('<b val="1"/>')
-                if d.get("italic"):
-                    font_parts.append('<i val="1"/>')
-                if d.get("fg_color") or d.get("fg_color_spec"):
-                    col_xml = _color_element(
-                        "color",
-                        d.get("fg_color"),
-                        d.get("fg_color_spec"),
-                        self.theme_colors,
-                        self.palette,
-                    )
-                    if col_xml:
-                        font_parts.append(col_xml)
-                if font_parts:
-                    parts.append(f"<font>{''.join(font_parts)}</font>")
-
-                if d.get("bg_color") or d.get("bg_color_spec"):
-                    fg_xml = _color_element(
-                        "fgColor",
-                        d.get("bg_color"),
-                        d.get("bg_color_spec"),
-                        self.theme_colors,
-                        self.palette,
-                    )
-                    if fg_xml:
-                        parts.append(
-                            f'<fill><patternFill patternType="solid">{fg_xml}</patternFill></fill>'
-                        )
-                parts.append("</dxf>")
+            parts.extend(self._dxf_xml(d) for d in self.dxfs)
             parts.append("</dxfs>")
 
         # 9. tableStyles
@@ -876,7 +1069,6 @@ def _serialize_sheet_data(
     return "".join(parts)
 
 
-
 _X14_CF_EXT_URI = "{78C0D931-6437-407d-A8EE-F0AAD7539E65}"
 _NS_X14 = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"
 _NS_XM = "http://schemas.microsoft.com/office/excel/2006/main"
@@ -921,9 +1113,7 @@ def _x14_icon_set_ext_xml(formats: list[tuple[str, list[Any]]]) -> str:
             ic = rule.icon_set
             stop = ' stopIfTrue="1"' if rule.stop_if_true else ""
             rid = "{" + str(uuid.uuid4()).upper() + "}"
-            out.append(
-                f'<x14:cfRule type="iconSet" priority="{rule.priority}"{stop} id="{rid}">'
-            )
+            out.append(f'<x14:cfRule type="iconSet" priority="{rule.priority}"{stop} id="{rid}">')
             out.append(f"<x14:iconSet {_icon_set_attrs(ic, True)}>")
             for cfvo in ic.cfvos:
                 g_attr = ' gte="0"' if not getattr(cfvo, "gte", True) else ""
@@ -963,12 +1153,12 @@ def _sheet_views_xml(sheet: SheetDataModel, is_active: bool) -> str:
     attr_str = "".join(f" {a}" for a in attrs)
     sel_xml = ""
     if vs.active_cell_rc() is not None:
-        ranges = " ".join(
-            p for p in (vs.sqref or "").split() if parse_range(p) is not None
-        ) or vs.active_cell
+        ranges = (
+            " ".join(p for p in (vs.sqref or "").split() if parse_range(p) is not None)
+            or vs.active_cell
+        )
         sel_xml = (
-            f'<selection activeCell="{_xml_escape(vs.active_cell)}" '
-            f'sqref="{_xml_escape(ranges)}"/>'
+            f'<selection activeCell="{_xml_escape(vs.active_cell)}" sqref="{_xml_escape(ranges)}"/>'
         )
     if sel_xml:
         return f"<sheetViews><sheetView{attr_str}>{sel_xml}</sheetView></sheetViews>"
@@ -1255,7 +1445,7 @@ def _patch_page_setup(xml: str, sheet: Any) -> str:
     m = _AFTER_PAGE.search(xml)
     if m is None:
         return xml
-    xml = xml[: m.start()] + _page_setup_block_xml(sheet) + xml[m.start():]
+    xml = xml[: m.start()] + _page_setup_block_xml(sheet) + xml[m.start() :]
     fit = get_print_setup(sheet).fit_to
     if re.search(r"<pageSetUpPr\b", xml):
         xml = re.sub(
@@ -1276,8 +1466,12 @@ def _patch_page_setup(xml: str, sheet: Any) -> str:
             # pageSetUpPr is the last child of sheetPr (after tabColor, outlinePr)
             xml = xml.replace("</sheetPr>", '<pageSetUpPr fitToPage="1"/></sheetPr>', 1)
         else:
-            xml = re.sub(r"(<worksheet\b[^>]*>)",
-                         r'\1<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>', xml, count=1)
+            xml = re.sub(
+                r"(<worksheet\b[^>]*>)",
+                r'\1<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>',
+                xml,
+                count=1,
+            )
     return xml
 
 
@@ -1364,7 +1558,7 @@ def _group_child_xfrm(obj: Any, tag: str = "a:xfrm") -> str:
     if getattr(obj, "flip_v", False):
         flips += ' flipV="1"'
     return (
-        f"<{tag}{flips}><a:off x=\"{round(fx * ext)}\" y=\"{round(fy * ext)}\"/>"
+        f'<{tag}{flips}><a:off x="{round(fx * ext)}" y="{round(fy * ext)}"/>'
         f'<a:ext cx="{round(fw * ext)}" cy="{round(fh * ext)}"/></{tag}>'
     )
 
@@ -1399,7 +1593,7 @@ def _object_xml(
 
     if obj.kind == "image" and obj.id in image_rids:
         img_rid = image_rids[obj.id]
-        locks = "<a:picLocks noChangeAspect=\"1\"/>" if getattr(obj, "lock_aspect", False) else ""
+        locks = '<a:picLocks noChangeAspect="1"/>' if getattr(obj, "lock_aspect", False) else ""
         nv_pic_pr = (
             f'<xdr:nvPicPr><xdr:cNvPr id="{obj.id}" name="{name_esc}"/>'
             f"<xdr:cNvPicPr>{locks}</xdr:cNvPicPr></xdr:nvPicPr>"
@@ -1509,8 +1703,53 @@ def _serialize_drawings(
     return "".join(parts).encode("utf-8")
 
 
-def _serialize_workbook(workbook: WorkbookModel, sheet_rids: list[str]) -> bytes:
-    """Serialize xl/workbook.xml."""
+_WORKBOOK_ORDER = [
+    "fileVersion",
+    "fileSharing",
+    "workbookPr",
+    "AlternateContent",
+    "revisionPtr",
+    "absPath",
+    "workbookProtection",
+    "bookViews",
+    "sheets",
+    "functionGroups",
+    "externalReferences",
+    "definedNames",
+    "calcPr",
+    "oleSize",
+    "customWorkbookViews",
+    "pivotCaches",
+    "smartTagPr",
+    "smartTagTypes",
+    "webPublishing",
+    "fileRecoveryPr",
+    "webPublishObjects",
+    "extLst",
+]
+
+
+@dataclass
+class _SheetEntry:
+    """Where one worksheet lives in the written package."""
+
+    sheet: SheetDataModel
+    part: str
+    rel_id: str
+    sheet_id: str
+    from_source: bool
+
+
+def _sheet_element_attrs(entry: _SheetEntry) -> list[tuple[str, str]]:
+    attrs = [("name", entry.sheet.name), ("sheetId", entry.sheet_id)]
+    state = entry.sheet.extra.get("sheet_state")
+    if state and state != "visible":
+        attrs.append(("state", state))
+    return attrs
+
+
+def _serialize_workbook(workbook: WorkbookModel, entries: list[_SheetEntry]) -> bytes:
+    """Serialize a new xl/workbook.xml (used when there is no source package)."""
     fv_code_name = workbook.extra.get("file_version_code_name")
     fv_attr = f' codeName="{_xml_escape(fv_code_name)}"' if fv_code_name else ""
     wb_code_name = getattr(workbook, "code_name", None) or workbook.extra.get("code_name")
@@ -1524,7 +1763,7 @@ def _serialize_workbook(workbook: WorkbookModel, sheet_rids: list[str]) -> bytes
         XML_HEADER,
         f'<workbook xmlns="{NS_MAIN}" xmlns:r="{NS_R}">',
         f'<fileVersion appName="xl" lastEdited="4" lowestEdited="4" rupBuild="4505"{fv_attr}/>',
-        f'<workbookPr {" ".join(wpr_attrs)}/>',
+        f"<workbookPr {' '.join(wpr_attrs)}/>",
     ]
 
     prot = workbook.extra.get("protection")
@@ -1535,93 +1774,154 @@ def _serialize_workbook(workbook: WorkbookModel, sheet_rids: list[str]) -> bytes
     active_idx = workbook.active_sheet_index
     parts.append(f'<bookViews><workbookView activeTab="{active_idx}"/></bookViews>')
     parts.append("<sheets>")
-    for idx, (sheet, rid) in enumerate(zip(workbook.sheets, sheet_rids)):
-        parts.append(f'<sheet name="{_xml_escape(sheet.name)}" sheetId="{idx + 1}" r:id="{rid}"/>')
+    for entry in entries:
+        attrs = " ".join(f'{k}="{_xml_escape(v)}"' for k, v in _sheet_element_attrs(entry))
+        parts.append(f'<sheet {attrs} r:id="{entry.rel_id}"/>')
     parts.append("</sheets>")
 
     def_names = workbook.extra.get("defined_names")
     if def_names:
         parts.append(def_names)
 
-    pivots = workbook.extra.get("pivots")
-    if pivots:
-        pc_elems = []
-        for c in pivots.caches:
-            if not c.drop and c.rel_id:
-                pc_elems.append(f'<pivotCache cacheId="{c.cache_id}" r:id="{c.rel_id}"/>')
-        if pc_elems:
-            parts.append(f"<pivotCaches>{''.join(pc_elems)}</pivotCaches>")
+    pc_xml = _pivot_caches_xml(workbook)
+    if pc_xml:
+        parts.append(pc_xml)
 
     parts.append('<calcPr calcId="124519" fullCalcOnLoad="1"/>')
     parts.append("</workbook>")
     return "".join(parts).encode("utf-8")
 
 
-def _serialize_workbook_rels(
-    sheet_count: int,
-    workbook: WorkbookModel | None = None,
-    source_pkg: SourcePackage | None = None,
-) -> bytes:
-    """Serialize xl/_rels/workbook.xml.rels."""
-    parts = [
-        XML_HEADER,
-        f'<Relationships xmlns="{NS_PKG_REL}">',
+def _pivot_caches_xml(workbook: WorkbookModel) -> str:
+    pivots = workbook.extra.get("pivots")
+    if not pivots:
+        return ""
+    elems = [
+        f'<pivotCache cacheId="{c.cache_id}" r:id="{c.rel_id}"/>'
+        for c in pivots.caches
+        if not c.drop and c.rel_id
     ]
-    used_rids: set[str] = set()
-    for i in range(1, sheet_count + 1):
-        rid = f"rId{i}"
-        used_rids.add(rid)
+    return f"<pivotCaches>{''.join(elems)}</pivotCaches>" if elems else ""
+
+
+def _patch_workbook_xml(
+    original: bytes, workbook: WorkbookModel, entries: list[_SheetEntry]
+) -> bytes:
+    """Update the original workbook.xml in place.
+
+    Only the sheet list, the active tab, defined names (when edited) and pivot caches are
+    model-driven; ``calcPr``, ``extLst``, ``fileSharing``, sheet visibility and anything
+    else is carried as-is. Returns ``original`` unchanged when nothing differs.
+    """
+    root = parse_lxml(original)
+    ns = namespace_of(root)
+    q = (lambda n: f"{{{ns}}}{n}") if ns else (lambda n: n)
+    r_id_attr = f"{{{NS_R}}}id"
+    changed = False
+
+    sheets_el = ensure_child(root, "sheets", _WORKBOOK_ORDER)
+    old_by_rid: dict[str, Any] = {}
+    for el in find_all_local(sheets_el, "sheet"):
+        rid = el.get(r_id_attr) or next(
+            (v for k, v in el.attrib.items() if k.endswith("}id")), None
+        )
+        if rid:
+            old_by_rid[rid] = el
+    old_order = [el.get(r_id_attr) for el in find_all_local(sheets_el, "sheet")]
+
+    new_children = []
+    for entry in entries:
+        el = old_by_rid.get(entry.rel_id) if entry.from_source else None
+        if el is None:
+            el = LET.Element(q("sheet"))
+            changed = True
+        for key, value in _sheet_element_attrs(entry):
+            if el.get(key) != value:
+                el.set(key, value)
+                changed = True
+        if el.get(r_id_attr) != entry.rel_id:
+            el.set(r_id_attr, entry.rel_id)
+            changed = True
+        new_children.append(el)
+    if [e.rel_id for e in entries] != old_order:
+        changed = True
+    if changed:
+        for el in find_all_local(sheets_el, "sheet"):
+            sheets_el.remove(el)
+        for el in new_children:
+            sheets_el.append(el)
+
+    views = ensure_child(root, "bookViews", _WORKBOOK_ORDER)
+    view = find_local(views, "workbookView")
+    if view is None:
+        view = LET.SubElement(views, q("workbookView"))
+    active = str(workbook.active_sheet_index)
+    if (view.get("activeTab") or "0") != active:
+        view.set("activeTab", active)
+        changed = True
+
+    names = workbook.extra.get("defined_names")
+    if names != workbook.extra.get("defined_names_loaded"):
+        old = find_local(root, "definedNames")
+        if old is not None:
+            root.remove(old)
+        if names:
+            for el in parse_fragment(names, ns):
+                insert_in_order(root, el, _WORKBOOK_ORDER)
+        changed = True
+
+    if workbook.extra.get("pivots"):
+        pc_xml = _pivot_caches_xml(workbook)
+        old = find_local(root, "pivotCaches")
+
+        def _keys(parent: Any) -> list[tuple[str | None, str | None]]:
+            return [
+                (el.get("cacheId"), el.get(r_id_attr))
+                for el in find_all_local(parent, "pivotCache")
+            ]
+
+        new_els = parse_fragment(pc_xml, ns, {"r": NS_R}) if pc_xml else []
+        new_keys = _keys(new_els[0]) if new_els else []
+        if new_keys != _keys(old):
+            if old is not None:
+                root.remove(old)
+            for el in new_els:
+                insert_in_order(root, el, _WORKBOOK_ORDER)
+            changed = True
+
+    return serialize_lxml(root) if changed else original
+
+
+def _relationships_xml(rels: list[tuple[str, str, str, str]]) -> bytes:
+    """Serialize a .rels part from ``(id, type, target, target_mode)`` tuples."""
+    parts = [XML_HEADER, f'<Relationships xmlns="{NS_PKG_REL}">']
+    for rid, rtype, target, mode in rels:
+        mode_attr = f' TargetMode="{_xml_escape(mode)}"' if mode and mode != "Internal" else ""
         parts.append(
-            f'<Relationship Id="{rid}" Type="{REL_WORKSHEET}" Target="worksheets/sheet{i}.xml"/>'
+            f'<Relationship Id="{_xml_escape(rid)}" Type="{_xml_escape(rtype)}" '
+            f'Target="{_xml_escape(target)}"{mode_attr}/>'
         )
-    styles_rid = f"rId{sheet_count + 1}"
-    used_rids.add(styles_rid)
-    parts.append(f'<Relationship Id="{styles_rid}" Type="{REL_STYLES}" Target="styles.xml"/>')
-    theme_rid = f"rId{sheet_count + 2}"
-    used_rids.add(theme_rid)
-    parts.append(f'<Relationship Id="{theme_rid}" Type="{REL_THEME}" Target="theme/theme1.xml"/>')
-    sst_rid = f"rId{sheet_count + 3}"
-    used_rids.add(sst_rid)
-    parts.append(
-        f'<Relationship Id="{sst_rid}" Type="{REL_SHARED_STRINGS}" Target="sharedStrings.xml"/>'
-    )
-
-    if workbook and (pivots := workbook.extra.get("pivots")):
-        for c in pivots.caches:
-            if not c.drop and c.rel_id:
-                tgt = c.part_name.replace("xl/", "")
-                used_rids.add(c.rel_id)
-                parts.append(
-                    f'<Relationship Id="{c.rel_id}" Type="{REL_PIVOT_CACHE}" Target="{tgt}"/>'
-                )
-
-    if source_pkg:
-        orig_wb_rels = source_pkg.get_relationships("xl/workbook.xml")
-        preserved_types = (
-            "worksheet",
-            "styles",
-            "theme",
-            "sharedStrings",
-            "pivotCacheDefinition",
-        )
-        counter = sheet_count + 4
-        for r in orig_wb_rels:
-            is_standard = any(r.type.endswith("/" + t) or r.type == t for t in preserved_types)
-            if not is_standard:
-                r_id = r.id
-                if r_id in used_rids:
-                    while f"rId{counter}" in used_rids:
-                        counter += 1
-                    r_id = f"rId{counter}"
-                used_rids.add(r_id)
-                target_mode_attr = f' TargetMode="{r.target_mode}"' if r.is_external else ""
-                parts.append(
-                    f'<Relationship Id="{r_id}" Type="{r.type}" '
-                    f'Target="{r.target}"{target_mode_attr}/>'
-                )
-
     parts.append("</Relationships>")
     return "".join(parts).encode("utf-8")
+
+
+def _unique_id(used: set[str], prefix: str = "rId") -> str:
+    n = 1
+    while f"{prefix}{n}" in used:
+        n += 1
+    rid = f"{prefix}{n}"
+    used.add(rid)
+    return rid
+
+
+def _unique_part(pattern: str, used: set[str]) -> str:
+    """Return ``pattern.format(n)`` for the smallest n not already in ``used``."""
+    n = 1
+    while pattern.format(n).lower() in used:
+        n += 1
+    name = pattern.format(n)
+    used.add(name.lower())
+    return name
 
 
 def _serialize_root_rels() -> bytes:
@@ -1722,12 +2022,110 @@ def _serialize_theme() -> bytes:
     ).encode()
 
 
+_WORKSHEET_ORDER = [
+    "sheetPr",
+    "dimension",
+    "sheetViews",
+    "sheetFormatPr",
+    "cols",
+    "sheetData",
+    "sheetCalcPr",
+    "sheetProtection",
+    "protectedRanges",
+    "scenarios",
+    "autoFilter",
+    "sortState",
+    "dataConsolidate",
+    "customSheetViews",
+    "mergeCells",
+    "phoneticPr",
+    "conditionalFormatting",
+    "dataValidations",
+    "hyperlinks",
+    "printOptions",
+    "pageMargins",
+    "pageSetup",
+    "headerFooter",
+    "rowBreaks",
+    "colBreaks",
+    "customProperties",
+    "cellWatches",
+    "ignoredErrors",
+    "smartTags",
+    "drawing",
+    "legacyDrawing",
+    "legacyDrawingHF",
+    "drawingHF",
+    "picture",
+    "oleObjects",
+    "controls",
+    "webPublishItems",
+    "tableParts",
+    "extLst",
+]
+
+
+def _dimension_ref(sheet: SheetDataModel) -> str:
+    coords = list(sheet.cells.keys())
+    for m in sheet.merges:
+        coords.append((m[0], m[1]))
+        coords.append((m[2], m[3]))
+    if not coords:
+        return "A1"
+    min_r = min(r for r, _ in coords)
+    max_r = max(r for r, _ in coords)
+    min_c = min(c for _, c in coords)
+    max_c = max(c for _, c in coords)
+    return f"{cell_name(min_r, min_c)}:{cell_name(max_r, max_c)}"
+
+
+def _splice_sheet_data(original: bytes, sheet_data_xml: str, dim_ref: str) -> bytes:
+    """Replace ``<sheetData>`` (and the dimension) of an original worksheet, keeping the rest.
+
+    Works on the parsed tree, so prefixed markup (``<x:sheetData>``) and Strict
+    namespaces are handled and nothing outside ``sheetData`` is re-serialized by hand.
+    """
+    root = parse_lxml(original)
+    ns = namespace_of(root)
+    new_sd = parse_fragment(sheet_data_xml, ns)[0]
+    old = find_local(root, "sheetData")
+    if old is None:
+        insert_in_order(root, new_sd, _WORKSHEET_ORDER)
+    else:
+        root.replace(old, new_sd)
+    dim = find_local(root, "dimension")
+    if dim is not None:
+        dim.set("ref", dim_ref)
+    return serialize_lxml(root)
+
+
+def _ensure_drawing_ref(ws_bytes: bytes, rel_id: str) -> bytes:
+    """Add ``<drawing r:id>`` to a worksheet that did not have drawings before."""
+    root = parse_lxml(ws_bytes)
+    if find_local(root, "drawing") is not None:
+        return ws_bytes
+    ns = namespace_of(root)
+    el = LET.Element(f"{{{ns}}}drawing" if ns else "drawing")
+    el.set(f"{{{NS_R}}}id", rel_id)
+    insert_in_order(root, el, _WORKSHEET_ORDER)
+    return serialize_lxml(root)
+
+
+def _rel_type_is(rel_type: str, name: str) -> bool:
+    return rel_type.rsplit("/", 1)[-1] == name
+
+
 def write_xlsx(
     workbook: WorkbookModel,
     output_path: str | Path | BinaryIO | None = None,
     source_opc: SourcePackage | bytes | str | Path | None = None,
 ) -> bytes:
     """Serialize a WorkbookModel to an OOXML .xlsx package.
+
+    When the workbook came from a file, the original package is the starting point:
+    parts the model does not own are carried byte-for-byte, and the parts it does own
+    (worksheets, styles, workbook.xml) are edited in place so that unmodelled content
+    survives. Original part names and relationship ids are kept.
 
     Args:
         workbook: WorkbookModel container holding one or more SheetDataModel instances.
@@ -1751,6 +2149,15 @@ def write_xlsx(
     elif workbook.extra.get("source_package") is not None:
         source_pkg = workbook.extra.get("source_package")
 
+    wb_part = "xl/workbook.xml"
+    if source_pkg is not None:
+        src_wb = workbook.extra.get("xlsx_workbook_part")
+        if src_wb and source_pkg.has_part(src_wb):
+            wb_part = src_wb
+        elif not source_pkg.has_part(wb_part):
+            source_pkg = None  # unrelated package: write from scratch
+    wb_from_source = source_pkg is not None and source_pkg.has_part(wb_part)
+
     is_xlsm = False
     if output_path is not None and str(output_path).lower().endswith(".xlsm"):
         is_xlsm = True
@@ -1758,208 +2165,284 @@ def write_xlsx(
         is_xlsm = True
     elif source_pkg and (
         source_pkg.has_part("xl/vbaProject.bin")
-        or source_pkg.get_content_type("xl/workbook.xml")
+        or source_pkg.get_content_type(wb_part)
         == "application/vnd.ms-excel.sheet.macroEnabled.main+xml"
     ):
         is_xlsm = True
 
-    ct_workbook = (
-        "application/vnd.ms-excel.sheet.macroEnabled.main+xml"
-        if is_xlsm
-        else CT_WORKBOOK
-    )
+    ct_workbook = "application/vnd.ms-excel.sheet.macroEnabled.main+xml" if is_xlsm else CT_WORKBOOK
 
     pkg_writer = PackageWriter(source_package=source_pkg)
+    used_parts: set[str] = {p.lower() for p in source_pkg.parts()} if source_pkg else set()
+
+    # Original workbook relationships, resolved to part names.
+    orig_wb_rels = source_pkg.get_relationships(wb_part) if wb_from_source else []
+
+    def _orig_target(name: str) -> str | None:
+        for r in orig_wb_rels:
+            if _rel_type_is(r.type, name) and not r.is_external:
+                return r.resolve_target(wb_part)
+        return None
+
+    styles_part = _orig_target("styles") or "xl/styles.xml"
+    sst_part = _orig_target("sharedStrings") or "xl/sharedStrings.xml"
+    theme_part = _orig_target("theme")
 
     wb_theme_colors = getattr(workbook, "theme_colors", None)
     wb_palette = getattr(workbook, "indexed_palette", None)
     sst_manager = SharedStringsManager(theme_colors=wb_theme_colors, palette=wb_palette)
-    style_manager = StyleManager(theme_colors=wb_theme_colors, indexed_palette=wb_palette)
+    style_deltas = workbook.extra.get("xlsx_style_deltas")
+    if source_pkg is not None and style_deltas and source_pkg.has_part(styles_part):
+        style_manager = StyleManager.from_source(
+            source_pkg.read_part(styles_part),
+            style_deltas,
+            theme_colors=wb_theme_colors,
+            indexed_palette=wb_palette,
+        )
+    else:
+        style_manager = StyleManager(theme_colors=wb_theme_colors, indexed_palette=wb_palette)
     any_dirty = bool(
         getattr(workbook, "dirty", False)
         or any(getattr(s, "dirty", False) for s in workbook.sheets)
     )
 
-    sheet_count = len(workbook)
-    sheet_rids = [f"rId{i}" for i in range(1, sheet_count + 1)]
+    # 0. Decide where every sheet lives and which relationship points at it.
+    orig_sheet_rels = {
+        r.id: r.resolve_target(wb_part)
+        for r in orig_wb_rels
+        if _rel_type_is(r.type, "worksheet") and not r.is_external
+    }
+    used_wb_rids = {r.id for r in orig_wb_rels}
+    used_sheet_ids: set[str] = {
+        str(s.extra["sheet_id"]) for s in workbook.sheets if s.extra.get("sheet_id")
+    }
+    entries: list[_SheetEntry] = []
+    claimed_parts: set[str] = set()
+    for sheet in workbook.sheets:
+        ooxml_part = getattr(sheet, "_ooxml_part", None) or sheet.extra.get("ooxml_part")
+        rel_id = sheet.extra.get("sheet_rel_id")
+        from_source = bool(
+            source_pkg
+            and ooxml_part
+            and source_pkg.has_part(ooxml_part)
+            and ooxml_part not in claimed_parts
+        )
+        if from_source:
+            part = ooxml_part
+            if not rel_id or orig_sheet_rels.get(rel_id) != part:
+                rel_id = next((k for k, v in orig_sheet_rels.items() if v == part), None)
+            if not rel_id:
+                rel_id = _unique_id(used_wb_rids)
+        else:
+            part = _unique_part("xl/worksheets/sheet{}.xml", used_parts)
+            rel_id = _unique_id(used_wb_rids)
+        claimed_parts.add(part)
+        sheet_id = str(sheet.extra.get("sheet_id") or "")
+        if not sheet_id or (not from_source and sheet_id in used_sheet_ids):
+            n = 1
+            while str(n) in used_sheet_ids:
+                n += 1
+            sheet_id = str(n)
+        used_sheet_ids.add(sheet_id)
+        entries.append(_SheetEntry(sheet, part, rel_id, sheet_id, from_source))
+
+    # Worksheets that were deleted from the model are removed from the package.
+    kept_parts = {e.part for e in entries}
+    for part in orig_sheet_rels.values():
+        if part not in kept_parts and source_pkg.has_part(part):
+            pkg_writer.delete_part(part)
+            pkg_writer.delete_part(get_rels_path(part))
+
+    pivots: Any = workbook.extra.get("pivots")
 
     # 1. Serialize each worksheet and associated drawings
-    drawing_count = 0
-    media_count = 0
-    for i, sheet in enumerate(workbook.sheets, start=1):
-        has_drawings = hasattr(sheet, "drawings") and bool(sheet.drawings)
-        drawing_rid = "rIdDrawing" if has_drawings else None
-        is_active = (i - 1) == workbook.active_sheet_index
-        part_name = f"xl/worksheets/sheet{i}.xml"
+    for idx, entry in enumerate(entries):
+        sheet = entry.sheet
+        part_name = entry.part
+        is_active = idx == workbook.active_sheet_index
+        sheet_rels_part = get_rels_path(part_name)
+        src_sheet_rels = source_pkg.get_relationships(part_name) if entry.from_source else []
+        orig_drawing_rel = next(
+            (r for r in src_sheet_rels if _rel_type_is(r.type, "drawing")), None
+        )
+        has_drawings = bool(getattr(sheet, "drawings", None))
+        drawings_unchanged = orig_drawing_rel is not None and sheet.extra.get(
+            "xlsx_drawings_signature"
+        ) == drawings_signature(sheet.drawings)
+        regenerate_drawings = has_drawings and not drawings_unchanged
+        drawing_rid = None
+        if regenerate_drawings:
+            drawing_rid = orig_drawing_rel.id if orig_drawing_rel else "rIdDrawing"
 
-        ooxml_part = getattr(sheet, "_ooxml_part", None) or sheet.extra.get("ooxml_part")
-
-        if source_pkg and ooxml_part and source_pkg.has_part(ooxml_part):
+        if entry.from_source:
             if not any_dirty:
-                ws_bytes = source_pkg.read_part(ooxml_part)
+                ws_bytes = source_pkg.read_part(part_name)
             else:
-                orig_xml = source_pkg.read_part(ooxml_part).decode("utf-8")
-                sheet_data_xml = _serialize_sheet_data(sheet, style_manager, sst_manager)
-                coords = list(sheet.cells.keys())
-                for m in sheet.merges:
-                    coords.append((m[0], m[1]))
-                    coords.append((m[2], m[3]))
-                if coords:
-                    min_r = min(r for r, _ in coords)
-                    max_r = max(r for r, _ in coords)
-                    min_c = min(c for _, c in coords)
-                    max_c = max(c for _, c in coords)
-                    dim_ref = f"{cell_name(min_r, min_c)}:{cell_name(max_r, max_c)}"
-                else:
-                    dim_ref = "A1"
-
-                patched = re.sub(
-                    r"<sheetData\b[^>]*/>|<sheetData\b[^>]*>.*?</sheetData>",
-                    lambda _m: sheet_data_xml,
-                    orig_xml,
-                    count=1,
-                    flags=re.DOTALL,
+                ws_bytes = _splice_sheet_data(
+                    source_pkg.read_part(part_name),
+                    _serialize_sheet_data(sheet, style_manager, sst_manager),
+                    _dimension_ref(sheet),
                 )
-                patched = re.sub(
-                    r'<dimension\b[^>]*ref="[^"]*"[^>]*/>',
-                    f'<dimension ref="{dim_ref}"/>',
-                    patched,
-                    count=1,
-                )
-                patched = _patch_page_setup(patched, sheet)
+                patched = _patch_page_setup(ws_bytes.decode("utf-8"), sheet)
                 ws_bytes = patched.encode("utf-8")
+                if regenerate_drawings and orig_drawing_rel is None:
+                    ws_bytes = _ensure_drawing_ref(ws_bytes, drawing_rid)
+            pkg_writer.add_part(part_name, ws_bytes, CT_WORKSHEET)
         else:
             ws_bytes = _serialize_worksheet(
                 sheet, style_manager, sst_manager, is_active, drawing_rid=drawing_rid
             )
+            pkg_writer.add_part(part_name, ws_bytes, CT_WORKSHEET)
 
-        pkg_writer.add_part(part_name, ws_bytes, CT_WORKSHEET)
-
-        sheet_rels: list[str] = []
+        sheet_rels: list[tuple[str, str, str, str]] = []
         used_sheet_rids: set[str] = set()
 
-        if has_drawings:
-            drawing_count += 1
-            drawing_part = f"xl/drawings/drawing{drawing_count}.xml"
+        if regenerate_drawings:
+            if orig_drawing_rel is not None:
+                drawing_part = orig_drawing_rel.resolve_target(part_name)
+                # Its old relationships (images, charts) are replaced below.
+                pkg_writer.delete_part(get_rels_path(drawing_part))
+            else:
+                drawing_part = _unique_part("xl/drawings/drawing{}.xml", used_parts)
 
-            # Check image payloads
             image_rids: dict[int, str] = {}
-            drawing_rels: list[str] = []
-            rel_counter = 1
+            drawing_rels: list[tuple[str, str, str, str]] = []
+            used_drawing_rids: set[str] = set()
             for obj in _iter_drawings(sheet.drawings):
                 if obj.kind == "image" and getattr(obj, "image_data", None):
-                    media_count += 1
-                    ext = "png"
                     mime = getattr(obj, "image_mime", "image/png")
-                    if "jpeg" in mime or "jpg" in mime:
-                        ext = "jpg"
-                    media_part = f"xl/media/image{media_count}.{ext}"
+                    ext = "jpg" if ("jpeg" in mime or "jpg" in mime) else "png"
+                    media_part = _unique_part(f"xl/media/image{{}}.{ext}", used_parts)
                     pkg_writer.add_part(media_part, obj.image_data, mime)
-
-                    rid = f"rId{rel_counter}"
-                    rel_counter += 1
+                    rid = _unique_id(used_drawing_rids)
                     image_rids[obj.id] = rid
-                    rel_elem = (
-                        f'<Relationship Id="{rid}" Type="{REL_IMAGE}" '
-                        f'Target="../media/image{media_count}.{ext}"/>'
+                    drawing_rels.append(
+                        (rid, REL_IMAGE, relative_part_uri(drawing_part, media_part), "")
                     )
-                    drawing_rels.append(rel_elem)
 
-            # Add drawing part
-            drawing_bytes = _serialize_drawings(sheet.drawings, image_rids)
-            pkg_writer.add_part(drawing_part, drawing_bytes, CT_DRAWING)
-
-            # Add drawing rels if any
+            pkg_writer.add_part(
+                drawing_part, _serialize_drawings(sheet.drawings, image_rids), CT_DRAWING
+            )
             if drawing_rels:
-                drawing_rels_xml = (
-                    f'{XML_HEADER}<Relationships xmlns="{NS_PKG_REL}">'
-                    f"{''.join(drawing_rels)}"
-                    f"</Relationships>"
-                ).encode()
                 pkg_writer.add_part(
-                    f"xl/drawings/_rels/drawing{drawing_count}.xml.rels",
-                    drawing_rels_xml,
+                    get_rels_path(drawing_part),
+                    _relationships_xml(drawing_rels),
                     CT_RELATIONSHIPS,
                 )
-
-            # Add sheet rel
             sheet_rels.append(
-                f'<Relationship Id="{drawing_rid}" Type="{REL_DRAWING}" '
-                f'Target="../drawings/drawing{drawing_count}.xml"/>'
+                (drawing_rid, REL_DRAWING, relative_part_uri(part_name, drawing_part), "")
             )
             used_sheet_rids.add(drawing_rid)
 
-        # Check pivot tables attached to this sheet
-        pivots: Any = workbook.extra.get("pivots")
+        # Pivot tables attached to this sheet
         if pivots:
             for t in getattr(pivots, "tables", []):
                 if not t.drop and t.sheet_name.lower() == sheet.name.lower():
                     t_rid = t.rel_id or f"rIdPivot{t.cache_id}"
-                    t_target = t.part_name.replace("xl/", "../")
                     sheet_rels.append(
-                        f'<Relationship Id="{t_rid}" Type="{REL_PIVOT_TABLE}" Target="{t_target}"/>'
+                        (t_rid, REL_PIVOT_TABLE, relative_part_uri(part_name, t.part_name), "")
                     )
                     used_sheet_rids.add(t_rid)
 
-        # Preserve auxiliary sheet relationships from source_pkg
-        if source_pkg and ooxml_part:
-            orig_sheet_rels = source_pkg.get_relationships(ooxml_part)
-            counter = len(sheet_rels) + 1
-            for r in orig_sheet_rels:
-                if r.type.endswith("/drawing") and has_drawings:
-                    continue
-                if r.type.endswith("/pivotTable") and pivots:
-                    continue
-                r_id = r.id
-                if r_id in used_sheet_rids:
-                    while f"rId{counter}" in used_sheet_rids:
-                        counter += 1
-                    r_id = f"rId{counter}"
-                used_sheet_rids.add(r_id)
-                target_mode_attr = f' TargetMode="{r.target_mode}"' if r.is_external else ""
-                sheet_rels.append(
-                    f'<Relationship Id="{r_id}" Type="{r.type}" '
-                    f'Target="{r.target}"{target_mode_attr}/>'
-                )
+        # Every other original sheet relationship is kept with its id.
+        for r in src_sheet_rels:
+            if _rel_type_is(r.type, "drawing") and regenerate_drawings:
+                continue
+            if _rel_type_is(r.type, "pivotTable") and pivots:
+                continue
+            r_id = r.id if r.id not in used_sheet_rids else _unique_id(used_sheet_rids)
+            used_sheet_rids.add(r_id)
+            sheet_rels.append((r_id, r.type, r.target, r.target_mode))
 
         if sheet_rels:
-            sheet_rels_xml = (
-                f'{XML_HEADER}<Relationships xmlns="{NS_PKG_REL}">'
-                f"{''.join(sheet_rels)}"
-                f"</Relationships>"
-            ).encode()
-            pkg_writer.add_part(
-                f"xl/worksheets/_rels/sheet{i}.xml.rels",
-                sheet_rels_xml,
-                CT_RELATIONSHIPS,
-            )
+            new_rels = _relationships_xml(sheet_rels)
+            unchanged = entry.from_source and [
+                (a, b, c, d or "Internal") for a, b, c, d in sheet_rels
+            ] == [(r.id, r.type, r.target, r.target_mode) for r in src_sheet_rels]
+            if not unchanged:
+                pkg_writer.add_part(sheet_rels_part, new_rels, CT_RELATIONSHIPS)
+        elif entry.from_source and src_sheet_rels:
+            pkg_writer.delete_part(sheet_rels_part)
 
-    # 2. Serialize sharedStrings.xml if strings were encountered
+    # 2. sharedStrings.xml (rebuilt from the cells that were serialized)
     sst_bytes = sst_manager.to_xml()
     if sst_bytes:
-        pkg_writer.add_part("xl/sharedStrings.xml", sst_bytes, CT_SHARED_STRINGS)
+        pkg_writer.add_part(sst_part, sst_bytes, CT_SHARED_STRINGS)
+    sst_present = bool(sst_bytes) or bool(source_pkg and source_pkg.has_part(sst_part))
 
-    # 3. Serialize styles.xml (carry unmodified styles.xml when workbook/sheets are clean)
-    if not any_dirty and source_pkg and source_pkg.has_part("xl/styles.xml"):
-        styles_bytes = source_pkg.read_part("xl/styles.xml")
+    # 3. styles.xml: carried when nothing changed, otherwise the original is extended.
+    if (
+        source_pkg
+        and source_pkg.has_part(styles_part)
+        and not (any_dirty or style_manager.has_new_records())
+    ):
+        pass  # carried byte-for-byte
     else:
-        styles_bytes = style_manager.to_styles_xml()
-    pkg_writer.add_part("xl/styles.xml", styles_bytes, CT_STYLES)
+        pkg_writer.add_part(styles_part, style_manager.to_styles_xml(), CT_STYLES)
 
-    # 4. Serialize workbook.xml and workbook.xml.rels
-    wb_bytes = _serialize_workbook(workbook, sheet_rids)
-    pkg_writer.add_part("xl/workbook.xml", wb_bytes, ct_workbook)
+    # 4. Theme: only generated for workbooks that have none.
+    if not theme_part or not (source_pkg and source_pkg.has_part(theme_part)):
+        theme_part = "xl/theme/theme1.xml"
+        if not (source_pkg and source_pkg.has_part(theme_part)):
+            pkg_writer.add_part(theme_part, _serialize_theme(), CT_THEME)
 
-    wb_rels_bytes = _serialize_workbook_rels(
-        sheet_count, workbook=workbook, source_pkg=source_pkg
-    )
-    pkg_writer.add_part("xl/_rels/workbook.xml.rels", wb_rels_bytes, CT_RELATIONSHIPS)
+    # 5. workbook.xml and its relationships
+    if wb_from_source:
+        wb_bytes = _patch_workbook_xml(source_pkg.read_part(wb_part), workbook, entries)
+        if (
+            wb_bytes is not source_pkg.read_part(wb_part)
+            or source_pkg.get_content_type(wb_part) != ct_workbook
+        ):
+            pkg_writer.replace_part(wb_part, wb_bytes, ct_workbook)
+    else:
+        pkg_writer.add_part(wb_part, _serialize_workbook(workbook, entries), ct_workbook)
 
-    # 4b. Write pivot parts (lossless carry or modified)
+    wb_rels: list[tuple[str, str, str, str]] = []
+    sheet_rel_ids = {e.rel_id for e in entries}
+    for r in orig_wb_rels:
+        if _rel_type_is(r.type, "worksheet") and r.id not in sheet_rel_ids:
+            continue  # deleted sheet
+        if _rel_type_is(r.type, "pivotCacheDefinition") and pivots:
+            continue  # re-added from the model below
+        if _rel_type_is(r.type, "sharedStrings") and not sst_present:
+            continue
+        wb_rels.append((r.id, r.type, r.target, r.target_mode))
+    have_types = {r[1].rsplit("/", 1)[-1] for r in wb_rels}
+    have_ids = {r[0] for r in wb_rels} | used_wb_rids
+    present = {r[0] for r in wb_rels}
+    for e in entries:
+        if e.rel_id not in present:
+            wb_rels.append((e.rel_id, REL_WORKSHEET, relative_part_uri(wb_part, e.part), ""))
+    if "styles" not in have_types:
+        wb_rels.append(
+            (_unique_id(have_ids), REL_STYLES, relative_part_uri(wb_part, styles_part), "")
+        )
+    if "theme" not in have_types:
+        wb_rels.append(
+            (_unique_id(have_ids), REL_THEME, relative_part_uri(wb_part, theme_part), "")
+        )
+    if sst_present and "sharedStrings" not in have_types:
+        wb_rels.append(
+            (_unique_id(have_ids), REL_SHARED_STRINGS, relative_part_uri(wb_part, sst_part), "")
+        )
+    if pivots:
+        for c in pivots.caches:
+            if not c.drop and c.rel_id:
+                wb_rels.append(
+                    (c.rel_id, REL_PIVOT_CACHE, relative_part_uri(wb_part, c.part_name), "")
+                )
+    wb_rels_part = get_rels_path(wb_part)
+    wb_rels_unchanged = wb_from_source and [
+        (a, b, c, d or "Internal") for a, b, c, d in wb_rels
+    ] == [(r.id, r.type, r.target, r.target_mode) for r in orig_wb_rels]
+    if not wb_rels_unchanged:
+        pkg_writer.add_part(wb_rels_part, _relationships_xml(wb_rels), CT_RELATIONSHIPS)
+
+    # 5b. Pivot parts (lossless carry or modified)
     if pivots:
         write_pivots_to_package(pkg_writer, workbook, pivots)
 
-    # 4c. Preserve vbaProject.bin if XLSM
+    # 5c. Preserve vbaProject.bin if XLSM
     if is_xlsm and source_pkg and source_pkg.has_part("xl/vbaProject.bin"):
         pkg_writer.replace_part(
             "xl/vbaProject.bin",
@@ -1967,10 +2450,7 @@ def write_xlsx(
             "application/vnd.ms-office.vbaProject",
         )
 
-    # 5. Core package plumbing (if not already carried or needed)
-    if not source_pkg or not source_pkg.has_part("xl/theme/theme1.xml"):
-        pkg_writer.add_part("xl/theme/theme1.xml", _serialize_theme(), CT_THEME)
-
+    # 6. Core package plumbing for new workbooks
     if not source_pkg or not source_pkg.has_part("docProps/core.xml"):
         pkg_writer.add_part("docProps/core.xml", _serialize_core_props(), CT_CORE_PROPS)
 
@@ -1981,10 +2461,10 @@ def write_xlsx(
     if not source_pkg or not source_pkg.has_part("_rels/.rels"):
         pkg_writer.add_part("_rels/.rels", _serialize_root_rels(), CT_RELATIONSHIPS)
 
-    # 6. Generate ZIP bytes
+    # 7. Generate ZIP bytes
     payload = pkg_writer.to_bytes()
 
-    # 7. Write to output if requested
+    # 8. Write to output if requested
     if output_path is not None:
         if hasattr(output_path, "write"):
             output_path.write(payload)

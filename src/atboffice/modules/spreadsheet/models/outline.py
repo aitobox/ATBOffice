@@ -116,7 +116,8 @@ def set_collapsed(sheet: Any, axis: str, grp: OutlineGroup, collapsed: bool) -> 
         hidden.update(range(grp.start, grp.end + 1))
     else:
         inner = [
-            g for g in groups(sheet, axis)
+            g
+            for g in groups(sheet, axis)
             if g.level > grp.level and grp.start <= g.start and g.end <= grp.end
         ]
         # An inner group counts as collapsed when its summary stays visible but its

@@ -5,7 +5,6 @@ Theme, indexed palette, and tint color resolution in XLSX reading & round-trip w
 from __future__ import annotations
 
 import io
-import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 
@@ -22,6 +21,7 @@ from atboffice.modules.spreadsheet.models.color_utils import (
     parse_theme_xml,
     resolve_color_spec,
 )
+from atboffice.vfs import etree as ET
 
 
 def test_default_indexed_palette_entries() -> None:
@@ -42,9 +42,7 @@ def test_normalize_hex_color() -> None:
 
 
 def test_color_priority_theme_beats_rgb_beats_indexed() -> None:
-    el = ET.fromstring(
-        '<color theme="5" rgb="FF112233" indexed="41" tint="0.5"/>'
-    )
+    el = ET.fromstring('<color theme="5" rgb="FF112233" indexed="41" tint="0.5"/>')
     spec = parse_color_element(el)
     assert spec == {"theme": 5, "tint": 0.5}
     resolved = resolve_color_spec(spec, DEFAULT_THEME_COLORS, DEFAULT_INDEXED_PALETTE)
@@ -78,7 +76,7 @@ def test_negative_and_positive_tint_math() -> None:
 
 
 def test_parse_theme_xml_extracts_12_colors_in_spreadsheetml_order() -> None:
-    theme_xml = b'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    theme_xml = b"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Custom">
       <a:themeElements>
         <a:clrScheme name="Custom">
@@ -100,7 +98,7 @@ def test_parse_theme_xml_extracts_12_colors_in_spreadsheetml_order() -> None:
           <a:minorFont><a:latin typeface="Calibri"/></a:minorFont>
         </a:fontScheme>
       </a:themeElements>
-    </a:theme>'''
+    </a:theme>"""
     parsed = parse_theme_xml(theme_xml)
     assert parsed["name"] == "Custom"
     assert parsed["colors"][0] == "#FAFAFA"  # lt1
@@ -182,9 +180,10 @@ def test_roundtrip_preserves_theme_and_indexed_attributes(filename: str) -> None
     wb = read_xlsx(orig_bytes)
     saved_bytes = write_xlsx(wb)
 
-    with zipfile.ZipFile(io.BytesIO(orig_bytes)) as z_orig, zipfile.ZipFile(
-        io.BytesIO(saved_bytes)
-    ) as z_saved:
+    with (
+        zipfile.ZipFile(io.BytesIO(orig_bytes)) as z_orig,
+        zipfile.ZipFile(io.BytesIO(saved_bytes)) as z_saved,
+    ):
         for part in z_orig.namelist():
             if not part.endswith(".xml"):
                 continue

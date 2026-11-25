@@ -10,7 +10,6 @@ import re
 from html import escape
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -22,15 +21,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.references import abs_range_name, parse_cell
 from atboffice.modules.spreadsheet.models.sheet_model import CellData
 
 if TYPE_CHECKING:
     from atboffice.ui.shell.ledger_window import LedgerWindow
-
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("LedgerCommands", text)
 
 
 # Toolbar buttons that only open a drop-down menu.
@@ -298,14 +294,18 @@ class LedgerCommands:
         layer = getattr(self.view, "object_layer", None)
         obj = getattr(layer, "selected_object", None) if layer else None
         if obj is None or not obj.children:
-            QMessageBox.information(
-                self.w, safe_tr("取消组合"), safe_tr("请先选择一个组合图形。")
-            )
+            QMessageBox.information(self.w, safe_tr("取消组合"), safe_tr("请先选择一个组合图形。"))
             return False
         geom = self.sheet.geometry if self.sheet is not None else SheetGeometry()
         frame = object_to_rect(
-            obj=obj, geometry=geom, scroll_x=0, scroll_y=0,
-            row_header_width=0, col_header_height=0, freeze_rows=0, freeze_cols=0,
+            obj=obj,
+            geometry=geom,
+            scroll_x=0,
+            scroll_y=0,
+            row_header_width=0,
+            col_header_height=0,
+            freeze_rows=0,
+            freeze_cols=0,
         )
         drawings = self.sheet.drawings
         idx = drawings.index(obj) if obj in drawings else len(drawings)

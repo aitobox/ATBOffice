@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
 from collections.abc import Sequence
+
+from atboffice.vfs import etree as ET
 
 # Canonical ECMA-376 child tag ordering tables
 SCHEMA_ORDERS: dict[str, list[str]] = {
@@ -263,7 +264,7 @@ def _strip_ns(tag: str) -> str:
 
 def enforce_schema_order(root_element: ET.Element, schema_family: str) -> None:
     """Sort child elements of root_element in-place to adhere to ECMA-376 schema.
-    
+
     Args:
         root_element: The XML Element whose immediate children need to be reordered.
         schema_family: The schema order family key (e.g. 'spreadsheetml_worksheet').

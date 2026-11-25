@@ -15,7 +15,6 @@ from PySide6.QtGui import (
     QPen,
 )
 from PySide6.QtWidgets import (
-    QApplication,
     QFrame,
     QGraphicsItem,
     QGraphicsSceneMouseEvent,
@@ -30,6 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.comment import (
     Comment,
     format_relative_time,
@@ -37,17 +37,6 @@ from atboffice.modules.presentation.models.comment import (
 
 if TYPE_CHECKING:
     from atboffice.modules.presentation.models.presentation import Presentation
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text with fallbacks."""
-    app = QApplication.instance()
-    if app:
-        translated = app.translate("CommentOverlay", text)
-        if translated and translated != text:
-            return translated
-    # Default to Chinese native text for ATBOffice
-    return text
 
 
 class CommentMarkerItem(QGraphicsItem):
@@ -85,9 +74,7 @@ class CommentMarkerItem(QGraphicsItem):
                 author_name = author.name
 
         time_str = format_relative_time(self.comment.created)
-        status_str = (
-            safe_tr("已解决") if self.comment.status == "resolved" else safe_tr("未解决")
-        )
+        status_str = safe_tr("已解决") if self.comment.status == "resolved" else safe_tr("未解决")
         preview = self.comment.text.strip().replace("\n", " ")
         if len(preview) > 60:
             preview = preview[:57] + "..."

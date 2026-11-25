@@ -136,15 +136,9 @@ class FormatObjectDialog(QDialog):
         self.grp_pos = QGroupBox(safe_tr("Object positioning"), self.tab_props)
         pos_layout = QVBoxLayout(self.grp_pos)
 
-        self.radio_two_cell = QRadioButton(
-            safe_tr("&Move and size with cells"), self.grp_pos
-        )
-        self.radio_one_cell = QRadioButton(
-            safe_tr("Move &but don't size with cells"), self.grp_pos
-        )
-        self.radio_absolute = QRadioButton(
-            safe_tr("&Don't move or size with cells"), self.grp_pos
-        )
+        self.radio_two_cell = QRadioButton(safe_tr("&Move and size with cells"), self.grp_pos)
+        self.radio_one_cell = QRadioButton(safe_tr("Move &but don't size with cells"), self.grp_pos)
+        self.radio_absolute = QRadioButton(safe_tr("&Don't move or size with cells"), self.grp_pos)
 
         self.btn_group_pos = QButtonGroup(self.grp_pos)
         self.btn_group_pos.addButton(self.radio_two_cell, 0)
@@ -176,8 +170,7 @@ class FormatObjectDialog(QDialog):
 
         # Buttons
         self.button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok
-            | QDialogButtonBox.StandardButton.Cancel,
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
             self,
         )
         self.button_box.accepted.connect(self._apply_and_accept)

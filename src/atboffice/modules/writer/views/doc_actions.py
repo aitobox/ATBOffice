@@ -181,15 +181,24 @@ def _format_date(fmt: str, when: _dt.datetime | None = None) -> str:
     """Render a Word date picture (``MMMM d, yyyy``, ``yyyy-MM-dd``, ``h:mm am/pm``...)."""
     when = when or _dt.datetime.now()
     tokens = [
-        ("yyyy", f"{when.year:04d}"), ("yy", f"{when.year % 100:02d}"),
-        ("MMMM", when.strftime("%B")), ("MMM", when.strftime("%b")),
-        ("MM", f"{when.month:02d}"), ("M", str(when.month)),
-        ("dddd", when.strftime("%A")), ("ddd", when.strftime("%a")),
-        ("dd", f"{when.day:02d}"), ("d", str(when.day)),
-        ("HH", f"{when.hour:02d}"), ("H", str(when.hour)),
-        ("hh", f"{(when.hour % 12) or 12:02d}"), ("h", str((when.hour % 12) or 12)),
-        ("mm", f"{when.minute:02d}"), ("ss", f"{when.second:02d}"),
-        ("am/pm", "am" if when.hour < 12 else "pm"), ("AM/PM", "AM" if when.hour < 12 else "PM"),
+        ("yyyy", f"{when.year:04d}"),
+        ("yy", f"{when.year % 100:02d}"),
+        ("MMMM", when.strftime("%B")),
+        ("MMM", when.strftime("%b")),
+        ("MM", f"{when.month:02d}"),
+        ("M", str(when.month)),
+        ("dddd", when.strftime("%A")),
+        ("ddd", when.strftime("%a")),
+        ("dd", f"{when.day:02d}"),
+        ("d", str(when.day)),
+        ("HH", f"{when.hour:02d}"),
+        ("H", str(when.hour)),
+        ("hh", f"{(when.hour % 12) or 12:02d}"),
+        ("h", str((when.hour % 12) or 12)),
+        ("mm", f"{when.minute:02d}"),
+        ("ss", f"{when.second:02d}"),
+        ("am/pm", "am" if when.hour < 12 else "pm"),
+        ("AM/PM", "AM" if when.hour < 12 else "PM"),
     ]
     pattern = "|".join(re.escape(t) for t, _ in tokens)
     mapping = dict(tokens)
@@ -247,12 +256,16 @@ def add_bookmark(canvas: Any, name: str) -> bool:
         return False
     ctrl = canvas.controller
     bid = _new_bookmark_id(canvas.doc)
-    start, end = ctrl.selection.ordered_range(canvas.doc) if not ctrl.selection.is_collapsed else (
-        ctrl.pos, ctrl.pos
+    start, end = (
+        ctrl.selection.ordered_range(canvas.doc)
+        if not ctrl.selection.is_collapsed
+        else (ctrl.pos, ctrl.pos)
     )
     if start.para_id == end.para_id:
-        p = current_paragraph(canvas) if ctrl.pos.para_id == start.para_id else (
-            ctrl._paragraph_by_id(start.para_id)
+        p = (
+            current_paragraph(canvas)
+            if ctrl.pos.para_id == start.para_id
+            else (ctrl._paragraph_by_id(start.para_id))
         )
         if p is None:
             return False
@@ -283,7 +296,8 @@ def delete_bookmark(canvas: Any, name: str) -> bool:
         return False
     for p in canvas.doc.all_paras():
         p.runs[:] = [
-            it for it in p.runs
+            it
+            for it in p.runs
             if not (getattr(it, "t", "") == "be" and getattr(it, "bookmark_id", None) == bid)
         ]
     return True
@@ -378,8 +392,10 @@ def headings(doc: Any, max_level: int = 3) -> list[tuple[int, str]]:
     for p in doc.all_paras():
         style = p.p_pr.style or ""
         m = re.match(r"(?i)heading\s*([1-9])$", style)
-        lvl = int(m.group(1)) if m else (
-            (p.p_pr.outline_level + 1) if p.p_pr.outline_level is not None else None
+        lvl = (
+            int(m.group(1))
+            if m
+            else ((p.p_pr.outline_level + 1) if p.p_pr.outline_level is not None else None)
         )
         if lvl and lvl <= max_level and ptext(p).strip():
             out.append((lvl, ptext(p).strip()))
@@ -427,8 +443,11 @@ def update_table_of_contents(canvas: Any) -> bool:
             if not isinstance(block, Paragraph):
                 continue
             begin = next(
-                (it for it in block.runs if getattr(it, "t", "") == "fb"
-                 and getattr(it, "field_type", "") == "TOC"),
+                (
+                    it
+                    for it in block.runs
+                    if getattr(it, "t", "") == "fb" and getattr(it, "field_type", "") == "TOC"
+                ),
                 None,
             )
             if begin is None:
@@ -461,8 +480,9 @@ def update_table_of_contents(canvas: Any) -> bool:
 
 def toc_paragraph(doc: Any) -> Paragraph | None:
     for p in doc.all_paras():
-        if any(getattr(it, "t", "") == "fb" and getattr(it, "field_type", "") == "TOC"
-               for it in p.runs):
+        if any(
+            getattr(it, "t", "") == "fb" and getattr(it, "field_type", "") == "TOC" for it in p.runs
+        ):
             return p
     return None
 
@@ -481,9 +501,14 @@ def apply_drop_cap(canvas: Any, data: dict[str, Any]) -> None:
         if p.p_pr.frame_pr and p.p_pr.frame_pr.get("dropCap"):
             p.p_pr.frame_pr = None
         return
-    frame = {"dropCap": "margin" if position == "margin" else "drop",
-             "lines": str(int(data.get("lines", 3))), "wrap": "around", "vAnchor": "text",
-             "hAnchor": "text", "hSpace": str(int(float(data.get("distance_cm", 0)) * 567))}
+    frame = {
+        "dropCap": "margin" if position == "margin" else "drop",
+        "lines": str(int(data.get("lines", 3))),
+        "wrap": "around",
+        "vAnchor": "text",
+        "hAnchor": "text",
+        "hSpace": str(int(float(data.get("distance_cm", 0)) * 567)),
+    }
     p.p_pr.frame_pr = frame
     if data.get("font"):
         for it in p.runs[:1]:
@@ -532,11 +557,19 @@ def apply_page_numbers(canvas: Any, settings: dict[str, Any]) -> None:
     assert story is not None
     para = Paragraph()
     para.p_pr.style = "Header" if kind == "hdr" else "Footer"
-    para.p_pr.jc = {"left": "left", "center": "center", "right": "right",
-                    "inside": "left", "outside": "right"}.get(
-        str(settings.get("alignment", "right")), "right")
-    para.runs = [FieldBeginItem(field_type="PAGE", instr=" PAGE "), FieldSeparateItem(),
-                 TextItem("1"), FieldEndItem()]
+    para.p_pr.jc = {
+        "left": "left",
+        "center": "center",
+        "right": "right",
+        "inside": "left",
+        "outside": "right",
+    }.get(str(settings.get("alignment", "right")), "right")
+    para.runs = [
+        FieldBeginItem(field_type="PAGE", instr=" PAGE "),
+        FieldSeparateItem(),
+        TextItem("1"),
+        FieldEndItem(),
+    ]
     blocks = [b for b in story.blocks if not (isinstance(b, Paragraph) and not b.runs)]
     story.blocks = [*blocks, para]
     doc.sect.title_pg = not settings.get("show_first_page", True)
@@ -757,8 +790,12 @@ def table_formula(canvas: Any, formula: str, number_format: str) -> None:
     p = current_paragraph(canvas)
     if p is None:
         return
-    insert_field(canvas, f"={expr}" + (f' \\# "{number_format}"' if number_format else ""),
-                 result or "!Syntax Error", "=")
+    insert_field(
+        canvas,
+        f"={expr}" + (f' \\# "{number_format}"' if number_format else ""),
+        result or "!Syntax Error",
+        "=",
+    )
 
 
 def _format_number(value: float, fmt: str) -> str:
@@ -777,11 +814,11 @@ def _neighbour_numbers(ctx: dict[str, Any], direction: str) -> list[float]:
     if direction == "ABOVE":
         cells = [row.cells[c_idx] for row in tbl.rows[:r_idx] if c_idx < len(row.cells)]
     elif direction == "BELOW":
-        cells = [row.cells[c_idx] for row in tbl.rows[r_idx + 1:] if c_idx < len(row.cells)]
+        cells = [row.cells[c_idx] for row in tbl.rows[r_idx + 1 :] if c_idx < len(row.cells)]
     elif direction == "LEFT":
         cells = tbl.rows[r_idx].cells[:c_idx]
     elif direction == "RIGHT":
-        cells = tbl.rows[r_idx].cells[c_idx + 1:]
+        cells = tbl.rows[r_idx].cells[c_idx + 1 :]
     out: list[float] = []
     for cell in cells:
         text = " ".join(ptext(b) for b in cell.blocks if isinstance(b, Paragraph))
@@ -853,6 +890,7 @@ def select_table(canvas: Any) -> bool:
 
 def set_language(canvas: Any, lang: str) -> None:
     """Tools → Language: tag the selection (or the caret paragraph) with ``lang``."""
+
     def apply(r_pr: RunProperties) -> None:
         if re.match(r"^(zh|ja|ko)", lang):
             r_pr.lang_ea = lang

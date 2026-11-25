@@ -19,7 +19,7 @@ NS = (
     'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
 )
 ONE_SERIES = (
-    "<c:ser><c:tx><c:strRef><c:strCache><c:pt idx=\"0\"><c:v>Demo</c:v></c:pt>"
+    '<c:ser><c:tx><c:strRef><c:strCache><c:pt idx="0"><c:v>Demo</c:v></c:pt>'
     "</c:strCache></c:strRef></c:tx>"
     '<c:val><c:numLit><c:pt idx="0"><c:v>1</c:v></c:pt></c:numLit></c:val></c:ser>'
 )
@@ -138,7 +138,7 @@ class TestAutomaticTitle:
 
     def test_cell_linked_title_uses_its_cached_text(self) -> None:
         title = (
-            "<c:title><c:tx><c:strRef><c:strCache><c:pt idx=\"0\"><c:v>Linked</c:v></c:pt>"
+            '<c:title><c:tx><c:strRef><c:strCache><c:pt idx="0"><c:v>Linked</c:v></c:pt>'
             "</c:strCache></c:strRef></c:tx></c:title>"
         )
         assert _worksheet_chart(_xml(title)).title == "Linked"

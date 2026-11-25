@@ -16,6 +16,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QWidget
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.writer.models.document import sect_for
 from atboffice.modules.writer.models.properties import SectionProperties
 from atboffice.modules.writer.views.rulers.types import (
@@ -27,7 +28,6 @@ from atboffice.modules.writer.views.rulers.types import (
     PT_PER_CM,
     PT_PER_INCH,
     RulerUnit,
-    safe_tr,
     snap_to_grid,
 )
 
@@ -342,18 +342,20 @@ class VerticalRuler(QWidget):
         if self._active_canvas and self._active_sect and self._orig_margins is not None:
             new_margins = (self._active_sect.mt, self._active_sect.mb)
             if new_margins != self._orig_margins:
-                self._active_canvas.push_undo_command({
-                    "type": "section_margins",
-                    "sect": self._active_sect,
-                    "before": {
-                        "mt": self._orig_margins[0],
-                        "mb": self._orig_margins[1],
-                    },
-                    "after": {
-                        "mt": self._active_sect.mt,
-                        "mb": self._active_sect.mb,
-                    },
-                })
+                self._active_canvas.push_undo_command(
+                    {
+                        "type": "section_margins",
+                        "sect": self._active_sect,
+                        "before": {
+                            "mt": self._orig_margins[0],
+                            "mb": self._orig_margins[1],
+                        },
+                        "after": {
+                            "mt": self._active_sect.mt,
+                            "mb": self._active_sect.mb,
+                        },
+                    }
+                )
 
         if self._active_canvas:
             self._active_canvas.controller.repaginate_and_refresh()

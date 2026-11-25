@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, QEvent, QPoint, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, Qt, Signal
 from PySide6.QtGui import QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QFrame,
@@ -25,15 +25,11 @@ from PySide6.QtWidgets import (
 )
 
 from atboffice.core.action_registry import ActionRegistry
+from atboffice.core.i18n import safe_tr
 from atboffice.ui.icons import get_office_icon
 
 if TYPE_CHECKING:
     pass
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for CommandSearchBox."""
-    return QCoreApplication.translate("CommandSearchBox", text)
 
 
 # Bilingual synonym map aligned with .vibeoffice/public/common/search.js
@@ -517,8 +513,7 @@ class CommandSearchBox(QWidget):
                 words = set(_WORD.findall(lbl_lower)) | set(_WORD.findall(aid_lower))
                 long_tokens = [t for t in tokens if len(t) >= 3]
                 if long_tokens and all(
-                    any(len(w) >= 3 and within_one_edit(t, w) for w in words)
-                    for t in long_tokens
+                    any(len(w) >= 3 and within_one_edit(t, w) for w in words) for t in long_tokens
                 ):
                     score = 3.0
 

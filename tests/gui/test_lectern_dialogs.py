@@ -276,4 +276,3 @@ def test_setup_show_range_swapping(app):
 
     assert pres.show.from_slide == 2
     assert pres.show.to_slide == 4
-

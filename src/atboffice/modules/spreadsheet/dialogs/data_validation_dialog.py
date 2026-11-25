@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -22,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.models.validation import (
     AlertStyle,
     DataValidation,
@@ -31,11 +31,6 @@ from atboffice.modules.spreadsheet.models.validation import (
 
 if TYPE_CHECKING:
     pass
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("DataValidationDialog", text)
 
 
 class DataValidationDialog(QDialog):

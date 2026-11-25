@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
     QGridLayout,
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.goal_seek import (
     GoalSeekParams,
     GoalSeekResult,
@@ -29,11 +30,6 @@ from atboffice.modules.spreadsheet.calc.references import cell_name
 if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
     from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for Goal Seek dialogs."""
-    return QCoreApplication.translate("GoalSeekDialog", text)
 
 
 def _get_sheet(workbook: Any, name: str) -> Any:

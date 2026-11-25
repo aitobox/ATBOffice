@@ -26,6 +26,7 @@ def test_full_corpus_gitignored():
 
 def test_extension_mapping():
     from scripts.fetch_corpora import get_app_for_extension
+
     assert get_app_for_extension(".docx") == "word"
     assert get_app_for_extension(".DOC") == "word"
     assert get_app_for_extension(".xlsx") == "excel"
@@ -115,9 +116,7 @@ def test_curated_files_format_integrity():
     assert valid_ooxml_count >= 70, (
         f"Expected at least 70 valid OOXML files, got {valid_ooxml_count}"
     )
-    assert valid_ole2_count >= 60, (
-        f"Expected at least 60 valid OLE2 files, got {valid_ole2_count}"
-    )
+    assert valid_ole2_count >= 60, f"Expected at least 60 valid OLE2 files, got {valid_ole2_count}"
     # Intentionally malformed/fuzz files from Bugzilla CVEs should also be present
     # for robustness testing
     assert fuzz_malformed_count > 0, (

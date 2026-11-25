@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QRect, Qt
+from PySide6.QtCore import QRect, Qt
 from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import (
     QColorDialog,
@@ -19,12 +19,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.models.sheet_model import BorderStyle
-
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("BorderTab", text)
-
 
 LINE_STYLES = [
     ("none", "无"),
@@ -128,9 +124,7 @@ class BorderPreviewCanvas(QWidget):
             safe_tr("文本"),
         )
 
-        def draw_border_line(
-            bs: BorderStyle | None, xa: int, ya: int, xb: int, yb: int
-        ) -> None:
+        def draw_border_line(bs: BorderStyle | None, xa: int, ya: int, xb: int, yb: int) -> None:
             if not bs or bs.style == "none":
                 return
             col = QColor(bs.color) if bs.color else QColor("#000000")
@@ -236,9 +230,7 @@ class BorderTab(QWidget):
         self.btn_bottom = QPushButton(safe_tr("下"))
 
         self.btn_top.clicked.connect(lambda: self.toggle_border("top"))
-        self.btn_inside_h.clicked.connect(
-            lambda: self.toggle_border("inside_h")
-        )
+        self.btn_inside_h.clicked.connect(lambda: self.toggle_border("inside_h"))
         self.btn_bottom.clicked.connect(lambda: self.toggle_border("bottom"))
 
         left_btns.addWidget(self.btn_top)
@@ -262,13 +254,9 @@ class BorderTab(QWidget):
 
         self.btn_diag_up.clicked.connect(lambda: self.toggle_border("diag_up"))
         self.btn_left.clicked.connect(lambda: self.toggle_border("left"))
-        self.btn_inside_v.clicked.connect(
-            lambda: self.toggle_border("inside_v")
-        )
+        self.btn_inside_v.clicked.connect(lambda: self.toggle_border("inside_v"))
         self.btn_right.clicked.connect(lambda: self.toggle_border("right"))
-        self.btn_diag_down.clicked.connect(
-            lambda: self.toggle_border("diag_down")
-        )
+        self.btn_diag_down.clicked.connect(lambda: self.toggle_border("diag_down"))
 
         bot_btns.addWidget(self.btn_diag_up)
         bot_btns.addWidget(self.btn_left)
@@ -322,9 +310,7 @@ class BorderTab(QWidget):
         self._active_color = color_hex
         if color_hex and color_hex.lower() != "#000000":
             self.btn_color.setText("")
-            self.btn_color.setStyleSheet(
-                f"background-color: {color_hex}; border: 1px solid #888;"
-            )
+            self.btn_color.setStyleSheet(f"background-color: {color_hex}; border: 1px solid #888;")
         else:
             self.btn_color.setText(safe_tr("自动"))
             self.btn_color.setStyleSheet("")

@@ -9,12 +9,8 @@ from atboffice.vfs.opc import PackageWriter, SourcePackage
 NS_REL_DOC = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
 NS_REL_WS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"
 NS_REL_VBA = "http://schemas.microsoft.com/office/2006/relationships/vbaProject"
-CT_SHEET_MAIN = (
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
-)
-CT_WORKSHEET = (
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"
-)
+CT_SHEET_MAIN = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
+CT_WORKSHEET = "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"
 CT_VBA = "application/vnd.ms-office.vbaProject"
 CT_RELS = "application/vnd.openxmlformats-package.relationships+xml"
 
@@ -31,7 +27,7 @@ def make_sample_xlsx_bytes() -> bytes:
             f'  <Default Extension="bin" ContentType="{CT_VBA}"/>\n'
             f'  <Override PartName="/xl/workbook.xml" ContentType="{CT_SHEET_MAIN}"/>\n'
             f'  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="{CT_WORKSHEET}"/>\n'
-            '</Types>'
+            "</Types>"
         )
         zf.writestr("[Content_Types].xml", content_types.encode("utf-8"))
 
@@ -40,7 +36,7 @@ def make_sample_xlsx_bytes() -> bytes:
             '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
             f'  <Relationship Id="rId1" Type="{NS_REL_DOC}" Target="xl/workbook.xml"/>\n'
-            '</Relationships>'
+            "</Relationships>"
         )
         zf.writestr("_rels/.rels", root_rels.encode("utf-8"))
 
@@ -54,7 +50,7 @@ def make_sample_xlsx_bytes() -> bytes:
             '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
             f'  <Relationship Id="rId1" Type="{NS_REL_WS}" Target="worksheets/sheet1.xml"/>\n'
             f'  <Relationship Id="rId2" Type="{NS_REL_VBA}" Target="vbaProject.bin"/>\n'
-            '</Relationships>'
+            "</Relationships>"
         )
         zf.writestr("xl/_rels/workbook.xml.rels", wb_rels.encode("utf-8"))
 
@@ -62,12 +58,12 @@ def make_sample_xlsx_bytes() -> bytes:
         ws = (
             '<worksheet><sheetData><row r="1">'
             '<c r="A1"><v>100</v></c>'
-            '</row></sheetData></worksheet>'
+            "</row></sheetData></worksheet>"
         )
         zf.writestr("xl/worksheets/sheet1.xml", ws.encode("utf-8"))
 
         # xl/vbaProject.bin (binary macro part to test byte-for-byte carry)
-        vba_raw = b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x01\x02\x03\xFF\xFE\x00\x01"
+        vba_raw = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1\x00\x01\x02\x03\xff\xfe\x00\x01"
         zf.writestr("xl/vbaProject.bin", vba_raw)
 
     return buf.getvalue()
@@ -90,7 +86,7 @@ def test_source_package_inspection(tmp_path: Path):
 
     # Part reading
     assert b"100" in pkg.read_part("xl/worksheets/sheet1.xml")
-    expected_vba = b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x01\x02\x03\xFF\xFE\x00\x01"
+    expected_vba = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1\x00\x01\x02\x03\xff\xfe\x00\x01"
     assert pkg.read_part("xl/vbaProject.bin") == expected_vba
 
     # Relationships
@@ -112,9 +108,7 @@ def test_package_writer_byte_for_byte_carry(tmp_path: Path):
     writer = PackageWriter(source_package=pkg)
     # Modify worksheet content
     modified_ws = (
-        b'<worksheet><sheetData><row r="1">'
-        b'<c r="A1"><v>999</v></c>'
-        b'</row></sheetData></worksheet>'
+        b'<worksheet><sheetData><row r="1"><c r="A1"><v>999</v></c></row></sheetData></worksheet>'
     )
     writer.replace_part("xl/worksheets/sheet1.xml", modified_ws)
 
@@ -128,7 +122,7 @@ def test_package_writer_byte_for_byte_carry(tmp_path: Path):
     # 1. Modified part has new content
     assert saved_pkg.read_part("xl/worksheets/sheet1.xml") == modified_ws
     # 2. Unmodified binary part is byte-for-byte identical
-    expected_vba = b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x01\x02\x03\xFF\xFE\x00\x01"
+    expected_vba = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1\x00\x01\x02\x03\xff\xfe\x00\x01"
     assert saved_pkg.read_part("xl/vbaProject.bin") == expected_vba
     # 3. Content types intact
     assert saved_pkg.get_content_type("xl/vbaProject.bin") == CT_VBA

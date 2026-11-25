@@ -70,8 +70,8 @@ def apply_cascading_placeholder_styles(
 
     # Color
     if is_title:
-        target_color = (
-            getattr(design.colors, "dk2", None) or getattr(design.colors, "dk1", "#000000")
+        target_color = getattr(design.colors, "dk2", None) or getattr(
+            design.colors, "dk1", "#000000"
         )
     elif is_footer:
         target_color = getattr(design.colors, "dk1", "#000000")
@@ -207,9 +207,7 @@ def resolve_unoverridden_placeholders(
     existing_types = {s.placeholder.type for s in slide.shapes if s.placeholder}
 
     slide_idx = (
-        presentation.slides.index(slide)
-        if (presentation and slide in presentation.slides)
-        else 0
+        presentation.slides.index(slide) if (presentation and slide in presentation.slides) else 0
     )
 
     # 1. Unoverridden Layout Placeholders (title, body, subTitle, obj, etc.)

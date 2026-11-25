@@ -1,6 +1,5 @@
 """Unit tests for Lectern Presentation Models (Issue #39)."""
 
-
 from atboffice.modules.presentation.models.shape import (
     Fill,
     Line,
@@ -319,8 +318,3 @@ def test_shape_transforms():
     assert sh.y == 60.0
     assert sh.w == 200.0
     assert sh.h == 100.0
-
-
-
-
-

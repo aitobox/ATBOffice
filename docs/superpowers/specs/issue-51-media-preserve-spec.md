@@ -26,6 +26,7 @@ class PlaybackSettings:
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> PlaybackSettings: ...
 
+
 @dataclass
 class MediaItem:
     media_type: str  # "video" | "audio"
@@ -38,9 +39,13 @@ class MediaItem:
     original_element: str = "videoFile"  # "videoFile", "audioFile", "p14:media"
 
     @property
-    def is_video(self) -> bool: return self.media_type == "video"
+    def is_video(self) -> bool:
+        return self.media_type == "video"
+
     @property
-    def is_audio(self) -> bool: return self.media_type == "audio"
+    def is_audio(self) -> bool:
+        return self.media_type == "audio"
+
     @property
     def extension(self) -> str: ...
     @property

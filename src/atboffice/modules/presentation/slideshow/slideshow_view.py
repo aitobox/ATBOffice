@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.shape import Fill, Line, Shape
 from atboffice.modules.presentation.models.slide import Slide, Transition
 from atboffice.modules.presentation.slideshow.animations import (
@@ -42,7 +43,6 @@ from atboffice.modules.presentation.slideshow.transitions import (
     get_transition_duration,
     render_slide_to_image,
     render_transition_frame,
-    safe_tr,
 )
 
 if TYPE_CHECKING:

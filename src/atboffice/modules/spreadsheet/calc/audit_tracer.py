@@ -168,9 +168,7 @@ class AuditTracer:
         )
 
     @staticmethod
-    def _get_sheet(
-        workbook: WorkbookModel | None, sheet_name: str
-    ) -> SheetDataModel | None:
+    def _get_sheet(workbook: WorkbookModel | None, sheet_name: str) -> SheetDataModel | None:
         if workbook is None:
             return None
         for s in workbook.sheets:

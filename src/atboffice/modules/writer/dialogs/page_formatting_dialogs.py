@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -38,10 +37,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("PageFormattingDialogs", text)
+from atboffice.core.i18n import safe_tr
 
 
 class DropCapDialog(QDialog):
@@ -85,18 +81,20 @@ class DropCapDialog(QDialog):
         f_layout = QFormLayout(self.grp_options)
 
         self.combo_font = QComboBox(self.grp_options)
-        self.combo_font.addItems([
-            "宋体",
-            "黑体",
-            "仿宋",
-            "楷体",
-            "微软雅黑",
-            "Arial",
-            "Times New Roman",
-            "Courier New",
-            "Georgia",
-            "Verdana",
-        ])
+        self.combo_font.addItems(
+            [
+                "宋体",
+                "黑体",
+                "仿宋",
+                "楷体",
+                "微软雅黑",
+                "Arial",
+                "Times New Roman",
+                "Courier New",
+                "Georgia",
+                "Verdana",
+            ]
+        )
         idx = self.combo_font.findText(initial_font)
         if idx >= 0:
             self.combo_font.setCurrentIndex(idx)
@@ -270,31 +268,35 @@ class WatermarkDialog(QDialog):
 
         self.combo_text = QComboBox(self.grp_text)
         self.combo_text.setEditable(True)
-        self.combo_text.addItems([
-            "绝密",
-            "机密",
-            "内部参考",
-            "样本",
-            "草稿",
-            "CONFIDENTIAL",
-            "DO NOT COPY",
-            "DRAFT",
-            "ORIGINAL",
-            "TOP SECRET",
-        ])
+        self.combo_text.addItems(
+            [
+                "绝密",
+                "机密",
+                "内部参考",
+                "样本",
+                "草稿",
+                "CONFIDENTIAL",
+                "DO NOT COPY",
+                "DRAFT",
+                "ORIGINAL",
+                "TOP SECRET",
+            ]
+        )
         if text_content:
             self.combo_text.setEditText(text_content)
 
         self.combo_font = QComboBox(self.grp_text)
-        self.combo_font.addItems([
-            "宋体",
-            "黑体",
-            "楷体",
-            "微软雅黑",
-            "Arial",
-            "Times New Roman",
-            "Calibri",
-        ])
+        self.combo_font.addItems(
+            [
+                "宋体",
+                "黑体",
+                "楷体",
+                "微软雅黑",
+                "Arial",
+                "Times New Roman",
+                "Calibri",
+            ]
+        )
         idx = self.combo_font.findText(font_name)
         if idx >= 0:
             self.combo_font.setCurrentIndex(idx)
@@ -459,13 +461,15 @@ class PageNumbersDialog(QDialog):
         self.grp_format = QGroupBox(safe_tr("数字格式"), self)
         fmt_layout = QFormLayout(self.grp_format)
         self.combo_number_format = QComboBox(self.grp_format)
-        self.combo_number_format.addItems([
-            "1, 2, 3, ...",
-            "a, b, c, ...",
-            "A, B, C, ...",
-            "i, ii, iii, ...",
-            "I, II, III, ...",
-        ])
+        self.combo_number_format.addItems(
+            [
+                "1, 2, 3, ...",
+                "a, b, c, ...",
+                "A, B, C, ...",
+                "i, ii, iii, ...",
+                "I, II, III, ...",
+            ]
+        )
 
         self.radio_continue = QRadioButton(safe_tr("续前节(&C)"), self.grp_format)
         self.radio_start_at = QRadioButton(safe_tr("起始页码(&A):"), self.grp_format)

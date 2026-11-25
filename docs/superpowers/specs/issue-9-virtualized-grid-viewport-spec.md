@@ -75,7 +75,10 @@ class FormattedResult:
     is_numeric: bool = False
     is_error: bool = False
 
-def format_value(value: Any, format_str: str = "General", lcid: int | str = 0x04) -> FormattedResult:
+
+def format_value(
+    value: Any, format_str: str = "General", lcid: int | str = 0x04
+) -> FormattedResult:
     """Format any scalar value according to Excel format specifications."""
     ...
 ```

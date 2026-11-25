@@ -653,4 +653,3 @@ def sect_for(doc: Document, p: Paragraph) -> SectionProperties:
 
 
 DocumentModel = Document
-

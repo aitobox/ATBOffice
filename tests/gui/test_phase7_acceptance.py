@@ -35,6 +35,7 @@ from atboffice.ui.shell.quire_window import QuireWindow
 # 1. Quire E2E User Journey Acceptance
 # ==============================================================================
 
+
 def test_quire_user_journey_e2e_acceptance(qtbot, monkeypatch, tmp_path: Path):
     """Quire complete user path: Typing -> Format -> Undo/Redo -> Save DOCX -> Reopen."""
     win = QuireWindow()
@@ -90,6 +91,7 @@ def test_quire_user_journey_e2e_acceptance(qtbot, monkeypatch, tmp_path: Path):
 # ==============================================================================
 # 2. Ledger E2E User Journey Acceptance (Context Menu + Autofill)
 # ==============================================================================
+
 
 def test_ledger_user_journey_e2e_acceptance(qtbot, monkeypatch, tmp_path: Path):
     """Ledger complete user path: Cells/Formula -> Context Menu -> Drag Fill -> Save XLSX."""
@@ -215,6 +217,7 @@ def test_ledger_user_journey_e2e_acceptance(qtbot, monkeypatch, tmp_path: Path):
 # 3. Lectern E2E User Journey Acceptance
 # ==============================================================================
 
+
 def test_lectern_user_journey_e2e_acceptance(qtbot, monkeypatch, tmp_path: Path):
     """Lectern complete user path: Slides & Shapes -> Format -> Undo/Redo -> Save PPTX -> Reopen."""
     win = LecternWindow()
@@ -282,6 +285,7 @@ def test_lectern_user_journey_e2e_acceptance(qtbot, monkeypatch, tmp_path: Path)
 # 4. Transactional Safety & Diagnostics Rollback Gate (TASK-702, TASK-703)
 # ==============================================================================
 
+
 def test_phase7_transactional_safety_and_diagnostics(qtbot, monkeypatch, tmp_path: Path):
     """Corrupted/invalid document open must be rejected with transactional rollback."""
     win = QuireWindow()
@@ -318,6 +322,7 @@ def test_phase7_transactional_safety_and_diagnostics(qtbot, monkeypatch, tmp_pat
 # 5. Multi-Locale Dynamic Switching Gate (TASK-712)
 # ==============================================================================
 
+
 def test_phase7_dynamic_locales_and_retranslate(qtbot):
     """Switch dynamically across all 9 supported locales with clean retranslate_ui."""
     mgr = get_i18n_manager()
@@ -346,6 +351,7 @@ def test_phase7_dynamic_locales_and_retranslate(qtbot):
 # 6. Mixed Operation Lifecycle Stress Gate
 # ==============================================================================
 
+
 def test_phase7_mixed_operation_lifecycle_stress(qtbot):
     """Run sequential mixed operations across editors verifying zero unhandled exceptions."""
     for i in range(5):
@@ -371,6 +377,7 @@ def test_phase7_mixed_operation_lifecycle_stress(qtbot):
 # ==============================================================================
 # 7. Verification Matrix Completeness Audit Gate
 # ==============================================================================
+
 
 def test_phase7_features_matrix_evidence():
     """Verify phase7_features.csv exists and all must items are verified with evidence."""

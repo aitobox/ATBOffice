@@ -5,9 +5,6 @@ from __future__ import annotations
 import io
 import zipfile
 
-import pytest
-from PySide6.QtWidgets import QApplication
-
 from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
 from atboffice.modules.spreadsheet.io.xlsx_writer import write_xlsx
 from atboffice.modules.spreadsheet.models.sheet_model import (
@@ -25,14 +22,6 @@ from atboffice.modules.spreadsheet.views.object_layer import (
     object_to_rect,
     rect_to_anchor,
 )
-
-
-@pytest.fixture(scope="session")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication([])
-    return app
 
 
 def test_floating_object_model_and_anchors():

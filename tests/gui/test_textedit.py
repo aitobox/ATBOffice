@@ -275,8 +275,7 @@ class TestAutoFitIntegration:
 
         editor = item.start_text_editing()
         editor.setPlainText(
-            "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\n"
-            "Line 6\nLine 7\nLine 8\nLine 9\nLine 10"
+            "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10"
         )
         editor.apply_autofit("shape")
 
@@ -291,14 +290,15 @@ class TestContextAndI18n:
     def test_safe_tr_translations(self) -> None:
         assert safe_tr("Bold") == "加粗"
         assert safe_tr("Italic") == "倾斜"
-        assert safe_tr("Increase Indent") == "增加缩进 (降级)"
-        assert safe_tr("Decrease Indent") == "减少缩进 (升级)"
+        assert safe_tr("Increase Indent") == "增加缩进量"
+        assert safe_tr("Decrease Indent") == "减少缩进量"
 
     def test_context_menu_actions(self, scene_and_view) -> None:
         scene, view, item = scene_and_view
         editor = item.start_text_editing()
 
         from PySide6.QtWidgets import QMenu
+
         menu = QMenu()
         editor._populate_context_menu(menu)
         action_texts = [a.text() for a in menu.actions() if a.text()]

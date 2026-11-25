@@ -171,6 +171,9 @@ class Slide:
     raw_timing_xml: str | None = None
     is_imported: bool = False
     clr_map_ovr: dict[str, str] = field(default_factory=dict)
+    # Numeric id from <p:sldId id="..."> (256..2^31-1). Kept on save because section
+    # lists and custom shows reference slides by it. None for slides created here.
+    pres_slide_id: int | None = None
 
     def add_shape(self, shape: Shape) -> None:
         self.shapes.append(shape)

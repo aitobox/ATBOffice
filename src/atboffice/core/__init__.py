@@ -21,4 +21,3 @@ __all__ = [
     "get_app_settings",
     "WindowManager",
 ]
-

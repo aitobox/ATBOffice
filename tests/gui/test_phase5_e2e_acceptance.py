@@ -41,6 +41,7 @@ def replay_runner(tmp_path: Path) -> SubprocessReplayRunner:
 # 1. Quire E2E Workflow & Roundtrip Acceptance
 # ==============================================================================
 
+
 def test_quire_e2e_workflow_and_roundtrip(qtbot, monkeypatch, tmp_path: Path):
     """Quire complete lifecycle: New -> Input -> Format -> Undo/Redo -> Save -> Reopen."""
     win = QuireWindow()
@@ -117,6 +118,7 @@ def test_quire_e2e_workflow_and_roundtrip(qtbot, monkeypatch, tmp_path: Path):
 # ==============================================================================
 # 2. Ledger E2E Workflow & Roundtrip Acceptance
 # ==============================================================================
+
 
 def test_ledger_e2e_workflow_and_roundtrip(qtbot, monkeypatch, tmp_path: Path):
     """Ledger complete lifecycle: New -> Data & Formula -> Format -> Undo/Redo -> Save."""
@@ -207,6 +209,7 @@ def test_ledger_e2e_workflow_and_roundtrip(qtbot, monkeypatch, tmp_path: Path):
 # 3. Lectern E2E Workflow & Roundtrip Acceptance
 # ==============================================================================
 
+
 def test_lectern_e2e_workflow_and_roundtrip(qtbot, monkeypatch, tmp_path: Path):
     """Lectern complete lifecycle: New -> Shapes & Text -> Format -> Undo/Redo -> Save."""
     win = LecternWindow()
@@ -293,6 +296,7 @@ def test_lectern_e2e_workflow_and_roundtrip(qtbot, monkeypatch, tmp_path: Path):
 # ==============================================================================
 # 4. Three Modules Native In-Process 100 Mixed GUI Interactions
 # ==============================================================================
+
 
 def test_three_modules_in_process_100_mixed_interactions(qtbot):
     """Execute >= 100 mixed GUI interactions across Quire, Ledger, and Lectern
@@ -393,6 +397,7 @@ def test_three_modules_in_process_100_mixed_interactions(qtbot):
 # ==============================================================================
 # 5. Three Modules Isolated Subprocess 100 Stress Replay
 # ==============================================================================
+
 
 @pytest.mark.parametrize("module", ["quire", "ledger", "lectern"])
 def test_three_modules_subprocess_100_stress_replay(

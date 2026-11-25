@@ -32,10 +32,7 @@ class TableStylePart:
 
     def is_empty(self) -> bool:
         return (
-            self.fill is None
-            and self.font_color is None
-            and self.bold is None
-            and not self.borders
+            self.fill is None and self.font_color is None and self.bold is None and not self.borders
         )
 
 

@@ -1,6 +1,5 @@
 """Unit tests for spreadsheet selection model and geometry."""
 
-
 from atboffice.modules.spreadsheet.models.selection_model import (
     SelectionModel,
     SelectionRange,

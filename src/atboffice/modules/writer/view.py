@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication, Signal
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QGridLayout, QStackedWidget, QVBoxLayout, QWidget
 
 from atboffice.modules.writer.models.document import Document, Paragraph, all_paragraphs
@@ -23,11 +23,6 @@ from atboffice.modules.writer.views.view_modes import ViewMode
 
 if TYPE_CHECKING:
     from atboffice.modules.writer.dialogs.word_count_dlg import WordCountDialog
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("WriterView", text)
 
 
 class WriterView(QWidget):
@@ -192,12 +187,14 @@ class WriterView(QWidget):
 
                 old_tabs = copy.deepcopy(p.p_pr.tabs)
                 p.p_pr.tabs = copy.deepcopy(new_tabs)
-                self.canvas_view.push_undo_command({
-                    "type": "paragraph_tabs",
-                    "para_id": p.id,
-                    "before": old_tabs,
-                    "after": copy.deepcopy(new_tabs),
-                })
+                self.canvas_view.push_undo_command(
+                    {
+                        "type": "paragraph_tabs",
+                        "para_id": p.id,
+                        "before": old_tabs,
+                        "after": copy.deepcopy(new_tabs),
+                    }
+                )
                 self.h_ruler.tab_stops_changed.emit(p.p_pr.tabs)
                 self.canvas_view.controller.repaginate_and_refresh()
                 self.h_ruler.update_geometry_from_canvas()
@@ -215,12 +212,14 @@ class WriterView(QWidget):
         if dlg.exec():
             new_state = {"ml": sect.ml, "mr": sect.mr, "mt": sect.mt, "mb": sect.mb}
             if self.canvas_view and new_state != old_state:
-                self.canvas_view.push_undo_command({
-                    "type": "section_margins",
-                    "sect": sect,
-                    "before": old_state,
-                    "after": new_state,
-                })
+                self.canvas_view.push_undo_command(
+                    {
+                        "type": "section_margins",
+                        "sect": sect,
+                        "before": old_state,
+                        "after": new_state,
+                    }
+                )
                 self.canvas_view.controller.repaginate_and_refresh()
                 self.h_ruler.update_geometry_from_canvas()
                 self.v_ruler.update_geometry_from_canvas()

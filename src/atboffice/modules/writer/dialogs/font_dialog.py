@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -24,13 +24,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.writer.models.properties import RunProperties
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("FontDialog", text)
-
 
 CHINESE_FONT_SIZES: list[tuple[str, float]] = [
     ("初号", 42.0),
@@ -52,8 +47,27 @@ CHINESE_FONT_SIZES: list[tuple[str, float]] = [
 ]
 
 POINT_FONT_SIZES: list[float] = [
-    5.0, 5.5, 6.5, 7.5, 8.0, 9.0, 10.0, 10.5, 11.0, 12.0, 14.0, 16.0,
-    18.0, 20.0, 22.0, 24.0, 26.0, 28.0, 36.0, 48.0, 72.0,
+    5.0,
+    5.5,
+    6.5,
+    7.5,
+    8.0,
+    9.0,
+    10.0,
+    10.5,
+    11.0,
+    12.0,
+    14.0,
+    16.0,
+    18.0,
+    20.0,
+    22.0,
+    24.0,
+    26.0,
+    28.0,
+    36.0,
+    48.0,
+    72.0,
 ]
 
 
@@ -135,24 +149,42 @@ class FontDialog(QDialog):
         self.lbl_latin_font = QLabel(self.tab_font)
         self.combo_latin_font = QComboBox(self.tab_font)
         self.combo_latin_font.setEditable(True)
-        self.combo_latin_font.addItems([
-            "Times New Roman", "Arial", "Courier New", "Calibri",
-            "Georgia", "Tahoma", "Verdana", "Segoe UI",
-        ])
+        self.combo_latin_font.addItems(
+            [
+                "Times New Roman",
+                "Arial",
+                "Courier New",
+                "Calibri",
+                "Georgia",
+                "Tahoma",
+                "Verdana",
+                "Segoe UI",
+            ]
+        )
 
         self.lbl_ea_font = QLabel(self.tab_font)
         self.combo_ea_font = QComboBox(self.tab_font)
         self.combo_ea_font.setEditable(True)
-        self.combo_ea_font.addItems([
-            "宋体", "黑体", "楷体", "仿宋", "微软雅黑",
-            "SimSun", "SimHei", "KaiTi", "FangSong", "Microsoft YaHei",
-        ])
+        self.combo_ea_font.addItems(
+            [
+                "宋体",
+                "黑体",
+                "楷体",
+                "仿宋",
+                "微软雅黑",
+                "SimSun",
+                "SimHei",
+                "KaiTi",
+                "FangSong",
+                "Microsoft YaHei",
+            ]
+        )
 
         self.lbl_style = QLabel(self.tab_font)
         self.combo_style = QComboBox(self.tab_font)
-        self.combo_style.addItems([
-            safe_tr("常规"), safe_tr("倾斜"), safe_tr("加粗"), safe_tr("加粗 倾斜")
-        ])
+        self.combo_style.addItems(
+            [safe_tr("常规"), safe_tr("倾斜"), safe_tr("加粗"), safe_tr("加粗 倾斜")]
+        )
 
         self.lbl_size = QLabel(self.tab_font)
         self.combo_size = QComboBox(self.tab_font)
@@ -217,12 +249,8 @@ class FontDialog(QDialog):
         font_layout.addWidget(self.group_effects)
 
         # Effect exclusions
-        self.check_strike.toggled.connect(
-            lambda on: on and self.check_dstrike.setChecked(False)
-        )
-        self.check_dstrike.toggled.connect(
-            lambda on: on and self.check_strike.setChecked(False)
-        )
+        self.check_strike.toggled.connect(lambda on: on and self.check_dstrike.setChecked(False))
+        self.check_dstrike.toggled.connect(lambda on: on and self.check_strike.setChecked(False))
         self.check_superscript.toggled.connect(
             lambda on: on and self.check_subscript.setChecked(False)
         )
@@ -335,16 +363,26 @@ class FontDialog(QDialog):
 
     def _connect_triggers(self) -> None:
         for cb in [
-            self.combo_latin_font, self.combo_ea_font, self.combo_style, self.combo_size,
-            self.combo_underline, self.combo_scale, self.combo_spacing, self.combo_position
+            self.combo_latin_font,
+            self.combo_ea_font,
+            self.combo_style,
+            self.combo_size,
+            self.combo_underline,
+            self.combo_scale,
+            self.combo_spacing,
+            self.combo_position,
         ]:
             cb.currentIndexChanged.connect(self._trigger_preview)
             if cb.isEditable():
                 cb.editTextChanged.connect(self._trigger_preview)
 
         for chk in [
-            self.check_strike, self.check_dstrike, self.check_superscript,
-            self.check_subscript, self.check_small_caps, self.check_all_caps
+            self.check_strike,
+            self.check_dstrike,
+            self.check_superscript,
+            self.check_subscript,
+            self.check_small_caps,
+            self.check_all_caps,
         ]:
             chk.toggled.connect(self._trigger_preview)
 
@@ -391,11 +429,7 @@ class FontDialog(QDialog):
 
         # Color
         self._current_color = self.props.color or "auto"
-        btn_text = (
-            safe_tr("自动")
-            if self._current_color == "auto"
-            else f"#{self._current_color}"
-        )
+        btn_text = safe_tr("自动") if self._current_color == "auto" else f"#{self._current_color}"
         self.btn_color.setText(btn_text)
 
         # Underline

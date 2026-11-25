@@ -66,10 +66,7 @@ def _render(view: WriterCanvasView, line: LayoutLine) -> QImage:
 
 def _diff_pixels(a: QImage, b: QImage) -> list[tuple[int, int]]:
     return [
-        (x, y)
-        for y in range(CANVAS_H)
-        for x in range(CANVAS_W)
-        if a.pixel(x, y) != b.pixel(x, y)
+        (x, y) for y in range(CANVAS_H) for x in range(CANVAS_W) if a.pixel(x, y) != b.pixel(x, y)
     ]
 
 

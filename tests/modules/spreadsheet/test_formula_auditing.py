@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
 from PySide6.QtGui import QImage
-from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.spreadsheet.calc.audit_tracer import (
     AuditArrow,
@@ -24,16 +22,6 @@ from atboffice.modules.spreadsheet.models.sheet_model import (
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport
 from atboffice.ui.shell.ledger_window import LedgerWindow
-
-
-@pytest.fixture(scope="session")
-def qapp():
-    """Ensure a single QApplication instance exists for Qt tests."""
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication([])
-    return app
-
 
 # ==============================================================================
 # AuditTracer Tests

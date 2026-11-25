@@ -10,11 +10,8 @@ from typing import Any
 
 from PySide6.QtWidgets import QWidget
 
-from atboffice.modules.presentation.smartart.text_pane import (
-    SmartArtRowEdit,
-    SmartArtTextPane,
-    safe_tr,
-)
+from atboffice.core.i18n import safe_tr
+from atboffice.modules.presentation.smartart.text_pane import SmartArtRowEdit, SmartArtTextPane
 
 
 class SmartArtPane(SmartArtTextPane):

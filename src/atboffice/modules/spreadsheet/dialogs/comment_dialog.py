@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -14,10 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("CommentDialog", text)
+from atboffice.core.i18n import safe_tr
 
 
 class CommentDialog(QDialog):
@@ -33,9 +29,7 @@ class CommentDialog(QDialog):
         super().__init__(parent)
         self.cell_ref = cell_ref
         title = (
-            safe_tr("编辑批注 - {cell}").format(cell=cell_ref)
-            if cell_ref
-            else safe_tr("编辑批注")
+            safe_tr("编辑批注 - {cell}").format(cell=cell_ref) if cell_ref else safe_tr("编辑批注")
         )
         self.setWindowTitle(title)
         self.resize(360, 240)
@@ -58,8 +52,7 @@ class CommentDialog(QDialog):
         layout.addWidget(self.edit_text)
 
         self.button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok
-            | QDialogButtonBox.StandardButton.Cancel,
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
             self,
         )
         self.button_box.accepted.connect(self.accept)

@@ -41,11 +41,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.shape import Fill, Line, Shape
-from atboffice.modules.presentation.slideshow.transitions import (
-    render_slide_to_image,
-    safe_tr,
-)
+from atboffice.modules.presentation.slideshow.transitions import render_slide_to_image
 
 if TYPE_CHECKING:
     from atboffice.modules.presentation.models.presentation import Presentation

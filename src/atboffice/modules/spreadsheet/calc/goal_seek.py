@@ -14,9 +14,7 @@ from atboffice.modules.spreadsheet.calc.references import cell_name, col_index
 if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 
-RE_CELL_REF = re.compile(
-    r"^(?:(?:'([^']+)'|([A-Za-z0-9_]+))!)?\$?([A-Za-z]{1,3})\$?(\d{1,7})$"
-)
+RE_CELL_REF = re.compile(r"^(?:(?:'([^']+)'|([A-Za-z0-9_]+))!)?\$?([A-Za-z]{1,3})\$?(\d{1,7})$")
 
 
 def parse_cell_reference(ref: str, default_sheet: str = "Sheet1") -> tuple[str, int, int]:

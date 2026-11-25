@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, QSettings, Qt, Signal
+from PySide6.QtCore import QSettings, Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QComboBox,
@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.context import EvalContext
 from atboffice.modules.spreadsheet.calc.evaluator import evaluate
 from atboffice.modules.spreadsheet.calc.fn_info import (
@@ -43,11 +44,6 @@ if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
     from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
     from atboffice.modules.spreadsheet.views.editor_controller import EditorController
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for the function wizard dialogs."""
-    return QCoreApplication.translate("FunctionWizard", text)
 
 
 DEFAULT_MRU: list[str] = [
@@ -112,8 +108,7 @@ ARG_HELP_DATA: dict[str, str] = {
     "col_index_num": "为 table_array 中待返回匹配值的列序号。第一列为 1。",
     "row_index_num": "为 table_array 中待返回匹配值的行序号。第一行为 1。",
     "range_lookup": (
-        "为逻辑值：指明是要寻找精确匹配还是近似匹配。"
-        "TRUE 或省略表示近似匹配；FALSE 表示精确匹配。"
+        "为逻辑值：指明是要寻找精确匹配还是近似匹配。TRUE 或省略表示近似匹配；FALSE 表示精确匹配。"
     ),
     "range": "为需要计算或评估的单元格区域。",
     "criteria": "为定义哪些单元格将被计入的条件，可以是数字、表达式或文本。",

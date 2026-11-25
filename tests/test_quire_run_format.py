@@ -108,9 +108,7 @@ def test_underline_set_when_single():
     assert text_portions, "Expected at least one TEXT portion"
     for po in text_portions:
         ul = getattr(po, "underline", None)
-        assert ul == "single", (
-            f"Expected underline='single' on portion '{po.text}', got {ul!r}"
-        )
+        assert ul == "single", f"Expected underline='single' on portion '{po.text}', got {ul!r}"
 
 
 def test_underline_none_when_default():
@@ -121,9 +119,7 @@ def test_underline_none_when_default():
     text_portions = [po for po in portions if po.type == PortionType.TEXT]
     for po in text_portions:
         ul = getattr(po, "underline", "NOT_SET")
-        assert ul is None, (
-            f"Expected underline=None on portion '{po.text}', got {ul!r}"
-        )
+        assert ul is None, f"Expected underline=None on portion '{po.text}', got {ul!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -156,9 +152,7 @@ def test_small_caps_uppercase_and_reduced_font():
         assert po.text == po.text.upper(), (
             f"Expected uppercase text '{po.text.upper()}', got '{po.text}'"
         )
-        assert po.font_size < 12.0, (
-            f"Expected reduced font size for small_caps, got {po.font_size}"
-        )
+        assert po.font_size < 12.0, f"Expected reduced font size for small_caps, got {po.font_size}"
 
 
 def test_no_caps_when_caps_false():
@@ -186,9 +180,7 @@ def test_footnote_ref_nonzero_note_id():
     text_portions = [po for po in portions if po.type == PortionType.TEXT]
     assert text_portions, "Expected TEXT portion for footnote reference"
     ref_text = text_portions[0].text
-    assert ref_text == "1", (
-        f"Expected footnote mark '1', got '{ref_text}'"
-    )
+    assert ref_text == "1", f"Expected footnote mark '1', got '{ref_text}'"
 
 
 def test_footnote_ref_zero_note_id_uses_counter():
@@ -200,9 +192,7 @@ def test_footnote_ref_zero_note_id_uses_counter():
     text_portions = [po for po in portions if po.type == PortionType.TEXT]
     assert text_portions, "Expected TEXT portion for footnote reference"
     ref_text = text_portions[0].text
-    assert ref_text != "0", (
-        f"Footnote mark should NOT be '0', got '{ref_text}'"
-    )
+    assert ref_text != "0", f"Footnote mark should NOT be '0', got '{ref_text}'"
     assert ref_text, "Footnote mark should not be empty"
 
 
@@ -215,6 +205,4 @@ def test_footnote_ref_custom_mark():
     text_portions = [po for po in portions if po.type == PortionType.TEXT]
     assert text_portions, "Expected TEXT portion for footnote reference"
     ref_text = text_portions[0].text
-    assert ref_text == "†", (
-        f"Expected custom mark '†', got '{ref_text}'"
-    )
+    assert ref_text == "†", f"Expected custom mark '†', got '{ref_text}'"

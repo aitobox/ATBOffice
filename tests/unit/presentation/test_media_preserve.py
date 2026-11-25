@@ -37,10 +37,7 @@ DUMMY_MP4 = (
 )
 
 # Simulated MP3 binary stream
-DUMMY_MP3 = (
-    b"\xff\xfb\x90\x44\x00\x00\x00\x00"
-    b"LECTERN_TEST_AUDIO_PAYLOAD_BYTE_PRESERVE_9876543210"
-)
+DUMMY_MP3 = b"\xff\xfb\x90\x44\x00\x00\x00\x00LECTERN_TEST_AUDIO_PAYLOAD_BYTE_PRESERVE_9876543210"
 
 
 def test_media_item_model_creation_and_dict():

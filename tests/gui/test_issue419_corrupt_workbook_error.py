@@ -19,8 +19,7 @@ from atboffice.core.window_manager import WindowManager
 from atboffice.ui.shell.ledger_window import LedgerWindow
 
 CORRUPT_SAMPLE = Path(
-    "tests/docs/excel/xlsx/"
-    "poi__clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-5636439151607808.xlsx"
+    "tests/docs/excel/xlsx/poi__clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-5636439151607808.xlsx"
 )
 
 
@@ -43,9 +42,7 @@ def _capture_dialogs(monkeypatch) -> list[tuple[str, str, str]]:
         monkeypatch.setattr(
             QMessageBox,
             level,
-            lambda parent, title, text, *a, _lvl=level, **kw: dialogs.append(
-                (_lvl, title, text)
-            ),
+            lambda parent, title, text, *a, _lvl=level, **kw: dialogs.append((_lvl, title, text)),
         )
     return dialogs
 
@@ -69,9 +66,7 @@ def test_corrupt_workbook_error_is_localized_in_simplified_chinese(
     qtbot, monkeypatch, tmp_path: Path, caplog
 ):
     with caplog.at_level(logging.ERROR, logger="atboffice.ui.shell.base_window"):
-        _win, sample, (level, title, text) = _open_corrupt(
-            qtbot, monkeypatch, tmp_path, "zh-CN"
-        )
+        _win, sample, (level, title, text) = _open_corrupt(qtbot, monkeypatch, tmp_path, "zh-CN")
 
     assert level == "critical"
     assert title == "打开失败"
@@ -87,9 +82,7 @@ def test_corrupt_workbook_error_is_localized_in_simplified_chinese(
     assert sample.name in records[0].getMessage()
 
 
-def test_corrupt_workbook_error_is_localized_in_english(
-    qtbot, monkeypatch, tmp_path: Path
-):
+def test_corrupt_workbook_error_is_localized_in_english(qtbot, monkeypatch, tmp_path: Path):
     _win, sample, (level, title, text) = _open_corrupt(qtbot, monkeypatch, tmp_path, "en")
 
     assert level == "critical"
@@ -100,9 +93,7 @@ def test_corrupt_workbook_error_is_localized_in_english(
     assert "\n" not in text
 
 
-def test_rejecting_corrupt_workbook_preserves_open_workbook(
-    qtbot, monkeypatch, tmp_path: Path
-):
+def test_rejecting_corrupt_workbook_preserves_open_workbook(qtbot, monkeypatch, tmp_path: Path):
     get_i18n_manager().set_locale("zh-CN")
     good = tmp_path / "good.csv"
     good.write_text("alpha,beta\n1,2\n", encoding="utf-8")

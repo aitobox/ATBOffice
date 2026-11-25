@@ -8,7 +8,6 @@ from typing import Any
 from PySide6.QtCore import QRectF, Qt, Signal
 from PySide6.QtGui import QPainter, QPaintEvent
 from PySide6.QtWidgets import (
-    QApplication,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -26,6 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.chart.model import (
     CH_KINDS,
     CH_PALETTE,
@@ -34,16 +34,6 @@ from atboffice.modules.presentation.chart.model import (
 )
 from atboffice.modules.presentation.chart.painter import ChartPainter
 from atboffice.modules.presentation.chart.renderers.common import resolve_color
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text with fallbacks."""
-    app = QApplication.instance()
-    if app:
-        translated = app.translate("DatasheetDialog", text)
-        if translated and translated != text:
-            return translated
-    return text
 
 
 class ChartPreviewWidget(QWidget):
@@ -256,7 +246,7 @@ class DatasheetDialog(QDialog):
 
         for ri, s in enumerate(series):
             # Column 0: Series Name
-            s_name = s.name or f"Series {ri+1}"
+            s_name = s.name or f"Series {ri + 1}"
             name_item = QTableWidgetItem(s_name)
             col = resolve_color(s.color or CH_PALETTE[ri % len(CH_PALETTE)])
             name_item.setBackground(col.lighter(170))

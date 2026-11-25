@@ -168,6 +168,7 @@ def test_ledger_watch_window_pane(qtbot):
 
     # Set value and formula in cell (0, 0) and (1, 1)
     from atboffice.modules.spreadsheet.models.sheet_model import CellData
+
     sheet.set_cell(0, 0, CellData(value=50))
     sheet.set_cell(1, 1, CellData(value=100, formula="A1*2"))
 

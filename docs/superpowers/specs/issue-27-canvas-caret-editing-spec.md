@@ -88,6 +88,7 @@ class DocPos:
     para_id: int
     offset: int
 
+
 @dataclass
 class Selection:
     anchor: DocPos

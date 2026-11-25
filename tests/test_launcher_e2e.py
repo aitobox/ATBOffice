@@ -66,9 +66,7 @@ def setup_e2e_env(tmp_path: Path) -> Generator[None, None, None]:
     WindowManager.reset_instance()
 
 
-def test_full_launch_open_close_resurrect_cycle(
-    qtbot: pytest.QtBot, tmp_path: Path
-) -> None:
+def test_full_launch_open_close_resurrect_cycle(qtbot: pytest.QtBot, tmp_path: Path) -> None:
     """Verify primary lifecycle: Start Center -> Quire -> Close -> Resurrect."""
     _app = create_application(["atboffice"])
     win_mgr = WindowManager.get_instance()
@@ -238,9 +236,7 @@ def test_e2e_start_center_quick_launch_buttons(qtbot: pytest.QtBot) -> None:
     assert sc.isVisible()
 
 
-def test_e2e_start_center_recent_item_activation(
-    qtbot: pytest.QtBot, tmp_path: Path
-) -> None:
+def test_e2e_start_center_recent_item_activation(qtbot: pytest.QtBot, tmp_path: Path) -> None:
     """Verify activating an item in recent files list opens the document."""
     win_mgr = WindowManager.get_instance()
 

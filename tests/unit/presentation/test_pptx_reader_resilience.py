@@ -151,7 +151,10 @@ def test_source_package_tolerates_corrupt_optional_zip_member():
     """SourcePackage.from_bytes isolates corrupt optional ZIP streams."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("[Content_Types].xml", '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>')
+        zf.writestr(
+            "[Content_Types].xml",
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>',
+        )
         zf.writestr("ppt/media/corrupt.bin", b"A" * 256)
     raw = bytearray(buf.getvalue())
 

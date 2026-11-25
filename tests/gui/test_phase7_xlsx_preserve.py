@@ -53,31 +53,30 @@ def test_macro_xlsm_gui_save_unedited(qtbot, tmp_path: Path):
         assert "xl/vbaProject.bin" in z_saved.namelist(), "vbaProject.bin was dropped"
         saved_vba = z_saved.read("xl/vbaProject.bin")
         saved_vba_sha = hashlib.sha256(saved_vba).hexdigest()
-        assert (
-            saved_vba_sha == orig_vba_sha
-        ), f"vbaProject.bin SHA mismatch: {saved_vba_sha} vs {orig_vba_sha}"
+        assert saved_vba_sha == orig_vba_sha, (
+            f"vbaProject.bin SHA mismatch: {saved_vba_sha} vs {orig_vba_sha}"
+        )
 
         # Verify Content Types
         ct_xml = z_saved.read("[Content_Types].xml").decode("utf-8")
-        assert (
-            'ContentType="application/vnd.ms-excel.sheet.macroEnabled.main+xml"'
-            in ct_xml
-        ), "Missing macroEnabled workbook content type"
-        assert (
-            'ContentType="application/vnd.ms-office.vbaProject"' in ct_xml
-        ), "Missing vbaProject content type"
-        assert (
-            ".rels" not in ct_xml or 'PartName="/_rels' not in ct_xml
-        ), "Invalid .rels override found in [Content_Types].xml"
+        assert 'ContentType="application/vnd.ms-excel.sheet.macroEnabled.main+xml"' in ct_xml, (
+            "Missing macroEnabled workbook content type"
+        )
+        assert 'ContentType="application/vnd.ms-office.vbaProject"' in ct_xml, (
+            "Missing vbaProject content type"
+        )
+        assert ".rels" not in ct_xml or 'PartName="/_rels' not in ct_xml, (
+            "Invalid .rels override found in [Content_Types].xml"
+        )
 
         # Verify workbook relationships
         wb_rels = z_saved.read("xl/_rels/workbook.xml.rels").decode("utf-8")
-        assert (
-            "relationships/vbaProject" in wb_rels
-        ), "Missing vbaProject relationship in workbook.xml.rels"
-        assert (
-            'Target="vbaProject.bin"' in wb_rels
-        ), "Invalid vbaProject target in workbook.xml.rels"
+        assert "relationships/vbaProject" in wb_rels, (
+            "Missing vbaProject relationship in workbook.xml.rels"
+        )
+        assert 'Target="vbaProject.bin"' in wb_rels, (
+            "Invalid vbaProject target in workbook.xml.rels"
+        )
 
     # 4. Verify clean reopen without error
     reopened_wb = read_xlsx(test_file)
@@ -121,28 +120,20 @@ def test_macro_xlsm_gui_save_edited_cell(qtbot, tmp_path: Path):
         assert "xl/vbaProject.bin" in z_saved.namelist(), "vbaProject.bin was dropped"
         saved_vba = z_saved.read("xl/vbaProject.bin")
         saved_vba_sha = hashlib.sha256(saved_vba).hexdigest()
-        assert (
-            saved_vba_sha == orig_vba_sha
-        ), f"vbaProject.bin SHA changed after cell edit: {saved_vba_sha} vs {orig_vba_sha}"
+        assert saved_vba_sha == orig_vba_sha, (
+            f"vbaProject.bin SHA changed after cell edit: {saved_vba_sha} vs {orig_vba_sha}"
+        )
 
         # Verify sheet1 preserved controls and drawings
         s1_xml = z_saved.read("xl/worksheets/sheet1.xml").decode("utf-8")
-        assert (
-            "legacyDrawing" in s1_xml
-        ), "legacyDrawing tag dropped from worksheet"
+        assert "legacyDrawing" in s1_xml, "legacyDrawing tag dropped from worksheet"
         assert "control" in s1_xml, "control tag dropped from worksheet"
         assert "777" in s1_xml, "Edited value 777 not found in worksheet XML"
 
         # Verify sheet1 rels preserved ctrlProp and vmlDrawing
-        s1_rels = z_saved.read("xl/worksheets/_rels/sheet1.xml.rels").decode(
-            "utf-8"
-        )
-        assert (
-            "relationships/vmlDrawing" in s1_rels
-        ), "vmlDrawing rel dropped from sheet1.xml.rels"
-        assert (
-            "relationships/ctrlProp" in s1_rels
-        ), "ctrlProp rel dropped from sheet1.xml.rels"
+        s1_rels = z_saved.read("xl/worksheets/_rels/sheet1.xml.rels").decode("utf-8")
+        assert "relationships/vmlDrawing" in s1_rels, "vmlDrawing rel dropped from sheet1.xml.rels"
+        assert "relationships/ctrlProp" in s1_rels, "ctrlProp rel dropped from sheet1.xml.rels"
 
     # 5. Verify clean reopen and updated cell retrieval
     reopened_wb = read_xlsx(test_file)
@@ -165,12 +156,8 @@ def test_corpus_comments_preservation(tmp_path: Path):
         assert "xl/drawings/vmlDrawing1.vml" in names, "vmlDrawing1.vml was dropped"
 
         s1_rels = z.read("xl/worksheets/_rels/sheet1.xml.rels").decode("utf-8")
-        assert (
-            "relationships/comments" in s1_rels
-        ), "Missing comments relationship in sheet1"
-        assert (
-            "relationships/vmlDrawing" in s1_rels
-        ), "Missing vmlDrawing relationship in sheet1"
+        assert "relationships/comments" in s1_rels, "Missing comments relationship in sheet1"
+        assert "relationships/vmlDrawing" in s1_rels, "Missing vmlDrawing relationship in sheet1"
 
 
 def test_corpus_charts_drawings_preservation(tmp_path: Path):
@@ -189,9 +176,9 @@ def test_corpus_charts_drawings_preservation(tmp_path: Path):
         assert "xl/calcChain.xml" in names, "calcChain.xml was dropped"
 
         wb_rels = z.read("xl/_rels/workbook.xml.rels").decode("utf-8")
-        assert (
-            "relationships/calcChain" in wb_rels
-        ), "Missing calcChain relationship in workbook.xml.rels"
+        assert "relationships/calcChain" in wb_rels, (
+            "Missing calcChain relationship in workbook.xml.rels"
+        )
 
 
 def test_corpus_protection_preservation(tmp_path: Path):
@@ -205,12 +192,8 @@ def test_corpus_protection_preservation(tmp_path: Path):
 
     with zipfile.ZipFile(io.BytesIO(saved_bytes)) as z:
         s1_xml = z.read("xl/worksheets/sheet1.xml").decode("utf-8")
-        assert (
-            "<sheetProtection" in s1_xml
-        ), "sheetProtection dropped from sheet1.xml"
-        assert (
-            "<protectedRanges" in s1_xml
-        ), "protectedRanges dropped from sheet1.xml"
+        assert "<sheetProtection" in s1_xml, "sheetProtection dropped from sheet1.xml"
+        assert "<protectedRanges" in s1_xml, "protectedRanges dropped from sheet1.xml"
 
 
 def test_corpus_custom_xml_preservation(tmp_path: Path):
@@ -230,9 +213,7 @@ def test_corpus_custom_xml_preservation(tmp_path: Path):
         assert "docProps/custom.xml" in names, "docProps/custom.xml dropped"
 
         wb_rels = z.read("xl/_rels/workbook.xml.rels").decode("utf-8")
-        assert (
-            "relationships/customXml" in wb_rels
-        ), "customXml rels dropped from workbook.xml.rels"
+        assert "relationships/customXml" in wb_rels, "customXml rels dropped from workbook.xml.rels"
 
 
 def test_faulty_write_does_not_corrupt_original(tmp_path: Path, monkeypatch):
@@ -253,6 +234,6 @@ def test_faulty_write_does_not_corrupt_original(tmp_path: Path, monkeypatch):
         writer.save(test_file)
 
     # Original file must remain 100% intact
-    assert (
-        test_file.read_bytes() == test_data
-    ), "Original file was corrupted or truncated by failed write"
+    assert test_file.read_bytes() == test_data, (
+        "Original file was corrupted or truncated by failed write"
+    )

@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QRect
 from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
-from PySide6.QtWidgets import QApplication
 
 from atboffice.drawing.dml import parse_cust_geom, parse_fill, resolve_color, theme_map
 from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
@@ -19,14 +17,10 @@ from atboffice.modules.spreadsheet.views.object_layer import (
     object_to_rect,
 )
 from atboffice.modules.spreadsheet.views.object_painting import child_rect, fit_aspect_rect
+from atboffice.vfs import etree as ET
 
 FIXTURES = Path(__file__).parent / "docs" / "excel" / "xlsx"
 A = "http://schemas.openxmlformats.org/drawingml/2006/main"
-
-
-@pytest.fixture(scope="module")
-def qapp():
-    return QApplication.instance() or QApplication([])
 
 
 def _xml(body: str) -> ET.Element:

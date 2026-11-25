@@ -353,7 +353,7 @@ def flow_linked_text_boxes(
         line_layout_fn = layout_paragraph
 
     # Sort boxes by chain sequence: seq 0, 1, 2, ...
-    sorted_boxes = sorted(boxes, key=lambda b: (b.chain.seq if b.chain else 0))
+    sorted_boxes = sorted(boxes, key=lambda b: b.chain.seq if b.chain else 0)
 
     placed_blocks: dict[int, list[Paragraph]] = {b.id: [] for b in sorted_boxes}
     remaining_paras: list[Paragraph] = [copy.deepcopy(p) for p in story.paras]
@@ -404,9 +404,7 @@ def flow_linked_text_boxes(
                 last_line = lines[fitted_line_count - 1]
                 split_char_offset = 0
                 for portion in last_line.portions:
-                    split_char_offset = max(
-                        split_char_offset, portion.char_offset + portion.length
-                    )
+                    split_char_offset = max(split_char_offset, portion.char_offset + portion.length)
 
                 from atboffice.modules.writer.models.document import _next_nid, split_at
 

@@ -128,9 +128,11 @@ def test_clipart_is_routed_to_clipart_gallery(win, monkeypatch) -> None:
     monkeypatch.setattr(
         clipart_dialog.ClipartDialog,
         "get_selected_clipart",
-        lambda self: clipart_dialog.CLIPART_LIBRARY[0]
-        if hasattr(clipart_dialog, "CLIPART_LIBRARY")
-        else clipart_dialog.search_clipart("")[0],
+        lambda self: (
+            clipart_dialog.CLIPART_LIBRARY[0]
+            if hasattr(clipart_dialog, "CLIPART_LIBRARY")
+            else clipart_dialog.search_clipart("")[0]
+        ),
     )
     win.action_registry.trigger_action("insertClipArt")
     shape = _ws(win).current_slide.shapes[-1]
@@ -422,8 +424,12 @@ def test_hyperlink_on_shape(win, monkeypatch) -> None:
     monkeypatch.setattr(
         reference_dialogs.HyperlinkDialog,
         "get_hyperlink_data",
-        lambda self: {"text": "", "target": "https://example.com", "kind": "external",
-                      "screentip": "tip"},
+        lambda self: {
+            "text": "",
+            "target": "https://example.com",
+            "kind": "external",
+            "screentip": "tip",
+        },
     )
     win.action_registry.trigger_action("hyperlink")
     assert box.link["url"] == "https://example.com" and box.link["tooltip"] == "tip"
@@ -512,7 +518,9 @@ def test_insert_diagram_and_change_layout(win, monkeypatch) -> None:
     win.action_registry.trigger_action("diag_color_dark")
     win.action_registry.trigger_action("diag_style_3d")
     assert (diag.sa["layout"], diag.sa["colors"], diag.sa["style"]) == (
-        "pyramid", "midnight", "lifted"
+        "pyramid",
+        "midnight",
+        "lifted",
     )
 
 
@@ -570,8 +578,17 @@ def test_status_messages_never_report_unwired(win, qtbot) -> None:
     """Triggering wired, dialog-free commands never produces the 'not wired' toast."""
     messages: list[str] = []
     win.statusBar().messageChanged.connect(messages.append)
-    for aid in ("view_normal", "expandAll", "showFormatting", "view_ruler", "tbl_weight_15",
-                "tbl_color_blue", "tbl_line_dot", "draw_align_left", "insert_shape"):
+    for aid in (
+        "view_normal",
+        "expandAll",
+        "showFormatting",
+        "view_ruler",
+        "tbl_weight_15",
+        "tbl_color_blue",
+        "tbl_line_dot",
+        "draw_align_left",
+        "insert_shape",
+    ):
         win.action_registry.trigger_action(aid)
     assert not any("联调" in m for m in messages)
     assert Qt  # keep import used

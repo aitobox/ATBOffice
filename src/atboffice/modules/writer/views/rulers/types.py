@@ -4,13 +4,8 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from PySide6.QtCore import QCoreApplication, QPointF, Qt
+from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("QuireRuler", text)
 
 
 class RulerUnit(StrEnum):

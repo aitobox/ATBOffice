@@ -70,12 +70,8 @@ def test_pptx_ppsx_potx_content_types():
         "pptx": (
             "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"
         ),
-        "ppsx": (
-            "application/vnd.openxmlformats-officedocument.presentationml.slideshow.main+xml"
-        ),
-        "potx": (
-            "application/vnd.openxmlformats-officedocument.presentationml.template.main+xml"
-        ),
+        "ppsx": ("application/vnd.openxmlformats-officedocument.presentationml.slideshow.main+xml"),
+        "potx": ("application/vnd.openxmlformats-officedocument.presentationml.template.main+xml"),
     }
 
     for fmt, expected_ct in formats.items():
@@ -402,6 +398,4 @@ def test_schema_ordering_conformance():
         sp_tags = [c.tag.split("}")[-1] for c in sp_elem]
         sp_filtered = [t for t in sp_expected if t in sp_tags]
         actual_sp = [t for t in sp_tags if t in sp_expected]
-        assert actual_sp == sp_filtered, (
-            f"Shape order mismatch: {actual_sp} != {sp_filtered}"
-        )
+        assert actual_sp == sp_filtered, f"Shape order mismatch: {actual_sp} != {sp_filtered}"

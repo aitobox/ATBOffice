@@ -1,7 +1,5 @@
 """Unit and integration tests for presentation task panes and PPTX roundtrip."""
 
-import xml.etree.ElementTree as ET
-
 import pytest
 from PySide6.QtCore import Qt
 
@@ -16,6 +14,7 @@ from atboffice.modules.presentation.slideshow.transitions import (
 from atboffice.modules.presentation.views.animation_pane import AnimationPane
 from atboffice.modules.presentation.views.transition_pane import SlideTransitionPane
 from atboffice.modules.presentation.views.workspace import LecternWorkspace
+from atboffice.vfs import etree as ET
 
 # ==============================================================================
 # 1. SlideTransitionPane Unit Tests

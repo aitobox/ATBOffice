@@ -1,6 +1,5 @@
 """Tests for shell window Find & Replace integration."""
 
-
 from atboffice.modules.spreadsheet.models.sheet_model import CellData
 from atboffice.modules.writer.models.document import Paragraph, TextItem
 from atboffice.ui.shell.ledger_window import LedgerWindow

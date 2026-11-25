@@ -227,12 +227,8 @@ def test_imported_underlined_run_paints(view: WriterCanvasView) -> None:
         for fragment in column.fragments
         for line in fragment.lines
     ]
-    line = next(
-        ln for ln in lines if any(po.underline and po.text.strip() for po in ln.portions)
-    )
-    plain_portions = [
-        Portion(**{**po.__dict__, "underline": None}) for po in line.portions
-    ]
+    line = next(ln for ln in lines if any(po.underline and po.text.strip() for po in ln.portions))
+    plain_portions = [Portion(**{**po.__dict__, "underline": None}) for po in line.portions]
     plain = _line(plain_portions, top=line.top, baseline=line.baseline, jc=line.jc)
     plain.width = line.width
 

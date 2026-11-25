@@ -58,18 +58,14 @@ def test_autofill_horizontal_and_reverse_directions():
     model = SheetDataModel()
     model.set_cell(0, 0, CellData(value=1))
     model.set_cell(0, 1, CellData(value=2))
-    AutoFillEngine.auto_fill(
-        model, SelectionRange(0, 0, 0, 1), SelectionRange(0, 0, 0, 4)
-    )
+    AutoFillEngine.auto_fill(model, SelectionRange(0, 0, 0, 1), SelectionRange(0, 0, 0, 4))
     assert [model.get_cell_value(0, c) for c in range(5)] == [1, 2, 3, 4, 5]
 
     # Upward fill (reverse vertical)
     model2 = SheetDataModel()
     model2.set_cell(3, 0, CellData(value=40))
     model2.set_cell(4, 0, CellData(value=50))
-    AutoFillEngine.auto_fill(
-        model2, SelectionRange(3, 0, 4, 0), SelectionRange(0, 0, 4, 0)
-    )
+    AutoFillEngine.auto_fill(model2, SelectionRange(3, 0, 4, 0), SelectionRange(0, 0, 4, 0))
     assert [model2.get_cell_value(r, 0) for r in range(5)] == [
         10,
         20,
@@ -82,9 +78,7 @@ def test_autofill_horizontal_and_reverse_directions():
     model3 = SheetDataModel()
     model3.set_cell(0, 3, CellData(value=4))
     model3.set_cell(0, 4, CellData(value=5))
-    AutoFillEngine.auto_fill(
-        model3, SelectionRange(0, 3, 0, 4), SelectionRange(0, 0, 0, 4)
-    )
+    AutoFillEngine.auto_fill(model3, SelectionRange(0, 3, 0, 4), SelectionRange(0, 0, 0, 4))
     assert [model3.get_cell_value(0, c) for c in range(5)] == [1, 2, 3, 4, 5]
 
 
@@ -92,9 +86,7 @@ def test_autofill_text_with_numbers():
     """Numbered text like 'Item 1' or 'Q01' should increment maintaining zero-padding."""
     model = SheetDataModel()
     model.set_cell(0, 0, CellData(value="Item 1"))
-    AutoFillEngine.auto_fill(
-        model, SelectionRange(0, 0, 0, 0), SelectionRange(0, 0, 2, 0)
-    )
+    AutoFillEngine.auto_fill(model, SelectionRange(0, 0, 0, 0), SelectionRange(0, 0, 2, 0))
     assert [model.get_cell_value(r, 0) for r in range(3)] == [
         "Item 1",
         "Item 2",
@@ -105,9 +97,7 @@ def test_autofill_text_with_numbers():
     model2 = SheetDataModel()
     model2.set_cell(0, 0, CellData(value="Section 08"))
     model2.set_cell(1, 0, CellData(value="Section 09"))
-    AutoFillEngine.auto_fill(
-        model2, SelectionRange(0, 0, 1, 0), SelectionRange(0, 0, 3, 0)
-    )
+    AutoFillEngine.auto_fill(model2, SelectionRange(0, 0, 1, 0), SelectionRange(0, 0, 3, 0))
     assert [model2.get_cell_value(r, 0) for r in range(4)] == [
         "Section 08",
         "Section 09",
@@ -121,9 +111,7 @@ def test_autofill_builtin_lists():
     # English days
     model = SheetDataModel()
     model.set_cell(0, 0, CellData(value="Fri"))
-    AutoFillEngine.auto_fill(
-        model, SelectionRange(0, 0, 0, 0), SelectionRange(0, 0, 3, 0)
-    )
+    AutoFillEngine.auto_fill(model, SelectionRange(0, 0, 0, 0), SelectionRange(0, 0, 3, 0))
     assert [model.get_cell_value(r, 0) for r in range(4)] == [
         "Fri",
         "Sat",
@@ -134,9 +122,7 @@ def test_autofill_builtin_lists():
     # Chinese days
     model2 = SheetDataModel()
     model2.set_cell(0, 0, CellData(value="周五"))
-    AutoFillEngine.auto_fill(
-        model2, SelectionRange(0, 0, 0, 0), SelectionRange(0, 0, 3, 0)
-    )
+    AutoFillEngine.auto_fill(model2, SelectionRange(0, 0, 0, 0), SelectionRange(0, 0, 3, 0))
     assert [model2.get_cell_value(r, 0) for r in range(4)] == [
         "周五",
         "周六",

@@ -206,7 +206,6 @@ class TextRun:
 Run = TextRun
 
 
-
 @dataclass
 class Paragraph:
     """Paragraph with an outline level (0-8), properties, and runs."""
@@ -286,8 +285,7 @@ class TextBody:
     def set_plain_text(self, text: str) -> None:
         lines = str(text).split("\n")
         self.paragraphs = [
-            Paragraph(level=0, runs=[TextRun(text=line)] if line else [])
-            for line in lines
+            Paragraph(level=0, runs=[TextRun(text=line)] if line else []) for line in lines
         ]
 
     @classmethod

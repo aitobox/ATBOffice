@@ -197,8 +197,3 @@ def test_all_word_fixtures_no_percent_in_labels() -> None:
             label = getattr(b, "label", "")
             msg = f"Fixture {fname} block {i} label '{label}' contains literal '%'"
             assert "%" not in label, msg
-
-
-
-
-

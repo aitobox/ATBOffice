@@ -71,8 +71,7 @@ def cmd_status_table(args):
         title = issue.get("title", "").replace("|", "\\|")
         raw_labels = issue.get("labels") or []
         label_names = [
-            (item.get("name", "") if isinstance(item, dict) else str(item))
-            for item in raw_labels
+            (item.get("name", "") if isinstance(item, dict) else str(item)) for item in raw_labels
         ]
         status = "pending"
         lower_labels = [lbl.lower().replace(" ", "") for lbl in label_names]

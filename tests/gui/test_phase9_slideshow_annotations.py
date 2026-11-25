@@ -248,9 +248,7 @@ def test_slideshow_view_hotkeys_and_blanking(qapp, sample_presentation):
     assert view.pen_tool == "arrow"
 
     # 7. Add stroke then Hotkey 'E' -> Erase All on slide
-    view.ink_strokes[0] = [
-        AnnotationStroke(points=[(10, 10), (20, 20)], color="#FF0000")
-    ]
+    view.ink_strokes[0] = [AnnotationStroke(points=[(10, 10), (20, 20)], color="#FF0000")]
     assert len(view.ink_strokes[0]) == 1
 
     key_e = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_E, Qt.KeyboardModifier.NoModifier, "e")

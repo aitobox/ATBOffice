@@ -31,28 +31,99 @@ COLOR_MAP: Final[dict[str, str]] = {
 
 # 56-color legacy Excel palette for [ColorN]
 COLOR_PALETTE_56: Final[tuple[str, ...]] = (
-    "#000000", "#FFFFFF", "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF",
-    "#800000", "#008000", "#000080", "#808000", "#800080", "#008080", "#C0C0C0", "#808080",
-    "#9999FF", "#993366", "#FFFFCC", "#CCFFFF", "#660066", "#FF8080", "#0066CC", "#CCCCFF",
-    "#000080", "#FF00FF", "#FFFF00", "#00FFFF", "#800080", "#800000", "#008080", "#0000FF",
-    "#00CCFF", "#CCFFFF", "#CCFFCC", "#FFFF99", "#99CCFF", "#FF99CC", "#CC99FF", "#FFCC99",
-    "#3366FF", "#33CCCC", "#99CC00", "#FFCC00", "#FF9900", "#FF6600", "#666699", "#969696",
-    "#003366", "#339966", "#003300", "#333300", "#993300", "#993366", "#333399", "#333333",
+    "#000000",
+    "#FFFFFF",
+    "#FF0000",
+    "#00FF00",
+    "#0000FF",
+    "#FFFF00",
+    "#FF00FF",
+    "#00FFFF",
+    "#800000",
+    "#008000",
+    "#000080",
+    "#808000",
+    "#800080",
+    "#008080",
+    "#C0C0C0",
+    "#808080",
+    "#9999FF",
+    "#993366",
+    "#FFFFCC",
+    "#CCFFFF",
+    "#660066",
+    "#FF8080",
+    "#0066CC",
+    "#CCCCFF",
+    "#000080",
+    "#FF00FF",
+    "#FFFF00",
+    "#00FFFF",
+    "#800080",
+    "#800000",
+    "#008080",
+    "#0000FF",
+    "#00CCFF",
+    "#CCFFFF",
+    "#CCFFCC",
+    "#FFFF99",
+    "#99CCFF",
+    "#FF99CC",
+    "#CC99FF",
+    "#FFCC99",
+    "#3366FF",
+    "#33CCCC",
+    "#99CC00",
+    "#FFCC00",
+    "#FF9900",
+    "#FF6600",
+    "#666699",
+    "#969696",
+    "#003366",
+    "#339966",
+    "#003300",
+    "#333300",
+    "#993300",
+    "#993366",
+    "#333399",
+    "#333333",
 )
 
 MONTHS_LONG: Final[tuple[str, ...]] = (
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
 )
 
 # East Asian / European weekdays (index 0 = Sunday, 6 = Saturday)
 ZH_WEEKDAYS_SHORT: Final[list[str]] = ["日", "一", "二", "三", "四", "五", "六"]
 ZH_WEEKDAYS_LONG: Final[list[str]] = [
-    "星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六",
+    "星期日",
+    "星期一",
+    "星期二",
+    "星期三",
+    "星期四",
+    "星期五",
+    "星期六",
 ]
 EN_WEEKDAYS_SHORT: Final[list[str]] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 EN_WEEKDAYS_LONG: Final[list[str]] = [
-    "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
 ]
 JA_WEEKDAYS_SHORT: Final[list[str]] = ["日", "月", "火", "水", "木", "金", "土"]
 JA_WEEKDAYS_LONG: Final[list[str]] = [f"{d}曜日" for d in JA_WEEKDAYS_SHORT]
@@ -60,11 +131,23 @@ KO_WEEKDAYS_SHORT: Final[list[str]] = ["일", "월", "화", "수", "목", "금",
 KO_WEEKDAYS_LONG: Final[list[str]] = [f"{d}요일" for d in KO_WEEKDAYS_SHORT]
 DE_WEEKDAYS_SHORT: Final[list[str]] = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"]
 DE_WEEKDAYS_LONG: Final[list[str]] = [
-    "Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag",
+    "Sonntag",
+    "Montag",
+    "Dienstag",
+    "Mittwoch",
+    "Donnerstag",
+    "Freitag",
+    "Samstag",
 ]
 FR_WEEKDAYS_SHORT: Final[list[str]] = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."]
 FR_WEEKDAYS_LONG: Final[list[str]] = [
-    "dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi",
+    "dimanche",
+    "lundi",
+    "mardi",
+    "mercredi",
+    "jeudi",
+    "vendredi",
+    "samedi",
 ]
 
 WEEKDAYS_BY_LANG: Final[dict[int, tuple[list[str], list[str]]]] = {
@@ -76,7 +159,12 @@ WEEKDAYS_BY_LANG: Final[dict[int, tuple[list[str], list[str]]]] = {
     0x12: (KO_WEEKDAYS_SHORT, KO_WEEKDAYS_LONG),
 }
 LANG_TAG_IDS: Final[dict[str, int]] = {
-    "zh": 0x04, "de": 0x07, "en": 0x09, "fr": 0x0C, "ja": 0x11, "ko": 0x12,
+    "zh": 0x04,
+    "de": 0x07,
+    "en": 0x09,
+    "fr": 0x0C,
+    "ja": 0x11,
+    "ko": 0x12,
 }
 
 
@@ -605,8 +693,7 @@ def _mark_minutes(toks: list[_Tok]) -> None:
             or (prev.t == "el" and prev.u in ("h", "s"))
         )
         next_s = nxt is not None and (
-            (nxt.t == "dt" and nxt.s[0] == "s")
-            or (nxt.t == "el" and nxt.u == "s")
+            (nxt.t == "dt" and nxt.s[0] == "s") or (nxt.t == "el" and nxt.u == "s")
         )
         if prev_hs or next_s:
             t.is_min = True
@@ -630,8 +717,7 @@ def _analyse_number(sec: _Section) -> None:
 
     has_frac_num = si >= 0 and any(t.t == "d" for t in toks[:si])
     has_frac_den = si >= 0 and any(
-        t.t == "d" or (t.t == "lit" and bool(re.fullmatch(r"\d+", t.s.strip())))
-        for t in toks[si:]
+        t.t == "d" or (t.t == "lit" and bool(re.fullmatch(r"\d+", t.s.strip()))) for t in toks[si:]
     )
     sec.frac = has_frac_num and has_frac_den
     if sec.frac:
@@ -757,6 +843,7 @@ def _is_date_format(code: str) -> bool:
 # Section Selection
 # ---------------------------------------------------------------------------
 
+
 def _cond_ok(cond: tuple[str, float], v: float) -> bool:
     op, target = cond
     if op == "<":
@@ -799,9 +886,7 @@ def _pick_numeric_section(
         return None, False
 
     non_text = [
-        s
-        for idx, s in enumerate(secs)
-        if not (s.kind == "text" and len(secs) > 1 and idx == 3)
+        s for idx, s in enumerate(secs) if not (s.kind == "text" and len(secs) > 1 and idx == 3)
     ]
     if len(non_text) == 1 or len(secs) == 1:
         return secs[0], False
@@ -819,6 +904,7 @@ def _pick_numeric_section(
 # ---------------------------------------------------------------------------
 # Segment Assembly & Rendering
 # ---------------------------------------------------------------------------
+
 
 def _append_text_seg(segs: list[FormatSegment], s: str) -> None:
     if not s:
@@ -984,9 +1070,9 @@ def _format_number_section(sec: _Section, v: float, use_abs: bool) -> list[Forma
     neg = v < 0 and not use_abs
     x = abs(v)
     if sec.pct and sec.exp_at < 0:
-        x *= 100.0 ** sec.pct
+        x *= 100.0**sec.pct
     if sec.scale and sec.exp_at < 0:
-        x /= 1000.0 ** sec.scale
+        x /= 1000.0**sec.scale
     if sec.frac:
         return _format_fraction_section(sec, x, neg)
 
@@ -1237,6 +1323,7 @@ def _format_text_section(sec: _Section, text: str) -> list[FormatSegment]:
 # Public Entry Point
 # ---------------------------------------------------------------------------
 
+
 def format_value(
     value: Any,
     format_str: str = "General",
@@ -1257,8 +1344,10 @@ def format_value(
         )
 
     # Error string (e.g. #DIV/0!, #NAME?)
-    if isinstance(value, str) and value.startswith("#") and (
-        value.endswith("!") or value.endswith("?") or value == "#N/A"
+    if (
+        isinstance(value, str)
+        and value.startswith("#")
+        and (value.endswith("!") or value.endswith("?") or value == "#N/A")
     ):
         return FormattedResult(
             text=value,
@@ -1277,11 +1366,7 @@ def format_value(
                 segments=(FormatSegment("text", value),),
             )
         secs = _parse_format(format_str)
-        sec_text = (
-            secs[3]
-            if len(secs) >= 4
-            else next((s for s in secs if s.kind == "text"), None)
-        )
+        sec_text = secs[3] if len(secs) >= 4 else next((s for s in secs if s.kind == "text"), None)
         if sec_text is not None:
             segs = _format_text_section(sec_text, value)
             return _finalize_segments(segs, color=sec_text.color, is_numeric=False)
@@ -1370,9 +1455,7 @@ def format_value(
                     _append_text_seg(segs, gen_text)
                 else:
                     _emit_non_digit_tok(segs, t)
-            return _finalize_segments(
-                segs, color=chosen.color, is_numeric=True, is_error=is_err
-            )
+            return _finalize_segments(segs, color=chosen.color, is_numeric=True, is_error=is_err)
 
         segs = []
         for t in chosen.toks:

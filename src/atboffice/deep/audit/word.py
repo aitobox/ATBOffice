@@ -15,9 +15,7 @@ def _part(files: dict[str, str], pat: str) -> str:
     return "\n".join(x for n, x in files.items() if re.search(pat, n))
 
 
-def _cnt(
-    pat: str, where: str = BODY, flags: int = 0
-) -> Callable[[list[str], dict[str, str]], int]:
+def _cnt(pat: str, where: str = BODY, flags: int = 0) -> Callable[[list[str], dict[str, str]], int]:
     return lambda names, f: len(re.findall(pat, _part(f, where), flags))
 
 
@@ -32,12 +30,8 @@ WORD_FEATURES: dict[str, Callable[[list[str], dict[str, str]], int]] = {
         1 for n in names if re.match(r"word/(header|footer)\d*\.xml$", n)
     ),
     "tracked insertions / deletions": _cnt(r"<w:(ins|del)\b"),
-    "tracked formatting changes": _cnt(
-        r"<w:(rPrChange|pPrChange|sectPrChange|tblPrChange)\b"
-    ),
-    "fields (TOC, PAGE, REF, …)": _cnt(
-        r'<w:fldSimple\b|<w:fldChar\b[^>]*w:fldCharType="begin"'
-    ),
+    "tracked formatting changes": _cnt(r"<w:(rPrChange|pPrChange|sectPrChange|tblPrChange)\b"),
+    "fields (TOC, PAGE, REF, …)": _cnt(r'<w:fldSimple\b|<w:fldChar\b[^>]*w:fldCharType="begin"'),
     "content controls": _cnt(r"<w:sdt>|<w:sdt\b"),
     "legacy form fields": _cnt(r"<w:ffData\b"),
     "bookmarks": _cnt(r'<w:bookmarkStart\b(?![^>]*w:name="_GoBack")'),
@@ -55,9 +49,7 @@ WORD_FEATURES: dict[str, Callable[[list[str], dict[str, str]], int]] = {
     "document background colour": _cnt(r"<w:background\b", r"word/document\.xml$"),
     "drop caps / frames": _cnt(r"<w:framePr\b"),
     "embedded OLE objects": _cnt(r"<o:OLEObject\b|<w:object\b"),
-    "charts": lambda names, f: sum(
-        1 for n in names if re.match(r"word/charts/chart\d+\.xml$", n)
-    ),
+    "charts": lambda names, f: sum(1 for n in names if re.match(r"word/charts/chart\d+\.xml$", n)),
     "SmartArt": lambda names, f: sum(
         1 for n in names if re.match(r"word/diagrams/data\d+\.xml$", n)
     ),
@@ -67,9 +59,7 @@ WORD_FEATURES: dict[str, Callable[[list[str], dict[str, str]], int]] = {
     "smart tags / custom XML markup": _cnt(r"<w:(smartTag|customXml)\b"),
     "permission ranges": _cnt(r"<w:permStart\b"),
     "ruby (phonetic guide)": _cnt(r"<w:ruby>"),
-    "embedded HTML/RTF chunks (altChunk)": _cnt(
-        r"<w:altChunk\b", r"word/document\.xml$"
-    ),
+    "embedded HTML/RTF chunks (altChunk)": _cnt(r"<w:altChunk\b", r"word/document\.xml$"),
     "glossary (building blocks, AutoText)": lambda names, f: int(
         any(n.startswith("word/glossary/") for n in names)
     ),
@@ -77,37 +67,21 @@ WORD_FEATURES: dict[str, Callable[[list[str], dict[str, str]], int]] = {
         1 for n in names if re.match(r"customXml/item\d+\.xml$", n)
     ),
     "custom document properties": lambda names, f: int("docProps/custom.xml" in names),
-    "VBA macros": lambda names, f: sum(
-        1 for n in names if n.lower().endswith("vbaproject.bin")
-    ),
-    "embedded fonts": lambda names, f: sum(
-        1 for n in names if re.match(r"word/fonts/", n)
-    ),
+    "VBA macros": lambda names, f: sum(1 for n in names if n.lower().endswith("vbaproject.bin")),
+    "embedded fonts": lambda names, f: sum(1 for n in names if re.match(r"word/fonts/", n)),
     "document protection": _cnt(r"<w:documentProtection\b", r"word/settings\.xml$"),
     "attached template": _cnt(r"<w:attachedTemplate\b", r"word/settings\.xml$"),
-    "paragraph styles defined": _cnt(
-        r'<w:style\b[^>]*w:type="paragraph"', r"word/styles\.xml$"
-    ),
-    "character styles defined": _cnt(
-        r'<w:style\b[^>]*w:type="character"', r"word/styles\.xml$"
-    ),
-    "table styles defined": _cnt(
-        r'<w:style\b[^>]*w:type="table"', r"word/styles\.xml$"
-    ),
+    "paragraph styles defined": _cnt(r'<w:style\b[^>]*w:type="paragraph"', r"word/styles\.xml$"),
+    "character styles defined": _cnt(r'<w:style\b[^>]*w:type="character"', r"word/styles\.xml$"),
+    "table styles defined": _cnt(r'<w:style\b[^>]*w:type="table"', r"word/styles\.xml$"),
     "list definitions": _cnt(r"<w:abstractNum\b", r"word/numbering\.xml$"),
-    "picture bullet definitions": _cnt(
-        r"<w:numPicBullet\b", r"word/numbering\.xml$"
-    ),
-    "picture bullet references": _cnt(
-        r"<w:lvlPicBulletId\b", r"word/numbering\.xml$"
-    ),
+    "picture bullet definitions": _cnt(r"<w:numPicBullet\b", r"word/numbering\.xml$"),
+    "picture bullet references": _cnt(r"<w:lvlPicBulletId\b", r"word/numbering\.xml$"),
     "list identities (nsid)": _cnt(r"<w:nsid\b", r"word/numbering\.xml$"),
 }
 
 
-def extract_word_features(
-    names: list[str], files: dict[str, str]
-) -> dict[str, int]:
+def extract_word_features(names: list[str], files: dict[str, str]) -> dict[str, int]:
     """Extract all ECMA-376 feature counts from loaded Word package XML parts."""
     return {feat: fn(names, files) for feat, fn in WORD_FEATURES.items()}
 

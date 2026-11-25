@@ -8,14 +8,20 @@ the East Asian face and ``Bidi`` the complex-script face.
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+
+from atboffice.vfs import etree as ET
 
 # East Asian / bidi language → the ``<a:font script=…>`` entry Word falls back to when the
 # theme's own ``a:ea`` / ``a:cs`` face is empty (settings.xml ``w:themeFontLang``).
 _EA_SCRIPTS = (("ja", "Jpan"), ("ko", "Hang"), ("zh-cn", "Hans"), ("zh-sg", "Hans"), ("zh", "Hant"))
 _CS_SCRIPTS = (
-    ("ar", "Arab"), ("fa", "Arab"), ("ur", "Arab"), ("he", "Hebr"), ("yi", "Hebr"), ("th", "Thai"),
+    ("ar", "Arab"),
+    ("fa", "Arab"),
+    ("ur", "Arab"),
+    ("he", "Hebr"),
+    ("yi", "Hebr"),
+    ("th", "Thai"),
 )
 
 

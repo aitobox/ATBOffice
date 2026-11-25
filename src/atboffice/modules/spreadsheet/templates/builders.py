@@ -286,7 +286,7 @@ def build_timecard_spec() -> dict[str, Any]:
         cells.append(
             [
                 "G" + str(r),
-                f'=IF(COUNT(C{r}:F{r})<2,0,ROUND(((F{r}-C{r})-(E{r}-D{r}))*24,2))',
+                f"=IF(COUNT(C{r}:F{r})<2,0,ROUND(((F{r}-C{r})-(E{r}-D{r}))*24,2))",
                 {"nf": "0.00"},
             ]
         )

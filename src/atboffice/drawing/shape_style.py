@@ -8,7 +8,6 @@ and a :class:`DmlLine`. Painting is done with
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -21,6 +20,7 @@ from atboffice.drawing.dml import (
     parse_cust_geom,
     parse_fill,
 )
+from atboffice.vfs import etree as ET
 
 EMU_PER_PT = 12700.0
 

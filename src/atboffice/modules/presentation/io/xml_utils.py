@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import html
-import xml.etree.ElementTree as ET
 from typing import Any
 
 from atboffice.modules.presentation.models.designs import (
@@ -12,6 +11,7 @@ from atboffice.modules.presentation.models.designs import (
     split_color_token,
 )
 from atboffice.modules.presentation.models.shape import Fill, Line, Shadow
+from atboffice.vfs import etree as ET
 
 # Standard Namespaces
 NS_P = "http://schemas.openxmlformats.org/presentationml/2006/main"
@@ -55,9 +55,7 @@ REL_DIAGRAM_STYLE = (
 REL_COMMENT_AUTHORS = (
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/commentAuthors"
 )
-REL_COMMENTS = (
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
-)
+REL_COMMENTS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
 REL_AUTHORS_MODERN = "http://schemas.microsoft.com/office/2018/10/relationships/authors"
 REL_COMMENTS_MODERN = "http://schemas.microsoft.com/office/2018/10/relationships/comments"
 
@@ -155,6 +153,7 @@ class RelationshipBuilder:
     @property
     def _relationships(self) -> list[Any]:
         """Compatibility property exposing objects with .type, .target, .id."""
+
         class _RelProxy:
             def __init__(self, d: dict[str, str]) -> None:
                 self.id = d["id"]
@@ -191,12 +190,12 @@ class RelationshipBuilder:
 
     def to_xml(self) -> bytes:
         """Serialize relationship list into .rels XML bytes."""
-        root = ET.Element("Relationships", xmlns=NS_RELS)
+        root = ET.Element(f"{{{NS_RELS}}}Relationships", nsmap={None: NS_RELS})
         for r in self._rels:
             attrib = {"Id": r["id"], "Type": r["type"], "Target": r["target"]}
             if r["target_mode"] != "Internal":
                 attrib["TargetMode"] = r["target_mode"]
-            ET.SubElement(root, "Relationship", **attrib)
+            ET.SubElement(root, f"{{{NS_RELS}}}Relationship", **attrib)
         return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
 

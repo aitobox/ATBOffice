@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.models.conditional_format import (
     CFVO,
     CFOp,
@@ -58,11 +59,6 @@ ICON_SET_CHOICES = [
 
 if TYPE_CHECKING:
     pass
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("ConditionalFormatDialog", text)
 
 
 class ConditionRow(QGroupBox):
@@ -376,9 +372,7 @@ class CFFormatDialog(QDialog):
         self.btn_fill.setStyleSheet(f"background: {self.bg_color or '#FFFFFF'};")
 
     def _pick_font_color(self) -> None:
-        col = QColorDialog.getColor(
-            QColor(self.fg_color or "#9C0006"), self, safe_tr("Font Color")
-        )
+        col = QColorDialog.getColor(QColor(self.fg_color or "#9C0006"), self, safe_tr("Font Color"))
         if col.isValid():
             self.fg_color = col.name().upper()
             self._refresh()

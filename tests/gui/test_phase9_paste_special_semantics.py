@@ -173,9 +173,7 @@ class TestPasteSpecialSemanticsEngine:
                 expected = (r + c) * 10
                 assert viewport.model.get_cell_value(r, c) == expected
 
-    def test_transpose_dimensions_merges_and_comments(
-        self, viewport: GridViewport
-    ) -> None:
+    def test_transpose_dimensions_merges_and_comments(self, viewport: GridViewport) -> None:
         # Create 2x3 block:
         # A1: 10, B1: 20, C1: 30
         # A2: 40, B2: 50, C2: 60
@@ -234,9 +232,7 @@ class TestPasteSpecialSemanticsEngine:
         assert viewport.model.get_cell_value(3, 0) == "KeepMe"
         assert viewport.model.get_cell_value(3, 1) == "OldB"
 
-    def test_no_borders_preserves_target_border(
-        self, viewport: GridViewport
-    ) -> None:
+    def test_no_borders_preserves_target_border(self, viewport: GridViewport) -> None:
         # Source has bold text and thick top border
         src = CellData(value="SourceText", bold=True, border_top={"style": "thick"})
         viewport.model.set_cell(0, 0, src)
@@ -271,9 +267,7 @@ class TestPasteSpecialSemanticsEngine:
         # Value should not be copied
         assert viewport.model.get_cell(0, 5) is None
 
-    def test_formulas_and_values_number_formats(
-        self, viewport: GridViewport
-    ) -> None:
+    def test_formulas_and_values_number_formats(self, viewport: GridViewport) -> None:
         cell = CellData(value=123.456, formula="=100+23.456", format_code="$#,##0.00")
         viewport.model.set_cell(0, 0, cell)
         viewport.selection.select_cell(0, 0)

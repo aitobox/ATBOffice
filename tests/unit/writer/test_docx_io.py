@@ -235,10 +235,7 @@ def test_schema_ordering_enforcement() -> None:
 
     # Check that children of pPr match sequence order in SCHEMA_ORDERS["wordprocessingml_ppr"]
     ppr_order = SCHEMA_ORDERS["wordprocessingml_ppr"]
-    p_tags = [
-        c.tag.split("}", 1)[1] if "}" in c.tag else c.tag
-        for c in p_pr
-    ]
+    p_tags = [c.tag.split("}", 1)[1] if "}" in c.tag else c.tag for c in p_pr]
     indices = [ppr_order.index(t) for t in p_tags if t in ppr_order]
     assert indices == sorted(indices), f"pPr child tags not in schema order: {p_tags}"
 
@@ -249,20 +246,14 @@ def test_schema_ordering_enforcement() -> None:
     assert r_pr is not None
 
     rpr_order = SCHEMA_ORDERS["wordprocessingml_rpr"]
-    r_tags = [
-        c.tag.split("}", 1)[1] if "}" in c.tag else c.tag
-        for c in r_pr
-    ]
+    r_tags = [c.tag.split("}", 1)[1] if "}" in c.tag else c.tag for c in r_pr]
     r_indices = [rpr_order.index(t) for t in r_tags if t in rpr_order]
     assert r_indices == sorted(r_indices), f"rPr child tags not in schema order: {r_tags}"
 
 
 def test_docm_macro_lossless_preservation() -> None:
     """Verify that editing a DOCM file carries untouched VBA binaries byte-for-byte."""
-    vba_payload = (
-        b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1"
-        + b"REALISTIC_VBA_PROJECT_BINARY_PAYLOAD" * 50
-    )
+    vba_payload = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"REALISTIC_VBA_PROJECT_BINARY_PAYLOAD" * 50
     image_payload = b"\x89PNG\r\n\x1a\n" + b"FAKE_PNG_BINARY_DATA" * 20
     theme_xml = (
         b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
@@ -317,7 +308,7 @@ def test_docm_macro_lossless_preservation() -> None:
                 b'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">\n'
                 b"  <w:body>\n"
                 b"    <w:p><w:r><w:t>Original Unmodified Paragraph</w:t></w:r></w:p>\n"
-                b"    <w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/></w:sectPr>\n"
+                b'    <w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr>\n'
                 b"  </w:body>\n"
                 b"</w:document>"
             ),

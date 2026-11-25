@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
@@ -24,6 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.references import (
     abs_range_name,
     col_name,
@@ -38,11 +38,6 @@ from atboffice.modules.spreadsheet.models.pivot_model import (
 if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
     from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for PivotTableWizardDialog."""
-    return QCoreApplication.translate("PivotTableWizardDialog", text)
 
 
 PIV_FUNCTIONS: list[tuple[str, str]] = [

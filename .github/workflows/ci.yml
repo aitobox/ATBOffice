@@ -82,5 +82,11 @@ jobs:
       - name: Lint with ruff
         run: ruff check .
 
+      - name: Check formatting
+        run: ruff format --check .
+
+      - name: Type-check core
+        run: mypy src/atboffice/core
+
       - name: Run tests with pytest
-        run: pytest
+        run: pytest -n auto

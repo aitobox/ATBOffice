@@ -110,9 +110,7 @@ def generate_report(
     incomparable = [r for r in results if _primary_score(r) is None]
 
     avg_sim = (
-        sum(_primary_score(r) or 0.0 for r in comparable) / len(comparable)
-        if comparable
-        else 0.0
+        sum(_primary_score(r) or 0.0 for r in comparable) / len(comparable) if comparable else 0.0
     )
     pixel_comparable = [r for r in results if r.similarity is not None]
     avg_pixel_sim = (
@@ -139,7 +137,7 @@ def generate_report(
         "# ATBOffice vs. VibeOffice Visual Document Rendering Parity Report",
         "",
         f"> **Generated**: {now_str}  ",
-        f"> **Quality Gate Verdict**: **{verdict_badge}** (Target: Avg >= {min_similarity*100:.1f}%, Single >= {min_single*100:.1f}%)",
+        f"> **Quality Gate Verdict**: **{verdict_badge}** (Target: Avg >= {min_similarity * 100:.1f}%, Single >= {min_single * 100:.1f}%)",
         "",
         "## 1. Executive Summary",
         "",
@@ -148,8 +146,8 @@ def generate_report(
         f"| **Evaluated Documents** | `{total}` | 73 Core Supported OOXML |",
         f"| **Comparable Documents** | `{len(comparable)}` | Size & Region Aligned |",
         f"| **Incomparable / Missing** | `{len(incomparable)}` | 0 Blockers |",
-        f"| **Average Visual Similarity** | `{avg_sim*100:.2f}%` | >= {min_similarity*100:.1f}% (Foreground-Weighted) |",
-        f"| **Average Pixel Similarity (MAE)** | `{avg_pixel_sim*100:.2f}%` | Secondary Reference |",
+        f"| **Average Visual Similarity** | `{avg_sim * 100:.2f}%` | >= {min_similarity * 100:.1f}% (Foreground-Weighted) |",
+        f"| **Average Pixel Similarity (MAE)** | `{avg_pixel_sim * 100:.2f}%` | Secondary Reference |",
         f"| **Parity Matches (>=95%)** | `{parity_matches}` | High Fidelity |",
         f"| **Cosmetic Minor (85%-95%)** | `{cosmetic_minors}` | Acceptable |",
         f"| **Layout Drifts (70%-85%)** | `{layout_drifts}` | Needs Polish |",
@@ -189,15 +187,21 @@ def generate_report(
             f"| {r.app} | `{r.file}` | `{r.category}` | **{fg_text}** | {rec_text} | {prec_text} | {hist_text} | {pix_text} | {r.mae:.1f} | {orig_s} | {target_s} | {diff_text} |"
         )
 
-    lines.extend([
-        "",
-        "---",
-        "",
-        "## 4. Remediation Action Cards",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "---",
+            "",
+            "## 4. Remediation Action Cards",
+            "",
+        ]
+    )
 
-    remediation_items = [r for r in results if r.category in ("CRITICAL_MISMATCH", "LAYOUT_DRIFT", "INCOMPARABLE_SIZE")][:10]
+    remediation_items = [
+        r
+        for r in results
+        if r.category in ("CRITICAL_MISMATCH", "LAYOUT_DRIFT", "INCOMPARABLE_SIZE")
+    ][:10]
     if remediation_items:
         prev_card = None
         for i, item in enumerate(remediation_items, start=1):
@@ -206,7 +210,9 @@ def generate_report(
             lines.append(card)
             prev_card = f"TASK-DOC-{i:02d}"
     else:
-        lines.append("No active visual rendering defects detected. All evaluated documents meet parity thresholds.")
+        lines.append(
+            "No active visual rendering defects detected. All evaluated documents meet parity thresholds."
+        )
 
     content = "\n".join(lines) + "\n"
     out_path.parent.mkdir(parents=True, exist_ok=True)

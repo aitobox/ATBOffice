@@ -9,12 +9,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QElapsedTimer, QObject, Qt, QTimer, Signal
+from PySide6.QtCore import QElapsedTimer, QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMessageBox, QToolButton, QWidget
 
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("Rehearsal", text)
+from atboffice.core.i18n import safe_tr
 
 
 def fmt(ms: int) -> str:

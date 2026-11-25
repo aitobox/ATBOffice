@@ -282,3 +282,30 @@ def test_menu_and_base_window_integration(qapp):
 
     menu_bar.action_map["check_updates"].trigger()
     mock_window.check_for_updates.assert_called_once()
+
+
+def test_update_check_survives_its_window_closing(qapp, monkeypatch):
+    """Closing the window that started a check must not destroy a running thread."""
+    import threading
+
+    from PySide6.QtWidgets import QWidget
+
+    from atboffice.core import updater
+
+    started = threading.Event()
+    release = threading.Event()
+
+    def slow_run(self) -> None:
+        started.set()
+        release.wait(5)
+
+    monkeypatch.setattr(updater.UpdateCheckWorker, "run", slow_run)
+    window = QWidget()
+    updater.check_for_updates(parent=window, manual=True)
+    assert started.wait(5)
+    window.deleteLater()
+    qapp.processEvents()
+    assert len(updater._active_workers) == 1
+    release.set()
+    updater.stop_update_checks()
+    assert updater._active_workers == set()

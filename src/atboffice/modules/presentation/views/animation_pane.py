@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.slide import Animation, Slide
 from atboffice.modules.presentation.slideshow.animations import (
     E_EMPH,
@@ -39,7 +40,6 @@ from atboffice.modules.presentation.slideshow.animations import (
     default_dir,
     effect_display_name,
     find_effect,
-    safe_tr,
 )
 
 if TYPE_CHECKING:
@@ -389,9 +389,7 @@ class AnimationPane(QWidget):
             target_row = 0
         if target_row >= 0:
             self.list_anims.setCurrentRow(target_row)
-            self._selected_anim_id = self.list_anims.item(target_row).data(
-                Qt.ItemDataRole.UserRole
-            )
+            self._selected_anim_id = self.list_anims.item(target_row).data(Qt.ItemDataRole.UserRole)
         self._updating_ui = False
         self._update_property_controls(self._get_selected_animation() if target_row >= 0 else None)
 

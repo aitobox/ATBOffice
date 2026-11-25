@@ -22,7 +22,7 @@ def test_worksheet_schema_ordering_with_namespace():
         f'<cols xmlns="{ns}"/>'
         f'<sheetData xmlns="{ns}"/>'
         f'<sheetPr xmlns="{ns}"/>'
-        f'</worksheet>'
+        f"</worksheet>"
     )
     root = ET.fromstring(raw)
     enforce_schema_order(root, "spreadsheetml_worksheet")

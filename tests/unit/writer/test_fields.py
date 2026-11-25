@@ -246,5 +246,3 @@ def test_pagination_with_dynamic_fields_and_toc() -> None:
     page_ref_run = [r for r in toc1_runs if isinstance(r, TextItem) and r.text.isdigit()]
     assert len(page_ref_run) > 0
     assert page_ref_run[-1].text == "2"
-
-

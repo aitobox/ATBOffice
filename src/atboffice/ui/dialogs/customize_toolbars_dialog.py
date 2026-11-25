@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 
-from PySide6.QtCore import QCoreApplication, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -32,12 +32,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
+
 logger = logging.getLogger(__name__)
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI string with standard context."""
-    return QCoreApplication.translate("CustomizeToolbarsDialog", text)
 
 
 class CustomizeToolbarsDialog(QDialog):
@@ -609,12 +606,14 @@ class CustomizeToolbarsDialog(QDialog):
 
         cur_anim = self.combo_animations.currentIndex()
         self.combo_animations.clear()
-        self.combo_animations.addItems([
-            safe_tr("(无)"),
-            safe_tr("随机"),
-            safe_tr("展开"),
-            safe_tr("滑动"),
-        ])
+        self.combo_animations.addItems(
+            [
+                safe_tr("(无)"),
+                safe_tr("随机"),
+                safe_tr("展开"),
+                safe_tr("滑动"),
+            ]
+        )
         if cur_anim >= 0 and cur_anim < self.combo_animations.count():
             self.combo_animations.setCurrentIndex(cur_anim)
 

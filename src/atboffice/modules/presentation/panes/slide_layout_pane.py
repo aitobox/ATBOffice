@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPen, QPixmap
+from PySide6.QtCore import QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -18,20 +18,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.designs import build_design
 from atboffice.modules.presentation.models.layouts import (
     LAYOUTS,
     LayoutInfo,
     layout_frames,
 )
+from atboffice.ui.styles.luna_2003 import ui_font
 
 if TYPE_CHECKING:
     from atboffice.modules.presentation.models.presentation import Presentation
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for SlideLayoutPane."""
-    return QCoreApplication.translate("SlideLayoutPane", text)
 
 
 class LayoutCardButton(QToolButton):
@@ -144,7 +141,7 @@ class SlideLayoutPane(QWidget):
 
         for grp_key, grp_layouts in groups.items():
             lbl = QLabel(self.group_names.get(grp_key, grp_key), self)
-            lbl.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+            lbl.setFont(ui_font(9, bold=True))
             lbl.setStyleSheet("color: #000080; margin-top: 4px; font-weight: bold;")
             layout.addWidget(lbl)
             self.group_labels[grp_key] = lbl
