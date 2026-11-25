@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import io
 import re
-from atboffice.vfs import etree as ET
 import zipfile
 from pathlib import Path
 
@@ -14,6 +13,7 @@ from atboffice.modules.presentation.io.alternate_content import select_branch
 from atboffice.modules.presentation.io.pptx_reader import read_pptx
 from atboffice.modules.presentation.io.pptx_writer import write_pptx
 from atboffice.modules.presentation.models.shape import Shape
+from atboffice.vfs import etree as ET
 
 FIXTURE = Path(__file__).parent / "docs" / "powerpoint" / "pptx" / "libreoffice__tdf129372.pptx"
 SLIDE = "ppt/slides/slide1.xml"

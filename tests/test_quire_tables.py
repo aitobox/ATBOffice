@@ -219,11 +219,10 @@ def test_unknown_style_falls_back_to_document_default_table_style() -> None:
 
 def test_explicit_zero_spacing_overrides_doc_defaults() -> None:
     """Explicit w:after="0" and w:line="240" override docDefaults without clobbering before."""
-    from atboffice.vfs import etree as ET
-
     from atboffice.modules.writer.io.docx_reader import DocxReader
     from atboffice.modules.writer.models.properties import ParagraphProperties, SpacingProperties
     from atboffice.modules.writer.models.styles import resolve_p_props
+    from atboffice.vfs import etree as ET
 
     doc = Document()
     doc.defaults["p_pr"] = ParagraphProperties(
@@ -247,9 +246,8 @@ def test_explicit_zero_spacing_overrides_doc_defaults() -> None:
 
 def test_tr_height_omitted_hrule_defaults_to_at_least() -> None:
     """ECMA-376: omitted w:hRule on w:trHeight defaults to atLeast; explicit auto stays auto."""
-    from atboffice.vfs import etree as ET
-
     from atboffice.modules.writer.io.docx_reader import DocxReader
+    from atboffice.vfs import etree as ET
 
     doc = DocxReader().read(FIXTURES + "libreoffice__tdf131260.docx")
     outer = next(b for b in doc.main.blocks if isinstance(b, Table))

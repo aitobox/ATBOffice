@@ -21,7 +21,8 @@ REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 CONTENT_TYPES = (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
     '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+    '<Default Extension="rels" '
+    'ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
     '<Default Extension="xml" ContentType="application/xml"/>'
     '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-'
     'officedocument.spreadsheetml.sheet.main+xml"/>'
@@ -167,7 +168,7 @@ def test_corpus_shared_formulas_survive_dirty_save() -> None:
     if not path.exists():
         pytest.skip("corpus file missing")
     src = path.read_bytes()
-    before = sum(len(s.cells and [c for c in s.cells.values() if c.formula]) for s in read_xlsx(src).sheets)
+    before = sum(len([c for c in s.cells.values() if c.formula]) for s in read_xlsx(src).sheets)
     out, _ = _dirty_roundtrip(src)
     after = sum(len([c for c in s.cells.values() if c.formula]) for s in read_xlsx(out).sheets)
     assert before > 3000

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from atboffice.vfs import etree as ET
 from pathlib import Path
 
 import pytest
@@ -19,6 +18,7 @@ from atboffice.modules.spreadsheet.views.object_layer import (
     object_to_rect,
 )
 from atboffice.modules.spreadsheet.views.object_painting import child_rect, fit_aspect_rect
+from atboffice.vfs import etree as ET
 
 FIXTURES = Path(__file__).parent / "docs" / "excel" / "xlsx"
 A = "http://schemas.openxmlformats.org/drawingml/2006/main"

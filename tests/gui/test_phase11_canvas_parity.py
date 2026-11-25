@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import glob
-from atboffice.vfs import etree as ET
 
 import pytest
 from PySide6.QtGui import QColor, QImage
@@ -13,6 +12,7 @@ from atboffice.modules.presentation.smartart.palettes import color_spec, paint_s
 from atboffice.modules.spreadsheet.models.selection_model import SelectionRange
 from atboffice.modules.spreadsheet.view import SpreadsheetView
 from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport
+from atboffice.vfs import etree as ET
 
 # ---------------------------------------------------------------------------
 # Ledger header geometry & colours (ledger/js/render.js RD.frame / COL)

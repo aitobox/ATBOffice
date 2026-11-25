@@ -9,7 +9,6 @@ Verifies:
 
 from __future__ import annotations
 
-from atboffice.vfs import etree as ET
 from pathlib import Path
 
 import pytest
@@ -22,6 +21,7 @@ from atboffice.modules.presentation.io.pptx_reader import PptxReader
 from atboffice.modules.presentation.models.text import Paragraph, TextBody, TextRun
 from atboffice.modules.presentation.views.slide_canvas import SlideCanvasView, SlideScene
 from atboffice.modules.presentation.views.text_editor import solve_norm_autofit_scale
+from atboffice.vfs import etree as ET
 
 PPTX_PATH = Path("tests/docs/powerpoint/pptx/libreoffice__TextFittingComparisonWithMSO_3.pptx")
 
