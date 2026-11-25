@@ -247,6 +247,38 @@ class OleCompoundFileError(ValueError):
         self.raw_bytes = raw_bytes
 
 
+# Limits that keep a crafted archive from exhausting memory ("zip bomb").
+MAX_PACKAGE_UNCOMPRESSED = 2 * 1024**3  # 2 GiB in total
+MAX_PART_UNCOMPRESSED = 1024**3  # 1 GiB for any single part
+MAX_COMPRESSION_RATIO = 1000  # only checked for parts larger than RATIO_CHECK_MIN
+RATIO_CHECK_MIN = 32 * 1024**2
+
+
+def _check_archive_limits(zf: zipfile.ZipFile) -> None:
+    """Reject archives whose declared sizes or compression ratios are implausible."""
+    total = 0
+    for info in zf.infolist():
+        size = info.file_size
+        total += size
+        if size > MAX_PART_UNCOMPRESSED or total > MAX_PACKAGE_UNCOMPRESSED:
+            raise ValueError(f"Package is too large to open safely ('{info.filename}').")
+        if size > RATIO_CHECK_MIN and size > MAX_COMPRESSION_RATIO * max(info.compress_size, 1):
+            raise ValueError(
+                f"Part '{info.filename}' has an implausible compression ratio; "
+                "the file may be a decompression bomb."
+            )
+
+
+def _read_member(zf: zipfile.ZipFile, info: zipfile.ZipInfo) -> bytes:
+    """Read one archive member, refusing to inflate past its declared size."""
+    limit = info.file_size
+    with zf.open(info) as fh:
+        data = fh.read(limit + 1)
+    if len(data) > limit:
+        raise zipfile.BadZipFile(f"'{info.filename}' is larger than its header declares")
+    return data
+
+
 class SourcePackage:
     """Immutable inspection wrapper over an OOXML / OPC ZIP container."""
 
@@ -263,6 +295,16 @@ class SourcePackage:
         self._default_content_types = default_content_types
         self._relationships = relationships
         self._corrupt_parts: set[str] = set(corrupt_parts or ())
+        # Normalized part name -> the entry name as stored in the ZIP. Part names are
+        # percent-encoded in the archive ("my%20image.png"); lookups use the decoded
+        # form, but carried parts are written back under their original entry name.
+        self._zip_names: dict[str, str] = {}
+        self._content_types_ci = {k.lower(): v for k, v in content_types.items()}
+
+    def zip_name(self, part_name: str) -> str:
+        """Return the ZIP entry name to use when writing ``part_name`` back."""
+        norm = normalize_part_name(part_name)
+        return self._zip_names.get(norm, norm)
 
     @classmethod
     def open(cls, file_path: Path | str) -> SourcePackage:
@@ -301,13 +343,16 @@ class SourcePackage:
                 raise ValueError("Not a valid ZIP/OPC package (header mismatch)")
             buf.seek(0)
             corrupt_parts: set[str] = set()
+            zip_names: dict[str, str] = {}
             with zipfile.ZipFile(buf, "r") as zf:
+                _check_archive_limits(zf)
                 parts_data: dict[str, bytes] = {}
                 for info in zf.infolist():
                     if not info.is_dir():
                         norm_name = normalize_part_name(info.filename)
+                        zip_names[norm_name] = info.filename.lstrip("/")
                         try:
-                            parts_data[norm_name] = zf.read(info.filename)
+                            parts_data[norm_name] = _read_member(zf, info)
                         except (zipfile.BadZipFile, zlib.error, EOFError) as exc:
                             if norm_name in ("[Content_Types].xml", "_rels/.rels"):
                                 raise ValueError(
@@ -378,13 +423,15 @@ class SourcePackage:
                     pass
                 relationships[owner] = rels_list
 
-        return cls(
+        pkg = cls(
             parts_data=parts_data,
             content_types=content_types,
             default_content_types=default_content_types,
             relationships=relationships,
             corrupt_parts=corrupt_parts,
         )
+        pkg._zip_names = zip_names
+        return pkg
 
     def has_part(self, part_name: str) -> bool:
         """Check if part exists in package."""
@@ -402,6 +449,10 @@ class SourcePackage:
         norm_name = normalize_part_name(part_name)
         if norm_name in self._content_types:
             return self._content_types[norm_name]
+        # Part names are case-insensitive (ECMA-376 Part 2, 6.2.2.3).
+        ci = self._content_types_ci.get(norm_name.lower())
+        if ci is not None:
+            return ci
         ext = norm_name.rsplit(".", 1)[-1].lower() if "." in norm_name else ""
         return self._default_content_types.get(ext)
 
@@ -540,8 +591,9 @@ class PackageWriter:
             ET.SubElement(root, f"{q}Default", Extension=ext, ContentType=defaults[ext])
 
         for part in sorted(overrides.keys()):
+            entry = self._source.zip_name(part) if self._source else part
             ET.SubElement(
-                root, f"{q}Override", PartName=f"/{part}", ContentType=overrides[part]
+                root, f"{q}Override", PartName=f"/{entry}", ContentType=overrides[part]
             )
 
         return ET.tostring(root, encoding="UTF-8", xml_declaration=True, standalone=True)
@@ -597,10 +649,12 @@ class PackageWriter:
             if "_rels/.rels" in active_parts:
                 zf.writestr("_rels/.rels", active_parts["_rels/.rels"])
 
-            # Write remaining parts in deterministic sorted order
+            # Write remaining parts in deterministic sorted order, under their original
+            # (percent-encoded) entry names when they came from the source package.
             for part_name in sorted(active_parts.keys()):
                 if part_name not in ("[Content_Types].xml", "_rels/.rels"):
-                    zf.writestr(part_name, active_parts[part_name])
+                    entry = self._source.zip_name(part_name) if self._source else part_name
+                    zf.writestr(entry, active_parts[part_name])
 
         return buf.getvalue()
 

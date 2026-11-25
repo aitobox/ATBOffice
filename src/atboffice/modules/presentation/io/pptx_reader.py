@@ -573,6 +573,9 @@ class PptxReader:
                         for sh in slide.shapes:
                             if sh.alt_content is not None:
                                 sh.alt_content.fingerprint = mce.shape_fingerprint(sh)
+                        num_id = sld_id_elem.get("id")
+                        if num_id and num_id.isdigit():
+                            slide.pres_slide_id = int(num_id)
                         slide._original_state = slide.to_dict()
                         pres.slides.append(slide)
                         slide_part_map[slide.id] = slide_path

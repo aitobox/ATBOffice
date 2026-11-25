@@ -65,7 +65,7 @@ from atboffice.modules.spreadsheet.views.object_layer import (
     FloatingObject,
 )
 from atboffice.vfs import etree as ET
-from atboffice.vfs.opc import SourcePackage
+from atboffice.vfs.opc import OleCompoundFileError, SourcePackage
 
 logger = logging.getLogger(__name__)
 
@@ -1667,6 +1667,35 @@ def _parse_worksheet_comments(
             sheet.set_comment(r, c, text, author=author, visible=is_visible)
 
 
+class _PackageArchive:
+    """Read-only ``zipfile.ZipFile`` look-alike over an already parsed SourcePackage.
+
+    The parsing helpers only need ``read`` and ``namelist``. Serving them from the
+    SourcePackage means the archive is inflated once, under the package size limits.
+    """
+
+    def __init__(self, pkg: SourcePackage) -> None:
+        self._pkg = pkg
+        self._names = [pkg.zip_name(p) for p in pkg.parts()]
+        self._lookup = {name: part for name, part in zip(self._names, pkg.parts())}
+
+    def namelist(self) -> list[str]:
+        return list(self._names)
+
+    def read(self, name: str) -> bytes:
+        part = self._lookup.get(name, name)
+        try:
+            return self._pkg.read_part(part)
+        except KeyError:
+            raise KeyError(f"There is no item named {name!r} in the archive") from None
+
+    def __enter__(self) -> _PackageArchive:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+
 def _open_zip(source: str | Path | bytes | BinaryIO) -> zipfile.ZipFile:
     """Open a ZipFile from file path, bytes, or binary file stream."""
     if isinstance(source, (str, Path)):
@@ -1804,6 +1833,12 @@ def read_xlsx(
             source_pkg = SourcePackage.from_bytes(buf)
         else:
             source_pkg = None
+    except OleCompoundFileError:
+        raise
+    except ValueError as exc:
+        if "too large" in str(exc) or "compression ratio" in str(exc):
+            raise
+        source_pkg = None
     except Exception:
         source_pkg = None
 
@@ -1817,7 +1852,7 @@ def read_xlsx(
         ):
             wb.extra["is_macro_enabled"] = True
 
-    with _open_zip(source) as z:
+    with (_PackageArchive(source_pkg) if source_pkg is not None else _open_zip(source)) as z:
         # 1. Discover workbook.xml via _rels/.rels
         root_rels = _parse_rels(z, "_rels/.rels")
         wb_part = "xl/workbook.xml"
