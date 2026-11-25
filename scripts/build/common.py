@@ -42,7 +42,10 @@ def get_app_version() -> str:
 
 def get_artifact_name(platform_name: str, arch: str, ext: str, version: str | None = None) -> str:
     """Generate standardized artifact name: ATBOffice-<version>-<platform>-<arch>.<ext>."""
-    ver = version or get_app_version()
+    ver = (version or get_app_version()).strip()
+    # Release tags use a "v" prefix (v1.2.3); artifact names use the bare version.
+    if len(ver) > 1 and ver[0] in "vV" and ver[1].isdigit():
+        ver = ver[1:]
     ext_clean = ext.lstrip(".")
     return f"ATBOffice-{ver}-{platform_name}-{arch}.{ext_clean}"
 
