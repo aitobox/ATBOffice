@@ -19,6 +19,7 @@ from atboffice.modules.spreadsheet.calc.references import cell_name
 from atboffice.modules.spreadsheet.calc.tokens import TokenType
 from atboffice.modules.spreadsheet.models.selection_model import (
     SelectionModel,
+    SelectionRange,
 )
 from atboffice.modules.spreadsheet.models.sheet_model import (
     CellData,
@@ -371,9 +372,20 @@ class EditorController(QObject):
             self._array_entry = False
 
     def commit(self) -> bool:
-        """Commit current edit text into the model."""
+        """Commit current edit text into the model (one undo step)."""
         if not self.is_active:
             return True
+        undoable = getattr(self.viewport, "undoable_edit", None)
+        if undoable is None:
+            return self._commit()
+        r, c = self.active_row, self.active_col
+        rect = (r, c, r, c)
+        if getattr(self, "_array_entry", False):
+            rect = getattr(self.model, "extra", {}).get("_array_formulas", {}).get((r, c), rect)
+        with undoable("edit", scope=[SelectionRange(*rect)]):
+            return self._commit()
+
+    def _commit(self) -> bool:
 
         text = self.in_cell_editor.text().strip()
         r, c = self.active_row, self.active_col

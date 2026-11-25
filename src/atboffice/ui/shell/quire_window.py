@@ -198,6 +198,7 @@ class QuireWindow(BaseOfficeWindow):
         self.set_modified(False)
         self._sync_toolbar_states()
         self.attach_undo_history()
+        self.bind_undo_service()
         self.menu_bar.retranslate_ui()
 
     def _bind_action_handlers(self) -> None:
@@ -1125,23 +1126,10 @@ class QuireWindow(BaseOfficeWindow):
         painter.end()
         return img
 
-    def undo_history(self, kind: str) -> list[str]:
-        from atboffice.ui.components.undo_history import entry_label
-
-        canvas = self.writer_view.canvas_view
-        stack = canvas._undo_stack if kind == "undo" else canvas._redo_stack
-        return [entry_label(e) for e in reversed(stack)]
-
-    def undo_steps(self, kind: str, steps: int) -> None:
-        canvas = self.writer_view.canvas_view
-        done = 0
-        for _ in range(max(0, steps)):
-            if not (canvas.undo() if kind == "undo" else canvas.redo()):
-                break
-            done += 1
-        if done:
-            canvas.viewport().update()
-            self.set_modified(True)
+    def undo_service(self) -> Any | None:
+        view = getattr(self, "writer_view", None)
+        canvas = getattr(view, "canvas_view", None)
+        return getattr(canvas, "history", None)
 
     def new_web_page(self) -> None:
         """New Document pane > Blank Web page: a new document in Web Layout view."""

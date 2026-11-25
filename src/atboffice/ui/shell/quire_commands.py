@@ -391,7 +391,9 @@ def insert_picture_bytes(canvas: Any, data: bytes, name: str, ext: str = "png") 
                       raw_data={"bytes": data, "ext": ext},
                       image_part=f"media/{part}", alt_text=stem)
     pic.natural_width, pic.natural_height = w_pt, h_pt
-    doc_actions.insert_items(canvas, [pic])
+    with canvas.controller.edit_scope("插入图片"):
+        doc_actions.insert_items(canvas, [pic])
+    canvas.refresh_layout()
     return True
 
 

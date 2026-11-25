@@ -1146,6 +1146,9 @@ class LecternWorkspace(QWidget):
     """Complete three-pane workspace implementation for Lectern."""
 
     slide_changed = Signal(int)
+    #: The presentation was edited in the workspace; the argument names the kind
+    #: of edit ("canvas", "notes", "outline", "move_slide").
+    content_edited = Signal(str)
 
     def __init__(
         self,
@@ -1228,6 +1231,7 @@ class LecternWorkspace(QWidget):
             parent=self,
         )
         self.canvas_view = SlideCanvasView(scene=self.scene, parent=self.center_splitter)
+        self.scene.contentEdited.connect(lambda: self.content_edited.emit("canvas"))
         self.center_splitter.addWidget(self.canvas_view)
 
         self.notes_pane = SpeakerNotesPane(self.center_splitter)
@@ -1447,6 +1451,7 @@ class LecternWorkspace(QWidget):
         self._refresh_thumbnails()
         self.outline_editor.reload(self.presentation)
         self.set_current_slide_index(to_idx)
+        self.content_edited.emit("move_slide")
 
     def apply_layout(self, layout_key: str) -> None:
         """Apply layout to the currently active slide."""
@@ -1647,6 +1652,7 @@ class LecternWorkspace(QWidget):
             self.presentation.slides[index].notes = text
             if index == self.current_slide_index:
                 self.notes_pane.set_plain_text(text)
+            self.content_edited.emit("notes")
 
     def _on_notes_slide_navigated(self, index: int) -> None:
         if 0 <= index < len(self.presentation.slides):
@@ -1662,6 +1668,7 @@ class LecternWorkspace(QWidget):
         self._refresh_thumbnails()
         self.outline_editor.reload(self.presentation)
         self._refresh_active_slide()
+        self.content_edited.emit("move_slide")
 
     def enter_master_view(self, master_kind: str = "slide") -> None:
         """Enter master editing view."""
@@ -1754,10 +1761,12 @@ class LecternWorkspace(QWidget):
         if self.presentation.slides:
             self.scene.load_slide(self.current_slide)
             self._refresh_current_thumbnail()
+        self.content_edited.emit("outline")
 
     def _on_notes_changed(self, text: str) -> None:
-        if self.presentation.slides:
+        if self.presentation.slides and self.current_slide.notes != text:
             self.current_slide.notes = text
+            self.content_edited.emit("notes")
 
     def _on_canvas_selection_changed(self) -> None:
         items = self.scene.selectedItems()

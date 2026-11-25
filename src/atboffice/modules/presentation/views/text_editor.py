@@ -1398,6 +1398,8 @@ class ShapeTextEditorItem(QGraphicsTextItem):
 
         # Emit completion signal
         self.editingFinished.emit(self.model.id, self.model.text)
+        if hasattr(sc, "contentEdited"):
+            sc.contentEdited.emit()
 
         # Notify parent shape item
         if shiboken6.isValid(self.shape_item):

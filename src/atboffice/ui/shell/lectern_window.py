@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +59,7 @@ class LecternWindow(BaseOfficeWindow):
         # 2. Embed PresentationView
         self.presentation_view = PresentationView(parent=self)
         self.setCentralWidget(self.presentation_view)
+        self._init_history()
         self.thumbnail_list = self.presentation_view.workspace.thumbnail_list
 
         # 3. Setup native macOS menu bar
@@ -109,7 +111,8 @@ class LecternWindow(BaseOfficeWindow):
         self.lectern_commands = bind_lectern_commands(self)
         # The window's task pane dock replaces the workspace's embedded task pane
         ws.set_embedded_task_pane_enabled(False)
-        self.attach_undo_history()  # Lectern has no undo stack yet: shows "nothing to undo"
+        self.attach_undo_history()
+        self.bind_undo_service()
 
         self.set_modified(False)
         self._setup_status_bar_view_buttons()
@@ -2030,6 +2033,43 @@ class LecternWindow(BaseOfficeWindow):
     def presentation(self):
         """Return the bound Presentation model."""
         return self.presentation_view.presentation
+
+    # -- Undo / redo ------------------------------------------------------------
+
+    _HISTORY_IGNORED_ACTIONS = frozenset({"undo", "redo", "edit_undo", "edit_redo"})
+
+    def _init_history(self) -> None:
+        from atboffice.ui.shell.lectern_history import PresentationHistory
+
+        self.history = PresentationHistory(self)
+        self.presentation_view.presentation_loaded.connect(lambda _p: self.history.reset())
+        self.presentation_view.workspace.content_edited.connect(self.history.note_edit)
+        self.action_registry.action_triggered.connect(self._note_action_for_history)
+
+    def _note_action_for_history(self, action_id: str) -> None:
+        if action_id in self._HISTORY_IGNORED_ACTIONS:
+            return
+        action = self.action_registry.get_action(action_id)
+        label = ""
+        if action is not None:
+            label = re.sub(r"\s*\(&?\w\)", "", action.text()).replace("&", "")
+            label = label.rstrip(".…").strip()
+        self.history.note_edit("action", label or None)
+
+    def undo_service(self) -> Any | None:
+        history = getattr(self, "history", None)
+        return history.service if history is not None else None
+
+    def flush_pending_edits(self) -> None:
+        history = getattr(self, "history", None)
+        if history is not None:
+            history.flush()
+
+    def set_modified(self, modified: bool) -> None:
+        super().set_modified(modified)
+        history = getattr(self, "history", None)
+        if modified and history is not None:
+            history.note_edit()
 
     def _apply_template_result(self, result: Any) -> None:
         """Apply generated template Presentation model to presentation view."""
