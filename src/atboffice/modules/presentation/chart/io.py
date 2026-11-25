@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import html
 import io
-import xml.etree.ElementTree as ET
 import zipfile
 from collections.abc import Sequence
 from typing import Any
 
 from atboffice.modules.presentation.chart.model import ChartData, SeriesData
 from atboffice.modules.presentation.io.xml_utils import NS_A, NS_R, XML_DECL
+from atboffice.vfs import etree as ET
 
 NS_C = "http://schemas.openxmlformats.org/drawingml/2006/chart"
 WORKSHEET_CHART_FILL = "#FFFFFF"

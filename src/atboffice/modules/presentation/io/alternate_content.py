@@ -13,10 +13,11 @@ from __future__ import annotations
 import io
 import json
 import posixpath
-import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
+
+from atboffice.vfs import etree as ET
 
 NS_MC = "http://schemas.openxmlformats.org/markup-compatibility/2006"
 NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -43,18 +44,16 @@ def _local(tag: str) -> str:
 
 
 def _safe_register(prefix: str, uri: str) -> None:
-    """Register ``prefix -> uri`` with ElementTree unless it would clobber a mapping."""
+    """Register ``prefix -> uri`` as the preferred prefix for newly created elements.
+
+    Parsed elements keep their own prefixes (lxml), so this only matters for markup
+    the writers create from scratch.
+    """
     if not prefix or not uri:
-        return
-    ns_map = ET._namespace_map  # noqa: SLF001 - only public way to inspect the registry
-    current = ns_map.get(uri)
-    if current is not None:
-        return
-    if prefix in ns_map.values():
         return
     try:
         ET.register_namespace(prefix, uri)
-    except ValueError:  # reserved "ns<digits>" prefixes
+    except ValueError:  # reserved "ns<digits>" / "xml" prefixes
         pass
 
 

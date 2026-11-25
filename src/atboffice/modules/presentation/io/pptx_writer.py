@@ -5,7 +5,6 @@ from __future__ import annotations
 import io
 import os
 import posixpath
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from atboffice.modules.presentation.io.writer_slide import notes_slide_to_xml, slide_to_xml
@@ -74,6 +73,7 @@ from atboffice.modules.presentation.smartart.io import (
     layout_xml,
     style_xml,
 )
+from atboffice.vfs import etree as ET
 from atboffice.vfs.opc import PackageWriter, SourcePackage
 from atboffice.vfs.order import enforce_schema_order
 
@@ -189,6 +189,7 @@ class PptxWriter:
         pres_rels.add(REL_SLIDE_MASTER, "slideMasters/slideMaster1.xml")
 
         slide_id_entries: list[tuple[int, str]] = []
+        slide_ids = assign_slide_ids(self.pres.slides)
         has_any_notes = any(bool(s.notes and s.notes.strip()) for s in self.pres.slides)
         if has_any_notes:
             notes_master_part = "ppt/notesMasters/notesMaster1.xml"
@@ -483,7 +484,7 @@ class PptxWriter:
             )
 
             r_id = pres_rels.add(REL_SLIDE, f"slides/slide{i}.xml")
-            slide_id_entries.append((255 + i, r_id))
+            slide_id_entries.append((slide_ids[i - 1], r_id))
 
         # Auxiliary Parts
         self.pkg_writer.replace_part(
@@ -759,6 +760,10 @@ class PptxWriter:
         rel_map_by_target: dict[str, str] = {}
         for r in self.source_pkg.get_relationships(pres_part):
             target_norm = posixpath.normpath(posixpath.join("ppt", r.target)).replace("\\", "/")
+            if (r.type == REL_SLIDE or r.type.endswith("/slide")) and (
+                target_norm not in live_parts_set
+            ):
+                continue  # slide was deleted: drop its relationship too
             if target_norm.startswith("ppt/"):
                 target_rel = target_norm[4:]
             else:
@@ -767,13 +772,14 @@ class PptxWriter:
             pres_rels.add(r.type, r.target, target_mode=r.target_mode, rel_id=r.id)
 
         slide_id_entries: list[tuple[int, str]] = []
+        slide_ids = assign_slide_ids([s for s, _ in live_slides_parts])
         for i, (_, p_name) in enumerate(live_slides_parts, start=1):
             p_rel = f"slides/{posixpath.basename(p_name)}"
             rid = rel_map_by_target.get(p_rel)
             if not rid:
                 rid = pres_rels.add(REL_SLIDE, p_rel)
                 rel_map_by_target[p_rel] = rid
-            slide_id_entries.append((255 + i, rid))
+            slide_id_entries.append((slide_ids[i - 1], rid))
 
         # Comment Authors
         all_comments = [c for s in self.pres.slides for c in s.comments]
@@ -844,6 +850,39 @@ class PptxWriter:
         self.pkg_writer.replace_part(
             pres_part, final_pres_xml.encode("utf-8"), content_type=main_ct
         )
+
+
+_MIN_SLIDE_ID = 256
+_MAX_SLIDE_ID = 2**31 - 1
+
+
+def assign_slide_ids(slides: list[Slide]) -> list[int]:
+    """Return the ``<p:sldId id>`` for each slide.
+
+    Slides loaded from a file keep their id, because ``p14:sectionLst`` and custom
+    shows refer to slides by it. New or duplicated slides get the next unused id.
+    """
+    used: set[int] = set()
+    ids: list[int | None] = []
+    for slide in slides:
+        sid = getattr(slide, "pres_slide_id", None)
+        if sid is not None and _MIN_SLIDE_ID <= sid <= _MAX_SLIDE_ID and sid not in used:
+            used.add(sid)
+            ids.append(sid)
+        else:
+            ids.append(None)
+    next_id = max(used, default=_MIN_SLIDE_ID - 1) + 1
+    out: list[int] = []
+    for sid in ids:
+        if sid is None:
+            while next_id in used:
+                next_id += 1
+            if next_id > _MAX_SLIDE_ID:  # pathological: fall back to the lowest free id
+                next_id = next(i for i in range(_MIN_SLIDE_ID, _MAX_SLIDE_ID) if i not in used)
+            sid = next_id
+            used.add(sid)
+        out.append(sid)
+    return out
 
 
 def write_pptx(

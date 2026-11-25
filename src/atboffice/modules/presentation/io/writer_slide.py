@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
 from collections.abc import Callable
 
 from atboffice.modules.presentation.io.writer_shapes import shape_to_xml
@@ -15,6 +14,7 @@ from atboffice.modules.presentation.io.xml_utils import (
 )
 from atboffice.modules.presentation.models.designs import DesignTemplate
 from atboffice.modules.presentation.models.slide import Slide, Transition
+from atboffice.vfs import etree as ET
 from atboffice.vfs.order import enforce_schema_order
 
 ENTR_TO_PID = {

@@ -12,6 +12,7 @@ Tests issue #287:
 from __future__ import annotations
 
 import io
+import re
 import zipfile
 from pathlib import Path
 
@@ -80,7 +81,7 @@ def test_textframe_borders_vml_roundtrip():
     out_bytes = write_docx(doc)
     with zipfile.ZipFile(io.BytesIO(out_bytes)) as zf:
         doc_xml = zf.read("word/document.xml").decode("utf-8")
-        assert "<w:pict>" in doc_xml
+        assert re.search(r"<w:pict[ >]", doc_xml)
         assert "v:rect" in doc_xml
         assert "w:txbxContent" in doc_xml
         assert "aaa" in doc_xml

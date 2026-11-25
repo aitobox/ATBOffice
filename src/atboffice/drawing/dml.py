@@ -8,7 +8,6 @@ dictionary understood by ``geometry_helper.create_shape_path``.
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 
@@ -17,6 +16,7 @@ from atboffice.modules.spreadsheet.models.color_utils import (
     DEFAULT_THEME_COLORS,
     THEME_COLOR_ORDER,
 )
+from atboffice.vfs import etree as ET
 
 # Spreadsheet/default color map: text/background aliases -> theme slots.
 SCHEME_ALIASES: dict[str, str] = {"tx1": "dk1", "bg1": "lt1", "tx2": "dk2", "bg2": "lt2"}

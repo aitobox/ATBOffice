@@ -1,7 +1,6 @@
 """Unit and integration tests for Pivot Table models, OPC preservation, and wizard dialog."""
 
 import io
-import xml.etree.ElementTree as ET
 import zipfile
 
 import pytest
@@ -19,6 +18,7 @@ from atboffice.modules.spreadsheet.models.pivot_model import (
 )
 from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
+from atboffice.vfs import etree as ET
 
 
 @pytest.fixture(scope="session")

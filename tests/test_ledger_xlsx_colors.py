@@ -5,7 +5,6 @@ Theme, indexed palette, and tint color resolution in XLSX reading & round-trip w
 from __future__ import annotations
 
 import io
-import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 
@@ -22,6 +21,7 @@ from atboffice.modules.spreadsheet.models.color_utils import (
     parse_theme_xml,
     resolve_color_spec,
 )
+from atboffice.vfs import etree as ET
 
 
 def test_default_indexed_palette_entries() -> None:

@@ -7,7 +7,6 @@ import io
 import math
 import posixpath
 import uuid
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -52,6 +51,7 @@ from atboffice.modules.presentation.models.text import (
     TextBody,
 )
 from atboffice.modules.writer.models.omml import parse_omml
+from atboffice.vfs import etree as ET
 from atboffice.vfs.opc import SourcePackage
 
 # PresentationML & DrawingML Namespaces
@@ -573,6 +573,9 @@ class PptxReader:
                         for sh in slide.shapes:
                             if sh.alt_content is not None:
                                 sh.alt_content.fingerprint = mce.shape_fingerprint(sh)
+                        num_id = sld_id_elem.get("id")
+                        if num_id and num_id.isdigit():
+                            slide.pres_slide_id = int(num_id)
                         slide._original_state = slide.to_dict()
                         pres.slides.append(slide)
                         slide_part_map[slide.id] = slide_path

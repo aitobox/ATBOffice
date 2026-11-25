@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -19,6 +18,7 @@ from atboffice.modules.writer.io.docx_shapes import load_theme_colors, vml_color
 from atboffice.modules.writer.models import Paragraph, PictureItem, ShapeItem
 from atboffice.modules.writer.models.document import plain_text
 from atboffice.modules.writer.views.canvas_view import WriterCanvasView
+from atboffice.vfs import etree as ET
 
 DOCX_DIR = Path(__file__).parent / "docs" / "word" / "docx"
 A = "http://schemas.openxmlformats.org/drawingml/2006/main"

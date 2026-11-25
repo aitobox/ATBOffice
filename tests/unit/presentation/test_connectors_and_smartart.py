@@ -1,7 +1,5 @@
 """Unit tests for Lectern magnetic shape connectors, routing, and SmartArt layouts."""
 
-import xml.etree.ElementTree as ET
-
 import pytest
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtWidgets import QApplication
@@ -30,6 +28,7 @@ from atboffice.modules.presentation.views.shape_item import (
     ShapeGraphicsItem,
 )
 from atboffice.modules.presentation.views.slide_canvas import SlideScene
+from atboffice.vfs import etree as ET
 
 
 @pytest.fixture(scope="session")

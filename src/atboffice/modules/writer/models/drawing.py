@@ -161,7 +161,8 @@ class DrawingObject(RunItem):
             return ""
         try:
             import re
-            import xml.etree.ElementTree as ET
+
+            from atboffice.vfs import etree as ET
 
             xml_str = self.raw_xml
             if "Fallback" in xml_str:
