@@ -10,12 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication
-
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("CompatibilityChecker", text)
-
+from atboffice.core.i18n import safe_tr
 
 MACRO_SUFFIXES = {".docm": ".docx", ".xlsm": ".xlsx", ".pptm": ".pptx", ".dotm": ".dotx",
                   ".xltm": ".xltx", ".potm": ".potx"}

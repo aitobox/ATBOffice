@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
+from PySide6.QtCore import QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QLabel,
@@ -18,15 +18,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.designs import DESIGNS, DesignDefinition
+from atboffice.ui.styles.luna_2003 import ui_font
 
 if TYPE_CHECKING:
     from atboffice.modules.presentation.models.presentation import Presentation
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for SlideDesignPane."""
-    return QCoreApplication.translate("SlideDesignPane", text)
 
 
 class PaneLinkButton(QPushButton):
@@ -113,7 +110,7 @@ class SlideDesignPane(QWidget):
 
         # Used in this presentation section
         self.lbl_used = QLabel(safe_tr("在此演示文稿中使用:"), self)
-        self.lbl_used.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self.lbl_used.setFont(ui_font(9, bold=True))
         self.content_layout.addWidget(self.lbl_used)
 
         self.used_container = QWidget(self)
@@ -124,7 +121,7 @@ class SlideDesignPane(QWidget):
 
         # Available for use section
         self.lbl_available = QLabel(safe_tr("可供使用:"), self)
-        self.lbl_available.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self.lbl_available.setFont(ui_font(9, bold=True))
         self.content_layout.addWidget(self.lbl_available)
 
         self.avail_container = QWidget(self)

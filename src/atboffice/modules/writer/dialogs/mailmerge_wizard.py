@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
     QDialog,
@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.writer.models.document import Document, Paragraph
 from atboffice.modules.writer.models.mailmerge import (
     ADDRESS_FIELDS,
@@ -38,11 +39,6 @@ from atboffice.modules.writer.models.mailmerge import (
 
 if TYPE_CHECKING:
     from atboffice.modules.writer.view import WriterView
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for Mail Merge dialogs."""
-    return QCoreApplication.translate("MailMergeWizard", text)
 
 
 # ---------------------------------------------------------------------------

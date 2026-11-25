@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from atboffice.core.diagnostics import record_action
@@ -24,11 +24,6 @@ from atboffice.modules.spreadsheet.views.object_layer import (
     SpreadsheetObjectLayer,
 )
 from atboffice.modules.spreadsheet.views.sheet_tab_bar import SheetTabBar
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("SpreadsheetView", text)
 
 
 class SpreadsheetView(QWidget):
@@ -104,6 +99,9 @@ class SpreadsheetView(QWidget):
         # 5. Bottom SheetTabBar embedded in grid viewport scrollbar
         self.sheet_tab_bar = SheetTabBar(workbook=self._workbook, parent=self)
         self.grid.addScrollBarWidget(self.sheet_tab_bar, Qt.AlignmentFlag.AlignLeft)
+        # The tabs share the scroll bar's row, which is only as tall as the scroll
+        # bar itself (14 px in Fusion); make the row tall enough for the tabs.
+        self.grid.horizontalScrollBar().setMinimumHeight(self.sheet_tab_bar.height())
 
         # 6. Floating Object Layer overlay
         self.object_layer = SpreadsheetObjectLayer(

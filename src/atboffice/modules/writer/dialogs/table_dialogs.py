@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -34,10 +33,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("TableDialogs", text)
+from atboffice.core.i18n import safe_tr
 
 
 class InsertCellsDialog(QDialog):

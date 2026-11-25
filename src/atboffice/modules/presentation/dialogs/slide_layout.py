@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import QCoreApplication, QSize, Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -15,12 +15,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.layouts import LAYOUTS
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for SlideLayoutDialog."""
-    return QCoreApplication.translate("SlideLayoutDialog", text)
 
 
 class SlideLayoutDialog(QDialog):

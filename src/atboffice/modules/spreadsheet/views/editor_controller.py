@@ -7,10 +7,11 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Final
 
-from PySide6.QtCore import QCoreApplication, QObject, Qt, Signal
+from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QKeyEvent
 from PySide6.QtWidgets import QLineEdit, QWidget
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.context import EvalContext
 from atboffice.modules.spreadsheet.calc.errors import ExcelError
 from atboffice.modules.spreadsheet.calc.evaluator import evaluate_ast
@@ -29,11 +30,6 @@ from atboffice.modules.spreadsheet.models.sheet_model import (
 if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.views.formula_bar import FormulaBar
     from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for EditorController."""
-    return QCoreApplication.translate("EditorController", text)
 
 
 class EditorMode(Enum):

@@ -29,6 +29,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QMenu, QWidget
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.views.object_painting import (
     child_rect,
     paint_geometry,
@@ -44,11 +45,6 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("SpreadsheetObjectLayer", text)
 
 
 class AnchorType(Enum):

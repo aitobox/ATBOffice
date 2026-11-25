@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -13,10 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("DiagramGalleryDialog", text)
-
+from atboffice.core.i18n import safe_tr
 
 # (SmartArt layout id, label, description)
 DIAGRAM_TYPES: list[tuple[str, str, str]] = [

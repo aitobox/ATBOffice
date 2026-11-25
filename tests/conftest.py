@@ -164,3 +164,20 @@ def _no_unexpected_compatibility_dialog(monkeypatch: pytest.MonkeyPatch) -> None
         )
 
     monkeypatch.setattr(CompatibilityDialog, "exec", unexpected)
+
+
+@pytest.fixture(autouse=True)
+def _restore_default_locale() -> Generator[None, None, None]:
+    """Every test starts and ends in Simplified Chinese, the default UI language.
+
+    Tests that switch to another language would otherwise change the text later
+    tests on the same worker see.
+    """
+    from atboffice.core.i18n import get_i18n_manager
+
+    manager = get_i18n_manager()
+    if manager.current_locale != "zh-CN":
+        manager.set_locale("zh-CN")
+    yield
+    if manager.current_locale != "zh-CN":
+        manager.set_locale("zh-CN")

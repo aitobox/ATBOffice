@@ -16,7 +16,6 @@ from PySide6.QtGui import (
     QRadialGradient,
 )
 from PySide6.QtWidgets import (
-    QApplication,
     QWidget,
 )
 
@@ -24,16 +23,6 @@ from atboffice.modules.presentation.models.shape import Fill, Line, Shape
 
 if TYPE_CHECKING:
     pass
-
-
-def safe_tr(text: str) -> str:
-    """Safe translation for SlideAnnotationOverlay."""
-    app = QApplication.instance()
-    if app:
-        translated = app.translate("SlideAnnotationOverlay", text)
-        if translated and translated != text:
-            return translated
-    return text
 
 
 @dataclass

@@ -17,6 +17,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QWidget
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.writer.models.document import Paragraph, sect_for
 from atboffice.modules.writer.models.properties import SectionProperties, TabStop
 from atboffice.modules.writer.views.rulers.types import (
@@ -33,7 +34,6 @@ from atboffice.modules.writer.views.rulers.types import (
     RulerUnit,
     TabKind,
     draw_tab_glyph,
-    safe_tr,
     snap_to_grid,
 )
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QRect, Qt
+from PySide6.QtCore import QRect, Qt
 from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import (
     QColorDialog,
@@ -19,12 +19,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.models.sheet_model import BorderStyle
-
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("BorderTab", text)
-
 
 LINE_STYLES = [
     ("none", "无"),

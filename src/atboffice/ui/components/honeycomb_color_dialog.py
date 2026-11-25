@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import QCoreApplication, QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QMouseEvent,
@@ -26,10 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for HoneycombColorDialog."""
-    return QCoreApplication.translate("HoneycombColorDialog", text)
+from atboffice.core.i18n import safe_tr
 
 
 class HoneycombCell:

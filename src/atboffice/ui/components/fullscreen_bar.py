@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QCoreApplication, QPoint, Qt, Signal
+from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QHBoxLayout, QPushButton, QWidget
 
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for CloseFullScreenBar."""
-    return QCoreApplication.translate("CloseFullScreenBar", text)
+from atboffice.core.i18n import safe_tr
 
 
 class CloseFullScreenBar(QWidget):

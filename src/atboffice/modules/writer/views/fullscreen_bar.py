@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from atboffice.ui.components.fullscreen_bar import (
-    CloseFullScreenBar,
-    safe_tr,
-)
+from atboffice.core.i18n import safe_tr
+from atboffice.ui.components.fullscreen_bar import CloseFullScreenBar
 
 __all__ = ["CloseFullScreenBar", "safe_tr"]

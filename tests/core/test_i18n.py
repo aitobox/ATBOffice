@@ -214,3 +214,50 @@ def test_window_retranslate_on_locale_change(qapp):
     load_locale("zh-CN")
     win.close()
     main_win.close()
+
+
+# -- Chinese source text in other languages ------------------------------------
+
+
+def test_english_translates_chinese_source_text():
+    catalog = TranslationCatalog("en")
+    assert catalog.translate("撤销") == "Undo"
+    assert catalog.translate("无操作可撤销") == "Nothing to Undo"
+    assert catalog.translate("撤销 {0} 步操作", 3) == "Undo 3 Actions"
+
+
+def test_accelerator_kept_only_when_source_has_one():
+    catalog = TranslationCatalog("en")
+    assert catalog.translate("保存(&S)") == "&Save"
+    assert "&" not in catalog.translate("保存")
+
+
+def test_other_locales_go_through_english():
+    assert TranslationCatalog("fr").translate("撤销") == "Annuler"
+    assert TranslationCatalog("zh-Hant").translate("撤销") == "復原"
+
+
+def test_unknown_chinese_text_is_shown_as_written():
+    assert TranslationCatalog("en").translate("未知词汇") == "未知词汇"
+    assert TranslationCatalog("zh-CN").translate("撤销") == "撤销"
+
+
+def test_source_map_keeps_placeholders():
+    import re
+
+    from atboffice.core.i18n import _source_en
+
+    placeholder = re.compile(r"\{[A-Za-z0-9_]*\}")
+    for zh, en in _source_en().items():
+        if zh == "{无}":  # a literal label, not a placeholder
+            continue
+        assert sorted(placeholder.findall(zh)) == sorted(placeholder.findall(en)), zh
+
+
+def test_qt_translator_follows_locale(qapp):
+    from PySide6.QtCore import QCoreApplication
+
+    load_locale("fr")
+    assert QCoreApplication.translate("QPlatformTheme", "Cancel") == "Annuler"
+    load_locale("zh-CN")
+    assert QCoreApplication.translate("QPlatformTheme", "Cancel") == "取消"

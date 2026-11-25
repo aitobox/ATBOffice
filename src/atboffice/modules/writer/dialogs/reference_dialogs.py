@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QDateTime, Qt
+from PySide6.QtCore import QDateTime, Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -43,10 +43,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("ReferenceDialogs", text)
+from atboffice.core.i18n import safe_tr
 
 
 class FootnoteDialog(QDialog):
@@ -831,7 +828,7 @@ class FieldDialog(QDialog):
 
     def _on_field_changed(self, field_name: str) -> None:
         self.edit_codes.setText(f"{{{field_name}}}")
-        self.lbl_desc.setText(safe_tr(f"插入当前文档的 {field_name} 信息。"))
+        self.lbl_desc.setText(safe_tr("插入当前文档的 {0} 信息。", field_name))
 
     def get_field_data(self) -> dict[str, str]:
         item = self.list_fields.currentItem()

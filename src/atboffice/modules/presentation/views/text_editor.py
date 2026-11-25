@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QMenu,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.designs import apply_color_mods, split_color_token
 from atboffice.modules.presentation.models.placeholder_resolver import evaluate_field_text
 from atboffice.modules.presentation.models.text import (
@@ -73,38 +74,6 @@ STANDARD_FONT_SIZES = [
     88.0,
     96.0,
 ]
-
-
-def safe_tr(text: str) -> str:
-    """Translate user-facing text with native Chinese fallback."""
-    app = QApplication.instance()
-    if app:
-        translated = app.translate("TextEditor", text)
-        if translated and translated != text:
-            return translated
-    # Translation dictionary for common actions
-    translations = {
-        "Bold": "加粗",
-        "Italic": "倾斜",
-        "Underline": "下划线",
-        "Increase Font Size": "增大字号",
-        "Decrease Font Size": "减小字号",
-        "Font Color": "字体颜色",
-        "Increase Indent": "增加缩进 (降级)",
-        "Decrease Indent": "减少缩进 (升级)",
-        "Bullets": "项目符号",
-        "Numbering": "编号",
-        "Align Left": "左对齐",
-        "Center": "居中",
-        "Align Right": "右对齐",
-        "Justify": "两端对齐",
-        "Reset Formatting": "清除格式",
-        "Cut": "剪切",
-        "Copy": "复制",
-        "Paste": "粘贴",
-        "Select All": "全选",
-    }
-    return translations.get(text, text)
 
 
 def clamp_outline_level(level: int) -> int:

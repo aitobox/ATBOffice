@@ -12,124 +12,12 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QObject, QRectF, QTimer, Signal
-from PySide6.QtWidgets import QApplication
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.slide import Animation, Slide
 
 if TYPE_CHECKING:
     pass
-
-
-def safe_tr(text: str) -> str:
-    """Translate animation UI string with Chinese/English fallback."""
-    app = QApplication.instance()
-    if app:
-        translated = app.translate("Animations", text)
-        if translated and translated != text:
-            return translated
-    # Common translation dictionary fallback
-    _DICT: dict[str, str] = {
-        # Classes
-        "Entrance": "进入",
-        "Emphasis": "强调",
-        "Exit": "退出",
-        "Motion Paths": "动作路径",
-        # Entrance effects
-        "Appear": "出现",
-        "Blinds": "百叶窗",
-        "Box": "盒状",
-        "Checkerboard": "棋盘",
-        "Circle": "圆环",
-        "Diamond": "菱形",
-        "Dissolve In": "溶解",
-        "Fade": "淡出/淡入",
-        "Fly In": "飞入",
-        "Peek In": "切入",
-        "Plus": "十字扩展",
-        "Random Bars": "随机线条",
-        "Split": "分割",
-        "Strips": "阶梯",
-        "Wedge": "楔形",
-        "Wheel": "轮子",
-        "Wipe": "擦除",
-        "Zoom": "缩放",
-        "Ascend": "浮入",
-        "Descend": "浮出",
-        "Expand": "展开",
-        "Spinner": "回旋",
-        # Emphasis effects
-        "Grow/Shrink": "放大/缩小",
-        "Spin": "陀螺旋",
-        "Transparency": "透明度",
-        "Teeter": "跷跷板",
-        "Blink": "闪烁",
-        # Exit effects
-        "Disappear": "消失",
-        "Dissolve Out": "向外溶解",
-        "Fly Out": "飞出",
-        "Peek Out": "切出",
-        "Sink Down": "下沉",
-        # Paths
-        "Right": "向右",
-        "Left": "向左",
-        "Up": "向上",
-        "Down": "向下",
-        "Diagonal Down Right": "向右下",
-        "Diagonal Up Right": "向右上",
-        "Bounce Right": "弹跳",
-        # Directions
-        "From Bottom": "自底部",
-        "From Left": "自左侧",
-        "From Right": "自右侧",
-        "From Top": "自顶部",
-        "From Bottom-Left": "自左下",
-        "From Bottom-Right": "自右下",
-        "From Top-Left": "自左上",
-        "From Top-Right": "自右上",
-        "Horizontal": "水平",
-        "Vertical": "垂直",
-        "In": "放大/向内",
-        "Out": "缩小/向外",
-        "Across": "横向",
-        "Horizontal In": "水平向内",
-        "Horizontal Out": "水平向外",
-        "Vertical In": "垂直向内",
-        "Vertical Out": "垂直向外",
-        "Left Down": "向左下",
-        "Left Up": "向左上",
-        "Right Down": "向右下",
-        "Right Up": "向右上",
-        "1 Spoke": "1 根辐条",
-        "2 Spokes": "2 根辐条",
-        "3 Spokes": "3 根辐条",
-        "4 Spokes": "4 根辐条",
-        "8 Spokes": "8 根辐条",
-        # Triggers
-        "On Click": "单击时",
-        "With Previous": "之前",
-        "After Previous": "之后",
-        "Start On Click": "单击时开始",
-        "Start With Previous": "从上一项开始",
-        "Start After Previous": "从上一项之后开始",
-        # Speeds
-        "Very Slow": "非常慢 (5秒)",
-        "Slow": "慢速 (3秒)",
-        "Medium": "中速 (2秒)",
-        "Fast": "快速 (1秒)",
-        "Very Fast": "非常快 (0.5秒)",
-        # Buttons & headers
-        "Add Effect": "添加效果",
-        "Remove": "删除",
-        "Modify effect": "修改效果",
-        "Start:": "开始:",
-        "Direction:": "方向:",
-        "Speed:": "速度:",
-        "Re-Order": "重新排序",
-        "Play": "播放",
-        "Slide Show": "放映幻灯片",
-        "AutoPreview": "自动预览",
-    }
-    return _DICT.get(text, text)
 
 
 # ==============================================================================

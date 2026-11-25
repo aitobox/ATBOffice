@@ -17,16 +17,6 @@ from atboffice.modules.presentation.models.text import (
 )
 
 
-def safe_tr(text: str) -> str:
-    """Safe translation fallback when Qt QCoreApplication is not instantiated."""
-    try:
-        from PySide6.QtCore import QCoreApplication
-
-        return QCoreApplication.translate("LecternDesigns", text)
-    except Exception:
-        return text
-
-
 def color_mix(c1: str, c2: str, weight: float) -> str:
     """Mix two hex colors #RRGGBB with a given weight (0.0 to 1.0)."""
     if not c1.startswith("#") or not c2.startswith("#"):

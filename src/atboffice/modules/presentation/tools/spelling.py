@@ -5,8 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication
-
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.tools.text_targets import (
     ParagraphRef,
     iter_paragraphs,
@@ -14,10 +13,6 @@ from atboffice.modules.presentation.tools.text_targets import (
     replace_at,
 )
 from atboffice.modules.spreadsheet.tools.sheet_spelling import WORD_RE
-
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("PresentationSpelling", text)
 
 
 @dataclass

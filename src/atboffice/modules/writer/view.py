@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication, Signal
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QGridLayout, QStackedWidget, QVBoxLayout, QWidget
 
 from atboffice.modules.writer.models.document import Document, Paragraph, all_paragraphs
@@ -23,11 +23,6 @@ from atboffice.modules.writer.views.view_modes import ViewMode
 
 if TYPE_CHECKING:
     from atboffice.modules.writer.dialogs.word_count_dlg import WordCountDialog
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("WriterView", text)
 
 
 class WriterView(QWidget):

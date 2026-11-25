@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -21,14 +21,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
+
 if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
     from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
-
-
-def safe_tr(text: str) -> str:
-    """Safely translate ProtectDialog UI string."""
-    return QCoreApplication.translate("ProtectDialog", text)
 
 
 SHEET_PERMISSIONS = [

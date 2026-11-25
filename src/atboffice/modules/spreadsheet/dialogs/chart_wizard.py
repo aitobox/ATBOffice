@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.views.object_layer import (
     AnchorType,
     CellAnchorPoint,
@@ -34,11 +35,6 @@ from atboffice.modules.spreadsheet.views.object_layer import (
 if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
     from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
-
-
-def safe_tr(text: str) -> str:
-    """Safely translate ChartWizard UI string."""
-    return QCoreApplication.translate("ChartWizardDialog", text)
 
 
 CHART_TYPES = [
@@ -453,7 +449,7 @@ class ChartWizardDialog(QDialog):
         s_left = QVBoxLayout()
         self.list_series = QListWidget(tab_series)
         for idx, s in enumerate(self.series_list):
-            name = s.get("name") or safe_tr(f"系列{idx + 1}")
+            name = s.get("name") or safe_tr("系列{0}", idx + 1)
             self.list_series.addItem(name)
         self.list_series.setCurrentRow(0)
         self.list_series.currentRowChanged.connect(self._on_series_selection_changed)
@@ -512,7 +508,7 @@ class ChartWizardDialog(QDialog):
             self.series_list[row]["name"] = text
             item = self.list_series.item(row)
             if item is not None:
-                item.setText(text or safe_tr(f"系列{row + 1}"))
+                item.setText(text or safe_tr("系列{0}", row + 1))
 
     def _on_series_values_changed(self, text: str) -> None:
         if self._syncing_series:
@@ -533,7 +529,7 @@ class ChartWizardDialog(QDialog):
     def _on_add_series(self) -> None:
         self._series_dirty = True
         idx = len(self.series_list) + 1
-        new_name = safe_tr(f"系列{idx}")
+        new_name = safe_tr("系列{0}", idx)
         new_s = {"name": new_name, "values": "", "x_values": ""}
         self.series_list.append(new_s)
         self.list_series.addItem(new_name)

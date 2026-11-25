@@ -5,12 +5,11 @@ from __future__ import annotations
 import copy
 import re
 
-from PySide6.QtCore import QCoreApplication, QEvent, QPoint, QRect, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, QRect, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
     QContextMenuEvent,
-    QFont,
     QFontMetrics,
     QKeyEvent,
     QMouseEvent,
@@ -29,6 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.dialogs.move_copy_sheet_dialog import (
     MoveCopySheetDialog,
 )
@@ -37,11 +37,7 @@ from atboffice.modules.spreadsheet.models.workbook_model import (
     WorkbookModel,
     is_valid_sheet_name,
 )
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("SheetTabBar", text)
+from atboffice.ui.styles.luna_2003 import ui_font
 
 
 class TabNavButton(QToolButton):
@@ -289,7 +285,7 @@ class TabStripWidget(QWidget):
         if not wb or not wb.sheets:
             return
 
-        font = QFont("Arial", 9)
+        font = ui_font(9)
         painter.setFont(font)
         fm = QFontMetrics(font)
 

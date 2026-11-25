@@ -4,14 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication
-
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.models.sheet_model import BorderStyle
-
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("LedgerAutoFormat", text)
-
 
 # preset id -> display name (translated lazily)
 PRESETS: list[tuple[str, str]] = [

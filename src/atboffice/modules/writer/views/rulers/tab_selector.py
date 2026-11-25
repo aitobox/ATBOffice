@@ -6,12 +6,8 @@ from PySide6.QtCore import QPointF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import QWidget
 
-from atboffice.modules.writer.views.rulers.types import (
-    TAB_KINDS,
-    TabKind,
-    draw_tab_glyph,
-    safe_tr,
-)
+from atboffice.core.i18n import safe_tr
+from atboffice.modules.writer.views.rulers.types import TAB_KINDS, TabKind, draw_tab_glyph
 
 
 class TabSelectorWidget(QWidget):

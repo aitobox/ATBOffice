@@ -13,8 +13,7 @@ import statistics
 from collections.abc import Callable, Iterable
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication
-
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.references import cell_name, col_name
 from atboffice.modules.spreadsheet.models.sheet_model import CellData
 from atboffice.modules.spreadsheet.tools.chart_builder import resolve_range
@@ -22,10 +21,6 @@ from atboffice.modules.spreadsheet.tools.chart_builder import resolve_range
 Rect = tuple[int, int, int, int]
 
 MAX_DATA_TABLE_CELLS = 2500
-
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("LedgerDataTools", text)
 
 
 # ------------------------------------------------------------------ helpers

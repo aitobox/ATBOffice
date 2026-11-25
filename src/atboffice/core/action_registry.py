@@ -11,14 +11,9 @@ from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtWidgets import QWidget
 
-from atboffice.core.i18n import safe_tr as core_safe_tr
+from atboffice.core.i18n import safe_tr
 
 logger = logging.getLogger(__name__)
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for action registry."""
-    return core_safe_tr(text)
 
 
 @dataclass
@@ -269,7 +264,7 @@ class ActionRegistry(QObject):
             info = self._whitelist_actions[action_id]
             message = safe_tr(info.get("reason", "抽象命令接口或动态容器菜单"))
         elif spec:
-            message = safe_tr(f"{spec.label} 正在联调中")
+            message = safe_tr("{0} 正在联调中", spec.label)
         else:
             message = safe_tr("功能正在联调中")
 

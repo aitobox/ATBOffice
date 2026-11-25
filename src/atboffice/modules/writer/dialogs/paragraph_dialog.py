@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -22,16 +22,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.writer.models.properties import (
     IndentProperties,
     ParagraphProperties,
     SpacingProperties,
 )
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("ParagraphDialog", text)
 
 
 class ParagraphPreviewWidget(QWidget):
@@ -142,7 +138,7 @@ class ParagraphDialog(QDialog):
         self.combo_outline = QComboBox(self.group_general)
         self.combo_outline.addItem(safe_tr("正文文本"), None)
         for i in range(1, 10):
-            self.combo_outline.addItem(safe_tr(f"{i} 级"), i)
+            self.combo_outline.addItem(safe_tr("{0} 级", i), i)
 
         gen_grid.addWidget(self.lbl_align, 0, 0)
         gen_grid.addWidget(self.combo_align, 0, 1)

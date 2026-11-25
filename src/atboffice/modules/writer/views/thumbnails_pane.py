@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QListWidget,
@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.writer.layout.pagination import (
     paginate_document,
 )
@@ -20,11 +21,6 @@ from atboffice.modules.writer.models.document import Document
 
 if TYPE_CHECKING:
     from atboffice.modules.writer.views.canvas_view import WriterCanvasView
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for ThumbnailsPane."""
-    return QCoreApplication.translate("ThumbnailsPane", text)
 
 
 class ThumbnailsPane(QWidget):

@@ -6,7 +6,6 @@ Aligned with classic Word / VibeOffice Break dialog.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QButtonGroup,
     QDialog,
@@ -17,10 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("BreakDialog", text)
+from atboffice.core.i18n import safe_tr
 
 
 class BreakDialog(QDialog):

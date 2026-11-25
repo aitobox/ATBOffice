@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -17,13 +16,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.dialogs.format_shape import ColorButton
 from atboffice.modules.presentation.models.presentation import Presentation, SlideShowSettings
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for SetupShowDialog."""
-    return QCoreApplication.translate("SetupShowDialog", text)
 
 
 class SetupShowDialog(QDialog):

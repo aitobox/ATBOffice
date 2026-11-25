@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from atboffice.core.action_registry import ActionRegistry, ActionSpec
-from atboffice.core.i18n import safe_tr as core_safe_tr
+from atboffice.core.i18n import safe_tr
 from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.toolbar import OfficeToolBar
 from atboffice.ui.components.toolbar_buttons import (
@@ -33,12 +33,6 @@ from atboffice.ui.components.toolbar_buttons import (
     OfficeSplitButton,
 )
 from atboffice.ui.icons import get_office_icon, has_office_icon
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for Ledger toolbars."""
-    return core_safe_tr(text)
-
 
 _LEDGER_DROP_ICONS: Final[dict[str, str]] = {
     "Chart Type": "chart",

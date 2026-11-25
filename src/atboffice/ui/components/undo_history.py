@@ -4,13 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import QMenu, QWidget
 
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("UndoHistory", text)
-
+from atboffice.core.i18n import safe_tr
 
 MAX_ITEMS = 20
 

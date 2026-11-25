@@ -7,21 +7,14 @@ import os
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Signal
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtCore import QTimer, Signal
+from PySide6.QtGui import QCloseEvent, QShowEvent
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import QDialog, QFileDialog, QMainWindow, QMessageBox, QWidget
 
-from atboffice.core.i18n import get_i18n_manager
-from atboffice.core.i18n import safe_tr as core_safe_tr
+from atboffice.core.i18n import get_i18n_manager, safe_tr
 from atboffice.core.undo import UndoService
 from atboffice.ui.styles.luna_2003 import apply_luna_theme
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for BaseOfficeWindow."""
-    return core_safe_tr(text)
-
 
 logger = logging.getLogger(__name__)
 
@@ -478,6 +471,28 @@ class BaseOfficeWindow(QMainWindow):
             self.showNormal()
         else:
             self.showMaximized()
+
+    # -- Focus ---------------------------------------------------------------
+
+    def document_widget(self) -> QWidget | None:
+        """The widget that shows the document and takes the keyboard (subclass hook)."""
+        return None
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        if not getattr(self, "_initial_focus_done", False):
+            self._initial_focus_done = True
+            # After the window is laid out, so the toolbars can't grab focus first.
+            QTimer.singleShot(0, self.focus_document)
+
+    def focus_document(self) -> None:
+        """Give the keyboard to the document instead of a toolbar box or tab bar."""
+        target = self.document_widget()
+        if target is None or not target.isVisible():
+            return
+        current = self.focusWidget()
+        if current is None or not (current is target or target.isAncestorOf(current)):
+            target.setFocus()
 
     # -- Undo / Redo ---------------------------------------------------------
 

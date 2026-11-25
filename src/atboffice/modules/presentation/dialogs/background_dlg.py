@@ -17,7 +17,7 @@ import copy
 import os
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QIcon,
@@ -49,6 +49,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.shape import Fill
 from atboffice.modules.presentation.views.background_renderer import (
     GRAD_PRESETS,
@@ -67,16 +68,6 @@ if TYPE_CHECKING:
     from atboffice.modules.presentation.models.designs import DesignTemplate
     from atboffice.modules.presentation.models.presentation import Presentation
     from atboffice.modules.presentation.models.slide import Slide
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text with fallback to English."""
-    app = QCoreApplication.instance()
-    if app:
-        translated = app.translate("BackgroundDialog", text)
-        if translated and translated != text:
-            return translated
-    return text
 
 
 # ==============================================================================

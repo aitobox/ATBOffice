@@ -10,7 +10,6 @@ import re
 from html import escape
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -22,15 +21,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.references import abs_range_name, parse_cell
 from atboffice.modules.spreadsheet.models.sheet_model import CellData
 
 if TYPE_CHECKING:
     from atboffice.ui.shell.ledger_window import LedgerWindow
-
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("LedgerCommands", text)
 
 
 # Toolbar buttons that only open a drop-down menu.

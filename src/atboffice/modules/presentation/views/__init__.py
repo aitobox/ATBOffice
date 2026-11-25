@@ -1,5 +1,6 @@
 """Presentation views package."""
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.views.chart_item import ChartGraphicsItem
 from atboffice.modules.presentation.views.geometry_helper import (
     create_shape_path,
@@ -10,11 +11,7 @@ from atboffice.modules.presentation.views.shape_item import (
     ShapeGraphicsItem,
     TransformHandleItem,
 )
-from atboffice.modules.presentation.views.slide_canvas import (
-    SlideCanvasView,
-    SlideScene,
-    safe_tr,
-)
+from atboffice.modules.presentation.views.slide_canvas import SlideCanvasView, SlideScene
 from atboffice.modules.presentation.views.smart_guides import (
     GuideLine,
     SmartGuideController,

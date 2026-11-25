@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.writer.models.document import (
     Document,
     Paragraph,
@@ -30,11 +31,6 @@ from atboffice.modules.writer.models.document import (
 
 if TYPE_CHECKING:
     from atboffice.modules.writer.layout.pagination import PaginationResult
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("WordCountDialog", text)
 
 
 # Regex pattern for CJK Ideographs and syllabaries

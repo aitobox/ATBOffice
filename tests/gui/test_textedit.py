@@ -291,8 +291,8 @@ class TestContextAndI18n:
     def test_safe_tr_translations(self) -> None:
         assert safe_tr("Bold") == "加粗"
         assert safe_tr("Italic") == "倾斜"
-        assert safe_tr("Increase Indent") == "增加缩进 (降级)"
-        assert safe_tr("Decrease Indent") == "减少缩进 (升级)"
+        assert safe_tr("Increase Indent") == "增加缩进量"
+        assert safe_tr("Decrease Indent") == "减少缩进量"
 
     def test_context_menu_actions(self, scene_and_view) -> None:
         scene, view, item = scene_and_view

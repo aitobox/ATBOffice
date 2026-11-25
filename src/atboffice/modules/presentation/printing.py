@@ -5,10 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen
 from PySide6.QtPrintSupport import QPrinter
 
+from atboffice.core.i18n import safe_tr
 from atboffice.ui.printing.printer_setup import (
     A4_PT,
     begin_points_painter,
@@ -16,11 +17,6 @@ from atboffice.ui.printing.printer_setup import (
     new_page,
     print_font_scale,
 )
-
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("LecternPrinting", text)
-
 
 PRINT_WHAT = ("slides", "handouts", "notes", "outline")
 HANDOUT_COUNTS = (1, 2, 3, 4, 6, 9)
