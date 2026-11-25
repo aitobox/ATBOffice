@@ -12,66 +12,78 @@
 | GUI | PySide6 (Qt6 bindings) |
 | Testing | pytest |
 | Env | conda env `ATBOffice` |
-| Arch | macOS (cross-platform Qt) |
+| Platforms | macOS primary; Linux and Windows also built and tested in CI |
 | Style | Fusion style, macOS native menu bar |
 
 ## How to Run
 
 ```bash
-# From repo root:
-PYTHONPATH=src conda run -n ATBOffice
+# From repo root (suite launcher):
+PYTHONPATH=src conda run -n ATBOffice python -m atboffice
 
-# Or via script:
-./scripts/ATBOffice.sh
+# Or, after `pip install -e ".[dev]"`, the console scripts:
+atboffice            # suite / Start Center
+atboffice-quire      # word processor
+atboffice-ledger     # spreadsheet
+atboffice-lectern    # presentations
 ```
 
 ## How to Test
 
 ```bash
-# Run all tests:
+# Run all tests (lint first, same as CI):
+conda run -n ATBOffice ruff check .
 PYTHONPATH=src conda run -n ATBOffice python -m pytest tests/
 
 # Single file:
 PYTHONPATH=src conda run -n ATBOffice python -m pytest tests/test_xxx.py -v
-
-# All 33 test files pass (1 pre-existing failure: test_tab_panel_focus_navigation)
 ```
+
+The suite has about 260 `test_*.py` files under `tests/` (top level plus `core/`, `gui/`, `modules/`).
+GUI tests need `QT_QPA_PLATFORM=offscreen` when no display is available.
+
+CI (`.github/workflows/ci.yml`) runs ruff and pytest on every pull request and on every push to
+`main`, including squash merges, so a broken `main` shows up right after merge. Tag pushes run the
+same job on Ubuntu, macOS and Windows.
 
 ## Project Structure
 
 ```
 ATBOffice/
-├── .vibeoffice/          # The code of the replicated project
 ├── pyproject.toml       # Python packaging configuration
-├── docs/wiki/design     # Feature design docs
-├── scripts/             # Ad-hoc dev scripts (patch_*, fix_*, build)
-├── tests/               # Pytest files
+├── .github/workflows/   # ci.yml (lint + tests), release.yml, corpus-audit.yml (weekly)
+├── docs/
+│   ├── tasks/           # Phase plans (numbered by phase)
+│   ├── clone/           # Parity and diff audits against the original
+│   ├── superpowers/     # Specs and implementation plans
+│   └── build.md         # Packaging and build notes
+├── scripts/             # Dev tools: build/, corpus audit, parity and image diff
+├── tests/               # Pytest files (core/, gui/, modules/, docs/, fixtures/)
 └── src/
     └── atboffice/
         ├── __init__.py      # __version__, __app_name__
-        ├── main.py          # Application entry: QApp setup, Config, MainWindow launch
-        ├── core/            # Config, file operations, models, command registry
-        ├── ui/              # PySide6 windows, dialogs, widgets
-        ├── vfs/             # Virtual file system backends (network, archive)
-        ├── plugins/         # Plugin interfaces and implementations
+        ├── __main__.py      # CLI entry points: main, main_quire, main_ledger, main_lectern
+        ├── core/            # App setup, config, window manager, action registry
+        ├── modules/         # Editors: writer (Quire), spreadsheet (Ledger), presentation (Lectern), common
+        ├── ui/              # Shell windows, dialogs, widgets
+        ├── drawing/         # Shared drawing and shape rendering
+        ├── vfs/             # Virtual file system backends
         ├── platform/        # macOS/Windows/Linux platform glue
-        ├── deep/            # Background workers / deep scan
+        ├── deep/            # Background workers
         ├── utils/           # Utility functions
-        ├── resources/       # Icons, themes, etc.
-        └── locale/          # Translation files (.po/.mo)
+        └── resources/       # Fonts, dictionaries, locale (translations)
 ```
 
 ## Git Setup
 
-- Branch: `main`
-- The code folder of the replicated project: .vibeoffice/
-- This repository contains only the pure Python/PySide6 implementation (separated from original  code).
+- Default branch: `main`. Work lands through pull requests, usually squash-merged.
+- This repository contains only the pure Python/PySide6 implementation. The original source is not
+  checked in here; use the parity audits in `docs/clone/` as the in-repo reference.
 - Source code is strictly managed under `src/atboffice/`.
-- Recent commits: Migrated to dedicated `ATBOffice` repo, established standard `src/` layout.
 
 ## Task Implementation Pattern
 
-Each task file in `docs/tasks/` follows this structure:
+Phase plans in `docs/tasks/` generally follow this structure:
 
 ```markdown
 # Task: Title
@@ -84,7 +96,7 @@ Each task file in `docs/tasks/` follows this structure:
 ## Files Affected
 ```
 
-Tasks tagged by priority in the filename (numbered roughly by priority). Start with highest priority that hasn't been started.
+Plans are numbered by phase in the filename. Day-to-day work is tracked as GitHub issues referenced in commit titles (`fixes #NNN`).
 
 ## AI Execution Protocol: "Think One Step Ahead"
 
@@ -97,15 +109,15 @@ Before writing code, explicitly list potential edge cases and error states in a 
 - **Data Integrity**: What if the network drops during a VFS operation?
 
 **Step 2: Reference Original Robustness**
-Search the original  source (`.vibeoffice/`) to see how it handled the edge cases you just identified. Your Python port must match or exceed that level of detail.
+Check the original's behavior (via `docs/clone/` parity audits, or the original source if you have it) to see how it handled the edge cases you just identified. Your Python port must match or exceed that level of detail.
 
 **Step 3: Draft & Double Check**
 Do not output the code immediately. Pause and internally review your logic: "Are there any missing details? Did I fabricate any API methods? Did I include full i18n support as required?" Only generate the code after this self-correction.
 
 ## Remember
 
-This is a port, not a redesign. When implementing a  feature:
-1. Read the  source in `.vibeoffice/` for reference.
+This is a port, not a redesign. When implementing a feature:
+1. Check the original's behavior for reference (see `docs/clone/`).
 2. Match the behavior, not the implementation language.
 3. Use idiomatic Python + Qt patterns, not transliterated .
 4. Add tests alongside implementation.

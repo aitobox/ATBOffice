@@ -36,13 +36,6 @@ jobs:
     name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
     needs: matrix-prep
     runs-on: ${{ matrix.os }}
-    if: |
-      github.event_name != 'push' || 
-      (
-        !startsWith(github.event.head_commit.message, 'Merge pull request') &&
-        !startsWith(github.event.head_commit.message, 'Merge branch') &&
-        !contains(github.event.head_commit.message, '(#')
-      )
     strategy:
       fail-fast: false
       matrix:
