@@ -8,7 +8,6 @@ the shared Qt-free helpers in ``atboffice.drawing``.
 from __future__ import annotations
 
 import re
-import xml.etree.ElementTree as ET
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -23,6 +22,7 @@ from atboffice.drawing.shape_style import (
 )
 from atboffice.modules.writer.models.document import Story
 from atboffice.modules.writer.models.drawing import ShapeChild, ShapeItem
+from atboffice.vfs import etree as ET
 
 EMU_PER_PT = 12700.0
 DEFAULT_INSETS = (7.2, 3.6, 7.2, 3.6)
@@ -217,9 +217,7 @@ def parse_group(
             item = parse_wsp(c, cw, chh, theme, collect, fill_ctx)
             if name == "cxnSp":
                 item.fill = DmlFill(kind="none")
-        group.children.append(
-            ShapeChild(item=item, x=(cx.x - ch_x) * sx, y=(cx.y - ch_y) * sy)
-        )
+        group.children.append(ShapeChild(item=item, x=(cx.x - ch_x) * sx, y=(cx.y - ch_y) * sy))
     return group
 
 
@@ -230,10 +228,22 @@ def parse_group(
 _VML_GEOMETRY = {"rect": "rect", "roundrect": "roundRect", "oval": "ellipse"}
 _VML_COLOR_RE = re.compile(r"#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b")
 _VML_NAMED = {
-    "black": "#000000", "white": "#FFFFFF", "red": "#FF0000", "green": "#008000",
-    "blue": "#0000FF", "yellow": "#FFFF00", "gray": "#808080", "silver": "#C0C0C0",
-    "navy": "#000080", "maroon": "#800000", "purple": "#800080", "teal": "#008080",
-    "lime": "#00FF00", "aqua": "#00FFFF", "fuchsia": "#FF00FF", "olive": "#808000",
+    "black": "#000000",
+    "white": "#FFFFFF",
+    "red": "#FF0000",
+    "green": "#008000",
+    "blue": "#0000FF",
+    "yellow": "#FFFF00",
+    "gray": "#808080",
+    "silver": "#C0C0C0",
+    "navy": "#000080",
+    "maroon": "#800000",
+    "purple": "#800080",
+    "teal": "#008080",
+    "lime": "#00FF00",
+    "aqua": "#00FFFF",
+    "fuchsia": "#FF00FF",
+    "olive": "#808000",
 }
 
 

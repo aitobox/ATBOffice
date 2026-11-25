@@ -17,7 +17,7 @@ import copy
 import os
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QIcon,
@@ -49,6 +49,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.shape import Fill
 from atboffice.modules.presentation.views.background_renderer import (
     GRAD_PRESETS,
@@ -67,16 +68,6 @@ if TYPE_CHECKING:
     from atboffice.modules.presentation.models.designs import DesignTemplate
     from atboffice.modules.presentation.models.presentation import Presentation
     from atboffice.modules.presentation.models.slide import Slide
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text with fallback to English."""
-    app = QCoreApplication.instance()
-    if app:
-        translated = app.translate("BackgroundDialog", text)
-        if translated and translated != text:
-            return translated
-    return text
 
 
 # ==============================================================================
@@ -519,15 +510,11 @@ class FillEffectsDialog(QDialog):
         # Apply variant transformations matching Office 2003
         if variant_idx in (1, 3):
             stops = [
-                {"p": round(1.0 - s["p"], 2), "c": s["c"], "a": s["a"]}
-                for s in reversed(stops)
+                {"p": round(1.0 - s["p"], 2), "c": s["c"], "a": s["a"]} for s in reversed(stops)
             ]
         if variant_idx >= 2:
             # Symmetrical reflected gradient
-            half1 = [
-                {"p": round(s["p"] / 2.0, 2), "c": s["c"], "a": s["a"]}
-                for s in stops
-            ]
+            half1 = [{"p": round(s["p"] / 2.0, 2), "c": s["c"], "a": s["a"]} for s in stops]
             half2 = [
                 {"p": round(1.0 - s["p"] / 2.0, 2), "c": s["c"], "a": s["a"]}
                 for s in reversed(stops[1:])
@@ -742,16 +729,12 @@ class FillEffectsDialog(QDialog):
         if path and os.path.exists(path):
             self.selected_picture_path = path
             self.lbl_pic_path.setText(os.path.basename(path))
-            self.current_fill = Fill.image_fill(
-                image_path=path, tile=self.chk_tile_pic.isChecked()
-            )
+            self.current_fill = Fill.image_fill(image_path=path, tile=self.chk_tile_pic.isChecked())
             self.sample_widget.set_fill(self.current_fill)
 
     def _on_pic_tile_toggled(self, checked: bool) -> None:
         if self.selected_picture_path:
-            self.current_fill = Fill.image_fill(
-                image_path=self.selected_picture_path, tile=checked
-            )
+            self.current_fill = Fill.image_fill(image_path=self.selected_picture_path, tile=checked)
             self.sample_widget.set_fill(self.current_fill)
 
     # --------------------------------------------------------------------------
@@ -866,9 +849,7 @@ class BackgroundDialog(QDialog):
         left_layout.addWidget(self.btn_fill_picker)
 
         # Checkbox: Omit background graphics from master
-        self.chk_omit_master = QCheckBox(
-            safe_tr("忽略母版的背景图形(&O)"), self
-        )
+        self.chk_omit_master = QCheckBox(safe_tr("忽略母版的背景图形(&O)"), self)
         self.chk_omit_master.setChecked(self.omit_master)
         self.chk_omit_master.toggled.connect(self._on_omit_toggled)
         left_layout.addWidget(self.chk_omit_master)

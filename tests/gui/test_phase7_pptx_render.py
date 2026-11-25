@@ -34,9 +34,7 @@ def qapp() -> QApplication:
     return app
 
 
-def _render_canvas_view_offscreen(
-    scene: SlideScene, width: int = 960, height: int = 540
-) -> QImage:
+def _render_canvas_view_offscreen(scene: SlideScene, width: int = 960, height: int = 540) -> QImage:
     """Render a SlideScene via QGraphicsView offscreen to QImage."""
     img = QImage(width, height, QImage.Format.Format_ARGB32_Premultiplied)
     img.fill(0xFFFFFFFF)
@@ -112,14 +110,10 @@ def test_text_fitting_norm_autofit_scales_and_roundtrip(qapp: QApplication) -> N
 
     # Check fontScale on slides
     slide1_scales = [
-        sh.text.font_scale
-        for sh in pres.slides[0].shapes
-        if sh.text and sh.text.autofit == "norm"
+        sh.text.font_scale for sh in pres.slides[0].shapes if sh.text and sh.text.autofit == "norm"
     ]
     slide2_scales = [
-        sh.text.font_scale
-        for sh in pres.slides[1].shapes
-        if sh.text and sh.text.autofit == "norm"
+        sh.text.font_scale for sh in pres.slides[1].shapes if sh.text and sh.text.autofit == "norm"
     ]
     assert any(abs(fs - 0.925) < 0.01 for fs in slide1_scales), (
         f"Slide 1 must parse fontScale=0.925, got {slide1_scales}"
@@ -658,8 +652,7 @@ def test_thumbnail_matches_slideshow_for_cropped_metafile_picture(qapp: QApplica
     x1, y1 = int((pic.x + pic.w) * k), int((pic.y + pic.h) * k)
     diffs = [
         max(
-            abs(a - b)
-            for a, b in zip(_pixel_rgb(thumb, x, y), _pixel_rgb(show, x, y), strict=True)
+            abs(a - b) for a, b in zip(_pixel_rgb(thumb, x, y), _pixel_rgb(show, x, y), strict=True)
         )
         for x in range(x0 + 3, x1 - 3, 5)
         for y in range(y0 + 3, y1 - 3, 5)

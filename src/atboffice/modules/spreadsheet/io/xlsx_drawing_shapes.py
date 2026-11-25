@@ -7,7 +7,6 @@ handled by the caller in ``xlsx_reader``.
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
 import zipfile
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -21,6 +20,7 @@ from atboffice.drawing.dml import (
     parse_fill,
 )
 from atboffice.modules.spreadsheet.views.object_layer import FloatingObject
+from atboffice.vfs import etree as ET
 
 EMU_PER_PX = 9525
 EMU_PER_PT = 12700
@@ -153,9 +153,7 @@ def parse_shape_element(
     return None
 
 
-def _parse_group(
-    el: ET.Element, ctx: DrawingContext, group_fill: DmlFill | None
-) -> FloatingObject:
+def _parse_group(el: ET.Element, ctx: DrawingContext, group_fill: DmlFill | None) -> FloatingObject:
     obj_id, name, _ = _nv_props(el, "Group")
     grp_pr = child(el, "grpSpPr")
     own_fill = parse_fill(grp_pr, ctx.theme, group_fill) or group_fill
@@ -349,9 +347,7 @@ def _parse_sp(
         obj.flip_h, obj.flip_v = xf.flip_h, xf.flip_v
 
     font_ref = first_color(_style_ref(style, "fontRef")[1], ctx.theme)
-    text, font_sz, font_fam, txt_col = _parse_text(
-        el, ctx, font_ref[0] if font_ref else "#000000"
-    )
+    text, font_sz, font_fam, txt_col = _parse_text(el, ctx, font_ref[0] if font_ref else "#000000")
     obj.text, obj.font_size, obj.font_family, obj.text_color = text, font_sz, font_fam, txt_col
 
     is_tb = _bool_attr(c_nv_sp, "txBox")
@@ -363,3 +359,48 @@ def _parse_sp(
     else:
         obj.kind = _KIND_BY_PRESET.get(geometry, "rect")
     return obj
+
+
+_SIGNATURE_ATTRS = (
+    "id",
+    "name",
+    "kind",
+    "from_point",
+    "to_point",
+    "text",
+    "text_color",
+    "font_size",
+    "font_family",
+    "fill_color",
+    "fill_alpha",
+    "fill_type",
+    "line_color",
+    "line_width",
+    "line_visible",
+    "geometry",
+    "flip_h",
+    "flip_v",
+    "z_index",
+)
+
+
+def drawings_signature(drawings: list[FloatingObject] | None) -> tuple:
+    """Fingerprint of the user-editable state of a sheet's drawings.
+
+    The writer compares this with the fingerprint taken at load time: while it is
+    unchanged, the original drawing part (with charts, SmartArt and anything else the
+    model cannot express) is carried verbatim instead of being regenerated.
+    """
+    out = []
+    for obj in drawings or []:
+        values = []
+        for attr in _SIGNATURE_ATTRS:
+            v = getattr(obj, attr, None)
+            if hasattr(v, "__dataclass_fields__"):
+                v = tuple(getattr(v, f) for f in v.__dataclass_fields__)
+            values.append(v)
+        data = getattr(obj, "image_data", None)
+        values.append(hash(data) if data else None)
+        values.append(drawings_signature(getattr(obj, "children", None)))
+        out.append(tuple(values))
+    return tuple(out)

@@ -99,9 +99,7 @@ def fit_aspect_rect(rect: QRect, src_w: int, src_h: int) -> QRect:
     scale = min(rect.width() / src_w, rect.height() / src_h)
     w = max(1, round(src_w * scale))
     h = max(1, round(src_h * scale))
-    return QRect(
-        rect.x() + (rect.width() - w) // 2, rect.y() + (rect.height() - h) // 2, w, h
-    )
+    return QRect(rect.x() + (rect.width() - w) // 2, rect.y() + (rect.height() - h) // 2, w, h)
 
 
 def _color(hex_color: str, alpha: float) -> QColor:

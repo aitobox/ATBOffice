@@ -33,18 +33,20 @@ from atboffice.ui.shell.quire_window import QuireWindow
 
 def capture_window_state(win, width: int, height: int, all_toolbars: bool, out_path: Path):
     win.resize(width, height)
-    
+
     if all_toolbars:
         for tb in win.toolbars.values():
             tb.setVisible(True)
-    
+
     win.show()
     QApplication.processEvents()
 
     # Grab window pixmap
     pixmap = win.grab()
     pixmap.save(str(out_path), "PNG")
-    print(f"Captured {out_path.name} ({pixmap.width()}x{pixmap.height()}, {out_path.stat().st_size} bytes)")
+    print(
+        f"Captured {out_path.name} ({pixmap.width()}x{pixmap.height()}, {out_path.stat().st_size} bytes)"
+    )
 
 
 def capture_toolbar_dock(win, out_path: Path):
@@ -78,11 +80,25 @@ def main():
     quire_win = QuireWindow()
     p1 = out_dir / "quire_default_1280x800.png"
     capture_window_state(quire_win, 1280, 800, False, p1)
-    records.append(("Quire", "1280x800 Default View", p1.name, "01_quire/001_overview__Sample_Document_Default.png"))
+    records.append(
+        (
+            "Quire",
+            "1280x800 Default View",
+            p1.name,
+            "01_quire/001_overview__Sample_Document_Default.png",
+        )
+    )
 
     p2 = out_dir / "quire_all_toolbars_1280x800.png"
     capture_window_state(quire_win, 1280, 800, True, p2)
-    records.append(("Quire", "1280x800 All 10 Toolbars", p2.name, "01_quire/045_toolbar_All_Visible__Full_Toolbars_Dock.png"))
+    records.append(
+        (
+            "Quire",
+            "1280x800 All 10 Toolbars",
+            p2.name,
+            "01_quire/045_toolbar_All_Visible__Full_Toolbars_Dock.png",
+        )
+    )
 
     p3 = out_dir / "quire_narrow_800x600.png"
     capture_window_state(quire_win, 800, 600, False, p3)
@@ -93,11 +109,25 @@ def main():
     ledger_win = LedgerWindow()
     p4 = out_dir / "ledger_default_1280x800.png"
     capture_window_state(ledger_win, 1280, 800, False, p4)
-    records.append(("Ledger", "1280x800 Default View", p4.name, "02_ledger/001_overview__Sample_Workbook_Default.png"))
+    records.append(
+        (
+            "Ledger",
+            "1280x800 Default View",
+            p4.name,
+            "02_ledger/001_overview__Sample_Workbook_Default.png",
+        )
+    )
 
     p5 = out_dir / "ledger_all_toolbars_1280x800.png"
     capture_window_state(ledger_win, 1280, 800, True, p5)
-    records.append(("Ledger", "1280x800 All 8 Toolbars", p5.name, "02_ledger/038_toolbar_All_Visible__Full_Toolbars_Dock.png"))
+    records.append(
+        (
+            "Ledger",
+            "1280x800 All 8 Toolbars",
+            p5.name,
+            "02_ledger/038_toolbar_All_Visible__Full_Toolbars_Dock.png",
+        )
+    )
 
     p6 = out_dir / "ledger_narrow_800x600.png"
     capture_window_state(ledger_win, 800, 600, False, p6)
@@ -108,11 +138,25 @@ def main():
     lectern_win = LecternWindow()
     p7 = out_dir / "lectern_default_1280x800.png"
     capture_window_state(lectern_win, 1280, 800, False, p7)
-    records.append(("Lectern", "1280x800 Default View", p7.name, "03_lectern/001_overview__Sample_Presentation_Default.png"))
+    records.append(
+        (
+            "Lectern",
+            "1280x800 Default View",
+            p7.name,
+            "03_lectern/001_overview__Sample_Presentation_Default.png",
+        )
+    )
 
     p8 = out_dir / "lectern_all_toolbars_1280x800.png"
     capture_window_state(lectern_win, 1280, 800, True, p8)
-    records.append(("Lectern", "1280x800 All 10 Toolbars", p8.name, "03_lectern/036_toolbar_All_Visible__Full_Toolbars_Dock.png"))
+    records.append(
+        (
+            "Lectern",
+            "1280x800 All 10 Toolbars",
+            p8.name,
+            "03_lectern/036_toolbar_All_Visible__Full_Toolbars_Dock.png",
+        )
+    )
 
     p9 = out_dir / "lectern_narrow_800x600.png"
     capture_window_state(lectern_win, 800, 600, False, p9)

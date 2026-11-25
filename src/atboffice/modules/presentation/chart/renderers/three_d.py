@@ -30,11 +30,7 @@ def is_3d_bar(chart: ChartData) -> bool:
 
 def is_deep(chart: ChartData) -> bool:
     """Series sit in separate depth rows (``grouping="standard"``), never when stacked."""
-    return bool(
-        chart.view3d
-        and chart.view3d.get("deep")
-        and chart.kind in ("col", "bar")
-    )
+    return bool(chart.view3d and chart.view3d.get("deep") and chart.kind in ("col", "bar"))
 
 
 def depth_offset(

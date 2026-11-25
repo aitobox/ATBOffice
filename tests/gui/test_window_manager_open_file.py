@@ -190,4 +190,3 @@ def test_cli_main_document_loading(qtbot):
     assert len(active[0].presentation_view.presentation.slides) > 0
     active[0].close()
     wm.reset_instance()
-

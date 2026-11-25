@@ -31,7 +31,9 @@ from scripts.office_diff.regions import MANIFEST_NAME, baseline_region, default_
 from scripts.office_diff.reporter import generate_report, parse_visual_verdicts
 
 
-def _resolve_audit_subdir(user_dir: str | None, repo_root: Path, sub: str, fallbacks: list[Path]) -> Path:
+def _resolve_audit_subdir(
+    user_dir: str | None, repo_root: Path, sub: str, fallbacks: list[Path]
+) -> Path:
     """Locate the newest available audit screenshot directory or fallback."""
     if user_dir:
         return Path(user_dir).resolve()
@@ -94,7 +96,11 @@ def run_diff_suite(
     for idx, target in enumerate(targets, start=1):
         # 1. Capture candidate if requested
         if do_capture:
-            print(f"[{idx}/{len(targets)}] Capturing {target.app}: {target.file} ...", end=" ", flush=True)
+            print(
+                f"[{idx}/{len(targets)}] Capturing {target.app}: {target.file} ...",
+                end=" ",
+                flush=True,
+            )
             cap_res = run_isolated_capture(
                 target=target,
                 out_dir=candidate_dir,
@@ -104,7 +110,9 @@ def run_diff_suite(
                 baseline_dir=baseline_dir,
             )
             captures.append(cap_res)
-            print(f"status={cap_res.status} region={cap_res.region} {cap_res.width}x{cap_res.height}")
+            print(
+                f"status={cap_res.status} region={cap_res.region} {cap_res.width}x{cap_res.height}"
+            )
 
         # 2. Locate baseline PNG
         orig_png = baseline_dir / target.app / f"{target.file}.png"
@@ -144,24 +152,57 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="ATBOffice Document Visual Diff and Parity Verification CLI"
     )
-    parser.add_argument("--all", action="store_true", help="Run across all 73 supported OOXML documents")
-    parser.add_argument("--app", choices=["word", "excel", "powerpoint"], help="Filter by application")
+    parser.add_argument(
+        "--all", action="store_true", help="Run across all 73 supported OOXML documents"
+    )
+    parser.add_argument(
+        "--app", choices=["word", "excel", "powerpoint"], help="Filter by application"
+    )
     parser.add_argument("--file", help="Path to single document to evaluate")
-    parser.add_argument("--min-similarity", type=float, default=0.90, help="Global average similarity threshold (default: 0.90)")
-    parser.add_argument("--min-single-similarity", type=float, default=0.85, help="Single file similarity threshold (default: 0.85)")
+    parser.add_argument(
+        "--min-similarity",
+        type=float,
+        default=0.90,
+        help="Global average similarity threshold (default: 0.90)",
+    )
+    parser.add_argument(
+        "--min-single-similarity",
+        type=float,
+        default=0.85,
+        help="Single file similarity threshold (default: 0.85)",
+    )
     parser.add_argument("--baseline-dir", help="Directory containing reference baseline PNGs")
     parser.add_argument("--candidate-dir", help="Directory containing candidate ATBOffice PNGs")
     parser.add_argument("--diff-dir", help="Directory for generated diff heatmap images")
     parser.add_argument("--out", help="Output path for markdown deliverable report")
-    parser.add_argument("--capture", action="store_true", help="Perform offscreen capture before comparison")
-    parser.add_argument("--score-only", action="store_true", help="Score existing screenshots without capturing")
+    parser.add_argument(
+        "--capture", action="store_true", help="Perform offscreen capture before comparison"
+    )
+    parser.add_argument(
+        "--score-only", action="store_true", help="Score existing screenshots without capturing"
+    )
     parser.add_argument("--json", help="Optional path to write diff results JSON")
     parser.add_argument("--canvas-only", action="store_true", help="Alias for --region canvas")
-    parser.add_argument("--region", choices=region_names(), default=None, help="Capture region (default: the baseline manifest's region, else regions.json default)")
-    parser.add_argument("--normalize-size", action="store_true", help="Normalize sample dimensions during comparison")
-    parser.add_argument("--strict", action="store_true", help="Exit with non-zero code if quality gates fail")
-    parser.add_argument("--dry-run", action="store_true", help="Parse corpus and display plan without executing")
-    parser.add_argument("--limit", type=int, default=None, help="Limit number of documents to evaluate")
+    parser.add_argument(
+        "--region",
+        choices=region_names(),
+        default=None,
+        help="Capture region (default: the baseline manifest's region, else regions.json default)",
+    )
+    parser.add_argument(
+        "--normalize-size",
+        action="store_true",
+        help="Normalize sample dimensions during comparison",
+    )
+    parser.add_argument(
+        "--strict", action="store_true", help="Exit with non-zero code if quality gates fail"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Parse corpus and display plan without executing"
+    )
+    parser.add_argument(
+        "--limit", type=int, default=None, help="Limit number of documents to evaluate"
+    )
     args = parser.parse_args()
 
     repo_root = REPO_ROOT
@@ -214,9 +255,15 @@ def main() -> int:
     else:
         diff_dir = repo_root / "screenshots" / "docs_diff"
     region = (
-        "canvas" if args.canvas_only else args.region
-    ) or baseline_region(baseline_dir) or default_region()
-    report_out = Path(args.out).resolve() if args.out else (repo_root / "docs" / "clone" / "OFFICE_DOCS_DIFF.md")
+        ("canvas" if args.canvas_only else args.region)
+        or baseline_region(baseline_dir)
+        or default_region()
+    )
+    report_out = (
+        Path(args.out).resolve()
+        if args.out
+        else (repo_root / "docs" / "clone" / "OFFICE_DOCS_DIFF.md")
+    )
 
     print("=== ATBOffice Document Visual Diff Runner ===")
     print(f"Corpus: {len(supported)} supported OOXML, {len(unsupported)} legacy/corrupt")
@@ -246,7 +293,11 @@ def main() -> int:
         region=region,
     )
 
-    json_out = Path(args.json).resolve() if args.json else (diff_dir / "diff_results.json" if args.score_only else None)
+    json_out = (
+        Path(args.json).resolve()
+        if args.json
+        else (diff_dir / "diff_results.json" if args.score_only else None)
+    )
     if json_out is not None:
         json_out.parent.mkdir(parents=True, exist_ok=True)
         verdicts = parse_visual_verdicts(repo_root / "docs" / "clone" / "OFFICE_DOCS_DIFF.md")
@@ -275,11 +326,15 @@ def main() -> int:
         return r.foreground_score if r.foreground_score is not None else r.similarity
 
     comparable = [r for r in results if _score_of(r) is not None]
-    avg_sim = (sum(_score_of(r) or 0.0 for r in comparable) / len(comparable)) if comparable else 0.0
+    avg_sim = (
+        (sum(_score_of(r) or 0.0 for r in comparable) / len(comparable)) if comparable else 0.0
+    )
     failing = [r for r in comparable if (_score_of(r) or 0.0) < args.min_single_similarity]
     incomp = [r for r in results if _score_of(r) is None]
 
-    print(f"Summary: {len(comparable)}/{len(results)} comparable, foreground_avg={avg_sim*100:.2f}%")
+    print(
+        f"Summary: {len(comparable)}/{len(results)} comparable, foreground_avg={avg_sim * 100:.2f}%"
+    )
     print(f"Status: {len(failing)} below single threshold, {len(incomp)} incomparable/missing")
 
     if args.strict and (avg_sim < args.min_similarity or len(failing) > 0 or len(incomp) > 0):

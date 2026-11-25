@@ -79,12 +79,12 @@ class AppSettings:
                 return str(val).lower() in ("true", "1", "yes")
             if isinstance(expected_default, int):
                 try:
-                    return int(val)
+                    return int(val)  # type: ignore[call-overload]
                 except (ValueError, TypeError):
                     return expected_default
             if isinstance(expected_default, float):
                 try:
-                    return float(val)
+                    return float(val)  # type: ignore[arg-type]
                 except (ValueError, TypeError):
                     return expected_default
             if isinstance(expected_default, str):
@@ -118,6 +118,7 @@ class AppSettings:
         """Apply stored language, theme, and recent files configurations on startup."""
         try:
             from atboffice.core.i18n import load_locale
+
             lang = self.get_value("locale/language", "zh-CN")
             load_locale(lang)
         except Exception as exc:
@@ -125,6 +126,7 @@ class AppSettings:
 
         try:
             from atboffice.ui.styles.luna_2003 import apply_theme_globally
+
             theme = self.get_value("theme/active_theme", "blue")
             apply_theme_globally(theme)
         except Exception as exc:
@@ -132,6 +134,7 @@ class AppSettings:
 
         try:
             from atboffice.core.window_manager import WindowManager
+
             recents_limit = self.get_value("general/recent_files_limit", 20)
             WindowManager.get_instance().recent_files.set_max_items(recents_limit)
         except Exception as exc:

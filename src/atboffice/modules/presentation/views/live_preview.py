@@ -104,8 +104,13 @@ class LivePreviewOverlay(QLabel):
             frame = QImage(width, height, QImage.Format.Format_ARGB32_Premultiplied)
             painter = QPainter(frame)
             render_transition_frame(
-                painter, img_from.scaled(width, height), img_to.scaled(width, height),
-                trans, ms / duration, width, height,
+                painter,
+                img_from.scaled(width, height),
+                img_to.scaled(width, height),
+                trans,
+                ms / duration,
+                width,
+                height,
             )
             painter.end()
             return frame
@@ -126,8 +131,10 @@ class LivePreviewOverlay(QLabel):
         sw, sh = float(pres.w), float(pres.h)
         steps = compile_steps(slide, sw, sh)
         if anim_id:
-            index = next((i for i, st in enumerate(steps)
-                          if any(it.anim.id == anim_id for it in st.items)), None)
+            index = next(
+                (i for i, st in enumerate(steps) if any(it.anim.id == anim_id for it in st.items)),
+                None,
+            )
             if index is None:
                 return 0
             first, chosen = index, [steps[index]]

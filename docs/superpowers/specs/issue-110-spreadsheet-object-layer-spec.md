@@ -30,14 +30,16 @@ This specification implements:
 @dataclass
 class CellAnchorPoint:
     col: int = 0
-    col_off: int = 0   # pixel offset from cell left
+    col_off: int = 0  # pixel offset from cell left
     row: int = 0
-    row_off: int = 0   # pixel offset from cell top
+    row_off: int = 0  # pixel offset from cell top
+
 
 class AnchorType(Enum):
     TWO_CELL = "twoCell"
     ONE_CELL = "oneCell"
     ABSOLUTE = "absolute"
+
 
 @dataclass
 class FloatingObject:
@@ -47,7 +49,7 @@ class FloatingObject:
     anchor_type: AnchorType = AnchorType.TWO_CELL
     from_point: CellAnchorPoint = field(default_factory=CellAnchorPoint)
     to_point: CellAnchorPoint = field(default_factory=CellAnchorPoint)
-    abs_rect: tuple[int, int, int, int] = (0, 0, 100, 60) # (x, y, w, h) in pixels
+    abs_rect: tuple[int, int, int, int] = (0, 0, 100, 60)  # (x, y, w, h) in pixels
     fill_color: str = "#4F81BD"
     fill_alpha: float = 1.0
     line_color: str = "#385D8A"

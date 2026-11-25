@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import copy
 import io
-import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
@@ -75,6 +74,7 @@ from atboffice.modules.writer.models.properties import (
     TabStop,
 )
 from atboffice.modules.writer.models.styles import Style, builtin_styles
+from atboffice.vfs import etree as ET
 from atboffice.vfs.opc import Relationship, SourcePackage
 
 # Common XML Namespaces
@@ -164,10 +164,9 @@ def normalize_strict_namespaces(xml_str: str | None) -> str | None:
     return xml_str
 
 
-
 def _local_tag(elem: ET.Element | str) -> str:
     """Extract tag name stripped of namespace or Clark notation."""
-    tag = elem.tag if isinstance(elem, ET.Element) else elem
+    tag = elem.tag if ET.iselement(elem) else elem
     if tag.startswith("{"):
         return tag.split("}", 1)[1]
     if ":" in tag:
@@ -177,7 +176,7 @@ def _local_tag(elem: ET.Element | str) -> str:
 
 def _elem_ns(elem: ET.Element | str) -> str:
     """Extract namespace URI stripped of Clark notation brackets."""
-    tag = elem.tag if isinstance(elem, ET.Element) else elem
+    tag = elem.tag if ET.iselement(elem) else elem
     if tag.startswith("{"):
         return tag.split("}", 1)[0][1:]
     return ""
@@ -489,6 +488,7 @@ class DocxReader:
                 self.main_path = target
                 break
 
+        self.doc.keep["main_part"] = self.main_path
         ct = self.pkg.get_content_type(self.main_path)
         if ct == CT_DOCM or self.pkg.has_part("word/vbaProject.bin"):
             self.doc_format = "docm"
@@ -507,12 +507,8 @@ class DocxReader:
         """Find relationship target matching type suffix."""
         for r in self.rels.values():
             if r.type.endswith("/" + rel_type_suffix) or r.type.endswith(rel_type_suffix):
-                if r.target_mode == "Internal":
-                    # Target may be relative to word/
-                    target = r.target.lstrip("/")
-                    if not target.startswith("word/") and not target.startswith("docProps/"):
-                        target = f"word/{target}"
-                    return target
+                if not r.is_external:
+                    return r.resolve_target(self.main_path)
         return None
 
     def _load_theme(self) -> None:
@@ -627,6 +623,9 @@ class DocxReader:
             )
 
         self.doc.styles = styles
+        # Lets the writer tell edited styles from untouched ones and carry the rest.
+        self.doc.keep["styles_part"] = styles_path
+        self.doc.keep["styles_snapshot"] = copy.deepcopy(styles)
 
     def _parse_numbering(self) -> None:
         """Parse word/numbering.xml into doc.numbering."""
@@ -782,9 +781,7 @@ class DocxReader:
 
                 pic_bullet_elem = _find_elem(lv, "lvlPicBulletId", W_NAMESPACES)
                 pic_bullet_id = (
-                    _get_attr(pic_bullet_elem, "val")
-                    if pic_bullet_elem is not None
-                    else None
+                    _get_attr(pic_bullet_elem, "val") if pic_bullet_elem is not None else None
                 )
 
                 levels[ilvl] = {
@@ -940,9 +937,7 @@ class DocxReader:
 
         self.doc.main = Story(kind="main", blocks=blocks)
 
-    def _collect_blocks(
-        self, parent: ET.Element, blocks: list[Paragraph | Table]
-    ) -> None:
+    def _collect_blocks(self, parent: ET.Element, blocks: list[Paragraph | Table]) -> None:
         """Recursively collect paragraph and table blocks from a container element."""
         for child in parent:
             tag = _local_tag(child)
@@ -968,9 +963,7 @@ class DocxReader:
                 last_pr = last.p_pr if isinstance(last, Paragraph) else last.tbl_pr
                 first_pr.sdts.insert(0, control)
                 last_pr.sdte.append(control["key"])
-            elif tag in (
-                "sdtContent", "customXml", "ins", "del", "smartTag", "moveTo", "moveFrom"
-            ):
+            elif tag in ("sdtContent", "customXml", "ins", "del", "smartTag", "moveTo", "moveFrom"):
                 self._collect_blocks(child, blocks)
             elif tag == "sectPr":
                 self.doc.sect = self._parse_sect_pr(child)
@@ -1649,8 +1642,11 @@ class DocxReader:
                 space=max(0.0, space),
                 sep=(_get_attr(cols_elem, "sep", "0") or "0").lower()
                 not in ("0", "false", "off", "no"),
-                equal_width=(not children if equal is None else
-                             equal.lower() not in ("0", "false", "off", "no")),
+                equal_width=(
+                    not children
+                    if equal is None
+                    else equal.lower() not in ("0", "false", "off", "no")
+                ),
                 widths=[_twips_to_pt(_get_attr(c, "w")) for c in children],
                 spaces=[max(0.0, _twips_to_pt(_get_attr(c, "space"))) for c in children],
             )

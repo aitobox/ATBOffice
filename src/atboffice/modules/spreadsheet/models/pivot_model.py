@@ -10,7 +10,6 @@ Replicates and extends .vibeoffice/public/ledger/js/pivots.js and dialogs2.js:
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
 import zipfile
 from dataclasses import dataclass, field
 from typing import Any
@@ -27,6 +26,7 @@ from atboffice.modules.spreadsheet.models.sheet_model import (
     SheetDataModel,
 )
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
+from atboffice.vfs import etree as ET
 from atboffice.vfs.opc import PackageWriter
 
 NS_SPREADSHEETML = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"

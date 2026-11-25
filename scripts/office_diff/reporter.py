@@ -110,9 +110,7 @@ def generate_report(
     incomparable = [r for r in results if _primary_score(r) is None]
 
     avg_sim = (
-        sum(_primary_score(r) or 0.0 for r in comparable) / len(comparable)
-        if comparable
-        else 0.0
+        sum(_primary_score(r) or 0.0 for r in comparable) / len(comparable) if comparable else 0.0
     )
     pixel_comparable = [r for r in results if r.similarity is not None]
     avg_pixel_sim = (
@@ -134,7 +132,8 @@ def generate_report(
     # towards the average, but cannot fail the per-document bar.
     waived = [r for r in comparable if r.reference_limitation]
     failing_singles = [
-        r for r in comparable
+        r
+        for r in comparable
         if (_primary_score(r) or 0.0) < min_single and not r.reference_limitation
     ]
     gate_passed = meets_avg and len(failing_singles) == 0 and len(incomparable) == 0
@@ -145,7 +144,7 @@ def generate_report(
         "# ATBOffice vs. VibeOffice Visual Document Rendering Parity Report",
         "",
         f"> **Generated**: {now_str}  ",
-        f"> **Quality Gate Verdict**: **{verdict_badge}** (Target: Avg >= {min_similarity*100:.1f}%, Single >= {min_single*100:.1f}%)",
+        f"> **Quality Gate Verdict**: **{verdict_badge}** (Target: Avg >= {min_similarity * 100:.1f}%, Single >= {min_single * 100:.1f}%)",
         "",
         "## 1. Executive Summary",
         "",
@@ -154,8 +153,8 @@ def generate_report(
         f"| **Evaluated Documents** | `{total}` | 73 Core Supported OOXML |",
         f"| **Comparable Documents** | `{len(comparable)}` | Size & Region Aligned |",
         f"| **Incomparable / Missing** | `{len(incomparable)}` | 0 Blockers |",
-        f"| **Average Visual Similarity** | `{avg_sim*100:.2f}%` | >= {min_similarity*100:.1f}% (Foreground-Weighted) |",
-        f"| **Average Pixel Similarity (MAE)** | `{avg_pixel_sim*100:.2f}%` | Secondary Reference |",
+        f"| **Average Visual Similarity** | `{avg_sim * 100:.2f}%` | >= {min_similarity * 100:.1f}% (Foreground-Weighted) |",
+        f"| **Average Pixel Similarity (MAE)** | `{avg_pixel_sim * 100:.2f}%` | Secondary Reference |",
         f"| **Parity Matches (>=95%)** | `{parity_matches}` | High Fidelity |",
         f"| **Cosmetic Minor (85%-95%)** | `{cosmetic_minors}` | Acceptable |",
         f"| **Layout Drifts (70%-85%)** | `{layout_drifts}` | Needs Polish |",
@@ -192,21 +191,26 @@ def generate_report(
         diff_text = f"[`diff`]({r.diff_path})" if r.diff_path else "-"
         orig_s = f"{r.orig_size[0]}x{r.orig_size[1]}" if r.orig_size != (0, 0) else "-"
         target_s = f"{r.target_size[0]}x{r.target_size[1]}" if r.target_size != (0, 0) else "-"
-        category = f"{r.category}` · `REFERENCE_LIMITATION" if r.reference_limitation else r.category
+        category = (
+            f"{r.category}` · `REFERENCE_LIMITATION" if r.reference_limitation else r.category
+        )
         lines.append(
             f"| {r.app} | `{r.file}` | `{category}` | **{fg_text}** | {rec_text} | {prec_text} | {hist_text} | {pix_text} | {r.mae:.1f} | {orig_s} | {target_s} | {diff_text} |"
         )
 
-    lines.extend([
-        "",
-        "---",
-        "",
-        "## 4. Remediation Action Cards",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "---",
+            "",
+            "## 4. Remediation Action Cards",
+            "",
+        ]
+    )
 
     remediation_items = [
-        r for r in results
+        r
+        for r in results
         if r.category in ("CRITICAL_MISMATCH", "LAYOUT_DRIFT", "INCOMPARABLE_SIZE")
         and not (r.reference_limitation and _primary_score(r) is not None)
     ][:10]
@@ -218,24 +222,30 @@ def generate_report(
             lines.append(card)
             prev_card = f"TASK-DOC-{i:02d}"
     else:
-        lines.append("No active visual rendering defects detected. All evaluated documents meet parity thresholds.")
+        lines.append(
+            "No active visual rendering defects detected. All evaluated documents meet parity thresholds."
+        )
 
     if waived:
-        lines.extend([
-            "",
-            "---",
-            "",
-            "## 5. Reference Limitations",
-            "",
-            "These documents differ because the reference renderer cannot draw them correctly. They count",
-            "towards the average but are exempt from the single-document bar. Each reason is recorded as",
-            "`expectations.reference_limitation` in `tests/docs/expectations.json`.",
-            "",
-            "| App | File | Foreground | Reason |",
-            "|---|---|---|---|",
-        ])
+        lines.extend(
+            [
+                "",
+                "---",
+                "",
+                "## 5. Reference Limitations",
+                "",
+                "These documents differ because the reference renderer cannot draw them correctly. They count",
+                "towards the average but are exempt from the single-document bar. Each reason is recorded as",
+                "`expectations.reference_limitation` in `tests/docs/expectations.json`.",
+                "",
+                "| App | File | Foreground | Reason |",
+                "|---|---|---|---|",
+            ]
+        )
         for r in sorted(waived, key=lambda x: (x.app, x.file)):
-            lines.append(f"| {r.app} | `{r.file}` | {_fmt_pct(_primary_score(r))} | {r.reference_limitation} |")
+            lines.append(
+                f"| {r.app} | `{r.file}` | {_fmt_pct(_primary_score(r))} | {r.reference_limitation} |"
+            )
 
     content = "\n".join(lines) + "\n"
     out_path.parent.mkdir(parents=True, exist_ok=True)

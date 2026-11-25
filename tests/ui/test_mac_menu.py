@@ -1,6 +1,5 @@
 """Unit and integration tests for MacMenuBar 9-menu Office 2003 system and ActionRegistry sync."""
 
-
 import pytest
 from PySide6.QtWidgets import QApplication, QMainWindow
 

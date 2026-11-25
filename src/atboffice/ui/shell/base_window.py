@@ -7,20 +7,14 @@ import os
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Signal
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtCore import QTimer, Signal
+from PySide6.QtGui import QCloseEvent, QShowEvent
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import QDialog, QFileDialog, QMainWindow, QMessageBox, QWidget
 
-from atboffice.core.i18n import get_i18n_manager
-from atboffice.core.i18n import safe_tr as core_safe_tr
+from atboffice.core.i18n import get_i18n_manager, safe_tr
+from atboffice.core.undo import UndoService
 from atboffice.ui.styles.luna_2003 import apply_luna_theme
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for BaseOfficeWindow."""
-    return core_safe_tr(text)
-
 
 logger = logging.getLogger(__name__)
 
@@ -139,9 +133,11 @@ class BaseOfficeWindow(QMainWindow):
         from atboffice.core.compat import coerce, macro_loss
 
         try:
-            losses = coerce(self.compat_model_losses()) + macro_loss(
-                self.current_file_path, target
-            ) + coerce(self.save_losses(target))
+            losses = (
+                coerce(self.compat_model_losses())
+                + macro_loss(self.current_file_path, target)
+                + coerce(self.save_losses(target))
+            )
         except Exception:
             logger.debug("Compatibility check failed for %s", target, exc_info=True)
             return True
@@ -169,6 +165,10 @@ class BaseOfficeWindow(QMainWindow):
     def set_modified(self, modified: bool) -> None:
         """Update document dirty status and window modified dot."""
         self._is_modified = modified
+        if not modified:
+            svc = self.undo_service()
+            if svc is not None:
+                svc.set_clean()
         self.setWindowModified(modified)
         self.update_window_title()
 
@@ -249,9 +249,7 @@ class BaseOfficeWindow(QMainWindow):
             tpl = reg.get(template_id)
 
         if tpl is None:
-            logger.warning(
-                "Template %r not found for %s", template_id, self.app_name
-            )
+            logger.warning("Template %r not found for %s", template_id, self.app_name)
             return False
 
         # Reset path to None to guarantee this is an unsaved new document
@@ -264,9 +262,7 @@ class BaseOfficeWindow(QMainWindow):
                 res = tpl.builder(self)
                 self._apply_template_result(res)
             except Exception as exc:
-                logger.exception(
-                    "Error executing builder for template %s: %s", template_id, exc
-                )
+                logger.exception("Error executing builder for template %s: %s", template_id, exc)
                 self.active_template = None
                 return False
 
@@ -353,9 +349,7 @@ class BaseOfficeWindow(QMainWindow):
         """
         from atboffice.vfs.crypto import inspect_file_format
 
-        inspection = inspect_file_format(
-            path, expected_app=app_name, allow_excel97=allow_excel97
-        )
+        inspection = inspect_file_format(path, expected_app=app_name, allow_excel97=allow_excel97)
         if inspection.should_reject:
             title = inspection.guidance_title or safe_tr("文件格式提示")
             msg = inspection.guidance_message or safe_tr("不支持的旧版二进制文件格式。")
@@ -364,10 +358,6 @@ class BaseOfficeWindow(QMainWindow):
 
     def open_file_dialog(self) -> bool:
         """Present standard file dialog to select and open a document."""
-        if os.environ.get("PYTEST_CURRENT_TEST") and isinstance(
-            QFileDialog.getOpenFileName, type(print)
-        ):
-            return False
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             safe_tr("打开文档"),
@@ -456,7 +446,7 @@ class BaseOfficeWindow(QMainWindow):
             wm.recent_files.add_file(path, app_type)
             self._cache_thumbnail(path, wm.recent_files)
         except Exception:
-            pass
+            logger.warning("Could not add %s to the recent files", path, exc_info=True)
 
         return True
 
@@ -474,21 +464,98 @@ class BaseOfficeWindow(QMainWindow):
         else:
             self.showMaximized()
 
-    def undo(self) -> None:
-        """Undo last action, dispatching to focused widget or active document."""
+    # -- Focus ---------------------------------------------------------------
+
+    def document_widget(self) -> QWidget | None:
+        """The widget that shows the document and takes the keyboard (subclass hook)."""
+        return None
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        if not getattr(self, "_initial_focus_done", False):
+            self._initial_focus_done = True
+            # After the window is laid out, so the toolbars can't grab focus first.
+            QTimer.singleShot(0, self.focus_document)
+
+    def focus_document(self) -> None:
+        """Give the keyboard to the document instead of a toolbar box or tab bar."""
+        target = self.document_widget()
+        if target is None or not target.isVisible():
+            return
+        current = self.focusWidget()
+        if current is None or not (current is target or target.isAncestorOf(current)):
+            target.setFocus()
+
+    # -- Undo / Redo ---------------------------------------------------------
+
+    def undo_service(self) -> UndoService | None:
+        """The active document's undo history (subclass hook)."""
+        return None
+
+    def flush_pending_edits(self) -> None:
+        """Record edits that are still waiting to become an undo step (subclass hook)."""
+
+    def bind_undo_service(self) -> None:
+        """Connect the document's undo history to the window's modified flag.
+
+        Call after the editing view (and so its history) exists. Moving away
+        from the saved position marks the document modified; saving or loading
+        marks the current position as clean.
+        """
+        svc = self.undo_service()
+        if svc is None or getattr(svc, "_bound_window", None) is self:
+            return
+        svc._bound_window = self  # type: ignore[attr-defined]
+        svc.stack.cleanChanged.connect(self._on_undo_clean_changed)
+
+    def _on_undo_clean_changed(self, clean: bool) -> None:
+        if not clean:
+            self.set_modified(True)
+
+    def _focused_text_input(self, kind: str) -> Any | None:
+        """The focused line / text edit when it has its own step to undo or redo."""
+        from PySide6.QtWidgets import QLineEdit, QPlainTextEdit, QTextEdit
+
         fw = self.focusWidget()
-        if fw and hasattr(fw, "undo"):
-            fw.undo()
-        elif hasattr(self, "centralWidget") and hasattr(self.centralWidget(), "undo"):
-            self.centralWidget().undo()
+        if isinstance(fw, QLineEdit) and not fw.isReadOnly():
+            available = fw.isUndoAvailable() if kind == "undo" else fw.isRedoAvailable()
+            return fw if available else None
+        if isinstance(fw, (QTextEdit, QPlainTextEdit)) and not fw.isReadOnly():
+            doc = fw.document()
+            available = doc.isUndoAvailable() if kind == "undo" else doc.isRedoAvailable()
+            return fw if available else None
+        return None
+
+    def undo(self) -> None:
+        """Undo the last step: in the focused text box, else in the document."""
+        self._undo_redo("undo")
 
     def redo(self) -> None:
-        """Redo last undone action, dispatching to focused widget or active document."""
+        """Redo the last undone step: in the focused text box, else in the document."""
+        self._undo_redo("redo")
+
+    def _undo_redo(self, kind: str) -> None:
+        text_input = self._focused_text_input(kind)
+        if text_input is not None:
+            getattr(text_input, kind)()
+            return
+        self.flush_pending_edits()
+        svc = self.undo_service()
+        if svc is not None:
+            if svc.undo_steps(kind, 1):
+                self.after_undo_redo()
+            return
+        # Editors without a shared history: let the focused widget or the
+        # central widget handle it.
         fw = self.focusWidget()
-        if fw and hasattr(fw, "redo"):
-            fw.redo()
-        elif hasattr(self, "centralWidget") and hasattr(self.centralWidget(), "redo"):
-            self.centralWidget().redo()
+        if fw is not None and hasattr(fw, kind):
+            getattr(fw, kind)()
+        elif hasattr(self.centralWidget(), kind):
+            getattr(self.centralWidget(), kind)()
+
+    def after_undo_redo(self) -> None:
+        """Refresh after the document history moved (subclass hook)."""
+        self.set_modified(True)
 
     def cut(self) -> None:
         """Cut selection to clipboard, dispatching to focused widget or active document."""
@@ -534,8 +601,6 @@ class BaseOfficeWindow(QMainWindow):
 
     def show_help(self) -> None:
         """Display help documentation dialog for current application."""
-        if os.environ.get("PYTEST_CURRENT_TEST"):
-            return
         QMessageBox.information(
             self,
             safe_tr("帮助 — {app_name}").format(app_name=self.app_name),
@@ -637,8 +702,10 @@ class BaseOfficeWindow(QMainWindow):
             return False
 
         # 1. Overwrite confirmation if saving to an existing file different from current path
-        if confirm_overwrite and target.exists() and (
-            self.current_file_path is None or target != self.current_file_path
+        if (
+            confirm_overwrite
+            and target.exists()
+            and (self.current_file_path is None or target != self.current_file_path)
         ):
             res = QMessageBox.warning(
                 self,
@@ -667,6 +734,7 @@ class BaseOfficeWindow(QMainWindow):
             # Execute serialization to the staging file
             save_ok = self.do_save(staged_temp_path)
             if not save_ok:
+                logger.error("do_save returned False for %s", target)
                 if staged_temp_path.exists():
                     try:
                         staged_temp_path.unlink()
@@ -698,11 +766,12 @@ class BaseOfficeWindow(QMainWindow):
                 wm.recent_files.add_file(target, app_type)
                 self._cache_thumbnail(target, wm.recent_files)
             except Exception:
-                pass
+                logger.warning("Could not add %s to the recent files", target, exc_info=True)
 
             return True
 
         except PermissionError as exc:
+            logger.warning("No permission to save %s: %s", target, exc)
             if staged_temp_path and staged_temp_path.exists():
                 try:
                     staged_temp_path.unlink()
@@ -717,6 +786,7 @@ class BaseOfficeWindow(QMainWindow):
             )
             return False
         except Exception as exc:
+            logger.exception("Failed to save %s", target)
             if staged_temp_path and staged_temp_path.exists():
                 try:
                     staged_temp_path.unlink()
@@ -737,10 +807,6 @@ class BaseOfficeWindow(QMainWindow):
 
     def save_file_as(self) -> bool:
         """Prompt user with standard file dialog to save document to a new path."""
-        if os.environ.get("PYTEST_CURRENT_TEST") and isinstance(
-            QFileDialog.getSaveFileName, type(print)
-        ):
-            return False
         default_path = str(self.current_file_path) if self.current_file_path is not None else ""
         file_path, _ = QFileDialog.getSaveFileName(
             self,
@@ -756,12 +822,6 @@ class BaseOfficeWindow(QMainWindow):
         """Prompt system print dialog and print current document to printer."""
         if printer is None:
             printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-            if os.environ.get("PYTEST_CURRENT_TEST"):
-                try:
-                    self.render_to_printer(printer)
-                    return True
-                except Exception:
-                    return False
             dialog = QPrintDialog(printer, self)
             dialog.setWindowTitle(safe_tr("打印 — {name}").format(name=self.app_name))
             if dialog.exec() != QPrintDialog.DialogCode.Accepted:
@@ -782,18 +842,6 @@ class BaseOfficeWindow(QMainWindow):
         """File > Print Preview: open the in-window Office 2003 preview (non-modal)."""
         if printer is None:
             printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-
-        if os.environ.get("PYTEST_CURRENT_TEST"):
-            try:
-                self.render_to_printer(printer)
-                return True
-            except Exception as exc:
-                QMessageBox.critical(
-                    self,
-                    safe_tr("打印预览失败"),
-                    safe_tr("生成打印预览时发生错误：\n{exc}").format(exc=exc),
-                )
-                return False
 
         try:
             self.open_print_preview_panel(printer)
@@ -848,10 +896,6 @@ class BaseOfficeWindow(QMainWindow):
     def export_pdf(self, output_path: str | Path | None = None) -> bool:
         """Export current document as lossless vector PDF file."""
         if output_path is None:
-            if os.environ.get("PYTEST_CURRENT_TEST") and isinstance(
-                QFileDialog.getSaveFileName, type(print)
-            ):
-                return False
             default_stem = (
                 self.current_file_path.stem
                 if self.current_file_path is not None
@@ -998,9 +1042,7 @@ class BaseOfficeWindow(QMainWindow):
             self.clipboard_pane = ClipboardTaskPane(parent=self.task_pane_dock)
             self.clipboard_pane.item_clicked.connect(self._on_clipboard_item_clicked)
             self.clipboard_pane.paste_all_requested.connect(self._on_clipboard_paste_all)
-            self.task_pane_dock.register_pane(
-                "clipboard", safe_tr("剪贴板"), self.clipboard_pane
-            )
+            self.task_pane_dock.register_pane("clipboard", safe_tr("剪贴板"), self.clipboard_pane)
 
             self.task_pane_dock.hide()
         return self.task_pane_dock
@@ -1112,16 +1154,21 @@ class BaseOfficeWindow(QMainWindow):
             recent.save_thumbnail(path, image)
 
     def undo_history(self, kind: str) -> list[str]:
-        """Labels of the undo (or redo) history, most recent first (subclass hook)."""
-        return []
+        """Labels of the undo (or redo) history, most recent first."""
+        self.flush_pending_edits()
+        svc = self.undo_service()
+        return svc.labels(kind) if svc is not None else []
 
     def undo_steps(self, kind: str, steps: int) -> None:
         """Undo (or redo) ``steps`` actions at once (Undo/Redo drop-down)."""
+        self.flush_pending_edits()
+        svc = self.undo_service()
+        if svc is not None:
+            if svc.undo_steps(kind, steps):
+                self.after_undo_redo()
+            return
         for _ in range(max(0, steps)):
-            if kind == "undo":
-                self.undo()
-            else:
-                self.redo()
+            self._undo_redo(kind)
 
     def attach_undo_history(self) -> None:
         """Make the toolbar Undo/Redo drop-downs list the real history."""

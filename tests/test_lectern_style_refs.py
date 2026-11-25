@@ -41,15 +41,15 @@ def test_tdf126741_line_accent1_and_dash_pattern():
     theme_accent1 = design.colors.accent1
     c_actual = QColor(resolved_color)
     c_accent1 = QColor(theme_accent1)
-    assert (
-        abs(c_actual.red() - c_accent1.red()) <= 10
-    ), f"Red: {c_actual.red()} vs {c_accent1.red()}"
-    assert (
-        abs(c_actual.green() - c_accent1.green()) <= 10
-    ), f"Green: {c_actual.green()} vs {c_accent1.green()}"
-    assert (
-        abs(c_actual.blue() - c_accent1.blue()) <= 10
-    ), f"Blue: {c_actual.blue()} vs {c_accent1.blue()}"
+    assert abs(c_actual.red() - c_accent1.red()) <= 10, (
+        f"Red: {c_actual.red()} vs {c_accent1.red()}"
+    )
+    assert abs(c_actual.green() - c_accent1.green()) <= 10, (
+        f"Green: {c_actual.green()} vs {c_accent1.green()}"
+    )
+    assert abs(c_actual.blue() - c_accent1.blue()) <= 10, (
+        f"Blue: {c_actual.blue()} vs {c_accent1.blue()}"
+    )
 
     # Verify dash pattern mapping in ShapeGraphicsItem / DASH_PATTERNS
     dash_pattern = DASH_PATTERNS.get(conn.line.dash)
@@ -105,12 +105,12 @@ def test_master_slides_subtitle_green():
     c_target = QColor("#30BA78")
 
     assert abs(c_actual.red() - c_target.red()) <= 10, f"Red: {c_actual.red()} vs {c_target.red()}"
-    assert (
-        abs(c_actual.green() - c_target.green()) <= 10
-    ), f"Green: {c_actual.green()} vs {c_target.green()}"
-    assert (
-        abs(c_actual.blue() - c_target.blue()) <= 10
-    ), f"Blue: {c_actual.blue()} vs {c_target.blue()}"
+    assert abs(c_actual.green() - c_target.green()) <= 10, (
+        f"Green: {c_actual.green()} vs {c_target.green()}"
+    )
+    assert abs(c_actual.blue() - c_target.blue()) <= 10, (
+        f"Blue: {c_actual.blue()} vs {c_target.blue()}"
+    )
 
 
 def test_bnc887230_hyperlink_blue():

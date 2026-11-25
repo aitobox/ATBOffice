@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -15,13 +14,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
+
 if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for MoveCopySheetDialog."""
-    return QCoreApplication.translate("MoveCopySheetDialog", text)
 
 
 class MoveCopySheetDialog(QDialog):

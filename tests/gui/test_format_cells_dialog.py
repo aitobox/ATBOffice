@@ -214,9 +214,9 @@ class TestFormatCellsDialogApplication:
         self, qapp: QApplication, monkeypatch: pytest.MonkeyPatch
     ):
         from atboffice.modules.spreadsheet.view import SpreadsheetView
-        from atboffice.ui.shell.main_window import MainWindow
+        from atboffice.ui.shell.ledger_window import LedgerWindow
 
-        win = MainWindow()
+        win = LedgerWindow()
         view = win.spreadsheet_view
         assert isinstance(view, SpreadsheetView)
 
@@ -228,7 +228,7 @@ class TestFormatCellsDialogApplication:
 
         monkeypatch.setattr(FormatCellsDialog, "exec", mock_exec)
 
-        # Trigger via MainWindow.format_cells()
+        # Trigger via LedgerWindow.format_cells()
         win.format_cells()
         assert len(dialog_opened) == 1
         assert isinstance(dialog_opened[0], FormatCellsDialog)

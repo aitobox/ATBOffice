@@ -25,6 +25,7 @@ def _cell_pt(grid, x: float, y: float) -> QPointF:
     """Point given in the old fixed 46x22 header layout, shifted to the grid's real headers."""
     return QPointF(x - 46 + grid.row_header_width, y - 22 + grid.col_header_height)
 
+
 def test_fill_handle_linear_drag_real_data(qtbot):
     """A1=1, A2=2 dragged down to A10 yields 1..10, with formula & modifier checks."""
     viewport = GridViewport()
@@ -208,7 +209,7 @@ def test_fill_handle_protection_blocks_and_no_dirty(qtbot, monkeypatch):
 
     viewport.model.set_cell(0, 0, CellData(value=100))
     viewport.selection.select_cell(0, 0)
-    initial_undo_len = len(viewport._undo_stack)
+    initial_undo_len = len(viewport.history)
 
     # Attempt to drag fill handle
     p_handle = _cell_pt(viewport, 110, 42)
@@ -251,7 +252,7 @@ def test_fill_handle_protection_blocks_and_no_dirty(qtbot, monkeypatch):
     assert viewport.model.get_cell_value(0, 0) == 100
 
     # No undo records added
-    assert len(viewport._undo_stack) == initial_undo_len
+    assert len(viewport.history) == initial_undo_len
 
 
 def test_fill_handle_sparse_undo_redo(qtbot):
@@ -309,8 +310,9 @@ def test_fill_handle_sparse_undo_redo(qtbot):
     assert [viewport.model.get_cell_value(r, 0) for r in range(5)] == [10, 20, 30, 40, 50]
 
     # Inspect undo stack entry
-    assert len(viewport._undo_stack) > 0
-    cmd = viewport._undo_stack[-1]
+    assert len(viewport.history) > 0
+    stack = viewport.history.stack
+    cmd = stack.command(stack.index() - 1).data
     assert cmd.get("action") == "autofill"
     # Ensure sparse delta is stored (or small subset of modified cells, NOT 100+ cells)
     if "before_delta_cells" in cmd:

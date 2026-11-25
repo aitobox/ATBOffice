@@ -34,37 +34,93 @@ if TYPE_CHECKING:
 # (``canvas.selected_float()``), but these toolbar commands are not wired to that
 # selection yet, so they stay disabled with this reason instead of pretending to work.
 OBJECT_COMMANDS: tuple[str, ...] = (
-    "picCrop", "picLessBright", "picLessContrast", "picMoreBright", "picMoreContrast",
-    "picReset", "picRotate", "pic_color_auto", "pic_color_bw", "pic_color_gray",
-    "pic_color_mode", "pic_color_wash", "pic_line_style", "pic_wrap_mode", "formatObject",
-    "draw_arrow_1", "draw_arrow_style", "draw_dash_dash", "draw_dash_style", "draw_group",
-    "draw_line_style", "draw_shadow_1", "draw_shadow_style", "draw_ungroup",
-    "draw_weight_075", "selectObjects", "wa_format", "wa_shape_arch_down", "wa_shape_arch_up",
-    "wa_shape_circle", "wa_shape_plain", "wa_shape_wave", "wa_wrap_mode", "wrap_behind",
-    "wrap_front", "wrap_inline", "wrap_square", "wrap_tight", "insertClipArt",
-    "insertDiagram", "insertExcel", "insert_shape", "research", "permission", "sendMail",
+    "picCrop",
+    "picLessBright",
+    "picLessContrast",
+    "picMoreBright",
+    "picMoreContrast",
+    "picReset",
+    "picRotate",
+    "pic_color_auto",
+    "pic_color_bw",
+    "pic_color_gray",
+    "pic_color_mode",
+    "pic_color_wash",
+    "pic_line_style",
+    "pic_wrap_mode",
+    "formatObject",
+    "draw_arrow_1",
+    "draw_arrow_style",
+    "draw_dash_dash",
+    "draw_dash_style",
+    "draw_group",
+    "draw_line_style",
+    "draw_shadow_1",
+    "draw_shadow_style",
+    "draw_ungroup",
+    "draw_weight_075",
+    "selectObjects",
+    "wa_format",
+    "wa_shape_arch_down",
+    "wa_shape_arch_up",
+    "wa_shape_circle",
+    "wa_shape_plain",
+    "wa_shape_wave",
+    "wa_wrap_mode",
+    "wrap_behind",
+    "wrap_front",
+    "wrap_inline",
+    "wrap_square",
+    "wrap_tight",
+    "insertClipArt",
+    "insertDiagram",
+    "insertExcel",
+    "insert_shape",
+    "research",
+    "permission",
+    "sendMail",
 )
 OBJECT_REASON = "请先在文档中选择图片或图形对象"
 
 # Drop-down containers and empty-history placeholders: they open a menu, never a command.
 CONTAINER_COMMANDS: tuple[str, ...] = (
-    "autoshapes_menu", "columns_menu", "draw_menu", "hf_autotext_menu", "lineSpacing_menu",
-    "rev_display_mode", "rev_show_menu", "tbl_align_menu", "tbl_insert_menu", "tbl_dash_style",
-    "tbl_line_weight", "tbl_line_color", "tbl_shading_color", "wa_shape_menu",
-    "redo_empty", "undo_empty",
+    "autoshapes_menu",
+    "columns_menu",
+    "draw_menu",
+    "hf_autotext_menu",
+    "lineSpacing_menu",
+    "rev_display_mode",
+    "rev_show_menu",
+    "tbl_align_menu",
+    "tbl_insert_menu",
+    "tbl_dash_style",
+    "tbl_line_weight",
+    "tbl_line_color",
+    "tbl_shading_color",
+    "wa_shape_menu",
+    "redo_empty",
+    "undo_empty",
 )
 
 _TBL_WEIGHTS = {
-    "tbl_weight_05": 0.5, "tbl_weight_075": 0.75, "tbl_weight_10": 1.0,
-    "tbl_weight_15": 1.5, "tbl_weight_225": 2.25, "tbl_weight_30": 3.0,
+    "tbl_weight_05": 0.5,
+    "tbl_weight_075": 0.75,
+    "tbl_weight_10": 1.0,
+    "tbl_weight_15": 1.5,
+    "tbl_weight_225": 2.25,
+    "tbl_weight_30": 3.0,
 }
 _TBL_STYLES = {
-    "tbl_line_single": "single", "tbl_line_double": "double",
-    "tbl_line_dot": "dotted", "tbl_line_dash": "dashed",
+    "tbl_line_single": "single",
+    "tbl_line_double": "double",
+    "tbl_line_dot": "dotted",
+    "tbl_line_dash": "dashed",
 }
 _TBL_COLORS = {
-    "tbl_color_auto": "auto", "tbl_color_black": "000000",
-    "tbl_color_red": "FF0000", "tbl_color_blue": "0000FF",
+    "tbl_color_auto": "auto",
+    "tbl_color_black": "000000",
+    "tbl_color_red": "FF0000",
+    "tbl_color_blue": "0000FF",
 }
 
 
@@ -131,8 +187,11 @@ class QuireToolbarCommands:
         def mutate() -> None:
             story = doc_actions._hf_story(self.canvas.doc, self.hf_kind)
             assert story is not None
-            para = story.blocks[-1] if story.blocks and isinstance(
-                story.blocks[-1], Paragraph) else None
+            para = (
+                story.blocks[-1]
+                if story.blocks and isinstance(story.blocks[-1], Paragraph)
+                else None
+            )
             if para is None:
                 para = Paragraph()
                 story.blocks.append(para)
@@ -142,8 +201,12 @@ class QuireToolbarCommands:
 
     @staticmethod
     def _field(name: str, result: str, instr: str | None = None) -> list[Any]:
-        return [FieldBeginItem(field_type=name, instr=f" {instr or name} "),
-                FieldSeparateItem(), TextItem(result), FieldEndItem()]
+        return [
+            FieldBeginItem(field_type=name, instr=f" {instr or name} "),
+            FieldSeparateItem(),
+            TextItem(result),
+            FieldEndItem(),
+        ]
 
     def hf_page_number(self) -> None:
         self._hf_append(self._field("PAGE", "1"))
@@ -167,8 +230,13 @@ class QuireToolbarCommands:
         if entry == "page":
             items = [TextItem("- "), *page, TextItem(" -")]
         elif entry == "page_x_of_y":
-            items = [TextItem(safe_tr("第 ")), *page, TextItem(safe_tr(" 页，共 ")), *pages,
-                     TextItem(safe_tr(" 页"))]
+            items = [
+                TextItem(safe_tr("第 ")),
+                *page,
+                TextItem(safe_tr(" 页，共 ")),
+                *pages,
+                TextItem(safe_tr(" 页")),
+            ]
         elif entry == "confidential":
             items = [TextItem(safe_tr("机密")), TabItem(), *page, TabItem(), *date]
         else:  # author, page, date
@@ -184,7 +252,8 @@ class QuireToolbarCommands:
         settings = self.canvas.doc.settings
         settings["hfLinkToPrevious"] = not settings.get("hfLinkToPrevious", True)
         self._status(
-            safe_tr("已链接到前一节") if settings["hfLinkToPrevious"]
+            safe_tr("已链接到前一节")
+            if settings["hfLinkToPrevious"]
             else safe_tr("已断开与前一节的链接")
         )
 
@@ -197,8 +266,9 @@ class QuireToolbarCommands:
 
     def toggle_show(self, attr: str) -> None:
         setattr(self.canvas, attr, not getattr(self.canvas, attr))
-        setting = {"show_ins_del": "showInsDel",
-                   "show_formatting_changes": "showFormatting"}.get(attr)
+        setting = {"show_ins_del": "showInsDel", "show_formatting_changes": "showFormatting"}.get(
+            attr
+        )
         if setting:
             self.canvas.doc.settings[setting] = bool(getattr(self.canvas, attr))
             self.canvas.refresh_layout()
@@ -218,8 +288,14 @@ class QuireToolbarCommands:
                 )
                 if is_rev or getattr(it, "t", "") in ("cs", "cref"):
                     marks.append((para.id, off))
-                off += len(getattr(it, "text", "")) if getattr(it, "t", "") == "text" else (
-                    0 if getattr(it, "t", "") in ("cs", "ce", "bs", "be", "fb", "fs", "fe") else 1
+                off += (
+                    len(getattr(it, "text", ""))
+                    if getattr(it, "t", "") == "text"
+                    else (
+                        0
+                        if getattr(it, "t", "") in ("cs", "ce", "bs", "be", "fb", "fs", "fe")
+                        else 1
+                    )
                 )
         if not marks:
             self._status(safe_tr("文档中没有修订或批注"))
@@ -279,7 +355,9 @@ class QuireToolbarCommands:
 
     def insert_picture(self) -> bool:
         path, _ = QFileDialog.getOpenFileName(
-            self.window, safe_tr("插入图片"), "",
+            self.window,
+            safe_tr("插入图片"),
+            "",
             safe_tr("图片文件 (*.png *.jpg *.jpeg *.gif *.bmp *.webp)"),
         )
         if not path:
@@ -302,12 +380,14 @@ class QuireToolbarCommands:
         if ctx is None:
             self._status(safe_tr("请先将光标置于表格中"))
             return
-        border = BorderProperties(val=self.border_style, sz=self.border_weight,
-                                  color=self.border_color)
+        border = BorderProperties(
+            val=self.border_style, sz=self.border_weight, color=self.border_color
+        )
 
         def mutate() -> None:
-            ctx["cell"].tc_pr.borders = {side: copy.deepcopy(border)
-                                         for side in ("top", "left", "bottom", "right")}
+            ctx["cell"].tc_pr.borders = {
+                side: copy.deepcopy(border) for side in ("top", "left", "bottom", "right")
+            }
 
         self._apply(mutate)
 
@@ -387,11 +467,18 @@ def insert_picture_bytes(canvas: Any, data: bytes, name: str, ext: str = "png") 
         w_pt = max_w
     stem = Path(name).stem or "picture"
     part = name if "." in name else f"{stem}.{ext}"
-    pic = PictureItem(name=name, width=w_pt, height=h_pt,
-                      raw_data={"bytes": data, "ext": ext},
-                      image_part=f"media/{part}", alt_text=stem)
+    pic = PictureItem(
+        name=name,
+        width=w_pt,
+        height=h_pt,
+        raw_data={"bytes": data, "ext": ext},
+        image_part=f"media/{part}",
+        alt_text=stem,
+    )
     pic.natural_width, pic.natural_height = w_pt, h_pt
-    doc_actions.insert_items(canvas, [pic])
+    with canvas.controller.edit_scope("插入图片"):
+        doc_actions.insert_items(canvas, [pic])
+    canvas.refresh_layout()
     return True
 
 
@@ -420,14 +507,21 @@ def bind_quire_toolbar_commands(window: QuireWindow) -> QuireToolbarCommands:
     reg.set_handler("hfClose", cmds.close_header_footer)
     reg.set_handler("hfShowText", cmds.hf_toggle_body_text)
     reg.set_handler("hfLinkPrev", cmds.hf_link_previous)
-    for aid, entry in (("hf_at_page", "page"), ("hf_at_page_x_of_y", "page_x_of_y"),
-                       ("hf_at_confidential", "confidential"),
-                       ("hf_at_author_date", "author_date")):
+    for aid, entry in (
+        ("hf_at_page", "page"),
+        ("hf_at_page_x_of_y", "page_x_of_y"),
+        ("hf_at_confidential", "confidential"),
+        ("hf_at_author_date", "author_date"),
+    ):
         reg.set_handler(aid, lambda e=entry: cmds.hf_autotext(e))
 
     # Reviewing
-    for aid, mode in (("rev_final_markup", "final_markup"), ("rev_final", "final"),
-                      ("rev_original_markup", "original_markup"), ("rev_original", "original")):
+    for aid, mode in (
+        ("rev_final_markup", "final_markup"),
+        ("rev_final", "final"),
+        ("rev_original_markup", "original_markup"),
+        ("rev_original", "original"),
+    ):
         reg.set_handler(aid, lambda m=mode: cmds.set_revision_view(m))
     reg.set_handler("rev_show_comments", lambda: cmds.toggle_show("show_comments"))
     reg.set_handler("rev_show_ins_del", lambda: cmds.toggle_show("show_ins_del"))
@@ -445,8 +539,9 @@ def bind_quire_toolbar_commands(window: QuireWindow) -> QuireToolbarCommands:
     # Standard / Formatting
     reg.set_handler("showMarks", cmds.toggle_marks)
     reg.set_handler("painter", cmds.format_painter)
-    reg.set_handler("selectAll", lambda: (canvas.controller.select_all(),
-                                          canvas.viewport().update()))
+    reg.set_handler(
+        "selectAll", lambda: (canvas.controller.select_all(), canvas.viewport().update())
+    )
     for aid in ("insertPicture", "insert_picture", "pic_insert"):
         reg.set_handler(aid, cmds.insert_picture)
 

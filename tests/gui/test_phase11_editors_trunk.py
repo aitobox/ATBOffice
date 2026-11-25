@@ -216,18 +216,30 @@ def test_quire_header_double_click_enters_header_footer_mode(quire):
     page = canvas.pagination.pages[0]
     vp = canvas.viewport()
 
-    QTest.mouseDClick(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
-                      _vp(canvas, 0, 200, page.body_top / 2))
+    QTest.mouseDClick(
+        vp,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        _vp(canvas, 0, 200, page.body_top / 2),
+    )
     assert seen == ["hdr"] and canvas.hf_edit_kind == "hdr"
     assert quire.toolbar_commands.hf_kind == "hdr"  # the Header and Footer toolbar follows
 
-    QTest.mouseDClick(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
-                      _vp(canvas, 0, 200, page.height - page.body_bottom_gap / 2))
+    QTest.mouseDClick(
+        vp,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        _vp(canvas, 0, 200, page.height - page.body_bottom_gap / 2),
+    )
     assert seen[-1] == "ftr" and canvas.hf_edit_kind == "ftr"
 
     # Double-click in the body leaves header/footer editing
-    QTest.mouseDClick(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
-                      _vp(canvas, 0, page.body_left + 5, page.body_top + 5))
+    QTest.mouseDClick(
+        vp,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        _vp(canvas, 0, page.body_left + 5, page.body_top + 5),
+    )
     assert canvas.hf_edit_kind is None
     assert canvas.header_footer_zone(0, QPointF(200, page.body_top + 20)) is None
 
@@ -272,7 +284,10 @@ def test_ledger_dynamic_array_spills_and_reports_spill_collision():
     sh.ensure_cell(0, 4).formula = "SUM(A1:B3)"
     wb.recalculate()
     assert [[sh.get_cell_value(r, c) for c in range(2)] for r in range(3)] == [
-        [1, 2], [3, 4], [5, 6]]
+        [1, 2],
+        [3, 4],
+        [5, 6],
+    ]
     assert sh.get_cell_value(0, 4) == 21
     assert grid_spill.spill_rect_at(sh, 2, 1) == (0, 0, 2, 1)
 
@@ -291,9 +306,18 @@ def test_ledger_structured_references_and_implicit_intersection():
     for r, (q, a) in enumerate([("Qty", "Amount"), (2, 10), (3, 20), (4, 30)]):
         sh.set_cell_value(r, 0, q)
         sh.set_cell_value(r, 1, a)
-    sh.tables.append(Table(id=1, name="Table1", r1=0, c1=0, r2=3, c2=1, ref="A1:B4",
-                           columns=[TableColumn(id=1, name="Qty"),
-                                    TableColumn(id=2, name="Amount")]))
+    sh.tables.append(
+        Table(
+            id=1,
+            name="Table1",
+            r1=0,
+            c1=0,
+            r2=3,
+            c2=1,
+            ref="A1:B4",
+            columns=[TableColumn(id=1, name="Qty"), TableColumn(id=2, name="Amount")],
+        )
+    )
     formulas = {
         (0, 4): "SUM(Table1[Amount])",
         (1, 2): "Table1[@Qty]*2",
@@ -505,12 +529,21 @@ def test_lectern_media_playback_without_media_reports_clean_fallback(qapp):
 def test_quire_delete_key_removes_selected_float(quire):
     canvas = quire.writer_view.canvas_view
     doc = Document()
-    pic = PictureItem(width=60, height=60, float_pr=FloatProperties(
-        pos_h=PositionH(rel="page", offset=200), pos_v=PositionV(rel="page", offset=300)))
+    pic = PictureItem(
+        width=60,
+        height=60,
+        float_pr=FloatProperties(
+            pos_h=PositionH(rel="page", offset=200), pos_v=PositionV(rel="page", offset=300)
+        ),
+    )
     doc.main.blocks = [Paragraph(runs=[TextItem("Text"), pic])]
     canvas.set_document(doc)
-    QTest.mouseClick(canvas.viewport(), Qt.MouseButton.LeftButton,
-                     Qt.KeyboardModifier.NoModifier, _vp(canvas, 0, 230, 330))
+    QTest.mouseClick(
+        canvas.viewport(),
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        _vp(canvas, 0, 230, 330),
+    )
     assert canvas.selected_float() is pic
     QTest.keyClick(canvas, Qt.Key.Key_Delete)
     assert canvas.selected_float() is None

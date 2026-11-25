@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -34,10 +33,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("TableDialogs", text)
+from atboffice.core.i18n import safe_tr
 
 
 class InsertCellsDialog(QDialog):
@@ -344,7 +340,7 @@ class TableSortDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
-        columns = [f"{safe_tr('列')} {i+1}" for i in range(max(1, column_count))]
+        columns = [f"{safe_tr('列')} {i + 1}" for i in range(max(1, column_count))]
 
         # Tier 1: Sort by
         self.grp_1 = QGroupBox(safe_tr("主要关键字"), self)
@@ -457,37 +453,41 @@ class TableFormulaDialog(QDialog):
 
         self.combo_format = QComboBox(self)
         self.combo_format.setEditable(True)
-        self.combo_format.addItems([
-            "0",
-            "0.00",
-            "#,##0",
-            "#,##0.00",
-            "$#,##0.00;($#,##0.00)",
-            "0%",
-            "0.00%",
-        ])
+        self.combo_format.addItems(
+            [
+                "0",
+                "0.00",
+                "#,##0",
+                "#,##0.00",
+                "$#,##0.00;($#,##0.00)",
+                "0%",
+                "0.00%",
+            ]
+        )
 
         self.combo_function = QComboBox(self)
-        self.combo_function.addItems([
-            safe_tr("(粘贴函数)"),
-            "ABS",
-            "AND",
-            "AVERAGE",
-            "COUNT",
-            "FALSE",
-            "IF",
-            "INT",
-            "MAX",
-            "MIN",
-            "MOD",
-            "NOT",
-            "OR",
-            "PRODUCT",
-            "ROUND",
-            "SIGN",
-            "SUM",
-            "TRUE",
-        ])
+        self.combo_function.addItems(
+            [
+                safe_tr("(粘贴函数)"),
+                "ABS",
+                "AND",
+                "AVERAGE",
+                "COUNT",
+                "FALSE",
+                "IF",
+                "INT",
+                "MAX",
+                "MIN",
+                "MOD",
+                "NOT",
+                "OR",
+                "PRODUCT",
+                "ROUND",
+                "SIGN",
+                "SUM",
+                "TRUE",
+            ]
+        )
         self.combo_function.currentIndexChanged.connect(self._on_function_selected)
 
         self.lbl_formula = QLabel(safe_tr("公式(&F):"), self)

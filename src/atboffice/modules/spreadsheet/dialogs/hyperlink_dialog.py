@@ -153,8 +153,7 @@ class HyperlinkDialog(QDialog):
         btn_layout.addStretch()
 
         self.button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok
-            | QDialogButtonBox.StandardButton.Cancel,
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
             self,
         )
         self.button_box.accepted.connect(self._on_accepted)

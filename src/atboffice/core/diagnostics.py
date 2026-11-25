@@ -72,12 +72,14 @@ class ActionRecorder:
     ) -> None:
         """Record an action event with ISO timestamp and optional details."""
         with self._lock:
-            self._actions.append({
-                "time": datetime.now().isoformat(),
-                "action": action,
-                "component": component,
-                "details": details or {},
-            })
+            self._actions.append(
+                {
+                    "time": datetime.now().isoformat(),
+                    "action": action,
+                    "component": component,
+                    "details": details or {},
+                }
+            )
 
     def get_recent_actions(self) -> list[dict[str, Any]]:
         """Return a copy of recent recorded actions in chronological order."""
@@ -128,9 +130,7 @@ class ActionRecorder:
         return "\n".join(lines)
 
 
-def record_action(
-    action: str, component: str = "", details: dict[str, Any] | None = None
-) -> None:
+def record_action(action: str, component: str = "", details: dict[str, Any] | None = None) -> None:
     """Convenience helper to record an action on the singleton ActionRecorder."""
     ActionRecorder.get_instance().record_action(action, component=component, details=details)
 
@@ -314,7 +314,6 @@ class CrashDiagnostics:
             sys.stderr.write(f"Failed to write crash log: {err}\n")
 
         sys.stderr.write(report_text)
-
 
     def find_recent_crash_reports(self, since_timestamp: float | None = None) -> list[Path]:
         """Locate OS-level crash reports (e.g. .ips / .crash files on macOS)."""

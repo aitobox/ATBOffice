@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import QCoreApplication, QEvent, QObject, Qt, Signal
+from PySide6.QtCore import QEvent, QObject, Qt, Signal
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtPrintSupport import QPrinter, QPrintPreviewWidget
 from PySide6.QtWidgets import (
@@ -16,10 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("PrintPreviewPanel", text)
-
+from atboffice.core.i18n import safe_tr
 
 ZOOM_CHOICES: list[tuple[str, float | str]] = [
     ("整页", "fit"),
@@ -87,8 +84,15 @@ class PrintPreviewPanel(QWidget):
         self.extra_layout.setSpacing(4)
         self.btn_close = self._button(self.close_preview)
 
-        for w in (self.btn_print, self.btn_magnifier, self.btn_one_page, self.btn_multi_page,
-                  self.btn_all_pages, self.combo_zoom, self.btn_setup):
+        for w in (
+            self.btn_print,
+            self.btn_magnifier,
+            self.btn_one_page,
+            self.btn_multi_page,
+            self.btn_all_pages,
+            self.combo_zoom,
+            self.btn_setup,
+        ):
             self.bar_layout.addWidget(w)
         self.bar_layout.addLayout(self.extra_layout)
         self.bar_layout.addStretch(1)

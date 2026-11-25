@@ -57,15 +57,15 @@ Represents a rendered portion of a paragraph (or block) placed on a specific pag
 @dataclass
 class PageFragment:
     paragraph: Paragraph
-    line_start_idx: int       # Start line index within ParagraphLayout
-    line_end_idx: int         # End line index (exclusive)
+    line_start_idx: int  # Start line index within ParagraphLayout
+    line_end_idx: int  # End line index (exclusive)
     lines: list[LayoutLine]
-    top: float                # Y coordinate relative to column body top
-    height: float             # Total height of these lines
-    space_before: float       # Space before applied to top line
-    space_after: float        # Space after applied to bottom line
-    char_start: int           # Character offset start
-    char_end: int             # Character offset end
+    top: float  # Y coordinate relative to column body top
+    height: float  # Total height of these lines
+    space_before: float  # Space before applied to top line
+    space_after: float  # Space after applied to bottom line
+    char_start: int  # Character offset start
+    char_end: int  # Character offset end
 ```
 
 ### 3.2 `ColumnFrame`
@@ -74,10 +74,10 @@ Represents an individual column on a page region:
 @dataclass
 class ColumnFrame:
     index: int
-    left: float               # X offset relative to page left
-    top: float                # Y offset relative to page top
-    width: float              # Column width
-    height: float             # Maximum available column height
+    left: float  # X offset relative to page left
+    top: float  # Y offset relative to page top
+    width: float  # Column width
+    height: float  # Maximum available column height
     used_height: float = 0.0  # Height consumed by placed fragments
     fragments: list[PageFragment] = field(default_factory=list)
 ```
@@ -89,8 +89,8 @@ Represents a section region on a page (can hold 1 or more columns):
 class PageRegion:
     section_index: int
     section: SectionProperties
-    top: float                # Y offset on page body
-    height: float             # Region height
+    top: float  # Y offset on page body
+    height: float  # Region height
     columns: list[ColumnFrame]
 ```
 
@@ -99,9 +99,9 @@ Represents header or footer layout on a page:
 ```python
 @dataclass
 class PageHeaderFooter:
-    kind: str                 # 'header' | 'footer'
+    kind: str  # 'header' | 'footer'
     story: Story | None
-    y: float                  # Y coordinate on page
+    y: float  # Y coordinate on page
     width: float
     height: float
     fragments: list[PageFragment] = field(default_factory=list)
@@ -112,23 +112,23 @@ Represents an entire physical page:
 ```python
 @dataclass
 class Page:
-    index: int                # 0-based sequential page index
-    page_number: int          # Page number (taking section restart into account)
-    page_number_format: str   # 'decimal', 'lowerRoman', 'upperRoman', etc.
+    index: int  # 0-based sequential page index
+    page_number: int  # Page number (taking section restart into account)
+    page_number_format: str  # 'decimal', 'lowerRoman', 'upperRoman', etc.
     section_index: int
     section: SectionProperties
-    width: float              # Page width (pt)
-    height: float             # Page height (pt)
-    body_left: float          # Left margin (+ gutter)
-    body_right: float         # Right margin
-    body_top: float           # Top margin (adjusted by header)
-    body_bottom_gap: float    # Bottom margin (adjusted by footer)
-    body_width: float         # Available body width
-    body_height: float        # Available body height
+    width: float  # Page width (pt)
+    height: float  # Page height (pt)
+    body_left: float  # Left margin (+ gutter)
+    body_right: float  # Right margin
+    body_top: float  # Top margin (adjusted by header)
+    body_bottom_gap: float  # Bottom margin (adjusted by footer)
+    body_width: float  # Available body width
+    body_height: float  # Available body height
     header: PageHeaderFooter | None = None
     footer: PageHeaderFooter | None = None
     regions: list[PageRegion] = field(default_factory=list)
-    is_blank: bool = False    # True if inserted for parity padding
+    is_blank: bool = False  # True if inserted for parity padding
 ```
 
 ### 3.6 `PaginationResult`

@@ -130,8 +130,10 @@ def test_security_options_and_password_confirmation(qtbot):
     sec_dlg.edit_open_pwd.setText("Secret123")
     sec_dlg.chk_read_only.setChecked(True)
 
-    with patch.object(ConfirmPasswordDialog, "exec", return_value=QDialog.DialogCode.Accepted), \
-         patch.object(ConfirmPasswordDialog, "confirmed_password", return_value="Secret123"):
+    with (
+        patch.object(ConfirmPasswordDialog, "exec", return_value=QDialog.DialogCode.Accepted),
+        patch.object(ConfirmPasswordDialog, "confirmed_password", return_value="Secret123"),
+    ):
         sec_dlg._on_accept()
 
     opts = sec_dlg.get_security_options()

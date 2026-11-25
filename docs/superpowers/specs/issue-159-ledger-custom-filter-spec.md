@@ -92,15 +92,13 @@ class CustomFilterDialog(QDialog):
         initial_conditions: list[tuple[str, str]] | None = None,
         initial_and: bool = True,
         parent: QWidget | None = None,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def get_custom_criteria(self) -> tuple[list[tuple[str, str]], bool]:
         """Return (criteria_list, is_and). Criteria list format: [(operator, value_pattern), ...]."""
         ...
 
-    def retranslate_ui(self) -> None:
-        ...
+    def retranslate_ui(self) -> None: ...
 ```
 
 ### 4.2 Integration with `FilterDropdown`

@@ -23,6 +23,7 @@ class InkPoint:
     x: float
     y: float
 
+
 @dataclass
 class InkStroke:
     points: list[tuple[float, float]]

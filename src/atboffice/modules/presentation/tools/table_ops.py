@@ -194,9 +194,7 @@ def merge(tbl: dict[str, Any], rect: Rect) -> Rect:
             if (r, c) == (r1, c1):
                 continue
             cl = cell(tbl, r, c)
-            paras.extend(
-                copy.deepcopy(p) for p in ensure_tx(cl).paragraphs if p.plain_text.strip()
-            )
+            paras.extend(copy.deepcopy(p) for p in ensure_tx(cl).paragraphs if p.plain_text.strip())
             cl["tx"] = TextBody.create_empty()
             cl.pop("gs", None)
             cl.pop("rs", None)
@@ -339,9 +337,7 @@ def _origins(tbl: dict[str, Any], rect: Rect) -> list[tuple[int, int]]:
     return seen
 
 
-def apply_borders(
-    tbl: dict[str, Any], rect: Rect, mode: str, line: dict[str, Any] | None
-) -> None:
+def apply_borders(tbl: dict[str, Any], rect: Rect, mode: str, line: dict[str, Any] | None) -> None:
     """Apply a Tables & Borders preset to ``rect``.
 
     ``mode``: all, outside, inside, none, top, bottom, left, right.
@@ -416,7 +412,6 @@ def new_table(rows: int, cols: int, width: float, height: float) -> dict[str, An
     return {
         "cols": [width / cols] * cols,
         "rows": [
-            {"h": height / rows, "cells": [empty_cell() for _ in range(cols)]}
-            for _ in range(rows)
+            {"h": height / rows, "cells": [empty_cell() for _ in range(cols)]} for _ in range(rows)
         ],
     }

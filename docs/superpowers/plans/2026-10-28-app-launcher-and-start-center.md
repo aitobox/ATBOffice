@@ -58,6 +58,7 @@ from pathlib import Path
 import pytest
 from atboffice.core.recent_files import RecentFilesManager, RecentItem
 
+
 def test_recent_files_add_and_get(tmp_path: Path):
     store_file = tmp_path / "recent.json"
     doc_file = tmp_path / "test.docx"
@@ -72,6 +73,7 @@ def test_recent_files_add_and_get(tmp_path: Path):
     assert len(entries) == 1
     assert entries[0].path == doc_file.resolve()
 
+
 def test_recent_files_max_limit_fifo(tmp_path: Path):
     store_file = tmp_path / "recent.json"
     mgr = RecentFilesManager(storage_path=store_file, max_items=2)
@@ -81,11 +83,12 @@ def test_recent_files_max_limit_fifo(tmp_path: Path):
     for f in (f1, f2, f3):
         f.touch()
         mgr.add_file(f, app="generic")
-    
+
     entries = mgr.get_entries()
     assert len(entries) == 2
     assert entries[0].path == f3.resolve()
     assert entries[1].path == f2.resolve()
+
 
 def test_recent_files_remove_and_clear(tmp_path: Path):
     store_file = tmp_path / "recent.json"
@@ -152,6 +155,7 @@ from PySide6.QtGui import QCloseEvent
 import pytest
 from atboffice.ui.shell.base_window import BaseOfficeWindow
 
+
 def test_base_office_window_title_and_dirty(qtbot):
     win = BaseOfficeWindow()
     qtbot.addWidget(win)
@@ -165,6 +169,7 @@ def test_base_office_window_title_and_dirty(qtbot):
     win.current_file_path = Path("/tmp/sample.docx")
     win.update_window_title()
     assert "sample.docx" in win.windowTitle()
+
 
 def test_base_office_window_close_signal(qtbot):
     win = BaseOfficeWindow()
@@ -237,6 +242,7 @@ from PySide6.QtWidgets import QMainWindow
 from atboffice.core.window_manager import WindowManager
 from atboffice.ui.shell.base_window import BaseOfficeWindow
 
+
 def test_window_manager_detect_app_type():
     mgr = WindowManager()
     assert mgr.detect_app_type("doc.docx") == "quire"
@@ -244,6 +250,7 @@ def test_window_manager_detect_app_type():
     assert mgr.detect_app_type("sheet.csv") == "ledger"
     assert mgr.detect_app_type("slide.pptx") == "lectern"
     assert mgr.detect_app_type("unknown.xyz") == "generic"
+
 
 def test_window_manager_register_and_resurrect(qtbot):
     mgr = WindowManager()
@@ -319,17 +326,20 @@ from atboffice.modules.writer.view import WriterView
 from atboffice.modules.spreadsheet.view import SpreadsheetView
 from atboffice.modules.presentation.view import PresentationView
 
+
 def test_quire_window_init(qtbot):
     win = QuireWindow()
     qtbot.addWidget(win)
     assert isinstance(win.centralWidget(), WriterView)
     assert "Quire" in win.windowTitle()
 
+
 def test_ledger_window_init(qtbot):
     win = LedgerWindow()
     qtbot.addWidget(win)
     assert isinstance(win.centralWidget(), SpreadsheetView)
     assert "Ledger" in win.windowTitle()
+
 
 def test_lectern_window_init(qtbot):
     win = LecternWindow()
@@ -395,6 +405,7 @@ from PySide6.QtGui import QDragEnterEvent, QDropEvent
 import pytest
 from atboffice.ui.shell.start_center import StartCenterWindow
 
+
 def test_start_center_window_ui_init(qtbot):
     win = StartCenterWindow()
     qtbot.addWidget(win)
@@ -403,6 +414,7 @@ def test_start_center_window_ui_init(qtbot):
     assert win.btn_new_quire is not None
     assert win.btn_new_ledger is not None
     assert win.btn_new_lectern is not None
+
 
 def test_start_center_drag_drop_accepts_urls(qtbot, tmp_path):
     win = StartCenterWindow()
@@ -466,10 +478,12 @@ git commit -m "feat(ui): implement StartCenterWindow with recent files and drag-
 import pytest
 from atboffice.__main__ import parse_cli_args
 
+
 def test_parse_cli_args_empty():
     action, path = parse_cli_args([])
     assert action == "start_center"
     assert path is None
+
 
 def test_parse_cli_args_subcommands():
     action, path = parse_cli_args(["quire", "mydoc.docx"])
@@ -479,6 +493,7 @@ def test_parse_cli_args_subcommands():
     action, path = parse_cli_args(["ledger"])
     assert action == "ledger"
     assert path is None
+
 
 def test_parse_cli_args_direct_file():
     action, path = parse_cli_args(["spreadsheet.xlsx"])
@@ -526,10 +541,11 @@ from atboffice.core.window_manager import WindowManager
 from atboffice.ui.shell.start_center import StartCenterWindow
 from atboffice.ui.shell.quire_window import QuireWindow
 
+
 def test_full_launch_open_close_resurrect_cycle(qtbot, tmp_path):
     app = create_application(["atboffice"])
     win_mgr = WindowManager.get_instance()
-    
+
     # 1. Start Center shown
     sc = win_mgr.show_start_center()
     qtbot.addWidget(sc)

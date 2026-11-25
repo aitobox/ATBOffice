@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import QCoreApplication, QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QMouseEvent,
@@ -26,10 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for HoneycombColorDialog."""
-    return QCoreApplication.translate("HoneycombColorDialog", text)
+from atboffice.core.i18n import safe_tr
 
 
 class HoneycombCell:
@@ -77,7 +74,7 @@ class HoneycombWidget(QWidget):
         cx = self.width() / 2.0
         cy = self.height() / 2.0 - 5.0
         r_step = self._cell_radius * math.sqrt(3)  # horizontal step between cell centers
-        v_step = self._cell_radius * 1.5           # vertical step between row centers
+        v_step = self._cell_radius * 1.5  # vertical step between row centers
 
         rows = 13
         for row in range(rows):

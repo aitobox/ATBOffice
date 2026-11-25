@@ -53,6 +53,7 @@ def qapp() -> QApplication:
 # 1. Corpus Audit Compliance Tests
 # ==============================================================================
 
+
 class TestCorpusAuditCompliance:
     """Verifies full corpus expectation manifest and zero-regression audit behavior."""
 
@@ -114,6 +115,7 @@ class TestCorpusAuditCompliance:
 # 2. Dual-Engine Visual Parity Gate Tests
 # ==============================================================================
 
+
 class TestVisualParitySignoff:
     """Verifies that visual rendering parity meets or exceeds Phase 8 release criteria."""
 
@@ -123,12 +125,8 @@ class TestVisualParitySignoff:
         self.manifest_path = self.repo_root / "tests" / "docs" / "expectations.json"
         self.exp_data = load_expectations(self.manifest_path)
         self.supported, self.excluded = partition_corpus(self.exp_data, self.repo_root)
-        self.baseline_dir = (
-            self.repo_root / "screenshots" / "office_audit_20261106" / "vibeoffice"
-        )
-        self.candidate_dir = (
-            self.repo_root / "screenshots" / "office_audit_20261106" / "atboffice"
-        )
+        self.baseline_dir = self.repo_root / "screenshots" / "office_audit_20261106" / "vibeoffice"
+        self.candidate_dir = self.repo_root / "screenshots" / "office_audit_20261106" / "atboffice"
         # Phase 8/9 sign-off is pinned to the archived Phase 9 report; the live
         # docs/clone/OFFICE_DOCS_DIFF.md tracks the ongoing Phase 11 re-audit.
         self.diff_report_path = (
@@ -173,13 +171,15 @@ class TestVisualParitySignoff:
             res = compare_canvases(b_png, c_png, app=app, file_name=doc_file)
             assert res.similarity is not None
             assert res.similarity >= min_sim, (
-                f"{app}/{doc_file} similarity {res.similarity*100:.1f}% below {min_sim*100:.1f}%"
+                f"{app}/{doc_file} similarity {res.similarity * 100:.1f}% "
+                f"below {min_sim * 100:.1f}%"
             )
 
 
 # ==============================================================================
 # 3. Phase 8 Architectural Feature Integrity Tests
 # ==============================================================================
+
 
 class TestPhase8FeatureIntegrity:
     """Verifies individual Phase 8 capabilities across Quire, Ledger, and Lectern."""
@@ -226,9 +226,7 @@ class TestPhase8FeatureIntegrity:
         view.close()
         view.deleteLater()
 
-    def test_lectern_master_placeholder_inheritance_and_timing(
-        self, qapp: QApplication
-    ) -> None:
+    def test_lectern_master_placeholder_inheritance_and_timing(self, qapp: QApplication) -> None:
         """Lectern inherits placeholder frames and serializes root timing nodes."""
         design = build_design("default", 960.0, 540.0)
         frames = layout_frames("title", design)

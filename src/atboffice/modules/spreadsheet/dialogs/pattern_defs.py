@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPixmap
 
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("PatternDefs", text)
-
+from atboffice.core.i18n import safe_tr
 
 # 54 ECMA-376 / Office 2003 Preset Patterns (8x8 bitmaps)
 PATTERNS: dict[str, list[int]] = {

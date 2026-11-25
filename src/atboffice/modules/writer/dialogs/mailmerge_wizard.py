@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
     QDialog,
@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.writer.models.document import Document, Paragraph
 from atboffice.modules.writer.models.mailmerge import (
     ADDRESS_FIELDS,
@@ -38,11 +39,6 @@ from atboffice.modules.writer.models.mailmerge import (
 
 if TYPE_CHECKING:
     from atboffice.modules.writer.view import WriterView
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for Mail Merge dialogs."""
-    return QCoreApplication.translate("MailMergeWizard", text)
 
 
 # ---------------------------------------------------------------------------
@@ -205,9 +201,7 @@ class MailMergeRecipientsDialog(QDialog):
         total = len(self.ds.rows)
         active = len(self.ds.active_records())
         self.lbl_desc.setText(
-            safe_tr("数据源: {0} (选中 {1} / 共 {2} 条记录)").format(
-                self.ds.name, active, total
-            )
+            safe_tr("数据源: {0} (选中 {1} / 共 {2} 条记录)").format(self.ds.name, active, total)
         )
 
     def _select_all(self) -> None:
@@ -267,7 +261,7 @@ class AddressListDialog(QDialog):
         self.resize(520, 520)
 
         self.fields = list(ADDRESS_FIELDS)
-        self.rows: list[list[str]] = [[ "" for _ in self.fields ]]
+        self.rows: list[list[str]] = [["" for _ in self.fields]]
         self.current_index = 0
 
         layout = QVBoxLayout(self)

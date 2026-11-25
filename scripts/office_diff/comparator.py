@@ -59,9 +59,7 @@ class _RgbGrid:
         if nw == 0 or nh == 0:
             return _RgbGrid(0, 0, b"")
         stride = self.width * 3
-        chunks = [
-            self.data[y * stride + x0 * 3 : y * stride + x1 * 3] for y in range(y0, y1)
-        ]
+        chunks = [self.data[y * stride + x0 * 3 : y * stride + x1 * 3] for y in range(y0, y1)]
         return _RgbGrid(nw, nh, b"".join(chunks))
 
 
@@ -153,8 +151,18 @@ def _crop_desk_framed_canvas(
             return ia, ib
         ysa, xsa = np.where(pa)
         ysb, xsb = np.where(pb)
-        ya0, ya1, xa0, xa1 = int(ysa.min()) + 6, int(ysa.max()) - 6, int(xsa.min()) + 6, int(xsa.max()) - 6
-        yb0, yb1, xb0, xb1 = int(ysb.min()) + 6, int(ysb.max()) - 6, int(xsb.min()) + 6, int(xsb.max()) - 6
+        ya0, ya1, xa0, xa1 = (
+            int(ysa.min()) + 6,
+            int(ysa.max()) - 6,
+            int(xsa.min()) + 6,
+            int(xsa.max()) - 6,
+        )
+        yb0, yb1, xb0, xb1 = (
+            int(ysb.min()) + 6,
+            int(ysb.max()) - 6,
+            int(xsb.min()) + 6,
+            int(xsb.max()) - 6,
+        )
         pw = min(xa1 - xa0, xb1 - xb0)
         ph = min(ya1 - ya0, yb1 - yb0)
         if pw <= 100 or ph <= 100:
@@ -163,7 +171,9 @@ def _crop_desk_framed_canvas(
             return ia[ya0 : ya0 + ph, xa0 : xa0 + pw], ib[yb0 : yb0 + ph, xb0 : xb0 + pw]
         return ia, ib
 
-    def _find_non_desk(grid: _RgbGrid, desk: tuple[float, float, float]) -> tuple[int, int, int, int, int, bytes]:
+    def _find_non_desk(
+        grid: _RgbGrid, desk: tuple[float, float, float]
+    ) -> tuple[int, int, int, int, int, bytes]:
         dr0, dg0, db0 = desk
         w, h, data = grid.width, grid.height, grid.data
         x_min, y_min, x_max, y_max = w, h, -1, -1
@@ -247,14 +257,18 @@ def extract_comparable_canvases(
         if app == "word":
             ia = rgb_a.crop(30, h - 24, 24, w - 20)
             ib = rgb_b.crop(30, h - 24, 24, w - 20)
-            return _crop_desk_framed_canvas(ia, ib, ia.crop(0, ia.height, 0, 20), ib.crop(0, ib.height, 0, 20))
+            return _crop_desk_framed_canvas(
+                ia, ib, ia.crop(0, ia.height, 0, 20), ib.crop(0, ib.height, 0, 20)
+            )
         if app == "powerpoint" and h >= 650:
             bottom_b = rgb_b.crop(648, h, 0, w).data
             if bottom_b and (max(bottom_b) - min(bottom_b)) <= 10:
                 ia = rgb_a.crop(0, 646, 0, w)
                 ib = rgb_b.crop(0, 646, 0, w)
                 return _crop_desk_framed_canvas(ia, ib, ia.crop(0, 20, 0, w), ib.crop(0, 20, 0, w))
-            return _crop_desk_framed_canvas(rgb_a, rgb_b, rgb_a.crop(0, 20, 0, w), rgb_b.crop(0, 20, 0, w))
+            return _crop_desk_framed_canvas(
+                rgb_a, rgb_b, rgb_a.crop(0, 20, 0, w), rgb_b.crop(0, 20, 0, w)
+            )
         if app == "excel":
             top_a_bg, _ = detect_background_color(rgb_a.crop(0, 20, 0, w))
             if sum(top_a_bg) / 3.0 < 248.0:
@@ -297,7 +311,10 @@ def build_foreground_mask(
                 fg_coords.append((y, x, r, g, b))
         mask_rows.append(row)
     if 0 < len(fg_coords) <= 120:
-        if all(min(r, g, b) >= 150 and (max(r, g, b) - min(r, g, b)) <= 10 for _, _, r, g, b in fg_coords):
+        if all(
+            min(r, g, b) >= 150 and (max(r, g, b) - min(r, g, b)) <= 10
+            for _, _, r, g, b in fg_coords
+        ):
             for y, x, _, _, _ in fg_coords:
                 mask_rows[y][x] = False
     return mask_rows
@@ -374,8 +391,16 @@ def compute_color_histogram_similarity(
             return 0.0
         pa = rgb_a[mask_a] >> 6
         pb = rgb_b[mask_b] >> 6
-        ca = (pa[:, 0].astype(np.int32) << 4) | (pa[:, 1].astype(np.int32) << 2) | pa[:, 2].astype(np.int32)
-        cb = (pb[:, 0].astype(np.int32) << 4) | (pb[:, 1].astype(np.int32) << 2) | pb[:, 2].astype(np.int32)
+        ca = (
+            (pa[:, 0].astype(np.int32) << 4)
+            | (pa[:, 1].astype(np.int32) << 2)
+            | pa[:, 2].astype(np.int32)
+        )
+        cb = (
+            (pb[:, 0].astype(np.int32) << 4)
+            | (pb[:, 1].astype(np.int32) << 2)
+            | pb[:, 2].astype(np.int32)
+        )
         ha = np.bincount(ca, minlength=64).astype(np.float64) / float(na)
         hb = np.bincount(cb, minlength=64).astype(np.float64) / float(nb)
         hist_sim = float(np.clip(np.sum(np.sqrt(ha * hb)), 0.0, 1.0))
@@ -436,9 +461,7 @@ def compute_foreground_metrics(
         na = sum(1 for row in fa for v in row if v)
         nb = sum(1 for row in fb for v in row if v)
 
-    hist_sim = compute_color_histogram_similarity(
-        ca, fa, cb, fb, bg_a, bg_b, bg_tol=tolerance
-    )
+    hist_sim = compute_color_histogram_similarity(ca, fa, cb, fb, bg_a, bg_b, bg_tol=tolerance)
     hist_dist = max(0.0, 1.0 - hist_sim)
 
     if na == 0 and nb == 0:
@@ -469,16 +492,10 @@ def compute_foreground_metrics(
         precision = float((fb & fa_d).sum()) / float(nb)
     else:
         rec_hits = sum(
-            1
-            for y in range(len(fa))
-            for x in range(len(fa[0]))
-            if fa[y][x] and fb_d[y][x]
+            1 for y in range(len(fa)) for x in range(len(fa[0])) if fa[y][x] and fb_d[y][x]
         )
         prec_hits = sum(
-            1
-            for y in range(len(fb))
-            for x in range(len(fb[0]))
-            if fb[y][x] and fa_d[y][x]
+            1 for y in range(len(fb)) for x in range(len(fb[0])) if fb[y][x] and fa_d[y][x]
         )
         recall = rec_hits / float(na)
         precision = prec_hits / float(nb)
@@ -704,8 +721,14 @@ def compare_canvases(
             edge_similarity=0.0,
             roi_similarity=0.0,
             category="CRITICAL_MISMATCH",
-            orig_size=(img_a.width() if not img_a.isNull() else 0, img_a.height() if not img_a.isNull() else 0),
-            target_size=(img_b.width() if not img_b.isNull() else 0, img_b.height() if not img_b.isNull() else 0),
+            orig_size=(
+                img_a.width() if not img_a.isNull() else 0,
+                img_a.height() if not img_a.isNull() else 0,
+            ),
+            target_size=(
+                img_b.width() if not img_b.isNull() else 0,
+                img_b.height() if not img_b.isNull() else 0,
+            ),
             error="Could not decode image PNG",
         )
 

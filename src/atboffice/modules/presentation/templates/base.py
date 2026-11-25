@@ -58,20 +58,14 @@ def add_template_slide(
 
     if layout == "title":
         sub_ph = next(
-            (
-                sh
-                for sh in slide.shapes
-                if sh.placeholder and sh.placeholder.type == "subTitle"
-            ),
+            (sh for sh in slide.shapes if sh.placeholder and sh.placeholder.type == "subTitle"),
             None,
         )
         if sub_ph and cols and cols[0]:
             sub_ph.text = make_body_text(cols[0])
     else:
         body_phs = [
-            sh
-            for sh in slide.shapes
-            if sh.placeholder and sh.placeholder.type in ("body", "obj")
+            sh for sh in slide.shapes if sh.placeholder and sh.placeholder.type in ("body", "obj")
         ]
         for i, b_ph in enumerate(body_phs):
             if i < len(cols) and cols[i]:
@@ -91,11 +85,7 @@ def insert_diagram_placeholder(
 ) -> Shape:
     """Replace a slide's body placeholder with an IntelliArt/SmartArt diagram group."""
     at = next(
-        (
-            sh
-            for sh in slide.shapes
-            if sh.placeholder and sh.placeholder.type in ("body", "obj")
-        ),
+        (sh for sh in slide.shapes if sh.placeholder and sh.placeholder.type in ("body", "obj")),
         None,
     )
     box_x = at.x if at else pres.w * 0.15
@@ -144,11 +134,7 @@ def insert_table_placeholder(
 ) -> Shape:
     """Replace a slide's table placeholder with a styled Table shape."""
     tp = next(
-        (
-            sh
-            for sh in slide.shapes
-            if sh.placeholder and sh.placeholder.type in ("tbl", "obj")
-        ),
+        (sh for sh in slide.shapes if sh.placeholder and sh.placeholder.type in ("tbl", "obj")),
         None,
     )
     bx = tp.x if tp else pres.w * 0.1
@@ -181,8 +167,7 @@ def insert_table_placeholder(
                 "text": val,
                 "tx": tx,
                 "bd": {
-                    k: {"c": "#B4C3DC", "w": 1.0, "dash": "solid"}
-                    for k in ("l", "r", "t", "b")
+                    k: {"c": "#B4C3DC", "w": 1.0, "dash": "solid"} for k in ("l", "r", "t", "b")
                 },
             }
             cells.append(cell)

@@ -41,11 +41,13 @@ def test_curated_docx_roundtrip_and_feature_preservation() -> None:
             with pytest.raises(Exception):
                 read_docx(raw_data)
             encrypted_count += 1
-            session.record_result({
-                "file": docx_path.name,
-                "status": "encrypted",
-                "expected_match": True,
-            })
+            session.record_result(
+                {
+                    "file": docx_path.name,
+                    "status": "encrypted",
+                    "expected_match": True,
+                }
+            )
             continue
 
         # Valid document processing

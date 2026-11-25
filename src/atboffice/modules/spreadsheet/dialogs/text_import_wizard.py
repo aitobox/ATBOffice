@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.references import col_name
 from atboffice.modules.spreadsheet.io.csv_io import (
     convert_cell_value,
@@ -42,11 +43,6 @@ if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
 
 
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("TextImportWizard", text)
-
-
 class TextImportWizard(QDialog):
     """Classic 3-step Text Import Wizard dialog for CSV and text files."""
 
@@ -57,9 +53,7 @@ class TextImportWizard(QDialog):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self.raw_data: bytes = (
-            data.encode("utf-8") if isinstance(data, str) else data
-        )
+        self.raw_data: bytes = data.encode("utf-8") if isinstance(data, str) else data
         self.file_name = file_name
         self.text: str = ""
         self.detected_encoding: str = "utf-8"
@@ -77,9 +71,7 @@ class TextImportWizard(QDialog):
         sniffed = sniff_delimiter(self.text)
         self.fixed_breaks = guess_fixed_breaks(self.text)
 
-        self.setWindowTitle(
-            safe_tr("Text Import Wizard - Step 1 of 3")
-        )
+        self.setWindowTitle(safe_tr("Text Import Wizard - Step 1 of 3"))
         self.resize(650, 520)
 
         main_layout = QVBoxLayout(self)
@@ -134,9 +126,7 @@ class TextImportWizard(QDialog):
     def _decode_content(self) -> None:
         self.text, self.detected_encoding = decode_bytes(
             self.raw_data,
-            encoding=None
-            if self.current_encoding == "auto"
-            else self.current_encoding,
+            encoding=None if self.current_encoding == "auto" else self.current_encoding,
         )
 
     def _build_page1(self, sniffed_delim: str) -> QWidget:
@@ -144,15 +134,11 @@ class TextImportWizard(QDialog):
         layout = QVBoxLayout(page)
 
         # Type GroupBox
-        self.type_group = QGroupBox(
-            safe_tr("Original data type"), page
-        )
+        self.type_group = QGroupBox(safe_tr("Original data type"), page)
         type_layout = QVBoxLayout(self.type_group)
 
         self.delimited_radio = QRadioButton(
-            safe_tr(
-                "Delimited - Characters such as commas or tabs separate each field."
-            ),
+            safe_tr("Delimited - Characters such as commas or tabs separate each field."),
             self.type_group,
         )
         self.delimited_radio.setChecked(True)
@@ -160,9 +146,7 @@ class TextImportWizard(QDialog):
         type_layout.addWidget(self.delimited_radio)
 
         self.fixed_radio = QRadioButton(
-            safe_tr(
-                "Fixed width - Fields are aligned in columns with spaces between each field."
-            ),
+            safe_tr("Fixed width - Fields are aligned in columns with spaces between each field."),
             self.type_group,
         )
         type_layout.addWidget(self.fixed_radio)
@@ -185,13 +169,9 @@ class TextImportWizard(QDialog):
         self.encoding_label = QLabel(safe_tr("File origin:"), page)
         opts_layout.addWidget(self.encoding_label)
         self.encoding_combo = QComboBox(page)
-        self.encoding_combo.addItem(
-            f"Auto ({self.detected_encoding})", "auto"
-        )
+        self.encoding_combo.addItem(f"Auto ({self.detected_encoding})", "auto")
         self.encoding_combo.addItem("Unicode (UTF-8)", "utf-8")
-        self.encoding_combo.addItem(
-            "Chinese Simplified (GB18030)", "gb18030"
-        )
+        self.encoding_combo.addItem("Chinese Simplified (GB18030)", "gb18030")
         self.encoding_combo.addItem("Windows (ANSI / CP1252)", "windows-1252")
         self.encoding_combo.addItem("Unicode (UTF-16 LE)", "utf-16le")
         self.encoding_combo.addItem("Unicode (UTF-16 BE)", "utf-16be")
@@ -202,9 +182,7 @@ class TextImportWizard(QDialog):
         layout.addLayout(opts_layout)
 
         # Preview of raw text
-        self.raw_preview_group = QGroupBox(
-            safe_tr("Preview of file:"), page
-        )
+        self.raw_preview_group = QGroupBox(safe_tr("Preview of file:"), page)
         raw_layout = QVBoxLayout(self.raw_preview_group)
         self.raw_preview_edit = QPlainTextEdit(self.raw_preview_group)
         self.raw_preview_edit.setReadOnly(True)
@@ -228,9 +206,7 @@ class TextImportWizard(QDialog):
         self.tab_check.toggled.connect(self._on_delim_changed)
         check_row.addWidget(self.tab_check)
 
-        self.semicolon_check = QCheckBox(
-            safe_tr("Semicolon"), self.delim_group
-        )
+        self.semicolon_check = QCheckBox(safe_tr("Semicolon"), self.delim_group)
         self.semicolon_check.setChecked(sniffed_delim == ";")
         self.semicolon_check.toggled.connect(self._on_delim_changed)
         check_row.addWidget(self.semicolon_check)
@@ -284,14 +260,10 @@ class TextImportWizard(QDialog):
         layout.addWidget(self.delim_group)
 
         # Fixed width options
-        self.fixed_group = QGroupBox(
-            safe_tr("Fixed Width Column Breaks"), page
-        )
+        self.fixed_group = QGroupBox(safe_tr("Fixed Width Column Breaks"), page)
         fixed_layout = QVBoxLayout(self.fixed_group)
         self.fixed_desc_label = QLabel(
-            safe_tr(
-                "Column break positions (comma-separated character indices):"
-            ),
+            safe_tr("Column break positions (comma-separated character indices):"),
             page,
         )
         fixed_layout.addWidget(self.fixed_desc_label)
@@ -303,9 +275,7 @@ class TextImportWizard(QDialog):
         self.fixed_group.setVisible(False)
 
         # Data preview table
-        self.step2_preview_group = QGroupBox(
-            safe_tr("Data preview:"), page
-        )
+        self.step2_preview_group = QGroupBox(safe_tr("Data preview:"), page)
         prev_layout = QVBoxLayout(self.step2_preview_group)
         self.step2_table = QTableWidget(self.step2_preview_group)
         self.step2_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -319,29 +289,21 @@ class TextImportWizard(QDialog):
         layout = QVBoxLayout(page)
 
         # Column format GroupBox
-        self.format_group = QGroupBox(
-            safe_tr("Column data format"), page
-        )
+        self.format_group = QGroupBox(safe_tr("Column data format"), page)
         fmt_layout = QHBoxLayout(self.format_group)
 
         self.fmt_btn_group = QButtonGroup(page)
 
-        self.fmt_general_radio = QRadioButton(
-            safe_tr("General"), self.format_group
-        )
+        self.fmt_general_radio = QRadioButton(safe_tr("General"), self.format_group)
         self.fmt_general_radio.setChecked(True)
         self.fmt_btn_group.addButton(self.fmt_general_radio)
         fmt_layout.addWidget(self.fmt_general_radio)
 
-        self.fmt_text_radio = QRadioButton(
-            safe_tr("Text"), self.format_group
-        )
+        self.fmt_text_radio = QRadioButton(safe_tr("Text"), self.format_group)
         self.fmt_btn_group.addButton(self.fmt_text_radio)
         fmt_layout.addWidget(self.fmt_text_radio)
 
-        self.fmt_date_radio = QRadioButton(
-            safe_tr("Date:"), self.format_group
-        )
+        self.fmt_date_radio = QRadioButton(safe_tr("Date:"), self.format_group)
         self.fmt_btn_group.addButton(self.fmt_date_radio)
         fmt_layout.addWidget(self.fmt_date_radio)
 
@@ -361,26 +323,18 @@ class TextImportWizard(QDialog):
         self.fmt_text_radio.toggled.connect(self._on_column_format_changed)
         self.fmt_date_radio.toggled.connect(self._on_column_format_changed)
         self.fmt_skip_radio.toggled.connect(self._on_column_format_changed)
-        self.date_order_combo.currentIndexChanged.connect(
-            self._on_column_format_changed
-        )
+        self.date_order_combo.currentIndexChanged.connect(self._on_column_format_changed)
 
         fmt_layout.addStretch()
         layout.addWidget(self.format_group)
 
         # Data preview table
-        self.step3_preview_group = QGroupBox(
-            safe_tr("Data preview:"), page
-        )
+        self.step3_preview_group = QGroupBox(safe_tr("Data preview:"), page)
         prev_layout = QVBoxLayout(self.step3_preview_group)
         self.step3_table = QTableWidget(self.step3_preview_group)
         self.step3_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.step3_table.horizontalHeader().sectionClicked.connect(
-            self._on_step3_col_clicked
-        )
-        self.step3_table.cellClicked.connect(
-            lambda r, c: self._on_step3_col_clicked(c)
-        )
+        self.step3_table.horizontalHeader().sectionClicked.connect(self._on_step3_col_clicked)
+        self.step3_table.cellClicked.connect(lambda r, c: self._on_step3_col_clicked(c))
         prev_layout.addWidget(self.step3_table)
         layout.addWidget(self.step3_preview_group, 1)
 
@@ -427,9 +381,7 @@ class TextImportWizard(QDialog):
         lines = self.text.splitlines()[:50]
         self.raw_preview_edit.setPlainText("\n".join(lines))
 
-    def _populate_preview_table(
-        self, table: QTableWidget, with_formats: bool = False
-    ) -> None:
+    def _populate_preview_table(self, table: QTableWidget, with_formats: bool = False) -> None:
         rows = self._parse_current_data(max_rows=25)
         if not rows:
             table.setRowCount(0)
@@ -457,9 +409,7 @@ class TextImportWizard(QDialog):
                     item.setBackground(Qt.GlobalColor.lightGray)
                 table.setItem(r_idx, c_idx, item)
 
-        table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
-        )
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
 
     def _on_type_changed(self) -> None:
         is_delim = self.delimited_radio.isChecked()
@@ -486,9 +436,7 @@ class TextImportWizard(QDialog):
 
     def _on_breaks_changed(self, text: str) -> None:
         try:
-            self.fixed_breaks = [
-                int(x.strip()) for x in text.split(",") if x.strip().isdigit()
-            ]
+            self.fixed_breaks = [int(x.strip()) for x in text.split(",") if x.strip().isdigit()]
         except Exception:
             pass
         self._populate_preview_table(self.step2_table)
@@ -549,9 +497,7 @@ class TextImportWizard(QDialog):
                 "This screen lets you set the delimiters your data contains. "
                 "You can see how your text is affected in the preview below."
             ),
-            safe_tr(
-                "This screen lets you select each column and set the Data Format."
-            ),
+            safe_tr("This screen lets you select each column and set the Data Format."),
         ]
         self.setWindowTitle(titles[idx])
         self.step_desc_label.setText(descs[idx])
@@ -587,9 +533,7 @@ class TextImportWizard(QDialog):
             out.append(out_row)
         return out
 
-    def populate_model(
-        self, model: SheetDataModel, start_row: int = 0, start_col: int = 0
-    ) -> None:
+    def populate_model(self, model: SheetDataModel, start_row: int = 0, start_col: int = 0) -> None:
         """Populate SheetDataModel using the configured import settings."""
         raw_rows = self._parse_current_data()
         populate_sheet(
@@ -605,14 +549,10 @@ class TextImportWizard(QDialog):
         self._update_navigation_state()
         self.type_group.setTitle(safe_tr("Original data type"))
         self.delimited_radio.setText(
-            safe_tr(
-                "Delimited - Characters such as commas or tabs separate each field."
-            )
+            safe_tr("Delimited - Characters such as commas or tabs separate each field.")
         )
         self.fixed_radio.setText(
-            safe_tr(
-                "Fixed width - Fields are aligned in columns with spaces between each field."
-            )
+            safe_tr("Fixed width - Fields are aligned in columns with spaces between each field.")
         )
         self.start_row_label.setText(safe_tr("Start import at row:"))
         self.encoding_label.setText(safe_tr("File origin:"))
@@ -623,24 +563,18 @@ class TextImportWizard(QDialog):
         self.comma_check.setText(safe_tr("Comma"))
         self.space_check.setText(safe_tr("Space"))
         self.other_check.setText(safe_tr("Other:"))
-        self.merge_check.setText(
-            safe_tr("Treat consecutive delimiters as one")
-        )
+        self.merge_check.setText(safe_tr("Treat consecutive delimiters as one"))
         self.qualifier_label.setText(safe_tr("Text qualifier:"))
         self.fixed_group.setTitle(safe_tr("Fixed Width Column Breaks"))
         self.fixed_desc_label.setText(
-            safe_tr(
-                "Column break positions (comma-separated character indices):"
-            )
+            safe_tr("Column break positions (comma-separated character indices):")
         )
         self.step2_preview_group.setTitle(safe_tr("Data preview:"))
         self.format_group.setTitle(safe_tr("Column data format"))
         self.fmt_general_radio.setText(safe_tr("General"))
         self.fmt_text_radio.setText(safe_tr("Text"))
         self.fmt_date_radio.setText(safe_tr("Date:"))
-        self.fmt_skip_radio.setText(
-            safe_tr("Do not import column (skip)")
-        )
+        self.fmt_skip_radio.setText(safe_tr("Do not import column (skip)"))
         self.step3_preview_group.setTitle(safe_tr("Data preview:"))
         self.back_btn.setText(safe_tr("< Back"))
         self.next_btn.setText(safe_tr("Next >"))

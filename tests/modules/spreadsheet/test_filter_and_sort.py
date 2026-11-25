@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-from PySide6.QtWidgets import QApplication
-
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.dialogs.custom_filter import CustomFilterDialog
 from atboffice.modules.spreadsheet.models.filter_model import (
     AutoFilter,
@@ -19,15 +17,6 @@ from atboffice.modules.spreadsheet.models.filter_model import (
 )
 from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetDataModel
 from atboffice.modules.spreadsheet.views.filter_dropdown import FilterDropdown
-
-
-@pytest.fixture(scope="session")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication([])
-    return app
-
 
 # =============================================================================
 # 1. Excel Sort & Comparator Tests
@@ -290,7 +279,7 @@ def test_filter_dropdown_custom_action(qapp):
 
     dropdown = FilterDropdown(model=model, af=af, col=0)
     assert dropdown.btn_custom is not None
-    assert dropdown.btn_custom.text() in ("(Custom...)", "(自定义...)")
+    assert dropdown.btn_custom.text() == safe_tr("(Custom...)")
 
     applied_criteria: list[ColumnFilter] = []
     dropdown.filter_applied.connect(lambda crit: applied_criteria.append(crit))

@@ -52,6 +52,7 @@ def test_office_split_button_behavior(qtbot):
     from PySide6.QtGui import QAction
     from PySide6.QtWidgets import QMenu
     from atboffice.ui.components.toolbar_buttons import OfficeSplitButton
+
     act = QAction("Save")
     menu = QMenu()
     btn = OfficeSplitButton(act, menu)
@@ -83,6 +84,7 @@ Expected: PASS
 ```python
 def test_action_registry_registration_and_fallback(qtbot):
     from atboffice.core.action_registry import ActionRegistry, ActionSpec
+
     reg = ActionRegistry()
     spec = ActionSpec(id="spelling", label="&Spelling...", tip="Check spelling")
     act = reg.register_action(spec)
@@ -116,9 +118,21 @@ Expected: PASS
 ```python
 def test_quire_all_10_toolbars_exist(qtbot):
     from atboffice.ui.shell.quire_window import QuireWindow
+
     win = QuireWindow()
     qtbot.addWidget(win)
-    expected = {"standard", "formatting", "tables", "reviewing", "outlining", "headerFooter", "drawing", "mailMerge", "picture", "wordart"}
+    expected = {
+        "standard",
+        "formatting",
+        "tables",
+        "reviewing",
+        "outlining",
+        "headerFooter",
+        "drawing",
+        "mailMerge",
+        "picture",
+        "wordart",
+    }
     assert expected.issubset(set(win.toolbars.keys()))
 ```
 - [ ] **Step 2: Run test to verify it fails**
@@ -178,9 +192,21 @@ Expected: PASS
 ```python
 def test_lectern_all_10_toolbars_exist(qtbot):
     from atboffice.ui.shell.lectern_window import LecternWindow
+
     win = LecternWindow()
     qtbot.addWidget(win)
-    expected = {"standard", "formatting", "sorter", "master", "outlining", "diagram", "tables", "picture", "wordart", "drawing"}
+    expected = {
+        "standard",
+        "formatting",
+        "sorter",
+        "master",
+        "outlining",
+        "diagram",
+        "tables",
+        "picture",
+        "wordart",
+        "drawing",
+    }
     assert expected.issubset(set(win.toolbars.keys()))
 ```
 - [ ] **Step 2: Run test to verify it fails**
@@ -216,6 +242,7 @@ Expected: PASS
 ```python
 def test_workbook_model_sheet_lifecycle():
     from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
+
     wb = WorkbookModel()
     assert len(wb.sheets) == 1
     s2 = wb.add_sheet("Sheet2")
@@ -253,6 +280,7 @@ Expected: PASS
 def test_sheet_tab_bar_sync(qtbot):
     from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
     from atboffice.modules.spreadsheet.views.sheet_tab_bar import SheetTabBar
+
     wb = WorkbookModel()
     bar = SheetTabBar(wb)
     qtbot.addWidget(bar)
@@ -287,6 +315,7 @@ Expected: PASS
 ```python
 def test_cross_sheet_formula_evaluation():
     from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
+
     wb = WorkbookModel()
     s1 = wb.sheets[0]
     s2 = wb.add_sheet("Sheet2")
@@ -323,6 +352,7 @@ Expected: PASS
 def test_read_minimal_xlsx(tmp_path):
     from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
     from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
+
     # Test reading valid sample or synthetic xlsx
     wb = WorkbookModel()
     read_xlsx("tests/fixtures/sample.xlsx", wb)
@@ -355,6 +385,7 @@ def test_write_and_reopen_xlsx(tmp_path):
     from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
     from atboffice.modules.spreadsheet.io.xlsx_writer import write_xlsx
     from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
+
     wb = WorkbookModel()
     s = wb.sheets[0]
     s.set_cell_value(0, 0, "Test Value")
@@ -391,6 +422,7 @@ Expected: PASS
 ```python
 def test_opc_preserve_macro_and_custom_parts(tmp_path):
     from atboffice.vfs.opc import OpcPackage
+
     pkg = OpcPackage.create_empty()
     pkg.add_part("xl/vbaProject.bin", b"DUMMY_VBA_BYTECODE", "application/vnd.ms-office.vbaProject")
     out = tmp_path / "test.xlsm"
@@ -422,6 +454,7 @@ Expected: PASS
 ```python
 def test_docx_complex_table_gridspan_and_numbering(tmp_path):
     from atboffice.modules.writer.io.docx_reader import DocxReader
+
     reader = DocxReader()
     # verify parse table with gridSpan and numbering definitions
     assert hasattr(reader, "parse_numbering")
@@ -451,6 +484,7 @@ Expected: PASS
 ```python
 def test_pptx_master_layout_placeholder_inheritance():
     from atboffice.modules.presentation.io.pptx_reader import PptxReader
+
     reader = PptxReader()
     assert hasattr(reader, "resolve_master_placeholders")
     assert hasattr(reader, "parse_timing_tree")
@@ -481,7 +515,11 @@ Expected: PASS
 - [ ] **Step 1: Write the failing test**
 ```python
 def test_spreadsheet_object_layer_add_and_hit_test(qtbot):
-    from atboffice.modules.spreadsheet.views.object_layer import SpreadsheetObjectLayer, FloatingObject
+    from atboffice.modules.spreadsheet.views.object_layer import (
+        SpreadsheetObjectLayer,
+        FloatingObject,
+    )
+
     layer = SpreadsheetObjectLayer()
     qtbot.addWidget(layer)
     obj = FloatingObject(kind="rect", x=50, y=50, width=100, height=80)
@@ -514,6 +552,7 @@ Expected: PASS
 ```python
 def test_search_controller_text_match():
     from atboffice.core.search import SearchController, SearchOptions
+
     sc = SearchController()
     text = "Hello ATBOffice, welcome to ATBOffice"
     matches = sc.find_all(text, "ATBOffice", SearchOptions(case_sensitive=True))
@@ -547,6 +586,7 @@ Expected: PASS
 ```python
 def test_i18n_dynamic_locale_switching():
     from atboffice.core.i18n import load_locale, safe_tr
+
     load_locale("en")
     assert safe_tr("&Save") == "&Save"
     load_locale("zh-CN")

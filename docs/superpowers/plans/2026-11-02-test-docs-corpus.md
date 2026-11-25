@@ -46,6 +46,7 @@
 from pathlib import Path
 import subprocess
 
+
 def test_docs_directory_structure():
     base = Path(__file__).parent / "docs"
     assert base.exists(), "tests/docs directory should exist"
@@ -53,13 +54,14 @@ def test_docs_directory_structure():
         cat_dir = base / category
         assert cat_dir.is_dir(), f"{category} directory missing"
 
+
 def test_full_corpus_gitignored():
     repo_root = Path(__file__).resolve().parents[1]
     res = subprocess.run(
         ["git", "check-ignore", "tests/docs/full_corpus/dummy.docx"],
         cwd=str(repo_root),
         capture_output=True,
-        text=True
+        text=True,
     )
     assert res.returncode == 0, "tests/docs/full_corpus/ must be ignored by git"
 ```
@@ -112,6 +114,7 @@ git commit -m "test(docs): setup test docs directory structure and gitignore for
 # In tests/test_docs_corpus.py
 from scripts.fetch_corpora import get_app_for_extension, SOURCES, EXTENSIONS
 
+
 def test_extension_mapping():
     assert get_app_for_extension(".docx") == "word"
     assert get_app_for_extension(".DOC") == "word"
@@ -120,6 +123,7 @@ def test_extension_mapping():
     assert get_app_for_extension(".pptx") == "powerpoint"
     assert get_app_for_extension(".ppt") == "powerpoint"
     assert get_app_for_extension(".txt") is None
+
 
 def test_pinned_sources_defined():
     assert "libreoffice" in SOURCES
@@ -174,6 +178,7 @@ git commit -m "feat(scripts): implement fetch_corpora.py tool for office test co
 ```python
 # In tests/test_docs_corpus.py
 import json
+
 
 def test_full_corpus_manifest_if_downloaded():
     manifest_path = Path(__file__).parent / "docs" / "full_corpus" / "manifest.json"
@@ -243,11 +248,13 @@ def test_curated_docs_presence_and_size():
             file_count += 1
             total_size += f.stat().st_size
             extensions_found.add(f.suffix.lower())
-    
+
     # Must cover major extensions
     assert {".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt"}.issubset(extensions_found)
     # Total size must be under 15MB
-    assert total_size < 15 * 1024 * 1024, f"Curated files total {total_size / (1024*1024):.2f}MB, exceeds 15MB"
+    assert total_size < 15 * 1024 * 1024, (
+        f"Curated files total {total_size / (1024 * 1024):.2f}MB, exceeds 15MB"
+    )
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -293,12 +300,14 @@ git commit -m "feat(docs): add curated representative office test files across w
 # In tests/test_docs_corpus.py
 import zipfile
 
+
 def is_ooxml(path: Path) -> bool:
     try:
         with zipfile.ZipFile(path, "r") as z:
             return "[Content_Types].xml" in z.namelist()
     except Exception:
         return False
+
 
 def is_ole2(path: Path) -> bool:
     try:
@@ -307,6 +316,7 @@ def is_ole2(path: Path) -> bool:
             return header == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
     except Exception:
         return False
+
 
 def test_curated_files_format_integrity():
     base = Path(__file__).parent / "docs"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -12,28 +13,24 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QHBoxLayout,
-    QLabel,
     QMessageBox,
     QToolButton,
     QWidget,
 )
 
 from atboffice.core.action_registry import ActionRegistry
-from atboffice.core.i18n import safe_tr as core_safe_tr
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.view import PresentationView
 from atboffice.ui.components.color_picker import ColorPickerButton
+from atboffice.ui.components.office_status_bar import OfficeStatusBar
 from atboffice.ui.components.toolbar import OfficeToolBar
+from atboffice.ui.icons import get_office_icon
 from atboffice.ui.shell.base_window import BaseOfficeWindow, UnsupportedSaveFormatError
 from atboffice.ui.shell.lectern_toolbars import (
     build_lectern_toolbars,
     retranslate_lectern_toolbars,
 )
 from atboffice.ui.shell.mac_menu import MacMenuBar, setup_mac_menu
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for LecternWindow."""
-    return core_safe_tr(text)
 
 
 class LecternWindow(BaseOfficeWindow):
@@ -58,6 +55,7 @@ class LecternWindow(BaseOfficeWindow):
         # 2. Embed PresentationView
         self.presentation_view = PresentationView(parent=self)
         self.setCentralWidget(self.presentation_view)
+        self._init_history()
         self.thumbnail_list = self.presentation_view.workspace.thumbnail_list
 
         # 3. Setup native macOS menu bar
@@ -109,25 +107,27 @@ class LecternWindow(BaseOfficeWindow):
         self.lectern_commands = bind_lectern_commands(self)
         # The window's task pane dock replaces the workspace's embedded task pane
         ws.set_embedded_task_pane_enabled(False)
-        self.attach_undo_history()  # Lectern has no undo stack yet: shows "nothing to undo"
+        # The Slide Show actions own F5 / Shift+F5 in this window.
+        ws.set_own_shortcuts_enabled(False)
+        self.attach_undo_history()
+        self.bind_undo_service()
 
         self.set_modified(False)
         self._setup_status_bar_view_buttons()
         self.menu_bar.retranslate_ui()
+        # Menus and toolbars offer only the commands this window implements.
+        self.action_registry.hide_unhandled_actions()
 
     def _setup_status_bar_view_buttons(self) -> None:
-        """Create view mode switcher buttons and slide indicator in status bar."""
-        sb = self.statusBar()
-        if not sb:
-            return
-
-        self.lbl_status_slide = QLabel(safe_tr("幻灯片 1 / 1"), sb)
-        self.lbl_status_slide.setStyleSheet("color: #444444; padding: 0 8px;")
-        sb.addWidget(self.lbl_status_slide)
-
-        self.lbl_status_design = QLabel(safe_tr("默认设计模板"), sb)
-        self.lbl_status_design.setStyleSheet("color: #666666; padding: 0 8px;")
-        sb.addWidget(self.lbl_status_design)
+        """PowerPoint 2003 status bar: slide counter, design name and view buttons."""
+        sb = OfficeStatusBar(self)
+        self.setStatusBar(sb)
+        self.status_bar = sb
+        self.lbl_status_slide = sb.add_field("slide", min_width=90)
+        self.lbl_status_design = sb.add_field("design", safe_tr("默认设计模板"), min_width=120)
+        sb.removeWidget(sb.lbl_message)
+        sb.addWidget(sb.lbl_message, 1)
+        sb.lbl_message.show()
 
         # Right-aligned view mode switcher buttons
         self.status_view_group = QWidget(sb)
@@ -135,35 +135,30 @@ class LecternWindow(BaseOfficeWindow):
         vg_layout.setContentsMargins(0, 0, 0, 0)
         vg_layout.setSpacing(2)
 
-        self.btn_view_normal = QToolButton(self.status_view_group)
-        self.btn_view_normal.setText("▤")
-        self.btn_view_normal.setToolTip(safe_tr("普通视图 (Normal View)"))
-        self.btn_view_normal.setCheckable(True)
+        def view_button(icon: str, tip: str, checkable: bool = True) -> QToolButton:
+            btn = QToolButton(self.status_view_group)
+            btn.setIcon(get_office_icon(icon))
+            btn.setToolTip(safe_tr(tip))
+            btn.setCheckable(checkable)
+            btn.setAutoRaise(True)
+            vg_layout.addWidget(btn)
+            return btn
+
+        self.btn_view_normal = view_button("normalView", "普通视图")
         self.btn_view_normal.setChecked(True)
         self.btn_view_normal.clicked.connect(lambda: self.set_view_mode("normal"))
-        vg_layout.addWidget(self.btn_view_normal)
-
-        self.btn_view_sorter = QToolButton(self.status_view_group)
-        self.btn_view_sorter.setText("田")
-        self.btn_view_sorter.setToolTip(safe_tr("幻灯片浏览视图 (Slide Sorter View)"))
-        self.btn_view_sorter.setCheckable(True)
+        self.btn_view_sorter = view_button("sorterView", "幻灯片浏览视图")
         self.btn_view_sorter.clicked.connect(lambda: self.set_view_mode("sorter"))
-        vg_layout.addWidget(self.btn_view_sorter)
-
-        self.btn_view_notes = QToolButton(self.status_view_group)
-        self.btn_view_notes.setText("🗎")
-        self.btn_view_notes.setToolTip(safe_tr("备注页视图 (Notes Page View)"))
-        self.btn_view_notes.setCheckable(True)
+        self.btn_view_notes = view_button("notesView", "备注页")
         self.btn_view_notes.clicked.connect(lambda: self.set_view_mode("notes"))
-        vg_layout.addWidget(self.btn_view_notes)
-
-        self.btn_view_show = QToolButton(self.status_view_group)
-        self.btn_view_show.setText("▶")
-        self.btn_view_show.setToolTip(safe_tr("幻灯片放映 (Slide Show)"))
+        self.btn_view_show = view_button("slideshow", "幻灯片放映", checkable=False)
         self.btn_view_show.clicked.connect(self.start_slideshow)
-        vg_layout.addWidget(self.btn_view_show)
 
         sb.addPermanentWidget(self.status_view_group)
+        view = self.presentation_view
+        view.presentation_loaded.connect(lambda _p: self._on_slide_changed())
+        view.workspace.content_edited.connect(lambda _kind: self._on_slide_changed())
+        self._on_slide_changed()
 
     def _bind_action_handlers(self) -> None:
         """Bind window callbacks to core action IDs in ActionRegistry."""
@@ -967,8 +962,10 @@ class LecternWindow(BaseOfficeWindow):
         ws = getattr(self.presentation_view, "workspace", None)
         if ws is None:
             return None
-        slide = ws.master_slide if ws.view_mode == "master" and ws.master_slide else (
-            ws.current_slide if ws.presentation.slides else None
+        slide = (
+            ws.master_slide
+            if ws.view_mode == "master" and ws.master_slide
+            else (ws.current_slide if ws.presentation.slides else None)
         )
         if slide is None:
             return None
@@ -994,7 +991,7 @@ class LecternWindow(BaseOfficeWindow):
     def set_view_color_mode(self, mode: str) -> None:
         """Set presentation viewport color mode ('color', 'grayscale', 'bw')."""
         self._color_mode = mode
-        self.show_status_message(safe_tr(f"切换颜色模式: {mode}"))
+        self.show_status_message(safe_tr("切换颜色模式: {0}", mode))
 
     def toggle_grid(self) -> None:
         """Toggle slide alignment grid."""
@@ -1161,7 +1158,7 @@ class LecternWindow(BaseOfficeWindow):
         shape = self._get_active_picture_shape()
         if shape:
             shape.color_mode = mode
-            self.show_status_message(safe_tr(f"图片颜色模式: {mode}"))
+            self.show_status_message(safe_tr("图片颜色模式: {0}", mode))
             self.set_modified(True)
 
     def _get_active_wordart_shape(self) -> Any | None:
@@ -1194,14 +1191,14 @@ class LecternWindow(BaseOfficeWindow):
         shape = self._get_active_wordart_shape()
         if shape:
             shape.wa_shape = shape_name
-            self.show_status_message(safe_tr(f"艺术字形状: {shape_name}"))
+            self.show_status_message(safe_tr("艺术字形状: {0}", shape_name))
             self.set_modified(True)
 
     def set_wordart_align(self, alignment: str) -> None:
         shape = self._get_active_wordart_shape()
         if shape:
             shape.wa_align = alignment
-            self.show_status_message(safe_tr(f"艺术字对齐: {alignment}"))
+            self.show_status_message(safe_tr("艺术字对齐: {0}", alignment))
             self.set_modified(True)
 
     def toggle_hide_slide(self) -> None:
@@ -1254,7 +1251,9 @@ class LecternWindow(BaseOfficeWindow):
         self.slide_layout_pane.layout_applied.connect(self._on_apply_slide_layout)
         self.slide_design_pane.apply_design_requested.connect(self._on_apply_design_template)
         self.color_schemes_pane.apply_color_scheme_requested.connect(self._on_apply_color_scheme)
-        self.animation_schemes_pane.apply_animation_scheme_requested.connect(self._on_apply_animation_scheme)
+        self.animation_schemes_pane.apply_animation_scheme_requested.connect(
+            self._on_apply_animation_scheme
+        )
         self.animation_schemes_pane.play_requested.connect(self._on_play_slide_animation)
         self.animation_schemes_pane.slide_show_requested.connect(self.start_slideshow_current)
 
@@ -1288,7 +1287,7 @@ class LecternWindow(BaseOfficeWindow):
         ws = getattr(self.presentation_view, "workspace", None)
         if ws:
             ws.apply_layout(layout_key)
-        self.show_status_message(safe_tr(f"已应用版式: {layout_key}"))
+        self.show_status_message(safe_tr("已应用版式: {0}", layout_key))
 
     def open_slide_layout_pane(self) -> None:
         """Open or activate the Slide Layout task pane."""
@@ -1323,11 +1322,12 @@ class LecternWindow(BaseOfficeWindow):
                 ws.update()
         if hasattr(self, "slide_design_pane"):
             self.slide_design_pane.refresh_used_designs()
-        self.show_status_message(safe_tr(f"已应用设计模板: {design_key}"))
+        self.show_status_message(safe_tr("已应用设计模板: {0}", design_key))
         self.set_modified(True)
 
     def _on_apply_color_scheme(self, scheme: Any, apply_to_all: bool) -> None:
         import copy
+
         ws = getattr(self.presentation_view, "workspace", None)
         pres = getattr(self.presentation_view, "presentation", None)
         if not pres:
@@ -1356,7 +1356,7 @@ class LecternWindow(BaseOfficeWindow):
         target_slides = pres.slides if apply_to_all else curr
         for s in target_slides:
             s.animation_scheme = scheme_key
-        self.show_status_message(safe_tr(f"已应用动画方案: {scheme_key}"))
+        self.show_status_message(safe_tr("已应用动画方案: {0}", scheme_key))
         self.set_modified(True)
 
     def _on_play_slide_animation(self) -> None:
@@ -1944,7 +1944,7 @@ class LecternWindow(BaseOfficeWindow):
             curr = getattr(ws, "current_slide_index", 0) + 1
             slides = getattr(ws.presentation, "slides", [])
             total = len(slides) if slides else 1
-            self.lbl_status_slide.setText(f"{safe_tr('幻灯片')} {curr} / {total}")
+            self.lbl_status_slide.setText(safe_tr("幻灯片 {0} / {1}", curr, total))
 
     def _on_presentation_modified(self) -> None:
         """Mark presentation as modified when slide content or layout changes."""
@@ -2031,6 +2031,47 @@ class LecternWindow(BaseOfficeWindow):
         """Return the bound Presentation model."""
         return self.presentation_view.presentation
 
+    # -- Undo / redo ------------------------------------------------------------
+
+    _HISTORY_IGNORED_ACTIONS = frozenset({"undo", "redo", "edit_undo", "edit_redo"})
+
+    def _init_history(self) -> None:
+        from atboffice.ui.shell.lectern_history import PresentationHistory
+
+        self.history = PresentationHistory(self)
+        self.presentation_view.presentation_loaded.connect(lambda _p: self.history.reset())
+        self.presentation_view.workspace.content_edited.connect(self.history.note_edit)
+        self.action_registry.action_triggered.connect(self._note_action_for_history)
+
+    def _note_action_for_history(self, action_id: str) -> None:
+        if action_id in self._HISTORY_IGNORED_ACTIONS:
+            return
+        action = self.action_registry.get_action(action_id)
+        label = ""
+        if action is not None:
+            label = re.sub(r"\s*\(&?\w\)", "", action.text()).replace("&", "")
+            label = label.rstrip(".…").strip()
+        self.history.note_edit("action", label or None)
+
+    def document_widget(self) -> QWidget | None:
+        ws = getattr(self.presentation_view, "workspace", None)
+        return getattr(ws, "canvas_view", None)
+
+    def undo_service(self) -> Any | None:
+        history = getattr(self, "history", None)
+        return history.service if history is not None else None
+
+    def flush_pending_edits(self) -> None:
+        history = getattr(self, "history", None)
+        if history is not None:
+            history.flush()
+
+    def set_modified(self, modified: bool) -> None:
+        super().set_modified(modified)
+        history = getattr(self, "history", None)
+        if modified and history is not None:
+            history.note_edit()
+
     def _apply_template_result(self, result: Any) -> None:
         """Apply generated template Presentation model to presentation view."""
         if result is not None:
@@ -2064,9 +2105,7 @@ class LecternWindow(BaseOfficeWindow):
             if scene is not None and hasattr(scene, "sync_active_text_editing"):
                 scene.sync_active_text_editing()
 
-            if not self.confirm_compatibility_losses(
-                getattr(self.presentation, "losses", None)
-            ):
+            if not self.confirm_compatibility_losses(getattr(self.presentation, "losses", None)):
                 return False
             write_pptx(self.presentation, path)
             return True
@@ -2355,8 +2394,11 @@ class LecternWindow(BaseOfficeWindow):
 
         color = QComboBox()
         color.setObjectName("printColorCombo")
-        for label, key in ((safe_tr("颜色"), "color"), (safe_tr("灰度"), "grayscale"),
-                           (safe_tr("纯黑白"), "bw")):
+        for label, key in (
+            (safe_tr("颜色"), "color"),
+            (safe_tr("灰度"), "grayscale"),
+            (safe_tr("纯黑白"), "bw"),
+        ):
             color.addItem(label, key)
         color.setCurrentIndex(max(0, color.findData(opts.color)))
         color.setToolTip(safe_tr("颜色/灰度"))

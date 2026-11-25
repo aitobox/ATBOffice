@@ -161,7 +161,8 @@ class DrawingObject(RunItem):
             return ""
         try:
             import re
-            import xml.etree.ElementTree as ET
+
+            from atboffice.vfs import etree as ET
 
             xml_str = self.raw_xml
             if "Fallback" in xml_str:
@@ -178,7 +179,6 @@ class DrawingObject(RunItem):
             return "".join(texts)
         except Exception:
             return ""
-
 
 
 @dataclass
@@ -333,8 +333,18 @@ class ShapeItem(PictureItem):
         own = {
             k: kwargs.pop(k)
             for k in (
-                "geometry", "adjustments", "custom_path", "fill", "line", "flip_h",
-                "flip_v", "story", "insets", "v_anchor", "text_color", "children",
+                "geometry",
+                "adjustments",
+                "custom_path",
+                "fill",
+                "line",
+                "flip_h",
+                "flip_v",
+                "story",
+                "insets",
+                "v_anchor",
+                "text_color",
+                "children",
             )
             if k in kwargs
         }

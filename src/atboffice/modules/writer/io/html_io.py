@@ -723,14 +723,14 @@ class HtmlWriter:
         body_html = self.blocks_to_html(doc.main.blocks)
 
         if not standalone:
-            return f"<meta charset=\"utf-8\"><div>{body_html}</div>"
+            return f'<meta charset="utf-8"><div>{body_html}</div>'
 
         return (
             "<!DOCTYPE html>\n"
-            "<html lang=\"zh-CN\">\n"
+            '<html lang="zh-CN">\n'
             "<head>\n"
-            "<meta charset=\"utf-8\">\n"
-            "<meta name=\"generator\" content=\"Quire\">\n"
+            '<meta charset="utf-8">\n'
+            '<meta name="generator" content="Quire">\n'
             f"<title>{html.escape(title)}</title>\n"
             "<style>\n"
             "body { font-family: 'Times New Roman', serif; font-size: 12pt; "
@@ -892,7 +892,7 @@ class HtmlWriter:
         return "".join(buf)
 
     def _table_to_html(self, t: Table) -> str:
-        s = ["<table style=\"border-collapse:collapse;width:100%\">"]
+        s = ['<table style="border-collapse:collapse;width:100%">']
         for row in t.rows:
             s.append("  <tr>")
             for cell in row.cells:

@@ -94,12 +94,8 @@ class AboutDialog(QDialog):
 
     def retranslate_ui(self) -> None:
         """Update localized UI text dynamically."""
-        self.setWindowTitle(
-            safe_tr("关于 {app_name}").format(app_name=__app_name__)
-        )
-        self.lbl_title.setText(
-            f"{__app_name__}  v{__version__}"
-        )
+        self.setWindowTitle(safe_tr("关于 {app_name}").format(app_name=__app_name__))
+        self.lbl_title.setText(f"{__app_name__}  v{__version__}")
         self.lbl_apps.setText(
             safe_tr(
                 "ATBOffice 原生跨平台办公套件："
@@ -108,13 +104,10 @@ class AboutDialog(QDialog):
         )
         self.lbl_privacy.setText(
             safe_tr(
-                "所有文档均完全运行在您的本地设备上并安全存取。"
-                "最近文档仅在本地保留快捷打开缓存。"
+                "所有文档均完全运行在您的本地设备上并安全存取。最近文档仅在本地保留快捷打开缓存。"
             )
         )
-        self.lbl_oss.setText(
-            safe_tr("由全球优秀的开源软件与字体赋能构建。")
-        )
+        self.lbl_oss.setText(safe_tr("由全球优秀的开源软件与字体赋能构建。"))
         self.btn_licenses.setText(safe_tr("开源许可证与鸣谢(&L)..."))
         self.btn_check_update.setText(safe_tr("检查更新(&U)..."))
         self.btn_ok.setText(safe_tr("确定"))

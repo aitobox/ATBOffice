@@ -277,7 +277,7 @@ def test_consecutive_workbook_switch_isolation(qtbot):
         },
         action="edit_cell",
     )
-    assert len(view.grid._undo_stack) > 0
+    assert len(view.grid.history) > 0
     assert view.grid.model.get_cell_value(0, 0) == 99999
 
     # Replace with Workbook 2
@@ -294,8 +294,8 @@ def test_consecutive_workbook_switch_isolation(qtbot):
     assert view.sheet_tab_bar.active_sheet is active2
 
     # 2. Undo stack cleared on workbook replacement
-    assert len(view.grid._undo_stack) == 0
-    assert len(view.grid._redo_stack) == 0
+    assert len(view.grid.history) == 0
+    assert not view.grid.history.can_redo()
 
     # 3. Undo call does not bring back 99999 from Workbook 1
     view.grid.undo()
@@ -418,10 +418,7 @@ def _left_edge_colors(view, r: int, c: int) -> set[str]:
     dpr = img.devicePixelRatio() or 1.0
     rect = view.grid.device_cell_rect(r, c)
     y = int(rect.center().y() * dpr)
-    return {
-        img.pixelColor(int(x * dpr), y).name()
-        for x in range(rect.left() - 2, rect.left() + 3)
-    }
+    return {img.pixelColor(int(x * dpr), y).name() for x in range(rect.left() - 2, rect.left() + 3)}
 
 
 def test_page_layout_form_hides_gridlines_under_filled_column_styles(qtbot):

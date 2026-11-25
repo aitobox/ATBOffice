@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import io
-import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
@@ -14,10 +13,12 @@ from atboffice.modules.writer.models.document import (
     BreakItem,
     CommentRangeEnd,
     CommentRangeStart,
+    CommentRefItem,
     Document,
     FieldBeginItem,
     FieldEndItem,
     FieldSeparateItem,
+    NoteRefItem,
     Paragraph,
     RunItem,
     SdtEndItem,
@@ -37,7 +38,14 @@ from atboffice.modules.writer.models.properties import (
     pt_to_dxa,
 )
 from atboffice.modules.writer.models.styles import Style, builtin_styles
-from atboffice.vfs.opc import PackageWriter, Relationship, SourcePackage
+from atboffice.vfs import etree as ET
+from atboffice.vfs.opc import (
+    PackageWriter,
+    Relationship,
+    SourcePackage,
+    get_rels_path,
+    resolve_part_uri,
+)
 from atboffice.vfs.order import enforce_schema_order
 from atboffice.vfs.xml_tree import serialize_xml
 
@@ -85,7 +93,6 @@ ET.register_namespace("w14", "http://schemas.microsoft.com/office/word/2010/word
 ET.register_namespace("w15", "http://schemas.microsoft.com/office/word/2012/wordml")
 
 
-
 def _w(tag: str) -> str:
     """Helper to return Clark notation for WordprocessingML tag."""
     return f"{{{NS_W}}}{tag}"
@@ -112,6 +119,7 @@ class DocxWriter:
         self.source_pkg: SourcePackage | None = getattr(doc, "_source_pkg", None)
         self.rels: list[Relationship] = []
         self._next_r_id = 1
+        self._main_path: str = doc.keep.get("main_part") or "word/document.xml"
 
     def _gen_r_id(self) -> str:
         r_id = f"rId{self._next_r_id}"
@@ -140,8 +148,8 @@ class DocxWriter:
         # Build document and relationships
         doc_xml, doc_rels, hf_id_map = self._build_document_and_rels()
 
-        main_path = "word/document.xml"
-        main_rels_path = "word/_rels/document.xml.rels"
+        main_path = self._main_path
+        main_rels_path = get_rels_path(main_path)
 
         ct = CT_DOCM if self.doc_format == "docm" else CT_DOCX
         writer.replace_part(main_path, doc_xml, ct)
@@ -152,7 +160,7 @@ class DocxWriter:
             new_id = hf_id_map.get(old_id)
             rel = next((r for r in self.rels if r.id == new_id), None)
             if rel:
-                part_path = f"word/{rel.target.lstrip('word/')}"
+                part_path = resolve_part_uri(main_path, rel.target)
                 hf_xml = self._build_hf_xml(story)
                 part_ct = CT_HEADER if rel.type == REL_HEADER else CT_FOOTER
                 if self.source_pkg.has_part(part_path):
@@ -160,9 +168,15 @@ class DocxWriter:
                 else:
                     writer.add_part(part_path, hf_xml, part_ct)
 
-        # Update styles.xml
-        styles_xml = self._build_styles_xml()
-        writer.replace_part("word/styles.xml", styles_xml, CT_STYLES)
+        # styles.xml: edit the original in place; carried untouched when unchanged.
+        styles_path = self.doc.keep.get("styles_part") or resolve_part_uri(main_path, "styles.xml")
+        if self.source_pkg.has_part(styles_path) and "styles_snapshot" in self.doc.keep:
+            original = self.source_pkg.read_part(styles_path)
+            styles_xml = self._patch_styles_xml(original)
+            if styles_xml is not original:
+                writer.replace_part(styles_path, styles_xml, CT_STYLES)
+        else:
+            writer.replace_part(styles_path, self._build_styles_xml(), CT_STYLES)
 
         return writer.to_bytes()
 
@@ -182,7 +196,7 @@ class DocxWriter:
             new_id = hf_id_map.get(old_id)
             rel = next((r for r in self.rels if r.id == new_id), None)
             if rel:
-                part_path = f"word/{rel.target.lstrip('word/')}"
+                part_path = resolve_part_uri("word/document.xml", rel.target)
                 hf_xml = self._build_hf_xml(story)
                 part_ct = CT_HEADER if rel.type == REL_HEADER else CT_FOOTER
                 writer.add_part(part_path, hf_xml, part_ct)
@@ -212,7 +226,7 @@ class DocxWriter:
 
         existing_hf_rels: dict[str, Relationship] = {}
         if self.source_pkg is not None:
-            for r in self.source_pkg.get_relationships("word/document.xml"):
+            for r in self.source_pkg.get_relationships(self._main_path):
                 if r.type == REL_STYLES:
                     existing_styles_id = r.id
                 elif r.type == REL_SETTINGS:
@@ -654,9 +668,7 @@ class DocxWriter:
 
             i = j
 
-    def _serialize_run_item(
-        self, parent: ET.Element, item: RunItem, is_del: bool = False
-    ) -> None:
+    def _serialize_run_item(self, parent: ET.Element, item: RunItem, is_del: bool = False) -> None:
         """Serialize a RunItem into corresponding XML elements under <w:p> or wrapper."""
         if isinstance(item, OfficeMathItem):
             math_elem = serialize_omml(item)
@@ -752,6 +764,19 @@ class DocxWriter:
         elif isinstance(item, FieldEndItem):
             fc = ET.SubElement(r_elem, _w("fldChar"))
             fc.set(_w("fldCharType"), "end")
+
+        elif isinstance(item, NoteRefItem):
+            tag = "endnoteReference" if item.kind == "en" else "footnoteReference"
+            ref = ET.SubElement(r_elem, _w(tag))
+            ref.set(_w("id"), str(item.note_id))
+            if item.custom_mark:
+                ref.set(_w("customMarkFollows"), "1")
+                mark = ET.SubElement(r_elem, _w("t"))
+                mark.text = item.custom_mark
+
+        elif isinstance(item, CommentRefItem):
+            ref = ET.SubElement(r_elem, _w("commentReference"))
+            ref.set(_w("id"), str(item.comment_id))
 
     def _populate_r_pr(self, r_pr_elem: ET.Element, r_pr: RunProperties) -> None:
         """Add child formatting elements to <w:rPr>."""
@@ -1018,11 +1043,7 @@ class DocxWriter:
                     cell_stack[-1][1].append(finished_sdt)
 
             for key in getattr(tr_pr, "sdte", []):
-                if (
-                    len(row_stack) > 1
-                    and row_stack[-1][2]
-                    and row_stack[-1][2].get("key") == key
-                ):
+                if len(row_stack) > 1 and row_stack[-1][2] and row_stack[-1][2].get("key") == key:
                     finished_sdt, _, _ = row_stack.pop()
                     if finished_sdt is not None:
                         row_stack[-1][1].append(finished_sdt)
@@ -1106,6 +1127,68 @@ class DocxWriter:
 
         return serialize_xml(root, standalone=True)
 
+    def _style_element(self, st: Style) -> ET.Element:
+        """Serialize one style definition as ``<w:style>``."""
+        s_elem = ET.Element(_w("style"))
+        s_elem.set(_w("type"), st.style_type)
+        s_elem.set(_w("styleId"), st.id)
+        if st.is_default:
+            s_elem.set(_w("default"), "1")
+
+        name = ET.SubElement(s_elem, _w("name"))
+        name.set(_w("val"), st.name)
+
+        if st.based_on:
+            based = ET.SubElement(s_elem, _w("basedOn"))
+            based.set(_w("val"), st.based_on)
+
+        if st.next_style:
+            nxt = ET.SubElement(s_elem, _w("next"))
+            nxt.set(_w("val"), st.next_style)
+
+        p_pr_elem = ET.Element(_w("pPr"))
+        self._populate_p_pr(p_pr_elem, st.p_pr)
+        if len(p_pr_elem) > 0:
+            enforce_schema_order(p_pr_elem, "wordprocessingml_ppr")
+            s_elem.append(p_pr_elem)
+
+        r_pr_elem = ET.Element(_w("rPr"))
+        self._populate_r_pr(r_pr_elem, st.r_pr)
+        if len(r_pr_elem) > 0:
+            enforce_schema_order(r_pr_elem, "wordprocessingml_rpr")
+            s_elem.append(r_pr_elem)
+        return s_elem
+
+    def _patch_styles_xml(self, original: bytes) -> bytes:
+        """Apply style edits to the original styles.xml.
+
+        Styles that still equal their loaded state keep their original element, with
+        every property the model does not represent. Edited styles are rewritten, new
+        ones appended and deleted ones removed. ``latentStyles`` and ``docDefaults`` are
+        always carried. Returns ``original`` itself when nothing changed.
+        """
+        snapshot: dict[str, Style] = self.doc.keep.get("styles_snapshot") or {}
+        current = {k: v for k, v in (self.doc.styles or {}).items() if isinstance(v, Style)}
+        changed_ids = [k for k, st in current.items() if snapshot.get(k) != st]
+        removed_ids = [k for k in snapshot if k not in current]
+        if not changed_ids and not removed_ids:
+            return original
+
+        root = ET.fromstring(original)
+        by_id = {el.get(_w("styleId")): el for el in root if el.tag == _w("style")}
+        for s_id in removed_ids:
+            el = by_id.get(s_id)
+            if el is not None:
+                root.remove(el)
+        for s_id in changed_ids:
+            new_el = self._style_element(current[s_id])
+            old_el = by_id.get(s_id)
+            if old_el is not None:
+                root.replace(old_el, new_el)
+            elif s_id in snapshot or not current[s_id].builtin:
+                root.append(new_el)
+        return serialize_xml(root, standalone=True)
+
     def _build_styles_xml(self) -> bytes:
         """Serialize styles into word/styles.xml."""
         root = ET.Element(_w("styles"))
@@ -1126,39 +1209,9 @@ class DocxWriter:
 
         # Styles
         styles_dict = self.doc.styles or builtin_styles()
-        for s_id, st in styles_dict.items():
-            if not isinstance(st, Style):
-                continue
-            s_elem = ET.SubElement(root, _w("style"))
-            s_elem.set(_w("type"), st.style_type)
-            s_elem.set(_w("styleId"), st.id)
-            if st.is_default:
-                s_elem.set(_w("default"), "1")
-
-            name = ET.SubElement(s_elem, _w("name"))
-            name.set(_w("val"), st.name)
-
-            if st.based_on:
-                based = ET.SubElement(s_elem, _w("basedOn"))
-                based.set(_w("val"), st.based_on)
-
-            if st.next_style:
-                nxt = ET.SubElement(s_elem, _w("next"))
-                nxt.set(_w("val"), st.next_style)
-
-            # pPr
-            p_pr_elem = ET.Element(_w("pPr"))
-            self._populate_p_pr(p_pr_elem, st.p_pr)
-            if len(p_pr_elem) > 0:
-                enforce_schema_order(p_pr_elem, "wordprocessingml_ppr")
-                s_elem.append(p_pr_elem)
-
-            # rPr
-            r_pr_elem = ET.Element(_w("rPr"))
-            self._populate_r_pr(r_pr_elem, st.r_pr)
-            if len(r_pr_elem) > 0:
-                enforce_schema_order(r_pr_elem, "wordprocessingml_rpr")
-                s_elem.append(r_pr_elem)
+        for st in styles_dict.values():
+            if isinstance(st, Style):
+                root.append(self._style_element(st))
 
         return serialize_xml(root, standalone=True)
 

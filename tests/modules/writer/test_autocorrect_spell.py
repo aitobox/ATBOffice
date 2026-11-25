@@ -9,7 +9,6 @@ from PySide6.QtGui import (
     QKeyEvent,
     QPainter,
 )
-from PySide6.QtWidgets import QApplication
 
 from atboffice.core.settings import AppSettings
 from atboffice.modules.writer.autocorrect import AutoCorrectEngine
@@ -24,15 +23,6 @@ from atboffice.modules.writer.models.document import (
 from atboffice.modules.writer.spell import SpellEngine
 from atboffice.modules.writer.views.canvas_view import WriterCanvasView
 from atboffice.modules.writer.views.caret_controller import DocPos
-
-
-@pytest.fixture(scope="session")
-def qapp():
-    """Ensure QApplication instance is initialized for GUI components."""
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication([])
-    return app
 
 
 @pytest.fixture(autouse=True)

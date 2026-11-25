@@ -82,7 +82,9 @@ def compare_images(
     if min_len == 0:
         pixel_mae_sim = 0.0
     else:
-        diff_sum = sum(abs(a - b) for a, b in zip(bytes_a[:min_len], bytes_b[:min_len], strict=False))
+        diff_sum = sum(
+            abs(a - b) for a, b in zip(bytes_a[:min_len], bytes_b[:min_len], strict=False)
+        )
         pixel_mae_sim = 1.0 - (diff_sum / (min_len * 255.0))
 
     # 2. Central Region-Of-Interest (ROI) comparison (middle 60% x 60%)
@@ -102,7 +104,8 @@ def compare_images(
         roi_sim = 0.0
     else:
         roi_diff_sum = sum(
-            abs(a - b) for a, b in zip(roi_bytes_a[:min_roi_len], roi_bytes_b[:min_roi_len], strict=False)
+            abs(a - b)
+            for a, b in zip(roi_bytes_a[:min_roi_len], roi_bytes_b[:min_roi_len], strict=False)
         )
         roi_sim = 1.0 - (roi_diff_sum / (min_roi_len * 255.0))
 
@@ -132,8 +135,7 @@ def generate_report(results: list[DiffResult], threshold: float = 0.85) -> str:
         else 0.0
     )
     avg_roi = (
-        sum(r.roi_similarity if r.roi_similarity else r.similarity for r in results)
-        / total
+        sum(r.roi_similarity if r.roi_similarity else r.similarity for r in results) / total
         if total > 0
         else 0.0
     )
@@ -170,14 +172,16 @@ def generate_report(results: list[DiffResult], threshold: float = 0.85) -> str:
         m_total = len(m_results)
         m_passed = sum(1 for r in m_results if r.passed)
         m_avg_mae = (
-            sum(r.pixel_mae_similarity if r.pixel_mae_similarity else r.similarity for r in m_results)
+            sum(
+                r.pixel_mae_similarity if r.pixel_mae_similarity else r.similarity
+                for r in m_results
+            )
             / m_total
             if m_total > 0
             else 0.0
         )
         m_avg_roi = (
-            sum(r.roi_similarity if r.roi_similarity else r.similarity for r in m_results)
-            / m_total
+            sum(r.roi_similarity if r.roi_similarity else r.similarity for r in m_results) / m_total
             if m_total > 0
             else 0.0
         )
@@ -191,13 +195,15 @@ def generate_report(results: list[DiffResult], threshold: float = 0.85) -> str:
             f"`{m_avg_mae * 100:.2f}%` | `{m_avg_roi * 100:.2f}%` | {status} |"
         )
 
-    lines.extend([
-        "",
-        "## 2. 逐图详细对比结果",
-        "",
-        "| # | 模块 | 截图文件名 | PySide6 尺寸 | 原版尺寸 | Pixel MAE 相似度 | ROI 相似度 | 判定结果 |",
-        "|---|---|---|---|---|---|---|---|",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 2. 逐图详细对比结果",
+            "",
+            "| # | 模块 | 截图文件名 | PySide6 尺寸 | 原版尺寸 | Pixel MAE 相似度 | ROI 相似度 | 判定结果 |",
+            "|---|---|---|---|---|---|---|---|",
+        ]
+    )
 
     for i, r in enumerate(results, 1):
         status_badge = "✅ PASS" if r.passed else "⚠️ REVIEW"
@@ -282,9 +288,7 @@ def main() -> None:
         f.write(report_content)
 
     print(f"Report generated at: {report_path}")
-    avg_score = (
-        (sum(r.pixel_mae_similarity for r in results) / len(results)) if results else 0.0
-    )
+    avg_score = (sum(r.pixel_mae_similarity for r in results) / len(results)) if results else 0.0
     print(
         f"\nCompleted {len(results)} image comparisons. Average Pixel MAE similarity: {avg_score * 100:.2f}%"
     )

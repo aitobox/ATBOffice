@@ -413,3 +413,11 @@ def test_evaluator_expressions(sample_context):
     assert evaluate("=SUM(Sheet1!A1:A10)", ctx=sample_context) == 55
     assert evaluate('="3" + 4') == 7
     assert evaluate('=VLOOKUP("Cy", Data!A1:D6, 3, FALSE)', ctx=sample_context) == 175
+
+
+def test_unsupported_ets_statistics_return_na() -> None:
+    from atboffice.modules.spreadsheet.calc.core_fns.extra_fns import (
+        fn_forecast_ets_unsupported,
+    )
+
+    assert fn_forecast_ets_unsupported([1, 2, 3], [1, 2, 3], 1) == NA

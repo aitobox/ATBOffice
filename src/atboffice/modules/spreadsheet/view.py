@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from atboffice.core.diagnostics import record_action
@@ -24,11 +24,6 @@ from atboffice.modules.spreadsheet.views.object_layer import (
     SpreadsheetObjectLayer,
 )
 from atboffice.modules.spreadsheet.views.sheet_tab_bar import SheetTabBar
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("SpreadsheetView", text)
 
 
 class SpreadsheetView(QWidget):
@@ -75,9 +70,7 @@ class SpreadsheetView(QWidget):
 
         # 3. Virtualized Grid Viewport
         active_sel = self._sheet_selections[active_sheet]
-        self.grid = GridViewport(
-            model=active_sheet, selection=active_sel, parent=self
-        )
+        self.grid = GridViewport(model=active_sheet, selection=active_sel, parent=self)
         self.grid.workbook = self._workbook
         layout.addWidget(self.grid)
 
@@ -93,9 +86,7 @@ class SpreadsheetView(QWidget):
 
         # Connect navigation requests from NameBox
         self.formula_bar.navigate_requested.connect(self._on_navigate_requested)
-        self.formula_bar.range_navigate_requested.connect(
-            self._on_range_navigate_requested
-        )
+        self.formula_bar.range_navigate_requested.connect(self._on_range_navigate_requested)
 
         # Connect workbook signals for active sheet synchronization and cleanup
         self._workbook.active_sheet_changed.connect(self._on_active_sheet_changed)
@@ -104,11 +95,12 @@ class SpreadsheetView(QWidget):
         # 5. Bottom SheetTabBar embedded in grid viewport scrollbar
         self.sheet_tab_bar = SheetTabBar(workbook=self._workbook, parent=self)
         self.grid.addScrollBarWidget(self.sheet_tab_bar, Qt.AlignmentFlag.AlignLeft)
+        # The tabs share the scroll bar's row, which is only as tall as the scroll
+        # bar itself (14 px in Fusion); make the row tall enough for the tabs.
+        self.grid.horizontalScrollBar().setMinimumHeight(self.sheet_tab_bar.height())
 
         # 6. Floating Object Layer overlay
-        self.object_layer = SpreadsheetObjectLayer(
-            model=active_sheet, parent=self.grid.viewport()
-        )
+        self.object_layer = SpreadsheetObjectLayer(model=active_sheet, parent=self.grid.viewport())
         self.grid.object_layer = self.object_layer
         self.object_layer.set_zoom(self.grid.zoom)
         self.object_layer.set_header_dimensions(
@@ -293,8 +285,9 @@ class SpreadsheetView(QWidget):
             splitter.setObjectName("windowSplitter")
             idx = layout.indexOf(self.grid)
             layout.insertWidget(idx, splitter, 1)
-            pane = GridViewport(model=self.grid.model, selection=self.grid.selection,
-                                parent=splitter)
+            pane = GridViewport(
+                model=self.grid.model, selection=self.grid.selection, parent=splitter
+            )
             pane.workbook = self._workbook
             pane.setObjectName("splitPane")
             splitter.addWidget(pane)
@@ -366,9 +359,7 @@ class SpreadsheetView(QWidget):
         self.grid.reveal(r, c)
         self.grid.viewport().update()
 
-    def _on_range_navigate_requested(
-        self, r1: int, c1: int, r2: int, c2: int
-    ) -> None:
+    def _on_range_navigate_requested(self, r1: int, c1: int, r2: int, c2: int) -> None:
         """Handle range navigation requested from NameBox."""
         self.selection.clear()
         self.selection.add_range(SelectionRange(r1, c1, r2, c2))

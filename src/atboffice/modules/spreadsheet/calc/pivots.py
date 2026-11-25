@@ -156,9 +156,7 @@ class PivotLayoutMeta:
     subtotal_rows: set[int] = field(default_factory=set)
     grand_total_rows: set[int] = field(default_factory=set)
     grand_total_cols: set[int] = field(default_factory=set)
-    filter_dropdown_cells: dict[tuple[int, int], tuple[str, int]] = field(
-        default_factory=dict
-    )
+    filter_dropdown_cells: dict[tuple[int, int], tuple[str, int]] = field(default_factory=dict)
 
     def clear(self) -> None:
         self.filter_rows.clear()
@@ -298,9 +296,7 @@ class PivotCalculationEngine:
             return "(blank)"
         return str(val)
 
-    def calculate(
-        self, workbook: WorkbookModel, layout: PivotLayoutSpec
-    ) -> PivotGridResult:
+    def calculate(self, workbook: WorkbookModel, layout: PivotLayoutSpec) -> PivotGridResult:
         """Compute multi-dimensional pivot groupings and raw value buckets."""
         src_sheet = workbook.get_sheet_by_name(layout.source_sheet)
         if src_sheet is None:
@@ -324,11 +320,11 @@ class PivotCalculationEngine:
         sub_cell_vals: dict[tuple[tuple[str, ...], tuple[str, ...], int], list[Any]] = {}
         sub_row_tot_vals: dict[tuple[tuple[str, ...], int], list[Any]] = {}
 
-        filter_fields = list(layout.filters) + [
-            f for f in layout.rows if f.selected_values is not None
-        ] + [
-            f for f in layout.columns if f.selected_values is not None
-        ]
+        filter_fields = (
+            list(layout.filters)
+            + [f for f in layout.rows if f.selected_values is not None]
+            + [f for f in layout.columns if f.selected_values is not None]
+        )
 
         for r in range(r1 + 1, r2 + 1):
             # Apply filters (Report Filters + Row/Col active filters)
@@ -394,16 +390,10 @@ class PivotCalculationEngine:
                     elif lvl == n_row_fields - 1:
                         labels[lvl] = rk[lvl]
 
-                row_entries.append(
-                    _PivotRowEntry(kind="data", labels=labels, key_tuple=rk)
-                )
+                row_entries.append(_PivotRowEntry(kind="data", labels=labels, key_tuple=rk))
 
                 # Determine which outer prefix levels end after this row
-                next_rk = (
-                    sorted_row_tuples[idx + 1]
-                    if idx + 1 < len(sorted_row_tuples)
-                    else None
-                )
+                next_rk = sorted_row_tuples[idx + 1] if idx + 1 < len(sorted_row_tuples) else None
                 if layout.show_subtotals and n_row_fields >= 2:
                     for lvl in range(n_row_fields - 2, -1, -1):
                         if not layout.rows[lvl].show_subtotal:
@@ -759,9 +749,7 @@ class PivotCalculationEngine:
         return True
 
 
-def calculate_pivot(
-    workbook: WorkbookModel, layout: PivotLayoutSpec
-) -> PivotGridResult:
+def calculate_pivot(workbook: WorkbookModel, layout: PivotLayoutSpec) -> PivotGridResult:
     """Compute a PivotGridResult without writing to worksheet."""
     return PivotCalculationEngine().calculate(workbook, layout)
 
@@ -772,9 +760,7 @@ def build_interactive_pivot(
     existing_report: PivotReport | None = None,
 ) -> PivotReport:
     """Build or update an interactive PivotReport on the target worksheet."""
-    return PivotCalculationEngine().render_report(
-        workbook, layout, existing_report=existing_report
-    )
+    return PivotCalculationEngine().render_report(workbook, layout, existing_report=existing_report)
 
 
 def refresh_pivot_report(workbook: WorkbookModel, report: PivotReport) -> bool:

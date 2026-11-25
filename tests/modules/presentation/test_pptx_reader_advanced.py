@@ -336,7 +336,7 @@ def test_master_placeholder_inheritance_chain():
 
     # Transform inherited from slideLayout
     assert sh.x == 100.0  # 1270000 / 12700
-    assert sh.y == 50.0   # 635000 / 12700
+    assert sh.y == 50.0  # 635000 / 12700
     assert sh.w == 500.0  # 6350000 / 12700
     assert sh.h == 100.0  # 1270000 / 12700
 
@@ -624,7 +624,7 @@ def test_placeholder_penetration_when_layout_omits_placeholder():
     assert len(pres.slides) == 1
     sh = pres.slides[0].shapes[0]
     # Transform directly inherited from master
-    assert sh.x == 50.0   # 635000 / 12700
+    assert sh.x == 50.0  # 635000 / 12700
     assert sh.y == 150.0  # 1905000 / 12700
     assert sh.w == 600.0  # 7620000 / 12700
     assert sh.h == 200.0  # 2540000 / 12700

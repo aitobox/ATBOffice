@@ -43,6 +43,7 @@ class RichTextRun:
 
     def clone(self) -> RichTextRun:
         import copy
+
         return copy.copy(self)
 ```
 

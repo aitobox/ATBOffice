@@ -131,11 +131,7 @@ def simple_table(
 
             runs: list[RunItem] = []
             if cell_text:
-                r_pr = (
-                    RunProperties(b=True, color="FFFFFF")
-                    if is_header
-                    else RunProperties()
-                )
+                r_pr = RunProperties(b=True, color="FFFFFF") if is_header else RunProperties()
                 runs.append(TextItem(text=cell_text, r_pr=r_pr))
 
             cell_para = Paragraph(runs=runs, p_pr=p_props)

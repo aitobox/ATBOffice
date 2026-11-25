@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QMenu,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.designs import apply_color_mods, split_color_token
 from atboffice.modules.presentation.models.placeholder_resolver import evaluate_field_text
 from atboffice.modules.presentation.models.text import (
@@ -73,38 +74,6 @@ STANDARD_FONT_SIZES = [
     88.0,
     96.0,
 ]
-
-
-def safe_tr(text: str) -> str:
-    """Translate user-facing text with native Chinese fallback."""
-    app = QApplication.instance()
-    if app:
-        translated = app.translate("TextEditor", text)
-        if translated and translated != text:
-            return translated
-    # Translation dictionary for common actions
-    translations = {
-        "Bold": "加粗",
-        "Italic": "倾斜",
-        "Underline": "下划线",
-        "Increase Font Size": "增大字号",
-        "Decrease Font Size": "减小字号",
-        "Font Color": "字体颜色",
-        "Increase Indent": "增加缩进 (降级)",
-        "Decrease Indent": "减少缩进 (升级)",
-        "Bullets": "项目符号",
-        "Numbering": "编号",
-        "Align Left": "左对齐",
-        "Center": "居中",
-        "Align Right": "右对齐",
-        "Justify": "两端对齐",
-        "Reset Formatting": "清除格式",
-        "Cut": "剪切",
-        "Copy": "复制",
-        "Paste": "粘贴",
-        "Select All": "全选",
-    }
-    return translations.get(text, text)
 
 
 def clamp_outline_level(level: int) -> int:
@@ -395,9 +364,7 @@ def resolve_color(color_name: str | None) -> QColor:
     return QColor(apply_color_mods(hex_val, mods) if mods else hex_val)
 
 
-def balance_column_height(
-    doc: QTextDocument, col_w: float, max_h: float, num_cols: int
-) -> float:
+def balance_column_height(doc: QTextDocument, col_w: float, max_h: float, num_cols: int) -> float:
     """Return the balanced column height for a multi-column text body.
 
     Matches the reference renderer's CSS ``column-count`` (``column-fill:
@@ -551,10 +518,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                 run_sig = tuple(
                     (
                         p.level,
-                        tuple(
-                            (r.size, r.bold, r.font, len(r.text))
-                            for r in p.runs
-                        ),
+                        tuple((r.size, r.bold, r.font, len(r.text)) for r in p.runs),
                     )
                     for p in text_body.paragraphs
                 )
@@ -613,7 +577,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                 if isinstance(bu_info, dict)
                 else BODY_BULLETS[level]
             )
-            has_bullet = (bu_type == "char" and bool(bu_char))
+            has_bullet = bu_type == "char" and bool(bu_char)
 
             if has_bullet:
                 mar_l_raw = para.props.get("marL")
@@ -755,11 +719,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
             col_w = max(10.0, (avail_w - (num_cols - 1) * col_gap) / num_cols)
             col_h = balance_column_height(doc, col_w, avail_h, num_cols)
             for c in range(min(num_cols, doc.pageCount())):
-                col_x = (
-                    (num_cols - 1 - c) * (col_w + col_gap)
-                    if rtl_col
-                    else c * (col_w + col_gap)
-                )
+                col_x = (num_cols - 1 - c) * (col_w + col_gap) if rtl_col else c * (col_w + col_gap)
                 col_clip = QRectF(text_rect.x() + col_x, text_rect.y(), col_w, col_h)
                 painter.save()
                 painter.setClipRect(col_clip)
@@ -1398,6 +1358,8 @@ class ShapeTextEditorItem(QGraphicsTextItem):
 
         # Emit completion signal
         self.editingFinished.emit(self.model.id, self.model.text)
+        if hasattr(sc, "contentEdited"):
+            sc.contentEdited.emit()
 
         # Notify parent shape item
         if shiboken6.isValid(self.shape_item):

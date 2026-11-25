@@ -5,12 +5,13 @@ from __future__ import annotations
 import logging
 import math
 import weakref
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Final
 
 from PySide6.QtCore import (
-    QCoreApplication,
     QEvent,
     QObject,
     QPoint,
@@ -49,6 +50,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
+from atboffice.core.undo import UndoService
 from atboffice.drawing.numfmt import FormatSegment, FormattedResult, format_value
 from atboffice.modules.spreadsheet.calc.parser import parse, to_text
 from atboffice.modules.spreadsheet.calc.references import (
@@ -91,11 +94,6 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("GridViewport", text)
 
 
 class HitZone(Enum):
@@ -158,6 +156,37 @@ def page_bounds(breaks: list[int], total: int, per_page: int) -> list[int]:
         cur = nxt if nxt is not None and nxt <= cur + per_page else cur + per_page
         bounds.append(cur)
     return bounds
+
+
+def cell_delta(
+    before: dict[tuple[int, int], CellData], after: dict[tuple[int, int], CellData]
+) -> tuple[dict[tuple[int, int], CellData | None], dict[tuple[int, int], CellData | None]]:
+    """The cells that differ between two copies, as (old values, new values).
+
+    A missing cell is recorded as None on that side.
+    """
+    old: dict[tuple[int, int], CellData | None] = {}
+    new: dict[tuple[int, int], CellData | None] = {}
+    for key in before.keys() | after.keys():
+        a, b = before.get(key), after.get(key)
+        if a is None and b is None:
+            continue
+        if a is not None and b is not None and vars(a) == vars(b):
+            continue
+        old[key] = a
+        new[key] = b
+    return old, new
+
+
+def _copy_comments(model: Any) -> dict[Any, Any]:
+    comments = getattr(model, "comments", None)
+    if not comments:
+        return {}
+    return {k: CellComment(**v.__dict__) for k, v in comments.items()}
+
+
+def _copy_links(model: Any) -> list[Any]:
+    return [dict(lk) if isinstance(lk, dict) else lk for lk in getattr(model, "links", None) or []]
 
 
 class GridViewport(QAbstractScrollArea):
@@ -241,8 +270,9 @@ class GridViewport(QAbstractScrollArea):
         self._move_grab_cell: tuple[int, int] | None = None
         self._move_preview_range: SelectionRange | None = None
         self._move_ctrl_pressed: bool = False
-        self._undo_stack: list[dict[str, Any]] = []
-        self._redo_stack: list[dict[str, Any]] = []
+        # Undo / redo history of the whole workbook; entries remember their sheet.
+        self.history = UndoService(self)
+        self._edit_depth = 0
         self._dv_dropdown_rect: QRect | None = None
         self._format_painter_window: Any | None = None
         self._view_mode: str = "normal"  # "normal" | "page_break"
@@ -275,11 +305,7 @@ class GridViewport(QAbstractScrollArea):
         if r < 0 or c < 0:
             new_hover = None
         else:
-            cm = (
-                self.model.get_comment(r, c)
-                if hasattr(self.model, "get_comment")
-                else None
-            )
+            cm = self.model.get_comment(r, c) if hasattr(self.model, "get_comment") else None
             new_hover = (r, c) if cm is not None else None
         if self._hover_comment_cell != new_hover:
             self._hover_comment_cell = new_hover
@@ -340,10 +366,7 @@ class GridViewport(QAbstractScrollArea):
     @property
     def is_auto_scrolling(self) -> bool:
         """Whether the boundary auto-scroll timer is currently active."""
-        return (
-            self._auto_scroll_timer is not None
-            and self._auto_scroll_timer.isActive()
-        )
+        return self._auto_scroll_timer is not None and self._auto_scroll_timer.isActive()
 
     @property
     def freeze_rows(self) -> int:
@@ -400,16 +423,8 @@ class GridViewport(QAbstractScrollArea):
         pr = self.selection.primary_range
         scroll_x = self.horizontalScrollBar().value()
         scroll_y = self.verticalScrollBar().value()
-        fx = (
-            self.row_header_width
-            + self.geometry_mapper.col_pos(pr.max_c + 1)
-            - scroll_x
-        )
-        fy = (
-            self.col_header_height
-            + self.geometry_mapper.row_pos(pr.max_r + 1)
-            - scroll_y
-        )
+        fx = self.row_header_width + self.geometry_mapper.col_pos(pr.max_c + 1) - scroll_x
+        fy = self.col_header_height + self.geometry_mapper.row_pos(pr.max_r + 1) - scroll_y
         return QRect(fx - 4, fy - 4, 9, 9)
 
     @property
@@ -486,8 +501,11 @@ class GridViewport(QAbstractScrollArea):
 
     def clear_undo_stack(self) -> None:
         """Clear all undo and redo history and reset transient interaction states."""
-        self._undo_stack.clear()
-        self._redo_stack.clear()
+        self.history.clear()
+        self._reset_transient_state()
+
+    def _reset_transient_state(self) -> None:
+        """Drop drag previews and the internal clipboard (another sheet is shown)."""
         self._internal_clipboard = None
         self._fill_preview_range = None
         self._move_preview_range = None
@@ -495,12 +513,11 @@ class GridViewport(QAbstractScrollArea):
         self._drag_snapshot = None
         self._dv_dropdown_rect = None
 
-    def set_model_and_selection(
-        self, model: SheetDataModel, selection: SelectionModel
-    ) -> None:
+    def set_model_and_selection(self, model: SheetDataModel, selection: SelectionModel) -> None:
         """Switch active SheetDataModel and SelectionModel."""
         self.cancel_drag(why="api")
-        self.clear_undo_stack()
+        # The history is kept: each entry switches back to its own sheet.
+        self._reset_transient_state()
         # Hover state refers to the previous sheet's cells; never carry it over.
         self._hover_comment_cell = None
         QToolTip.hideText()
@@ -663,16 +680,9 @@ class GridViewport(QAbstractScrollArea):
         # 4. AutoFill Handle & Selection Border area (active when single selection range)
         if len(self.selection.ranges) == 1:
             pr = self.selection.primary_range
-            is_editing = (
-                self.editor_controller is not None
-                and self.editor_controller.is_active
-            )
-            is_whole_rows = (
-                pr.min_c == 0 and pr.max_c >= self.geometry_mapper.max_cols - 1
-            )
-            is_whole_cols = (
-                pr.min_r == 0 and pr.max_r >= self.geometry_mapper.max_rows - 1
-            )
+            is_editing = self.editor_controller is not None and self.editor_controller.is_active
+            is_whole_rows = pr.min_c == 0 and pr.max_c >= self.geometry_mapper.max_cols - 1
+            is_whole_cols = pr.min_r == 0 and pr.max_r >= self.geometry_mapper.max_rows - 1
 
             r_tl = self.cell_rect(pr.min_r, pr.min_c)
             r_br = self.cell_rect(pr.max_r, pr.max_c)
@@ -704,12 +714,7 @@ class GridViewport(QAbstractScrollArea):
 
         # 4.5 AutoFilter Button area
         af = getattr(self.model, "auto_filter", None)
-        if (
-            af is not None
-            and hasattr(af, "r1")
-            and hasattr(af, "c1")
-            and hasattr(af, "c2")
-        ):
+        if af is not None and hasattr(af, "r1") and hasattr(af, "c1") and hasattr(af, "c2"):
             r1 = af.r1
             r_af_top = self.cell_rect(r1, af.c1)
             row_y = r_af_top.top()
@@ -821,11 +826,7 @@ class GridViewport(QAbstractScrollArea):
 
         for r in runs:
             fam = r.font_family or cell.font_family or "Arial"
-            sz = (
-                r.font_size
-                if r.font_size is not None
-                else (cell.font_size or 10)
-            )
+            sz = r.font_size if r.font_size is not None else (cell.font_size or 10)
             if r.vert_align in ("subscript", "superscript"):
                 sz = max(1.0, sz * 0.7)
 
@@ -857,9 +858,7 @@ class GridViewport(QAbstractScrollArea):
         # Measure width of cells in column
         for (r, c), cell in self.model.cells.items():
             disp_val = (
-                cell.get_display_value()
-                if hasattr(cell, "get_display_value")
-                else cell.value
+                cell.get_display_value() if hasattr(cell, "get_display_value") else cell.value
             )
             if c == col and disp_val is not None:
                 if cell.rich_runs:
@@ -880,13 +879,9 @@ class GridViewport(QAbstractScrollArea):
         self._update_scrollbars()
         self.viewport().update()
 
-    def calculate_overflow_span(
-        self, r: int, c: int, text_width: int, col_width: int
-    ) -> int:
+    def calculate_overflow_span(self, r: int, c: int, text_width: int, col_width: int) -> int:
         """Calculate how many consecutive empty neighbor columns text can overflow right."""
-        _, right_c = self.calculate_spill_bounds(
-            r, c, text_width, col_width, eff_h="left"
-        )
+        _, right_c = self.calculate_spill_bounds(r, c, text_width, col_width, eff_h="left")
         return right_c - c + 1
 
     def calculate_spill_bounds(
@@ -1130,9 +1125,7 @@ class GridViewport(QAbstractScrollArea):
             painter.restore()
 
         # 5.12 Draw Page Break Preview overlay & watermarks if active
-        self._paint_page_break_preview(
-            painter, cell_clip, scroll_x, scroll_y, vw, vh
-        )
+        self._paint_page_break_preview(painter, cell_clip, scroll_x, scroll_y, vw, vh)
 
         # 6. Draw Fixed Headers (Column Headers, Row Headers, Corner)
         self._paint_headers(
@@ -1140,19 +1133,13 @@ class GridViewport(QAbstractScrollArea):
         )
 
         # 7. Draw Resize Guide Line (on top of headers and grid)
-        if (
-            self._drag_mode == HitZone.COL_RESIZE
-            and self._resize_preview_pos is not None
-        ):
+        if self._drag_mode == HitZone.COL_RESIZE and self._resize_preview_pos is not None:
             painter.save()
             guide_pen = QPen(QColor(0, 0, 0), 1, Qt.PenStyle.DashLine)
             painter.setPen(guide_pen)
             painter.drawLine(self._resize_preview_pos, 0, self._resize_preview_pos, vh)
             painter.restore()
-        elif (
-            self._drag_mode == HitZone.ROW_RESIZE
-            and self._resize_preview_pos is not None
-        ):
+        elif self._drag_mode == HitZone.ROW_RESIZE and self._resize_preview_pos is not None:
             painter.save()
             guide_pen = QPen(QColor(0, 0, 0), 1, Qt.PenStyle.DashLine)
             painter.setPen(guide_pen)
@@ -1196,8 +1183,7 @@ class GridViewport(QAbstractScrollArea):
         y0 = self.col_header_height
         width = geo.col_pos(c2 + 1) - geo.col_pos(c1)
         height = geo.row_pos(r2 + 1) - geo.row_pos(r1)
-        saved = (self._printing, self._print_gridlines, self._print_font_factor,
-                 self._print_device)
+        saved = (self._printing, self._print_gridlines, self._print_font_factor, self._print_device)
         self._printing = True
         self._print_gridlines = gridlines
         self._print_font_factor = font_factor
@@ -1213,8 +1199,9 @@ class GridViewport(QAbstractScrollArea):
             self._paint_pane(painter, r1, r2, c1, c2, psx, psy, clip)
         finally:
             painter.restore()
-            (self._printing, self._print_gridlines, self._print_font_factor,
-             self._print_device) = saved
+            (self._printing, self._print_gridlines, self._print_font_factor, self._print_device) = (
+                saved
+            )
 
     def _paint_spill_border(self, painter: QPainter, psx: int, psy: int, clip: QRect) -> None:
         from atboffice.modules.spreadsheet.calc.grid_spill import spill_rect_at
@@ -1267,26 +1254,10 @@ class GridViewport(QAbstractScrollArea):
                 continue
             if rg.max_c < pc_start or rg.min_c > pc_end:
                 continue
-            x1 = (
-                self.row_header_width
-                + self.geometry_mapper.col_pos(rg.min_c)
-                - psx
-            )
-            y1 = (
-                self.col_header_height
-                + self.geometry_mapper.row_pos(rg.min_r)
-                - psy
-            )
-            x2 = (
-                self.row_header_width
-                + self.geometry_mapper.col_pos(rg.max_c + 1)
-                - psx
-            )
-            y2 = (
-                self.col_header_height
-                + self.geometry_mapper.row_pos(rg.max_r + 1)
-                - psy
-            )
+            x1 = self.row_header_width + self.geometry_mapper.col_pos(rg.min_c) - psx
+            y1 = self.col_header_height + self.geometry_mapper.row_pos(rg.min_r) - psy
+            x2 = self.row_header_width + self.geometry_mapper.col_pos(rg.max_c + 1) - psx
+            y2 = self.col_header_height + self.geometry_mapper.row_pos(rg.max_r + 1) - psy
             shade = QPainterPath()
             shade.setFillRule(Qt.FillRule.OddEvenFill)
             shade.addRect(QRectF(x1, y1, x2 - x1 - 1, y2 - y1 - 1))
@@ -1304,26 +1275,10 @@ class GridViewport(QAbstractScrollArea):
             painter.save()
             painter.setClipRect(pane_clip)
             pr = self._fill_preview_range
-            px1 = (
-                self.row_header_width
-                + self.geometry_mapper.col_pos(pr.min_c)
-                - psx
-            )
-            py1 = (
-                self.col_header_height
-                + self.geometry_mapper.row_pos(pr.min_r)
-                - psy
-            )
-            px2 = (
-                self.row_header_width
-                + self.geometry_mapper.col_pos(pr.max_c + 1)
-                - psx
-            )
-            py2 = (
-                self.col_header_height
-                + self.geometry_mapper.row_pos(pr.max_r + 1)
-                - psy
-            )
+            px1 = self.row_header_width + self.geometry_mapper.col_pos(pr.min_c) - psx
+            py1 = self.col_header_height + self.geometry_mapper.row_pos(pr.min_r) - psy
+            px2 = self.row_header_width + self.geometry_mapper.col_pos(pr.max_c + 1) - psx
+            py2 = self.col_header_height + self.geometry_mapper.row_pos(pr.max_r + 1) - psy
             dash_pen = QPen(QColor(128, 128, 128), 2, Qt.PenStyle.DashLine)
             painter.setPen(dash_pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -1338,26 +1293,10 @@ class GridViewport(QAbstractScrollArea):
             painter.save()
             painter.setClipRect(pane_clip)
             pr = self._move_preview_range
-            px1 = (
-                self.row_header_width
-                + self.geometry_mapper.col_pos(pr.min_c)
-                - psx
-            )
-            py1 = (
-                self.col_header_height
-                + self.geometry_mapper.row_pos(pr.min_r)
-                - psy
-            )
-            px2 = (
-                self.row_header_width
-                + self.geometry_mapper.col_pos(pr.max_c + 1)
-                - psx
-            )
-            py2 = (
-                self.col_header_height
-                + self.geometry_mapper.row_pos(pr.max_r + 1)
-                - psy
-            )
+            px1 = self.row_header_width + self.geometry_mapper.col_pos(pr.min_c) - psx
+            py1 = self.col_header_height + self.geometry_mapper.row_pos(pr.min_r) - psy
+            px2 = self.row_header_width + self.geometry_mapper.col_pos(pr.max_c + 1) - psx
+            py2 = self.col_header_height + self.geometry_mapper.row_pos(pr.max_r + 1) - psy
             move_pen = QPen(self.COLOR_ACTIVE_BORDER, 2, Qt.PenStyle.DashLine)
             painter.setPen(move_pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -1365,34 +1304,24 @@ class GridViewport(QAbstractScrollArea):
             painter.restore()
 
         # 3. Draw Gridlines (unless the sheet hides them: showGridLines="0")
-        if (self._print_gridlines if printing else self.show_grid_lines):
+        if self._print_gridlines if printing else self.show_grid_lines:
             painter.save()
             painter.setClipRect(pane_clip)
             painter.setPen(QPen(self.COLOR_GRIDLINE, 1))
 
             # Vertical gridlines
             for c in range(pc_start, pc_end + 2):
-                x = (
-                    self.row_header_width
-                    + self.geometry_mapper.col_pos(c)
-                    - psx
-                )
+                x = self.row_header_width + self.geometry_mapper.col_pos(c) - psx
                 painter.drawLine(x, self.col_header_height, x, vh)
 
             # Horizontal gridlines
             for r in range(pr_start, pr_end + 2):
-                y = (
-                    self.col_header_height
-                    + self.geometry_mapper.row_pos(r)
-                    - psy
-                )
+                y = self.col_header_height + self.geometry_mapper.row_pos(r) - psy
                 painter.drawLine(self.row_header_width, y, vw, y)
             painter.restore()
 
         # 3.5 Draw Dynamic PivotTable Bands, Headers, Subtotals & Grand Totals
-        self._paint_pivot_reports(
-            painter, pr_start, pr_end, pc_start, pc_end, psx, psy, pane_clip
-        )
+        self._paint_pivot_reports(painter, pr_start, pr_end, pc_start, pc_end, psx, psy, pane_clip)
 
         # 4. Draw Cell Contents (Pass 1: Fills/Merges, Pass 2: Text/Spill, Pass 3: Borders)
         painter.save()
@@ -1401,9 +1330,7 @@ class GridViewport(QAbstractScrollArea):
         fz_c = 0 if printing else self.freeze_cols
         pane_min_col = fz_c if (fz_c > 0 and pc_start >= fz_c) else 0
         pane_max_col = (
-            fz_c - 1
-            if (fz_c > 0 and pc_end < fz_c)
-            else self.geometry_mapper.max_cols - 1
+            fz_c - 1 if (fz_c > 0 and pc_end < fz_c) else self.geometry_mapper.max_cols - 1
         )
         items, merge_by_cell = self._collect_pane_items(
             pr_start, pr_end, pc_start, pc_end, psx, psy
@@ -1479,16 +1406,8 @@ class GridViewport(QAbstractScrollArea):
         painter.setClipRect(pane_clip)
         ar, ac = self.selection.active_cell
         if pr_start <= ar <= pr_end and pc_start <= ac <= pc_end:
-            ax = (
-                self.row_header_width
-                + self.geometry_mapper.col_pos(ac)
-                - psx
-            )
-            ay = (
-                self.col_header_height
-                + self.geometry_mapper.row_pos(ar)
-                - psy
-            )
+            ax = self.row_header_width + self.geometry_mapper.col_pos(ac) - psx
+            ay = self.col_header_height + self.geometry_mapper.row_pos(ar) - psy
             aw = self.geometry_mapper.col_size(ac)
             ah = self.geometry_mapper.row_size(ar)
 
@@ -1498,28 +1417,14 @@ class GridViewport(QAbstractScrollArea):
 
             # AutoFill handle square at bottom-right of active range
             pr = self.selection.primary_range
-            fx = (
-                self.row_header_width
-                + self.geometry_mapper.col_pos(pr.max_c + 1)
-                - psx
-                - 3
-            )
-            fy = (
-                self.col_header_height
-                + self.geometry_mapper.row_pos(pr.max_r + 1)
-                - psy
-                - 3
-            )
+            fx = self.row_header_width + self.geometry_mapper.col_pos(pr.max_c + 1) - psx - 3
+            fy = self.col_header_height + self.geometry_mapper.row_pos(pr.max_r + 1) - psy - 3
             painter.fillRect(fx - 1, fy - 1, 7, 7, Qt.GlobalColor.white)
             painter.fillRect(fx, fy, 5, 5, self.COLOR_FILL_HANDLE)
 
             # Dropdown arrow indicator if active cell has list validation
             active_dv = self.model.get_validation_at(ar, ac)
-            if (
-                active_dv is not None
-                and active_dv.type == "list"
-                and active_dv.show_dropdown
-            ):
+            if active_dv is not None and active_dv.type == "list" and active_dv.show_dropdown:
                 btn_w = 16
                 btn_h = ah - 2
                 btn_x = ax + aw - btn_w - 1
@@ -1539,31 +1444,14 @@ class GridViewport(QAbstractScrollArea):
         painter.restore()
 
         # 5.5 Draw Reference Highlights (if in formula editing / point mode)
-        if (
-            self.editor_controller is not None
-            and self.editor_controller.highlights
-        ):
+        if self.editor_controller is not None and self.editor_controller.highlights:
             painter.save()
             painter.setClipRect(pane_clip)
             for hl in self.editor_controller.highlights:
-                hx = (
-                    self.row_header_width
-                    + self.geometry_mapper.col_pos(hl.c1)
-                    - psx
-                )
-                hy = (
-                    self.col_header_height
-                    + self.geometry_mapper.row_pos(hl.r1)
-                    - psy
-                )
-                hw = sum(
-                    self.geometry_mapper.col_size(c)
-                    for c in range(hl.c1, hl.c2 + 1)
-                )
-                hh = sum(
-                    self.geometry_mapper.row_size(r)
-                    for r in range(hl.r1, hl.r2 + 1)
-                )
+                hx = self.row_header_width + self.geometry_mapper.col_pos(hl.c1) - psx
+                hy = self.col_header_height + self.geometry_mapper.row_pos(hl.r1) - psy
+                hw = sum(self.geometry_mapper.col_size(c) for c in range(hl.c1, hl.c2 + 1))
+                hh = sum(self.geometry_mapper.row_size(r) for r in range(hl.r1, hl.r2 + 1))
 
                 painter.setPen(QPen(hl.color, 2, Qt.PenStyle.SolidLine))
                 painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -1583,12 +1471,7 @@ class GridViewport(QAbstractScrollArea):
         # ledger/js/grid.js syncWidgets)
         filter_bands: list[tuple[int, int, int, Any]] = []
         af = getattr(self.model, "auto_filter", None)
-        if (
-            af is not None
-            and hasattr(af, "r1")
-            and hasattr(af, "c1")
-            and hasattr(af, "c2")
-        ):
+        if af is not None and hasattr(af, "r1") and hasattr(af, "c1") and hasattr(af, "c2"):
             filter_bands.append((af.r1, af.c1, af.c2, getattr(af, "cols", {})))
         for tbl in getattr(self.model, "tables", None) or ():
             if tbl.has_auto_filter and tbl.has_header:
@@ -1597,20 +1480,12 @@ class GridViewport(QAbstractScrollArea):
             if pr_start <= r1 <= pr_end:
                 painter.save()
                 painter.setClipRect(pane_clip)
-                row_y = (
-                    self.col_header_height
-                    + self.geometry_mapper.row_pos(r1)
-                    - psy
-                )
+                row_y = self.col_header_height + self.geometry_mapper.row_pos(r1) - psy
                 row_h = self.geometry_mapper.row_size(r1)
                 btn_size = min(16, max(12, row_h - 2))
 
                 for c in range(max(pc_start, band_c1), min(pc_end, band_c2) + 1):
-                    col_x = (
-                        self.row_header_width
-                        + self.geometry_mapper.col_pos(c)
-                        - psx
-                    )
+                    col_x = self.row_header_width + self.geometry_mapper.col_pos(c) - psx
                     col_w = self.geometry_mapper.col_size(c)
                     if col_w <= btn_size:
                         continue
@@ -1637,9 +1512,7 @@ class GridViewport(QAbstractScrollArea):
                         and hasattr(cols[col_offset], "has_criteria")
                         and cols[col_offset].has_criteria()
                     )
-                    arrow_color = (
-                        QColor(0, 0, 255) if has_active_crit else QColor(0, 0, 0)
-                    )
+                    arrow_color = QColor(0, 0, 255) if has_active_crit else QColor(0, 0, 0)
                     painter.setBrush(QBrush(arrow_color))
                     painter.setPen(QPen(arrow_color, 1))
 
@@ -1672,16 +1545,8 @@ class GridViewport(QAbstractScrollArea):
             for cr, cc in circles:
                 if cr < pr_start or cr > pr_end or cc < pc_start or cc > pc_end:
                     continue
-                cx = (
-                    self.row_header_width
-                    + self.geometry_mapper.col_pos(cc)
-                    - psx
-                )
-                cy = (
-                    self.col_header_height
-                    + self.geometry_mapper.row_pos(cr)
-                    - psy
-                )
+                cx = self.row_header_width + self.geometry_mapper.col_pos(cc) - psx
+                cy = self.col_header_height + self.geometry_mapper.row_pos(cr) - psy
                 cw = self.geometry_mapper.col_size(cc)
                 ch = self.geometry_mapper.row_size(cr)
                 if cw <= 0 or ch <= 0:
@@ -1701,16 +1566,8 @@ class GridViewport(QAbstractScrollArea):
             for cr, cc in comments.keys():
                 if cr < pr_start or cr > pr_end or cc < pc_start or cc > pc_end:
                     continue
-                cx = (
-                    self.row_header_width
-                    + self.geometry_mapper.col_pos(cc)
-                    - psx
-                )
-                cy = (
-                    self.col_header_height
-                    + self.geometry_mapper.row_pos(cr)
-                    - psy
-                )
+                cx = self.row_header_width + self.geometry_mapper.col_pos(cc) - psx
+                cy = self.col_header_height + self.geometry_mapper.row_pos(cr) - psy
                 cw = self.geometry_mapper.col_size(cc)
                 ch = self.geometry_mapper.row_size(cr)
                 if cw <= 0 or ch <= 0:
@@ -1735,16 +1592,8 @@ class GridViewport(QAbstractScrollArea):
                     continue
                 if cr < pr_start or cr > pr_end or cc < pc_start or cc > pc_end:
                     continue
-                cx = (
-                    self.row_header_width
-                    + self.geometry_mapper.col_pos(cc)
-                    - psx
-                )
-                cy = (
-                    self.col_header_height
-                    + self.geometry_mapper.row_pos(cr)
-                    - psy
-                )
+                cx = self.row_header_width + self.geometry_mapper.col_pos(cc) - psx
+                cy = self.col_header_height + self.geometry_mapper.row_pos(cr) - psy
                 cw = self.geometry_mapper.col_size(cc)
                 ch = self.geometry_mapper.row_size(cr)
                 if cw <= 0 or ch <= 0:
@@ -1830,9 +1679,7 @@ class GridViewport(QAbstractScrollArea):
     _COMMENT_NOTE_BG = QColor(0xFF, 0xFF, 0xE1)
     _COMMENT_GAP = 14
 
-    def _comment_callout_rect(
-        self, r: int, c: int, cm: Any, cell: QRect | None = None
-    ) -> QRect:
+    def _comment_callout_rect(self, r: int, c: int, cm: Any, cell: QRect | None = None) -> QRect:
         """Viewport rect of the note callout for cell (r, c).
 
         The box sits to the right of the cell; it flips to the left when it
@@ -1875,9 +1722,7 @@ class GridViewport(QAbstractScrollArea):
         return w
 
     @staticmethod
-    def _measure_formatted_width(
-        fmt_res: FormattedResult, cell_fm: QFontMetricsF
-    ) -> float:
+    def _measure_formatted_width(fmt_res: FormattedResult, cell_fm: QFontMetricsF) -> float:
         """Measure horizontal advance of formatted segments excluding fill tokens."""
         if not fmt_res.segments:
             return cell_fm.horizontalAdvance(fmt_res.text)
@@ -1952,11 +1797,7 @@ class GridViewport(QAbstractScrollArea):
     ) -> None:
         """Render formatted segments with exact `_x` padding and `*x` fill expansion."""
         avail = max(0.0, float(text_rect.width()))
-        fixed_w = sum(
-            cell_fm.horizontalAdvance(s.value)
-            for s in segments
-            if s.kind != "fill"
-        )
+        fixed_w = sum(cell_fm.horizontalAdvance(s.value) for s in segments if s.kind != "fill")
         fill_count = sum(1 for s in segments if s.kind == "fill")
         spare = max(0.0, avail - fixed_w)
 
@@ -2046,11 +1887,7 @@ class GridViewport(QAbstractScrollArea):
             if mw <= 0 or mh <= 0:
                 continue
             anchor_cell = self.model.get_cell(mr1, mc1)
-            cf_res = (
-                evaluate_cf_for_cell(self.model, mr1, mc1)
-                if anchor_cell is not None
-                else None
-            )
+            cf_res = evaluate_cf_for_cell(self.model, mr1, mc1) if anchor_cell is not None else None
             cf_res = overlay_table_style(
                 cf_res,
                 table_style_at(self.model, mr1, mc1),
@@ -2286,11 +2123,7 @@ class GridViewport(QAbstractScrollArea):
         merge_by_cell: dict[tuple[int, int], tuple[int, int, int, int]],
     ) -> None:
         """Paint cell or merged-block text with bidirectional neighbor spill and wrapping."""
-        disp_val = (
-            cell.get_display_value()
-            if hasattr(cell, "get_display_value")
-            else cell.value
-        )
+        disp_val = cell.get_display_value() if hasattr(cell, "get_display_value") else cell.value
         if disp_val is None or disp_val == "":
             return
 
@@ -2364,16 +2197,8 @@ class GridViewport(QAbstractScrollArea):
             return
 
         font = self._cell_font(cell.font_family, cell.font_size)
-        is_bold = (
-            cf_res.bold
-            if (cf_res and cf_res.bold is not None)
-            else cell.bold
-        )
-        is_italic = (
-            cf_res.italic
-            if (cf_res and cf_res.italic is not None)
-            else cell.italic
-        )
+        is_bold = cf_res.bold if (cf_res and cf_res.bold is not None) else cell.bold
+        is_italic = cf_res.italic if (cf_res and cf_res.italic is not None) else cell.italic
         font.setBold(is_bold)
         font.setItalic(is_italic)
         font.setUnderline(cell.underline)
@@ -2421,15 +2246,9 @@ class GridViewport(QAbstractScrollArea):
         painter.setFont(font)
 
         text_col_str = (
-            cf_res.fg_color
-            if (cf_res and cf_res.fg_color)
-            else (fmt_res.color or cell.fg_color)
+            cf_res.fg_color if (cf_res and cf_res.fg_color) else (fmt_res.color or cell.fg_color)
         )
-        text_color = (
-            QColor(text_col_str)
-            if text_col_str
-            else Qt.GlobalColor.black
-        )
+        text_color = QColor(text_col_str) if text_col_str else Qt.GlobalColor.black
         painter.setPen(text_color)
 
         if eff_v == "top":
@@ -2484,9 +2303,7 @@ class GridViewport(QAbstractScrollArea):
             # Keep the text clear of the icon drawn at the left edge.
             text_rect = text_rect.adjusted(min(icon_w, text_rect.width()), 0, 0, 0)
 
-        has_pad_or_fill = fmt_res.has_fill or any(
-            s.kind == "pad" for s in fmt_res.segments
-        )
+        has_pad_or_fill = fmt_res.has_fill or any(s.kind == "pad" for s in fmt_res.segments)
         if has_pad_or_fill and fmt_res.segments:
             self._paint_formatted_segments(
                 painter,
@@ -2657,11 +2474,7 @@ class GridViewport(QAbstractScrollArea):
 
         for r in runs:
             fam = r.font_family or cell.font_family or "Arial"
-            sz = (
-                r.font_size
-                if r.font_size is not None
-                else (cell.font_size or 10)
-            )
+            sz = r.font_size if r.font_size is not None else (cell.font_size or 10)
             vert = r.vert_align
             if vert in ("subscript", "superscript"):
                 sz = max(1.0, sz * 0.7)
@@ -2673,44 +2486,23 @@ class GridViewport(QAbstractScrollArea):
             bold = (
                 r.bold
                 if r.bold is not None
-                else (
-                    cf_res.bold
-                    if (cf_res and cf_res.bold is not None)
-                    else cell.bold
-                )
+                else (cf_res.bold if (cf_res and cf_res.bold is not None) else cell.bold)
             )
             italic = (
                 r.italic
                 if r.italic is not None
-                else (
-                    cf_res.italic
-                    if (cf_res and cf_res.italic is not None)
-                    else cell.italic
-                )
+                else (cf_res.italic if (cf_res and cf_res.italic is not None) else cell.italic)
             )
-            under = (
-                r.underline
-                if r.underline is not None
-                else cell.underline
-            )
-            strike = (
-                r.strike
-                if r.strike is not None
-                else cell.strike
-            )
+            under = r.underline if r.underline is not None else cell.underline
+            strike = r.strike if r.strike is not None else cell.strike
 
             rf.setBold(bold)
             rf.setItalic(italic)
             rf.setUnderline(under)
             rf.setStrikeOut(strike)
 
-            col_str = (
-                r.fg_color
-                or (
-                    cf_res.fg_color
-                    if (cf_res and cf_res.fg_color)
-                    else cell.fg_color
-                )
+            col_str = r.fg_color or (
+                cf_res.fg_color if (cf_res and cf_res.fg_color) else cell.fg_color
             )
             rc = QColor(col_str) if col_str else Qt.GlobalColor.black
 
@@ -2790,7 +2582,6 @@ class GridViewport(QAbstractScrollArea):
 
         painter.restore()
 
-
     def _paint_page_break_preview(
         self,
         painter: QPainter,
@@ -2808,12 +2599,8 @@ class GridViewport(QAbstractScrollArea):
         page_rows = row_bounds[-1]
         page_cols = col_bounds[-1]
 
-        print_x1 = (
-            self.row_header_width + self.geometry_mapper.col_pos(col_bounds[0]) - scroll_x
-        )
-        print_y1 = (
-            self.col_header_height + self.geometry_mapper.row_pos(row_bounds[0]) - scroll_y
-        )
+        print_x1 = self.row_header_width + self.geometry_mapper.col_pos(col_bounds[0]) - scroll_x
+        print_y1 = self.col_header_height + self.geometry_mapper.row_pos(row_bounds[0]) - scroll_y
         print_x2 = self.row_header_width + self.geometry_mapper.col_pos(page_cols) - scroll_x
         print_y2 = self.col_header_height + self.geometry_mapper.row_pos(page_rows) - scroll_y
         total_print_rect = QRect(print_x1, print_y1, print_x2 - print_x1, print_y2 - print_y1)
@@ -3166,9 +2953,7 @@ class GridViewport(QAbstractScrollArea):
             vertical=True,
         )
         painter.setPen(QPen(self.COLOR_HDR_BORDER, 1))
-        painter.drawRect(
-            0, 0, self.row_header_width, self.col_header_height
-        )
+        painter.drawRect(0, 0, self.row_header_width, self.col_header_height)
 
         # Draw diagonal triangle in corner box
         painter.setBrush(QBrush(QColor(160, 160, 160)))
@@ -3193,11 +2978,7 @@ class GridViewport(QAbstractScrollArea):
         for c in range(start_col, end_col + 1):
             if fz_c > 0 and c < fz_c:
                 continue
-            cx = (
-                self.row_header_width
-                + self.geometry_mapper.col_pos(c)
-                - scroll_x
-            )
+            cx = self.row_header_width + self.geometry_mapper.col_pos(c) - scroll_x
             cw = self.geometry_mapper.col_size(c)
             if cw <= 0:
                 continue
@@ -3208,9 +2989,7 @@ class GridViewport(QAbstractScrollArea):
             )
 
             painter.setPen(QPen(self.COLOR_HDR_BORDER, 1))
-            painter.drawLine(
-                cx + cw, 0, cx + cw, self.col_header_height
-            )
+            painter.drawLine(cx + cw, 0, cx + cw, self.col_header_height)
             painter.drawLine(
                 cx,
                 self.col_header_height - 1,
@@ -3250,9 +3029,7 @@ class GridViewport(QAbstractScrollArea):
                 )
 
                 painter.setPen(QPen(self.COLOR_HDR_BORDER, 1))
-                painter.drawLine(
-                    cx + cw, 0, cx + cw, self.col_header_height
-                )
+                painter.drawLine(cx + cw, 0, cx + cw, self.col_header_height)
                 painter.drawLine(
                     cx,
                     self.col_header_height - 1,
@@ -3282,11 +3059,7 @@ class GridViewport(QAbstractScrollArea):
         for r in range(start_row, end_row + 1):
             if fz_r > 0 and r < fz_r:
                 continue
-            ry = (
-                self.col_header_height
-                + self.geometry_mapper.row_pos(r)
-                - scroll_y
-            )
+            ry = self.col_header_height + self.geometry_mapper.row_pos(r) - scroll_y
             rh = self.geometry_mapper.row_size(r)
             if rh <= 0:
                 continue
@@ -3297,9 +3070,7 @@ class GridViewport(QAbstractScrollArea):
             )
 
             painter.setPen(QPen(self.COLOR_HDR_BORDER, 1))
-            painter.drawLine(
-                0, ry + rh, self.row_header_width, ry + rh
-            )
+            painter.drawLine(0, ry + rh, self.row_header_width, ry + rh)
             painter.drawLine(
                 self.row_header_width - 1,
                 ry,
@@ -3339,9 +3110,7 @@ class GridViewport(QAbstractScrollArea):
                 )
 
                 painter.setPen(QPen(self.COLOR_HDR_BORDER, 1))
-                painter.drawLine(
-                    0, ry + rh, self.row_header_width, ry + rh
-                )
+                painter.drawLine(0, ry + rh, self.row_header_width, ry + rh)
                 painter.drawLine(
                     self.row_header_width - 1,
                     ry,
@@ -3362,8 +3131,10 @@ class GridViewport(QAbstractScrollArea):
             painter.save()
             painter.setPen(QPen(QColor(128, 128, 128), 2))
             painter.drawLine(
-                self.row_header_width + fz_c_w, 0,
-                self.row_header_width + fz_c_w, self.col_header_height
+                self.row_header_width + fz_c_w,
+                0,
+                self.row_header_width + fz_c_w,
+                self.col_header_height,
             )
             painter.restore()
 
@@ -3371,8 +3142,10 @@ class GridViewport(QAbstractScrollArea):
             painter.save()
             painter.setPen(QPen(QColor(128, 128, 128), 2))
             painter.drawLine(
-                0, self.col_header_height + fz_r_h,
-                self.row_header_width, self.col_header_height + fz_r_h
+                0,
+                self.col_header_height + fz_r_h,
+                self.row_header_width,
+                self.col_header_height + fz_r_h,
             )
             painter.restore()
 
@@ -3481,9 +3254,7 @@ class GridViewport(QAbstractScrollArea):
                     for c, sz in snap.resize_orig_sizes.items():
                         self.geometry_mapper.set_col_width(c, sz)
                 elif snap.resize_index >= 0:
-                    self.geometry_mapper.set_col_width(
-                        snap.resize_index, snap.resize_orig_size
-                    )
+                    self.geometry_mapper.set_col_width(snap.resize_index, snap.resize_orig_size)
                 self._update_scrollbars()
             elif snap.zone == HitZone.ROW_RESIZE:
                 if self._resize_orig_sizes:
@@ -3493,9 +3264,7 @@ class GridViewport(QAbstractScrollArea):
                     for r, sz in snap.resize_orig_sizes.items():
                         self.geometry_mapper.set_row_height(r, sz)
                 elif snap.resize_index >= 0:
-                    self.geometry_mapper.set_row_height(
-                        snap.resize_index, snap.resize_orig_size
-                    )
+                    self.geometry_mapper.set_row_height(snap.resize_index, snap.resize_orig_size)
                 self._update_scrollbars()
             elif snap.zone == HitZone.FILL_HANDLE:
                 self._fill_start_src = None
@@ -3566,16 +3335,12 @@ class GridViewport(QAbstractScrollArea):
                     self.selection.select_cell(hit.row, hit.col)
             elif hit.zone == HitZone.COL_HEADER and hit.col is not None:
                 pr = self.selection.primary_range
-                is_whole_cols = (
-                    pr.min_r == 0 and pr.max_r == self.selection.max_rows - 1
-                )
+                is_whole_cols = pr.min_r == 0 and pr.max_r == self.selection.max_rows - 1
                 if not (is_whole_cols and pr.min_c <= hit.col <= pr.max_c):
                     self.selection.select_cols(hit.col, hit.col)
             elif hit.zone == HitZone.ROW_HEADER and hit.row is not None:
                 pr = self.selection.primary_range
-                is_whole_rows = (
-                    pr.min_c == 0 and pr.max_c == self.selection.max_cols - 1
-                )
+                is_whole_rows = pr.min_c == 0 and pr.max_c == self.selection.max_cols - 1
                 if not (is_whole_rows and pr.min_r <= hit.row <= pr.max_r):
                     self.selection.select_rows(hit.row, hit.row)
             elif hit.zone == HitZone.CORNER:
@@ -3592,10 +3357,7 @@ class GridViewport(QAbstractScrollArea):
         x, y = self.map_from_device(event.position().x(), event.position().y())
 
         # Check click on List Validation dropdown arrow button
-        if (
-            self._dv_dropdown_rect is not None
-            and self._dv_dropdown_rect.contains(int(x), int(y))
-        ):
+        if self._dv_dropdown_rect is not None and self._dv_dropdown_rect.contains(int(x), int(y)):
             self._open_dv_dropdown()
             return
 
@@ -3712,11 +3474,7 @@ class GridViewport(QAbstractScrollArea):
             self._fill_start_src = self.selection.primary_range
             self._fill_preview_range = self._fill_start_src
             self._fill_ctrl_pressed = bool(
-                modifiers
-                & (
-                    Qt.KeyboardModifier.ControlModifier
-                    | Qt.KeyboardModifier.MetaModifier
-                )
+                modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier)
             )
             self._drag_snapshot = DragSnapshot(
                 zone=HitZone.FILL_HANDLE,
@@ -3738,11 +3496,7 @@ class GridViewport(QAbstractScrollArea):
             )
             self._move_preview_range = self._move_src_range
             self._move_ctrl_pressed = bool(
-                modifiers
-                & (
-                    Qt.KeyboardModifier.ControlModifier
-                    | Qt.KeyboardModifier.MetaModifier
-                )
+                modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier)
             )
             self._drag_snapshot = DragSnapshot(
                 zone=HitZone.BORDER,
@@ -3759,9 +3513,7 @@ class GridViewport(QAbstractScrollArea):
             return
 
         elif (
-            hit.zone == HitZone.PIVOT_FILTER_BUTTON
-            and hit.row is not None
-            and hit.col is not None
+            hit.zone == HitZone.PIVOT_FILTER_BUTTON and hit.row is not None and hit.col is not None
         ):
             self._open_pivot_filter_dropdown(hit.row, hit.col)
             return
@@ -3779,18 +3531,14 @@ class GridViewport(QAbstractScrollArea):
             ):
                 self._point_anchor = (hit.row, hit.col)
                 self._drag_mode = HitZone.CELL
-                self.editor_controller.point_at(
-                    hit.row, hit.col, hit.row, hit.col
-                )
+                self.editor_controller.point_at(hit.row, hit.col, hit.row, hit.col)
                 self.reveal(hit.row, hit.col)
                 self.viewport().update()
                 return
 
             self._drag_mode = HitZone.CELL
             if modifiers & Qt.KeyboardModifier.ControlModifier:
-                self.selection.add_range(
-                    SelectionRange(hit.row, hit.col, hit.row, hit.col)
-                )
+                self.selection.add_range(SelectionRange(hit.row, hit.col, hit.row, hit.col))
             elif modifiers & Qt.KeyboardModifier.ShiftModifier:
                 self.selection.extend_to(hit.row, hit.col)
             else:
@@ -3879,16 +3627,8 @@ class GridViewport(QAbstractScrollArea):
         # 3. Auto-scroll boundary check
         vw, vh = self._view_size()
 
-        fz_r_h = (
-            self.geometry_mapper.row_pos(self.freeze_rows)
-            if self.freeze_rows > 0
-            else 0
-        )
-        fz_c_w = (
-            self.geometry_mapper.col_pos(self.freeze_cols)
-            if self.freeze_cols > 0
-            else 0
-        )
+        fz_r_h = self.geometry_mapper.row_pos(self.freeze_rows) if self.freeze_rows > 0 else 0
+        fz_c_w = self.geometry_mapper.col_pos(self.freeze_cols) if self.freeze_cols > 0 else 0
 
         scroll_top = self.col_header_height + fz_r_h
         scroll_left = self.row_header_width + fz_c_w
@@ -3930,24 +3670,16 @@ class GridViewport(QAbstractScrollArea):
         """Handle active drag update at (x, y)."""
         if self._drag_mode == HitZone.FILL_HANDLE:
             self._fill_ctrl_pressed = bool(
-                modifiers
-                & (
-                    Qt.KeyboardModifier.ControlModifier
-                    | Qt.KeyboardModifier.MetaModifier
-                )
+                modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier)
             )
             hit = self.hit_test(x, y)
             row = hit.row
             col = hit.col
             if row is None:
-                sheet_y = max(
-                    0, self.verticalScrollBar().value() + (y - self.col_header_height)
-                )
+                sheet_y = max(0, self.verticalScrollBar().value() + (y - self.col_header_height))
                 row = self.geometry_mapper.find_row_at(sheet_y)
             if col is None:
-                sheet_x = max(
-                    0, self.horizontalScrollBar().value() + (x - self.row_header_width)
-                )
+                sheet_x = max(0, self.horizontalScrollBar().value() + (x - self.row_header_width))
                 col = self.geometry_mapper.find_col_at(sheet_x)
 
             if self._fill_start_src is not None:
@@ -3973,9 +3705,7 @@ class GridViewport(QAbstractScrollArea):
 
         elif self._drag_mode == HitZone.COL_RESIZE:
             delta = x - self._resize_start_pos
-            base_w = self._resize_orig_sizes.get(
-                self._resize_index, self._resize_orig_size
-            )
+            base_w = self._resize_orig_sizes.get(self._resize_index, self._resize_orig_size)
             new_w = max(0, base_w + delta)
             self._resize_preview_size = new_w
             self._resize_preview_pos = x
@@ -3992,9 +3722,7 @@ class GridViewport(QAbstractScrollArea):
 
         elif self._drag_mode == HitZone.ROW_RESIZE:
             delta = y - self._resize_start_pos
-            base_h = self._resize_orig_sizes.get(
-                self._resize_index, self._resize_orig_size
-            )
+            base_h = self._resize_orig_sizes.get(self._resize_index, self._resize_orig_size)
             new_h = max(0, base_h + delta)
             self._resize_preview_size = new_h
             self._resize_preview_pos = y
@@ -4034,17 +3762,13 @@ class GridViewport(QAbstractScrollArea):
             hit = self.hit_test(x, y)
             target_c = hit.col
             if target_c is None:
-                sheet_x = max(
-                    0, self.horizontalScrollBar().value() + (x - self.row_header_width)
-                )
+                sheet_x = max(0, self.horizontalScrollBar().value() + (x - self.row_header_width))
                 target_c = self.geometry_mapper.find_col_at(sheet_x)
             orig_c = (
                 self._header_drag_anchor
                 if self._header_drag_anchor >= 0
                 else (
-                    self._drag_snapshot.selection_snapshot.get(
-                        "anchor_cell", (0, target_c)
-                    )[1]
+                    self._drag_snapshot.selection_snapshot.get("anchor_cell", (0, target_c))[1]
                     if self._drag_snapshot is not None
                     else target_c
                 )
@@ -4057,17 +3781,13 @@ class GridViewport(QAbstractScrollArea):
             hit = self.hit_test(x, y)
             target_r = hit.row
             if target_r is None:
-                sheet_y = max(
-                    0, self.verticalScrollBar().value() + (y - self.col_header_height)
-                )
+                sheet_y = max(0, self.verticalScrollBar().value() + (y - self.col_header_height))
                 target_r = self.geometry_mapper.find_row_at(sheet_y)
             orig_r = (
                 self._header_drag_anchor
                 if self._header_drag_anchor >= 0
                 else (
-                    self._drag_snapshot.selection_snapshot.get(
-                        "anchor_cell", (target_r, 0)
-                    )[0]
+                    self._drag_snapshot.selection_snapshot.get("anchor_cell", (target_r, 0))[0]
                     if self._drag_snapshot is not None
                     else target_r
                 )
@@ -4078,18 +3798,10 @@ class GridViewport(QAbstractScrollArea):
 
         elif self._drag_mode == HitZone.BORDER:
             self._move_ctrl_pressed = bool(
-                modifiers
-                & (
-                    Qt.KeyboardModifier.ControlModifier
-                    | Qt.KeyboardModifier.MetaModifier
-                )
+                modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier)
             )
-            sheet_x = max(
-                0, self.horizontalScrollBar().value() + (x - self.row_header_width)
-            )
-            sheet_y = max(
-                0, self.verticalScrollBar().value() + (y - self.col_header_height)
-            )
+            sheet_x = max(0, self.horizontalScrollBar().value() + (x - self.row_header_width))
+            sheet_y = max(0, self.verticalScrollBar().value() + (y - self.col_header_height))
             curr_r = self.geometry_mapper.find_row_at(sheet_y)
             curr_c = self.geometry_mapper.find_col_at(sheet_x)
 
@@ -4155,15 +3867,10 @@ class GridViewport(QAbstractScrollArea):
 
                 ctrl = self._fill_ctrl_pressed or bool(
                     event.modifiers()
-                    & (
-                        Qt.KeyboardModifier.ControlModifier
-                        | Qt.KeyboardModifier.MetaModifier
-                    )
+                    & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier)
                 )
-                single = (src.min_r == src.max_r and src.min_c == src.max_c)
-                fill_mode = (
-                    "linear" if (ctrl and single) else ("copy" if ctrl else "auto")
-                )
+                single = src.min_r == src.max_r and src.min_c == src.max_c
+                fill_mode = "linear" if (ctrl and single) else ("copy" if ctrl else "auto")
 
                 # Capture sparse delta bounding box (prevents whole-sheet memory spike)
                 min_r = min(src.min_r, dest.min_r)
@@ -4171,15 +3878,11 @@ class GridViewport(QAbstractScrollArea):
                 min_c = min(src.min_c, dest.min_c)
                 max_c = max(src.max_c, dest.max_c)
                 affected_coords = [
-                    (r, c)
-                    for r in range(min_r, max_r + 1)
-                    for c in range(min_c, max_c + 1)
+                    (r, c) for r in range(min_r, max_r + 1) for c in range(min_c, max_c + 1)
                 ]
                 before_delta = {
                     (r, c): (
-                        self.model.get_cell(r, c).clone()
-                        if self.model.get_cell(r, c)
-                        else None
+                        self.model.get_cell(r, c).clone() if self.model.get_cell(r, c) else None
                     )
                     for (r, c) in affected_coords
                 }
@@ -4197,15 +3900,13 @@ class GridViewport(QAbstractScrollArea):
 
                 after_delta = {
                     (r, c): (
-                        self.model.get_cell(r, c).clone()
-                        if self.model.get_cell(r, c)
-                        else None
+                        self.model.get_cell(r, c).clone() if self.model.get_cell(r, c) else None
                     )
                     for (r, c) in affected_coords
                 }
                 after_sel = self.selection.snapshot()
 
-                self._undo_stack.append(
+                self._record_entry(
                     {
                         "action": "autofill",
                         "affected_coords": affected_coords,
@@ -4215,7 +3916,6 @@ class GridViewport(QAbstractScrollArea):
                         "after_sel": after_sel,
                     }
                 )
-                self._redo_stack.clear()
                 self.mark_dirty()
                 if hasattr(self.model, "recalculate"):
                     self.model.recalculate()
@@ -4236,7 +3936,7 @@ class GridViewport(QAbstractScrollArea):
                 after_sizes = {c: new_w for c in self._resize_targets}
                 for c in self._resize_targets:
                     self.geometry_mapper.set_col_width(c, new_w)
-                self._undo_stack.append(
+                self._record_entry(
                     {
                         "action": "col_resize",
                         "targets": list(self._resize_targets),
@@ -4244,7 +3944,6 @@ class GridViewport(QAbstractScrollArea):
                         "after_sizes": after_sizes,
                     }
                 )
-                self._redo_stack.clear()
                 self._update_scrollbars()
             self._resize_targets = []
             self._resize_orig_sizes = {}
@@ -4259,7 +3958,7 @@ class GridViewport(QAbstractScrollArea):
                 after_sizes = {r: new_h for r in self._resize_targets}
                 for r in self._resize_targets:
                     self.geometry_mapper.set_row_height(r, new_h)
-                self._undo_stack.append(
+                self._record_entry(
                     {
                         "action": "row_resize",
                         "targets": list(self._resize_targets),
@@ -4267,7 +3966,6 @@ class GridViewport(QAbstractScrollArea):
                         "after_sizes": after_sizes,
                     }
                 )
-                self._redo_stack.clear()
                 self._update_scrollbars()
             self._resize_targets = []
             self._resize_orig_sizes = {}
@@ -4285,10 +3983,7 @@ class GridViewport(QAbstractScrollArea):
                 to = self._move_preview_range
                 ctrl = self._move_ctrl_pressed or bool(
                     event.modifiers()
-                    & (
-                        Qt.KeyboardModifier.ControlModifier
-                        | Qt.KeyboardModifier.MetaModifier
-                    )
+                    & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier)
                 )
                 self.move_range(src, to, copy=ctrl)
             self._move_src_range = None
@@ -4327,26 +4022,10 @@ class GridViewport(QAbstractScrollArea):
             pr = self.selection.primary_range
             sx = self.horizontalScrollBar().value()
             sy = self.verticalScrollBar().value()
-            bx1 = (
-                self.row_header_width
-                + self.geometry_mapper.col_pos(pr.min_c)
-                - sx
-            )
-            bx2 = (
-                self.row_header_width
-                + self.geometry_mapper.col_pos(pr.max_c + 1)
-                - sx
-            )
-            by1 = (
-                self.col_header_height
-                + self.geometry_mapper.row_pos(pr.min_r)
-                - sy
-            )
-            by2 = (
-                self.col_header_height
-                + self.geometry_mapper.row_pos(pr.max_r + 1)
-                - sy
-            )
+            bx1 = self.row_header_width + self.geometry_mapper.col_pos(pr.min_c) - sx
+            bx2 = self.row_header_width + self.geometry_mapper.col_pos(pr.max_c + 1) - sx
+            by1 = self.col_header_height + self.geometry_mapper.row_pos(pr.min_r) - sy
+            by2 = self.col_header_height + self.geometry_mapper.row_pos(pr.max_r + 1) - sy
             d_top = abs(y - by1)
             d_bottom = abs(y - by2)
             d_left = abs(x - bx1)
@@ -4391,9 +4070,7 @@ class GridViewport(QAbstractScrollArea):
             return
 
         while (
-            last + 1 < max_rows
-            and has_data(last + 1, probe)
-            and not has_data(last + 1, src.min_c)
+            last + 1 < max_rows and has_data(last + 1, probe) and not has_data(last + 1, src.min_c)
         ):
             last += 1
 
@@ -4405,16 +4082,10 @@ class GridViewport(QAbstractScrollArea):
         fill_mode = "copy" if ctrl else "auto"
 
         affected_coords = [
-            (r, c)
-            for r in range(src.min_r, last + 1)
-            for c in range(src.min_c, src.max_c + 1)
+            (r, c) for r in range(src.min_r, last + 1) for c in range(src.min_c, src.max_c + 1)
         ]
         before_delta = {
-            (r, c): (
-                self.model.get_cell(r, c).clone()
-                if self.model.get_cell(r, c)
-                else None
-            )
+            (r, c): (self.model.get_cell(r, c).clone() if self.model.get_cell(r, c) else None)
             for (r, c) in affected_coords
         }
         before_sel = self.selection.snapshot()
@@ -4430,16 +4101,12 @@ class GridViewport(QAbstractScrollArea):
         self.selection.extend_to(dest.max_r, dest.max_c)
 
         after_delta = {
-            (r, c): (
-                self.model.get_cell(r, c).clone()
-                if self.model.get_cell(r, c)
-                else None
-            )
+            (r, c): (self.model.get_cell(r, c).clone() if self.model.get_cell(r, c) else None)
             for (r, c) in affected_coords
         }
         after_sel = self.selection.snapshot()
 
-        self._undo_stack.append(
+        self._record_entry(
             {
                 "action": "autofill",
                 "affected_coords": affected_coords,
@@ -4449,15 +4116,10 @@ class GridViewport(QAbstractScrollArea):
                 "after_sel": after_sel,
             }
         )
-        self._redo_stack.clear()
         self.mark_dirty()
         if hasattr(self.model, "recalculate"):
             self.model.recalculate()
-        elif (
-            hasattr(self, "workbook")
-            and self.workbook
-            and hasattr(self.workbook, "recalculate")
-        ):
+        elif hasattr(self, "workbook") and self.workbook and hasattr(self.workbook, "recalculate"):
             self.workbook.recalculate()
         self.viewport().update()
 
@@ -4481,41 +4143,29 @@ class GridViewport(QAbstractScrollArea):
                 return
 
         # Shift+F10 to trigger shortcut context menu
-        if (
-            key == Qt.Key.Key_F10
-            and bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
-        ):
+        if key == Qt.Key.Key_F10 and bool(modifiers & Qt.KeyboardModifier.ShiftModifier):
             self.open_context_menu(reason=QContextMenuEvent.Reason.Keyboard)
             return
 
         # Ctrl+1 / Cmd+1 to open Format Cells dialog
         if (
-            modifiers
-            & (
-                Qt.KeyboardModifier.ControlModifier
-                | Qt.KeyboardModifier.MetaModifier
-            )
+            modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier)
         ) and key == Qt.Key.Key_1:
             self.open_format_cells_dialog()
             return
 
         # Ctrl+Alt+V / Cmd+Alt+V to open Paste Special dialog
         if (
-            modifiers
-            & (
-                Qt.KeyboardModifier.ControlModifier
-                | Qt.KeyboardModifier.MetaModifier
-            )
-        ) and bool(modifiers & Qt.KeyboardModifier.AltModifier) and key == Qt.Key.Key_V:
+            (modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier))
+            and bool(modifiers & Qt.KeyboardModifier.AltModifier)
+            and key == Qt.Key.Key_V
+        ):
             self.paste_special()
             return
 
         # F2 to start editing
         if key == Qt.Key.Key_F2:
-            if (
-                self.editor_controller is not None
-                and not self.editor_controller.is_active
-            ):
+            if self.editor_controller is not None and not self.editor_controller.is_active:
                 self.editor_controller.begin_edit(r, c)
                 return
 
@@ -4527,10 +4177,7 @@ class GridViewport(QAbstractScrollArea):
 
         # Delete / Backspace to clear selection
         if key in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
-            if (
-                self.editor_controller is not None
-                and not self.editor_controller.is_active
-            ):
+            if self.editor_controller is not None and not self.editor_controller.is_active:
                 for rg in self.selection.ranges:
                     for rr in range(rg.min_r, rg.max_r + 1):
                         for cc in range(rg.min_c, rg.max_c + 1):
@@ -4547,24 +4194,15 @@ class GridViewport(QAbstractScrollArea):
             text
             and text.isprintable()
             and not (
-                modifiers
-                & (
-                    Qt.KeyboardModifier.ControlModifier
-                    | Qt.KeyboardModifier.AltModifier
-                )
+                modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)
             )
         ):
-            if (
-                self.editor_controller is not None
-                and not self.editor_controller.is_active
-            ):
+            if self.editor_controller is not None and not self.editor_controller.is_active:
                 self.editor_controller.begin_edit(r, c, initial_text=text)
                 return
 
         # Ctrl+A Select All
-        if key == Qt.Key.Key_A and (
-            modifiers & Qt.KeyboardModifier.ControlModifier
-        ):
+        if key == Qt.Key.Key_A and (modifiers & Qt.KeyboardModifier.ControlModifier):
             self.selection.select_all()
             self.viewport().update()
             return
@@ -4693,17 +4331,11 @@ class GridViewport(QAbstractScrollArea):
 
         # 3. Build appropriate menu based on hit target and selection
         pr = self.selection.primary_range
-        is_whole_cols = (
-            pr.min_r == 0 and pr.max_r == self.selection.max_rows - 1
-        )
-        is_whole_rows = (
-            pr.min_c == 0 and pr.max_c == self.selection.max_cols - 1
-        )
+        is_whole_cols = pr.min_r == 0 and pr.max_r == self.selection.max_rows - 1
+        is_whole_rows = pr.min_c == 0 and pr.max_c == self.selection.max_cols - 1
 
         if hit.zone == HitZone.COL_HEADER or (
-            is_whole_cols
-            and hit.zone != HitZone.ROW_HEADER
-            and hit.zone != HitZone.CELL
+            is_whole_cols and hit.zone != HitZone.ROW_HEADER and hit.zone != HitZone.CELL
         ):
             col = hit.col if hit.col is not None else pr.min_c
             menu = self._build_col_header_menu(col)
@@ -5009,9 +4641,7 @@ class GridViewport(QAbstractScrollArea):
     # -------------------------------------------------------------------------
     # Context Menu Actions & Guard Protection
     # -------------------------------------------------------------------------
-    def guard_protect(
-        self, allow_key: str | None = None, cell_edit: bool = False
-    ) -> bool:
+    def guard_protect(self, allow_key: str | None = None, cell_edit: bool = False) -> bool:
         """Check worksheet protection and alert if mutation is restricted."""
         if getattr(self.model, "protected", False):
             QMessageBox.information(
@@ -5122,12 +4752,14 @@ class GridViewport(QAbstractScrollArea):
             else:
                 continue
             if mr1 >= pr.min_r and mr2 <= pr.max_r and mc1 >= pr.min_c and mc2 <= pr.max_c:
-                copied_merges.append({
-                    "r1": mr1 - pr.min_r,
-                    "c1": mc1 - pr.min_c,
-                    "r2": mr2 - pr.min_r,
-                    "c2": mc2 - pr.min_c,
-                })
+                copied_merges.append(
+                    {
+                        "r1": mr1 - pr.min_r,
+                        "c1": mc1 - pr.min_c,
+                        "r2": mr2 - pr.min_r,
+                        "c2": mc2 - pr.min_c,
+                    }
+                )
 
         copied_comments: dict[tuple[int, int], Any] = {}
         if hasattr(self.model, "comments"):
@@ -5147,9 +4779,7 @@ class GridViewport(QAbstractScrollArea):
             "comments": copied_comments,
             "cells": {
                 (r - pr.min_r, c - pr.min_c): (
-                    self.model.get_cell(r, c).clone()
-                    if self.model.get_cell(r, c)
-                    else None
+                    self.model.get_cell(r, c).clone() if self.model.get_cell(r, c) else None
                 )
                 for r in range(eff_range.min_r, eff_range.max_r + 1)
                 for c in range(eff_range.min_c, eff_range.max_c + 1)
@@ -5157,45 +4787,164 @@ class GridViewport(QAbstractScrollArea):
             "is_cut": False,
         }
 
-    def _snapshot_state(self) -> dict[str, Any]:
-        """Capture cell, merge, comment, and selection snapshot for undo."""
-        before_cells = {k: v.clone() for k, v in self.model.cells.items()}
-        before_merges = list(self.model.merges)
-        before_comments = (
-            {k: CellComment(**v.__dict__) for k, v in self.model.comments.items()}
-            if hasattr(self.model, "comments")
-            else {}
-        )
-        before_sel = self.selection.snapshot()
+    # -------------------------------------------------------------------------
+    # Undo / redo
+    # -------------------------------------------------------------------------
+
+    def _clone_cells(
+        self, scope: list[SelectionRange] | None, model: Any = None
+    ) -> dict[tuple[int, int], CellData]:
+        """Clones of the cells inside ``scope`` (every cell when ``scope`` is None)."""
+        cells = (model or self.model).cells
+        if scope is None:
+            return {k: v.clone() for k, v in cells.items()}
+        out: dict[tuple[int, int], CellData] = {}
+        for rg in scope:
+            area = (rg.max_r - rg.min_r + 1) * (rg.max_c - rg.min_c + 1)
+            if area <= len(cells):
+                for r in range(rg.min_r, rg.max_r + 1):
+                    for c in range(rg.min_c, rg.max_c + 1):
+                        cell = cells.get((r, c))
+                        if cell is not None:
+                            out[(r, c)] = cell.clone()
+            else:
+                for (r, c), cell in cells.items():
+                    if rg.min_r <= r <= rg.max_r and rg.min_c <= c <= rg.max_c:
+                        out[(r, c)] = cell.clone()
+        return out
+
+    def selection_scope(self, margin: int = 1) -> list[SelectionRange]:
+        """The selected ranges grown by ``margin`` cells (borders reach neighbours)."""
+        return [
+            SelectionRange(
+                max(0, rg.min_r - margin),
+                max(0, rg.min_c - margin),
+                rg.max_r + margin,
+                rg.max_c + margin,
+            )
+            for rg in self.selection.ranges
+        ]
+
+    @contextmanager
+    def undoable_edit(
+        self,
+        action: str = "edit",
+        *,
+        scope: str | list[SelectionRange] = "sheet",
+        label: str | None = None,
+    ) -> Iterator[None]:
+        """Record every change made inside the block as one undo step.
+
+        ``scope`` is ``"sheet"`` (any cell may change), ``"selection"`` (only the
+        selected cells and their neighbours) or explicit ranges. Edits nest: an
+        inner edit is part of the outer step.
+        """
+        if self._edit_depth or not self.history.is_recording:
+            self._edit_depth += 1
+            try:
+                yield
+            finally:
+                self._edit_depth -= 1
+            return
+        if scope == "selection":
+            ranges: list[SelectionRange] | None = self.selection_scope()
+        elif scope == "sheet":
+            ranges = None
+        else:
+            ranges = list(scope)
+        before = self._snapshot_state(ranges)
+        self._edit_depth += 1
+        try:
+            with self.history.paused():
+                yield
+        finally:
+            self._edit_depth -= 1
+        self._commit_undo(before, action, label)
+
+    def _snapshot_state(
+        self, scope: list[SelectionRange] | SelectionRange | None = None
+    ) -> dict[str, Any]:
+        """Capture the state an edit may change, for :meth:`_commit_undo`.
+
+        ``scope`` limits the cells copied to the ranges the edit touches; with
+        None every cell of the sheet is copied. Merges, comments and links are
+        small and always copied.
+        """
+        if isinstance(scope, SelectionRange):
+            scope = [scope]
+        scope = [SelectionRange(rg.r1, rg.c1, rg.r2, rg.c2) for rg in scope] if scope else None
+        model = self.model
         return {
-            "before_cells": before_cells,
-            "before_merges": before_merges,
-            "before_comments": before_comments,
-            "before_sel": before_sel,
+            "sheet": model,
+            "scope": scope,
+            "before_cells": self._clone_cells(scope, model),
+            "before_merges": list(model.merges),
+            "before_comments": _copy_comments(model),
+            "before_links": _copy_links(model),
+            "before_sel": self.selection.snapshot(),
         }
 
-    def _commit_undo(self, before_state: dict[str, Any], action: str = "edit") -> None:
-        """Record state transition in undo stack and flag document dirty."""
-        after_cells = {k: v.clone() for k, v in self.model.cells.items()}
-        after_merges = list(self.model.merges)
-        after_comments = (
-            {k: CellComment(**v.__dict__) for k, v in self.model.comments.items()}
-            if hasattr(self.model, "comments")
-            else {}
-        )
-        after_sel = self.selection.snapshot()
-        entry = {
-            **before_state,
-            "after_cells": after_cells,
-            "after_merges": after_merges,
-            "after_comments": after_comments,
-            "after_sel": after_sel,
-            "action": action,
-        }
-        self._undo_stack.append(entry)
-        self._redo_stack.clear()
+    def _commit_undo(
+        self, before_state: dict[str, Any], action: str = "edit", label: str | None = None
+    ) -> bool:
+        """Record the change since ``before_state`` as one undo step (changed cells only).
+
+        Returns False, and records nothing, when nothing changed.
+        """
+        model = before_state.get("sheet") or self.model
+        after_cells = self._clone_cells(before_state.get("scope"), model)
+        entry: dict[str, Any] = {"action": action, "sheet": model}
+        if label:
+            entry["label"] = label
+        delta_before, delta_after = cell_delta(before_state["before_cells"], after_cells)
+        changed = bool(delta_before or delta_after)
+        if changed:
+            entry["before_delta_cells"] = delta_before
+            entry["after_delta_cells"] = delta_after
+        for key, now in (
+            ("merges", list(model.merges)),
+            ("comments", _copy_comments(model)),
+            ("links", _copy_links(model)),
+        ):
+            was = before_state.get(f"before_{key}")
+            if was is not None and was != now:
+                entry[f"before_{key}"] = was
+                entry[f"after_{key}"] = now
+                changed = True
+        if not changed:
+            return False
+        entry["before_sel"] = before_state.get("before_sel")
+        entry["after_sel"] = self.selection.snapshot()
+        self._record_entry(entry)
         self.mark_dirty()
         self.viewport().update()
+        return True
+
+    def _record_entry(self, entry: dict[str, Any]) -> None:
+        """Push an already-applied change described by ``entry`` onto the history.
+
+        Entries holding whole-sheet ``before_cells`` / ``after_cells`` copies are
+        reduced to the cells that changed before they are stored.
+        """
+        from atboffice.ui.components.undo_history import entry_label
+
+        entry.setdefault("sheet", self.model)
+        if "before_cells" in entry and "after_cells" in entry:
+            delta_before, delta_after = cell_delta(
+                entry.pop("before_cells"), entry.pop("after_cells")
+            )
+            entry["before_delta_cells"] = delta_before
+            entry["after_delta_cells"] = delta_after
+            for key in ("merges", "comments", "links"):
+                if entry.get(f"before_{key}") == entry.get(f"after_{key}"):
+                    entry.pop(f"before_{key}", None)
+                    entry.pop(f"after_{key}", None)
+        self.history.record(
+            entry_label(entry),
+            lambda: self._apply_entry(entry, undo=True),
+            lambda: self._apply_entry(entry, undo=False),
+            data=entry,
+        )
 
     def mark_dirty(self) -> None:
         """Mark workbook as modified."""
@@ -5261,9 +5010,7 @@ class GridViewport(QAbstractScrollArea):
         if win is not self and hasattr(win, "toggle_total_row"):
             win.toggle_total_row()
         active_pos = self.selection.active_cell
-        tbl = target_table or (
-            self.table_at(*active_pos) if hasattr(self, "table_at") else None
-        )
+        tbl = target_table or (self.table_at(*active_pos) if hasattr(self, "table_at") else None)
         if tbl is not None:
             tbl["totalRow"] = not tbl.get("totalRow", False)
         self.mark_dirty()
@@ -5428,11 +5175,7 @@ class GridViewport(QAbstractScrollArea):
             band_parity_map = {r: idx % 2 for idx, r in enumerate(meta.data_rows)}
 
             for r in range(vis_r1, vis_r2 + 1):
-                row_y = (
-                    self.col_header_height
-                    + self.geometry_mapper.row_pos(r)
-                    - psy
-                )
+                row_y = self.col_header_height + self.geometry_mapper.row_pos(r) - psy
                 row_h = self.geometry_mapper.row_size(r)
                 if row_h <= 0:
                     continue
@@ -5443,11 +5186,7 @@ class GridViewport(QAbstractScrollArea):
                 is_odd_band = band_parity_map.get(r, 0) == 1
 
                 for c in range(vis_c1, vis_c2 + 1):
-                    col_x = (
-                        self.row_header_width
-                        + self.geometry_mapper.col_pos(c)
-                        - psx
-                    )
+                    col_x = self.row_header_width + self.geometry_mapper.col_pos(c) - psx
                     col_w = self.geometry_mapper.col_size(c)
                     if col_w <= 0:
                         continue
@@ -5511,17 +5250,9 @@ class GridViewport(QAbstractScrollArea):
             for (r_cell, c_cell), (_zone_type, col_idx) in meta.filter_dropdown_cells.items():
                 if not (pr_start <= r_cell <= pr_end and pc_start <= c_cell <= pc_end):
                     continue
-                row_y = (
-                    self.col_header_height
-                    + self.geometry_mapper.row_pos(r_cell)
-                    - psy
-                )
+                row_y = self.col_header_height + self.geometry_mapper.row_pos(r_cell) - psy
                 row_h = self.geometry_mapper.row_size(r_cell)
-                col_x = (
-                    self.row_header_width
-                    + self.geometry_mapper.col_pos(c_cell)
-                    - psx
-                )
+                col_x = self.row_header_width + self.geometry_mapper.col_pos(c_cell) - psx
                 col_w = self.geometry_mapper.col_size(c_cell)
                 btn_size = min(16, max(12, row_h - 2))
                 if col_w <= btn_size or row_h <= 0:
@@ -5537,9 +5268,7 @@ class GridViewport(QAbstractScrollArea):
                 painter.drawLine(bx + 1, by + 1, bx + btn_size - 2, by + 1)
                 painter.drawLine(bx + 1, by + 1, bx + 1, by + btn_size - 2)
 
-                arrow_color = (
-                    QColor(0, 0, 255) if col_idx in active_filters else QColor(0, 0, 0)
-                )
+                arrow_color = QColor(0, 0, 255) if col_idx in active_filters else QColor(0, 0, 0)
                 painter.setBrush(QBrush(arrow_color))
                 painter.setPen(QPen(arrow_color, 1))
                 cx = bx + btn_size // 2
@@ -5617,9 +5346,7 @@ class GridViewport(QAbstractScrollArea):
         act_all = menu.addAction(safe_tr("(全部)"))
         act_all.setCheckable(True)
         act_all.setChecked(cur_sel is None)
-        act_all.triggered.connect(
-            lambda: self._apply_pivot_field_filter(report, col_idx, None)
-        )
+        act_all.triggered.connect(lambda: self._apply_pivot_field_filter(report, col_idx, None))
         menu.addSeparator()
 
         for val in unique_vals:
@@ -5627,9 +5354,7 @@ class GridViewport(QAbstractScrollArea):
             act.setCheckable(True)
             act.setChecked(cur_sel is not None and val in cur_sel)
             act.triggered.connect(
-                lambda _checked=False, v=val: self._apply_pivot_field_filter(
-                    report, col_idx, {v}
-                )
+                lambda _checked=False, v=val: self._apply_pivot_field_filter(report, col_idx, {v})
             )
 
         c_rect = self.cell_rect(r, c)
@@ -5655,9 +5380,7 @@ class GridViewport(QAbstractScrollArea):
 
     def edit_object_text(self, obj: Any) -> None:
         """Begin editing text inside shape/textbox."""
-        if self.object_layer is not None and hasattr(
-            self.object_layer, "start_text_editing"
-        ):
+        if self.object_layer is not None and hasattr(self.object_layer, "start_text_editing"):
             self.object_layer.start_text_editing(obj)
 
     def paste(self) -> None:
@@ -5784,10 +5507,7 @@ class GridViewport(QAbstractScrollArea):
         if op not in ("add", "sub", "mul", "div"):
             op = "none"
 
-        is_link = bool(
-            options.get("link", False)
-            or what in ("paste_link", "link")
-        )
+        is_link = bool(options.get("link", False) or what in ("paste_link", "link"))
 
         dest_h = src_w if transpose else src_h
         dest_w = src_h if transpose else src_w
@@ -5867,10 +5587,7 @@ class GridViewport(QAbstractScrollArea):
 
                 if skip_blanks and (
                     src_cell is None
-                    or (
-                        (src_cell.value is None or src_cell.value == "")
-                        and not src_cell.formula
-                    )
+                    or ((src_cell.value is None or src_cell.value == "") and not src_cell.formula)
                 ):
                     continue
 
@@ -5893,9 +5610,7 @@ class GridViewport(QAbstractScrollArea):
                     src_abs_c = src_range.min_c + src_j
                     cm = self.model.get_comment(src_abs_r, src_abs_c)
                     if cm:
-                        self.model.set_comment(
-                            target_r, target_c, cm.text, cm.author, cm.visible
-                        )
+                        self.model.set_comment(target_r, target_c, cm.text, cm.author, cm.visible)
                     continue
 
                 if what == "validation":
@@ -6014,9 +5729,7 @@ class GridViewport(QAbstractScrollArea):
                         else:
                             target_cr = r0 + ci
                             target_cc = c0 + cj
-                        self.model.set_comment(
-                            target_cr, target_cc, cm.text, cm.author, cm.visible
-                        )
+                        self.model.set_comment(target_cr, target_cc, cm.text, cm.author, cm.visible)
 
         self.selection.select_cell(start_r, start_c)
         if tile_h > 1 or tile_w > 1:
@@ -6087,9 +5800,7 @@ class GridViewport(QAbstractScrollArea):
         nr, nc = r, c
         while 0 <= nr + dr <= max_r and 0 <= nc + dc <= max_c:
             nxt = self.model.get_cell(nr + dr, nc + dc)
-            nxt_has_data = nxt is not None and (
-                nxt.value is not None or nxt.formula is not None
-            )
+            nxt_has_data = nxt is not None and (nxt.value is not None or nxt.formula is not None)
             if curr_has_data and not nxt_has_data:
                 break
             if not curr_has_data and nxt_has_data:
@@ -6167,12 +5878,7 @@ class GridViewport(QAbstractScrollArea):
                 m[3] - src.min_c,
             )
             for m in self.model.merges
-            if (
-                m[0] >= src.min_r
-                and m[2] <= src.max_r
-                and m[1] >= src.min_c
-                and m[3] <= src.max_c
-            )
+            if (m[0] >= src.min_r and m[2] <= src.max_r and m[1] >= src.min_c and m[3] <= src.max_c)
         ]
 
         # Snapshot source comments
@@ -6242,6 +5948,7 @@ class GridViewport(QAbstractScrollArea):
                 if cell and cell.formula:
                     try:
                         ast = parse(cell.formula)
+
                         # Check if formula references overwritten cells in destination
                         def mapper_dest(n):
                             if isinstance(n, CellRefNode):
@@ -6350,7 +6057,7 @@ class GridViewport(QAbstractScrollArea):
         )
         after_sel = self.selection.snapshot()
 
-        self._undo_stack.append(
+        self._record_entry(
             {
                 "before_cells": before_cells,
                 "before_merges": before_merges,
@@ -6362,92 +6069,38 @@ class GridViewport(QAbstractScrollArea):
                 "after_sel": after_sel,
             }
         )
-        self._redo_stack.clear()
         self.viewport().update()
         return True
 
-    def undo(self) -> None:
+    def undo(self) -> bool:
         """Undo the last spreadsheet edit operation."""
-        if not self._undo_stack:
-            return
-        cmd = self._undo_stack.pop()
-        self._redo_stack.append(cmd)
-        action = cmd.get("action")
-        if action == "filter":
-            from atboffice.modules.spreadsheet.models.filter_model import (
-                ColumnFilter,
-                apply_auto_filter,
-            )
+        return self.history.undo()
 
-            af = cmd["af"]
-            af.cols = {
-                c: ColumnFilter(**(vars(cf) if hasattr(cf, "__dict__") else cf))
-                if isinstance(cf, ColumnFilter)
-                else cf
-                for c, cf in cmd["before_cols"].items()
-            }
-            apply_auto_filter(self.model, af)
-            self._update_filter_status(af)
-            self._update_scrollbars()
-            self.viewport().update()
-            return
-        if action == "col_resize":
-            for c, sz in cmd["before_sizes"].items():
-                self.geometry_mapper.set_col_width(c, sz)
-            self._update_scrollbars()
-            self.viewport().update()
-            return
-        if action == "row_resize":
-            for r, sz in cmd["before_sizes"].items():
-                self.geometry_mapper.set_row_height(r, sz)
-            self._update_scrollbars()
-            self.viewport().update()
-            return
-
-        if action == "autofill" and "before_delta_cells" in cmd:
-            for (r, c), old_cell in cmd["before_delta_cells"].items():
-                if old_cell is None:
-                    self.model.cells.pop((r, c), None)
-                else:
-                    self.model.cells[(r, c)] = old_cell.clone()
-            self.selection.restore_snapshot(cmd["before_sel"])
-            self.mark_dirty()
-            if hasattr(self.model, "recalculate"):
-                self.model.recalculate()
-            elif (
-                hasattr(self, "workbook")
-                and self.workbook
-                and hasattr(self.workbook, "recalculate")
-            ):
-                self.workbook.recalculate()
-            self.viewport().update()
-            return
-
-        self.model.cells = {k: v.clone() for k, v in cmd["before_cells"].items()}
-        self.model.merges = list(cmd["before_merges"])
-        if hasattr(self.model, "links") and "before_links" in cmd:
-            self.model.links = [
-                dict(lk) if isinstance(lk, dict) else lk for lk in cmd["before_links"]
-            ]
-        if hasattr(self.model, "comments") and "before_comments" in cmd:
-            self.model.comments = {
-                k: CellComment(**v.__dict__) for k, v in cmd["before_comments"].items()
-            }
-        if action == "total_row":
-            win = self.window()
-            if hasattr(win, "_total_row_active"):
-                win._total_row_active = not cmd.get("active", True)
-                if hasattr(win, "action_registry"):
-                    win.action_registry.set_checked("totalRow", win._total_row_active)
-        self.selection.restore_snapshot(cmd["before_sel"])
-        self.viewport().update()
-
-    def redo(self) -> None:
+    def redo(self) -> bool:
         """Redo the last undone spreadsheet edit operation."""
-        if not self._redo_stack:
+        return self.history.redo()
+
+    def _activate_sheet(self, sheet: Any) -> None:
+        """Show ``sheet`` before one of its edits is undone or redone."""
+        if sheet is None or sheet is self.model:
             return
-        cmd = self._redo_stack.pop()
-        self._undo_stack.append(cmd)
+        wb = self._resolve_workbook()
+        if wb is None or not hasattr(wb, "sheet_index"):
+            return
+        idx = wb.sheet_index(sheet)
+        if idx >= 0:
+            wb.set_active_sheet_index(idx)
+
+    def _recalculate(self) -> None:
+        if hasattr(self.model, "recalculate"):
+            self.model.recalculate()
+        elif getattr(self, "workbook", None) is not None and hasattr(self.workbook, "recalculate"):
+            self.workbook.recalculate()
+
+    def _apply_entry(self, cmd: dict[str, Any], *, undo: bool) -> None:
+        """Move the model to the ``before`` (undo) or ``after`` (redo) side of ``cmd``."""
+        side = "before" if undo else "after"
+        self._activate_sheet(cmd.get("sheet"))
         action = cmd.get("action")
         if action == "filter":
             from atboffice.modules.spreadsheet.models.filter_model import (
@@ -6460,163 +6113,159 @@ class GridViewport(QAbstractScrollArea):
                 c: ColumnFilter(**(vars(cf) if hasattr(cf, "__dict__") else cf))
                 if isinstance(cf, ColumnFilter)
                 else cf
-                for c, cf in cmd["after_cols"].items()
+                for c, cf in cmd[f"{side}_cols"].items()
             }
             apply_auto_filter(self.model, af)
             self._update_filter_status(af)
             self._update_scrollbars()
             self.viewport().update()
             return
-        if action == "col_resize":
-            for c, sz in cmd["after_sizes"].items():
-                self.geometry_mapper.set_col_width(c, sz)
-            self._update_scrollbars()
-            self.viewport().update()
-            return
-        if action == "row_resize":
-            for r, sz in cmd["after_sizes"].items():
-                self.geometry_mapper.set_row_height(r, sz)
+        if action in ("col_resize", "row_resize"):
+            setter = (
+                self.geometry_mapper.set_col_width
+                if action == "col_resize"
+                else self.geometry_mapper.set_row_height
+            )
+            for idx, size in cmd[f"{side}_sizes"].items():
+                setter(idx, size)
             self._update_scrollbars()
             self.viewport().update()
             return
 
-        if action == "autofill" and "after_delta_cells" in cmd:
-            for (r, c), new_cell in cmd["after_delta_cells"].items():
-                if new_cell is None:
-                    self.model.cells.pop((r, c), None)
+        cells = cmd.get(f"{side}_delta_cells")
+        if cells is not None:
+            for key, cell in cells.items():
+                if cell is None:
+                    self.model.cells.pop(key, None)
                 else:
-                    self.model.cells[(r, c)] = new_cell.clone()
-            self.selection.restore_snapshot(cmd["after_sel"])
-            self.mark_dirty()
-            if hasattr(self.model, "recalculate"):
-                self.model.recalculate()
-            elif (
-                hasattr(self, "workbook")
-                and self.workbook
-                and hasattr(self.workbook, "recalculate")
-            ):
-                self.workbook.recalculate()
-            self.viewport().update()
-            return
-
-        self.model.cells = {k: v.clone() for k, v in cmd["after_cells"].items()}
-        self.model.merges = list(cmd["after_merges"])
-        if hasattr(self.model, "links") and "after_links" in cmd:
+                    self.model.cells[key] = cell.clone()
+        if f"{side}_merges" in cmd:
+            self.model.merges = list(cmd[f"{side}_merges"])
+        if hasattr(self.model, "links") and f"{side}_links" in cmd:
             self.model.links = [
-                dict(lk) if isinstance(lk, dict) else lk for lk in cmd["after_links"]
+                dict(lk) if isinstance(lk, dict) else lk for lk in cmd[f"{side}_links"]
             ]
-        if hasattr(self.model, "comments") and "after_comments" in cmd:
+        if hasattr(self.model, "comments") and f"{side}_comments" in cmd:
             self.model.comments = {
-                k: CellComment(**v.__dict__) for k, v in cmd["after_comments"].items()
+                k: CellComment(**v.__dict__) for k, v in cmd[f"{side}_comments"].items()
             }
         if action == "total_row":
             win = self.window()
             if hasattr(win, "_total_row_active"):
-                win._total_row_active = cmd.get("active", True)
+                active = cmd.get("active", True)
+                win._total_row_active = (not active) if undo else active
                 if hasattr(win, "action_registry"):
                     win.action_registry.set_checked("totalRow", win._total_row_active)
-        self.selection.restore_snapshot(cmd["after_sel"])
+        if cmd.get(f"{side}_sel"):
+            self.selection.restore_snapshot(cmd[f"{side}_sel"])
+        if cells:
+            self._recalculate()
+        self.mark_dirty()
         self.viewport().update()
 
     def insert_selected_cols(self) -> None:
         """Insert columns to the left of the current selection."""
-        if self.guard_protect("insertColumns"):
-            return
-        pr = self.selection.primary_range
-        c1, c2 = pr.min_c, pr.max_c
-        count = c2 - c1 + 1
-        new_cells: dict[tuple[int, int], CellData] = {}
-        for (r, c), cell in self.model.cells.items():
-            if c >= c1:
-                new_cells[(r, c + count)] = cell
-            else:
-                new_cells[(r, c)] = cell
-        self.model.cells = new_cells
-        new_merges: list[tuple[int, int, int, int]] = []
-        for mr1, mc1, mr2, mc2 in self.model.merges:
-            if mc1 >= c1:
-                new_merges.append((mr1, mc1 + count, mr2, mc2 + count))
-            elif mc2 >= c1:
-                new_merges.append((mr1, mc1, mr2, mc2 + count))
-            else:
-                new_merges.append((mr1, mc1, mr2, mc2))
-        self.model.merges = new_merges
-        self.viewport().update()
+        with self.undoable_edit("insert_cols"):
+            if self.guard_protect("insertColumns"):
+                return
+            pr = self.selection.primary_range
+            c1, c2 = pr.min_c, pr.max_c
+            count = c2 - c1 + 1
+            new_cells: dict[tuple[int, int], CellData] = {}
+            for (r, c), cell in self.model.cells.items():
+                if c >= c1:
+                    new_cells[(r, c + count)] = cell
+                else:
+                    new_cells[(r, c)] = cell
+            self.model.cells = new_cells
+            new_merges: list[tuple[int, int, int, int]] = []
+            for mr1, mc1, mr2, mc2 in self.model.merges:
+                if mc1 >= c1:
+                    new_merges.append((mr1, mc1 + count, mr2, mc2 + count))
+                elif mc2 >= c1:
+                    new_merges.append((mr1, mc1, mr2, mc2 + count))
+                else:
+                    new_merges.append((mr1, mc1, mr2, mc2))
+            self.model.merges = new_merges
+            self.viewport().update()
 
     def delete_selected_cols(self) -> None:
         """Delete columns in the current selection."""
-        if self.guard_protect("deleteColumns"):
-            return
-        pr = self.selection.primary_range
-        c1, c2 = pr.min_c, pr.max_c
-        count = c2 - c1 + 1
-        new_cells: dict[tuple[int, int], CellData] = {}
-        for (r, c), cell in self.model.cells.items():
-            if c1 <= c <= c2:
-                continue
-            elif c > c2:
-                new_cells[(r, c - count)] = cell
-            else:
-                new_cells[(r, c)] = cell
-        self.model.cells = new_cells
-        new_merges: list[tuple[int, int, int, int]] = []
-        for mr1, mc1, mr2, mc2 in self.model.merges:
-            if mc1 > c2:
-                new_merges.append((mr1, mc1 - count, mr2, mc2 - count))
-            elif mc2 < c1:
-                new_merges.append((mr1, mc1, mr2, mc2))
-        self.model.merges = new_merges
-        self.viewport().update()
+        with self.undoable_edit("delete_cols"):
+            if self.guard_protect("deleteColumns"):
+                return
+            pr = self.selection.primary_range
+            c1, c2 = pr.min_c, pr.max_c
+            count = c2 - c1 + 1
+            new_cells: dict[tuple[int, int], CellData] = {}
+            for (r, c), cell in self.model.cells.items():
+                if c1 <= c <= c2:
+                    continue
+                elif c > c2:
+                    new_cells[(r, c - count)] = cell
+                else:
+                    new_cells[(r, c)] = cell
+            self.model.cells = new_cells
+            new_merges: list[tuple[int, int, int, int]] = []
+            for mr1, mc1, mr2, mc2 in self.model.merges:
+                if mc1 > c2:
+                    new_merges.append((mr1, mc1 - count, mr2, mc2 - count))
+                elif mc2 < c1:
+                    new_merges.append((mr1, mc1, mr2, mc2))
+            self.model.merges = new_merges
+            self.viewport().update()
 
     def insert_selected_rows(self) -> None:
         """Insert rows above the current selection."""
-        if self.guard_protect("insertRows"):
-            return
-        pr = self.selection.primary_range
-        r1, r2 = pr.min_r, pr.max_r
-        count = r2 - r1 + 1
-        new_cells: dict[tuple[int, int], CellData] = {}
-        for (r, c), cell in self.model.cells.items():
-            if r >= r1:
-                new_cells[(r + count, c)] = cell
-            else:
-                new_cells[(r, c)] = cell
-        self.model.cells = new_cells
-        new_merges: list[tuple[int, int, int, int]] = []
-        for mr1, mc1, mr2, mc2 in self.model.merges:
-            if mr1 >= r1:
-                new_merges.append((mr1 + count, mc1, mr2 + count, mc2))
-            elif mr2 >= r1:
-                new_merges.append((mr1, mc1, mr2 + count, mc2))
-            else:
-                new_merges.append((mr1, mc1, mr2, mc2))
-        self.model.merges = new_merges
-        self.viewport().update()
+        with self.undoable_edit("insert_rows"):
+            if self.guard_protect("insertRows"):
+                return
+            pr = self.selection.primary_range
+            r1, r2 = pr.min_r, pr.max_r
+            count = r2 - r1 + 1
+            new_cells: dict[tuple[int, int], CellData] = {}
+            for (r, c), cell in self.model.cells.items():
+                if r >= r1:
+                    new_cells[(r + count, c)] = cell
+                else:
+                    new_cells[(r, c)] = cell
+            self.model.cells = new_cells
+            new_merges: list[tuple[int, int, int, int]] = []
+            for mr1, mc1, mr2, mc2 in self.model.merges:
+                if mr1 >= r1:
+                    new_merges.append((mr1 + count, mc1, mr2 + count, mc2))
+                elif mr2 >= r1:
+                    new_merges.append((mr1, mc1, mr2 + count, mc2))
+                else:
+                    new_merges.append((mr1, mc1, mr2, mc2))
+            self.model.merges = new_merges
+            self.viewport().update()
 
     def delete_selected_rows(self) -> None:
         """Delete rows in the current selection."""
-        if self.guard_protect("deleteRows"):
-            return
-        pr = self.selection.primary_range
-        r1, r2 = pr.min_r, pr.max_r
-        count = r2 - r1 + 1
-        new_cells: dict[tuple[int, int], CellData] = {}
-        for (r, c), cell in self.model.cells.items():
-            if r1 <= r <= r2:
-                continue
-            elif r > r2:
-                new_cells[(r - count, c)] = cell
-            else:
-                new_cells[(r, c)] = cell
-        self.model.cells = new_cells
-        new_merges: list[tuple[int, int, int, int]] = []
-        for mr1, mc1, mr2, mc2 in self.model.merges:
-            if mr1 > r2:
-                new_merges.append((mr1 - count, mc1, mr2 - count, mc2))
-            elif mr2 < r1:
-                new_merges.append((mr1, mc1, mr2, mc2))
-        self.model.merges = new_merges
-        self.viewport().update()
+        with self.undoable_edit("delete_rows"):
+            if self.guard_protect("deleteRows"):
+                return
+            pr = self.selection.primary_range
+            r1, r2 = pr.min_r, pr.max_r
+            count = r2 - r1 + 1
+            new_cells: dict[tuple[int, int], CellData] = {}
+            for (r, c), cell in self.model.cells.items():
+                if r1 <= r <= r2:
+                    continue
+                elif r > r2:
+                    new_cells[(r - count, c)] = cell
+                else:
+                    new_cells[(r, c)] = cell
+            self.model.cells = new_cells
+            new_merges: list[tuple[int, int, int, int]] = []
+            for mr1, mc1, mr2, mc2 in self.model.merges:
+                if mr1 > r2:
+                    new_merges.append((mr1 - count, mc1, mr2 - count, mc2))
+                elif mr2 < r1:
+                    new_merges.append((mr1, mc1, mr2, mc2))
+            self.model.merges = new_merges
+            self.viewport().update()
 
     def set_col_width_dialog(self) -> None:
         """Show dialog to set column width for selected columns."""
@@ -6855,6 +6504,7 @@ class GridViewport(QAbstractScrollArea):
         if distinct_vals:
             menu = QMenu(self)
             for item in distinct_vals:
+
                 def on_sel(val=item) -> None:
                     self.model.set_cell_value(ar, ac, val)
                     self.viewport().update()
@@ -6889,9 +6539,7 @@ class GridViewport(QAbstractScrollArea):
         if hasattr(win, "insert_hyperlink"):
             win.insert_hyperlink()
         else:
-            url, ok = QInputDialog.getText(
-                self, safe_tr("插入超链接"), safe_tr("地址(&E):")
-            )
+            url, ok = QInputDialog.getText(self, safe_tr("插入超链接"), safe_tr("地址(&E):"))
             if ok and url:
                 links = getattr(self.model, "links", [])
                 links.append({"r": r, "c": c, "target": url})
@@ -7018,7 +6666,7 @@ class GridViewport(QAbstractScrollArea):
             for c, cf in af.cols.items()
         }
 
-        self._undo_stack.append(
+        self._record_entry(
             {
                 "action": "filter",
                 "af": af,
@@ -7027,7 +6675,6 @@ class GridViewport(QAbstractScrollArea):
                 "after_cols": after_cols,
             }
         )
-        self._redo_stack.clear()
 
         self._update_filter_status(af)
         self._update_scrollbars()
@@ -7057,7 +6704,7 @@ class GridViewport(QAbstractScrollArea):
             for c, cf in af.cols.items()
         }
 
-        self._undo_stack.append(
+        self._record_entry(
             {
                 "action": "filter",
                 "af": af,
@@ -7066,7 +6713,6 @@ class GridViewport(QAbstractScrollArea):
                 "after_cols": after_cols,
             }
         )
-        self._redo_stack.clear()
 
         self._update_filter_status(af)
         self._update_scrollbars()
@@ -7075,12 +6721,7 @@ class GridViewport(QAbstractScrollArea):
     def _open_filter_dropdown(self, col: int) -> None:
         """Open the AutoFilter dropdown popup for the specified column."""
         af = getattr(self.model, "auto_filter", None)
-        if (
-            af is None
-            or not hasattr(af, "r1")
-            or not hasattr(af, "c1")
-            or not hasattr(af, "c2")
-        ):
+        if af is None or not hasattr(af, "r1") or not hasattr(af, "c1") or not hasattr(af, "c2"):
             return
         from atboffice.modules.spreadsheet.models.filter_model import (
             sort_sheet_range,
@@ -7110,16 +6751,8 @@ class GridViewport(QAbstractScrollArea):
         # Position popup directly under the cell
         scroll_x = self.horizontalScrollBar().value()
         scroll_y = self.verticalScrollBar().value()
-        col_x = (
-            self.row_header_width
-            + self.geometry_mapper.col_pos(col)
-            - scroll_x
-        )
-        row_y = (
-            self.col_header_height
-            + self.geometry_mapper.row_pos(af.r1)
-            - scroll_y
-        )
+        col_x = self.row_header_width + self.geometry_mapper.col_pos(col) - scroll_x
+        row_y = self.col_header_height + self.geometry_mapper.row_pos(af.r1) - scroll_y
         row_h = self.geometry_mapper.row_size(af.r1)
         global_pos = self._global_pos(QPoint(col_x, row_y + row_h))
         dropdown.move(global_pos)

@@ -4,20 +4,21 @@ from __future__ import annotations
 
 from typing import Any
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.presentation import Presentation
 from atboffice.modules.presentation.models.slide import Slide
-from atboffice.modules.presentation.views.slide_canvas import (
-    SlideCanvasView,
-    SlideScene,
-    safe_tr,
-)
+from atboffice.modules.presentation.views.slide_canvas import SlideCanvasView, SlideScene
 from atboffice.modules.presentation.views.workspace import LecternWorkspace
 
 
 class PresentationView(QWidget):
     """Interactive PowerPoint 2003 presentation view for Lectern."""
+
+    #: A different Presentation object was loaded (open, new, template, undo).
+    presentation_loaded = Signal(object)
 
     def __init__(
         self,
@@ -46,6 +47,7 @@ class PresentationView(QWidget):
         self.workspace.load_presentation(pres)
         self.scene = self.workspace.scene
         self.canvas_view = self.workspace.canvas_view
+        self.presentation_loaded.emit(pres)
 
     def load_slide(self, slide: Slide) -> None:
         """Switch active slide shown on the canvas."""

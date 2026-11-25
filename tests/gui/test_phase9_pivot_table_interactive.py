@@ -218,9 +218,7 @@ class TestPhase9PivotCalculationEngine:
 class TestPhase9PivotFieldsTaskPane:
     """Interactive tests for PivotFieldsTaskPane with 4 drop zones & drag-drop."""
 
-    def test_pane_binding_checkbox_smart_routing_and_uncheck(
-        self, qapp: QApplication
-    ) -> None:
+    def test_pane_binding_checkbox_smart_routing_and_uncheck(self, qapp: QApplication) -> None:
         from atboffice.modules.spreadsheet.calc.pivots import (
             PivotFieldSpec,
             PivotLayoutSpec,
@@ -274,9 +272,7 @@ class TestPhase9PivotFieldsTaskPane:
         assert pane.zone_rows.count() == 1
         assert [f.name for f in report.layout.rows] == ["Category"]
 
-    def test_drag_and_drop_between_zones_and_aggregation_change(
-        self, qapp: QApplication
-    ) -> None:
+    def test_drag_and_drop_between_zones_and_aggregation_change(self, qapp: QApplication) -> None:
         from atboffice.modules.spreadsheet.calc.pivots import (
             PivotFieldSpec,
             PivotLayoutSpec,
@@ -365,9 +361,7 @@ class TestPhase9PivotFieldsTaskPane:
         # East Sales: 100 * 200 * 50 = 1,000,000.0
         assert dst.get_cell_value(east_r, 1) == 1000000.0
 
-    def test_defer_layout_update_and_retranslate_ui(
-        self, qapp: QApplication
-    ) -> None:
+    def test_defer_layout_update_and_retranslate_ui(self, qapp: QApplication) -> None:
         from atboffice.modules.spreadsheet.calc.pivots import (
             PivotFieldSpec,
             PivotLayoutSpec,
@@ -410,9 +404,7 @@ class TestPhase9PivotFieldsTaskPane:
 class TestPhase9GridViewportPivotRenderingAndMenu:
     """Interactive GUI tests for GridViewport pivot rendering, dropdowns, and context menu."""
 
-    def test_pivot_detection_context_menu_and_refresh_data(
-        self, qapp: QApplication
-    ) -> None:
+    def test_pivot_detection_context_menu_and_refresh_data(self, qapp: QApplication) -> None:
         from atboffice.modules.spreadsheet.calc.pivots import (
             PivotFieldSpec,
             PivotLayoutSpec,
@@ -467,9 +459,7 @@ class TestPhase9GridViewportPivotRenderingAndMenu:
         assert dst.get_cell_value(gt_r, report.bbox[3]) == 2100.0
         assert vp.last_status_message != ""
 
-    def test_grid_viewport_dynamic_paint_and_filter_dropdown_hit(
-        self, qapp: QApplication
-    ) -> None:
+    def test_grid_viewport_dynamic_paint_and_filter_dropdown_hit(self, qapp: QApplication) -> None:
         from atboffice.modules.spreadsheet.calc.pivots import (
             PivotFieldSpec,
             PivotLayoutSpec,
@@ -594,9 +584,7 @@ class TestPhase9LedgerWindowPivotIntegration:
         finally:
             win.close()
 
-    def test_wizard_dialog_product_and_header_only_edge_cases(
-        self, qapp: QApplication
-    ) -> None:
+    def test_wizard_dialog_product_and_header_only_edge_cases(self, qapp: QApplication) -> None:
         from atboffice.modules.spreadsheet.calc.pivots import (
             PivotFieldSpec,
             PivotLayoutSpec,
@@ -661,5 +649,3 @@ class TestPhase9LedgerWindowPivotIntegration:
         )
         assert len(multi_col_rep.meta.header_rows) == 3
         assert len(multi_col_rep.meta.grand_total_cols) == 1
-
-

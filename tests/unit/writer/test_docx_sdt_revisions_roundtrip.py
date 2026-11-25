@@ -72,8 +72,12 @@ def test_tdf125881_revisions_roundtrip_preservation():
     with zipfile.ZipFile(io.BytesIO(out_bytes)) as zf:
         doc_xml = zf.read("word/document.xml")
         root = ET.fromstring(doc_xml)
-        ins_elems = list(root.iter("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}ins"))
-        del_elems = list(root.iter("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}del"))
+        ins_elems = list(
+            root.iter("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}ins")
+        )
+        del_elems = list(
+            root.iter("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}del")
+        )
 
         assert len(ins_elems) >= 2, f"Expected at least 2 ins elements, got {len(ins_elems)}"
         assert len(del_elems) >= 1, f"Expected at least 1 del elements, got {len(del_elems)}"
@@ -92,7 +96,7 @@ def test_inline_sdt_synthetic_roundtrip():
     shell_xml = (
         '<w:sdt xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
         '<w:sdtPr><w:alias w:val="Test Control"/><w:tag w:val="TEST"/></w:sdtPr>'
-        '<w:sdtContent></w:sdtContent></w:sdt>'
+        "<w:sdtContent></w:sdtContent></w:sdt>"
     )
     control = {
         "key": "ctrl_test_1",

@@ -226,9 +226,7 @@ def parse_delimited(
     return rows
 
 
-def parse_fixed_width(
-    text: str, breaks: list[int], max_rows: int | None = None
-) -> list[list[str]]:
+def parse_fixed_width(text: str, breaks: list[int], max_rows: int | None = None) -> list[list[str]]:
     """Parse fixed-width lines into rows of strings by break column indices."""
     lines = text.splitlines()
     if lines and lines[-1] == "":
@@ -299,9 +297,7 @@ def convert_cell_value(val_str: str | None, col_type: str = "General") -> Any:
         pass
 
     # Date parsing (simple ISO, YMD, DMY, MDY checks)
-    if col_type.lower().startswith("date") or re.match(
-        r"^\d{4}[-/]\d{1,2}[-/]\d{1,2}$", s
-    ):
+    if col_type.lower().startswith("date") or re.match(r"^\d{4}[-/]\d{1,2}[-/]\d{1,2}$", s):
         return s
 
     return val_str

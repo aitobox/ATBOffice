@@ -18,32 +18,71 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from atboffice.core.i18n import safe_tr as core_safe_tr
+from atboffice.core.i18n import safe_tr
 from atboffice.ui.icons import get_office_icon
 from atboffice.ui.styles.luna_2003 import LUNA_BLUE_HOT_BORDER
 
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for ColorPicker."""
-    return core_safe_tr(text)
-
-
 # Standard 40 colors of Office 2003 (5 rows x 8 columns)
 OFFICE_2003_STANDARD_COLORS: Final[list[str]] = [
-    "#000000", "#993300", "#333300", "#003300", "#003366", "#000080", "#333399", "#333333",
-    "#800000", "#FF6600", "#808000", "#008000", "#008080", "#0000FF", "#666699", "#808080",
-    "#FF0000", "#FF9900", "#99CC00", "#339966", "#33CCCC", "#3366FF", "#800080", "#969696",
-    "#FF00FF", "#FFCC00", "#FFFF00", "#00FF00", "#00FFFF", "#00CCFF", "#993366", "#C0C0C0",
-    "#FF99CC", "#FFCC99", "#FFFF99", "#CCFFCC", "#CCFFFF", "#99CCFF", "#CC99FF", "#FFFFFF",
+    "#000000",
+    "#993300",
+    "#333300",
+    "#003300",
+    "#003366",
+    "#000080",
+    "#333399",
+    "#333333",
+    "#800000",
+    "#FF6600",
+    "#808000",
+    "#008000",
+    "#008080",
+    "#0000FF",
+    "#666699",
+    "#808080",
+    "#FF0000",
+    "#FF9900",
+    "#99CC00",
+    "#339966",
+    "#33CCCC",
+    "#3366FF",
+    "#800080",
+    "#969696",
+    "#FF00FF",
+    "#FFCC00",
+    "#FFFF00",
+    "#00FF00",
+    "#00FFFF",
+    "#00CCFF",
+    "#993366",
+    "#C0C0C0",
+    "#FF99CC",
+    "#FFCC99",
+    "#FFFF99",
+    "#CCFFCC",
+    "#CCFFFF",
+    "#99CCFF",
+    "#CC99FF",
+    "#FFFFFF",
 ]
 
 # Word's 15 text-highlight colours (Formatting toolbar ▸ Highlight), in Word 2003 order,
 # with their w:highlight names.
 WORD_HIGHLIGHT_PALETTE: Final[list[tuple[str, str]]] = [
-    ("#FFFF00", "yellow"), ("#00FF00", "green"), ("#00FFFF", "cyan"), ("#FF00FF", "magenta"),
-    ("#0000FF", "blue"), ("#FF0000", "red"), ("#000080", "darkBlue"), ("#008080", "darkCyan"),
-    ("#008000", "darkGreen"), ("#800080", "darkMagenta"), ("#800000", "darkRed"),
-    ("#808000", "darkYellow"), ("#808080", "darkGray"), ("#C0C0C0", "lightGray"),
+    ("#FFFF00", "yellow"),
+    ("#00FF00", "green"),
+    ("#00FFFF", "cyan"),
+    ("#FF00FF", "magenta"),
+    ("#0000FF", "blue"),
+    ("#FF0000", "red"),
+    ("#000080", "darkBlue"),
+    ("#008080", "darkCyan"),
+    ("#008000", "darkGreen"),
+    ("#800080", "darkMagenta"),
+    ("#800000", "darkRed"),
+    ("#808000", "darkYellow"),
+    ("#808080", "darkGray"),
+    ("#C0C0C0", "lightGray"),
     ("#000000", "black"),
 ]
 HIGHLIGHT_NAME_BY_HEX: Final[dict[str, str]] = {h: n for h, n in WORD_HIGHLIGHT_PALETTE}
@@ -277,9 +316,7 @@ class ColorPickerButton(QToolButton):
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
 
         default_tip = (
-            "字体颜色"
-            if mode == "font"
-            else ("突出显示" if mode == "highlight" else "填充颜色")
+            "字体颜色" if mode == "font" else ("突出显示" if mode == "highlight" else "填充颜色")
         )
         self._raw_tip = tooltip or default_tip
         tip_text = safe_tr(self._raw_tip)
@@ -288,9 +325,7 @@ class ColorPickerButton(QToolButton):
         self.setAccessibleName(tip_text)
 
         icon_key = (
-            "fontColor"
-            if mode == "font"
-            else ("highlight" if mode == "highlight" else "fillColor")
+            "fontColor" if mode == "font" else ("highlight" if mode == "highlight" else "fillColor")
         )
         self.setIcon(get_office_icon(icon_key))
 

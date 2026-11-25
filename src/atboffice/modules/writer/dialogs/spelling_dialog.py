@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -18,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.writer.autocorrect import AutoCorrectEngine
 from atboffice.modules.writer.models.document import (
     Document,
@@ -32,11 +32,6 @@ from atboffice.modules.writer.views.caret_controller import (
     delete_range_in_paragraph,
     insert_text_in_paragraph,
 )
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("SpellingGrammarDialog", text)
 
 
 class SpellingGrammarDialog(QDialog):
@@ -154,12 +149,14 @@ class SpellingGrammarDialog(QDialog):
             text = ptext(p)
             for word, start, end in self.spell_engine.tokenize_words(text):
                 if not self.spell_engine.is_valid_word(word):
-                    self.issues.append({
-                        "para": p,
-                        "word": word,
-                        "start": start,
-                        "end": end,
-                    })
+                    self.issues.append(
+                        {
+                            "para": p,
+                            "word": word,
+                            "start": start,
+                            "end": end,
+                        }
+                    )
 
     def show_next_issue(self) -> None:
         """Advance to next spelling issue or display completion notification."""
@@ -175,7 +172,7 @@ class SpellingGrammarDialog(QDialog):
 
             current_text = ptext(p)
             # Re-locate word in paragraph in case text shifted from prior edits
-            if current_text[issue["start"]:issue["end"]] != w:
+            if current_text[issue["start"] : issue["end"]] != w:
                 pos = current_text.find(w)
                 if pos >= 0:
                     issue["start"] = pos
@@ -210,8 +207,8 @@ class SpellingGrammarDialog(QDialog):
             self.controller.caret_changed.emit()
 
         # Display context with red bold highlight
-        before = t[max(0, start - 40):start]
-        after = t[end:min(len(t), end + 40)]
+        before = t[max(0, start - 40) : start]
+        after = t[end : min(len(t), end + 40)]
         html_context = f"{before}<font color='red'><b>{w}</b></font>{after}"
         self.txt_context.setHtml(html_context)
 

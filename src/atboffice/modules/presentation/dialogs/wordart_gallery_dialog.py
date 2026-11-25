@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QRectF, QSize, Qt
+from PySide6.QtCore import QRectF, QSize, Qt
 from PySide6.QtGui import QBrush, QColor, QFont, QIcon, QLinearGradient, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
@@ -19,10 +19,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for WordArtGalleryDialog."""
-    return QCoreApplication.translate("WordArtGalleryDialog", text)
+from atboffice.core.i18n import safe_tr
+from atboffice.ui.styles.luna_2003 import ui_font
 
 
 def _w_style(
@@ -108,7 +106,7 @@ class WordArtGalleryDialog(QDialog):
         main_layout.setSpacing(8)
 
         self.lbl_title = QLabel(safe_tr("选择艺术字样式:"), self)
-        self.lbl_title.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self.lbl_title.setFont(ui_font(9, bold=True))
         main_layout.addWidget(self.lbl_title)
 
         # 5x6 Grid of WordArt style cards

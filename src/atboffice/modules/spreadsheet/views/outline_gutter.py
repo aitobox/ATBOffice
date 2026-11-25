@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QPoint, QRect, Qt
+from PySide6.QtCore import QPoint, QRect, Qt
 from PySide6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
@@ -12,10 +12,6 @@ from atboffice.modules.spreadsheet.models import outline
 
 STEP = 14  # px per outline level
 BUTTON = 11
-
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("OutlineGutter", text)
 
 
 class OutlineGutter(QWidget):
@@ -37,14 +33,20 @@ class OutlineGutter(QWidget):
     def _row_y(self, r: int) -> float:
         g = self.grid
         top = g.viewportMargins().top()
-        return top + (g.col_header_height + g.geometry_mapper.row_pos(r)
-                      - g.verticalScrollBar().value()) * g.zoom
+        return (
+            top
+            + (g.col_header_height + g.geometry_mapper.row_pos(r) - g.verticalScrollBar().value())
+            * g.zoom
+        )
 
     def _col_x(self, c: int) -> float:
         g = self.grid
         left = g.viewportMargins().left()
-        return left + (g.row_header_width + g.geometry_mapper.col_pos(c)
-                       - g.horizontalScrollBar().value()) * g.zoom
+        return (
+            left
+            + (g.row_header_width + g.geometry_mapper.col_pos(c) - g.horizontalScrollBar().value())
+            * g.zoom
+        )
 
     def buttons(self) -> list[tuple[QRect, str, Any]]:
         """Clickable buttons: (rect, kind, payload) with kind "level-row", "level-col",
@@ -61,13 +63,23 @@ class OutlineGutter(QWidget):
         for grp in outline.groups(sheet, "row"):
             y0, y1 = self._row_y(grp.summary), self._row_y(grp.summary + 1)
             yc = int((y0 + y1) / 2)
-            out.append((QRect((grp.level - 1) * STEP + 2, yc - BUTTON // 2, BUTTON, BUTTON),
-                        "toggle-row", grp))
+            out.append(
+                (
+                    QRect((grp.level - 1) * STEP + 2, yc - BUTTON // 2, BUTTON, BUTTON),
+                    "toggle-row",
+                    grp,
+                )
+            )
         for grp in outline.groups(sheet, "col"):
             x0, x1 = self._col_x(grp.summary), self._col_x(grp.summary + 1)
             xc = int((x0 + x1) / 2)
-            out.append((QRect(xc - BUTTON // 2, (grp.level - 1) * STEP + 2, BUTTON, BUTTON),
-                        "toggle-col", grp))
+            out.append(
+                (
+                    QRect(xc - BUTTON // 2, (grp.level - 1) * STEP + 2, BUTTON, BUTTON),
+                    "toggle-col",
+                    grp,
+                )
+            )
         return out
 
     def relayout(self) -> None:
@@ -137,8 +149,9 @@ class OutlineGutter(QWidget):
                 outline.show_level(sheet, "col", payload)
             else:
                 axis = kind.split("-")[1]
-                outline.set_collapsed(sheet, axis, payload,
-                                      not outline.is_collapsed(sheet, axis, payload))
+                outline.set_collapsed(
+                    sheet, axis, payload, not outline.is_collapsed(sheet, axis, payload)
+                )
             self.grid.outline_changed()
             return True
         return False

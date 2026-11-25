@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-from PySide6.QtWidgets import QApplication, QDialog
+from PySide6.QtWidgets import QDialog
 
 from atboffice.modules.spreadsheet.calc.fn_info import (
     get_function_info,
@@ -22,16 +21,6 @@ from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 from atboffice.modules.spreadsheet.views.editor_controller import EditorController
 from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport
 from atboffice.ui.shell.ledger_window import LedgerWindow
-
-
-@pytest.fixture(scope="session")
-def qapp():
-    """Ensure a QApplication instance exists."""
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication([])
-    return app
-
 
 # ==============================================================================
 # Catalog & Service Tests

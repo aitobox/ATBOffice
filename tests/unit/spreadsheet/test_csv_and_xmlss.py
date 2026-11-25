@@ -268,6 +268,7 @@ def test_text_import_wizard_init_and_navigation(qapp):
     # Retranslate UI
     wizard.retranslate_ui()
 
+
 def test_text_import_wizard_fixed_width_and_skip(qapp):
     data = "1001Alice Smith    Finance\n1002Bob Jones      Marketing\n"
     wizard = TextImportWizard(data, file_name="data.txt")

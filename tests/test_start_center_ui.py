@@ -230,10 +230,13 @@ def test_start_center_open_file_dialog_success(qtbot, tmp_path: Path):
     sample_file.touch()
 
     wm = WindowManager.get_instance()
-    with patch(
-        "atboffice.ui.shell.start_center.QFileDialog.getOpenFileName",
-        return_value=(str(sample_file), "All Files (*)"),
-    ), patch.object(wm, "open_file_auto") as mock_open:
+    with (
+        patch(
+            "atboffice.ui.shell.start_center.QFileDialog.getOpenFileName",
+            return_value=(str(sample_file), "All Files (*)"),
+        ),
+        patch.object(wm, "open_file_auto") as mock_open,
+    ):
         win.btn_open_file.click()
         mock_open.assert_called_once_with(sample_file.resolve())
 
@@ -244,10 +247,13 @@ def test_start_center_open_file_dialog_cancelled(qtbot):
     qtbot.addWidget(win)
 
     wm = WindowManager.get_instance()
-    with patch(
-        "atboffice.ui.shell.start_center.QFileDialog.getOpenFileName",
-        return_value=("", ""),
-    ), patch.object(wm, "open_file_auto") as mock_open:
+    with (
+        patch(
+            "atboffice.ui.shell.start_center.QFileDialog.getOpenFileName",
+            return_value=("", ""),
+        ),
+        patch.object(wm, "open_file_auto") as mock_open,
+    ):
         win.btn_open_file.click()
         mock_open.assert_not_called()
 
@@ -547,13 +553,12 @@ def test_start_center_retranslate_full_coverage(qtbot):
 
     load_locale("en")
     win.retranslate_ui()
-    assert win.btn_themes.text() in ("Themes", "主题")
-    assert win.btn_settings.text() in ("Settings", "设置")
-    assert win.btn_about.text() in ("About", "关于")
+    assert win.btn_themes.text() == "Theme"
+    assert win.btn_settings.text() == "Options"
+    assert win.btn_about.text() == "About"
 
     load_locale("zh-CN")
     win.retranslate_ui()
     assert win.btn_themes.text() == "主题"
-    assert win.btn_settings.text() == "设置"
+    assert win.btn_settings.text() == "选项"
     assert win.btn_about.text() == "关于"
-

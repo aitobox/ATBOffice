@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QLocale, QPoint, Qt, Signal
+from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtGui import QAction, QFont
 from PySide6.QtWidgets import (
     QComboBox,
@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.writer.models.document import Document, Paragraph
 from atboffice.modules.writer.models.revision import (
     BalloonPlacement,
@@ -94,17 +95,6 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "Main document changes and comments": "文档中的修订和批注",
     }
 }
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely with context and Chinese fallback."""
-    tr_text = QCoreApplication.translate("ReviewUI", text)
-    if tr_text != text and tr_text:
-        return tr_text
-    locale = QLocale.system().name()
-    if locale.startswith("zh") and text in _TRANSLATIONS["zh"]:
-        return _TRANSLATIONS["zh"][text]
-    return text
 
 
 # ---------------------------------------------------------------------------

@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from PySide6.QtCore import QCoreApplication, QSize, Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QDockWidget,
@@ -26,12 +26,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.ui.icons import get_office_icon
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for TaskPaneDock."""
-    return QCoreApplication.translate("TaskPaneDock", text)
 
 
 @dataclass
@@ -299,7 +295,7 @@ class NewDocumentPane(QWidget):
         self.lbl_new = SectionHeader(safe_tr("新建"), self)
         layout.addWidget(self.lbl_new)
 
-        self.btn_blank = PaneLinkButton(safe_tr(f"空白{self.doc_type_name}"), "fileNew", self)
+        self.btn_blank = PaneLinkButton(safe_tr("空白{0}", self.doc_type_name), "fileNew", self)
         self.btn_blank.clicked.connect(lambda: self.action_triggered.emit("new_blank"))
         layout.addWidget(self.btn_blank)
 
@@ -308,7 +304,7 @@ class NewDocumentPane(QWidget):
         layout.addWidget(self.btn_web)
 
         self.btn_from_existing = PaneLinkButton(
-            safe_tr(f"根据现有{self.doc_type_name}..."), "fileOpen", self
+            safe_tr("根据现有{0}...", self.doc_type_name), "fileOpen", self
         )
         self.btn_from_existing.clicked.connect(lambda: self.action_triggered.emit("open_file"))
         layout.addWidget(self.btn_from_existing)
@@ -325,9 +321,9 @@ class NewDocumentPane(QWidget):
 
     def retranslate_ui(self) -> None:
         self.lbl_new.setText(safe_tr("新建"))
-        self.btn_blank.setText(safe_tr(f"空白{self.doc_type_name}"))
+        self.btn_blank.setText(safe_tr("空白{0}", self.doc_type_name))
         self.btn_web.setText(safe_tr("网页"))
-        self.btn_from_existing.setText(safe_tr(f"根据现有{self.doc_type_name}..."))
+        self.btn_from_existing.setText(safe_tr("根据现有{0}...", self.doc_type_name))
         self.lbl_templates.setText(safe_tr("模板"))
         self.btn_templates.setText(safe_tr("本机上的模板..."))
 

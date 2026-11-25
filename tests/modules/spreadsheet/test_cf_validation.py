@@ -557,6 +557,7 @@ def test_grid_viewport_rendering_with_cf(qtbot) -> None:
     grid.resize(400, 300)
     grid.show()
     from PySide6.QtCore import QCoreApplication
+
     QCoreApplication.processEvents()
 
     # Verify dropdown indicator rect created for active cell A1
@@ -631,7 +632,7 @@ def test_circle_invalid_and_clear_circles(qtbot) -> None:
     sheet.add_data_validation(dv)
 
     sheet.set_cell(0, 0, CellData(value=15))  # Valid
-    sheet.set_cell(1, 0, CellData(value=5))   # Invalid (< 10)
+    sheet.set_cell(1, 0, CellData(value=5))  # Invalid (< 10)
     sheet.set_cell(2, 0, CellData(value=25))  # Invalid (> 20)
 
     # Trigger circle invalid
@@ -697,13 +698,9 @@ def test_grid_viewport_rendering_with_circles_and_comments(qtbot) -> None:
     grid.show()
 
     from PySide6.QtCore import QCoreApplication
+
     QCoreApplication.processEvents()
 
     # Verify viewport renders without errors
     grid.viewport().update()
     QCoreApplication.processEvents()
-
-
-
-
-

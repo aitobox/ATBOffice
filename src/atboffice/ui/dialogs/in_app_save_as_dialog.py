@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QDir, QModelIndex, Qt
+from PySide6.QtCore import QDir, QModelIndex, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -26,10 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for InAppSaveAsDialog."""
-    return QCoreApplication.translate("InAppSaveAsDialog", text)
+from atboffice.core.i18n import safe_tr
 
 
 class ConfirmPasswordDialog(QDialog):

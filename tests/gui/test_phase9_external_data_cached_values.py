@@ -99,12 +99,12 @@ def test_xlsx_reader_loads_cached_values_and_one_cell_anchor(qapp):
     sh = wb.sheets[0]
 
     # Verify formula cells retained cached_value
-    b2 = sh.get_cell(1, 1) # B2
+    b2 = sh.get_cell(1, 1)  # B2
     assert b2 is not None
     assert b2.formula == "POWER(A2,2)+2.5"
     assert b2.cached_value == 3.5
 
-    d2 = sh.get_cell(1, 3) # D2
+    d2 = sh.get_cell(1, 3)  # D2
     assert d2 is not None
     assert d2.cached_value is not None
 
@@ -114,10 +114,10 @@ def test_xlsx_reader_loads_cached_values_and_one_cell_anchor(qapp):
     d = sh.drawings[0]
     assert d.kind == "chart"
     assert d.anchor_type == AnchorType.ONE_CELL
-    assert d.from_point.col == 1 # Col B
-    assert d.from_point.row == 6 # Row 7 (0-indexed 6)
-    assert d.abs_rect[2] > 0 # Width > 0
-    assert d.abs_rect[3] > 0 # Height > 0
+    assert d.from_point.col == 1  # Col B
+    assert d.from_point.row == 6  # Row 7 (0-indexed 6)
+    assert d.abs_rect[2] > 0  # Width > 0
+    assert d.abs_rect[3] > 0  # Height > 0
 
     # Verify chart kind is bar (horizontal bar chart)
     assert isinstance(d.chart_data, dict)

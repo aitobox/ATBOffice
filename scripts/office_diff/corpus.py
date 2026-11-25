@@ -64,7 +64,7 @@ def partition_corpus(
         else:
             abs_path = docs_root / app / fmt / file_name
 
-        is_supp = (expected_status == "ok")
+        is_supp = expected_status == "ok"
 
         target = DocumentTarget(
             file=file_name,

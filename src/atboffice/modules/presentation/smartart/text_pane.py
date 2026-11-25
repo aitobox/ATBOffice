@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QEvent, Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.shape import Shape
 from atboffice.modules.presentation.smartart.engine import (
     LAYOUTS,
@@ -27,14 +28,6 @@ from atboffice.modules.presentation.smartart.engine import (
     relayout,
     to_shapes,
 )
-
-
-def safe_tr(text: str) -> str:
-    """Safe translation fallback for IntelliArt UI."""
-    try:
-        return QCoreApplication.translate("SmartArtTextPane", text)
-    except Exception:
-        return text
 
 
 class SmartArtRowEdit(QLineEdit):

@@ -16,9 +16,7 @@ def _part(files: dict[str, str], pat: str) -> str:
     return "\n".join(x for n, x in files.items() if re.search(pat, n))
 
 
-def _cnt(
-    pat: str, where: str = SLIDES
-) -> Callable[[list[str], dict[str, str]], int]:
+def _cnt(pat: str, where: str = SLIDES) -> Callable[[list[str], dict[str, str]], int]:
     return lambda names, f: len(re.findall(pat, _part(f, where)))
 
 
@@ -44,42 +42,31 @@ PRESENTATION_FEATURES: dict[str, Callable[[list[str], dict[str, str]], int]] = {
         + len(re.findall(r"<p188:cm\b|<p:cm\b", _part(f, r"ppt/comments/")))
     ),
     "video / audio on a slide": lambda names, f: sum(
-        _rel_targets(f, r"ppt/slides/_rels/")[k]
-        for k in ("video", "audio", "media")
+        _rel_targets(f, r"ppt/slides/_rels/")[k] for k in ("video", "audio", "media")
     ),
-    "VBA macros": lambda names, f: sum(
-        1 for n in names if n.lower().endswith("vbaproject.bin")
-    ),
+    "VBA macros": lambda names, f: sum(1 for n in names if n.lower().endswith("vbaproject.bin")),
     "custom XML parts / tags": lambda names, f: sum(
-        1
-        for n in names
-        if n.startswith("customXml/") or n.startswith("ppt/tags/")
+        1 for n in names if n.startswith("customXml/") or n.startswith("ppt/tags/")
     ),
-    "custom document properties": lambda names, f: int(
-        "docProps/custom.xml" in names
-    ),
+    "custom document properties": lambda names, f: int("docProps/custom.xml" in names),
     "slide transitions": _cnt(r"<p:transition\b"),
     "slide timing / animations": _cnt(r"<p:timing\b"),
     "speaker notes": _parts(r"ppt/notesSlides/notesSlide\d+\.xml$"),
     "SmartArt": lambda names, f: sum(
         1 for n in names if re.match(r"ppt/diagrams/data\d+\.xml$", n)
     ),
-    "charts": lambda names, f: sum(
-        1 for n in names if re.match(r"ppt/charts/chart\d+\.xml$", n)
-    ),
+    "charts": lambda names, f: sum(1 for n in names if re.match(r"ppt/charts/chart\d+\.xml$", n)),
     "tables": _cnt(r"<a:tbl\b"),
     "AutoShapes": _cnt(r"<p:sp\b"),
     "pictures": _cnt(r"<p:pic\b"),
     "group shapes": _cnt(r"<p:grpSp\b"),
-    "hyperlinks": _cnt(r'<a:hlinkClick\b|<a:hlinkHover\b'),
+    "hyperlinks": _cnt(r"<a:hlinkClick\b|<a:hlinkHover\b"),
     "themes": _parts(r"ppt/theme/theme\d+\.xml$"),
     "handout master": _parts(r"ppt/handoutMasters/handoutMaster\d+\.xml$"),
     "notes master": _parts(r"ppt/notesMasters/notesMaster\d+\.xml$"),
 }
 
 
-def extract_presentation_features(
-    names: list[str], files: dict[str, str]
-) -> dict[str, int]:
+def extract_presentation_features(names: list[str], files: dict[str, str]) -> dict[str, int]:
     """Extract all ECMA-376 feature counts from loaded PowerPoint package XML parts."""
     return {feat: fn(names, files) for feat, fn in PRESENTATION_FEATURES.items()}

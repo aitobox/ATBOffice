@@ -1,5 +1,6 @@
 """Quire interactive rulers component package."""
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.writer.views.rulers.horizontal_ruler import HorizontalRuler
 from atboffice.modules.writer.views.rulers.tab_selector import TabSelectorWidget
 from atboffice.modules.writer.views.rulers.types import (
@@ -10,7 +11,6 @@ from atboffice.modules.writer.views.rulers.types import (
     RulerUnit,
     TabKind,
     pt_to_unit,
-    safe_tr,
     snap_to_grid,
     unit_to_pt,
 )

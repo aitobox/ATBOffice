@@ -7,12 +7,12 @@ matrices, equation arrays, phantoms, and styled alphabets.
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from typing import Any
 
 from atboffice.modules.writer.models.document import RunItem
 from atboffice.modules.writer.models.properties import RunProperties
+from atboffice.vfs import etree as ET
 
 NS_M = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 NS_W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -80,7 +80,7 @@ def style_math_char(ch: str, scr: str | None) -> str:
 
 
 def _local_tag(elem: ET.Element | str) -> str:
-    tag = elem.tag if isinstance(elem, ET.Element) else elem
+    tag = elem.tag if ET.iselement(elem) else elem
     if tag.startswith("{"):
         return tag.split("}", 1)[1]
     return tag.split(":")[-1]
@@ -305,6 +305,7 @@ class OfficeMathItem(RunItem):
 
     def plain_text(self) -> str:
         """Return plain text of all math runs within this formula."""
+
         def _node_text(node: Any) -> str:
             if isinstance(node, MathRun):
                 return node.text
@@ -612,10 +613,7 @@ def parse_omml(elem_or_xml: ET.Element | str) -> OfficeMathItem:
         try:
             raw_str = ET.tostring(root, encoding="unicode")
             if raw_str and NS_STRICT_M in raw_str:
-                raw_str = (
-                    raw_str.replace(NS_STRICT_M, NS_M)
-                    .replace(NS_STRICT_W, NS_W)
-                )
+                raw_str = raw_str.replace(NS_STRICT_M, NS_M).replace(NS_STRICT_W, NS_W)
         except Exception:
             raw_str = None
 
@@ -785,10 +783,7 @@ def serialize_omml(item: OfficeMathItem) -> ET.Element:
         try:
             raw = item.raw_xml
             if NS_STRICT_M in raw:
-                raw = (
-                    raw.replace(NS_STRICT_M, NS_M)
-                    .replace(NS_STRICT_W, NS_W)
-                )
+                raw = raw.replace(NS_STRICT_M, NS_M).replace(NS_STRICT_W, NS_W)
             return ET.fromstring(raw)
         except Exception:
             pass

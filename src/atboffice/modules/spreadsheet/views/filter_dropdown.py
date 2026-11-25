@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.references import col_name
 from atboffice.modules.spreadsheet.dialogs.custom_filter import CustomFilterDialog
 from atboffice.modules.spreadsheet.models.filter_model import (
@@ -31,11 +32,6 @@ from atboffice.modules.spreadsheet.models.filter_model import (
 
 if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("FilterDropdown", text)
 
 
 class Top10FilterDialog(QDialog):
@@ -406,9 +402,7 @@ class FilterDropdownPopup(QWidget):
             v_item.checkState() == Qt.CheckState.Checked for v_item, _ in self.value_items
         )
         if self.blank_item is not None:
-            all_checked = all_checked and (
-                self.blank_item.checkState() == Qt.CheckState.Checked
-            )
+            all_checked = all_checked and (self.blank_item.checkState() == Qt.CheckState.Checked)
 
         if all_checked and not self.search_edit.text().strip():
             self.filter_cleared.emit()

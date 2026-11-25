@@ -180,10 +180,12 @@ def test_audit_session_accounting() -> None:
     assert session.is_passing() is True
 
     # Inject unmatched failure
-    session.record_result({
-        "file": "e.docx",
-        "status": "fail",
-        "expected_match": False,
-        "reason": "broken",
-    })
+    session.record_result(
+        {
+            "file": "e.docx",
+            "status": "fail",
+            "expected_match": False,
+            "reason": "broken",
+        }
+    )
     assert session.is_passing() is False

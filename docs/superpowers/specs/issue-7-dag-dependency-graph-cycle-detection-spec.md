@@ -76,16 +76,19 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import NamedTuple
 
+
 class Color(IntEnum):
     WHITE = 0
     GRAY = 1
     BLACK = 2
+
 
 @dataclass(frozen=True, slots=True)
 class CellAddress:
     sheet: str
     r: int
     c: int
+
 
 @dataclass(frozen=True, slots=True)
 class CellRange:
@@ -95,6 +98,7 @@ class CellRange:
     r2: int
     c2: int
 
+
 @dataclass
 class Change:
     sheet: str
@@ -102,11 +106,13 @@ class Change:
     c: int | None = None
     range: CellRange | None = None
 
+
 @dataclass
 class CycleReport:
     has_cycle: bool
     cycles: list[list[CellAddress]] = field(default_factory=list)
     circular_cells: set[CellAddress] = field(default_factory=set)
+
 
 @dataclass
 class RecalcPlan:
@@ -121,16 +127,18 @@ class RecalcPlan:
 ### 3.2 `DependencyGraph` 类接口
 ```python
 class DependencyGraph:
-    def __init__(self, iterative_enabled: bool = False, max_iterations: int = 100, tolerance: float = 0.001): ...
-    
+    def __init__(
+        self, iterative_enabled: bool = False, max_iterations: int = 100, tolerance: float = 0.001
+    ): ...
+
     def set_cell_formula(self, sheet: str, r: int, c: int, formula: str | ASTNode) -> None: ...
     def remove_cell(self, sheet: str, r: int, c: int) -> None: ...
     def clear(self) -> None: ...
-    
+
     def get_dependents(self, sheet: str, r: int, c: int) -> set[CellAddress]: ...
     def get_precedents(self, sheet: str, r: int, c: int) -> set[CellAddress | CellRange]: ...
     def get_direct_cell_precedents(self, sheet: str, r: int, c: int) -> set[CellAddress]: ...
-    
+
     def invalidate(self, changes: list[Change | CellAddress | tuple]) -> list[CellAddress]: ...
     def detect_cycles(self, nodes: list[CellAddress] | None = None) -> CycleReport: ...
     def topological_sort(self, dirty_nodes: list[CellAddress]) -> list[CellAddress]: ...

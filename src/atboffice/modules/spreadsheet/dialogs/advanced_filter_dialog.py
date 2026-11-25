@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -20,13 +20,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
+
 if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
-
-
-def safe_tr(text: str) -> str:
-    """Safely translate AdvancedFilterDialog UI string."""
-    return QCoreApplication.translate("AdvancedFilterDialog", text)
 
 
 class AdvancedFilterDialog(QDialog):

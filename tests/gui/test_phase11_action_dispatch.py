@@ -197,12 +197,21 @@ def test_insert_picture_actions_appear_only_once(qtbot) -> None:
 @pytest.mark.parametrize(
     ("app_type", "visible", "hidden"),
     [
-        ("quire", ["view_web", "view_outline", "wordCount", "stylesPane"],
-         ["view_page_break", "insert_function", "background"]),
-        ("ledger", ["view_page_break", "insert_function"],
-         ["view_web", "view_doc_map", "wordCount", "background"]),
-        ("lectern", ["background"],
-         ["view_web", "view_page_break", "insert_function", "stylesPane"]),
+        (
+            "quire",
+            ["view_web", "view_outline", "wordCount", "stylesPane"],
+            ["view_page_break", "insert_function", "background"],
+        ),
+        (
+            "ledger",
+            ["view_page_break", "insert_function"],
+            ["view_web", "view_doc_map", "wordCount", "background"],
+        ),
+        (
+            "lectern",
+            ["background"],
+            ["view_web", "view_page_break", "insert_function", "stylesPane"],
+        ),
     ],
 )
 def test_app_specific_items_gated_by_app_type(
@@ -306,8 +315,17 @@ def test_start_center_supported_actions_are_bound(qtbot) -> None:
     qtbot.addWidget(win)
     reg = win.menu_bar.action_registry
 
-    for aid in ("new", "open", "close", "about", "help", "tools_options",
-                "theme_luna_blue", "theme_classic", "theme_selector"):
+    for aid in (
+        "new",
+        "open",
+        "close",
+        "about",
+        "help",
+        "tools_options",
+        "theme_luna_blue",
+        "theme_classic",
+        "theme_selector",
+    ):
         spec = reg.get_spec(aid)
         assert spec is not None and spec.handler is not None, aid
         assert reg.is_enabled(aid), aid
@@ -318,8 +336,17 @@ def test_start_center_unsupported_editor_actions_disabled(qtbot) -> None:
     qtbot.addWidget(win)
     reg = win.menu_bar.action_registry
 
-    for aid in ("save", "undo", "paste", "print", "printPreview", "format_font",
-                "insert_symbol", "zoom_in", "spelling"):
+    for aid in (
+        "save",
+        "undo",
+        "paste",
+        "print",
+        "printPreview",
+        "format_font",
+        "insert_symbol",
+        "zoom_in",
+        "spelling",
+    ):
         assert not reg.is_enabled(aid), aid
 
 

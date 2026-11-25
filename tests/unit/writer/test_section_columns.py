@@ -42,9 +42,9 @@ def _document_with_columns(attributes: str, children: str = "") -> Document:
                 old = sect.find(f"{W}cols")
                 if old is not None:
                     sect.remove(old)
-                sect.append(ET.fromstring(
-                    f'<w:cols xmlns:w="{W[1:-1]}" {attributes}>{children}</w:cols>'
-                ))
+                sect.append(
+                    ET.fromstring(f'<w:cols xmlns:w="{W[1:-1]}" {attributes}>{children}</w:cols>')
+                )
                 data = ET.tostring(root)
             target.writestr(name, data)
     return read_docx(output.getvalue())
@@ -65,12 +65,10 @@ def test_explicit_single_column_wraps_on_first_page(qapp: QApplication) -> None:
 
 @pytest.mark.parametrize("equal_width", [None, "0", "false", "off"])
 def test_imported_unequal_geometry_survives_save(equal_width: str | None) -> None:
-    attr = '' if equal_width is None else f'w:equalWidth="{equal_width}"'
+    attr = "" if equal_width is None else f'w:equalWidth="{equal_width}"'
     doc = _document_with_columns(
         f'{attr} w:sep="1"',
-        '<w:col w:w="2000" w:space="0"/>'
-        '<w:col w:w="4000" w:space="240"/>'
-        '<w:col w:w="2160"/>',
+        '<w:col w:w="2000" w:space="0"/><w:col w:w="4000" w:space="240"/><w:col w:w="2160"/>',
     )
     for loaded in [doc, read_docx(write_docx(doc))]:
         cols = loaded.sect.cols
@@ -96,9 +94,7 @@ def test_equal_columns_keep_zero_gap_and_ignore_explicit_widths() -> None:
 
 @pytest.mark.parametrize("count", ["0", "-2", "invalid"])
 def test_invalid_column_count_keeps_explicit_column(count: str) -> None:
-    doc = _document_with_columns(
-        f'w:num="{count}" w:equalWidth="0"', '<w:col w:w="2000"/>'
-    )
+    doc = _document_with_columns(f'w:num="{count}" w:equalWidth="0"', '<w:col w:w="2000"/>')
     frames = paginate_document(doc).pages[0].regions[0].columns
     assert len(frames) == 1
     assert frames[0].width == 100.0
@@ -117,8 +113,7 @@ def test_missing_and_invalid_widths_use_equal_fallback() -> None:
 def test_dialog_style_unequal_columns_use_uniform_gap() -> None:
     doc = Document()
     doc.main.blocks = [Paragraph(runs=[TextItem("Column text")])]
-    doc.sect.cols = ColumnsProperties(num=2, space=12.0, equal_width=False,
-                                      widths=[100.0, 320.0])
+    doc.sect.cols = ColumnsProperties(num=2, space=12.0, equal_width=False, widths=[100.0, 320.0])
     frames = paginate_document(doc).pages[0].regions[0].columns
     assert [c.width for c in frames] == [100.0, 320.0]
     assert [c.left for c in frames] == [0.0, 112.0]
@@ -136,9 +131,7 @@ def test_fixture_balances_only_before_continuous_section(qapp: QApplication) -> 
     assert len(second.regions) == 2
     assert all(c.fragments for c in second.regions[0].columns)
     assert len(second.regions[1].columns) == 1
-    assert second.regions[1].top >= max(
-        c.used_height for c in second.regions[0].columns
-    )
+    assert second.regions[1].top >= max(c.used_height for c in second.regions[0].columns)
 
 
 @pytest.mark.parametrize("boundary", ["nextPage", "continuous", "final"])
@@ -164,21 +157,26 @@ def test_column_balance_depends_on_following_boundary(boundary: str) -> None:
 @pytest.mark.parametrize("widths", [[300.0, 70.0], [70.0, 300.0]])
 @pytest.mark.parametrize("keep_lines", [False, True])
 def test_continuation_reflows_at_destination_width(
-    widths: list[float], keep_lines: bool, qapp: QApplication,
+    widths: list[float],
+    keep_lines: bool,
+    qapp: QApplication,
 ) -> None:
     text = "alpha beta gamma delta " * 30 + "abcdefghij" * 20
     doc = Document()
     doc.sect.pg_h = 110.0
     doc.sect.mt = doc.sect.mb = 20.0
     doc.sect.cols = ColumnsProperties(num=2, equal_width=False, widths=widths)
-    doc.main.blocks = [Paragraph(
-        runs=[TextItem(text, r_pr=RunProperties(font="Arial", sz=10.0))],
-        p_pr=ParagraphProperties(
-            keep_lines=keep_lines, widow_control=False,
-            ind=IndentProperties(first_line=10.0),
-            sp=SpacingProperties(line=12.0, line_rule="exact"),
-        ),
-    )]
+    doc.main.blocks = [
+        Paragraph(
+            runs=[TextItem(text, r_pr=RunProperties(font="Arial", sz=10.0))],
+            p_pr=ParagraphProperties(
+                keep_lines=keep_lines,
+                widow_control=False,
+                ind=IndentProperties(first_line=10.0),
+                sp=SpacingProperties(line=12.0, line_rule="exact"),
+            ),
+        )
+    ]
     result = paginate_document(doc)
     portions = []
     for page in result.pages:
@@ -189,14 +187,19 @@ def test_continuation_reflows_at_destination_width(
                     portions.extend(line.portions)
     assert "".join(p.text for p in portions) == text
     for portion in portions:
-        assert text[portion.char_offset:portion.char_offset + portion.length] == portion.text
+        assert text[portion.char_offset : portion.char_offset + portion.length] == portion.text
 
 
 def test_unequal_continuous_section_keeps_measured_lines_in_their_columns() -> None:
     doc = Document()
-    previous = SectionProperties(cols=ColumnsProperties(
-        num=2, equal_width=False, widths=[300.0, 70.0], space=12.0,
-    ))
+    previous = SectionProperties(
+        cols=ColumnsProperties(
+            num=2,
+            equal_width=False,
+            widths=[300.0, 70.0],
+            space=12.0,
+        )
+    )
     paragraph = Paragraph(
         runs=[TextItem("A paragraph that fills a wider column with several lines. " * 4)],
         sect=previous,

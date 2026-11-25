@@ -271,4 +271,3 @@ def test_100_cycle_interaction_replay(replay_runner: SubprocessReplayRunner) -> 
     assert result.status == "normal_exit", f"100-cycle interaction replay failed: {result.stderr}"
     assert result.exit_code == 0
     assert result.duration > 0.0
-

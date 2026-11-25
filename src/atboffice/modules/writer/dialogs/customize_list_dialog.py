@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont, QPainter
 from PySide6.QtWidgets import (
     QComboBox,
@@ -28,11 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for CustomizeListDialog."""
-    return QCoreApplication.translate("CustomizeListDialog", text)
-
+from atboffice.core.i18n import safe_tr
 
 NUMBER_STYLES = [
     ("decimal", "1, 2, 3, ..."),
