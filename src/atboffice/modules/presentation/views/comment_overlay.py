@@ -74,9 +74,7 @@ class CommentMarkerItem(QGraphicsItem):
                 author_name = author.name
 
         time_str = format_relative_time(self.comment.created)
-        status_str = (
-            safe_tr("已解决") if self.comment.status == "resolved" else safe_tr("未解决")
-        )
+        status_str = safe_tr("已解决") if self.comment.status == "resolved" else safe_tr("未解决")
         preview = self.comment.text.strip().replace("\n", " ")
         if len(preview) > 60:
             preview = preview[:57] + "..."

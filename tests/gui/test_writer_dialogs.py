@@ -231,6 +231,3 @@ class TestBulletsNumberingDialog:
         assert dlg.tab_widget.tabText(2) == "多级符号"
         assert dlg.btn_reset.text() == "重新设置(&R)"
         assert dlg.btn_customize.text() == "自定义(&Z)..."
-
-
-

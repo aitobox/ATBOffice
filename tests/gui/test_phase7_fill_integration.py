@@ -25,6 +25,7 @@ def _cell_pt(grid, x: float, y: float) -> QPointF:
     """Point given in the old fixed 46x22 header layout, shifted to the grid's real headers."""
     return QPointF(x - 46 + grid.row_header_width, y - 22 + grid.col_header_height)
 
+
 def test_fill_handle_linear_drag_real_data(qtbot):
     """A1=1, A2=2 dragged down to A10 yields 1..10, with formula & modifier checks."""
     viewport = GridViewport()

@@ -68,8 +68,16 @@ def test_symbol_and_date_dialogs_insert_text(quire, monkeypatch) -> None:
 
 
 def test_hyperlink_dialog_creates_link_run(quire, monkeypatch) -> None:
-    _accept(monkeypatch, wd.HyperlinkDialog, get_hyperlink_data={
-        "text": "site", "target": "https://example.com", "kind": "url", "screentip": ""})
+    _accept(
+        monkeypatch,
+        wd.HyperlinkDialog,
+        get_hyperlink_data={
+            "text": "site",
+            "target": "https://example.com",
+            "kind": "url",
+            "screentip": "",
+        },
+    )
     quire.open_hyperlink_dialog()
     links = [it for it in _para(quire).runs if getattr(it.r_pr, "link", None)]
     assert links and links[0].text == "site"
@@ -79,8 +87,11 @@ def test_hyperlink_dialog_creates_link_run(quire, monkeypatch) -> None:
 def test_footnote_dialog_adds_reference_and_note(quire, monkeypatch) -> None:
     _accept(monkeypatch, wd.FootnoteDialog, get_footnote_settings={"type": "footnote"})
     quire.open_footnote_dialog()
-    refs = [it for it in _para(quire).runs if getattr(it, "t", "") == "noteRef"
-            or it.__class__.__name__ == "NoteRefItem"]
+    refs = [
+        it
+        for it in _para(quire).runs
+        if getattr(it, "t", "") == "noteRef" or it.__class__.__name__ == "NoteRefItem"
+    ]
     assert refs
     assert refs[0].note_id in quire.writer_view.canvas_view.doc.fn
 
@@ -88,16 +99,30 @@ def test_footnote_dialog_adds_reference_and_note(quire, monkeypatch) -> None:
 def test_caption_and_toc(quire, monkeypatch) -> None:
     canvas = quire.writer_view.canvas_view
     _para(quire).p_pr.style = "Heading1"
-    _accept(monkeypatch, wd.CaptionDialog, get_caption_data={
-        "caption": ": Overview", "label": "Figure", "position": "below", "exclude_label": False})
+    _accept(
+        monkeypatch,
+        wd.CaptionDialog,
+        get_caption_data={
+            "caption": ": Overview",
+            "label": "Figure",
+            "position": "below",
+            "exclude_label": False,
+        },
+    )
     quire.open_caption_dialog()
     captions = [p for p in canvas.doc.main.blocks if p.p_pr.style == "Caption"]
     assert captions and captions[0].runs[0].text == "Figure 1: Overview"
 
-    _accept(monkeypatch, wd.IndexTablesDialog, get_index_tables_data={
-        "active_tab": 1, "toc_levels": 3, "toc_show_pages": True})
-    monkeypatch.setattr(wd.IndexTablesDialog, "exec", lambda self: (
-        self.tab_widget.setCurrentWidget(self.tab_toc), ACCEPTED)[1])
+    _accept(
+        monkeypatch,
+        wd.IndexTablesDialog,
+        get_index_tables_data={"active_tab": 1, "toc_levels": 3, "toc_show_pages": True},
+    )
+    monkeypatch.setattr(
+        wd.IndexTablesDialog,
+        "exec",
+        lambda self: (self.tab_widget.setCurrentWidget(self.tab_toc), ACCEPTED)[1],
+    )
     quire.open_index_tables_dialog()
     toc = [p for p in canvas.doc.main.blocks if p.p_pr.style.startswith("TOC")]
     assert any("hello world" in "".join(getattr(i, "text", "") for i in p.runs) for p in toc)
@@ -119,9 +144,18 @@ def test_bookmark_dialog_adds_and_deletes(quire, monkeypatch) -> None:
 
 
 def test_page_numbers_dialog_adds_page_field_to_footer(quire, monkeypatch) -> None:
-    _accept(monkeypatch, wd.PageNumbersDialog, get_page_number_settings={
-        "position": "bottom", "alignment": "center", "show_first_page": False,
-        "number_format": "decimal", "continue_numbering": True, "start_at": 1})
+    _accept(
+        monkeypatch,
+        wd.PageNumbersDialog,
+        get_page_number_settings={
+            "position": "bottom",
+            "alignment": "center",
+            "show_first_page": False,
+            "number_format": "decimal",
+            "continue_numbering": True,
+            "start_at": 1,
+        },
+    )
     quire.open_page_numbers_dialog()
     doc = quire.writer_view.canvas_view.doc
     rid = doc.sect.refs["ftr"]["default"]
@@ -139,8 +173,11 @@ def test_change_case_drop_cap_watermark_hyphenation(quire, monkeypatch) -> None:
     quire.open_change_case_dialog()
     assert para.runs[0].text.startswith("HELLO")
 
-    _accept(monkeypatch, wd.DropCapDialog, get_drop_cap_data={
-        "position": "dropped", "font": "", "lines": 3, "distance_cm": 0})
+    _accept(
+        monkeypatch,
+        wd.DropCapDialog,
+        get_drop_cap_data={"position": "dropped", "font": "", "lines": 3, "distance_cm": 0},
+    )
     quire.open_drop_cap_dialog()
     assert _para(quire).p_pr.frame_pr["dropCap"] == "drop"
 
@@ -148,8 +185,16 @@ def test_change_case_drop_cap_watermark_hyphenation(quire, monkeypatch) -> None:
     quire.open_watermark_dialog()
     assert canvas.doc.settings["watermark"]["text"] == "DRAFT"
 
-    _accept(monkeypatch, wd.HyphenationDialog, get_hyphenation_settings={
-        "auto": True, "hyphenate_caps": False, "zone_pt": 18.0, "limit": "2"})
+    _accept(
+        monkeypatch,
+        wd.HyphenationDialog,
+        get_hyphenation_settings={
+            "auto": True,
+            "hyphenate_caps": False,
+            "zone_pt": 18.0,
+            "limit": "2",
+        },
+    )
     quire.open_hyphenation_dialog()
     assert canvas.doc.settings["autoHyphenation"] is True
     assert canvas.doc.settings["consecutiveHyphenLimit"] == 2
@@ -286,8 +331,9 @@ def test_style_and_zoom_combos(quire) -> None:
 
 def test_outline_commands_follow_view_mode(quire, monkeypatch) -> None:
     calls: list[str] = []
-    monkeypatch.setattr(quire.writer_view.canvas_view, "set_outline_level",
-                        lambda lvl: calls.append("canvas"))
+    monkeypatch.setattr(
+        quire.writer_view.canvas_view, "set_outline_level", lambda lvl: calls.append("canvas")
+    )
     quire.action_registry.trigger_action("promoteH1")
     assert calls == ["canvas"]
 
@@ -313,14 +359,54 @@ def test_object_commands_disabled_with_reason(quire) -> None:
 # ---------------------------------------------------------------------------
 
 WIRED = [
-    "format_font", "format_paragraph", "format_borders", "format_tabs", "tools_language",
-    "table_insert", "table_delete", "table_select", "table_properties", "insert_page_break",
-    "insert_page_number", "insert_date_time", "insert_symbol", "docMap", "viewReading",
-    "col_left", "col_right", "col_1", "col_2", "col_3", "hfPageNum", "hfNumPages", "hfDate",
-    "hfTime", "hfSwitch", "hfPrev", "hfNext", "hfClose", "hfShowText", "hfLinkPrev",
-    "rev_final", "rev_final_markup", "rev_original", "rev_original_markup", "prevChange",
-    "nextChange", "olFirstLine", "olFormatting", "updateTOC", "gotoTOC", "showMarks", "painter",
-    "drawTable", "eraser", "tbl_line_single", "tbl_weight_10", "tbl_shade_none", "mmMergeNew",
+    "format_font",
+    "format_paragraph",
+    "format_borders",
+    "format_tabs",
+    "tools_language",
+    "table_insert",
+    "table_delete",
+    "table_select",
+    "table_properties",
+    "insert_page_break",
+    "insert_page_number",
+    "insert_date_time",
+    "insert_symbol",
+    "docMap",
+    "viewReading",
+    "col_left",
+    "col_right",
+    "col_1",
+    "col_2",
+    "col_3",
+    "hfPageNum",
+    "hfNumPages",
+    "hfDate",
+    "hfTime",
+    "hfSwitch",
+    "hfPrev",
+    "hfNext",
+    "hfClose",
+    "hfShowText",
+    "hfLinkPrev",
+    "rev_final",
+    "rev_final_markup",
+    "rev_original",
+    "rev_original_markup",
+    "prevChange",
+    "nextChange",
+    "olFirstLine",
+    "olFormatting",
+    "updateTOC",
+    "gotoTOC",
+    "showMarks",
+    "painter",
+    "drawTable",
+    "eraser",
+    "tbl_line_single",
+    "tbl_weight_10",
+    "tbl_shade_none",
+    "mmMergeNew",
 ]
 
 

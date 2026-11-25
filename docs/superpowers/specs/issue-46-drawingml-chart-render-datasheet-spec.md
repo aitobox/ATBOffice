@@ -71,13 +71,13 @@ A chart is stored on a `Shape` via `shape.chart` (and `shape.type == "chart"`):
 
 ```python
 chart_dict = {
-    "v": 2,                           # DrawingML v2 model
-    "kind": "col",                    # 17 chart types
+    "v": 2,  # DrawingML v2 model
+    "kind": "col",  # 17 chart types
     "title": "Quarterly Sales",
     "titleTx": {"sz": 14.0, "b": True, "color": "tx1"},
-    "legend": "r",                    # 'r', 'b', 't', 'l', 'none'
-    "gridY": True,                    # Show major value gridlines
-    "labels": False,                  # Show data values or percentages
+    "legend": "r",  # 'r', 'b', 't', 'l', 'none'
+    "gridY": True,  # Show major value gridlines
+    "labels": False,  # Show data values or percentages
     "cats": ["1st Qtr", "2nd Qtr", "3rd Qtr", "4th Qtr"],
     "series": [
         {"name": "East", "vals": [20.4, 27.4, 90.0, 20.4], "color": "#4472C4"},
@@ -86,9 +86,9 @@ chart_dict = {
     ],
     "ax": {
         "c": {"tick": "out", "rev": False},
-        "v": {"grid": {"c": "#D9D9D9", "w": 0.75}, "min": None, "max": None, "log": None}
+        "v": {"grid": {"c": "#D9D9D9", "w": 0.75}, "min": None, "max": None, "log": None},
     },
-    "embedded_workbook": b"...",      # Optional embedded XLSX data
+    "embedded_workbook": b"...",  # Optional embedded XLSX data
 }
 ```
 

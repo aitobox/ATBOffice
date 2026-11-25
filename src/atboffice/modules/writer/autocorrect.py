@@ -35,14 +35,76 @@ DEFAULT_FRACTIONS: dict[str, str] = {
 
 # Common English abbreviations that should not trigger sentence-capitalization
 DEFAULT_EXCEPTIONS: set[str] = {
-    "a.", "abbr.", "abs.", "acad.", "acct.", "adj.", "adv.", "al.", "apr.",
-    "approx.", "assn.", "aug.", "ave.", "b.a.", "c.", "ca.", "cf.", "co.",
-    "corp.", "dec.", "dept.", "dr.", "e.g.", "ed.", "esp.", "est.", "etc.",
-    "ex.", "feb.", "fig.", "figs.", "fri.", "gen.", "i.e.", "inc.", "jan.",
-    "jr.", "jul.", "jun.", "ltd.", "mar.", "max.", "min.", "misc.", "mon.",
-    "mr.", "mrs.", "ms.", "mt.", "no.", "nov.", "oct.", "p.", "pp.", "prof.",
-    "ref.", "rev.", "sat.", "sep.", "sept.", "sr.", "st.", "sun.", "tel.",
-    "thu.", "tue.", "u.s.", "vol.", "vs.", "wed.",
+    "a.",
+    "abbr.",
+    "abs.",
+    "acad.",
+    "acct.",
+    "adj.",
+    "adv.",
+    "al.",
+    "apr.",
+    "approx.",
+    "assn.",
+    "aug.",
+    "ave.",
+    "b.a.",
+    "c.",
+    "ca.",
+    "cf.",
+    "co.",
+    "corp.",
+    "dec.",
+    "dept.",
+    "dr.",
+    "e.g.",
+    "ed.",
+    "esp.",
+    "est.",
+    "etc.",
+    "ex.",
+    "feb.",
+    "fig.",
+    "figs.",
+    "fri.",
+    "gen.",
+    "i.e.",
+    "inc.",
+    "jan.",
+    "jr.",
+    "jul.",
+    "jun.",
+    "ltd.",
+    "mar.",
+    "max.",
+    "min.",
+    "misc.",
+    "mon.",
+    "mr.",
+    "mrs.",
+    "ms.",
+    "mt.",
+    "no.",
+    "nov.",
+    "oct.",
+    "p.",
+    "pp.",
+    "prof.",
+    "ref.",
+    "rev.",
+    "sat.",
+    "sep.",
+    "sept.",
+    "sr.",
+    "st.",
+    "sun.",
+    "tel.",
+    "thu.",
+    "tue.",
+    "u.s.",
+    "vol.",
+    "vs.",
+    "wed.",
 }
 
 # Common typos derived from Apache OpenOffice / SCOWL / vibeoffice autocorrect
@@ -177,9 +239,7 @@ class AutoCorrectEngine:
 
         return ch
 
-    def process_typing(
-        self, text_before: str, typed_char: str
-    ) -> tuple[int, int, str] | None:
+    def process_typing(self, text_before: str, typed_char: str) -> tuple[int, int, str] | None:
         """Evaluate text immediately before caret when a character is typed.
 
         Returns (replace_start_offset, replace_end_offset, replacement_string) or None.
@@ -210,7 +270,7 @@ class AutoCorrectEngine:
                 return start, end, " – "
 
         # 3. Delimiter triggers (space or standard punctuation)
-        delimiters = ' \t\n.,;:!?)]}"\'”’'
+        delimiters = " \t\n.,;:!?)]}\"'”’"
         if typed_char not in delimiters:
             return None
 
@@ -218,7 +278,7 @@ class AutoCorrectEngine:
         # Note: if typed_char was already inserted into text_before, strip it for token extraction
         content = text_before
         if content.endswith(typed_char):
-            content = content[:-len(typed_char)]
+            content = content[: -len(typed_char)]
 
         m = re.search(r"(\S+)$", content)
         if not m:

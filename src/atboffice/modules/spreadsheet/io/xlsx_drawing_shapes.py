@@ -153,9 +153,7 @@ def parse_shape_element(
     return None
 
 
-def _parse_group(
-    el: ET.Element, ctx: DrawingContext, group_fill: DmlFill | None
-) -> FloatingObject:
+def _parse_group(el: ET.Element, ctx: DrawingContext, group_fill: DmlFill | None) -> FloatingObject:
     obj_id, name, _ = _nv_props(el, "Group")
     grp_pr = child(el, "grpSpPr")
     own_fill = parse_fill(grp_pr, ctx.theme, group_fill) or group_fill
@@ -349,9 +347,7 @@ def _parse_sp(
         obj.flip_h, obj.flip_v = xf.flip_h, xf.flip_v
 
     font_ref = first_color(_style_ref(style, "fontRef")[1], ctx.theme)
-    text, font_sz, font_fam, txt_col = _parse_text(
-        el, ctx, font_ref[0] if font_ref else "#000000"
-    )
+    text, font_sz, font_fam, txt_col = _parse_text(el, ctx, font_ref[0] if font_ref else "#000000")
     obj.text, obj.font_size, obj.font_family, obj.text_color = text, font_sz, font_fam, txt_col
 
     is_tb = _bool_attr(c_nv_sp, "txBox")
@@ -366,9 +362,25 @@ def _parse_sp(
 
 
 _SIGNATURE_ATTRS = (
-    "id", "name", "kind", "from_point", "to_point", "text", "text_color", "font_size",
-    "font_family", "fill_color", "fill_alpha", "fill_type", "line_color", "line_width",
-    "line_visible", "geometry", "flip_h", "flip_v", "z_index",
+    "id",
+    "name",
+    "kind",
+    "from_point",
+    "to_point",
+    "text",
+    "text_color",
+    "font_size",
+    "font_family",
+    "fill_color",
+    "fill_alpha",
+    "fill_type",
+    "line_color",
+    "line_width",
+    "line_visible",
+    "geometry",
+    "flip_h",
+    "flip_v",
+    "z_index",
 )
 
 

@@ -53,14 +53,18 @@ def apply_autoformat(sheet: Any, rect: tuple[int, int, int, int], preset: str) -
                 cell.border_top = _thin() if header else None
             elif preset == "accounting1":
                 cell.bold = header
-                if not header and isinstance(cell.value, (int, float)) and not isinstance(
-                    cell.value, bool
+                if (
+                    not header
+                    and isinstance(cell.value, (int, float))
+                    and not isinstance(cell.value, bool)
                 ):
                     cell.format_code = "#,##0.00"
                 cell.border_bottom = (
                     _thin()
                     if header
-                    else BorderStyle(style="double", color="#000000") if last else None
+                    else BorderStyle(style="double", color="#000000")
+                    if last
+                    else None
                 )
             elif preset == "colorful1":
                 if header:

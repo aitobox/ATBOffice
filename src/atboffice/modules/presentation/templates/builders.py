@@ -46,9 +46,7 @@ def build_status_template(size: tuple[float, float] = (960.0, 540.0)) -> Present
 
     # Slide 3: Project Phases (Chevron SmartArt)
     s3 = add_template_slide(pres, "text", "Project Phases")
-    insert_diagram_placeholder(
-        pres, s3, "chevron", ["Discover", "Design", "Build", "Launch"]
-    )
+    insert_diagram_placeholder(pres, s3, "chevron", ["Discover", "Design", "Build", "Launch"])
 
     # Slide 4: Milestones Table
     s4 = add_template_slide(pres, "table", "Milestones")

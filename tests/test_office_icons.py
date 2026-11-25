@@ -22,11 +22,37 @@ def test_list_office_icons():
     assert len(icons) >= 120
 
     core_icons = [
-        "new", "open", "save", "print", "preview", "spell", "cut", "copy",
-        "paste", "painter", "undo", "redo", "chart", "table", "bold",
-        "italic", "underline", "alignLeft", "alignCenter", "alignRight",
-        "justify", "numbering", "bullets", "fontColor", "fillColor",
-        "fx", "filter", "freeze", "bordersAll", "wordCount", "app"
+        "new",
+        "open",
+        "save",
+        "print",
+        "preview",
+        "spell",
+        "cut",
+        "copy",
+        "paste",
+        "painter",
+        "undo",
+        "redo",
+        "chart",
+        "table",
+        "bold",
+        "italic",
+        "underline",
+        "alignLeft",
+        "alignCenter",
+        "alignRight",
+        "justify",
+        "numbering",
+        "bullets",
+        "fontColor",
+        "fillColor",
+        "fx",
+        "filter",
+        "freeze",
+        "bordersAll",
+        "wordCount",
+        "app",
     ]
     for key in core_icons:
         assert key in icons, f"Missing expected core icon key: {key}"

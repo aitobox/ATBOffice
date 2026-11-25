@@ -76,15 +76,17 @@ Viewport instance variables:
 def cancel_drag(self, why: str = "api") -> None:
     if self._drag_mode == HitZone.NONE and not self._drag_snapshot:
         return
-    
+
     self._stop_auto_scroll()
-    
+
     snap = self._drag_snapshot
     if snap is not None:
         if snap.zone in (HitZone.CELL, HitZone.COL_HEADER, HitZone.ROW_HEADER):
             # Restore selection if on same sheet
             if self.model.active_sheet_index == snap.sheet_index:
-                self.selection.restore_snapshot(snap.active_cell, snap.ranges, snap.anchor, snap.extent)
+                self.selection.restore_snapshot(
+                    snap.active_cell, snap.ranges, snap.anchor, snap.extent
+                )
         elif snap.zone == HitZone.COL_RESIZE:
             self.geometry_mapper.set_col_width(snap.resize_index, snap.resize_orig_size)
             self._update_scrollbars()
@@ -94,7 +96,7 @@ def cancel_drag(self, why: str = "api") -> None:
         elif snap.zone == HitZone.FILL_HANDLE:
             self._fill_start_src = None
             self._fill_preview_range = None
-            
+
         if self.editor_controller and self.editor_controller.is_active:
             if hasattr(self.editor_controller, "point_cancel"):
                 self.editor_controller.point_cancel()

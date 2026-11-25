@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-from PySide6.QtWidgets import QApplication
-
 from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.dialogs.custom_filter import CustomFilterDialog
 from atboffice.modules.spreadsheet.models.filter_model import (
@@ -20,15 +17,6 @@ from atboffice.modules.spreadsheet.models.filter_model import (
 )
 from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetDataModel
 from atboffice.modules.spreadsheet.views.filter_dropdown import FilterDropdown
-
-
-@pytest.fixture(scope="session")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication([])
-    return app
-
 
 # =============================================================================
 # 1. Excel Sort & Comparator Tests

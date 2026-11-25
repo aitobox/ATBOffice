@@ -242,9 +242,7 @@ class SlideMasterView(QWidget):
         self.master_list.addItem(item_sm)
 
         # 2. Title Master Item (if available or standard)
-        has_title_master = (
-            design.title_decorations is not None or design.title_bg is not None
-        )
+        has_title_master = design.title_decorations is not None or design.title_bg is not None
         self.toolbar.btn_delete.setEnabled(has_title_master)
         self.toolbar.btn_insert.setEnabled(not has_title_master)
 

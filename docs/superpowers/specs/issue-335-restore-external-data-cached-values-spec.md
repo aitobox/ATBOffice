@@ -33,7 +33,9 @@ class CellData:
 When rendering cell text via `SheetDataModel.get_formatted_text(r, c)` or `GridViewport`:
 ```python
 val = cell.value
-if (val is None or val == "" or (isinstance(val, str) and val.startswith("#"))) and cell.cached_value is not None:
+if (
+    val is None or val == "" or (isinstance(val, str) and val.startswith("#"))
+) and cell.cached_value is not None:
     val = cell.cached_value
 ```
 

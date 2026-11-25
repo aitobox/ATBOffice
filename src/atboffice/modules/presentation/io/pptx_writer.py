@@ -372,9 +372,7 @@ class PptxWriter:
                         )
 
                         chart_data_obj = (
-                            c_data
-                            if isinstance(c_data, ChartData)
-                            else ChartData.from_dict(c_data)
+                            c_data if isinstance(c_data, ChartData) else ChartData.from_dict(c_data)
                         )
                         wb_bytes = (
                             chart_data_obj.embedded_workbook
@@ -522,13 +520,9 @@ class PptxWriter:
                 if not self.pres.find_author(cm.author_id):
                     self.pres.get_or_create_author(name=f"Author {cm.author_id}")
 
-            author_last_idx: dict[str, int] = {
-                a.id: a.last_idx for a in self.pres.comment_authors
-            }
+            author_last_idx: dict[str, int] = {a.id: a.last_idx for a in self.pres.comment_authors}
             for cm in all_comments:
-                author_last_idx[cm.author_id] = max(
-                    author_last_idx.get(cm.author_id, 0), cm.idx
-                )
+                author_last_idx[cm.author_id] = max(author_last_idx.get(cm.author_id, 0), cm.idx)
 
             ca_elem = ET.Element(f"{{{NS_P}}}cmAuthorLst")
             for auth in self.pres.comment_authors:
@@ -788,13 +782,9 @@ class PptxWriter:
                 if not self.pres.find_author(cm.author_id):
                     self.pres.get_or_create_author(name=f"Author {cm.author_id}")
 
-            author_last_idx: dict[str, int] = {
-                a.id: a.last_idx for a in self.pres.comment_authors
-            }
+            author_last_idx: dict[str, int] = {a.id: a.last_idx for a in self.pres.comment_authors}
             for cm in all_comments:
-                author_last_idx[cm.author_id] = max(
-                    author_last_idx.get(cm.author_id, 0), cm.idx
-                )
+                author_last_idx[cm.author_id] = max(author_last_idx.get(cm.author_id, 0), cm.idx)
 
             ca_elem = ET.Element(f"{{{NS_P}}}cmAuthorLst")
             for auth in self.pres.comment_authors:

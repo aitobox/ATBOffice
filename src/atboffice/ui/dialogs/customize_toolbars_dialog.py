@@ -606,12 +606,14 @@ class CustomizeToolbarsDialog(QDialog):
 
         cur_anim = self.combo_animations.currentIndex()
         self.combo_animations.clear()
-        self.combo_animations.addItems([
-            safe_tr("(无)"),
-            safe_tr("随机"),
-            safe_tr("展开"),
-            safe_tr("滑动"),
-        ])
+        self.combo_animations.addItems(
+            [
+                safe_tr("(无)"),
+                safe_tr("随机"),
+                safe_tr("展开"),
+                safe_tr("滑动"),
+            ]
+        )
         if cur_anim >= 0 and cur_anim < self.combo_animations.count():
             self.combo_animations.setCurrentIndex(cur_anim)
 

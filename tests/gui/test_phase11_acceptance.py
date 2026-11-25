@@ -19,12 +19,18 @@ from atboffice.core.window_manager import WindowManager
 DOCS = Path(__file__).resolve().parents[1] / "docs"
 CYCLES = 3
 
-QUIRE_DOCS = [DOCS / "word/docx/openxml-sdk__bullet-complex.docx",
-              DOCS / "word/docx/libreoffice__textframe-borders.docx"]
-LEDGER_DOCS = [DOCS / "excel/xlsx/libreoffice__tablerefsnamed.xlsx",
-               DOCS / "excel/xlsx/libreoffice__tdf133595.xlsx"]
-LECTERN_DOCS = [DOCS / "powerpoint/pptx/libreoffice__bnc887230.pptx",
-                DOCS / "powerpoint/pptx/libreoffice__TextFittingComparisonWithMSO_3.pptx"]
+QUIRE_DOCS = [
+    DOCS / "word/docx/openxml-sdk__bullet-complex.docx",
+    DOCS / "word/docx/libreoffice__textframe-borders.docx",
+]
+LEDGER_DOCS = [
+    DOCS / "excel/xlsx/libreoffice__tablerefsnamed.xlsx",
+    DOCS / "excel/xlsx/libreoffice__tdf133595.xlsx",
+]
+LECTERN_DOCS = [
+    DOCS / "powerpoint/pptx/libreoffice__bnc887230.pptx",
+    DOCS / "powerpoint/pptx/libreoffice__TextFittingComparisonWithMSO_3.pptx",
+]
 
 
 @pytest.fixture
@@ -42,10 +48,8 @@ def guarded(qapp, tmp_path, monkeypatch):
     crash = CrashDiagnostics(tmp_path / "crash.log")
     crash.enable()
     for name in ("critical", "warning", "information"):
-        monkeypatch.setattr(QMessageBox, name,
-                            lambda *a, **k: QMessageBox.StandardButton.Ok)
-    monkeypatch.setattr(QMessageBox, "question",
-                        lambda *a, **k: QMessageBox.StandardButton.No)
+        monkeypatch.setattr(QMessageBox, name, lambda *a, **k: QMessageBox.StandardButton.Ok)
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No)
     WindowManager.reset_instance()
     yield errors
     wm = WindowManager.get_instance()
@@ -57,7 +61,7 @@ def guarded(qapp, tmp_path, monkeypatch):
     WindowManager.reset_instance()
     sys.excepthook = previous_hook
     crash.disable()
-    log = (tmp_path / "crash.log")
+    log = tmp_path / "crash.log"
     assert not log.exists() or log.read_text(encoding="utf-8").strip() == "", log.read_text()
     assert errors == []
 
@@ -260,8 +264,9 @@ def test_no_visible_command_falls_back_to_not_wired_toast(qapp, guarded, index):
             continue
         spec = reg.get_spec(aid)
         canonical = reg._specs.get(reg.resolve_id(aid))
-        handled = spec.handler is not None or (canonical is not None
-                                               and canonical.handler is not None)
+        handled = spec.handler is not None or (
+            canonical is not None and canonical.handler is not None
+        )
         if not handled and not spec.disabled_reason and aid not in reg._whitelist_actions:
             unwired.append(aid)
     assert unwired == []

@@ -49,9 +49,11 @@ class CompatibilityDialog(QDialog):
 
     def retranslate_ui(self) -> None:
         self.setWindowTitle(safe_tr("兼容性检查器"))
-        self.lbl_summary.setText(safe_tr(
-            "“{0}”所用的格式不支持文档中的以下功能。继续保存，这些内容将会丢失或被更改。"
-        ).format(self.target_name))
+        self.lbl_summary.setText(
+            safe_tr(
+                "“{0}”所用的格式不支持文档中的以下功能。继续保存，这些内容将会丢失或被更改。"
+            ).format(self.target_name)
+        )
         self.tree.setHeaderLabels([safe_tr("功能"), safe_tr("位置"), safe_tr("出现次数")])
         ok = self.buttons.button(QDialogButtonBox.StandardButton.Ok)
         cancel = self.buttons.button(QDialogButtonBox.StandardButton.Cancel)

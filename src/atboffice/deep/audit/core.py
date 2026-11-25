@@ -51,19 +51,15 @@ def load_package_xml(
         names = [n for n in zf.namelist() if not n.endswith("/")]
         files: dict[str, str] = {}
         for n in names:
-            if (
-                n.endswith(".xml")
-                or n.endswith(".rels")
-                or n.endswith(".vml")
-            ) and zf.getinfo(n).file_size < max_part_size:
+            if (n.endswith(".xml") or n.endswith(".rels") or n.endswith(".vml")) and zf.getinfo(
+                n
+            ).file_size < max_part_size:
                 try:
                     raw = zf.read(n)
                     text = xml_text(raw)
                     # Strip mc:Fallback contents
                     if "mc:Fallback" in text:
-                        text = re.sub(
-                            r"<mc:Fallback\b.*?</mc:Fallback>", "", text, flags=re.DOTALL
-                        )
+                        text = re.sub(r"<mc:Fallback\b.*?</mc:Fallback>", "", text, flags=re.DOTALL)
                     files[n] = text
                 except Exception:
                     continue
@@ -166,9 +162,7 @@ def _render_model_offscreen(app: str, model: Any) -> bool:
         return False
 
 
-def _probe_legacy_open_outcome(
-    path: Path, raw_data: bytes, app: str, ext: str
-) -> dict[str, Any]:
+def _probe_legacy_open_outcome(path: Path, raw_data: bytes, app: str, ext: str) -> dict[str, Any]:
     """Probe the real open classification for legacy (.doc/.xls/.ppt) and encrypted files."""
     lead = raw_data[:64]
     if lead.startswith(b"\xef\xbb\xbf"):
@@ -285,8 +279,12 @@ def _audit_legacy_xls(
 
     stages = {"parse": "ok", "model": "ok", "render": render_stage, "roundtrip": "skip"}
     if render_stage == "fail":
-        return {**base, "status": "fail", "stages": stages,
-                "reason": "Offscreen render execution failed"}
+        return {
+            **base,
+            "status": "fail",
+            "stages": stages,
+            "reason": "Offscreen render execution failed",
+        }
     return {
         **base,
         "status": "imported",
@@ -331,49 +329,53 @@ def _execute_file_audit_worker(
     # Legacy binary / disguised extension handling (probed rather than blindly skipped)
     if ext in (".doc", ".ppt"):
         real_open_info = _probe_legacy_open_outcome(path, raw_data, app, ext)
-        queue.put({
-            "file": path.name,
-            "path": str(path),
-            "app": app,
-            "format": ext.lstrip("."),
-            "status": "unsupported_format",
-            "real_open": real_open_info,
-            "stages": {
-                "parse": "rejected_unsupported_format",
-                "model": "skip",
-                "render": "skip",
-                "roundtrip": "skip",
-            },
-            "reason": (
-                f"Legacy {ext} format (GUI real_open outcome: {real_open_info['outcome']}, "
-                f"format: {real_open_info['dispatched_format']})"
-            ),
-        })
+        queue.put(
+            {
+                "file": path.name,
+                "path": str(path),
+                "app": app,
+                "format": ext.lstrip("."),
+                "status": "unsupported_format",
+                "real_open": real_open_info,
+                "stages": {
+                    "parse": "rejected_unsupported_format",
+                    "model": "skip",
+                    "render": "skip",
+                    "roundtrip": "skip",
+                },
+                "reason": (
+                    f"Legacy {ext} format (GUI real_open outcome: {real_open_info['outcome']}, "
+                    f"format: {real_open_info['dispatched_format']})"
+                ),
+            }
+        )
         return
 
     # Check for Agile Encrypted OOXML (wrapped in OLE2 container with \xd0\xcf\x11\xe0)
     ole2_magic = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
     if raw_data.startswith(ole2_magic):
-        queue.put({
-            "file": path.name,
-            "path": str(path),
-            "app": app,
-            "format": ext.lstrip("."),
-            "status": "encrypted",
-            "real_open": {
-                "outcome": "rejected",
-                "rejection_kind": "encrypted",
-                "dispatched_format": "encrypted_ooxml",
-                "read_only": False,
-            },
-            "stages": {
-                "parse": "rejected_encrypted",
-                "model": "skip",
-                "render": "skip",
-                "roundtrip": "skip",
-            },
-            "reason": "Document is an encrypted OOXML package wrapped in OLE2 container",
-        })
+        queue.put(
+            {
+                "file": path.name,
+                "path": str(path),
+                "app": app,
+                "format": ext.lstrip("."),
+                "status": "encrypted",
+                "real_open": {
+                    "outcome": "rejected",
+                    "rejection_kind": "encrypted",
+                    "dispatched_format": "encrypted_ooxml",
+                    "read_only": False,
+                },
+                "stages": {
+                    "parse": "rejected_encrypted",
+                    "model": "skip",
+                    "render": "skip",
+                    "roundtrip": "skip",
+                },
+                "reason": "Document is an encrypted OOXML package wrapped in OLE2 container",
+            }
+        )
         return
 
     # Normal OOXML pipeline: parse -> model -> render -> roundtrip
@@ -388,29 +390,34 @@ def _execute_file_audit_worker(
         if app == "word":
             from atboffice.deep.audit.word import extract_word_features
             from atboffice.modules.writer.io import read_docx, write_docx
+
             model = read_docx(raw_data)
         elif app == "excel":
             from atboffice.deep.audit.excel import extract_excel_features
             from atboffice.modules.spreadsheet.io.xlsx_reader import read_xlsx
             from atboffice.modules.spreadsheet.io.xlsx_writer import write_xlsx
+
             model = read_xlsx(raw_data)
         elif app == "powerpoint":
             from atboffice.deep.audit.presentation import extract_presentation_features
             from atboffice.modules.presentation.io import read_pptx, write_pptx
+
             model = read_pptx(raw_data)
         else:
-            queue.put({
-                "file": path.name,
-                "path": str(path),
-                "status": "unsupported_format",
-                "stages": {
-                    "parse": "rejected_unsupported_format",
-                    "model": "skip",
-                    "render": "skip",
-                    "roundtrip": "skip",
-                },
-                "reason": f"Unknown application for extension {ext}",
-            })
+            queue.put(
+                {
+                    "file": path.name,
+                    "path": str(path),
+                    "status": "unsupported_format",
+                    "stages": {
+                        "parse": "rejected_unsupported_format",
+                        "model": "skip",
+                        "render": "skip",
+                        "roundtrip": "skip",
+                    },
+                    "reason": f"Unknown application for extension {ext}",
+                }
+            )
             return
 
         stages["parse"] = "ok"
@@ -418,9 +425,7 @@ def _execute_file_audit_worker(
         # Stage 2: Model inspection
         if app == "word":
             has_body = (
-                hasattr(model, "main")
-                or hasattr(model, "body")
-                or hasattr(model, "paragraphs")
+                hasattr(model, "main") or hasattr(model, "body") or hasattr(model, "paragraphs")
             )
             stages["model"] = "ok" if has_body else "fail"
         elif app == "excel":
@@ -439,20 +444,22 @@ def _execute_file_audit_worker(
             stages["render"] = "skip"
 
         if stages["render"] == "fail":
-            queue.put({
-                "file": path.name,
-                "path": str(path),
-                "app": app,
-                "format": ext.lstrip("."),
-                "status": "fail",
-                "stages": {
-                    "parse": stages["parse"],
-                    "model": stages["model"],
-                    "render": "fail",
-                    "roundtrip": "skip",
-                },
-                "reason": "Offscreen render execution failed",
-            })
+            queue.put(
+                {
+                    "file": path.name,
+                    "path": str(path),
+                    "app": app,
+                    "format": ext.lstrip("."),
+                    "status": "fail",
+                    "stages": {
+                        "parse": stages["parse"],
+                        "model": stages["model"],
+                        "render": "fail",
+                        "roundtrip": "skip",
+                    },
+                    "reason": "Offscreen render execution failed",
+                }
+            )
             return
 
         # Stage 4: Roundtrip serialization
@@ -493,17 +500,19 @@ def _execute_file_audit_worker(
         stages["roundtrip"] = "ok" if not feature_losses else "loss"
 
         status = "loss" if feature_losses else "ok"
-        queue.put({
-            "file": path.name,
-            "path": str(path),
-            "app": app,
-            "format": ext.lstrip("."),
-            "status": status,
-            "stages": stages,
-            "feature_losses": feature_losses,
-            "orig_size": len(raw_data),
-            "saved_size": len(saved_bytes) if fault != "loss" else 0,
-        })
+        queue.put(
+            {
+                "file": path.name,
+                "path": str(path),
+                "app": app,
+                "format": ext.lstrip("."),
+                "status": status,
+                "stages": stages,
+                "feature_losses": feature_losses,
+                "orig_size": len(raw_data),
+                "saved_size": len(saved_bytes) if fault != "loss" else 0,
+            }
+        )
 
     except Exception as e:
         err_msg = str(e).lower()
@@ -515,35 +524,39 @@ def _execute_file_audit_worker(
             or isinstance(e, zipfile.BadZipFile)
         )
         if is_corrupt:
-            queue.put({
-                "file": path.name,
-                "path": str(path),
-                "app": app,
-                "format": ext.lstrip("."),
-                "status": "corrupt",
-                "stages": {
-                    "parse": "rejected_corrupt",
-                    "model": "skip",
-                    "render": "skip",
-                    "roundtrip": "skip",
-                },
-                "reason": f"Corrupt archive: {e}",
-            })
+            queue.put(
+                {
+                    "file": path.name,
+                    "path": str(path),
+                    "app": app,
+                    "format": ext.lstrip("."),
+                    "status": "corrupt",
+                    "stages": {
+                        "parse": "rejected_corrupt",
+                        "model": "skip",
+                        "render": "skip",
+                        "roundtrip": "skip",
+                    },
+                    "reason": f"Corrupt archive: {e}",
+                }
+            )
         else:
-            queue.put({
-                "file": path.name,
-                "path": str(path),
-                "app": app,
-                "format": ext.lstrip("."),
-                "status": "fail",
-                "stages": {
-                    "parse": "fail",
-                    "model": "skip",
-                    "render": "skip",
-                    "roundtrip": "skip",
-                },
-                "reason": f"{type(e).__name__}: {e}",
-            })
+            queue.put(
+                {
+                    "file": path.name,
+                    "path": str(path),
+                    "app": app,
+                    "format": ext.lstrip("."),
+                    "status": "fail",
+                    "stages": {
+                        "parse": "fail",
+                        "model": "skip",
+                        "render": "skip",
+                        "roundtrip": "skip",
+                    },
+                    "reason": f"{type(e).__name__}: {e}",
+                }
+            )
 
 
 class IsolatedFileRunner:
@@ -632,9 +645,9 @@ class IsolatedFileRunner:
                 )
                 actual_status = res.get("status")
                 res["expected_status"] = expected_status
-                res["expected_match"] = (actual_status == expected_status)
+                res["expected_match"] = actual_status == expected_status
             else:
-                res["expected_match"] = (res.get("status") == "ok")
+                res["expected_match"] = res.get("status") == "ok"
 
         return res
 
@@ -777,9 +790,7 @@ def run_real_open_in_process(
         else:
             read_only = False
             dispatched_format = (
-                f"legacy_{ext.lstrip('.')}"
-                if ext in (".doc", ".xls", ".ppt")
-                else ext.lstrip(".")
+                f"legacy_{ext.lstrip('.')}" if ext in (".doc", ".xls", ".ppt") else ext.lstrip(".")
             )
             render_stage = "skip"
 
@@ -794,9 +805,7 @@ def run_real_open_in_process(
                 ):
                     rejection_kind = "encrypted"
                 elif any(
-                    d["level"] == "critical"
-                    or "损坏" in d["message"]
-                    or "无法打开" in d["message"]
+                    d["level"] == "critical" or "损坏" in d["message"] or "无法打开" in d["message"]
                     for d in dialogs
                 ):
                     rejection_kind = "corrupt"

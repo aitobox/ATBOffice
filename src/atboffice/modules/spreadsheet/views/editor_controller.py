@@ -156,17 +156,13 @@ class EditorController(QObject):
         self.in_cell_editor.textChanged.connect(self._on_in_cell_text_changed)
         self.in_cell_editor.commit_requested.connect(self.commit)
         self.in_cell_editor.array_commit_requested.connect(self.commit_array)
-        self.in_cell_editor.commit_and_move_requested.connect(
-            self.commit_and_move
-        )
+        self.in_cell_editor.commit_and_move_requested.connect(self.commit_and_move)
         self.in_cell_editor.cancel_requested.connect(self.cancel)
         self.in_cell_editor.f2_pressed.connect(self.toggle_mode)
 
         # Connect formula bar if provided
         if self.formula_bar is not None:
-            self.formula_bar.text_changed.connect(
-                self._on_formula_bar_text_changed
-            )
+            self.formula_bar.text_changed.connect(self._on_formula_bar_text_changed)
             self.formula_bar.commit_requested.connect(self.commit)
             self.formula_bar.cancel_requested.connect(self.cancel)
             self.formula_bar.fx_requested.connect(self._on_fx_clicked)
@@ -179,9 +175,7 @@ class EditorController(QObject):
         self._update_name_box()
         self._update_formula_bar_from_model()
 
-    def set_model_and_selection(
-        self, model: SheetDataModel, selection: SelectionModel
-    ) -> None:
+    def set_model_and_selection(self, model: SheetDataModel, selection: SelectionModel) -> None:
         """Switch active SheetDataModel and SelectionModel."""
         if self.is_active:
             self.cancel()
@@ -230,9 +224,7 @@ class EditorController(QObject):
         else:
             self.original_text = ""
 
-        edit_text = (
-            initial_text if initial_text is not None else self.original_text
-        )
+        edit_text = initial_text if initial_text is not None else self.original_text
 
         self._syncing = True
         self.in_cell_editor.setText(edit_text)
@@ -261,11 +253,7 @@ class EditorController(QObject):
 
     def _style_in_cell_editor(self, cell: CellData | None) -> None:
         """Apply cell font and alignment styles to in-cell editor."""
-        font = (
-            QFont(cell.font_family, cell.font_size)
-            if cell is not None
-            else QFont("Arial", 10)
-        )
+        font = QFont(cell.font_family, cell.font_size) if cell is not None else QFont("Arial", 10)
         if cell is not None:
             font.setBold(cell.bold)
             font.setItalic(cell.italic)
@@ -502,11 +490,7 @@ class EditorController(QObject):
                 # If cell has rich_runs and user commits unchanged text, preserve rich_runs
                 if cell.rich_runs is not None:
                     runs_text = "".join(r.text for r in cell.rich_runs)
-                    if (
-                        text != runs_text
-                        and text != str(cell.value)
-                        and text != self.original_text
-                    ):
+                    if text != runs_text and text != str(cell.value) and text != self.original_text:
                         cell.rich_runs = None
                 cell.value = parsed_val
                 cell.formula = None
@@ -567,9 +551,7 @@ class EditorController(QObject):
         if self.mode == EditorMode.POINT and self._point_len > 0:
             # Replace previous pointed reference
             start = self._point_start
-            new_text = (
-                curr_text[:start] + ref_str + curr_text[start + self._point_len :]
-            )
+            new_text = curr_text[:start] + ref_str + curr_text[start + self._point_len :]
             self._point_len = len(ref_str)
             new_pos = start + len(ref_str)
         else:
@@ -658,10 +640,7 @@ class EditorController(QObject):
         if not text.startswith("="):
             return False
         before = text[:pos]
-        return bool(
-            re.search(r"[=\+\-\*\/\^&,;\(\<\>:]\s*$", before)
-            or before.strip() == "="
-        )
+        return bool(re.search(r"[=\+\-\*\/\^&,;\(\<\>:]\s*$", before) or before.strip() == "=")
 
     def _on_in_cell_text_changed(self, text: str) -> None:
         if self._syncing:

@@ -339,22 +339,38 @@ def smartart_from_data(
     line = DmlLine(visible=True, color="#FFFFFF", width=1.5)
     group = ShapeItem(width=width, height=height, fill=DmlFill(kind="none"), line=DmlLine())
 
-    def box(x: float, y: float, bw: float, bh: float, text: str, sub: list[str] | None,
-            geom: str = "roundRect") -> None:
+    def box(
+        x: float,
+        y: float,
+        bw: float,
+        bh: float,
+        text: str,
+        sub: list[str] | None,
+        geom: str = "roundRect",
+    ) -> None:
         lines = [t for t in [text, *(sub or [])] if t]
         longest = max([4, *(len(t) for t in lines)])
         size = max(7.0, min(18.0, bh / (len(lines) * 1.6 + 0.6), bw / longest * 1.7))
         shape = ShapeItem(
-            width=bw, height=bh, geometry=geom, fill=fill, line=line,
-            story=_text_story(lines, size, bool(sub)), insets=(4.0, 3.0, 4.0, 3.0),
-            v_anchor="ctr", text_color="#FFFFFF",
+            width=bw,
+            height=bh,
+            geometry=geom,
+            fill=fill,
+            line=line,
+            story=_text_story(lines, size, bool(sub)),
+            insets=(4.0, 3.0, 4.0, 3.0),
+            v_anchor="ctr",
+            text_color="#FFFFFF",
         )
         group.children.append(ShapeChild(item=shape, x=x, y=y))
 
     def arrow(x: float, y: float, aw: float, ah: float) -> None:
         shape = ShapeItem(
-            width=aw, height=ah, geometry="rightArrow",
-            fill=DmlFill(kind="solid", color=accent, alpha=0.45), line=DmlLine(),
+            width=aw,
+            height=ah,
+            geometry="rightArrow",
+            fill=DmlFill(kind="solid", color=accent, alpha=0.45),
+            line=DmlLine(),
         )
         group.children.append(ShapeChild(item=shape, x=x, y=y))
 
@@ -376,8 +392,15 @@ def smartart_from_data(
         bh = bw * 0.6
         for i, node in enumerate(tops):
             a = -math.pi / 2 + i * 2 * math.pi / n
-            box(w / 2 + (r - bw / 2) * math.cos(a) - bw / 2,
-                h / 2 + (r - bh / 2) * math.sin(a) - bh / 2, bw, bh, node.text, None, "ellipse")
+            box(
+                w / 2 + (r - bw / 2) * math.cos(a) - bw / 2,
+                h / 2 + (r - bh / 2) * math.sin(a) - bh / 2,
+                bw,
+                bh,
+                node.text,
+                None,
+                "ellipse",
+            )
     elif re.search(r"hierarchy|orgchart", kind):
         levels: list[list[_Node]] = []
 

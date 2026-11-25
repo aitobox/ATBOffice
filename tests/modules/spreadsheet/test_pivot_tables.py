@@ -3,9 +3,6 @@
 import io
 import zipfile
 
-import pytest
-from PySide6.QtWidgets import QApplication
-
 from atboffice.modules.spreadsheet.dialogs.pivot_dialog import (
     PivotTableWizardDialog,
 )
@@ -19,14 +16,6 @@ from atboffice.modules.spreadsheet.models.pivot_model import (
 from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 from atboffice.vfs import etree as ET
-
-
-@pytest.fixture(scope="session")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication([])
-    return app
 
 
 def create_sample_sales_workbook() -> tuple[WorkbookModel, SheetDataModel]:
@@ -202,9 +191,7 @@ def test_pivot_ooxml_roundtrip_lossless():
             "</workbook>"
         )
         z.writestr("xl/workbook.xml", wb_xml)
-        rel_cache = (
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition"
-        )
+        rel_cache = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition"
         rel_ws = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"
         wb_rels = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -225,9 +212,7 @@ def test_pivot_ooxml_roundtrip_lossless():
             "</worksheet>"
         )
         z.writestr("xl/worksheets/sheet1.xml", ws_xml)
-        rel_pt = (
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable"
-        )
+        rel_pt = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable"
         ws_rels = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
@@ -239,23 +224,23 @@ def test_pivot_ooxml_roundtrip_lossless():
         # Mock definition parts
         cache_xml = (
             b'<?xml version="1.0" encoding="UTF-8"?>\n'
-            b'<pivotCacheDefinition '
+            b"<pivotCacheDefinition "
             b'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" recordCount="1">\n'
             b'  <cacheSource type="worksheet">'
             b'<worksheetSource ref="A1:B2" sheet="Sheet1"/></cacheSource>\n'
             b'  <cacheFields count="2">\n'
             b'    <cacheField name="ColA"/><cacheField name="ColB"/>\n'
-            b'  </cacheFields>\n'
+            b"  </cacheFields>\n"
             b"</pivotCacheDefinition>"
         )
         records_xml = (
             b'<?xml version="1.0" encoding="UTF-8"?>'
-            b'<pivotCacheRecords '
+            b"<pivotCacheRecords "
             b'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"/>'
         )
         table_xml = (
             b'<?xml version="1.0" encoding="UTF-8"?>\n'
-            b'<pivotTableDefinition '
+            b"<pivotTableDefinition "
             b'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
             b'name="PivotTable1" cacheId="1">\n'
             b'  <location ref="C1:E5" firstHeaderRow="1" firstDataRow="2" firstDataCol="1"/>\n'
@@ -346,9 +331,7 @@ def test_pivot_cache_refresh_on_edit():
             "</workbook>"
         )
         z.writestr("xl/workbook.xml", wb_xml)
-        rel_cache = (
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition"
-        )
+        rel_cache = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition"
         rel_ws = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"
         wb_rels = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -366,9 +349,7 @@ def test_pivot_cache_refresh_on_edit():
             "</worksheet>"
         )
         z.writestr("xl/worksheets/sheet1.xml", ws_xml)
-        rel_pt = (
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable"
-        )
+        rel_pt = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable"
         ws_rels = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
@@ -386,7 +367,7 @@ def test_pivot_cache_refresh_on_edit():
         )
         table_xml = (
             b'<?xml version="1.0" encoding="UTF-8"?>\n'
-            b'<pivotTableDefinition '
+            b"<pivotTableDefinition "
             b'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
             b'name="PivotTable1" cacheId="1">\n'
             b'  <location ref="C1:E5"/>\n'

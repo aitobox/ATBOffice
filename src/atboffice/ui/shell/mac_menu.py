@@ -581,9 +581,7 @@ class MacMenuBar(QMenuBar):
 
         def connect_if(action_key: str, attr_name: str) -> None:
             if hasattr(window, attr_name):
-                bind_default(
-                    action_key, lambda w=window, a=attr_name: getattr(w, a)()
-                )
+                bind_default(action_key, lambda w=window, a=attr_name: getattr(w, a)())
 
         connect_if("file_new", "new_file")
         connect_if("file_open", "open_file_dialog")

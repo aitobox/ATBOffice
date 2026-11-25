@@ -608,9 +608,7 @@ def _parse_styles(
                     )
                     if ptype == "solid":
                         fill_info["bg_color"] = fg_hex if fg_spec is not None else bg_hex
-                        fill_info["bg_color_spec"] = (
-                            fg_spec if fg_spec is not None else bg_spec
-                        )
+                        fill_info["bg_color_spec"] = fg_spec if fg_spec is not None else bg_spec
                     else:
                         fill_info["pattern_color"] = fg_hex
                         fill_info["pattern_color_spec"] = fg_spec
@@ -628,9 +626,7 @@ def _parse_styles(
                 "bottom": _parse_border_side(
                     _find_child(b_el, "bottom"), active_theme, active_palette
                 ),
-                "left": _parse_border_side(
-                    _find_child(b_el, "left"), active_theme, active_palette
-                ),
+                "left": _parse_border_side(_find_child(b_el, "left"), active_theme, active_palette),
                 "right": _parse_border_side(
                     _find_child(b_el, "right"), active_theme, active_palette
                 ),
@@ -982,9 +978,10 @@ def _parse_worksheet(
     sfp = _find_child(root, "sheetFormatPr")
     if sfp is not None:
         def_row_h = _attr(sfp, "defaultRowHeight")
-        custom_h = _attr(sfp, "customHeight") in ("1", "true") or _attr(
-            sfp, "zeroHeight"
-        ) in ("1", "true")
+        custom_h = _attr(sfp, "customHeight") in ("1", "true") or _attr(sfp, "zeroHeight") in (
+            "1",
+            "true",
+        )
         if def_row_h and custom_h:
             try:
                 # points to pixels: pt * 96 / 72 = pt / 0.75
@@ -1540,9 +1537,7 @@ def _parse_worksheet_drawings(
                                     )
                                     chart_dict = parsed_chart.to_dict()
                                 except Exception:
-                                    logger.warning(
-                                        "Failed to parse chart XML %s", chart_target
-                                    )
+                                    logger.warning("Failed to parse chart XML %s", chart_target)
 
             obj = FloatingObject(
                 id=obj_id,
@@ -1572,7 +1567,7 @@ def _strip_author_prefix(text: str, author: str) -> str:
     prefix = f"{name}:"
     if not text.startswith(prefix):
         return text
-    return text[len(prefix):].lstrip(" \t").removeprefix("\r\n").removeprefix("\n")
+    return text[len(prefix) :].lstrip(" \t").removeprefix("\r\n").removeprefix("\n")
 
 
 def _parse_worksheet_comments(
@@ -1852,7 +1847,7 @@ def read_xlsx(
         ):
             wb.extra["is_macro_enabled"] = True
 
-    with (_PackageArchive(source_pkg) if source_pkg is not None else _open_zip(source)) as z:
+    with _PackageArchive(source_pkg) if source_pkg is not None else _open_zip(source) as z:
         # 1. Discover workbook.xml via _rels/.rels
         root_rels = _parse_rels(z, "_rels/.rels")
         wb_part = "xl/workbook.xml"
@@ -1982,9 +1977,7 @@ def read_xlsx(
             wb.extra["xlsx_style_deltas"] = style_deltas
         active_palette = wb.indexed_palette or DEFAULT_INDEXED_PALETTE
         sst = (
-            _parse_shared_strings(
-                z, sst_path, theme_colors=wb.theme_colors, palette=active_palette
-            )
+            _parse_shared_strings(z, sst_path, theme_colors=wb.theme_colors, palette=active_palette)
             if sst_path
             else []
         )

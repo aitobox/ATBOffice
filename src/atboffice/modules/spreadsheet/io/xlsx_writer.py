@@ -159,7 +159,7 @@ def _color_element(
                 if attrs:
                     if spec.get("tint"):
                         attrs.append(f'tint="{spec["tint"]}"')
-                    return f'<{tag} {" ".join(attrs)}/>'
+                    return f"<{tag} {' '.join(attrs)}/>"
     c_hex = _color_hex(hex_color)
     if c_hex:
         return f'<{tag} rgb="{c_hex}"/>'
@@ -244,9 +244,7 @@ class SharedStringsManager:
                 for r in runs:
                     rpr_parts: list[str] = []
                     if r.font_family:
-                        rpr_parts.append(
-                            f'<rFont val="{_xml_escape(r.font_family)}"/>'
-                        )
+                        rpr_parts.append(f'<rFont val="{_xml_escape(r.font_family)}"/>')
                     if r.bold:
                         rpr_parts.append("<b/>")
                     if r.italic:
@@ -258,9 +256,7 @@ class SharedStringsManager:
                         if u_style == "single":
                             rpr_parts.append("<u/>")
                         else:
-                            rpr_parts.append(
-                                f'<u val="{_xml_escape(u_style)}"/>'
-                            )
+                            rpr_parts.append(f'<u val="{_xml_escape(u_style)}"/>')
                     if r.font_size:
                         rpr_parts.append(f'<sz val="{r.font_size}"/>')
                     if r.fg_color or getattr(r, "fg_color_spec", None):
@@ -274,15 +270,9 @@ class SharedStringsManager:
                         if col_xml:
                             rpr_parts.append(col_xml)
                     if r.vert_align:
-                        rpr_parts.append(
-                            f'<vertAlign val="{_xml_escape(r.vert_align)}"/>'
-                        )
+                        rpr_parts.append(f'<vertAlign val="{_xml_escape(r.vert_align)}"/>')
 
-                    rpr_xml = (
-                        f"<rPr>{''.join(rpr_parts)}</rPr>"
-                        if rpr_parts
-                        else ""
-                    )
+                    rpr_xml = f"<rPr>{''.join(rpr_parts)}</rPr>" if rpr_parts else ""
                     t_xml = _text_element(r.text)
                     si_parts.append(f"<r>{rpr_xml}{t_xml}</r>")
                 si_parts.append("</si>")
@@ -295,8 +285,17 @@ class SharedStringsManager:
 
 
 _STYLESHEET_ORDER = [
-    "numFmts", "fonts", "fills", "borders", "cellStyleXfs", "cellXfs", "cellStyles",
-    "dxfs", "tableStyles", "colors", "extLst",
+    "numFmts",
+    "fonts",
+    "fills",
+    "borders",
+    "cellStyleXfs",
+    "cellXfs",
+    "cellStyles",
+    "dxfs",
+    "tableStyles",
+    "colors",
+    "extLst",
 ]
 
 
@@ -312,12 +311,37 @@ def _freeze(value: Any) -> Any:
 
 
 _SIGNATURE_FIELDS = (
-    "format_code", "bold", "italic", "underline", "underline_style", "strike", "vert_align",
-    "font_size", "font_family", "fg_color", "fg_color_spec", "bg_color", "bg_color_spec",
-    "align_h", "align_v", "indent", "wrap_text", "shrink_to_fit", "text_rotation",
-    "text_direction", "border_top", "border_bottom", "border_left", "border_right",
-    "border_diag_up", "border_diag_down", "pattern", "pattern_color", "pattern_color_spec",
-    "locked", "hidden",
+    "format_code",
+    "bold",
+    "italic",
+    "underline",
+    "underline_style",
+    "strike",
+    "vert_align",
+    "font_size",
+    "font_family",
+    "fg_color",
+    "fg_color_spec",
+    "bg_color",
+    "bg_color_spec",
+    "align_h",
+    "align_v",
+    "indent",
+    "wrap_text",
+    "shrink_to_fit",
+    "text_rotation",
+    "text_direction",
+    "border_top",
+    "border_bottom",
+    "border_left",
+    "border_right",
+    "border_diag_up",
+    "border_diag_down",
+    "pattern",
+    "pattern_color",
+    "pattern_color_spec",
+    "locked",
+    "hidden",
 )
 
 
@@ -336,9 +360,7 @@ class StyleManager:
     ) -> None:
         self.theme_colors = list(theme_colors) if theme_colors else list(DEFAULT_THEME_COLORS)
         self.indexed_palette = list(indexed_palette) if indexed_palette else None
-        self.palette = (
-            list(indexed_palette) if indexed_palette else list(DEFAULT_INDEXED_PALETTE)
-        )
+        self.palette = list(indexed_palette) if indexed_palette else list(DEFAULT_INDEXED_PALETTE)
 
         self.fonts: list[str] = []
         self.font_map: dict[tuple[Any, ...], int] = {}
@@ -475,17 +497,23 @@ class StyleManager:
         root = self._source_root
         ns = self._ns
         sections = [
-            ("numFmts", "numFmt", [
-                f'<numFmt numFmtId="{fid}" formatCode="{_xml_escape(code)}"/>'
-                for fid, code in self.num_fmts
-            ]),
-            ("fonts", "font", self.fonts[self._base_counts["fonts"]:]),
-            ("fills", "fill", self.fills[self._base_counts["fills"]:]),
-            ("borders", "border", self.borders[self._base_counts["borders"]:]),
-            ("cellXfs", "xf", [
-                self._xf_xml(xf) for xf in self.cell_xfs[self._base_counts["cellXfs"]:]
-            ]),
-            ("dxfs", "dxf", [self._dxf_xml(d) for d in self.dxfs[self._base_counts["dxfs"]:]]),
+            (
+                "numFmts",
+                "numFmt",
+                [
+                    f'<numFmt numFmtId="{fid}" formatCode="{_xml_escape(code)}"/>'
+                    for fid, code in self.num_fmts
+                ],
+            ),
+            ("fonts", "font", self.fonts[self._base_counts["fonts"] :]),
+            ("fills", "fill", self.fills[self._base_counts["fills"] :]),
+            ("borders", "border", self.borders[self._base_counts["borders"] :]),
+            (
+                "cellXfs",
+                "xf",
+                [self._xf_xml(xf) for xf in self.cell_xfs[self._base_counts["cellXfs"] :]],
+            ),
+            ("dxfs", "dxf", [self._dxf_xml(d) for d in self.dxfs[self._base_counts["dxfs"] :]]),
         ]
         for container_name, item_name, items in sections:
             items = [x for x in items if x]
@@ -533,9 +561,7 @@ class StyleManager:
         if underline:
             parts.append('<u val="single"/>')
         parts.append(f'<sz val="{sz or 10}"/>')
-        col_xml = _color_element(
-            "color", color, color_spec, self.theme_colors, self.palette
-        )
+        col_xml = _color_element("color", color, color_spec, self.theme_colors, self.palette)
         if col_xml:
             parts.append(col_xml)
         parts.append(f'<name val="{_xml_escape(name or "Arial")}"/>')
@@ -859,8 +885,11 @@ class StyleManager:
             parts.append(f"<font>{''.join(font_parts)}</font>")
         if d.get("bg_color") or d.get("bg_color_spec"):
             fg_xml = _color_element(
-                "fgColor", d.get("bg_color"), d.get("bg_color_spec"),
-                self.theme_colors, self.palette,
+                "fgColor",
+                d.get("bg_color"),
+                d.get("bg_color_spec"),
+                self.theme_colors,
+                self.palette,
             )
             if fg_xml:
                 parts.append(
@@ -1040,7 +1069,6 @@ def _serialize_sheet_data(
     return "".join(parts)
 
 
-
 _X14_CF_EXT_URI = "{78C0D931-6437-407d-A8EE-F0AAD7539E65}"
 _NS_X14 = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"
 _NS_XM = "http://schemas.microsoft.com/office/excel/2006/main"
@@ -1085,9 +1113,7 @@ def _x14_icon_set_ext_xml(formats: list[tuple[str, list[Any]]]) -> str:
             ic = rule.icon_set
             stop = ' stopIfTrue="1"' if rule.stop_if_true else ""
             rid = "{" + str(uuid.uuid4()).upper() + "}"
-            out.append(
-                f'<x14:cfRule type="iconSet" priority="{rule.priority}"{stop} id="{rid}">'
-            )
+            out.append(f'<x14:cfRule type="iconSet" priority="{rule.priority}"{stop} id="{rid}">')
             out.append(f"<x14:iconSet {_icon_set_attrs(ic, True)}>")
             for cfvo in ic.cfvos:
                 g_attr = ' gte="0"' if not getattr(cfvo, "gte", True) else ""
@@ -1127,12 +1153,12 @@ def _sheet_views_xml(sheet: SheetDataModel, is_active: bool) -> str:
     attr_str = "".join(f" {a}" for a in attrs)
     sel_xml = ""
     if vs.active_cell_rc() is not None:
-        ranges = " ".join(
-            p for p in (vs.sqref or "").split() if parse_range(p) is not None
-        ) or vs.active_cell
+        ranges = (
+            " ".join(p for p in (vs.sqref or "").split() if parse_range(p) is not None)
+            or vs.active_cell
+        )
         sel_xml = (
-            f'<selection activeCell="{_xml_escape(vs.active_cell)}" '
-            f'sqref="{_xml_escape(ranges)}"/>'
+            f'<selection activeCell="{_xml_escape(vs.active_cell)}" sqref="{_xml_escape(ranges)}"/>'
         )
     if sel_xml:
         return f"<sheetViews><sheetView{attr_str}>{sel_xml}</sheetView></sheetViews>"
@@ -1419,7 +1445,7 @@ def _patch_page_setup(xml: str, sheet: Any) -> str:
     m = _AFTER_PAGE.search(xml)
     if m is None:
         return xml
-    xml = xml[: m.start()] + _page_setup_block_xml(sheet) + xml[m.start():]
+    xml = xml[: m.start()] + _page_setup_block_xml(sheet) + xml[m.start() :]
     fit = get_print_setup(sheet).fit_to
     if re.search(r"<pageSetUpPr\b", xml):
         xml = re.sub(
@@ -1440,8 +1466,12 @@ def _patch_page_setup(xml: str, sheet: Any) -> str:
             # pageSetUpPr is the last child of sheetPr (after tabColor, outlinePr)
             xml = xml.replace("</sheetPr>", '<pageSetUpPr fitToPage="1"/></sheetPr>', 1)
         else:
-            xml = re.sub(r"(<worksheet\b[^>]*>)",
-                         r'\1<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>', xml, count=1)
+            xml = re.sub(
+                r"(<worksheet\b[^>]*>)",
+                r'\1<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>',
+                xml,
+                count=1,
+            )
     return xml
 
 
@@ -1528,7 +1558,7 @@ def _group_child_xfrm(obj: Any, tag: str = "a:xfrm") -> str:
     if getattr(obj, "flip_v", False):
         flips += ' flipV="1"'
     return (
-        f"<{tag}{flips}><a:off x=\"{round(fx * ext)}\" y=\"{round(fy * ext)}\"/>"
+        f'<{tag}{flips}><a:off x="{round(fx * ext)}" y="{round(fy * ext)}"/>'
         f'<a:ext cx="{round(fw * ext)}" cy="{round(fh * ext)}"/></{tag}>'
     )
 
@@ -1563,7 +1593,7 @@ def _object_xml(
 
     if obj.kind == "image" and obj.id in image_rids:
         img_rid = image_rids[obj.id]
-        locks = "<a:picLocks noChangeAspect=\"1\"/>" if getattr(obj, "lock_aspect", False) else ""
+        locks = '<a:picLocks noChangeAspect="1"/>' if getattr(obj, "lock_aspect", False) else ""
         nv_pic_pr = (
             f'<xdr:nvPicPr><xdr:cNvPr id="{obj.id}" name="{name_esc}"/>'
             f"<xdr:cNvPicPr>{locks}</xdr:cNvPicPr></xdr:nvPicPr>"
@@ -1674,10 +1704,28 @@ def _serialize_drawings(
 
 
 _WORKBOOK_ORDER = [
-    "fileVersion", "fileSharing", "workbookPr", "AlternateContent", "revisionPtr", "absPath",
-    "workbookProtection", "bookViews", "sheets", "functionGroups", "externalReferences",
-    "definedNames", "calcPr", "oleSize", "customWorkbookViews", "pivotCaches", "smartTagPr",
-    "smartTagTypes", "webPublishing", "fileRecoveryPr", "webPublishObjects", "extLst",
+    "fileVersion",
+    "fileSharing",
+    "workbookPr",
+    "AlternateContent",
+    "revisionPtr",
+    "absPath",
+    "workbookProtection",
+    "bookViews",
+    "sheets",
+    "functionGroups",
+    "externalReferences",
+    "definedNames",
+    "calcPr",
+    "oleSize",
+    "customWorkbookViews",
+    "pivotCaches",
+    "smartTagPr",
+    "smartTagTypes",
+    "webPublishing",
+    "fileRecoveryPr",
+    "webPublishObjects",
+    "extLst",
 ]
 
 
@@ -1715,7 +1763,7 @@ def _serialize_workbook(workbook: WorkbookModel, entries: list[_SheetEntry]) -> 
         XML_HEADER,
         f'<workbook xmlns="{NS_MAIN}" xmlns:r="{NS_R}">',
         f'<fileVersion appName="xl" lastEdited="4" lowestEdited="4" rupBuild="4505"{fv_attr}/>',
-        f'<workbookPr {" ".join(wpr_attrs)}/>',
+        f"<workbookPr {' '.join(wpr_attrs)}/>",
     ]
 
     prot = workbook.extra.get("protection")
@@ -1975,13 +2023,44 @@ def _serialize_theme() -> bytes:
 
 
 _WORKSHEET_ORDER = [
-    "sheetPr", "dimension", "sheetViews", "sheetFormatPr", "cols", "sheetData",
-    "sheetCalcPr", "sheetProtection", "protectedRanges", "scenarios", "autoFilter",
-    "sortState", "dataConsolidate", "customSheetViews", "mergeCells", "phoneticPr",
-    "conditionalFormatting", "dataValidations", "hyperlinks", "printOptions", "pageMargins",
-    "pageSetup", "headerFooter", "rowBreaks", "colBreaks", "customProperties", "cellWatches",
-    "ignoredErrors", "smartTags", "drawing", "legacyDrawing", "legacyDrawingHF",
-    "drawingHF", "picture", "oleObjects", "controls", "webPublishItems", "tableParts",
+    "sheetPr",
+    "dimension",
+    "sheetViews",
+    "sheetFormatPr",
+    "cols",
+    "sheetData",
+    "sheetCalcPr",
+    "sheetProtection",
+    "protectedRanges",
+    "scenarios",
+    "autoFilter",
+    "sortState",
+    "dataConsolidate",
+    "customSheetViews",
+    "mergeCells",
+    "phoneticPr",
+    "conditionalFormatting",
+    "dataValidations",
+    "hyperlinks",
+    "printOptions",
+    "pageMargins",
+    "pageSetup",
+    "headerFooter",
+    "rowBreaks",
+    "colBreaks",
+    "customProperties",
+    "cellWatches",
+    "ignoredErrors",
+    "smartTags",
+    "drawing",
+    "legacyDrawing",
+    "legacyDrawingHF",
+    "drawingHF",
+    "picture",
+    "oleObjects",
+    "controls",
+    "webPublishItems",
+    "tableParts",
     "extLst",
 ]
 
@@ -2091,9 +2170,7 @@ def write_xlsx(
     ):
         is_xlsm = True
 
-    ct_workbook = (
-        "application/vnd.ms-excel.sheet.macroEnabled.main+xml" if is_xlsm else CT_WORKBOOK
-    )
+    ct_workbook = "application/vnd.ms-excel.sheet.macroEnabled.main+xml" if is_xlsm else CT_WORKBOOK
 
     pkg_writer = PackageWriter(source_package=source_pkg)
     used_parts: set[str] = {p.lower() for p in source_pkg.parts()} if source_pkg else set()
@@ -2184,17 +2261,14 @@ def write_xlsx(
         part_name = entry.part
         is_active = idx == workbook.active_sheet_index
         sheet_rels_part = get_rels_path(part_name)
-        src_sheet_rels = (
-            source_pkg.get_relationships(part_name) if entry.from_source else []
-        )
+        src_sheet_rels = source_pkg.get_relationships(part_name) if entry.from_source else []
         orig_drawing_rel = next(
             (r for r in src_sheet_rels if _rel_type_is(r.type, "drawing")), None
         )
         has_drawings = bool(getattr(sheet, "drawings", None))
-        drawings_unchanged = (
-            orig_drawing_rel is not None
-            and sheet.extra.get("xlsx_drawings_signature") == drawings_signature(sheet.drawings)
-        )
+        drawings_unchanged = orig_drawing_rel is not None and sheet.extra.get(
+            "xlsx_drawings_signature"
+        ) == drawings_signature(sheet.drawings)
         regenerate_drawings = has_drawings and not drawings_unchanged
         drawing_rid = None
         if regenerate_drawings:
@@ -2282,11 +2356,9 @@ def write_xlsx(
 
         if sheet_rels:
             new_rels = _relationships_xml(sheet_rels)
-            unchanged = (
-                entry.from_source
-                and [(a, b, c, d or "Internal") for a, b, c, d in sheet_rels]
-                == [(r.id, r.type, r.target, r.target_mode) for r in src_sheet_rels]
-            )
+            unchanged = entry.from_source and [
+                (a, b, c, d or "Internal") for a, b, c, d in sheet_rels
+            ] == [(r.id, r.type, r.target, r.target_mode) for r in src_sheet_rels]
             if not unchanged:
                 pkg_writer.add_part(sheet_rels_part, new_rels, CT_RELATIONSHIPS)
         elif entry.from_source and src_sheet_rels:
@@ -2299,8 +2371,10 @@ def write_xlsx(
     sst_present = bool(sst_bytes) or bool(source_pkg and source_pkg.has_part(sst_part))
 
     # 3. styles.xml: carried when nothing changed, otherwise the original is extended.
-    if source_pkg and source_pkg.has_part(styles_part) and not (
-        any_dirty or style_manager.has_new_records()
+    if (
+        source_pkg
+        and source_pkg.has_part(styles_part)
+        and not (any_dirty or style_manager.has_new_records())
     ):
         pass  # carried byte-for-byte
     else:

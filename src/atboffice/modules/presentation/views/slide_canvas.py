@@ -159,11 +159,7 @@ class SlideScene(QGraphicsScene):
                 self.guide_controller.clear_guides(self)
                 self.clear()
 
-            design = (
-                self.presentation.get_design_for_slide(slide)
-                if self.presentation
-                else None
-            )
+            design = self.presentation.get_design_for_slide(slide) if self.presentation else None
 
             # Add master decorations behind slide shapes if not hide_master
             if self.presentation and not getattr(slide, "hide_master", False) and design:
@@ -280,9 +276,7 @@ class SlideScene(QGraphicsScene):
         return self._items_by_id.get(shape_id)
 
     def selected_shape_items(self) -> list[ShapeGraphicsItem]:
-        return [
-            item for item in self.selectedItems() if isinstance(item, ShapeGraphicsItem)
-        ]
+        return [item for item in self.selectedItems() if isinstance(item, ShapeGraphicsItem)]
 
     def update_connected_connectors(
         self,
@@ -741,9 +735,7 @@ class SlideScene(QGraphicsScene):
                 selected[0].model.h,
             )
             for it in selected[1:]:
-                ref = ref.united(
-                    QRectF(it.pos().x(), it.pos().y(), it.model.w, it.model.h)
-                )
+                ref = ref.united(QRectF(it.pos().x(), it.pos().y(), it.model.w, it.model.h))
 
         for it in selected:
             rect = QRectF(it.pos().x(), it.pos().y(), it.model.w, it.model.h)
@@ -888,9 +880,7 @@ class SlideCanvasView(QGraphicsView):
             | QPainter.RenderHint.SmoothPixmapTransform
         )
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
-        self.setViewportUpdateMode(
-            QGraphicsView.ViewportUpdateMode.FullViewportUpdate
-        )
+        self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setFrameShape(QFrame.Shape.NoFrame)
@@ -1062,9 +1052,7 @@ class SlideCanvasView(QGraphicsView):
 
         act_comment = menu.addAction(safe_tr("插入批注"))
         scene_pos = self.mapToScene(event.pos())
-        act_comment.triggered.connect(
-            lambda: self.insert_comment_at(scene_pos.x(), scene_pos.y())
-        )
+        act_comment.triggered.connect(lambda: self.insert_comment_at(scene_pos.x(), scene_pos.y()))
         menu.addSeparator()
 
         # Z-Order submenu

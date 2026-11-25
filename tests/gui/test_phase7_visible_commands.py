@@ -312,8 +312,3 @@ def test_multi_locale_retranslate_across_all_dialogs(qapp: QApplication) -> None
     reg.retranslate_ui()
     dlg_chart.retranslate_ui()
     assert dlg_chart.btn_finish.text() == "完成(&F)"
-
-
-
-
-

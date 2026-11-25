@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 from PySide6.QtCore import QObject, QTimer
 from PySide6.QtWidgets import QApplication
 
+from atboffice.core.app import ATBApplication
 from atboffice.core.recent_files import RecentFilesManager
 
 if TYPE_CHECKING:
@@ -226,7 +227,7 @@ class WindowManager(QObject):
     def _retarget_main_window(self, closed: Any) -> None:
         """Point the application's main window at a live window after ``closed`` goes away."""
         app = QApplication.instance()
-        if app is None or getattr(app, "_main_window", None) is not closed:
+        if not isinstance(app, ATBApplication) or app._main_window is not closed:
             return
         replacement: Any | None = next(iter(self._active_windows), None)
         if replacement is None and self._start_center is not closed:

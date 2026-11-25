@@ -133,10 +133,7 @@ def load_data_source_from_csv(file_path: str | Path) -> MailMergeDataSource:
     if not rows:
         raise ValueError("The data source contains no records.")
 
-    fields = [
-        col if col else f"Field{i + 1}"
-        for i, col in enumerate(rows[0])
-    ]
+    fields = [col if col else f"Field{i + 1}" for i, col in enumerate(rows[0])]
     data_rows = rows[1:]
 
     return MailMergeDataSource(
@@ -388,12 +385,14 @@ class MailMergeEngine:
                 runs_to_insert.append(TextItem(text=" ", r_pr=r_pr))
             safe_fn = fn.replace(" ", "_")
             instr = f"MERGEFIELD {safe_fn}"
-            runs_to_insert.extend([
-                FieldBeginItem(field_type="MERGEFIELD", instr=instr, r_pr=r_pr),
-                FieldSeparateItem(r_pr=r_pr),
-                TextItem(text=f"«{safe_fn}»", r_pr=r_pr),
-                FieldEndItem(r_pr=r_pr),
-            ])
+            runs_to_insert.extend(
+                [
+                    FieldBeginItem(field_type="MERGEFIELD", instr=instr, r_pr=r_pr),
+                    FieldSeparateItem(r_pr=r_pr),
+                    TextItem(text=f"«{safe_fn}»", r_pr=r_pr),
+                    FieldEndItem(r_pr=r_pr),
+                ]
+            )
 
         runs_to_insert.append(TextItem(text=salutation, r_pr=r_pr))
         p.runs[idx:idx] = runs_to_insert
@@ -438,12 +437,14 @@ class MailMergeEngine:
 
                 safe_fn = fn.replace(" ", "_")
                 instr = f"MERGEFIELD {safe_fn}"
-                p.runs.extend([
-                    FieldBeginItem(field_type="MERGEFIELD", instr=instr, r_pr=r_pr),
-                    FieldSeparateItem(r_pr=r_pr),
-                    TextItem(text=f"«{safe_fn}»", r_pr=r_pr),
-                    FieldEndItem(r_pr=r_pr),
-                ])
+                p.runs.extend(
+                    [
+                        FieldBeginItem(field_type="MERGEFIELD", instr=instr, r_pr=r_pr),
+                        FieldSeparateItem(r_pr=r_pr),
+                        TextItem(text=f"«{safe_fn}»", r_pr=r_pr),
+                        FieldEndItem(r_pr=r_pr),
+                    ]
+                )
                 first_item = False
 
             if p.runs:

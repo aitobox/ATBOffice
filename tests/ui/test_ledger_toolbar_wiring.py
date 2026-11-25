@@ -23,6 +23,7 @@ def _finish_chart_wizard(monkeypatch):
 
     monkeypatch.setattr(ChartWizardDialog, "exec", fake_exec)
 
+
 def test_autosum_above_single_cell(qtbot) -> None:
     win = LedgerWindow()
     qtbot.addWidget(win)
@@ -372,9 +373,9 @@ def test_all_dropdown_and_split_actions_registered(qtbot) -> None:
     ]
 
     for aid in expected_actions:
-        assert win.action_registry.has_action(
-            aid
-        ), f"Action '{aid}' must be registered in action_registry"
+        assert win.action_registry.has_action(aid), (
+            f"Action '{aid}' must be registered in action_registry"
+        )
 
 
 def test_autosum_dropdown_functions(qtbot) -> None:
@@ -998,6 +999,3 @@ def test_hyperlink_and_format_object_dialog_seven_languages(qtbot) -> None:
         assert dlg_fo.tab_widget.tabText(0) != ""
 
     load_locale("zh-CN")
-
-
-

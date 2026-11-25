@@ -270,6 +270,7 @@ class ScreenCaptureManager:
         if "tab" in fn:
             try:
                 import re
+
                 m = re.search(r"tab(\d+)", fn)
                 if m:
                     tab_idx = max(0, int(m.group(1)) - 1)
@@ -328,7 +329,9 @@ class ScreenCaptureManager:
                     tabs = dlg.findChild(QTabWidget)
                     if tabs is None:
                         if self.strict:
-                            raise ScenarioCaptureError(f"Tab {tab_idx} requested but no QTabWidget found in {fn}")
+                            raise ScenarioCaptureError(
+                                f"Tab {tab_idx} requested but no QTabWidget found in {fn}"
+                            )
                     elif tab_idx >= tabs.count():
                         if self.strict:
                             raise ScenarioCaptureError(
@@ -349,7 +352,9 @@ class ScreenCaptureManager:
 
         else:
             if self.strict:
-                raise ScenarioCaptureError(f"Category [{cat}] not yet wired for capture without fallback: {fn}")
+                raise ScenarioCaptureError(
+                    f"Category [{cat}] not yet wired for capture without fallback: {fn}"
+                )
             return win.grab()
 
     def _capture_ledger_record(self, record: dict) -> QPixmap:
@@ -361,6 +366,7 @@ class ScreenCaptureManager:
         if "tab" in fn:
             try:
                 import re
+
                 m = re.search(r"tab(\d+)", fn)
                 if m:
                     tab_idx = max(0, int(m.group(1)) - 1)
@@ -407,7 +413,9 @@ class ScreenCaptureManager:
                     tabs = dlg.findChild(QTabWidget)
                     if tabs is None:
                         if self.strict:
-                            raise ScenarioCaptureError(f"Tab {tab_idx} requested but no QTabWidget found in {fn}")
+                            raise ScenarioCaptureError(
+                                f"Tab {tab_idx} requested but no QTabWidget found in {fn}"
+                            )
                     elif tab_idx >= tabs.count():
                         if self.strict:
                             raise ScenarioCaptureError(
@@ -428,7 +436,9 @@ class ScreenCaptureManager:
 
         else:
             if self.strict:
-                raise ScenarioCaptureError(f"Category [{cat}] not yet wired for capture without fallback: {fn}")
+                raise ScenarioCaptureError(
+                    f"Category [{cat}] not yet wired for capture without fallback: {fn}"
+                )
             return win.grab()
 
     def _capture_lectern_record(self, record: dict) -> QPixmap:
@@ -440,6 +450,7 @@ class ScreenCaptureManager:
         if "tab" in fn:
             try:
                 import re
+
                 m = re.search(r"tab(\d+)", fn)
                 if m:
                     tab_idx = max(0, int(m.group(1)) - 1)
@@ -480,7 +491,9 @@ class ScreenCaptureManager:
                     tabs = dlg.findChild(QTabWidget)
                     if tabs is None:
                         if self.strict:
-                            raise ScenarioCaptureError(f"Tab {tab_idx} requested but no QTabWidget found in {fn}")
+                            raise ScenarioCaptureError(
+                                f"Tab {tab_idx} requested but no QTabWidget found in {fn}"
+                            )
                     elif tab_idx >= tabs.count():
                         if self.strict:
                             raise ScenarioCaptureError(
@@ -501,7 +514,9 @@ class ScreenCaptureManager:
 
         else:
             if self.strict:
-                raise ScenarioCaptureError(f"Category [{cat}] not yet wired for capture without fallback: {fn}")
+                raise ScenarioCaptureError(
+                    f"Category [{cat}] not yet wired for capture without fallback: {fn}"
+                )
             return win.grab()
 
     def generate_index_markdown(self, records: list[dict]):
@@ -530,18 +545,34 @@ class ScreenCaptureManager:
             target = rec.get("guiTarget", "")
             atb_link = f"[{fn}]({mod}/{fn})"
             orig_link = f"`{rec['path']}`"
-            lines.append(f"| {i} | **{mod}** | `{cat}` | {action} ({target}) | {atb_link} | {orig_link} |")
+            lines.append(
+                f"| {i} | **{mod}** | `{cat}` | {action} ({target}) | {atb_link} | {orig_link} |"
+            )
 
         index_file.write_text("\n".join(lines), encoding="utf-8")
         print(f"Generated screenshots index at {index_file}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Capture ATBOffice UI screenshots matching records.json baseline.")
-    parser.add_argument("--output-dir", default=str(repo_root / "docs" / "clone" / "evidence" / "phase6" / "screenshots"), help="Output directory")
-    parser.add_argument("--module", choices=["00_start_center", "01_quire", "02_ledger", "03_lectern"], help="Filter by module")
-    parser.add_argument("--limit", type=int, default=None, help="Limit number of screenshots captured")
-    parser.add_argument("--no-strict", action="store_true", help="Allow non-strict capture for audit exploration")
+    parser = argparse.ArgumentParser(
+        description="Capture ATBOffice UI screenshots matching records.json baseline."
+    )
+    parser.add_argument(
+        "--output-dir",
+        default=str(repo_root / "docs" / "clone" / "evidence" / "phase6" / "screenshots"),
+        help="Output directory",
+    )
+    parser.add_argument(
+        "--module",
+        choices=["00_start_center", "01_quire", "02_ledger", "03_lectern"],
+        help="Filter by module",
+    )
+    parser.add_argument(
+        "--limit", type=int, default=None, help="Limit number of screenshots captured"
+    )
+    parser.add_argument(
+        "--no-strict", action="store_true", help="Allow non-strict capture for audit exploration"
+    )
     args = parser.parse_args()
 
     records_file = repo_root / ".vibeoffice" / "screenshots" / "records.json"
@@ -574,7 +605,7 @@ def main():
         records = [r for r in records if r["module"] == args.module]
 
     if args.limit:
-        records = records[:args.limit]
+        records = records[: args.limit]
 
     strict_mode = not args.no_strict
     print(f"Starting capture for {len(records)} screenshot targets (strict={strict_mode})...")

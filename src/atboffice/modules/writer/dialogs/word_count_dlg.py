@@ -34,9 +34,7 @@ if TYPE_CHECKING:
 
 
 # Regex pattern for CJK Ideographs and syllabaries
-_CJK_PATTERN = re.compile(
-    r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]"
-)
+_CJK_PATTERN = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]")
 
 # Regex pattern for Western alphanumeric words
 _WORD_PATTERN = re.compile(r"[A-Za-z0-9]+(?:[-_'][A-Za-z0-9]+)*")
@@ -203,9 +201,7 @@ class WordCountDialog(QDialog):
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
-        self.table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.Stretch
-        )
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         for c in range(1, cols):
             self.table.horizontalHeader().setSectionResizeMode(
                 c, QHeaderView.ResizeMode.ResizeToContents
@@ -277,16 +273,12 @@ class WordCountDialog(QDialog):
 
                 # Col 1: Selection value
                 it_sel = QTableWidgetItem(sel_values[row])
-                it_sel.setTextAlignment(
-                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-                )
+                it_sel.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 self.table.setItem(row, 1, it_sel)
 
                 # Col 2: Entire Document value
                 it_doc = QTableWidgetItem(doc_values[row])
-                it_doc.setTextAlignment(
-                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-                )
+                it_doc.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 self.table.setItem(row, 2, it_doc)
         else:
             for row in range(6):
@@ -296,9 +288,7 @@ class WordCountDialog(QDialog):
 
                 # Col 1: Document value
                 it_doc = QTableWidgetItem(doc_values[row])
-                it_doc.setTextAlignment(
-                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-                )
+                it_doc.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 self.table.setItem(row, 1, it_doc)
 
     def retranslate_ui(self) -> None:

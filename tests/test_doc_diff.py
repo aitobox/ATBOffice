@@ -496,4 +496,3 @@ def test_comparator_works_without_numpy(tmp_path, monkeypatch):
     finally:
         monkeypatch.undo()
         importlib.reload(comp_mod)
-

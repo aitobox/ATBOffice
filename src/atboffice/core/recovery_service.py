@@ -11,6 +11,7 @@ import os
 import re
 import tempfile
 import threading
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -57,6 +58,9 @@ class RecoveryService(QObject):
         self._stop_event: threading.Event = threading.Event()
         self._lock: threading.Lock = threading.Lock()
         self._current_draft_file: Path | None = None
+        # Names this window's drafts, so two windows editing documents with the
+        # same name (two "Document1"s, or one file opened twice) never share one.
+        self._token: str = uuid.uuid4().hex[:8]
 
         try:
             self._recovery_dir.mkdir(parents=True, exist_ok=True)
@@ -162,7 +166,7 @@ class RecoveryService(QObject):
             # Drafts always use the editor's native format so they round-trip losslessly.
             ext = native_suffix or (file_path.suffix if file_path else ".bak")
 
-            draft_filename = f"{base_name}_recovery_{os.getpid()}{ext}"
+            draft_filename = f"{base_name}_recovery_{os.getpid()}_{self._token}{ext}"
             target_path = self._recovery_dir / draft_filename
             self._recovery_dir.mkdir(parents=True, exist_ok=True)
 
@@ -185,7 +189,11 @@ class RecoveryService(QObject):
                 if callable(encrypt):
                     encrypt(target_path, ext)
 
+            previous_draft = self._current_draft_file
             self._current_draft_file = target_path
+            if previous_draft is not None and previous_draft != target_path:
+                # The document was renamed (Save As): drop the draft under the old name.
+                previous_draft.unlink(missing_ok=True)
             logger.debug("Saved recovery draft to %s", target_path)
             return True
         except Exception as exc:
@@ -213,7 +221,9 @@ class RecoveryService(QObject):
         self.trigger_autosave()
 
 
-DRAFT_NAME = re.compile(r"^(?P<name>.+)_recovery_(?P<pid>\d+)(?P<ext>\.[A-Za-z0-9]+)$")
+DRAFT_NAME = re.compile(
+    r"^(?P<name>.+)_recovery_(?P<pid>\d+)(?:_(?P<token>[0-9a-f]{8}))?(?P<ext>\.[A-Za-z0-9]+)$"
+)
 
 
 @dataclass

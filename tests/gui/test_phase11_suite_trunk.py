@@ -27,8 +27,14 @@ WINDOWS = [QuireWindow, LedgerWindow, LecternWindow]
 
 
 def _wordart(text: str = "Hello", warp: str = WarpMode.ARCH_UP) -> dict:
-    return {"style": WordArtStyle(id=3, name="s", warp=warp), "text": text,
-            "font": "Arial", "size": 36, "bold": True, "italic": False}
+    return {
+        "style": WordArtStyle(id=3, name="s", warp=warp),
+        "text": text,
+        "font": "Arial",
+        "size": 36,
+        "bold": True,
+        "italic": False,
+    }
 
 
 def _picture_count(win) -> int:
@@ -36,13 +42,14 @@ def _picture_count(win) -> int:
         from atboffice.modules.writer.models.document import all_paragraphs
 
         return sum(
-            1 for p in all_paragraphs(win.writer_view.canvas_view.doc)
-            for r in p.runs if type(r).__name__ == "PictureItem"
+            1
+            for p in all_paragraphs(win.writer_view.canvas_view.doc)
+            for r in p.runs
+            if type(r).__name__ == "PictureItem"
         )
     if isinstance(win, LedgerWindow):
         return sum(1 for o in win.spreadsheet_view.model.drawings if o.kind == "image")
-    return sum(1 for s in win.presentation_view.workspace.current_slide.shapes
-               if s.type == "image")
+    return sum(1 for s in win.presentation_view.workspace.current_slide.shapes if s.type == "image")
 
 
 # ---------------------------------------------------------------- Clip Art / WordArt
@@ -63,10 +70,12 @@ def test_clipart_dialog_path(qtbot, monkeypatch, window_cls) -> None:
 
     win = window_cls()
     qtbot.addWidget(win)
-    monkeypatch.setattr(clipart_dialog.ClipartDialog, "exec",
-                        lambda self: QDialog.DialogCode.Accepted)
-    monkeypatch.setattr(clipart_dialog.ClipartDialog, "get_selected_clipart",
-                        lambda self: search_clipart("")[1])
+    monkeypatch.setattr(
+        clipart_dialog.ClipartDialog, "exec", lambda self: QDialog.DialogCode.Accepted
+    )
+    monkeypatch.setattr(
+        clipart_dialog.ClipartDialog, "get_selected_clipart", lambda self: search_clipart("")[1]
+    )
     before = _picture_count(win)
     win.open_clipart_dialog()
     assert _picture_count(win) == before + 1
@@ -211,8 +220,9 @@ def test_start_center_lists_all_templates(qtbot) -> None:
     assert len(ids) == 22
 
 
-@pytest.mark.parametrize("window_cls,suffix", [(QuireWindow, ".docx"), (LedgerWindow, ".xlsx"),
-                                               (LecternWindow, ".pptx")])
+@pytest.mark.parametrize(
+    "window_cls,suffix", [(QuireWindow, ".docx"), (LedgerWindow, ".xlsx"), (LecternWindow, ".pptx")]
+)
 def test_thumbnail_cached_on_save_and_shown(qtbot, tmp_path, window_cls, suffix) -> None:
     from atboffice.core.recent_files import RecentFilesManager
     from atboffice.core.window_manager import WindowManager
@@ -253,8 +263,7 @@ def test_recovery_drafts_listed_and_discarded(qtbot, tmp_path, monkeypatch) -> N
     qtbot.addWidget(win)
     assert win.refresh_recovery_drafts(tmp_path) == 1
     assert win.recovery_box.isVisibleTo(win)
-    monkeypatch.setattr(QMessageBox, "question",
-                        lambda *a, **k: QMessageBox.StandardButton.Yes)
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
     win._discard_recovery_draft(drafts[0])
     assert not drafts[0].path.exists()
     assert not win.recovery_box.isVisibleTo(win)

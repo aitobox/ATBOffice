@@ -115,6 +115,8 @@ class LecternWindow(BaseOfficeWindow):
         self.set_modified(False)
         self._setup_status_bar_view_buttons()
         self.menu_bar.retranslate_ui()
+        # Menus and toolbars offer only the commands this window implements.
+        self.action_registry.hide_unhandled_actions()
 
     def _setup_status_bar_view_buttons(self) -> None:
         """PowerPoint 2003 status bar: slide counter, design name and view buttons."""
@@ -960,8 +962,10 @@ class LecternWindow(BaseOfficeWindow):
         ws = getattr(self.presentation_view, "workspace", None)
         if ws is None:
             return None
-        slide = ws.master_slide if ws.view_mode == "master" and ws.master_slide else (
-            ws.current_slide if ws.presentation.slides else None
+        slide = (
+            ws.master_slide
+            if ws.view_mode == "master" and ws.master_slide
+            else (ws.current_slide if ws.presentation.slides else None)
         )
         if slide is None:
             return None
@@ -1247,7 +1251,9 @@ class LecternWindow(BaseOfficeWindow):
         self.slide_layout_pane.layout_applied.connect(self._on_apply_slide_layout)
         self.slide_design_pane.apply_design_requested.connect(self._on_apply_design_template)
         self.color_schemes_pane.apply_color_scheme_requested.connect(self._on_apply_color_scheme)
-        self.animation_schemes_pane.apply_animation_scheme_requested.connect(self._on_apply_animation_scheme)
+        self.animation_schemes_pane.apply_animation_scheme_requested.connect(
+            self._on_apply_animation_scheme
+        )
         self.animation_schemes_pane.play_requested.connect(self._on_play_slide_animation)
         self.animation_schemes_pane.slide_show_requested.connect(self.start_slideshow_current)
 
@@ -1321,6 +1327,7 @@ class LecternWindow(BaseOfficeWindow):
 
     def _on_apply_color_scheme(self, scheme: Any, apply_to_all: bool) -> None:
         import copy
+
         ws = getattr(self.presentation_view, "workspace", None)
         pres = getattr(self.presentation_view, "presentation", None)
         if not pres:
@@ -2098,9 +2105,7 @@ class LecternWindow(BaseOfficeWindow):
             if scene is not None and hasattr(scene, "sync_active_text_editing"):
                 scene.sync_active_text_editing()
 
-            if not self.confirm_compatibility_losses(
-                getattr(self.presentation, "losses", None)
-            ):
+            if not self.confirm_compatibility_losses(getattr(self.presentation, "losses", None)):
                 return False
             write_pptx(self.presentation, path)
             return True
@@ -2389,8 +2394,11 @@ class LecternWindow(BaseOfficeWindow):
 
         color = QComboBox()
         color.setObjectName("printColorCombo")
-        for label, key in ((safe_tr("颜色"), "color"), (safe_tr("灰度"), "grayscale"),
-                           (safe_tr("纯黑白"), "bw")):
+        for label, key in (
+            (safe_tr("颜色"), "color"),
+            (safe_tr("灰度"), "grayscale"),
+            (safe_tr("纯黑白"), "bw"),
+        ):
             color.addItem(label, key)
         color.setCurrentIndex(max(0, color.findData(opts.color)))
         color.setToolTip(safe_tr("颜色/灰度"))

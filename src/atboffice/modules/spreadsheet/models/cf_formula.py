@@ -47,9 +47,9 @@ def cell_display_value(sheet: SheetDataModel, r: int, c: int) -> Any:
     if cell is None:
         return None
     v = cell.value
-    if (
-        v is None or v == "" or (isinstance(v, str) and v.startswith("#"))
-    ) and getattr(cell, "cached_value", None) is not None:
+    if (v is None or v == "" or (isinstance(v, str) and v.startswith("#"))) and getattr(
+        cell, "cached_value", None
+    ) is not None:
         v = cell.cached_value
     if isinstance(v, str) and v.startswith("="):
         # Unevaluated formula text: never feed it back into the evaluator.

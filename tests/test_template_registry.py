@@ -114,15 +114,32 @@ def test_builtin_templates_registration():
     assert len(lectern_templates) == 4
 
     expected_quire_ids = {
-        "letter", "memo", "fax", "resume", "report",
-        "agenda", "minutes", "todo", "flyer", "recipe",
+        "letter",
+        "memo",
+        "fax",
+        "resume",
+        "report",
+        "agenda",
+        "minutes",
+        "todo",
+        "flyer",
+        "recipe",
     }
     expected_ledger_ids = {
-        "loan", "expense", "invoice", "timecard",
-        "budget", "tasks", "shopping", "schedule",
+        "loan",
+        "expense",
+        "invoice",
+        "timecard",
+        "budget",
+        "tasks",
+        "shopping",
+        "schedule",
     }
     expected_lectern_ids = {
-        "status", "meeting", "lesson", "event",
+        "status",
+        "meeting",
+        "lesson",
+        "event",
     }
 
     assert {t.id for t in quire_templates} == expected_quire_ids

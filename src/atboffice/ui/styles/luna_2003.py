@@ -479,12 +479,11 @@ def apply_theme_globally(theme: str) -> None:
 
     theme_key = normalize_theme(theme)
 
-    import os
     app = QApplication.instance()
     qss = get_luna_stylesheet(theme_key)
     if app is not None:
         app.setPalette(luna_palette(theme_key))
-        if app.styleSheet() != qss and not os.environ.get("PYTEST_CURRENT_TEST"):
+        if app.styleSheet() != qss:
             app.setStyleSheet(qss)
 
     try:
@@ -494,6 +493,7 @@ def apply_theme_globally(theme: str) -> None:
 
     try:
         from atboffice.core.window_manager import WindowManager
+
         wm = WindowManager.get_instance()
         all_wins = set(wm.active_windows)
         if wm.start_center is not None:
@@ -513,4 +513,3 @@ def apply_theme_globally(theme: str) -> None:
                 pass
     except Exception:
         pass
-

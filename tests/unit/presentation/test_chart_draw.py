@@ -154,9 +154,7 @@ class TestChartRendering:
         # Image should contain rendered pixels
         assert not img.isNull()
         has_pixel = any(
-            img.pixelColor(x, y).alpha() > 0
-            for x in range(0, 400, 10)
-            for y in range(0, 300, 10)
+            img.pixelColor(x, y).alpha() > 0 for x in range(0, 400, 10) for y in range(0, 300, 10)
         )
         assert has_pixel
 

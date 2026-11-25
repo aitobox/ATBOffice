@@ -7,13 +7,16 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import SIGNAL, QObject, Signal
 from PySide6.QtGui import QAction, QIcon, QKeySequence
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QMenu, QMessageBox, QWidget
 
 from atboffice.core.i18n import safe_tr
 
 logger = logging.getLogger(__name__)
+
+#: Dynamic property marking actions hidden by ``hide_unhandled_actions``.
+_HIDDEN_UNHANDLED = "atbHiddenUnhandled"
 
 
 @dataclass
@@ -116,13 +119,9 @@ class ActionRegistry(QObject):
         action = QAction(action_parent or self)
         self._apply_spec_to_action(action, spec)
 
-        action.triggered.connect(
-            lambda checked=False, aid=spec.id: self._on_action_triggered(aid)
-        )
+        action.triggered.connect(lambda checked=False, aid=spec.id: self._on_action_triggered(aid))
         action.toggled.connect(
-            lambda chk, aid=spec.id: self.action_state_changed.emit(
-                aid, action.isEnabled(), chk
-            )
+            lambda chk, aid=spec.id: self.action_state_changed.emit(aid, action.isEnabled(), chk)
         )
 
         self._actions[spec.id] = action
@@ -216,6 +215,83 @@ class ActionRegistry(QObject):
         spec = self._specs.get(action_id)
         if spec is not None:
             spec.handler = handler
+        action = self._actions.get(action_id)
+        if action is not None and action.property(_HIDDEN_UNHANDLED):
+            action.setProperty(_HIDDEN_UNHANDLED, False)
+            action.setVisible(True)
+            self._sync_menu_visibility()
+
+    def has_command(self, action_id: str) -> bool:
+        """Whether triggering ``action_id`` does something.
+
+        True for a handler, a container (submenu, drop-down or split button), a
+        whitelisted abstract action, or a slot connected to the QAction directly.
+        """
+        canonical = self.resolve_id(action_id)
+        if canonical in self._handlers:
+            return True
+        for aid in {action_id, canonical}:
+            spec = self._specs.get(aid)
+            if spec is not None and (spec.handler is not None or spec.is_drop or spec.is_split):
+                return True
+        if canonical in self._whitelist_actions or action_id in self._whitelist_actions:
+            return True
+        action = self._actions.get(action_id) or self._actions.get(canonical)
+        if action is None:
+            return False
+        if action.menu() is not None:
+            return True
+        # The registry itself connects one slot to each of these signals.
+        return (
+            action.receivers(SIGNAL("triggered(bool)")) > 1
+            or action.receivers(SIGNAL("toggled(bool)")) > 1
+        )
+
+    def hide_unhandled_actions(self) -> list[str]:
+        """Hide every command this window does not implement; returns their IDs.
+
+        Menus and toolbars show only what works, instead of items that answer
+        "not available yet". ``set_handler`` shows an action again.
+        """
+        hidden: list[str] = []
+        for action_id, action in self._actions.items():
+            if self.has_command(action_id) or not action.isVisible():
+                continue
+            action.setVisible(False)
+            action.setProperty(_HIDDEN_UNHANDLED, True)
+            hidden.append(action_id)
+        self._sync_menu_visibility()
+        return hidden
+
+    def _sync_menu_visibility(self) -> None:
+        """Hide submenus left with nothing to show; show them again when they refill."""
+        win = self.parent()
+        if not isinstance(win, QWidget):
+            return
+
+        def has_items(menu: QMenu) -> bool:
+            for act in menu.actions():
+                if act.isSeparator():
+                    continue
+                sub = act.menu()
+                if isinstance(sub, QMenu):
+                    shown = act.isVisible() or bool(act.property(_HIDDEN_UNHANDLED))
+                    # A submenu with no actions yet is filled when it opens.
+                    if shown and (not sub.actions() or has_items(sub)):
+                        return True
+                elif act.isVisible():
+                    return True
+            return False
+
+        for menu in win.findChildren(QMenu):
+            owner = menu.menuAction()
+            if owner.property(_HIDDEN_UNHANDLED):
+                if has_items(menu):
+                    owner.setProperty(_HIDDEN_UNHANDLED, False)
+                    owner.setVisible(True)
+            elif owner.isVisible() and menu.actions() and not has_items(menu):
+                owner.setVisible(False)
+                owner.setProperty(_HIDDEN_UNHANDLED, True)
 
     def trigger_action(self, action_id: str) -> bool:
         """Programmatically trigger an action if registered and enabled."""
@@ -247,12 +323,24 @@ class ActionRegistry(QObject):
         if handler is not None:
             try:
                 handler()
-            except Exception:
+            except Exception as exc:
                 logger.exception("Error executing handler for action %s", action_id)
+                self._report_failure(spec, exc)
         else:
             self._show_fallback_toast(action_id)
 
         self.action_triggered.emit(action_id)
+
+    def _report_failure(self, spec: ActionSpec, exc: Exception) -> None:
+        """Tell the person that a command failed, instead of doing nothing."""
+        win = self.parent()
+        parent = win if isinstance(win, QWidget) else None
+        label = safe_tr(spec.label).replace("&", "")
+        QMessageBox.warning(
+            parent,
+            safe_tr("命令失败"),
+            safe_tr("无法完成“{0}”：\n{1}", label, exc),
+        )
 
     def _show_fallback_toast(self, action_id: str) -> None:
         """Display non-blocking toast on status bar with explicit reason/capability explanation."""

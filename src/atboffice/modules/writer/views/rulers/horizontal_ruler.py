@@ -612,28 +612,32 @@ class HorizontalRuler(QWidget):
             if kind in ("first", "hang", "left", "right") and self._orig_indents is not None:
                 new_indents = (p.indent_left, p.indent_first, p.indent_right)
                 if new_indents != self._orig_indents:
-                    self._active_canvas.push_undo_command({
-                        "type": "paragraph_indent",
-                        "para_id": p.id,
-                        "before": {
-                            "indent_left": self._orig_indents[0],
-                            "indent_first": self._orig_indents[1],
-                            "indent_right": self._orig_indents[2],
-                        },
-                        "after": {
-                            "indent_left": p.indent_left,
-                            "indent_first": p.indent_first,
-                            "indent_right": p.indent_right,
-                        },
-                    })
+                    self._active_canvas.push_undo_command(
+                        {
+                            "type": "paragraph_indent",
+                            "para_id": p.id,
+                            "before": {
+                                "indent_left": self._orig_indents[0],
+                                "indent_first": self._orig_indents[1],
+                                "indent_right": self._orig_indents[2],
+                            },
+                            "after": {
+                                "indent_left": p.indent_left,
+                                "indent_first": p.indent_first,
+                                "indent_right": p.indent_right,
+                            },
+                        }
+                    )
             elif kind in ("tab", "new_tab") and self._orig_tabs is not None:
                 if p.p_pr.tabs != self._orig_tabs:
-                    self._active_canvas.push_undo_command({
-                        "type": "paragraph_tabs",
-                        "para_id": p.id,
-                        "before": copy.deepcopy(self._orig_tabs),
-                        "after": copy.deepcopy(p.p_pr.tabs),
-                    })
+                    self._active_canvas.push_undo_command(
+                        {
+                            "type": "paragraph_tabs",
+                            "para_id": p.id,
+                            "before": copy.deepcopy(self._orig_tabs),
+                            "after": copy.deepcopy(p.p_pr.tabs),
+                        }
+                    )
             elif (
                 kind in ("margin_left", "margin_right")
                 and self._active_sect
@@ -641,18 +645,20 @@ class HorizontalRuler(QWidget):
             ):
                 new_margins = (self._active_sect.ml, self._active_sect.mr)
                 if new_margins != self._orig_margins:
-                    self._active_canvas.push_undo_command({
-                        "type": "section_margins",
-                        "sect": self._active_sect,
-                        "before": {
-                            "ml": self._orig_margins[0],
-                            "mr": self._orig_margins[1],
-                        },
-                        "after": {
-                            "ml": self._active_sect.ml,
-                            "mr": self._active_sect.mr,
-                        },
-                    })
+                    self._active_canvas.push_undo_command(
+                        {
+                            "type": "section_margins",
+                            "sect": self._active_sect,
+                            "before": {
+                                "ml": self._orig_margins[0],
+                                "mr": self._orig_margins[1],
+                            },
+                            "after": {
+                                "ml": self._active_sect.ml,
+                                "mr": self._active_sect.mr,
+                            },
+                        }
+                    )
 
         # Trigger repagination and view refresh on attached canvas
         if self._active_canvas:

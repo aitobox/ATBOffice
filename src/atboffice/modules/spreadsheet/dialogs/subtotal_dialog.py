@@ -98,9 +98,7 @@ class SubtotalDialog(QDialog):
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             # Default check the last column
             check_state = (
-                Qt.CheckState.Checked
-                if idx == len(self.headers) - 1
-                else Qt.CheckState.Unchecked
+                Qt.CheckState.Checked if idx == len(self.headers) - 1 else Qt.CheckState.Unchecked
             )
             item.setCheckState(check_state)
         left_layout.addWidget(self.list_columns, 1)

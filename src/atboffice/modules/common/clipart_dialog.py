@@ -127,11 +127,11 @@ CLIPART_DATABASE: list[ClipartItem] = [
         keywords="gears process settings engineering machine work 配置 机制 运转 工程",
         svg_body=(
             f'<g {_O} fill="#9aa7b8"><path d="M26 10l4 0 1 5 4 2 4-3 3 3-3 4 2 4 5'
-            f' 1v4l-5 1-2 4 3 4-3 3-4-3-4 2-1 5h-4l-1-5-4-2-4 3-3-3'
+            f" 1v4l-5 1-2 4 3 4-3 3-4-3-4 2-1 5h-4l-1-5-4-2-4 3-3-3"
             f' 3-4-2-4-5-1v-4l5-1 2-4-3-4 3-3 4 3 4-2z"/></g>'
             f'<circle cx="28" cy="27" r="6" fill="#fff" {_O}/>'
             f'<g {_O} fill="#e8a33d"><path d="M46 36h3l1 3 3 1 2-2 2 2-2 2 1 3 3'
-            f' 1v3l-3 1-1 3 2 2-2 2-2-2-3 1-1 3h-3l-1-3-3-1-2 2-2-2'
+            f" 1v3l-3 1-1 3 2 2-2 2-2-2-3 1-1 3h-3l-1-3-3-1-2 2-2-2"
             f' 2-2-1-3-3-1v-3l3-1 1-3-2-2 2-2 2 2 3-1z"/></g>'
             f'<circle cx="47.5" cy="47.5" r="3.5" fill="#fff" {_O}/>'
         ),
@@ -557,9 +557,7 @@ class ClipartDialog(QDialog):
             self.list_widget.addItem(list_item)
 
         total_cnt = len(items)
-        self.label_status.setText(
-            safe_tr("共找到 {n} 个剪贴画").format(n=total_cnt)
-        )
+        self.label_status.setText(safe_tr("共找到 {n} 个剪贴画").format(n=total_cnt))
         self.btn_insert.setEnabled(total_cnt > 0)
         if total_cnt > 0:
             self.list_widget.setCurrentRow(0)

@@ -241,8 +241,7 @@ def picture_to_xml(
         else f'<a:blip r:embed="{embed_rid}"/>'
     )
     blip_fill = (
-        f"<p:blipFill>{blip}{_src_rect_xml(shape)}"
-        "<a:stretch><a:fillRect/></a:stretch></p:blipFill>"
+        f"<p:blipFill>{blip}{_src_rect_xml(shape)}<a:stretch><a:fillRect/></a:stretch></p:blipFill>"
     )
     sp_pr = shape_properties_to_xml(shape, design=design, tag="p:spPr")
 
@@ -263,13 +262,13 @@ def media_picture_to_xml(
     c_nv_pr = (
         f'<p:cNvPr id="{shape_id}" name="{c_nv_name}">'
         '<a:hlinkClick r:action="ppaction://media"/>'
-        '<p:extLst>'
+        "<p:extLst>"
         '<p:ext uri="{DAA4B390-3183-40C9-BE18-7BFA0C31F651}">'
         '<p14:media xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main" '
         f'r:embed="{media_rid}"/>'
-        '</p:ext>'
-        '</p:extLst>'
-        '</p:cNvPr>'
+        "</p:ext>"
+        "</p:extLst>"
+        "</p:cNvPr>"
     )
     c_nv_pic = '<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr>'
     media_tag = "p:audioFile" if (shape.media_item and shape.media_item.is_audio) else "p:videoFile"

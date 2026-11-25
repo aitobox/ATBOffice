@@ -162,15 +162,17 @@ class AutoCorrectDialog(QDialog):
         self.edit_autotext = QLineEdit(self.tab_at)
         self.edit_autotext.setPlaceholderText(safe_tr("输入自动图文集词条名称"))
         self.list_autotext = QListWidget(self.tab_at)
-        self.list_autotext.addItems([
-            "致谢",
-            "此致",
-            "敬礼",
-            "顺祝商祺",
-            "Best regards,",
-            "Sincerely yours,",
-            "Confidential",
-        ])
+        self.list_autotext.addItems(
+            [
+                "致谢",
+                "此致",
+                "敬礼",
+                "顺祝商祺",
+                "Best regards,",
+                "Sincerely yours,",
+                "Confidential",
+            ]
+        )
         l_at.addWidget(QLabel(safe_tr("自动图文集词条(&E):"), self.tab_at))
         l_at.addWidget(self.edit_autotext)
         l_at.addWidget(self.list_autotext)
@@ -275,13 +277,15 @@ class QuireOptionsDialog(QDialog):
         self.tab_gen = QWidget(self.tab_widget)
         f_gen = QFormLayout(self.tab_gen)
         self.combo_units = QComboBox(self.tab_gen)
-        self.combo_units.addItems([
-            safe_tr("英寸"),
-            safe_tr("厘米"),
-            safe_tr("毫米"),
-            safe_tr("磅"),
-            safe_tr("十二点活字"),
-        ])
+        self.combo_units.addItems(
+            [
+                safe_tr("英寸"),
+                safe_tr("厘米"),
+                safe_tr("毫米"),
+                safe_tr("磅"),
+                safe_tr("十二点活字"),
+            ]
+        )
         self.combo_units.setCurrentIndex(1)  # 厘米
         self.spin_recent = QSpinBox(self.tab_gen)
         self.spin_recent.setRange(0, 9)
@@ -338,12 +342,14 @@ class QuireOptionsDialog(QDialog):
         self.spin_autorecover.setValue(10)
         self.spin_autorecover.setSuffix(safe_tr(" 分钟"))
         self.combo_save_format = QComboBox(self.tab_save)
-        self.combo_save_format.addItems([
-            "Word 文档 (*.docx)",
-            "Word 模板 (*.dotx)",
-            "RTF 格式 (*.rtf)",
-            "纯文本 (*.txt)",
-        ])
+        self.combo_save_format.addItems(
+            [
+                "Word 文档 (*.docx)",
+                "Word 模板 (*.dotx)",
+                "RTF 格式 (*.rtf)",
+                "纯文本 (*.txt)",
+            ]
+        )
         f_save.addRow(safe_tr("保存自动恢复信息时间间隔(&A):"), self.spin_autorecover)
         f_save.addRow(safe_tr("将 Word 文件保存为(&S):"), self.combo_save_format)
         self.tab_widget.addTab(self.tab_save, safe_tr("保存"))
@@ -386,18 +392,22 @@ class QuireOptionsDialog(QDialog):
         self.tab_track = QWidget(self.tab_widget)
         f_track = QFormLayout(self.tab_track)
         self.combo_ins_color = QComboBox(self.tab_track)
-        self.combo_ins_color.addItems([
-            safe_tr("按作者"),
-            safe_tr("红色"),
-            safe_tr("蓝色"),
-            safe_tr("绿色"),
-        ])
+        self.combo_ins_color.addItems(
+            [
+                safe_tr("按作者"),
+                safe_tr("红色"),
+                safe_tr("蓝色"),
+                safe_tr("绿色"),
+            ]
+        )
         self.combo_balloons = QComboBox(self.tab_track)
-        self.combo_balloons.addItems([
-            safe_tr("仅用于批注和格式设置"),
-            safe_tr("始终"),
-            safe_tr("从不"),
-        ])
+        self.combo_balloons.addItems(
+            [
+                safe_tr("仅用于批注和格式设置"),
+                safe_tr("始终"),
+                safe_tr("从不"),
+            ]
+        )
         f_track.addRow(safe_tr("插入标记颜色:"), self.combo_ins_color)
         f_track.addRow(safe_tr("使用批注框:"), self.combo_balloons)
         self.tab_widget.addTab(self.tab_track, safe_tr("修订"))
@@ -418,12 +428,14 @@ class QuireOptionsDialog(QDialog):
         self.tab_compat = QWidget(self.tab_widget)
         f_compat = QFormLayout(self.tab_compat)
         self.combo_compat = QComboBox(self.tab_compat)
-        self.combo_compat.addItems([
-            "Microsoft Word 2003",
-            "Microsoft Word 2007",
-            "Microsoft Word 2010",
-            "Microsoft Word 2013 and later",
-        ])
+        self.combo_compat.addItems(
+            [
+                "Microsoft Word 2003",
+                "Microsoft Word 2007",
+                "Microsoft Word 2010",
+                "Microsoft Word 2013 and later",
+            ]
+        )
         f_compat.addRow(safe_tr("推荐选项适于(&R):"), self.combo_compat)
         self.tab_widget.addTab(self.tab_compat, safe_tr("兼容性"))
 
@@ -510,32 +522,36 @@ class CustomizeDialog(QDialog):
         v_cat = QVBoxLayout()
         v_cat.addWidget(QLabel(safe_tr("类别(&G):"), self.tab_cmds))
         self.list_cats = QListWidget(self.tab_cmds)
-        self.list_cats.addItems([
-            safe_tr("文件"),
-            safe_tr("编辑"),
-            safe_tr("视图"),
-            safe_tr("插入"),
-            safe_tr("格式"),
-            safe_tr("工具"),
-            safe_tr("表格"),
-            safe_tr("窗口"),
-            safe_tr("帮助"),
-        ])
+        self.list_cats.addItems(
+            [
+                safe_tr("文件"),
+                safe_tr("编辑"),
+                safe_tr("视图"),
+                safe_tr("插入"),
+                safe_tr("格式"),
+                safe_tr("工具"),
+                safe_tr("表格"),
+                safe_tr("窗口"),
+                safe_tr("帮助"),
+            ]
+        )
         v_cat.addWidget(self.list_cats)
         h_cmds.addLayout(v_cat)
 
         v_cmd = QVBoxLayout()
         v_cmd.addWidget(QLabel(safe_tr("命令(&D):"), self.tab_cmds))
         self.list_cmds = QListWidget(self.tab_cmds)
-        self.list_cmds.addItems([
-            safe_tr("新建"),
-            safe_tr("打开"),
-            safe_tr("关闭"),
-            safe_tr("保存"),
-            safe_tr("另存为"),
-            safe_tr("打印"),
-            safe_tr("打印预览"),
-        ])
+        self.list_cmds.addItems(
+            [
+                safe_tr("新建"),
+                safe_tr("打开"),
+                safe_tr("关闭"),
+                safe_tr("保存"),
+                safe_tr("另存为"),
+                safe_tr("打印"),
+                safe_tr("打印预览"),
+            ]
+        )
         v_cmd.addWidget(self.list_cmds)
         h_cmds.addLayout(v_cmd)
         self.tab_widget.addTab(self.tab_cmds, safe_tr("命令"))
@@ -599,12 +615,14 @@ class EnvelopesLabelsDialog(QDialog):
         self.edit_return.setMaximumHeight(70)
         self.chk_omit = QCheckBox(safe_tr("忽略(&O)"), self.tab_env)
         self.combo_size = QComboBox(self.tab_env)
-        self.combo_size.addItems([
-            "Size 10 (4 1/8 x 9 1/2 in)",
-            "DL (110 x 220 mm)",
-            "C5 (162 x 229 mm)",
-            "Monarch (3 7/8 x 7 1/2 in)",
-        ])
+        self.combo_size.addItems(
+            [
+                "Size 10 (4 1/8 x 9 1/2 in)",
+                "DL (110 x 220 mm)",
+                "C5 (162 x 229 mm)",
+                "Monarch (3 7/8 x 7 1/2 in)",
+            ]
+        )
         l_env.addWidget(QLabel(safe_tr("收件人地址(&D):"), self.tab_env))
         l_env.addWidget(self.edit_delivery)
         l_env.addWidget(QLabel(safe_tr("寄件人地址(&R):"), self.tab_env))
@@ -676,11 +694,13 @@ class LetterWizardDialog(QDialog):
         self.combo_date_format = QComboBox(self.tab_fmt)
         self.combo_date_format.addItems(["yyyy年M月d日", "yyyy-MM-dd", "MMMM d, yyyy"])
         self.combo_style = QComboBox(self.tab_fmt)
-        self.combo_style.addItems([
-            safe_tr("全齐式 (Full block)"),
-            safe_tr("折中式 (Modified block)"),
-            safe_tr("半折中式 (Semi-block)"),
-        ])
+        self.combo_style.addItems(
+            [
+                safe_tr("全齐式 (Full block)"),
+                safe_tr("折中式 (Modified block)"),
+                safe_tr("半折中式 (Semi-block)"),
+            ]
+        )
         f_fmt.addRow(self.chk_date, self.combo_date_format)
         f_fmt.addRow(safe_tr("信件样式(&S):"), self.combo_style)
         self.tab_widget.addTab(self.tab_fmt, safe_tr("信件格式"))
@@ -777,16 +797,18 @@ class AutoSummarizeDialog(QDialog):
 
         f_len = QFormLayout()
         self.combo_length = QComboBox(self)
-        self.combo_length.addItems([
-            "10 句话",
-            "20 句话",
-            "100 字或更少",
-            "500 字或更少",
-            "10%",
-            "25%",
-            "50%",
-            "75%",
-        ])
+        self.combo_length.addItems(
+            [
+                "10 句话",
+                "20 句话",
+                "100 字或更少",
+                "500 字或更少",
+                "10%",
+                "25%",
+                "50%",
+                "75%",
+            ]
+        )
         self.combo_length.setCurrentIndex(5)  # 25%
         self.chk_update_stats = QCheckBox(safe_tr("更新文档统计信息(&U)"), self)
         f_len.addRow(safe_tr("相当于原长的百分比(&P):"), self.combo_length)

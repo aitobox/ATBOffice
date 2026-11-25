@@ -144,9 +144,7 @@ class TabNavButton(QToolButton):
             act.setCheckable(True)
             act.setChecked(idx == wb.active_sheet_index)
             act.triggered.connect(
-                lambda checked=False, target_idx=idx: self._parent_bar.set_active_index(
-                    target_idx
-                )
+                lambda checked=False, target_idx=idx: self._parent_bar.set_active_index(target_idx)
             )
         menu.exec(event.globalPos())
 
@@ -324,9 +322,7 @@ class TabStripWidget(QWidget):
             active_rect = self._tab_rects[active_idx]
             self._draw_tab(painter, active_idx, active_rect, is_active=True)
 
-    def _draw_tab(
-        self, painter: QPainter, index: int, rect: QRect, is_active: bool
-    ) -> None:
+    def _draw_tab(self, painter: QPainter, index: int, rect: QRect, is_active: bool) -> None:
         wb = self._tab_bar.workbook
         if not wb or index >= len(wb.sheets):
             return
@@ -411,9 +407,7 @@ class SheetTabBar(QWidget):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self._workbook: WorkbookModel = (
-            workbook if workbook is not None else WorkbookModel()
-        )
+        self._workbook: WorkbookModel = workbook if workbook is not None else WorkbookModel()
         self._tab_colors: dict[SheetDataModel, QColor] = {}
         self._selected_sheet_indices: set[int] = {
             self._workbook.active_sheet_index if self._workbook.sheets else 0
@@ -546,10 +540,9 @@ class SheetTabBar(QWidget):
         if 0 <= index < len(self._workbook.sheets):
             if self._is_renaming:
                 self.cancel_rename()
-            if (
-                index not in self._selected_sheet_indices
-                or len(self._selected_sheet_indices) == len(self._workbook.sheets)
-            ):
+            if index not in self._selected_sheet_indices or len(
+                self._selected_sheet_indices
+            ) == len(self._workbook.sheets):
                 self._selected_sheet_indices = {index}
             self._workbook.set_active_sheet_index(index)
             self._strip.ensure_tab_visible(index)
@@ -578,9 +571,7 @@ class SheetTabBar(QWidget):
             self._workbook.sheet_removed.disconnect(self._on_sheet_removed)
             self._workbook.sheet_renamed.disconnect(self._on_sheet_renamed)
             self._workbook.sheet_moved.disconnect(self._on_sheet_moved)
-            self._workbook.active_sheet_changed.disconnect(
-                self._on_active_sheet_changed
-            )
+            self._workbook.active_sheet_changed.disconnect(self._on_active_sheet_changed)
         except (RuntimeError, TypeError):
             pass
 
@@ -672,9 +663,7 @@ class SheetTabBar(QWidget):
         self._strip.update()
 
     # Context Menu & Actions
-    def insert_sheet(
-        self, name: str | None = None, index: int | None = None
-    ) -> SheetDataModel:
+    def insert_sheet(self, name: str | None = None, index: int | None = None) -> SheetDataModel:
         """Insert new sheet into workbook, activate it, and return model."""
         new_sheet = self._workbook.add_sheet(name=name, index=index)
         new_idx = self._workbook.sheet_index(new_sheet)
@@ -717,9 +706,7 @@ class SheetTabBar(QWidget):
         copy_sheet.merges = list(src.merges)
 
         insert_idx = index + 1
-        new_sheet = self._workbook.add_sheet(
-            name=copy_name, index=insert_idx, sheet=copy_sheet
-        )
+        new_sheet = self._workbook.add_sheet(name=copy_name, index=insert_idx, sheet=copy_sheet)
         self.set_active_index(insert_idx)
         self.mark_dirty()
         return new_sheet

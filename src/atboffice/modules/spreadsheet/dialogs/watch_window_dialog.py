@@ -97,18 +97,10 @@ class WatchWindowDialog(QDialog):
                 safe_tr("公式"),
             ]
         )
-        self.table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
-        self.table.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
-        self.table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
-        self.table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
-        )
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.itemDoubleClicked.connect(self._on_item_double_clicked)
         layout.addWidget(self.table)
@@ -154,9 +146,7 @@ class WatchWindowDialog(QDialog):
                         val_str = str(cell.value)
                     if cell.formula:
                         formula_str = (
-                            cell.formula
-                            if cell.formula.startswith("=")
-                            else f"={cell.formula}"
+                            cell.formula if cell.formula.startswith("=") else f"={cell.formula}"
                         )
 
             cell_ref_str = cell_name(w.r, w.c, ra=True, ca=True)
@@ -178,9 +168,7 @@ class WatchWindowDialog(QDialog):
                     item_formula,
                 ]
             ):
-                item.setTextAlignment(
-                    Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
-                )
+                item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
                 self.table.setItem(idx, col, item)
 
     def _get_sheet(self, sheet_name: str) -> Any | None:

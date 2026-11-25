@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -10,6 +11,11 @@ from typing import Any
 from atboffice.core.i18n import safe_tr
 
 logger = logging.getLogger(__name__)
+
+
+def _build_ignoring_window(build: Callable[[str], Any], template_id: str, win: Any = None) -> Any:
+    """Built-in builders make the document from the template ID alone."""
+    return build(template_id)
 
 
 @dataclass
@@ -197,7 +203,7 @@ class TemplateRegistry:
                     category=cat,
                     icon=icon,
                     description=desc,
-                    builder=lambda win=None, target_id=tid: build_quire_template(target_id),
+                    builder=functools.partial(_build_ignoring_window, build_quire_template, tid),
                 )
             )
 
@@ -271,7 +277,7 @@ class TemplateRegistry:
                     category=cat,
                     icon=icon,
                     description=desc,
-                    builder=lambda win=None, target_id=tid: build_ledger_template(target_id),
+                    builder=functools.partial(_build_ignoring_window, build_ledger_template, tid),
                 )
             )
 
@@ -317,6 +323,6 @@ class TemplateRegistry:
                     category=cat,
                     icon=icon,
                     description=desc,
-                    builder=lambda win=None, target_id=tid: build_lectern_template(target_id),
+                    builder=functools.partial(_build_ignoring_window, build_lectern_template, tid),
                 )
             )

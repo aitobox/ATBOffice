@@ -185,12 +185,8 @@ class FindReplaceDialog(QDialog):
         # Synchronize checkbox states between tabs
         self.case_checkbox.toggled.connect(self.repl_case_checkbox.setChecked)
         self.repl_case_checkbox.toggled.connect(self.case_checkbox.setChecked)
-        self.whole_word_checkbox.toggled.connect(
-            self.repl_whole_word_checkbox.setChecked
-        )
-        self.repl_whole_word_checkbox.toggled.connect(
-            self.whole_word_checkbox.setChecked
-        )
+        self.whole_word_checkbox.toggled.connect(self.repl_whole_word_checkbox.setChecked)
+        self.repl_whole_word_checkbox.toggled.connect(self.whole_word_checkbox.setChecked)
         self.regex_checkbox.toggled.connect(self.repl_regex_checkbox.setChecked)
         self.repl_regex_checkbox.toggled.connect(self.regex_checkbox.setChecked)
 

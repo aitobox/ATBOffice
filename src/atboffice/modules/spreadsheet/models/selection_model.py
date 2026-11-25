@@ -174,10 +174,7 @@ class SelectionModel(QObject):
         return {
             "active_cell": self._active_cell,
             "anchor_cell": self._anchor_cell,
-            "ranges": [
-                SelectionRange(rg.r1, rg.c1, rg.r2, rg.c2)
-                for rg in self._ranges
-            ],
+            "ranges": [SelectionRange(rg.r1, rg.c1, rg.r2, rg.c2) for rg in self._ranges],
         }
 
     def restore_snapshot(self, snap: dict[str, Any]) -> None:
@@ -187,9 +184,6 @@ class SelectionModel(QObject):
         self._active_cell = snap.get("active_cell", (0, 0))
         self._anchor_cell = snap.get("anchor_cell", (0, 0))
         raw_ranges = snap.get("ranges", [])
-        self._ranges = [
-            SelectionRange(rg.r1, rg.c1, rg.r2, rg.c2)
-            for rg in raw_ranges
-        ]
+        self._ranges = [SelectionRange(rg.r1, rg.c1, rg.r2, rg.c2) for rg in raw_ranges]
         self.active_cell_changed.emit(self._active_cell[0], self._active_cell[1])
         self.selection_changed.emit()

@@ -35,9 +35,10 @@ This specification aligns ATBOffice with `.vibeoffice`:
 def is_ole_compound_file(data: bytes | str | Path) -> bool:
     """Return True if data starts with the OLE CFB 8-byte signature."""
 
+
 def detect_ole_format(data: bytes | str | Path) -> str:
     """Identify the specific format inside an OLE compound document.
-    
+
     Returns:
         - "encrypted_ooxml": Contains EncryptionInfo and EncryptedPackage streams.
         - "word97": Contains WordDocument stream (Word 97-2003 .doc).
@@ -46,6 +47,7 @@ def detect_ole_format(data: bytes | str | Path) -> str:
         - "legacy_binary": Unidentified OLE compound file.
         - "none": Not an OLE compound file.
     """
+
 
 class FileFormatInspection:
     is_ole: bool
@@ -56,9 +58,9 @@ class FileFormatInspection:
     guidance_title: str | None
     guidance_message: str | None
 
+
 def inspect_file_format(
-    path_or_bytes: bytes | str | Path,
-    expected_app: str | None = None
+    path_or_bytes: bytes | str | Path, expected_app: str | None = None
 ) -> FileFormatInspection:
     """Inspect file header, OLE streams, and extension to provide accurate guidance."""
 ```

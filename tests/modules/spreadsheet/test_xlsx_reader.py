@@ -27,7 +27,7 @@ def build_test_xlsx(
         rels_ct = "application/vnd.openxmlformats-package.relationships+xml"
 
         sheet_types = "".join(
-            f'<Override PartName="/xl/worksheets/sheet{i+1}.xml" ContentType="{sheet_ct}"/>'
+            f'<Override PartName="/xl/worksheets/sheet{i + 1}.xml" ContentType="{sheet_ct}"/>'
             for i in range(len(sheets))
         )
         content_types = (
@@ -60,8 +60,8 @@ def build_test_xlsx(
             "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"
         )
         wb_rels_items = [
-            f'<Relationship Id="rId{i+1}" Type="{ws_rel_type}" '
-            f'Target="worksheets/sheet{i+1}.xml"/>'
+            f'<Relationship Id="rId{i + 1}" Type="{ws_rel_type}" '
+            f'Target="worksheets/sheet{i + 1}.xml"/>'
             for i in range(len(sheets))
         ]
         sst_rel_type = (
@@ -71,7 +71,9 @@ def build_test_xlsx(
         wb_rels_items.append(
             f'<Relationship Id="{sst_rel_id}" Type="{sst_rel_type}" Target="sharedStrings.xml"/>'
         )
-        style_rel_type = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles"
+        style_rel_type = (
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles"
+        )
         style_rel_id = f"rId{len(sheets) + 2}"
         wb_rels_items.append(
             f'<Relationship Id="{style_rel_id}" Type="{style_rel_type}" Target="styles.xml"/>'
@@ -80,14 +82,14 @@ def build_test_xlsx(
         wb_rels = (
             '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
-            f'  {"".join(wb_rels_items)}\n'
+            f"  {''.join(wb_rels_items)}\n"
             "</Relationships>"
         )
         z.writestr("xl/_rels/workbook.xml.rels", wb_rels)
 
         # xl/workbook.xml
         sheets_xml = "".join(
-            f'<sheet name="{s.get("name", f"Sheet{i+1}")}" sheetId="{i+1}" r:id="rId{i+1}"/>'
+            f'<sheet name="{s.get("name", f"Sheet{i + 1}")}" sheetId="{i + 1}" r:id="rId{i + 1}"/>'
             for i, s in enumerate(sheets)
         )
         wb_xml = (
@@ -116,7 +118,7 @@ def build_test_xlsx(
                 '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                 '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
                 f'count="{len(shared_strings)}" uniqueCount="{len(shared_strings)}">\n'
-                f'  {"".join(si_items)}\n'
+                f"  {''.join(si_items)}\n"
                 "</sst>"
             )
             z.writestr("xl/sharedStrings.xml", sst_xml)
@@ -143,7 +145,7 @@ def build_test_xlsx(
         # Worksheets
         for i, s in enumerate(sheets):
             xml_content = s.get("xml", "<worksheet><sheetData/></worksheet>")
-            z.writestr(f"xl/worksheets/sheet{i+1}.xml", xml_content)
+            z.writestr(f"xl/worksheets/sheet{i + 1}.xml", xml_content)
 
     return buf.getvalue()
 

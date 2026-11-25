@@ -122,8 +122,7 @@ class FormatCellsDialog(QDialog):
 
         # OK / Cancel Buttons
         self.button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok
-            | QDialogButtonBox.StandardButton.Cancel
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         self.button_box.accepted.connect(self._on_accept)
         self.button_box.rejected.connect(self.reject)

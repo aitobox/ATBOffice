@@ -74,7 +74,7 @@ class HoneycombWidget(QWidget):
         cx = self.width() / 2.0
         cy = self.height() / 2.0 - 5.0
         r_step = self._cell_radius * math.sqrt(3)  # horizontal step between cell centers
-        v_step = self._cell_radius * 1.5           # vertical step between row centers
+        v_step = self._cell_radius * 1.5  # vertical step between row centers
 
         rows = 13
         for row in range(rows):

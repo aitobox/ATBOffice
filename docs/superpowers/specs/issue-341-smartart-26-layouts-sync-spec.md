@@ -8,7 +8,7 @@ sa = {
     "layout": "process",
     "colors": "ocean",
     "style": "moderate",
-    "items": [{"id": "...", "text": "...", "kids": [...]}]
+    "items": [{"id": "...", "text": "...", "kids": [...]}],
 }
 ```
 The shapes inside the diagram are generated via geometry synthesis algorithms and adaptive font sizing (`relayout(shape)`).

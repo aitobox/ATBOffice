@@ -222,14 +222,16 @@ class ScenarioManagerDialog(QDialog):
 
         if not self.scenarios:
             # Default starter scenario
-            self.scenarios.append({
-                "name": "当前值",
-                "changing_cells": "$B$2:$B$4",
-                "comment": "初始基线方案",
-                "values": {"$B$2": "100", "$B$3": "120", "$B$4": "150"},
-                "prevent_changes": True,
-                "hide": False,
-            })
+            self.scenarios.append(
+                {
+                    "name": "当前值",
+                    "changing_cells": "$B$2:$B$4",
+                    "comment": "初始基线方案",
+                    "values": {"$B$2": "100", "$B$3": "120", "$B$4": "150"},
+                    "prevent_changes": True,
+                    "hide": False,
+                }
+            )
 
         self._init_ui()
         self._refresh_list()

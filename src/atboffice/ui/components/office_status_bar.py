@@ -13,7 +13,7 @@ from PySide6.QtWidgets import QLabel, QStatusBar, QWidget
 
 #: Raised field look of Office 2003: light edge on the left, shadow on the right.
 _FIELD_STYLE = (
-    "QLabel[statusField=\"true\"] { padding: 1px 6px; "
+    'QLabel[statusField="true"] { padding: 1px 6px; '
     "border-left: 1px solid rgba(255, 255, 255, 160); "
     "border-right: 1px solid rgba(0, 0, 0, 60); }"
 )

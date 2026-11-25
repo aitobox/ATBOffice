@@ -60,14 +60,14 @@ Three construction sites for TEXT/BLANK portions (lines ~775, ~803, ~840):
 
 ```python
 # BEFORE:
-underline=getattr(r_pr, "u", "none"),
+underline = (getattr(r_pr, "u", "none"),)
 
 # AFTER:
-underline=_norm_underline(r_pr),
-strikethrough=bool(getattr(r_pr, "strike", False)),
-dstrike=bool(getattr(r_pr, "dstrike", False)),
-caps=bool(getattr(r_pr, "caps", False)),
-small_caps=bool(getattr(r_pr, "small_caps", False)),
+underline = (_norm_underline(r_pr),)
+strikethrough = (bool(getattr(r_pr, "strike", False)),)
+dstrike = (bool(getattr(r_pr, "dstrike", False)),)
+caps = (bool(getattr(r_pr, "caps", False)),)
+small_caps = (bool(getattr(r_pr, "small_caps", False)),)
 ```
 
 Add helper at module level:
@@ -90,7 +90,7 @@ if getattr(r_pr, "small_caps", False):
 
 Also update the `_build_portions_for_line_items` or similar helper that handles `Portion(type=PortionType.TEXT, ...)` for copy/split helpers (lines ~1511, ~1531):
 ```python
-underline=pt.underline,  # already correct if pt.underline is now None-typed
+underline = (pt.underline,)  # already correct if pt.underline is now None-typed
 ```
 
 ---
@@ -158,10 +158,10 @@ Same pattern as above.
 Lines ~1511, ~1531 where `Portion(...)` is constructed from existing `pt`:
 ```python
 # Add new fields to copy:
-strikethrough=pt.strikethrough,
-dstrike=pt.dstrike,
-caps=pt.caps,
-small_caps=pt.small_caps,
+strikethrough = (pt.strikethrough,)
+dstrike = (pt.dstrike,)
+caps = (pt.caps,)
+small_caps = (pt.small_caps,)
 # underline already copied
 ```
 

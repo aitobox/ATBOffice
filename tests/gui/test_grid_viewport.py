@@ -922,6 +922,7 @@ class TestSelectionBorderDragAndDrop:
         self, viewport: GridViewport, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from PySide6.QtWidgets import QMessageBox
+
         monkeypatch.setattr(QMessageBox, "information", lambda *args, **kwargs: None)
 
         viewport.model.set_cell_value(0, 0, 999)
@@ -1401,4 +1402,3 @@ class TestEdgeAutoScrollAndFreezePanes:
         r3_pos = viewport.geometry_mapper.row_pos(3)
         assert viewport.verticalScrollBar().value() == r3_pos
         viewport._stop_auto_scroll()
-

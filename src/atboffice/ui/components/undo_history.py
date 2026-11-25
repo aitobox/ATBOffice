@@ -65,8 +65,9 @@ def entry_label(entry: Any) -> str:
 def populate(menu: QMenu, window: Any, kind: str) -> None:
     """Rebuild ``menu`` from ``window.undo_history(kind)`` (most recent first)."""
     menu.clear()
-    labels = list(window.undo_history(kind) or [])[:MAX_ITEMS] if hasattr(
-        window, "undo_history") else []
+    labels = (
+        list(window.undo_history(kind) or [])[:MAX_ITEMS] if hasattr(window, "undo_history") else []
+    )
     if not labels:
         empty = menu.addAction(safe_tr("无操作可撤销" if kind == "undo" else "无操作可重做"))
         empty.setEnabled(False)
@@ -77,9 +78,7 @@ def populate(menu: QMenu, window: Any, kind: str) -> None:
         act.setToolTip(
             safe_tr("撤销 {0} 步操作" if kind == "undo" else "重做 {0} 步操作").format(steps)
         )
-        act.triggered.connect(
-            lambda _checked=False, n=steps: window.undo_steps(kind, n)
-        )
+        act.triggered.connect(lambda _checked=False, n=steps: window.undo_steps(kind, n))
 
 
 def attach_undo_history(window: QWidget) -> int:

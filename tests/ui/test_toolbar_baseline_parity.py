@@ -120,8 +120,17 @@ def test_action_registry_contains_core_toolbar_commands(qtbot) -> None:
     quire_win = QuireWindow()
     qtbot.addWidget(quire_win)
     quire_actions = [
-        "new", "open", "save", "cut", "copy", "paste",
-        "undo", "redo", "bold", "italic", "underline",
+        "new",
+        "open",
+        "save",
+        "cut",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "bold",
+        "italic",
+        "underline",
     ]
     for aid in quire_actions:
         assert quire_win.action_registry.has_action(aid), f"Quire missing action {aid}"
@@ -129,8 +138,14 @@ def test_action_registry_contains_core_toolbar_commands(qtbot) -> None:
     ledger_win = LedgerWindow()
     qtbot.addWidget(ledger_win)
     ledger_actions = [
-        "file_new", "file_open", "file_save", "edit_cut",
-        "edit_copy", "edit_paste", "edit_undo", "edit_redo",
+        "file_new",
+        "file_open",
+        "file_save",
+        "edit_cut",
+        "edit_copy",
+        "edit_paste",
+        "edit_undo",
+        "edit_redo",
     ]
     for aid in ledger_actions:
         assert ledger_win.action_registry.has_action(aid), f"Ledger missing action {aid}"
@@ -138,8 +153,16 @@ def test_action_registry_contains_core_toolbar_commands(qtbot) -> None:
     lectern_win = LecternWindow()
     qtbot.addWidget(lectern_win)
     lectern_actions = [
-        "new", "open", "save", "cut", "copy",
-        "paste", "undo", "redo", "bold", "italic",
+        "new",
+        "open",
+        "save",
+        "cut",
+        "copy",
+        "paste",
+        "undo",
+        "redo",
+        "bold",
+        "italic",
     ]
     for aid in lectern_actions:
         assert lectern_win.action_registry.has_action(aid), f"Lectern missing action {aid}"

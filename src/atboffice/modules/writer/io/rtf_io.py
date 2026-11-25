@@ -532,8 +532,7 @@ class RtfWriter:
         if link and link.get("url"):
             url = self._escape_rtf(link["url"])
             return (
-                f"{{\\field{{\\*\\fldinst {{HYPERLINK \"{url}\"}}}}"
-                f"{{\\fldrslt {{{tags} {text}}}}}}}"
+                f'{{\\field{{\\*\\fldinst {{HYPERLINK "{url}"}}}}{{\\fldrslt {{{tags} {text}}}}}}}'
             )
 
         if tags:

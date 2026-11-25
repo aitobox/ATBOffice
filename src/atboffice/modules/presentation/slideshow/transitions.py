@@ -222,8 +222,9 @@ def _direction_vector(d: str | None) -> tuple[float, float]:
 # ==============================================================================
 
 
-def reveal_clip(kind: str, direction: str | None, progress: float, w: float, h: float
-                ) -> QPainterPath | None:
+def reveal_clip(
+    kind: str, direction: str | None, progress: float, w: float, h: float
+) -> QPainterPath | None:
     """Clip path (local shape coordinates) for mask-based entrance effects.
 
     ``progress`` 0 = nothing visible, 1 = fully revealed. Returns None for "show all".
@@ -419,11 +420,7 @@ def render_slide_to_image(
                                     cell_tx = TextBody.from_dict(cell_tx)
                                 except Exception:
                                     cell_tx = None
-                            if (
-                                cell_tx
-                                and hasattr(cell_tx, "is_empty")
-                                and not cell_tx.is_empty()
-                            ):
+                            if cell_tx and hasattr(cell_tx, "is_empty") and not cell_tx.is_empty():
                                 c_col = QColor(design.colors.dk1 if design else "#000000")
                                 for p in cell_tx.paragraphs:
                                     for r_item in p.runs:
@@ -500,13 +497,17 @@ def render_slide_to_image(
                 if scale_x != 1.0 or scale_y != 1.0:
                     painter.scale(scale_x, scale_y)
                 painter.translate(-rect.width() / 2.0, -rect.height() / 2.0)
-                clip = reveal_clip(
-                    getattr(state, "reveal_type", None) or "",
-                    getattr(state, "reveal_dir", None),
-                    getattr(state, "reveal_progress", 1.0),
-                    rect.width(),
-                    rect.height(),
-                ) if getattr(state, "reveal_type", None) else None
+                clip = (
+                    reveal_clip(
+                        getattr(state, "reveal_type", None) or "",
+                        getattr(state, "reveal_dir", None),
+                        getattr(state, "reveal_progress", 1.0),
+                        rect.width(),
+                        rect.height(),
+                    )
+                    if getattr(state, "reveal_type", None)
+                    else None
+                )
                 if clip is not None:
                     painter.setClipPath(clip, Qt.ClipOperation.IntersectClip)
             else:
@@ -1047,4 +1048,3 @@ __all__ = [
     "render_transition_frame",
     "safe_tr",
 ]
-

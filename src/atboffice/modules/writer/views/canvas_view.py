@@ -155,10 +155,21 @@ COLOR_SHADOW_DARK = QColor(58, 58, 58, 160)  # Classic drop shadow (dark core)
 COLOR_SHADOW_LIGHT = QColor(80, 80, 80, 70)  # Soft drop shadow ambient falloff
 # w:highlight names (ST_HighlightColor) → screen colours
 WORD_HIGHLIGHT_COLORS: dict[str, str] = {
-    "yellow": "#FFFF00", "green": "#00FF00", "cyan": "#00FFFF", "magenta": "#FF00FF",
-    "blue": "#0000FF", "red": "#FF0000", "darkBlue": "#000080", "darkCyan": "#008080",
-    "darkGreen": "#008000", "darkMagenta": "#800080", "darkRed": "#800000",
-    "darkYellow": "#808000", "darkGray": "#808080", "lightGray": "#C0C0C0", "black": "#000000",
+    "yellow": "#FFFF00",
+    "green": "#00FF00",
+    "cyan": "#00FFFF",
+    "magenta": "#FF00FF",
+    "blue": "#0000FF",
+    "red": "#FF0000",
+    "darkBlue": "#000080",
+    "darkCyan": "#008080",
+    "darkGreen": "#008000",
+    "darkMagenta": "#800080",
+    "darkRed": "#800000",
+    "darkYellow": "#808000",
+    "darkGray": "#808080",
+    "lightGray": "#C0C0C0",
+    "black": "#000000",
     "white": "#FFFFFF",
 }
 COLOR_SELECTION = QColor(51, 153, 255, 110)  # Word selection highlight blue
@@ -314,7 +325,15 @@ class WriterCanvasView(QAbstractScrollArea):
 
     # Document parts a dialog-driven edit may change; snapshotted for undo/redo.
     _SNAPSHOT_PARTS: tuple[str, ...] = (
-        "main", "sect", "hf", "fn", "en", "comments", "settings", "styles", "numbering",
+        "main",
+        "sect",
+        "hf",
+        "fn",
+        "en",
+        "comments",
+        "settings",
+        "styles",
+        "numbering",
     )
 
     def _snapshot_doc(self) -> dict[str, Any]:
@@ -613,8 +632,9 @@ class WriterCanvasView(QAbstractScrollArea):
             return out
         if mode == ViewMode.WEB:
             page = pages[0]
-            rect = QRectF(0.0, 0.0, self.pt_to_px(page.width),
-                          self.pt_to_px(self._content_height_pt(page)))
+            rect = QRectF(
+                0.0, 0.0, self.pt_to_px(page.width), self.pt_to_px(self._content_height_pt(page))
+            )
             out.append((rect, rect))
             for _extra in pages[1:]:
                 out.append((QRectF(), QRectF()))
@@ -818,8 +838,9 @@ class WriterCanvasView(QAbstractScrollArea):
             clip_vp = rect_vp
             if slots is not None:
                 clip = slots[p_idx][1]
-                clip_vp = QRectF(clip.left() - scroll_x, clip.top() - scroll_y,
-                                 clip.width(), clip.height())
+                clip_vp = QRectF(
+                    clip.left() - scroll_x, clip.top() - scroll_y, clip.width(), clip.height()
+                )
 
             # Viewport culling
             if not clip_vp.intersects(QRectF(visible_rect)):
@@ -859,8 +880,10 @@ class WriterCanvasView(QAbstractScrollArea):
             # Normal view: a dotted line where one page ends and the next begins
             if self.view_mode == ViewMode.NORMAL and p_idx > 0:
                 painter.setPen(QPen(QColor(128, 128, 128), 1.0, Qt.PenStyle.DotLine))
-                painter.drawLine(QPointF(0.0, clip_vp.top()),
-                                 QPointF(float(self.viewport().width()), clip_vp.top()))
+                painter.drawLine(
+                    QPointF(0.0, clip_vp.top()),
+                    QPointF(float(self.viewport().width()), clip_vp.top()),
+                )
 
         # 5.2 Formatting marks (¶ at each paragraph end) when toggled on
         if self.show_formatting_marks:
@@ -1382,9 +1405,7 @@ class WriterCanvasView(QAbstractScrollArea):
         if style == "thick" or "Heavy" in style:
             thickness *= 2.0
         if style in _WAVY_UNDERLINES:
-            self._draw_wavy_line(
-                painter, x1_px, x2_px, y_px, color, max(1.2, thickness), thickness
-            )
+            self._draw_wavy_line(painter, x1_px, x2_px, y_px, color, max(1.2, thickness), thickness)
             return
         pen = QPen(color, thickness, _UNDERLINE_PEN_STYLES.get(style, Qt.PenStyle.SolidLine))
         pen.setCapStyle(Qt.PenCapStyle.FlatCap)
@@ -1450,9 +1471,7 @@ class WriterCanvasView(QAbstractScrollArea):
             if not self.spell_engine.is_valid_word(w):
                 w_x1 = x_px + fm.horizontalAdvance(text[:w_start])
                 w_x2 = x_px + fm.horizontalAdvance(text[:w_end])
-                self._draw_wavy_line(
-                    painter, w_x1, w_x2, baseline_px + 2.5, QColor(255, 0, 0)
-                )
+                self._draw_wavy_line(painter, w_x1, w_x2, baseline_px + 2.5, QColor(255, 0, 0))
 
     def _paint_line_portions(
         self,
@@ -1613,8 +1632,12 @@ class WriterCanvasView(QAbstractScrollArea):
                 font, pen_col = self._build_portion_font(po)
                 po_base_px = baseline_px - self.pt_to_px(po.baseline_shift)
                 self._paint_highlight(
-                    painter, po, font, cur_px,
-                    cur_px + self._metrics(font).horizontalAdvance(po.text), po_base_px,
+                    painter,
+                    po,
+                    font,
+                    cur_px,
+                    cur_px + self._metrics(font).horizontalAdvance(po.text),
+                    po_base_px,
                 )
                 painter.setFont(font)
                 painter.setPen(QPen(pen_col))
@@ -2289,8 +2312,23 @@ class WriterCanvasView(QAbstractScrollArea):
             return False
         import copy as _copy
 
-        fields = ("font", "font_ea", "font_cs", "sz", "b", "i", "u", "color", "vert",
-                  "highlight", "strike", "dstrike", "caps", "small_caps", "spacing")
+        fields = (
+            "font",
+            "font_ea",
+            "font_cs",
+            "sz",
+            "b",
+            "i",
+            "u",
+            "color",
+            "vert",
+            "highlight",
+            "strike",
+            "dstrike",
+            "caps",
+            "small_caps",
+            "spacing",
+        )
 
         def apply(r_pr: RunProperties) -> None:
             for name in fields:
@@ -2523,8 +2561,9 @@ class WriterCanvasView(QAbstractScrollArea):
 
             if self._float_drag is not None:
                 _page_idx, pt_doc = self.viewport_to_doc_coords(pos_pt)
-                self._float_release(pt_doc, bool(event.modifiers()
-                                                 & Qt.KeyboardModifier.ShiftModifier))
+                self._float_release(
+                    pt_doc, bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+                )
                 return
 
             self._is_dragging = False
@@ -2548,7 +2587,7 @@ class WriterCanvasView(QAbstractScrollArea):
 
     # ------------------------------------------------------------ header/footer mode
     def header_footer_zone(self, page_idx: int, pt: QPointF) -> str | None:
-        """"hdr"/"ftr" when ``pt`` (page points) lies in a page's top/bottom margin.
+        """ "hdr"/"ftr" when ``pt`` (page points) lies in a page's top/bottom margin.
 
         Only paper views show the margins, so Normal/Web/Reading never match.
         """
@@ -2573,9 +2612,12 @@ class WriterCanvasView(QAbstractScrollArea):
         self.viewport().update()
 
     def _paint_hf_edit_overlay(self, painter: QPainter, page_rect: QRectF, page: Page) -> None:
-        body = QRectF(page_rect.left(), page_rect.top() + self.pt_to_px(page.body_top),
-                      page_rect.width(),
-                      self.pt_to_px(page.height - page.body_top - page.body_bottom_gap))
+        body = QRectF(
+            page_rect.left(),
+            page_rect.top() + self.pt_to_px(page.body_top),
+            page_rect.width(),
+            self.pt_to_px(page.height - page.body_top - page.body_bottom_gap),
+        )
         painter.save()
         painter.fillRect(body, QColor(255, 255, 255, 150))
         pen = QPen(QColor(128, 128, 128), 1.0, Qt.PenStyle.DashLine)
@@ -2627,7 +2669,8 @@ class WriterCanvasView(QAbstractScrollArea):
             if handle is not None:
                 fb = found[1]
                 self._float_drag = float_edit.FloatDrag(
-                    page_idx, fb.item, handle, QPointF(pt), (fb.x, fb.y, fb.w, fb.h))
+                    page_idx, fb.item, handle, QPointF(pt), (fb.x, fb.y, fb.w, fb.h)
+                )
                 return True
         page = self.pagination.pages[max(0, min(page_idx, len(self.pagination.pages) - 1))]
         fb = float_edit.float_at(page, pt)
@@ -2638,7 +2681,8 @@ class WriterCanvasView(QAbstractScrollArea):
         self.setFocus()
         self.select_float(page_idx, fb.item)
         self._float_drag = float_edit.FloatDrag(
-            page_idx, fb.item, None, QPointF(pt), (fb.x, fb.y, fb.w, fb.h))
+            page_idx, fb.item, None, QPointF(pt), (fb.x, fb.y, fb.w, fb.h)
+        )
         return True
 
     def _float_release(self, pt: QPointF, lock_aspect: bool = False) -> None:
@@ -2688,13 +2732,13 @@ class WriterCanvasView(QAbstractScrollArea):
 
         drag = self._float_drag
         if drag is not None and drag.page_index == p_idx and drag.current is not None:
-            float_edit.paint_selection(painter, page_rect, self.pt_to_px,
-                                       float_edit.preview_box(drag), dashed=True)
+            float_edit.paint_selection(
+                painter, page_rect, self.pt_to_px, float_edit.preview_box(drag), dashed=True
+            )
         found = self._selected_float_box()
         if found is not None and found[0] == p_idx:
             fb = found[1]
-            float_edit.paint_selection(painter, page_rect, self.pt_to_px,
-                                       (fb.x, fb.y, fb.w, fb.h))
+            float_edit.paint_selection(painter, page_rect, self.pt_to_px, (fb.x, fb.y, fb.w, fb.h))
 
     def _float_hover_cursor(self, vp_pt: QPoint) -> bool:
         from atboffice.modules.writer.views import float_edit

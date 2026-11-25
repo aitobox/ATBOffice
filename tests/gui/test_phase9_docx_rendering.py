@@ -50,9 +50,7 @@ from atboffice.modules.writer.spell import SpellEngine  # noqa: E402
 from atboffice.modules.writer.views.canvas_view import WriterCanvasView  # noqa: E402
 
 DOCX_DIR = REPO_ROOT / "tests" / "docs" / "word" / "docx"
-BASELINE_DIR = (
-    REPO_ROOT / "screenshots" / "office_audit_20261106" / "vibeoffice" / "word"
-)
+BASELINE_DIR = REPO_ROOT / "screenshots" / "office_audit_20261106" / "vibeoffice" / "word"
 
 TARGET_FILES: tuple[str, ...] = (
     "libreoffice__tdf105035_framePrB.docx",
@@ -64,9 +62,7 @@ TARGET_FILES: tuple[str, ...] = (
 )
 
 
-def test_phase9_six_docx_render_and_visual_parity(
-    qapp: QApplication, tmp_path: Path
-) -> None:
+def test_phase9_six_docx_render_and_visual_parity(qapp: QApplication, tmp_path: Path) -> None:
     """Render all 6 phase9 DOCX files and verify parity >= 88% each / >= 91% avg."""
     saved_dialogs = (
         QMessageBox.critical,
@@ -101,23 +97,17 @@ def test_phase9_six_docx_render_and_visual_parity(
             assert rendered_png.exists()
 
             img = QImage(str(rendered_png))
-            assert not is_blank_canvas(img), (
-                f"Rendered canvas unexpectedly blank for {name}"
-            )
+            assert not is_blank_canvas(img), f"Rendered canvas unexpectedly blank for {name}"
 
             baseline_png = BASELINE_DIR / f"{name}.png"
             if baseline_png.exists():
-                diff = compare_canvases(
-                    baseline_png, rendered_png, app="word", file_name=name
-                )
+                diff = compare_canvases(baseline_png, rendered_png, app="word", file_name=name)
                 assert diff.similarity is not None
                 assert diff.orig_size == diff.target_size, (
-                    f"Viewport mismatch for {name}: "
-                    f"orig={diff.orig_size} target={diff.target_size}"
+                    f"Viewport mismatch for {name}: orig={diff.orig_size} target={diff.target_size}"
                 )
                 assert diff.similarity >= 0.88, (
-                    f"{name} similarity {diff.similarity * 100:.2f}% "
-                    "below 88.0% threshold"
+                    f"{name} similarity {diff.similarity * 100:.2f}% below 88.0% threshold"
                 )
                 similarities.append(diff.similarity)
 
@@ -241,13 +231,9 @@ def test_bullet_complex_layout_and_non_blank_canvas(qapp: QApplication) -> None:
     assert any(line.portions for line in placed_lines)
 
     # Check Portion.color propagates on colored runs
-    p_props = Paragraph(
-        runs=[TextItem(text="Colored", r_pr=RunProperties(color="#1F497D"))]
-    )
+    p_props = Paragraph(runs=[TextItem(text="Colored", r_pr=RunProperties(color="#1F497D"))])
     colored_lines = layout_paragraph(p_props, container_width=300.0, doc=doc).lines
-    text_portions = [
-        pt for pt in colored_lines[0].portions if pt.type == PortionType.TEXT
-    ]
+    text_portions = [pt for pt in colored_lines[0].portions if pt.type == PortionType.TEXT]
     assert text_portions and text_portions[0].color == "#1F497D"
 
     view = WriterCanvasView(doc=doc)

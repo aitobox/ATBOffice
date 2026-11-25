@@ -364,9 +364,7 @@ def resolve_color(color_name: str | None) -> QColor:
     return QColor(apply_color_mods(hex_val, mods) if mods else hex_val)
 
 
-def balance_column_height(
-    doc: QTextDocument, col_w: float, max_h: float, num_cols: int
-) -> float:
+def balance_column_height(doc: QTextDocument, col_w: float, max_h: float, num_cols: int) -> float:
     """Return the balanced column height for a multi-column text body.
 
     Matches the reference renderer's CSS ``column-count`` (``column-fill:
@@ -520,10 +518,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                 run_sig = tuple(
                     (
                         p.level,
-                        tuple(
-                            (r.size, r.bold, r.font, len(r.text))
-                            for r in p.runs
-                        ),
+                        tuple((r.size, r.bold, r.font, len(r.text)) for r in p.runs),
                     )
                     for p in text_body.paragraphs
                 )
@@ -582,7 +577,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
                 if isinstance(bu_info, dict)
                 else BODY_BULLETS[level]
             )
-            has_bullet = (bu_type == "char" and bool(bu_char))
+            has_bullet = bu_type == "char" and bool(bu_char)
 
             if has_bullet:
                 mar_l_raw = para.props.get("marL")
@@ -724,11 +719,7 @@ class ShapeTextEditorItem(QGraphicsTextItem):
             col_w = max(10.0, (avail_w - (num_cols - 1) * col_gap) / num_cols)
             col_h = balance_column_height(doc, col_w, avail_h, num_cols)
             for c in range(min(num_cols, doc.pageCount())):
-                col_x = (
-                    (num_cols - 1 - c) * (col_w + col_gap)
-                    if rtl_col
-                    else c * (col_w + col_gap)
-                )
+                col_x = (num_cols - 1 - c) * (col_w + col_gap) if rtl_col else c * (col_w + col_gap)
                 col_clip = QRectF(text_rect.x() + col_x, text_rect.y(), col_w, col_h)
                 painter.save()
                 painter.setClipRect(col_clip)

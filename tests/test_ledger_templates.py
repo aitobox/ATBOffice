@@ -230,9 +230,7 @@ def test_tasks_template():
     assert b2.formula == '=COUNTIFS(A5:A104,"<>",E5:E104,"<>Done")'
 
     d2 = sheet.get_cell(1, 3)
-    assert (
-        d2.formula == '=COUNTIFS(A5:A104,"<>",E5:E104,"<>Done",D5:D104,"<"&TODAY())'
-    )
+    assert d2.formula == '=COUNTIFS(A5:A104,"<>",E5:E104,"<>Done",D5:D104,"<"&TODAY())'
 
     # Days left formula
     f5 = sheet.get_cell(4, 5)
@@ -263,8 +261,7 @@ def test_shopping_template():
 
     f2 = sheet.get_cell(1, 5)
     expected_f2 = (
-        '=IF(B2="","",IF(E2>B2,"Over budget by "&TEXT(E2-B2,"$0.00"),'
-        'TEXT(B2-E2,"$0.00")&" left"))'
+        '=IF(B2="","",IF(E2>B2,"Over budget by "&TEXT(E2-B2,"$0.00"),TEXT(B2-E2,"$0.00")&" left"))'
     )
     assert f2.formula == expected_f2
 

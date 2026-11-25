@@ -282,8 +282,9 @@ class LedgerPageSetupDialog(QDialog):
         self.spin_fit_w.setValue(int(s.fit_width))
         self.spin_fit_h.setValue(int(s.fit_height))
         self.combo_paper.setCurrentIndex(max(0, self.combo_paper.findData(s.paper)))
-        self.edit_first_page.setText("" if s.first_page_number is None else
-                                     str(s.first_page_number))
+        self.edit_first_page.setText(
+            "" if s.first_page_number is None else str(s.first_page_number)
+        )
         for key, spin in self.margin_spins.items():
             spin.setValue(s.margins[key] / PT_PER_CM)
         self.chk_center_h.setChecked(s.center_h)
@@ -299,7 +300,8 @@ class LedgerPageSetupDialog(QDialog):
         )
         self.edit_title_cols.setText(
             f"${_col_letters(s.title_cols[0])}:${_col_letters(s.title_cols[1])}"
-            if s.title_cols else ""
+            if s.title_cols
+            else ""
         )
         self.chk_gridlines.setChecked(s.gridlines)
         self.chk_bw.setChecked(s.black_white)
@@ -356,8 +358,9 @@ class LedgerPageSetupDialog(QDialog):
 
     def retranslate_ui(self) -> None:
         self.setWindowTitle(safe_tr("页面设置"))
-        for i, name in enumerate((safe_tr("页面"), safe_tr("页边距"), safe_tr("页眉/页脚"),
-                                  safe_tr("工作表"))):
+        for i, name in enumerate(
+            (safe_tr("页面"), safe_tr("页边距"), safe_tr("页眉/页脚"), safe_tr("工作表"))
+        ):
             self.tabs.setTabText(i, name)
         self.grp_orient.setTitle(safe_tr("方向"))
         self.rb_portrait.setText(safe_tr("纵向(&T)"))
@@ -370,8 +373,14 @@ class LedgerPageSetupDialog(QDialog):
         self.lbl_paper.setText(safe_tr("纸张大小(&Z):"))
         self.lbl_first.setText(safe_tr("起始页码(&R):"))
         self.edit_first_page.setPlaceholderText(safe_tr("自动"))
-        names = {"top": "上(&T):", "bottom": "下(&B):", "left": "左(&L):", "right": "右(&R):",
-                 "header": "页眉(&A):", "footer": "页脚(&F):"}
+        names = {
+            "top": "上(&T):",
+            "bottom": "下(&B):",
+            "left": "左(&L):",
+            "right": "右(&R):",
+            "header": "页眉(&A):",
+            "footer": "页脚(&F):",
+        }
         for key, label in names.items():
             self.margin_labels[key].setText(safe_tr(label))
         self.grp_center.setTitle(safe_tr("居中方式"))
@@ -385,9 +394,9 @@ class LedgerPageSetupDialog(QDialog):
         for key, tip in (("l", "左"), ("c", "中"), ("r", "右")):
             for which in ("header", "footer"):
                 self.hf_edits[f"{which}_{key}"].setPlaceholderText(safe_tr(tip))
-        self.lbl_codes.setText(safe_tr(
-            "代码：&P 页码，&N 总页数，&D 日期，&T 时间，&F 文件名，&A 工作表名"
-        ))
+        self.lbl_codes.setText(
+            safe_tr("代码：&P 页码，&N 总页数，&D 日期，&T 时间，&F 文件名，&A 工作表名")
+        )
         self.lbl_area.setText(safe_tr("打印区域(&A):"))
         self.lbl_title_rows.setText(safe_tr("顶端标题行(&R):"))
         self.lbl_title_cols.setText(safe_tr("左端标题列(&C):"))

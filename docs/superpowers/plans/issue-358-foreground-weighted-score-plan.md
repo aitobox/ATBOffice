@@ -148,6 +148,7 @@ Add to `tests/test_doc_diff.py`:
 ```python
 def test_filled_rectangle_vs_blank_below_cosmetic_minor(tmp_path):
     from PySide6.QtGui import QPainter
+
     p1 = tmp_path / "base_rect.png"
     p2 = tmp_path / "cand_blank.png"
 
@@ -187,6 +188,7 @@ def test_blank_pair_scores_100_without_zero_division(tmp_path):
 
 def test_dark_background_slide_detection_and_missing_fill(tmp_path):
     from PySide6.QtGui import QPainter
+
     p1 = tmp_path / "dark_base.png"
     p2 = tmp_path / "dark_cand_same.png"
     p3 = tmp_path / "white_cand_wrong_bg.png"
@@ -224,6 +226,7 @@ def test_dark_background_slide_detection_and_missing_fill(tmp_path):
 
 def test_antialias_dilation_tolerance(tmp_path):
     from PySide6.QtGui import QPainter
+
     p1 = tmp_path / "shift_a.png"
     p2 = tmp_path / "shift_b.png"
 

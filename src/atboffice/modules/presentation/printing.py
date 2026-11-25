@@ -183,8 +183,10 @@ def handout_slots(
     if order == "vertical":
         cells.sort(key=lambda rc: (rc[1], rc[0]))
     return [
-        _fit(QRectF(body.x() + c * (cell_w + gap), body.y() + r * (cell_h + gap), cell_w, cell_h),
-             aspect)
+        _fit(
+            QRectF(body.x() + c * (cell_w + gap), body.y() + r * (cell_h + gap), cell_w, cell_h),
+            aspect,
+        )
         for r, c in cells
     ]
 
@@ -256,6 +258,7 @@ def render_presentation(printer: QPrinter, pres: Any, options: PresentationPrint
     painter = begin_points_painter(printer)
     pages = 0
     try:
+
         def start() -> None:
             nonlocal pages
             if pages:
@@ -265,8 +268,14 @@ def render_presentation(printer: QPrinter, pres: Any, options: PresentationPrint
         if options.what == "slides":
             for _idx, slide in slides:
                 start()
-                paint_slide(painter, slide, pres, QRectF(0, 0, page_w, page_h),
-                            options.color, options.frame_slides)
+                paint_slide(
+                    painter,
+                    slide,
+                    pres,
+                    QRectF(0, 0, page_w, page_h),
+                    options.color,
+                    options.frame_slides,
+                )
         elif options.what == "handouts":
             per = options.per_page if options.per_page in HANDOUT_GRID else 6
             total = (len(slides) + per - 1) // per
@@ -283,18 +292,29 @@ def render_presentation(printer: QPrinter, pres: Any, options: PresentationPrint
             for idx, slide in slides:
                 start()
                 _header_footer(painter, page_w, page_h, options.title, idx + 1)
-                top = QRectF(MARGIN + 36, MARGIN + HEADER_H, page_w - 2 * MARGIN - 72,
-                             (page_h - 2 * MARGIN) * 0.42)
+                top = QRectF(
+                    MARGIN + 36,
+                    MARGIN + HEADER_H,
+                    page_w - 2 * MARGIN - 72,
+                    (page_h - 2 * MARGIN) * 0.42,
+                )
                 paint_slide(painter, slide, pres, _fit(top, aspect), options.color, True)
-                notes_rect = QRectF(MARGIN + 36, top.bottom() + 24.0, page_w - 2 * MARGIN - 72,
-                                    page_h - top.bottom() - 24.0 - MARGIN - FOOTER_H)
+                notes_rect = QRectF(
+                    MARGIN + 36,
+                    top.bottom() + 24.0,
+                    page_w - 2 * MARGIN - 72,
+                    page_h - top.bottom() - 24.0 - MARGIN - FOOTER_H,
+                )
                 painter.save()
                 painter.setFont(_font(painter, 12))
                 painter.setPen(QColor("#000000"))
                 painter.drawText(
                     notes_rect,
-                    int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
-                        | Qt.TextFlag.TextWordWrap),
+                    int(
+                        Qt.AlignmentFlag.AlignLeft
+                        | Qt.AlignmentFlag.AlignTop
+                        | Qt.TextFlag.TextWordWrap
+                    ),
                     getattr(slide, "notes", "") or "",
                 )
                 painter.restore()

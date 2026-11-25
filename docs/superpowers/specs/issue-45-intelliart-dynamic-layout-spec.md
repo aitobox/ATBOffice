@@ -25,10 +25,10 @@ class SmartArtItem:
 SmartArt 在幻灯片模型中表示为携带 `sa` 字典的 `Shape(type="group")`：
 ```python
 shape.sa = {
-    "layout": "process",      # 26 种布局 ID 之一
-    "colors": "ocean",        # 15 种调色板之一
-    "style": "moderate",      # 11 种样式之一
-    "items": [ ... ],         # SmartArtItem 树形结构
+    "layout": "process",  # 26 种布局 ID 之一
+    "colors": "ocean",  # 15 种调色板之一
+    "style": "moderate",  # 11 种样式之一
+    "items": [...],  # SmartArtItem 树形结构
 }
 ```
 

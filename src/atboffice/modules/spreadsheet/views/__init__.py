@@ -8,4 +8,3 @@ from atboffice.modules.spreadsheet.views.object_layer import (
 )
 
 __all__ = ["FilterDropdown", "GridViewport", "FloatingObject", "SpreadsheetObjectLayer"]
-

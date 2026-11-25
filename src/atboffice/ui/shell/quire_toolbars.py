@@ -489,10 +489,19 @@ class QuireToolBarCluster:
         zoom_combo = QComboBox(tb)
         zoom_combo.setObjectName("Quire_ZoomCombo")
         zoom_combo.setEditable(True)
-        zoom_combo.addItems([
-            "500%", "200%", "150%", "100%", "75%", "50%", "25%",
-            safe_tr("页宽"), safe_tr("整页"),
-        ])
+        zoom_combo.addItems(
+            [
+                "500%",
+                "200%",
+                "150%",
+                "100%",
+                "75%",
+                "50%",
+                "25%",
+                safe_tr("页宽"),
+                safe_tr("整页"),
+            ]
+        )
         zoom_combo.setCurrentText("100%")
         zoom_combo.setToolTip(safe_tr("显示比例"))
         tb.addWidget(zoom_combo)
@@ -509,35 +518,64 @@ class QuireToolBarCluster:
 
         style_combo = QComboBox(tb)
         style_combo.setObjectName("Quire_StyleCombo")
-        style_combo.addItems([
-            safe_tr("正文"),
-            safe_tr("标题 1"),
-            safe_tr("标题 2"),
-            safe_tr("标题 3"),
-            safe_tr("副标题"),
-            safe_tr("页眉"),
-            safe_tr("页脚"),
-        ])
+        style_combo.addItems(
+            [
+                safe_tr("正文"),
+                safe_tr("标题 1"),
+                safe_tr("标题 2"),
+                safe_tr("标题 3"),
+                safe_tr("副标题"),
+                safe_tr("页眉"),
+                safe_tr("页脚"),
+            ]
+        )
         style_combo.setToolTip(safe_tr("样式"))
         tb.addWidget(style_combo)
 
         font_combo = QComboBox(tb)
         font_combo.setObjectName("Quire_FontCombo")
         font_combo.setEditable(True)
-        font_combo.addItems([
-            "宋体", "黑体", "楷体", "仿宋", "Arial", "Times New Roman", "Calibri", "Courier New"
-        ])
+        font_combo.addItems(
+            ["宋体", "黑体", "楷体", "仿宋", "Arial", "Times New Roman", "Calibri", "Courier New"]
+        )
         font_combo.setToolTip(safe_tr("字体"))
         tb.addWidget(font_combo)
 
         size_combo = QComboBox(tb)
         size_combo.setObjectName("Quire_SizeCombo")
         size_combo.setEditable(True)
-        size_combo.addItems([
-            "初号", "小初", "一号", "小一", "二号", "小二", "三号", "小三",
-            "四号", "小四", "五号", "小五", "8", "9", "10", "11", "12",
-            "14", "16", "18", "20", "22", "24", "26", "28", "36", "48", "72",
-        ])
+        size_combo.addItems(
+            [
+                "初号",
+                "小初",
+                "一号",
+                "小一",
+                "二号",
+                "小二",
+                "三号",
+                "小三",
+                "四号",
+                "小四",
+                "五号",
+                "小五",
+                "8",
+                "9",
+                "10",
+                "11",
+                "12",
+                "14",
+                "16",
+                "18",
+                "20",
+                "22",
+                "24",
+                "26",
+                "28",
+                "36",
+                "48",
+                "72",
+            ]
+        )
         size_combo.setCurrentText("五号")
         size_combo.setToolTip(safe_tr("字号"))
         tb.addWidget(size_combo)
@@ -597,9 +635,7 @@ class QuireToolBarCluster:
         tb.add_office_separator()
 
         self._add_drop(tb, "线型", ["实线", "虚线", "点线", "双线"])
-        self._add_drop(
-            tb, "粗细", ["0.5 pt", "0.75 pt", "1.0 pt", "1.5 pt", "2.25 pt", "3.0 pt"]
-        )
+        self._add_drop(tb, "粗细", ["0.5 pt", "0.75 pt", "1.0 pt", "1.5 pt", "2.25 pt", "3.0 pt"])
         self._add_drop(tb, "边框颜色", ["自动", "黑色", "蓝色", "红色"])
         self._add_split(tb, "tableBorderBtn", "边框(&B)", "应用边框", ["所有框线"])
         self._add_drop(tb, "底纹颜色", ["无填充颜色", "浅灰色"])
@@ -747,12 +783,8 @@ class QuireToolBarCluster:
         tb.add_office_separator()
 
         self._add(tb, "pageSetup", "页面设置(&U)...", "页面设置")
-        self._add(
-            tb, "hfShowText", "显示/隐藏文档文字(&W)", "显示或隐藏正文文字", checkable=True
-        )
-        self._add(
-            tb, "hfLinkPrev", "链接到前一个(&L)", "链接到前一节页眉页脚", checkable=True
-        )
+        self._add(tb, "hfShowText", "显示/隐藏文档文字(&W)", "显示或隐藏正文文字", checkable=True)
+        self._add(tb, "hfLinkPrev", "链接到前一个(&L)", "链接到前一节页眉页脚", checkable=True)
 
         tb.add_office_separator()
 
@@ -844,9 +876,7 @@ class QuireToolBarCluster:
 
         tb.add_office_separator()
 
-        self._add(
-            tb, "mmViewData", "查看合并数据(&V)", "切换查看合并数据与域代码", checkable=True
-        )
+        self._add(tb, "mmViewData", "查看合并数据(&V)", "切换查看合并数据与域代码", checkable=True)
         self._add(tb, "mmFirst", "首记录(&1)", "跳转到第一条记录")
         self._add(tb, "mmPrev", "上一记录(&P)", "跳转到上一条记录")
 
@@ -904,9 +934,7 @@ class QuireToolBarCluster:
         self._add(tb, "wordartEdit", "编辑文字(&E)...", "编辑艺术字文字与字体")
         self._add(tb, "wordartGallery", "艺术字库(&G)...", "选择艺术字预设样式库")
         self._add(tb, "wa_format", "设置对象格式(&O)...", "设置艺术字轮廓与填充")
-        self._add_drop(
-            tb, "艺术字形状", ["纯文本", "波浪", "上凸", "下凹", "环形"]
-        )
+        self._add_drop(tb, "艺术字形状", ["纯文本", "波浪", "上凸", "下凹", "环形"])
         self._add_drop(
             tb,
             "文字环绕",

@@ -229,9 +229,7 @@ def warp_points(
     return pts
 
 
-def create_wordart_composite_path(
-    text: str, style: WordArtStyle, rect: QRectF
-) -> QPainterPath:
+def create_wordart_composite_path(text: str, style: WordArtStyle, rect: QRectF) -> QPainterPath:
     """Generate a combined vector QPainterPath of deformed glyphs for WordArt."""
     composite_path = QPainterPath()
     cleaned = text.strip()
@@ -336,9 +334,7 @@ def create_wordart_composite_path(
     return composite_path
 
 
-def render_wordart(
-    painter: QPainter, text: str, style: WordArtStyle, rect: QRectF
-) -> None:
+def render_wordart(painter: QPainter, text: str, style: WordArtStyle, rect: QRectF) -> None:
     """Render WordArt onto a QPainter surface with fills, outlines, and shadows."""
     path = create_wordart_composite_path(text, style, rect)
     if path.isEmpty():
@@ -593,8 +589,24 @@ class WordArtTextDialog(QDialog):
         self.lbl_size = QLabel(self)
         self.size_combo = QComboBox(self)
         sizes = [
-            "12", "14", "16", "18", "20", "24", "28", "32", "36",
-            "40", "44", "48", "54", "60", "66", "72", "80", "96",
+            "12",
+            "14",
+            "16",
+            "18",
+            "20",
+            "24",
+            "28",
+            "32",
+            "36",
+            "40",
+            "44",
+            "48",
+            "54",
+            "60",
+            "66",
+            "72",
+            "80",
+            "96",
         ]
         self.size_combo.addItems(sizes)
         s_idx = self.size_combo.findText(str(self._initial_size))

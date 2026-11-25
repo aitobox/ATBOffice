@@ -41,7 +41,7 @@ CATEGORIES = [
 ]
 
 DATE_FORMATS = [
-    'yyyy-mm-dd',
+    "yyyy-mm-dd",
     'yyyy"年"m"月"d"日"',
     "m/d/yyyy",
     "d-mmm-yy",
@@ -141,12 +141,8 @@ class NumberFormatTab(QWidget):
         self.sample_group = QGroupBox(safe_tr("示例"))
         sample_inner = QVBoxLayout(self.sample_group)
         self.sample_label = QLabel()
-        self.sample_label.setAlignment(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
-        self.sample_label.setStyleSheet(
-            "font-size: 13px; font-weight: bold; padding: 4px;"
-        )
+        self.sample_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.sample_label.setStyleSheet("font-size: 13px; font-weight: bold; padding: 4px;")
         sample_inner.addWidget(self.sample_label)
         right_layout.addWidget(self.sample_group)
 
@@ -194,9 +190,7 @@ class NumberFormatTab(QWidget):
         self.lbl_neg = QLabel(safe_tr("负数(&N):"))
         self.neg_list = QListWidget()
         self.neg_list.setMaximumHeight(85)
-        self.neg_list.addItems(
-            ["-1234.10", "1234.10", "(1234.10)", "(1234.10)"]
-        )
+        self.neg_list.addItems(["-1234.10", "1234.10", "(1234.10)", "(1234.10)"])
         self.neg_list.item(1).setForeground(QColor("#FF0000"))
         self.neg_list.item(3).setForeground(QColor("#FF0000"))
         self.neg_list.setCurrentRow(0)
@@ -227,9 +221,7 @@ class NumberFormatTab(QWidget):
         self.lbl_curr_neg = QLabel(safe_tr("负数(&N):"))
         self.curr_neg_list = QListWidget()
         self.curr_neg_list.setMaximumHeight(85)
-        self.curr_neg_list.addItems(
-            ["-$1,234.10", "$1,234.10", "($1,234.10)", "($1,234.10)"]
-        )
+        self.curr_neg_list.addItems(["-$1,234.10", "$1,234.10", "($1,234.10)", "($1,234.10)"])
         self.curr_neg_list.item(1).setForeground(QColor("#FF0000"))
         self.curr_neg_list.item(3).setForeground(QColor("#FF0000"))
         self.curr_neg_list.setCurrentRow(0)
@@ -250,9 +242,7 @@ class NumberFormatTab(QWidget):
         a_layout.addRow(safe_tr("小数位数(&D):"), self.acc_decimals_spin)
         self.acc_symbol_combo = QComboBox()
         self.acc_symbol_combo.addItems(["$", "¥", "€", "£", safe_tr("无")])
-        self.acc_symbol_combo.currentIndexChanged.connect(
-            self._on_option_changed
-        )
+        self.acc_symbol_combo.currentIndexChanged.connect(self._on_option_changed)
         a_layout.addRow(safe_tr("货币符号(&S):"), self.acc_symbol_combo)
         self.options_stack.addWidget(self.panel_accounting)
 
@@ -350,9 +340,7 @@ class NumberFormatTab(QWidget):
 
         self.custom_list = QListWidget()
         self.custom_list.addItems(CUSTOM_DEFAULT_CODES)
-        self.custom_list.itemClicked.connect(
-            lambda item: self.custom_edit.setText(item.text())
-        )
+        self.custom_list.itemClicked.connect(lambda item: self.custom_edit.setText(item.text()))
         cu_layout.addWidget(self.custom_list)
         self.options_stack.addWidget(self.panel_custom)
 
@@ -379,19 +367,13 @@ class NumberFormatTab(QWidget):
             else:
                 self.set_category("Currency")
             return
-        if any(
-            token in code
-            for token in ["yyyy", "yy", "mmm", "ddd", "m/d", "d-m"]
-        ):
+        if any(token in code for token in ["yyyy", "yy", "mmm", "ddd", "m/d", "d-m"]):
             self.set_category("Date")
             return
         if any(token in code for token in ["h:mm", "hh:mm", "AM/PM", "ss"]):
             self.set_category("Time")
             return
-        if any(
-            code.startswith(fmt)
-            for fmt in ["0", "0.", "#,##0", "#,##0.", "0.0"]
-        ):
+        if any(code.startswith(fmt) for fmt in ["0", "0.", "#,##0", "#,##0.", "0.0"]):
             self.set_category("Number")
             return
 
@@ -400,11 +382,7 @@ class NumberFormatTab(QWidget):
 
     def get_category(self) -> str:
         item = self.cat_list.currentItem()
-        return (
-            item.data(Qt.ItemDataRole.UserRole)
-            if item is not None
-            else "General"
-        )
+        return item.data(Qt.ItemDataRole.UserRole) if item is not None else "General"
 
     def set_category(self, cat_en: str) -> None:
         for i in range(self.cat_list.count()):
@@ -420,42 +398,26 @@ class NumberFormatTab(QWidget):
         cat_en = self.get_category()
 
         descriptions = {
-            "General": safe_tr(
-                "常规单元格格式不包含任何特定的数字格式。"
-            ),
+            "General": safe_tr("常规单元格格式不包含任何特定的数字格式。"),
             "Number": safe_tr(
                 "数值格式用于一般数字的显示。货币和会计专用格式提供货币值计算的专用格式。"
             ),
             "Currency": safe_tr(
                 "货币格式用于表示一般货币数值。使用会计专用格式可以使一列中的货币符号和十进制小数点对齐。"
             ),
-            "Accounting": safe_tr(
-                "会计专用格式可使一列中的货币符号和十进制小数点对齐。"
-            ),
-            "Date": safe_tr(
-                "日期格式将日期和时间系列数值显示为日期值。"
-            ),
-            "Time": safe_tr(
-                "时间格式将日期和时间系列数值显示为时间值。"
-            ),
+            "Accounting": safe_tr("会计专用格式可使一列中的货币符号和十进制小数点对齐。"),
+            "Date": safe_tr("日期格式将日期和时间系列数值显示为日期值。"),
+            "Time": safe_tr("时间格式将日期和时间系列数值显示为时间值。"),
             "Percentage": safe_tr(
                 "百分比格式将单元格数值乘以 100，并以带有百分号 (%) 的形式显示结果。"
             ),
-            "Fraction": safe_tr(
-                "分数格式根据指定的分母显示小数部分。"
-            ),
-            "Scientific": safe_tr(
-                "科学记数格式以指数形式显示数字（例如 1.23E+03）。"
-            ),
+            "Fraction": safe_tr("分数格式根据指定的分母显示小数部分。"),
+            "Scientific": safe_tr("科学记数格式以指数形式显示数字（例如 1.23E+03）。"),
             "Text": safe_tr(
                 "在文本单元格格式中，即使单元格中包含数字，也按文本形式处理。输入内容将原样显示。"
             ),
-            "Special": safe_tr(
-                "特殊格式用于跟踪列表和数据库中的特定数据值。"
-            ),
-            "Custom": safe_tr(
-                "以现有格式代码为基础，输入自定义的数字格式代码。"
-            ),
+            "Special": safe_tr("特殊格式用于跟踪列表和数据库中的特定数据值。"),
+            "Custom": safe_tr("以现有格式代码为基础，输入自定义的数字格式代码。"),
         }
         self.desc_label.setText(descriptions.get(cat_en, ""))
         self.update_sample()
@@ -538,11 +500,7 @@ class NumberFormatTab(QWidget):
 
         elif cat == "Special":
             item = self.special_list.currentItem()
-            return (
-                item.data(Qt.ItemDataRole.UserRole)
-                if item is not None
-                else "000000"
-            )
+            return item.data(Qt.ItemDataRole.UserRole) if item is not None else "000000"
 
         elif cat == "Custom":
             code = self.custom_edit.text().strip()

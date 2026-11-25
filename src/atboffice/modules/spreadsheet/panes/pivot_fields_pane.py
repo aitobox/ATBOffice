@@ -424,9 +424,7 @@ class PivotFieldsTaskPane(QWidget):
             for col_idx, name in self._fields:
                 item = QListWidgetItem(name)
                 item.setFlags(
-                    item.flags()
-                    | Qt.ItemFlag.ItemIsUserCheckable
-                    | Qt.ItemFlag.ItemIsDragEnabled
+                    item.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsDragEnabled
                 )
                 item.setCheckState(Qt.CheckState.Unchecked)
                 item.setData(_ROLE_COL_IDX, col_idx)
@@ -468,9 +466,7 @@ class PivotFieldsTaskPane(QWidget):
             for col_idx, name in fields:
                 item = QListWidgetItem(name)
                 item.setFlags(
-                    item.flags()
-                    | Qt.ItemFlag.ItemIsUserCheckable
-                    | Qt.ItemFlag.ItemIsDragEnabled
+                    item.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsDragEnabled
                 )
                 item.setCheckState(Qt.CheckState.Unchecked)
                 item.setData(_ROLE_COL_IDX, col_idx)
@@ -555,11 +551,7 @@ class PivotFieldsTaskPane(QWidget):
             for i in range(self.field_list.count()):
                 item = self.field_list.item(i)
                 col_idx = item.data(_ROLE_COL_IDX)
-                state = (
-                    Qt.CheckState.Checked
-                    if col_idx in used
-                    else Qt.CheckState.Unchecked
-                )
+                state = Qt.CheckState.Checked if col_idx in used else Qt.CheckState.Unchecked
                 item.setCheckState(state)
         finally:
             self._updating = prev
@@ -676,11 +668,7 @@ class PivotFieldsTaskPane(QWidget):
                         taken = src_w.takeItem(r)
                         break
 
-            name = (
-                taken.data(_ROLE_FIELD_NAME)
-                if taken is not None
-                else self._field_name(col_idx)
-            )
+            name = taken.data(_ROLE_FIELD_NAME) if taken is not None else self._field_name(col_idx)
             sel_vals = taken.data(_ROLE_SELECTED_VALS) if taken is not None else None
             eff_agg = agg_func or (taken.data(_ROLE_AGG_FUNC) if taken is not None else None)
 
@@ -709,9 +697,7 @@ class PivotFieldsTaskPane(QWidget):
 
         self._maybe_emit_and_refresh()
 
-    def remove_field_from_zone(
-        self, col_idx: int, zone: str, index: int | None = None
-    ) -> None:
+    def remove_field_from_zone(self, col_idx: int, zone: str, index: int | None = None) -> None:
         """Remove a field from a specified drop zone."""
         if zone not in self.drop_zones:
             return
@@ -730,24 +716,16 @@ class PivotFieldsTaskPane(QWidget):
 
         self._maybe_emit_and_refresh()
 
-    def set_value_aggregation(
-        self, index_or_col: int, agg_func: str, by_col: bool = False
-    ) -> None:
+    def set_value_aggregation(self, index_or_col: int, agg_func: str, by_col: bool = False) -> None:
         """Change aggregation function on a Values zone item."""
         self._updating = True
         try:
             changed = False
             for i in range(self.zone_values.count()):
                 item = self.zone_values.item(i)
-                match = (
-                    item.data(_ROLE_COL_IDX) == index_or_col
-                    if by_col
-                    else i == index_or_col
-                )
+                match = item.data(_ROLE_COL_IDX) == index_or_col if by_col else i == index_or_col
                 if match:
-                    name = item.data(_ROLE_FIELD_NAME) or self._field_name(
-                        item.data(_ROLE_COL_IDX)
-                    )
+                    name = item.data(_ROLE_FIELD_NAME) or self._field_name(item.data(_ROLE_COL_IDX))
                     item.setData(_ROLE_AGG_FUNC, agg_func)
                     item.setText(self._format_value_label(name, agg_func))
                     changed = True
@@ -759,9 +737,7 @@ class PivotFieldsTaskPane(QWidget):
         if changed:
             self._maybe_emit_and_refresh()
 
-    def set_filter_values(
-        self, col_idx: int, selected_values: set[str] | None
-    ) -> None:
+    def set_filter_values(self, col_idx: int, selected_values: set[str] | None) -> None:
         """Set active filter values for a field in Filters/Rows/Columns."""
         self._updating = True
         try:

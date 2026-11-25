@@ -55,6 +55,7 @@
 from pathlib import Path
 from atboffice.core.config import ConfigManager
 
+
 def test_config_get_set_atomic(tmp_path: Path):
     cfg_file = tmp_path / "config.json"
     cfg = ConfigManager(config_path=cfg_file)
@@ -63,8 +64,10 @@ def test_config_get_set_atomic(tmp_path: Path):
     assert cfg.get("theme") == "paper"
     assert cfg_file.exists()
 
+
 # tests/unit/core/test_i18n.py
 from atboffice.core.i18n import tr, set_locale, get_locale
+
 
 def test_i18n_translation():
     set_locale("zh_CN")
@@ -73,8 +76,10 @@ def test_i18n_translation():
     set_locale("en_US")
     assert tr("&File") == "File(&F)"
 
+
 # tests/unit/core/test_commands.py
 from atboffice.core.commands import CommandRegistry
+
 
 def test_command_registration_and_execution():
     reg = CommandRegistry()
@@ -139,29 +144,40 @@ import io
 from pathlib import Path
 from atboffice.vfs.opc import SourcePackage, PackageWriter
 
+
 def test_opc_lossless_carry(tmp_path: Path):
     # Create a synthetic OPC package with 2 parts: document.xml and vbaProject.bin
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
-        zf.writestr("[Content_Types].xml", b"<Types><Default Extension='xml' ContentType='text/xml'/></Types>")
-        zf.writestr("word/document.xml", b"<w:document><w:body><w:p><w:r><w:t>Hello</w:t></w:r></w:p></w:body></w:document>")
-        zf.writestr("word/vbaProject.bin", b"\xDE\xAD\xBE\xEF\x01\x02\x03\x04")  # opaque binary macro
+        zf.writestr(
+            "[Content_Types].xml",
+            b"<Types><Default Extension='xml' ContentType='text/xml'/></Types>",
+        )
+        zf.writestr(
+            "word/document.xml",
+            b"<w:document><w:body><w:p><w:r><w:t>Hello</w:t></w:r></w:p></w:body></w:document>",
+        )
+        zf.writestr(
+            "word/vbaProject.bin", b"\xde\xad\xbe\xef\x01\x02\x03\x04"
+        )  # opaque binary macro
     pkg_bytes = buf.getvalue()
 
     pkg = SourcePackage.from_bytes(pkg_bytes)
     assert pkg.has_part("word/vbaProject.bin")
-    
+
     writer = PackageWriter(source_package=pkg)
     # Edit ONLY document.xml
-    new_doc_xml = b"<w:document><w:body><w:p><w:r><w:t>Hello World</w:t></w:r></w:p></w:body></w:document>"
+    new_doc_xml = (
+        b"<w:document><w:body><w:p><w:r><w:t>Hello World</w:t></w:r></w:p></w:body></w:document>"
+    )
     writer.replace_part("word/document.xml", new_doc_xml)
-    
+
     out_file = tmp_path / "saved.docx"
     writer.save(out_file)
-    
+
     # Verify: vbaProject.bin was carried byte-for-byte identical
     with zipfile.ZipFile(out_file, "r") as zf:
-        assert zf.read("word/vbaProject.bin") == b"\xDE\xAD\xBE\xEF\x01\x02\x03\x04"
+        assert zf.read("word/vbaProject.bin") == b"\xde\xad\xbe\xef\x01\x02\x03\x04"
         assert zf.read("word/document.xml") == new_doc_xml
 ```
 
@@ -210,15 +226,17 @@ git commit -m "feat(vfs): implement lossless OPC package reader and writer"
 import pytest
 from atboffice.vfs.crypto import is_encrypted_package, decrypt_package, encrypt_package
 
+
 def test_roundtrip_agile_encryption():
     plaintext_data = b"PK\x03\x04test_zip_package_content"
     password = "SecretPassword123!"
-    
+
     encrypted = encrypt_package(plaintext_data, password=password, agile=True)
     assert is_encrypted_package(encrypted)
-    
+
     decrypted = decrypt_package(encrypted, password=password)
     assert decrypted == plaintext_data
+
 
 def test_wrong_password_raises():
     plaintext_data = b"PK\x03\x04test_zip_package_content"
@@ -268,11 +286,13 @@ git commit -m "feat(vfs): add ECMA-376 Agile and Standard AES encryption engine"
 from datetime import datetime
 from atboffice.drawing.numfmt import format_number
 
+
 def test_number_formatting():
     assert format_number(1234.567, "#,##0.00") == "1,234.57"
     assert format_number(0.854, "0.0%") == "85.4%"
-    assert format_number(-50, "$#,##0;($#,##0);\"-\"") == "($50)"
-    assert format_number(0, "$#,##0;($#,##0);\"-\"") == "-"
+    assert format_number(-50, '$#,##0;($#,##0);"-"') == "($50)"
+    assert format_number(0, '$#,##0;($#,##0);"-"') == "-"
+
 
 def test_date_weekday_formatting():
     dt = datetime(2026, 10, 24)  # Saturday
@@ -323,12 +343,14 @@ git commit -m "feat(drawing): implement Excel compatible number formatter"
 # tests/unit/drawing/test_geometry.py
 from atboffice.drawing.geometry import get_shape_preset, SHAPE_PRESETS
 
+
 def test_shape_presets_registered():
     assert len(SHAPE_PRESETS) >= 92
     rect = get_shape_preset("rect")
     assert rect is not None
     commands = rect.generate_path(100.0, 50.0)
     assert len(commands) > 0
+
 
 def test_rounded_rect_adjustments():
     round_rect = get_shape_preset("roundRect")
@@ -383,6 +405,7 @@ git commit -m "feat(drawing): implement 92 AutoShape presets and 54 pattern fill
 import pytest
 from PySide6.QtGui import QKeySequence
 from atboffice.ui.shell.main_window import MainWindow
+
 
 def test_main_window_has_menu_and_title(qtbot):
     win = MainWindow()
@@ -442,6 +465,7 @@ from pathlib import Path
 from atboffice.core.recent import RecentManager
 from atboffice.ui.shell.start_center import StartCenterWidget
 
+
 def test_recent_manager_crud(tmp_path: Path):
     mgr = RecentManager(storage_path=tmp_path / "recent.json")
     doc_path = tmp_path / "test.docx"
@@ -450,6 +474,7 @@ def test_recent_manager_crud(tmp_path: Path):
     items = mgr.list_recent()
     assert len(items) == 1
     assert items[0].path == str(doc_path)
+
 
 def test_start_center_widget(qtbot, tmp_path: Path):
     mgr = RecentManager(storage_path=tmp_path / "recent.json")
@@ -502,13 +527,14 @@ from pathlib import Path
 from atboffice.ui.shell.main_window import MainWindow
 from atboffice.vfs.opc import SourcePackage
 
+
 def test_phase0_app_startup_and_sample_inspection(qtbot, tmp_path: Path):
     # Verify main window launches cleanly with start center
     win = MainWindow()
     qtbot.addWidget(win)
     win.show()
     assert win.isVisible()
-    
+
     # Verify sample package inspection
     sample_file = Path(".vibeoffice/tools/ooxml/sample.docx")
     if sample_file.exists():
