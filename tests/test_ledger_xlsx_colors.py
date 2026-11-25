@@ -5,7 +5,7 @@ Theme, indexed palette, and tint color resolution in XLSX reading & round-trip w
 from __future__ import annotations
 
 import io
-import xml.etree.ElementTree as ET
+from atboffice.vfs import etree as ET
 import zipfile
 from pathlib import Path
 

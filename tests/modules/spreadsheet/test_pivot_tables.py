@@ -1,7 +1,7 @@
 """Unit and integration tests for Pivot Table models, OPC preservation, and wizard dialog."""
 
 import io
-import xml.etree.ElementTree as ET
+from atboffice.vfs import etree as ET
 import zipfile
 
 import pytest

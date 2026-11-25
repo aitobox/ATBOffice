@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import copy
 import io
-import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
@@ -75,6 +74,7 @@ from atboffice.modules.writer.models.properties import (
     TabStop,
 )
 from atboffice.modules.writer.models.styles import Style, builtin_styles
+from atboffice.vfs import etree as ET
 from atboffice.vfs.opc import Relationship, SourcePackage
 
 # Common XML Namespaces
@@ -167,7 +167,7 @@ def normalize_strict_namespaces(xml_str: str | None) -> str | None:
 
 def _local_tag(elem: ET.Element | str) -> str:
     """Extract tag name stripped of namespace or Clark notation."""
-    tag = elem.tag if isinstance(elem, ET.Element) else elem
+    tag = elem.tag if ET.iselement(elem) else elem
     if tag.startswith("{"):
         return tag.split("}", 1)[1]
     if ":" in tag:
@@ -177,7 +177,7 @@ def _local_tag(elem: ET.Element | str) -> str:
 
 def _elem_ns(elem: ET.Element | str) -> str:
     """Extract namespace URI stripped of Clark notation brackets."""
-    tag = elem.tag if isinstance(elem, ET.Element) else elem
+    tag = elem.tag if ET.iselement(elem) else elem
     if tag.startswith("{"):
         return tag.split("}", 1)[0][1:]
     return ""
@@ -489,6 +489,7 @@ class DocxReader:
                 self.main_path = target
                 break
 
+        self.doc.keep["main_part"] = self.main_path
         ct = self.pkg.get_content_type(self.main_path)
         if ct == CT_DOCM or self.pkg.has_part("word/vbaProject.bin"):
             self.doc_format = "docm"
@@ -507,12 +508,8 @@ class DocxReader:
         """Find relationship target matching type suffix."""
         for r in self.rels.values():
             if r.type.endswith("/" + rel_type_suffix) or r.type.endswith(rel_type_suffix):
-                if r.target_mode == "Internal":
-                    # Target may be relative to word/
-                    target = r.target.lstrip("/")
-                    if not target.startswith("word/") and not target.startswith("docProps/"):
-                        target = f"word/{target}"
-                    return target
+                if not r.is_external:
+                    return r.resolve_target(self.main_path)
         return None
 
     def _load_theme(self) -> None:
@@ -627,6 +624,9 @@ class DocxReader:
             )
 
         self.doc.styles = styles
+        # Lets the writer tell edited styles from untouched ones and carry the rest.
+        self.doc.keep["styles_part"] = styles_path
+        self.doc.keep["styles_snapshot"] = copy.deepcopy(styles)
 
     def _parse_numbering(self) -> None:
         """Parse word/numbering.xml into doc.numbering."""

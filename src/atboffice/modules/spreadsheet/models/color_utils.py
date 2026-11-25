@@ -7,9 +7,10 @@ and default row height calculation matching Microsoft Excel and LibreOffice.
 from __future__ import annotations
 
 import math
-import xml.etree.ElementTree as ET
 from collections.abc import Sequence
 from typing import Any
+
+from atboffice.vfs import etree as ET
 
 # SpreadsheetML theme index order (ECMA-376 Part 1 §18.8.3 / §20.1.6.2)
 THEME_COLOR_ORDER: tuple[str, ...] = (

@@ -7,7 +7,6 @@ import io
 import math
 import posixpath
 import uuid
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -52,6 +51,7 @@ from atboffice.modules.presentation.models.text import (
     TextBody,
 )
 from atboffice.modules.writer.models.omml import parse_omml
+from atboffice.vfs import etree as ET
 from atboffice.vfs.opc import SourcePackage
 
 # PresentationML & DrawingML Namespaces

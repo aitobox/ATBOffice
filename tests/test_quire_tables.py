@@ -219,7 +219,7 @@ def test_unknown_style_falls_back_to_document_default_table_style() -> None:
 
 def test_explicit_zero_spacing_overrides_doc_defaults() -> None:
     """Explicit w:after="0" and w:line="240" override docDefaults without clobbering before."""
-    import xml.etree.ElementTree as ET
+    from atboffice.vfs import etree as ET
 
     from atboffice.modules.writer.io.docx_reader import DocxReader
     from atboffice.modules.writer.models.properties import ParagraphProperties, SpacingProperties
@@ -247,7 +247,7 @@ def test_explicit_zero_spacing_overrides_doc_defaults() -> None:
 
 def test_tr_height_omitted_hrule_defaults_to_at_least() -> None:
     """ECMA-376: omitted w:hRule on w:trHeight defaults to atLeast; explicit auto stays auto."""
-    import xml.etree.ElementTree as ET
+    from atboffice.vfs import etree as ET
 
     from atboffice.modules.writer.io.docx_reader import DocxReader
 

@@ -14,10 +14,11 @@ Cells (plain dicts inside ``Shape.tbl["rows"][i]["cells"]``) receive:
 from __future__ import annotations
 
 import copy
-import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
+
+from atboffice.vfs import etree as ET
 
 ColorFn = Callable[[ET.Element], tuple[str | None, float]]
 LineFn = Callable[[ET.Element], dict[str, Any]]

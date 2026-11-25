@@ -5,7 +5,6 @@ from __future__ import annotations
 import io
 import os
 import posixpath
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from atboffice.modules.presentation.io.writer_slide import notes_slide_to_xml, slide_to_xml
@@ -74,6 +73,7 @@ from atboffice.modules.presentation.smartart.io import (
     layout_xml,
     style_xml,
 )
+from atboffice.vfs import etree as ET
 from atboffice.vfs.opc import PackageWriter, SourcePackage
 from atboffice.vfs.order import enforce_schema_order
 

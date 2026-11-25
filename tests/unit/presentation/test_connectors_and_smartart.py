@@ -1,6 +1,6 @@
 """Unit tests for Lectern magnetic shape connectors, routing, and SmartArt layouts."""
 
-import xml.etree.ElementTree as ET
+from atboffice.vfs import etree as ET
 
 import pytest
 from PySide6.QtCore import QPointF, Qt

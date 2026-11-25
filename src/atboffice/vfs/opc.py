@@ -10,12 +10,13 @@ import io
 import os
 import tempfile
 import urllib.parse
-import xml.etree.ElementTree as ET
 import zipfile
 import zlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from atboffice.vfs import etree as ET
 
 # Standard OPC Namespaces
 NS_CONTENT_TYPES = "http://schemas.openxmlformats.org/package/2006/content-types"
@@ -533,19 +534,17 @@ class PackageWriter:
             ):
                 overrides[part] = ct
 
-        root = ET.Element(
-            "Types",
-            xmlns=NS_CONTENT_TYPES,
-        )
+        q = f"{{{NS_CONTENT_TYPES}}}"
+        root = ET.Element(f"{q}Types", nsmap={None: NS_CONTENT_TYPES})
         for ext in sorted(defaults.keys()):
-            ET.SubElement(root, "Default", Extension=ext, ContentType=defaults[ext])
+            ET.SubElement(root, f"{q}Default", Extension=ext, ContentType=defaults[ext])
 
         for part in sorted(overrides.keys()):
             ET.SubElement(
-                root, "Override", PartName=f"/{part}", ContentType=overrides[part]
+                root, f"{q}Override", PartName=f"/{part}", ContentType=overrides[part]
             )
 
-        return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+        return ET.tostring(root, encoding="UTF-8", xml_declaration=True, standalone=True)
 
     def to_bytes(self) -> bytes:
         """Serialize package into a complete ZIP byte buffer with byte-for-byte carry."""

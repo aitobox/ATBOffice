@@ -17,10 +17,11 @@ import hmac
 import math
 import os
 import struct
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
+
+from atboffice.vfs import etree as ET
 
 try:
     from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes

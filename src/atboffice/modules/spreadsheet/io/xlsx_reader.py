@@ -5,7 +5,6 @@ from __future__ import annotations
 import io
 import logging
 import re
-import xml.etree.ElementTree as ET
 import zipfile
 from collections.abc import Sequence
 from pathlib import Path
@@ -65,6 +64,7 @@ from atboffice.modules.spreadsheet.views.object_layer import (
     CellAnchorPoint,
     FloatingObject,
 )
+from atboffice.vfs import etree as ET
 from atboffice.vfs.opc import SourcePackage
 
 logger = logging.getLogger(__name__)

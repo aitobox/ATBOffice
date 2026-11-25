@@ -7,12 +7,12 @@ matrices, equation arrays, phantoms, and styled alphabets.
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from typing import Any
 
 from atboffice.modules.writer.models.document import RunItem
 from atboffice.modules.writer.models.properties import RunProperties
+from atboffice.vfs import etree as ET
 
 NS_M = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 NS_W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -80,7 +80,7 @@ def style_math_char(ch: str, scr: str | None) -> str:
 
 
 def _local_tag(elem: ET.Element | str) -> str:
-    tag = elem.tag if isinstance(elem, ET.Element) else elem
+    tag = elem.tag if ET.iselement(elem) else elem
     if tag.startswith("{"):
         return tag.split("}", 1)[1]
     return tag.split(":")[-1]

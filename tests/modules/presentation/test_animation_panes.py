@@ -1,6 +1,6 @@
 """Unit and integration tests for presentation task panes and PPTX roundtrip."""
 
-import xml.etree.ElementTree as ET
+from atboffice.vfs import etree as ET
 
 import pytest
 from PySide6.QtCore import Qt

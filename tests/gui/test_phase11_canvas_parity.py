@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import glob
-import xml.etree.ElementTree as ET
+from atboffice.vfs import etree as ET
 
 import pytest
 from PySide6.QtGui import QColor, QImage

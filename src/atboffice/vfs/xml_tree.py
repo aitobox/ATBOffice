@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import io
-import xml.etree.ElementTree as ET
+from atboffice.vfs import etree as ET
 
 
 def parse_xml(content: str | bytes) -> ET.Element:
@@ -19,27 +18,18 @@ def serialize_xml(
     xml_declaration: bool = True,
     standalone: bool = True,
 ) -> bytes:
-    """Serialize an XML element to bytes.
-    
-    Ensures correct XML header declaration.
+    """Serialize an XML element to bytes with the standard OOXML declaration.
+
+    Namespace declarations are hoisted to the root so that carried fragments do not
+    repeat them and prefixes referenced from attribute values stay declared.
     """
-    buf = io.BytesIO()
-    tree = ET.ElementTree(element)
-    tree.write(
-        buf,
-        encoding=encoding,
+    ET.hoist_namespaces(element)
+    return ET.tostring(
+        element,
+        encoding=encoding.upper(),
         xml_declaration=xml_declaration,
-        default_namespace="",
-        method="xml",
+        standalone=standalone if xml_declaration else None,
     )
-    data = buf.getvalue()
-    if xml_declaration and standalone and data.startswith(b"<?xml"):
-        # Ensure standalone="yes" is preserved if needed
-        end_decl = data.find(b"?>")
-        if end_decl != -1 and b"standalone" not in data[:end_decl]:
-            decl = data[:end_decl].rstrip() + b' standalone="yes"?>'
-            data = decl + data[end_decl + 2:]
-    return data
 
 
 # ---------------------------------------------------------------------------

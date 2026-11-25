@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import io
 import re
-import xml.etree.ElementTree as ET
+from atboffice.vfs import etree as ET
 import zipfile
 from pathlib import Path
 

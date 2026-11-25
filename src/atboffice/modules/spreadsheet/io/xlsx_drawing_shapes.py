@@ -7,7 +7,6 @@ handled by the caller in ``xlsx_reader``.
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
 import zipfile
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -21,6 +20,7 @@ from atboffice.drawing.dml import (
     parse_fill,
 )
 from atboffice.modules.spreadsheet.views.object_layer import FloatingObject
+from atboffice.vfs import etree as ET
 
 EMU_PER_PX = 9525
 EMU_PER_PT = 12700
