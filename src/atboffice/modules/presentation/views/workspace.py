@@ -1334,8 +1334,7 @@ class LecternWorkspace(QWidget):
         self.current_slide_index = 0
 
         self.scene.presentation = presentation
-        self.scene.slide_width = presentation.w
-        self.scene.slide_height = presentation.h
+        self.scene.set_slide_size(presentation.w, presentation.h)
 
         if hasattr(self, "transition_pane"):
             self.transition_pane.set_presentation(presentation)

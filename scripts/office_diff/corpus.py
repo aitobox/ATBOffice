@@ -75,6 +75,7 @@ def partition_corpus(
             is_supported=is_supp,
             sha256=sha256,
             notes=notes,
+            reference_limitation=str(exp.get("reference_limitation") or "").strip(),
         )
 
         if is_supp:

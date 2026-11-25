@@ -90,13 +90,35 @@ class SlideScene(QGraphicsScene):
         # only. Scenes rendered for print or export turn this off.
         self.show_placeholder_prompts: bool = True
 
+        self._update_scene_rect()
+        self.load_slide(self.slide)
+
+    def _update_scene_rect(self) -> None:
+        """Keep a fixed pasteboard margin around the slide, whatever its size."""
         self.setSceneRect(
             -150.0,
             -100.0,
             self.slide_width + 300.0,
             self.slide_height + 200.0,
         )
-        self.load_slide(self.slide)
+
+    def set_slide_size(self, width: float, height: float) -> None:
+        """Resize the slide and its pasteboard.
+
+        Non-default slide sizes (B4, A4, letter, custom) arrive after the scene was
+        built at 960x540; without resizing the scene rect the slide sits off-centre
+        and its lower edge is clipped by the view.
+        """
+        try:
+            w = float(width)
+            h = float(height)
+        except (TypeError, ValueError):
+            return
+        if w <= 0.0 or h <= 0.0:
+            return
+        self.slide_width = w
+        self.slide_height = h
+        self._update_scene_rect()
 
     def finish_active_text_editing(self, commit: bool = True) -> None:
         """Safely finish or cancel any in-place text editor currently active on the scene."""

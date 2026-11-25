@@ -135,6 +135,8 @@ def run_diff_suite(
             diff_out=diff_out,
             normalize_size=normalize_size,
         )
+        if target.reference_limitation:
+            diff_res.reference_limitation = target.reference_limitation
         results.append(diff_res)
 
     if captures:

@@ -20,6 +20,9 @@ class DocumentTarget:
     is_supported: bool
     sha256: str = ""
     notes: str = ""
+    # Why the reference renderer cannot be matched for this document (a known gap in the
+    # reference itself). Empty for every ordinary document.
+    reference_limitation: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -66,6 +69,8 @@ class DiffResult:
     precision: float | None = None
     color_hist_similarity: float | None = None
     tier: str | None = None
+    # Set when the document is exempt from the per-document bar (see DocumentTarget).
+    reference_limitation: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize diff result metrics to a JSON-compatible dictionary."""

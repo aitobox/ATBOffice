@@ -1394,7 +1394,8 @@
       "model": "ok",
       "render": "ok",
       "roundtrip": "ok",
-      "expected_status": "ok"
+      "expected_status": "ok",
+      "reference_limitation": "The sheet's only drawing is a group (two grpFill rectangles joined by an elbow connector). VibeOffice does not draw groups: ledger/js/drawing.js shapeProps() reads the first child's spPr, grpFill resolves to no fill and the group has no style, so it paints one empty 1px black outline over the whole anchor. ATB draws the filled rectangles and connector as Excel does."
     }
   },
   {
