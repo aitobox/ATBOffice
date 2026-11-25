@@ -310,9 +310,7 @@ def inspect_file_format(
         except Exception:
             pass
 
-        is_xml_or_html = header_prefix.startswith(
-            (b"<", b"\xff\xfe<\x00", b"\xfe\xff\x00<")
-        )
+        is_xml_or_html = header_prefix.startswith((b"<", b"\xff\xfe<\x00", b"\xfe\xff\x00<"))
         is_rtf_header = header_prefix.startswith(b"{\\rtf")
 
         if app == "quire" and ext in {".doc", ".dot"}:
@@ -380,7 +378,7 @@ def inspect_file_format(
         )
 
     ole_fmt = detect_ole_format(path_or_bytes)
-    is_enc = (ole_fmt == "encrypted_ooxml")
+    is_enc = ole_fmt == "encrypted_ooxml"
     if is_enc:
         return FileFormatInspection(
             is_ole=True,
@@ -409,8 +407,7 @@ def inspect_file_format(
             ).format(name=name)
         elif ole_fmt == "excel97":
             guidance_msg = safe_tr(
-                "“{name}”是 Excel 97–2003 工作簿，而非 Word 文档。"
-                "Quire 仅支持打开文字处理文档。"
+                "“{name}”是 Excel 97–2003 工作簿，而非 Word 文档。Quire 仅支持打开文字处理文档。"
             ).format(name=name)
         elif ext in ooxml_word_exts or (ext and ext not in {".doc", ".dot"}):
             is_disguised = True
@@ -428,8 +425,7 @@ def inspect_file_format(
     elif app == "ledger":
         if ole_fmt == "word97":
             guidance_msg = safe_tr(
-                "“{name}”是 Word 97–2003 文档，而非 Excel 工作簿。"
-                "Ledger 仅支持打开电子表格文件。"
+                "“{name}”是 Word 97–2003 文档，而非 Excel 工作簿。Ledger 仅支持打开电子表格文件。"
             ).format(name=name)
         elif ole_fmt == "powerpoint97":
             guidance_msg = safe_tr(
@@ -489,7 +485,6 @@ def inspect_file_format(
         guidance_title=guidance_title,
         guidance_message=guidance_msg,
     )
-
 
 
 class InvalidPasswordError(ValueError):

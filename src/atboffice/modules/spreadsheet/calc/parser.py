@@ -109,21 +109,13 @@ RE_CELL: Final[re.Pattern[str]] = re.compile(
     r"^(\$?)([A-Za-z]{1,3})(\$?)(\d{1,7})(?![A-Za-z0-9_.(\[])"
 )
 RE_COL: Final[re.Pattern[str]] = re.compile(r"^(\$?)([A-Za-z]{1,3})(?=\s*:)")
-RE_ROW_PAIR: Final[re.Pattern[str]] = re.compile(
-    r"^(\$?)(\d{1,7}):(\$?)(\d{1,7})(?![\d.A-Za-z(])"
-)
+RE_ROW_PAIR: Final[re.Pattern[str]] = re.compile(r"^(\$?)(\d{1,7}):(\$?)(\d{1,7})(?![\d.A-Za-z(])")
 RE_COL_PAIR: Final[re.Pattern[str]] = re.compile(
     r"^(\$?)([A-Za-z]{1,3}):(\$?)([A-Za-z]{1,3})(?![A-Za-z0-9_.(\[!])"
 )
-RE_NUM: Final[re.Pattern[str]] = re.compile(
-    r"^(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
-)
-RE_IDENT: Final[re.Pattern[str]] = re.compile(
-    r"^[A-Za-z_\\¡-ÿ][A-Za-z0-9_.\\?¡-ÿ]*"
-)
-RE_SHEET_UNQ: Final[re.Pattern[str]] = re.compile(
-    r"^([A-Za-z0-9_.¡-ÿ]+(?::[A-Za-z0-9_.¡-ÿ]+)?)!"
-)
+RE_NUM: Final[re.Pattern[str]] = re.compile(r"^(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?")
+RE_IDENT: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z_\\¡-ÿ][A-Za-z0-9_.\\?¡-ÿ]*")
+RE_SHEET_UNQ: Final[re.Pattern[str]] = re.compile(r"^([A-Za-z0-9_.¡-ÿ]+(?::[A-Za-z0-9_.¡-ÿ]+)?)!")
 
 
 def store_name(name: str) -> str:
@@ -310,9 +302,7 @@ def tokenize(src: str) -> list[Token]:
                 toks.append(Token(t="spill", pos=i))
                 i += 1
                 continue
-            matched_err = next(
-                (e for e in ERRORS if rest.upper().startswith(e)), None
-            )
+            matched_err = next((e for e in ERRORS if rest.upper().startswith(e)), None)
             if not matched_err:
                 raise ParseError("Unknown error value", i)
             toks.append(Token(t="err", v=matched_err, pos=i))
@@ -544,9 +534,8 @@ def parse(text: str, opts: dict[str, Any] | None = None) -> ASTNode:
     def starts_operand(t: Token | None) -> bool:
         if not t:
             return False
-        return (
-            t.t in ("num", "str", "bool", "err", "ref", "name", "fn", "(", "{", "struct")
-            or (t.t == "op" and t.v in ("-", "+", "@"))
+        return t.t in ("num", "str", "bool", "err", "ref", "name", "fn", "(", "{", "struct") or (
+            t.t == "op" and t.v in ("-", "+", "@")
         )
 
     def ref_node(t: Token) -> ASTNode:
@@ -666,9 +655,7 @@ def parse(text: str, opts: dict[str, Any] | None = None) -> ASTNode:
         if t.t == "fn":
             raw = str(t.v)
             udf = bool(re.match(r"^_xludf\.", raw, re.IGNORECASE))
-            name = re.sub(
-                r"^(_xlfn\.|_xlws\.|_xludf\.)", "", raw, flags=re.IGNORECASE
-            ).upper()
+            name = re.sub(r"^(_xlfn\.|_xlws\.|_xludf\.)", "", raw, flags=re.IGNORECASE).upper()
             expect("(")
             node: ASTNode = FunctionCallNode(
                 name=raw[7:] if udf else name,
@@ -737,9 +724,7 @@ def parse(text: str, opts: dict[str, Any] | None = None) -> ASTNode:
 
             w = len(rows[0])
             if any(len(r) != w for r in rows):
-                raise ParseError(
-                    "Array constant rows must have the same length", t.pos
-                )
+                raise ParseError("Array constant rows must have the same length", t.pos)
             return ArrayNode(rows=rows)
         if t.t == "op":
             if t.v in ("-", "+", "@"):
@@ -754,20 +739,17 @@ def parse(text: str, opts: dict[str, Any] | None = None) -> ASTNode:
     def is_ref_like(n: ASTNode | None) -> bool:
         if not n:
             return False
-        return (
-            isinstance(
-                n,
-                (
-                    CellRefNode,
-                    AreaRefNode,
-                    NameNode,
-                    ParenNode,
-                    FunctionCallNode,
-                    StructuredRefNode,
-                ),
-            )
-            or (isinstance(n, BinaryOpNode) and n.op in (":", " "))
-        )
+        return isinstance(
+            n,
+            (
+                CellRefNode,
+                AreaRefNode,
+                NameNode,
+                ParenNode,
+                FunctionCallNode,
+                StructuredRefNode,
+            ),
+        ) or (isinstance(n, BinaryOpNode) and n.op in (":", " "))
 
     def expr(min_prec: int, allow_union: bool = False) -> ASTNode:
         nonlocal p
@@ -779,15 +761,8 @@ def parse(text: str, opts: dict[str, Any] | None = None) -> ASTNode:
                 save = p
                 p += 1
                 nx = peek_raw()
-                if (
-                    nx
-                    and starts_operand(nx)
-                    and nx.t != "op"
-                    and BIN_PREC[" "] >= min_prec
-                ):
-                    if is_ref_like(left) and (
-                        nx.t in ("ref", "name", "(", "fn", "struct")
-                    ):
+                if nx and starts_operand(nx) and nx.t != "op" and BIN_PREC[" "] >= min_prec:
+                    if is_ref_like(left) and (nx.t in ("ref", "name", "(", "fn", "struct")):
                         right = expr(BIN_PREC[" "] + 1, allow_union)
                         left = BinaryOpNode(op=" ", left=left, right=right)
                         continue
@@ -827,9 +802,7 @@ def parse(text: str, opts: dict[str, Any] | None = None) -> ASTNode:
     rest = peek()
     if rest:
         msg = (
-            "Too many closing parentheses"
-            if rest.t == ")"
-            else "Unexpected text after the formula"
+            "Too many closing parentheses" if rest.t == ")" else "Unexpected text after the formula"
         )
         raise ParseError(msg, rest.pos)
 
@@ -882,9 +855,7 @@ def fmt_num(v: float | int) -> str:
     return str(int(v)) if isinstance(v, float) and v.is_integer() else str(v)
 
 
-def sheet_prefix(
-    n: CellRefNode | AreaRefNode | RefErrNode | NameNode, opts: dict[str, Any]
-) -> str:
+def sheet_prefix(n: CellRefNode | AreaRefNode | RefErrNode | NameNode, opts: dict[str, Any]) -> str:
     """Generate sheet prefix (e.g. 'Sheet 1'!, [Book.xlsx]Sheet1!)."""
     bang = getattr(n, "bang", False)
     sheet = getattr(n, "sheet", None)
@@ -957,11 +928,7 @@ def to_text(node: ASTNode, store: bool = False) -> str:
         return ref_text(node, opts)
 
     if isinstance(node, NameNode):
-        pre = (
-            sheet_prefix(node, opts)
-            if (node.sheet is not None or node.book is not None)
-            else ""
-        )
+        pre = sheet_prefix(node, opts) if (node.sheet is not None or node.book is not None) else ""
         param_pre = "_xlpm." if (store and node.param) else ""
         return f"{pre}{param_pre}{node.name}"
 

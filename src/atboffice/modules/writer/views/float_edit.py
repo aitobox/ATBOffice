@@ -17,14 +17,24 @@ from atboffice.modules.writer.models.drawing import AnchorHandle, drag_handle_re
 
 HANDLE_PT = 3.5  # half size of a sizing handle, in points
 _HANDLES = (
-    AnchorHandle.NW, AnchorHandle.N, AnchorHandle.NE, AnchorHandle.E,
-    AnchorHandle.SE, AnchorHandle.S, AnchorHandle.SW, AnchorHandle.W,
+    AnchorHandle.NW,
+    AnchorHandle.N,
+    AnchorHandle.NE,
+    AnchorHandle.E,
+    AnchorHandle.SE,
+    AnchorHandle.S,
+    AnchorHandle.SW,
+    AnchorHandle.W,
 )
 _CURSORS = {
-    "nw": Qt.CursorShape.SizeFDiagCursor, "se": Qt.CursorShape.SizeFDiagCursor,
-    "ne": Qt.CursorShape.SizeBDiagCursor, "sw": Qt.CursorShape.SizeBDiagCursor,
-    "n": Qt.CursorShape.SizeVerCursor, "s": Qt.CursorShape.SizeVerCursor,
-    "e": Qt.CursorShape.SizeHorCursor, "w": Qt.CursorShape.SizeHorCursor,
+    "nw": Qt.CursorShape.SizeFDiagCursor,
+    "se": Qt.CursorShape.SizeFDiagCursor,
+    "ne": Qt.CursorShape.SizeBDiagCursor,
+    "sw": Qt.CursorShape.SizeBDiagCursor,
+    "n": Qt.CursorShape.SizeVerCursor,
+    "s": Qt.CursorShape.SizeVerCursor,
+    "e": Qt.CursorShape.SizeHorCursor,
+    "w": Qt.CursorShape.SizeHorCursor,
 }
 
 
@@ -40,9 +50,14 @@ class FloatDrag:
 
 def handle_points(x: float, y: float, w: float, h: float) -> dict[str, QPointF]:
     return {
-        "nw": QPointF(x, y), "n": QPointF(x + w / 2, y), "ne": QPointF(x + w, y),
-        "e": QPointF(x + w, y + h / 2), "se": QPointF(x + w, y + h),
-        "s": QPointF(x + w / 2, y + h), "sw": QPointF(x, y + h), "w": QPointF(x, y + h / 2),
+        "nw": QPointF(x, y),
+        "n": QPointF(x + w / 2, y),
+        "ne": QPointF(x + w, y),
+        "e": QPointF(x + w, y + h / 2),
+        "se": QPointF(x + w, y + h),
+        "s": QPointF(x + w / 2, y + h),
+        "sw": QPointF(x, y + h),
+        "w": QPointF(x, y + h / 2),
     }
 
 
@@ -133,17 +148,20 @@ def apply_drag(drag: FloatDrag, end: QPointF, lock_aspect: bool = False) -> bool
 
 
 def paint_selection(
-    painter: QPainter, page_rect_vp: QRectF, to_px: Any, box: tuple[float, float, float, float],
+    painter: QPainter,
+    page_rect_vp: QRectF,
+    to_px: Any,
+    box: tuple[float, float, float, float],
     dashed: bool = False,
 ) -> None:
     """Selection frame with eight sizing handles (Word 2003 style)."""
     x, y, w, h = box
-    rect = QRectF(page_rect_vp.left() + to_px(x), page_rect_vp.top() + to_px(y),
-                  to_px(w), to_px(h))
+    rect = QRectF(page_rect_vp.left() + to_px(x), page_rect_vp.top() + to_px(y), to_px(w), to_px(h))
     painter.save()
     painter.setBrush(Qt.BrushStyle.NoBrush)
-    painter.setPen(QPen(QColor(0, 0, 0), 1.0,
-                        Qt.PenStyle.DashLine if dashed else Qt.PenStyle.SolidLine))
+    painter.setPen(
+        QPen(QColor(0, 0, 0), 1.0, Qt.PenStyle.DashLine if dashed else Qt.PenStyle.SolidLine)
+    )
     painter.drawRect(rect)
     if not dashed:
         s = 3.5

@@ -434,8 +434,7 @@ class Presentation:
         w = float(data.get("W", data.get("w", 960.0)))
         h = float(data.get("H", data.get("h", 540.0)))
         designs = {
-            did: DesignTemplate.from_dict(d_data)
-            for did, d_data in data.get("designs", {}).items()
+            did: DesignTemplate.from_dict(d_data) for did, d_data in data.get("designs", {}).items()
         }
         slides = [Slide.from_dict(s) for s in data.get("slides", [])]
         return cls(

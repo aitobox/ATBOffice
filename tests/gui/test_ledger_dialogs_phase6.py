@@ -418,4 +418,3 @@ class TestLedgerWindowIntegration:
             handler = win.action_registry._handlers.get(action_name)
             assert handler is not None
             assert callable(handler)
-

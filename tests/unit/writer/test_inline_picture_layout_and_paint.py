@@ -255,4 +255,3 @@ def test_render_page_to_painter_inline_picture(qapp: QApplication) -> None:
     dest_rect, pm, src_rect = painter.drawn_pixmaps[0]
     assert dest_rect.width() == 50.0
     assert dest_rect.height() == 25.0
-

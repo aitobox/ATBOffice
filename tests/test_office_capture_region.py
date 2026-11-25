@@ -55,7 +55,15 @@ def test_baseline_size_prefers_manifest_with_matching_region(tmp_path):
     _write_png(tmp_path / "excel" / "a.xlsx.png", (10, 10))
     _write_manifest(
         tmp_path,
-        [{"file": "a.xlsx", "status": "captured", "region": "canvas", "width": 1100, "height": 700}],
+        [
+            {
+                "file": "a.xlsx",
+                "status": "captured",
+                "region": "canvas",
+                "width": 1100,
+                "height": 700,
+            }
+        ],
     )
     assert baseline_target_size(tmp_path, "excel", "a.xlsx", "canvas") == (1100, 700)
     # A different region in the baseline means its size says nothing about ours.
@@ -81,7 +89,14 @@ def test_baseline_size_falls_back_to_png_and_handles_missing(tmp_path):
 
 def test_no_hard_coded_audit_paths():
     res = subprocess.run(
-        ["grep", "-rI", "--exclude-dir=__pycache__", "office_audit_20261106", "scripts/", ".agents/"],
+        [
+            "grep",
+            "-rI",
+            "--exclude-dir=__pycache__",
+            "office_audit_20261106",
+            "scripts/",
+            ".agents/",
+        ],
         cwd=str(REPO_ROOT),
         capture_output=True,
         text=True,
@@ -100,7 +115,15 @@ def test_excel_workspace_capture_includes_tab_strip_without_white_band(tmp_path)
     _write_png(baseline / "excel" / f"{EXCEL_FIXTURE.name}.png", size)
     _write_manifest(
         baseline,
-        [{"file": EXCEL_FIXTURE.name, "status": "captured", "region": "workspace", "width": size[0], "height": size[1]}],
+        [
+            {
+                "file": EXCEL_FIXTURE.name,
+                "status": "captured",
+                "region": "workspace",
+                "width": size[0],
+                "height": size[1],
+            }
+        ],
     )
     target = DocumentTarget(
         file=EXCEL_FIXTURE.name,

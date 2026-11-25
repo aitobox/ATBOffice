@@ -408,6 +408,7 @@ def test_smartart_diagram_toolbar_actions(qtbot) -> None:
     # Demote & Promote
     win.action_registry.trigger_action("diagramDemote")
     from atboffice.modules.presentation.smartart.item import outline
+
     tree = outline(diag.sa["items"])
     assert tree[-1]["level"] == 1
 
@@ -436,4 +437,3 @@ def test_slideshow_actions_invoked(qtbot, monkeypatch) -> None:
 
     win.action_registry.trigger_action("start_slideshow_current")
     assert (True, True) in called
-

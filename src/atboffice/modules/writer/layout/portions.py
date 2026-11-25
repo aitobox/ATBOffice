@@ -192,20 +192,47 @@ def map_symbol_char(ch: str, font: str = "") -> str:
     # Wingdings 3
     if "wingdings" in f and "3" in f:
         w3_map = {
-            0x7D: "►", 0x84: "►", 0x75: "►", 0x71: "◄",
-            0x70: "▲", 0x72: "▼", 0xC6: "➔", 0xC7: "⬅",
+            0x7D: "►",
+            0x84: "►",
+            0x75: "►",
+            0x71: "◄",
+            0x70: "▲",
+            0x72: "▼",
+            0xC6: "➔",
+            0xC7: "⬅",
         }
         return w3_map.get(code, "▸")
 
     # Wingdings (standard)
     if f.startswith("wingdings"):
         w_map = {
-            "l": "●", "n": "■", "q": "❑", "u": "◆", "v": "❖", "Ø": "➢", "ü": "✓", "§": "▪",
-            "o": "❍", "p": "□", "w": "⬥", "Ü": "➢", "à": "➔", "è": "➜", "Þ": "➝", "ð": "⇨",
-            "ª": "✦", "¨": "◻",
-            "\uF06E": "■", "\uF06C": "●", "\uF075": "◆",
-            "\uF0FC": "✓", "\uF0D8": "➢", "\uF0A7": "▪",
-            "\uF04A": "☺", "\uF049": "☹", "\uF0B2": "✧",
+            "l": "●",
+            "n": "■",
+            "q": "❑",
+            "u": "◆",
+            "v": "❖",
+            "Ø": "➢",
+            "ü": "✓",
+            "§": "▪",
+            "o": "❍",
+            "p": "□",
+            "w": "⬥",
+            "Ü": "➢",
+            "à": "➔",
+            "è": "➜",
+            "Þ": "➝",
+            "ð": "⇨",
+            "ª": "✦",
+            "¨": "◻",
+            "\uf06e": "■",
+            "\uf06c": "●",
+            "\uf075": "◆",
+            "\uf0fc": "✓",
+            "\uf0d8": "➢",
+            "\uf0a7": "▪",
+            "\uf04a": "☺",
+            "\uf049": "☹",
+            "\uf0b2": "✧",
         }
         if ch in w_map:
             return w_map[ch]
@@ -216,7 +243,7 @@ def map_symbol_char(ch: str, font: str = "") -> str:
 
     # Symbol
     if "symbol" in f:
-        sym_map = {"·": "•", "\uF0B7": "•", "Þ": "⇒", "®": "→", "¾": "—"}
+        sym_map = {"·": "•", "\uf0b7": "•", "Þ": "⇒", "®": "→", "¾": "—"}
         if ch in sym_map:
             return sym_map[ch]
         c_ascii = chr(code)
@@ -231,19 +258,23 @@ def map_symbol_char(ch: str, font: str = "") -> str:
         return "•"
     if 0xF000 <= ord(ch[0]) <= 0xF0FF:
         p_map = {
-            "\uF06E": "■", "\uF06C": "●", "\uF075": "◆",
-            "\uF0FC": "✓", "\uF0D8": "➢", "\uF0A7": "▪",
-            "\uF0B7": "•", "\uF04A": "☺", "\uF049": "☹", "\uF0B2": "✧",
+            "\uf06e": "■",
+            "\uf06c": "●",
+            "\uf075": "◆",
+            "\uf0fc": "✓",
+            "\uf0d8": "➢",
+            "\uf0a7": "▪",
+            "\uf0b7": "•",
+            "\uf04a": "☺",
+            "\uf049": "☹",
+            "\uf0b2": "✧",
         }
         return p_map.get(ch, "•")
 
     return ch
 
 
-_COMPLEX_SCRIPT_RE = re.compile(
-    "[֐-׿؀-ۿ܀-ݏݐ-ݿހ-޿"
-    "ࢠ-ࣿיִ-﷿ﹰ-﻿]"
-)
+_COMPLEX_SCRIPT_RE = re.compile("[֐-׿؀-ۿ܀-ݏݐ-ݿހ-޿ࢠ-ࣿיִ-﷿ﹰ-﻿]")
 
 
 def _uses_complex_script(r_pr: Any, item: Any) -> bool:
@@ -1388,9 +1419,7 @@ def layout_paragraph(
     if start_char_offset > 0:
         # Rebuild from source metrics when a continuation enters a different-width
         # column. Already justified portions carry expanded spaces and cannot be reused.
-        portions = [
-            pt for pt in portions if pt.char_offset + pt.length > start_char_offset
-        ]
+        portions = [pt for pt in portions if pt.char_offset + pt.length > start_char_offset]
         if portions and portions[0].char_offset < start_char_offset:
             first = portions[0]
             consumed = start_char_offset - first.char_offset
@@ -1398,8 +1427,11 @@ def layout_paragraph(
             first.length -= consumed
             first.char_offset = start_char_offset
             first.width = measure_text_width(
-                first.text, first.font_size, first.font_family,
-                bold=first.bold, italic=first.italic,
+                first.text,
+                first.font_size,
+                first.font_family,
+                bold=first.bold,
+                italic=first.italic,
             )
 
     # Tab stops: the document's default pitch and the list level's own number tab

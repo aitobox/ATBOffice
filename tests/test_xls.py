@@ -291,4 +291,3 @@ def test_ledger_window_open_xls_cancellation_handled(qtbot, monkeypatch):
     success = win.open_file(sample)
     assert success is False
     assert "取消" in win.status_bar.currentMessage()
-

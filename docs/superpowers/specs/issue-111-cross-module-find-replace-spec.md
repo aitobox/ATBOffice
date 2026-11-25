@@ -43,28 +43,29 @@ class SearchOptions:
     whole_word: bool = False
     use_regex: bool = False
     direction: str = "down"  # "down" | "up"
-    scope: str = "all"       # "all" | "selection"
+    scope: str = "all"  # "all" | "selection"
 
-    def compile_regex(self) -> re.Pattern:
-        ...
+    def compile_regex(self) -> re.Pattern: ...
 ```
 
 ### 3.2 Search Match & Result
 ```python
 @dataclass
 class SearchMatch:
-    target_id: Any      # para_id for Writer, (row, col) for Spreadsheet
-    start: int          # char offset start
-    end: int            # char offset end
-    matched_text: str   # actual string matched
-    extra: dict[str, Any] = field(default_factory=dict) # e.g. sheet_index
+    target_id: Any  # para_id for Writer, (row, col) for Spreadsheet
+    start: int  # char offset start
+    end: int  # char offset end
+    matched_text: str  # actual string matched
+    extra: dict[str, Any] = field(default_factory=dict)  # e.g. sheet_index
 ```
 
 ### 3.3 Abstract Adapter Protocol
 ```python
 class SearchAdapter(ABC):
     @abstractmethod
-    def find_next(self, options: SearchOptions, start_from: SearchMatch | None = None) -> SearchMatch | None: ...
+    def find_next(
+        self, options: SearchOptions, start_from: SearchMatch | None = None
+    ) -> SearchMatch | None: ...
 
     @abstractmethod
     def find_all(self, options: SearchOptions) -> list[SearchMatch]: ...

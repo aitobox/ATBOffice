@@ -493,6 +493,7 @@ def apply_theme_globally(theme: str) -> None:
 
     try:
         from atboffice.core.window_manager import WindowManager
+
         wm = WindowManager.get_instance()
         all_wins = set(wm.active_windows)
         if wm.start_center is not None:
@@ -512,4 +513,3 @@ def apply_theme_globally(theme: str) -> None:
                 pass
     except Exception:
         pass
-

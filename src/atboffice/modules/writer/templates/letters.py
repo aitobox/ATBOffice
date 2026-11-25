@@ -40,11 +40,7 @@ def build_letter_template(doc: Document) -> None:
         "Company Name",
         p_pr=ParagraphProperties(
             sp=SpacingProperties(after=24.0),
-            borders={
-                "bottom": BorderProperties(
-                    val="single", sz=0.75, color="808080", space=4.0
-                )
-            },
+            borders={"bottom": BorderProperties(val="single", sz=0.75, color="808080", space=4.0)},
         ),
         r_pr=RunProperties(font="Arial Black", sz=16.0, spacing=-0.5),
     )
@@ -83,15 +79,11 @@ def build_letter_template(doc: Document) -> None:
         ),
         Paragraph(
             runs=date_field("MMMM d, yyyy"),
-            p_pr=ParagraphProperties(
-                style="InsideAddress", sp=SpacingProperties(after=24.0)
-            ),
+            p_pr=ParagraphProperties(style="InsideAddress", sp=SpacingProperties(after=24.0)),
         ),
         Paragraph(
             runs=placeholder("Type recipient’s address"),
-            p_pr=ParagraphProperties(
-                style="InsideAddress", sp=SpacingProperties(after=24.0)
-            ),
+            p_pr=ParagraphProperties(style="InsideAddress", sp=SpacingProperties(after=24.0)),
         ),
         Paragraph(
             runs=[
@@ -122,9 +114,7 @@ def build_letter_template(doc: Document) -> None:
         ),
         Paragraph(
             runs=[TextItem(text="Sincerely,")],
-            p_pr=ParagraphProperties(
-                style="BodyTextLetter", sp=SpacingProperties(after=36.0)
-            ),
+            p_pr=ParagraphProperties(style="BodyTextLetter", sp=SpacingProperties(after=36.0)),
         ),
         Paragraph(
             runs=placeholder("Type your name"),
@@ -145,9 +135,7 @@ def build_memo_template(doc: Document) -> None:
         "Memo Title",
         p_pr=ParagraphProperties(
             sp=SpacingProperties(after=24.0),
-            borders={
-                "bottom": BorderProperties(val="single", sz=3.0, color="000000", space=6.0)
-            },
+            borders={"bottom": BorderProperties(val="single", sz=3.0, color="000000", space=6.0)},
         ),
         r_pr=RunProperties(font="Arial Black", sz=36.0, spacing=-1.5),
     )
@@ -203,9 +191,7 @@ def build_memo_template(doc: Document) -> None:
             p_pr=ParagraphProperties(
                 style="MessageHeader",
                 borders={
-                    "bottom": BorderProperties(
-                        val="single", sz=0.75, color="000000", space=8.0
-                    )
+                    "bottom": BorderProperties(val="single", sz=0.75, color="000000", space=8.0)
                 },
                 sp=SpacingProperties(after=18.0),
             ),
@@ -242,9 +228,7 @@ def build_fax_template(doc: Document) -> None:
         doc,
         "FaxTitle",
         "Fax Title",
-        p_pr=ParagraphProperties(
-            jc="center", sp=SpacingProperties(before=24.0, after=24.0)
-        ),
+        p_pr=ParagraphProperties(jc="center", sp=SpacingProperties(before=24.0, after=24.0)),
         r_pr=RunProperties(font="Garamond", sz=36.0, caps=True, spacing=6.0),
     )
     define_style(
@@ -317,8 +301,7 @@ def build_fax_template(doc: Document) -> None:
         runs=[
             TextItem(
                 text=(
-                    "☐ Urgent   ☐ For Review   ☐ Please Comment   "
-                    "☐ Please Reply   ☐ Please Recycle"
+                    "☐ Urgent   ☐ For Review   ☐ Please Comment   ☐ Please Reply   ☐ Please Recycle"
                 ),
                 r_pr=RunProperties(font="Garamond", sz=10.0),
             )

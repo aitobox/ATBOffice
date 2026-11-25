@@ -26,9 +26,7 @@ LAYOUTS: list[LayoutInfo] = [
     LayoutInfo(key="title", name="Title Slide", group="Text Layouts", ox="title"),
     LayoutInfo(key="titleOnly", name="Title Only", group="Text Layouts", ox="titleOnly"),
     LayoutInfo(key="text", name="Title and Text", group="Text Layouts", ox="tx"),
-    LayoutInfo(
-        key="twoText", name="Title and 2-Column Text", group="Text Layouts", ox="twoColTx"
-    ),
+    LayoutInfo(key="twoText", name="Title and 2-Column Text", group="Text Layouts", ox="twoColTx"),
     LayoutInfo(key="blank", name="Blank", group="Content Layouts", ox="blank"),
     LayoutInfo(key="contentOnly", name="Content", group="Content Layouts", ox="objOnly"),
     LayoutInfo(key="content", name="Title and Content", group="Content Layouts", ox="obj"),

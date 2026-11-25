@@ -88,9 +88,7 @@ def test_successful_xls_stage_audit_reports_imported(manifest: CorpusExpectation
 
 def test_corrupt_xls_stage_audit_reports_corrupt(manifest: CorpusExpectations) -> None:
     for name in sorted(CORRUPT_XLS):
-        res = audit_corpus_file(
-            f"tests/docs/excel/xls/{name}", expectations=manifest, timeout=20.0
-        )
+        res = audit_corpus_file(f"tests/docs/excel/xls/{name}", expectations=manifest, timeout=20.0)
         assert res["status"] == "corrupt", res
         assert res["stages"]["parse"] == "rejected_corrupt"
         assert res["stages"]["render"] == "skip"

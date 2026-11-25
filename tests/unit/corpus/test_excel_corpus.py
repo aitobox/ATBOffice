@@ -42,11 +42,13 @@ def test_curated_xlsx_roundtrip_and_feature_preservation() -> None:
             with pytest.raises(Exception):
                 read_xlsx(raw_data)
             corrupt_count += 1
-            session.record_result({
-                "file": xlsx_path.name,
-                "status": "corrupt",
-                "expected_match": True,
-            })
+            session.record_result(
+                {
+                    "file": xlsx_path.name,
+                    "status": "corrupt",
+                    "expected_match": True,
+                }
+            )
             continue
 
         wb = read_xlsx(raw_data)

@@ -157,8 +157,12 @@ class RecentItemWidget(QWidget):
             pix = QPixmap(str(self.thumbnail))
             if not pix.isNull():
                 self.lbl_icon.setPixmap(
-                    pix.scaled(64, 48, Qt.AspectRatioMode.KeepAspectRatio,
-                               Qt.TransformationMode.SmoothTransformation)
+                    pix.scaled(
+                        64,
+                        48,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
                 )
                 self.lbl_icon.setFixedSize(66, 50)
                 self.lbl_icon.setObjectName("scThumb")
@@ -335,7 +339,7 @@ class StartCenterWindow(BaseOfficeWindow):
         self.page_recent = self._create_recent_page()
         self.page_templates = self._create_templates_page()
 
-        self.stacked_widget.addWidget(self.page_recent)     # Index 0
+        self.stacked_widget.addWidget(self.page_recent)  # Index 0
         self.stacked_widget.addWidget(self.page_templates)  # Index 1
 
         root_layout.addWidget(self.stacked_widget, stretch=1)
@@ -510,13 +514,29 @@ class StartCenterWindow(BaseOfficeWindow):
         registry = TemplateRegistry.get_instance()
         self.template_cards: list[TemplateCard] = []
         sections = (
-            ("quire", "Quire " + safe_tr("文本文档"), safe_tr("空白文档"),
-             safe_tr("标准空白页面"), APP_ICONS["quire"]),
-            ("ledger", "Ledger " + safe_tr("电子表格"), safe_tr("空白工作簿"),
-             safe_tr("标准多标签表格"), APP_ICONS["ledger"]),
-            ("lectern", "Lectern " + safe_tr("演示文稿"), safe_tr("空白幻灯片"),
-             safe_tr("16:9 宽屏演示"), APP_ICONS["lectern"]),
+            (
+                "quire",
+                "Quire " + safe_tr("文本文档"),
+                safe_tr("空白文档"),
+                safe_tr("标准空白页面"),
+                APP_ICONS["quire"],
+            ),
+            (
+                "ledger",
+                "Ledger " + safe_tr("电子表格"),
+                safe_tr("空白工作簿"),
+                safe_tr("标准多标签表格"),
+                APP_ICONS["ledger"],
+            ),
+            (
+                "lectern",
+                "Lectern " + safe_tr("演示文稿"),
+                safe_tr("空白幻灯片"),
+                safe_tr("16:9 宽屏演示"),
+                APP_ICONS["lectern"],
+            ),
         )
+
         def opener(app: str, template_id: str | None = None) -> Callable[[], Any]:
             # Resolve the WindowManager method at click time, not when the page is built
             def open_it() -> Any:
@@ -526,17 +546,17 @@ class StartCenterWindow(BaseOfficeWindow):
             return open_it
 
         for app, title, blank_title, blank_sub, blank_icon in sections:
-            items: list[tuple[Any, ...]] = [
-                (blank_title, blank_sub, blank_icon, opener(app), None)
-            ]
+            items: list[tuple[Any, ...]] = [(blank_title, blank_sub, blank_icon, opener(app), None)]
             for info in registry.list_templates(app):
-                items.append((
-                    safe_tr(info.name),
-                    safe_tr(info.description or info.category or ""),
-                    blank_icon,
-                    opener(app, info.id),
-                    info.id,
-                ))
+                items.append(
+                    (
+                        safe_tr(info.name),
+                        safe_tr(info.description or info.category or ""),
+                        blank_icon,
+                        opener(app, info.id),
+                        info.id,
+                    )
+                )
             self._add_template_section(scroll_layout, title=title, items=items)
 
         scroll_layout.addStretch(1)

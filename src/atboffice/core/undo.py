@@ -150,9 +150,7 @@ class UndoService(QObject):
             AppliedCommand(label, undo, redo, merge_id=merge_id, merge=merge, data=data)
         )
 
-    def record_states(
-        self, label: str, before: T, after: T, restore: Callable[[T], Any]
-    ) -> bool:
+    def record_states(self, label: str, before: T, after: T, restore: Callable[[T], Any]) -> bool:
         """Record a change between two captured states of the model."""
         return self.record(label, lambda: restore(before), lambda: restore(after))
 

@@ -82,14 +82,16 @@ class FootnoteDialog(QDialog):
         l_fmt = QFormLayout(self.grp_fmt)
 
         self.combo_num_fmt = QComboBox(self.grp_fmt)
-        self.combo_num_fmt.addItems([
-            "1, 2, 3, ...",
-            "a, b, c, ...",
-            "A, B, C, ...",
-            "i, ii, iii, ...",
-            "I, II, III, ...",
-            "*, †, ‡, §, ...",
-        ])
+        self.combo_num_fmt.addItems(
+            [
+                "1, 2, 3, ...",
+                "a, b, c, ...",
+                "A, B, C, ...",
+                "i, ii, iii, ...",
+                "I, II, III, ...",
+                "*, †, ‡, §, ...",
+            ]
+        )
 
         h_custom = QHBoxLayout()
         self.edit_custom_mark = QLineEdit(self.grp_fmt)
@@ -103,11 +105,13 @@ class FootnoteDialog(QDialog):
         self.spin_start.setValue(1)
 
         self.combo_numbering = QComboBox(self.grp_fmt)
-        self.combo_numbering.addItems([
-            safe_tr("连续编号"),
-            safe_tr("每节重新编号"),
-            safe_tr("每页重新编号"),
-        ])
+        self.combo_numbering.addItems(
+            [
+                safe_tr("连续编号"),
+                safe_tr("每节重新编号"),
+                safe_tr("每页重新编号"),
+            ]
+        )
 
         self.lbl_num_fmt = QLabel(safe_tr("编号格式(&N):"), self.grp_fmt)
         self.lbl_custom = QLabel(safe_tr("自定义标记(&M):"), self.grp_fmt)
@@ -253,25 +257,29 @@ class CrossRefDialog(QDialog):
         f_layout = QFormLayout()
 
         self.combo_ref_type = QComboBox(self)
-        self.combo_ref_type.addItems([
-            safe_tr("编号项"),
-            safe_tr("标题"),
-            safe_tr("书签"),
-            safe_tr("脚注"),
-            safe_tr("尾注"),
-            safe_tr("公式"),
-            safe_tr("图表"),
-            safe_tr("表格"),
-        ])
+        self.combo_ref_type.addItems(
+            [
+                safe_tr("编号项"),
+                safe_tr("标题"),
+                safe_tr("书签"),
+                safe_tr("脚注"),
+                safe_tr("尾注"),
+                safe_tr("公式"),
+                safe_tr("图表"),
+                safe_tr("表格"),
+            ]
+        )
         self.combo_ref_type.currentIndexChanged.connect(self._sync_items)
 
         self.combo_insert_as = QComboBox(self)
-        self.combo_insert_as.addItems([
-            safe_tr("页码"),
-            safe_tr("段落文字"),
-            safe_tr("段落编号"),
-            safe_tr("见上方/见下方"),
-        ])
+        self.combo_insert_as.addItems(
+            [
+                safe_tr("页码"),
+                safe_tr("段落文字"),
+                safe_tr("段落编号"),
+                safe_tr("见上方/见下方"),
+            ]
+        )
 
         self.check_as_hyperlink = QCheckBox(safe_tr("插入为超链接(&H)"), self)
         self.check_as_hyperlink.setChecked(True)
@@ -366,14 +374,16 @@ class IndexTablesDialog(QDialog):
         self.combo_toc_leader = QComboBox(self.tab_toc)
         self.combo_toc_leader.addItems([".......", "-------", "_______", safe_tr("(无)")])
         self.combo_toc_formats = QComboBox(self.tab_toc)
-        self.combo_toc_formats.addItems([
-            safe_tr("来自模板"),
-            safe_tr("古典"),
-            safe_tr("优雅"),
-            safe_tr("现代"),
-            safe_tr("正式"),
-            safe_tr("简单"),
-        ])
+        self.combo_toc_formats.addItems(
+            [
+                safe_tr("来自模板"),
+                safe_tr("古典"),
+                safe_tr("优雅"),
+                safe_tr("现代"),
+                safe_tr("正式"),
+                safe_tr("简单"),
+            ]
+        )
         self.spin_toc_levels = QSpinBox(self.tab_toc)
         self.spin_toc_levels.setRange(1, 9)
         self.spin_toc_levels.setValue(3)
@@ -408,13 +418,15 @@ class IndexTablesDialog(QDialog):
         l_toa = QVBoxLayout(self.tab_toa)
         f_toa = QFormLayout()
         self.combo_toa_cat = QComboBox(self.tab_toa)
-        self.combo_toa_cat.addItems([
-            safe_tr("全部"),
-            safe_tr("判例"),
-            safe_tr("法令"),
-            safe_tr("规定"),
-            safe_tr("其他权威著作"),
-        ])
+        self.combo_toa_cat.addItems(
+            [
+                safe_tr("全部"),
+                safe_tr("判例"),
+                safe_tr("法令"),
+                safe_tr("规定"),
+                safe_tr("其他权威著作"),
+            ]
+        )
         f_toa.addRow(safe_tr("类别(&C):"), self.combo_toa_cat)
         l_toa.addLayout(f_toa)
         self.tab_widget.addTab(self.tab_toa, safe_tr("引文目录"))
@@ -755,14 +767,16 @@ class FieldDialog(QDialog):
 
         f_cat = QFormLayout()
         self.combo_categories = QComboBox(self)
-        self.combo_categories.addItems([
-            safe_tr("(全部)"),
-            safe_tr("日期和时间"),
-            safe_tr("文档信息"),
-            safe_tr("邮件合并"),
-            safe_tr("编号"),
-            safe_tr("等式和公式"),
-        ])
+        self.combo_categories.addItems(
+            [
+                safe_tr("(全部)"),
+                safe_tr("日期和时间"),
+                safe_tr("文档信息"),
+                safe_tr("邮件合并"),
+                safe_tr("编号"),
+                safe_tr("等式和公式"),
+            ]
+        )
         self.combo_categories.currentIndexChanged.connect(self._sync_fields)
         self.lbl_cat = QLabel(safe_tr("类别(&C):"), self)
         f_cat.addRow(self.lbl_cat, self.combo_categories)
@@ -875,12 +889,78 @@ class SymbolDialog(QDialog):
 
         # Populate a sample of useful Unicode symbols
         chars = [
-            "±", "×", "÷", "≠", "≤", "≥", "≈", "∞", "√", "∑", "∏", "∫",
-            "α", "β", "γ", "δ", "ε", "θ", "λ", "μ", "π", "σ", "φ", "ω",
-            "←", "↑", "→", "↓", "↔", "↕", "⇒", "⇔", "★", "☆", "▲", "▼",
-            "♠", "♣", "♥", "♦", "✓", "✗", "℃", "℉", "¥", "$", "€", "£",
-            "©", "®", "™", "§", "¶", "•", "‰", "§", "№", "※", "…", "—",
-            "【", "】", "《", "》", "“", "”", "‘", "’", "、", "。", "！", "？",
+            "±",
+            "×",
+            "÷",
+            "≠",
+            "≤",
+            "≥",
+            "≈",
+            "∞",
+            "√",
+            "∑",
+            "∏",
+            "∫",
+            "α",
+            "β",
+            "γ",
+            "δ",
+            "ε",
+            "θ",
+            "λ",
+            "μ",
+            "π",
+            "σ",
+            "φ",
+            "ω",
+            "←",
+            "↑",
+            "→",
+            "↓",
+            "↔",
+            "↕",
+            "⇒",
+            "⇔",
+            "★",
+            "☆",
+            "▲",
+            "▼",
+            "♠",
+            "♣",
+            "♥",
+            "♦",
+            "✓",
+            "✗",
+            "℃",
+            "℉",
+            "¥",
+            "$",
+            "€",
+            "£",
+            "©",
+            "®",
+            "™",
+            "§",
+            "¶",
+            "•",
+            "‰",
+            "§",
+            "№",
+            "※",
+            "…",
+            "—",
+            "【",
+            "】",
+            "《",
+            "》",
+            "“",
+            "”",
+            "‘",
+            "’",
+            "、",
+            "。",
+            "！",
+            "？",
         ]
         k = 0
         for r in range(6):

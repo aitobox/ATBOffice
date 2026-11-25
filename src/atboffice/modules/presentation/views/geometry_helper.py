@@ -142,14 +142,19 @@ def create_shape_path(
                     path.lineTo(float(cmd[1]) * sx, float(cmd[2]) * sy)
                 elif op == "C" and len(cmd) >= 7:
                     path.cubicTo(
-                        float(cmd[1]) * sx, float(cmd[2]) * sy,
-                        float(cmd[3]) * sx, float(cmd[4]) * sy,
-                        float(cmd[5]) * sx, float(cmd[6]) * sy,
+                        float(cmd[1]) * sx,
+                        float(cmd[2]) * sy,
+                        float(cmd[3]) * sx,
+                        float(cmd[4]) * sy,
+                        float(cmd[5]) * sx,
+                        float(cmd[6]) * sy,
                     )
                 elif op == "Q" and len(cmd) >= 5:
                     path.quadTo(
-                        float(cmd[1]) * sx, float(cmd[2]) * sy,
-                        float(cmd[3]) * sx, float(cmd[4]) * sy,
+                        float(cmd[1]) * sx,
+                        float(cmd[2]) * sy,
+                        float(cmd[3]) * sx,
+                        float(cmd[4]) * sy,
                     )
                 elif op == "A" and len(cmd) >= 5:
                     # DrawingML arcTo starts at the current point, which lies on the
@@ -399,10 +404,10 @@ def get_shape_connection_sites(
     else:
         # Default bounding box cardinal connection sites
         return [
-            (w / 2.0, 0.0),      # 0: Top
-            (w, h / 2.0),        # 1: Right
-            (w / 2.0, h),        # 2: Bottom
-            (0.0, h / 2.0),      # 3: Left
+            (w / 2.0, 0.0),  # 0: Top
+            (w, h / 2.0),  # 1: Right
+            (w / 2.0, h),  # 2: Bottom
+            (0.0, h / 2.0),  # 3: Left
         ]
 
 

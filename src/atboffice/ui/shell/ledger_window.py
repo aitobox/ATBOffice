@@ -56,6 +56,7 @@ def _cell_edit(
 
     return deco
 
+
 class LedgerWindow(BaseOfficeWindow):
     """Dedicated spreadsheet window embedding SpreadsheetView with Excel 2003 styling."""
 
@@ -1840,11 +1841,7 @@ class LedgerWindow(BaseOfficeWindow):
         self.watch_pane.add_watch_requested.connect(self._on_watch_pane_add_current)
 
         self.spreadsheet_view.editor_controller.cell_committed.connect(
-            lambda *_: (
-                self.watch_pane.refresh_watches()
-                if hasattr(self, "watch_pane")
-                else None
-            )
+            lambda *_: self.watch_pane.refresh_watches() if hasattr(self, "watch_pane") else None
         )
 
         self.task_pane_dock.register_pane(
@@ -1864,12 +1861,8 @@ class LedgerWindow(BaseOfficeWindow):
             self.pivot_fields_pane,
         )
 
-        self.spreadsheet_view.grid.pivot_selection_changed.connect(
-            self._on_pivot_selection_changed
-        )
-        self.spreadsheet_view.grid.pivot_refresh_requested.connect(
-            self._on_pivot_report_refreshed
-        )
+        self.spreadsheet_view.grid.pivot_selection_changed.connect(self._on_pivot_selection_changed)
+        self.spreadsheet_view.grid.pivot_refresh_requested.connect(self._on_pivot_report_refreshed)
         self.spreadsheet_view.workbook_changed.connect(self._on_workbook_changed)
 
     def _on_watch_pane_add_current(self) -> None:
@@ -2552,9 +2545,7 @@ class LedgerWindow(BaseOfficeWindow):
         cur_cell = model.get_cell(r1, c1)
         if cur_cell is None:
             cur_cell = CellData()
-        existing_text = (
-            str(cur_cell.value) if cur_cell and cur_cell.value is not None else ""
-        )
+        existing_text = str(cur_cell.value) if cur_cell and cur_cell.value is not None else ""
         existing_target = existing_link.get("target", "") if existing_link else ""
         existing_location = existing_link.get("location", "") if existing_link else ""
         existing_tooltip = existing_link.get("tooltip", "") if existing_link else ""
@@ -2633,9 +2624,7 @@ class LedgerWindow(BaseOfficeWindow):
                     "before_cells": before_cells,
                     "after_cells": {k: v.clone() for k, v in model.cells.items()},
                     "before_links": before_links,
-                    "after_links": [
-                        dict(lk) if isinstance(lk, dict) else lk for lk in model.links
-                    ],
+                    "after_links": [dict(lk) if isinstance(lk, dict) else lk for lk in model.links],
                     "before_merges": list(model.merges),
                     "after_merges": list(model.merges),
                     "before_sel": grid.selection.snapshot(),
@@ -2775,14 +2764,9 @@ class LedgerWindow(BaseOfficeWindow):
         self.statusBar().clearMessage()
 
     @_cell_edit("format_painter")
-    def apply_format_painter_to_range(
-        self, r1: int, c1: int, r2: int, c2: int
-    ) -> None:
+    def apply_format_painter_to_range(self, r1: int, c1: int, r2: int, c2: int) -> None:
         """Apply captured format painter styles to target range."""
-        if (
-            not getattr(self, "_format_painter_active", False)
-            or not self._format_painter_source
-        ):
+        if not getattr(self, "_format_painter_active", False) or not self._format_painter_source:
             return
         model = self.spreadsheet_view.model
         grid = getattr(self.spreadsheet_view, "grid", None)
@@ -2807,25 +2791,13 @@ class LedgerWindow(BaseOfficeWindow):
                 cell.indent = src.indent
                 cell.wrap_text = src.wrap_text
                 cell.format_code = src.format_code
-                cell.border_top = (
-                    src.border_top.clone() if src.border_top else None
-                )
-                cell.border_bottom = (
-                    src.border_bottom.clone() if src.border_bottom else None
-                )
-                cell.border_left = (
-                    src.border_left.clone() if src.border_left else None
-                )
-                cell.border_right = (
-                    src.border_right.clone() if src.border_right else None
-                )
-                cell.border_diag_up = (
-                    src.border_diag_up.clone() if src.border_diag_up else None
-                )
+                cell.border_top = src.border_top.clone() if src.border_top else None
+                cell.border_bottom = src.border_bottom.clone() if src.border_bottom else None
+                cell.border_left = src.border_left.clone() if src.border_left else None
+                cell.border_right = src.border_right.clone() if src.border_right else None
+                cell.border_diag_up = src.border_diag_up.clone() if src.border_diag_up else None
                 cell.border_diag_down = (
-                    src.border_diag_down.clone()
-                    if src.border_diag_down
-                    else None
+                    src.border_diag_down.clone() if src.border_diag_down else None
                 )
                 cell.pattern = src.pattern
                 cell.pattern_color = src.pattern_color

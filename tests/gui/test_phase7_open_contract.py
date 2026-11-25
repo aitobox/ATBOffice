@@ -518,11 +518,11 @@ def test_ledger_non_cfb_xmlss_with_xls_ext_accepted(qtbot, tmp_path: Path):
         '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"\n'
         ' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n'
         ' <Worksheet ss:Name="Sheet1">\n'
-        '  <Table>\n'
+        "  <Table>\n"
         '   <Row><Cell><Data ss:Type="String">HelloXMLSS</Data></Cell></Row>\n'
-        '  </Table>\n'
-        ' </Worksheet>\n'
-        '</Workbook>'
+        "  </Table>\n"
+        " </Worksheet>\n"
+        "</Workbook>"
     )
     xmlss_file = tmp_path / "legacy_named.xls"
     xmlss_file.write_text(xmlss_content, encoding="utf-8")
@@ -531,5 +531,3 @@ def test_ledger_non_cfb_xmlss_with_xls_ext_accepted(qtbot, tmp_path: Path):
     qtbot.addWidget(win)
     assert win.open_file(xmlss_file) is True
     assert win.current_file_path == xmlss_file.resolve()
-
-

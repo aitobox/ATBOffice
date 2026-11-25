@@ -218,9 +218,7 @@ class TransformHandleItem(QGraphicsItem):
     def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent) -> None:
         if event.buttons() & Qt.MouseButton.LeftButton:
             event.accept()
-            self._parent_shape.update_handle_drag(
-                self, event.scenePos(), event.modifiers()
-            )
+            self._parent_shape.update_handle_drag(self, event.scenePos(), event.modifiers())
         else:
             super().mouseMoveEvent(event)
 
@@ -315,9 +313,7 @@ class ShapeGraphicsItem(QGraphicsObject):
         # Adjustment handles if available for geometry
         adj_defs = get_adjustment_handles(self.model.geom)
         for i in range(len(adj_defs)):
-            self._handles.append(
-                TransformHandleItem(HandleType.ADJUST, self, adjust_index=i)
-            )
+            self._handles.append(TransformHandleItem(HandleType.ADJUST, self, adjust_index=i))
 
         self._position_handles()
 
@@ -551,8 +547,10 @@ class ShapeGraphicsItem(QGraphicsObject):
             painter.setPen(line_pen)
             painter.setBrush(fill_brush)
             painter.drawPath(path)
-            if line_obj is not None and line_obj.type != "none" and (
-                line_obj.head or line_obj.tail
+            if (
+                line_obj is not None
+                and line_obj.type != "none"
+                and (line_obj.head or line_obj.tail)
             ):
                 self._paint_line_ends(painter, path, line_obj, line_pen)
 
@@ -617,6 +615,7 @@ class ShapeGraphicsItem(QGraphicsObject):
                     design = next(iter(pres.designs.values()), None)
 
         from atboffice.modules.presentation.models.designs import resolve_color
+
         hex_val = resolve_color(color_name, design=design, fallback="", clr_map_ovr=clr_map_ovr)
         if hex_val:
             return QColor(hex_val)
@@ -644,11 +643,7 @@ class ShapeGraphicsItem(QGraphicsObject):
     def _is_empty_placeholder(self) -> bool:
         """True for a placeholder whose text body exists but holds no text."""
         text_body = self.model.text
-        return (
-            self.model.placeholder is not None
-            and text_body is not None
-            and text_body.is_empty()
-        )
+        return self.model.placeholder is not None and text_body is not None and text_body.is_empty()
 
     def _shows_placeholder_prompts(self) -> bool:
         """Prompts belong to the edit canvas only; scenes opt in explicitly."""
@@ -695,6 +690,7 @@ class ShapeGraphicsItem(QGraphicsObject):
                     slide_idx = 0
 
         from atboffice.modules.presentation.views.text_editor import ShapeTextEditorItem
+
         ShapeTextEditorItem.render_static_text(
             painter,
             text_body,
@@ -1286,9 +1282,7 @@ class ShapeGraphicsItem(QGraphicsObject):
                     else ChartData.from_dict(self.model.chart)
                 )
                 parent_view = (
-                    self.scene().views()[0]
-                    if self.scene() and self.scene().views()
-                    else None
+                    self.scene().views()[0] if self.scene() and self.scene().views() else None
                 )
                 dlg = DatasheetDialog(chart=c_data, parent=parent_view)
                 if dlg.exec() == QDialog.DialogCode.Accepted:
@@ -1374,9 +1368,7 @@ class ShapeGraphicsItem(QGraphicsObject):
         self.update()
         self.geometryChanged.emit()
 
-    def itemChange(
-        self, change: QGraphicsItem.GraphicsItemChange, value: Any
-    ) -> Any:
+    def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value: Any) -> Any:
         if change == QGraphicsItem.GraphicsItemChange.ItemSelectedChange:
             self.prepareGeometryChange()
             self._update_handles_visibility(bool(value))
@@ -1546,13 +1538,9 @@ class ShapeGraphicsItem(QGraphicsObject):
     # ------------------------------------------------------------------
     # Handle Drag Operations
     # ------------------------------------------------------------------
-    def begin_handle_drag(
-        self, handle: TransformHandleItem, scene_pos: QPointF
-    ) -> None:
+    def begin_handle_drag(self, handle: TransformHandleItem, scene_pos: QPointF) -> None:
         self._drag_start_scene_pos = scene_pos
-        self._drag_initial_rect = QRectF(
-            self.model.x, self.model.y, self.model.w, self.model.h
-        )
+        self._drag_initial_rect = QRectF(self.model.x, self.model.y, self.model.w, self.model.h)
         self._drag_initial_rot = self.model.rot
         self._drag_initial_adj = dict(self.model.adj or {})
 
@@ -1594,9 +1582,7 @@ class ShapeGraphicsItem(QGraphicsObject):
             sc.update_connected_connectors(self.model.id)
         self.geometryChanged.emit()
 
-    def _do_rotate(
-        self, scene_pos: QPointF, modifiers: Qt.KeyboardModifiers
-    ) -> None:
+    def _do_rotate(self, scene_pos: QPointF, modifiers: Qt.KeyboardModifiers) -> None:
         # Calculate center point in scene coords
         center_local = QPointF(self.model.w / 2.0, self.model.h / 2.0)
         center_scene = self.mapToScene(center_local)

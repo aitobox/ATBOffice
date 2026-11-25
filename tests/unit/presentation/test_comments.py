@@ -236,7 +236,7 @@ def test_legacy_and_modern_comment_parsing():
         ' created="2026-10-27T10:00:00Z" status="resolved">'
         '<p188:pos x="127000" y="254000"/>'
         '<ac:spMk id="target_shape_42"/>'
-        '<p188:replyLst>'
+        "<p188:replyLst>"
         f'<p188:reply id="{{30000000-0000-4000-8000-000000000002}}"'
         f' authorId="{reply_author_guid}" created="2026-10-27T10:30:00Z">'
         "<p188:txBody><a:p><a:r><a:t>Modern reply message</a:t></a:r></a:p></p188:txBody>"

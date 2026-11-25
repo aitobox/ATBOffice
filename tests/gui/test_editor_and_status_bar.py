@@ -129,9 +129,7 @@ class TestEditorControllerAndTwoWayBinding:
         assert ctrl.is_active
         ctrl.cancel()
 
-    def test_two_way_text_synchronization(
-        self, spreadsheet_view: SpreadsheetView
-    ) -> None:
+    def test_two_way_text_synchronization(self, spreadsheet_view: SpreadsheetView) -> None:
         view = spreadsheet_view
         ctrl = view.editor_controller
 
@@ -149,9 +147,7 @@ class TestEditorControllerAndTwoWayBinding:
         ctrl.commit()
         assert view.model.get_cell_value(0, 0) == "Beta"
 
-    def test_commit_number_and_formula(
-        self, spreadsheet_view: SpreadsheetView
-    ) -> None:
+    def test_commit_number_and_formula(self, spreadsheet_view: SpreadsheetView) -> None:
         view = spreadsheet_view
         ctrl = view.editor_controller
 
@@ -170,9 +166,7 @@ class TestEditorControllerAndTwoWayBinding:
         assert cell.formula == "10+20"
         assert cell.value == 30.0
 
-    def test_cancel_reverts_original_value(
-        self, spreadsheet_view: SpreadsheetView
-    ) -> None:
+    def test_cancel_reverts_original_value(self, spreadsheet_view: SpreadsheetView) -> None:
         view = spreadsheet_view
         ctrl = view.editor_controller
 
@@ -188,9 +182,7 @@ class TestEditorControllerAndTwoWayBinding:
 class TestPointModeAndReferenceHighlighting:
     """Test formula Point Mode and colored reference highlights."""
 
-    def test_point_cell_and_range_insertion(
-        self, spreadsheet_view: SpreadsheetView
-    ) -> None:
+    def test_point_cell_and_range_insertion(self, spreadsheet_view: SpreadsheetView) -> None:
         view = spreadsheet_view
         ctrl = view.editor_controller
 
@@ -284,9 +276,7 @@ class TestAutoCalculateStatusBar:
         sb.set_calc_function("NONE")
         assert sb.lbl_calc.text() == ""
 
-    def test_single_cell_selection_hides_autocalc(
-        self, qapp: QApplication
-    ) -> None:
+    def test_single_cell_selection_hides_autocalc(self, qapp: QApplication) -> None:
         sb = StatusBar()
         model = SheetDataModel()
         sel = SelectionModel()
@@ -301,9 +291,7 @@ class TestAutoCalculateStatusBar:
 class TestLedgerWindowIntegration:
     """Test full integration with the Ledger window."""
 
-    def test_main_window_has_status_bar_and_formula_bar(
-        self, qapp: QApplication
-    ) -> None:
+    def test_main_window_has_status_bar_and_formula_bar(self, qapp: QApplication) -> None:
         win = LedgerWindow()
         assert win.status_bar is not None
         assert win.spreadsheet_view.formula_bar is not None

@@ -39,9 +39,7 @@ def build_resume_template(doc: Document) -> None:
         "Name",
         p_pr=ParagraphProperties(
             sp=SpacingProperties(after=6.0),
-            borders={
-                "bottom": BorderProperties(val="single", sz=1.5, color="000000", space=6.0)
-            },
+            borders={"bottom": BorderProperties(val="single", sz=1.5, color="000000", space=6.0)},
         ),
         r_pr=RunProperties(font="Arial", sz=22.0, b=True, spacing=-1.0),
     )
@@ -56,9 +54,7 @@ def build_resume_template(doc: Document) -> None:
         doc,
         "SectionTitle",
         "Section Title",
-        p_pr=ParagraphProperties(
-            sp=SpacingProperties(before=18.0, after=6.0), keep_next=True
-        ),
+        p_pr=ParagraphProperties(sp=SpacingProperties(before=18.0, after=6.0), keep_next=True),
         r_pr=RunProperties(font="Arial", sz=10.0, b=True, caps=True, spacing=1.0),
     )
     define_style(
@@ -101,9 +97,7 @@ def build_resume_template(doc: Document) -> None:
     def ach(text: str) -> Paragraph:
         return Paragraph(
             runs=[TextItem(text=text)],
-            p_pr=ParagraphProperties(
-                style="Achievement", num=NumberingRef(id=abs_id, lvl=0)
-            ),
+            p_pr=ParagraphProperties(style="Achievement", num=NumberingRef(id=abs_id, lvl=0)),
         )
 
     doc.main.blocks = [
@@ -167,9 +161,7 @@ def build_resume_template(doc: Document) -> None:
             p_pr=ParagraphProperties(style="SectionTitle"),
         ),
         Paragraph(
-            runs=placeholder(
-                "Clubs, volunteer work and interests that support your application"
-            ),
+            runs=placeholder("Clubs, volunteer work and interests that support your application"),
             p_pr=ParagraphProperties(style="Objective"),
         ),
         Paragraph(
@@ -195,9 +187,7 @@ def build_todo_template(doc: Document) -> None:
         "ListTitle",
         "List Title",
         p_pr=ParagraphProperties(sp=SpacingProperties(after=0.0)),
-        r_pr=RunProperties(
-            font="Trebuchet MS", sz=28.0, b=True, color="2A64C8"
-        ),
+        r_pr=RunProperties(font="Trebuchet MS", sz=28.0, b=True, color="2A64C8"),
     )
     define_style(
         doc,
@@ -206,15 +196,9 @@ def build_todo_template(doc: Document) -> None:
         p_pr=ParagraphProperties(
             sp=SpacingProperties(before=18.0, after=6.0),
             keep_next=True,
-            borders={
-                "bottom": BorderProperties(
-                    val="single", sz=1.5, color="2A64C8", space=2.0
-                )
-            },
+            borders={"bottom": BorderProperties(val="single", sz=1.5, color="2A64C8", space=2.0)},
         ),
-        r_pr=RunProperties(
-            font="Trebuchet MS", sz=13.0, b=True, color="2A64C8"
-        ),
+        r_pr=RunProperties(font="Trebuchet MS", sz=13.0, b=True, color="2A64C8"),
     )
     define_style(
         doc,
@@ -284,9 +268,7 @@ def build_todo_template(doc: Document) -> None:
                 TextItem(
                     text="Tip: select a ☐ and type ☒ (Insert ▸ Symbol) to tick it off, "
                     "or strike the line through with Format ▸ Font.",
-                    r_pr=RunProperties(
-                        i=True, color="7F7F7F", sz=9.0, font="Trebuchet MS"
-                    ),
+                    r_pr=RunProperties(i=True, color="7F7F7F", sz=9.0, font="Trebuchet MS"),
                 )
             ],
             p_pr=ParagraphProperties(sp=SpacingProperties(before=18.0)),
@@ -303,9 +285,7 @@ def build_flyer_template(doc: Document) -> None:
         doc,
         "FlyerKicker",
         "Flyer Kicker",
-        p_pr=ParagraphProperties(
-            jc="center", sp=SpacingProperties(before=36.0, after=6.0)
-        ),
+        p_pr=ParagraphProperties(jc="center", sp=SpacingProperties(before=36.0, after=6.0)),
         r_pr=RunProperties(
             font="Trebuchet MS",
             sz=16.0,
@@ -320,9 +300,7 @@ def build_flyer_template(doc: Document) -> None:
         "FlyerTitle",
         "Flyer Title",
         p_pr=ParagraphProperties(jc="center", sp=SpacingProperties(after=12.0)),
-        r_pr=RunProperties(
-            font="Arial Black", sz=48.0, color="1F3864", spacing=-1.0
-        ),
+        r_pr=RunProperties(font="Arial Black", sz=48.0, color="1F3864", spacing=-1.0),
     )
     define_style(
         doc,
@@ -335,12 +313,8 @@ def build_flyer_template(doc: Document) -> None:
         doc,
         "FlyerWhen",
         "Flyer When",
-        p_pr=ParagraphProperties(
-            jc="center", sp=SpacingProperties(before=6.0, after=6.0)
-        ),
-        r_pr=RunProperties(
-            font="Trebuchet MS", sz=22.0, b=True, color="1F3864"
-        ),
+        p_pr=ParagraphProperties(jc="center", sp=SpacingProperties(before=6.0, after=6.0)),
+        r_pr=RunProperties(font="Trebuchet MS", sz=22.0, b=True, color="1F3864"),
     )
     define_style(
         doc,
@@ -400,9 +374,7 @@ def build_flyer_template(doc: Document) -> None:
                 "Food • Music • Games for the kids",
                 RunProperties(b=True, color="E0682D"),
             ),
-            p_pr=ParagraphProperties(
-                style="FlyerText", sp=SpacingProperties(after=36.0)
-            ),
+            p_pr=ParagraphProperties(style="FlyerText", sp=SpacingProperties(after=36.0)),
         ),
         Paragraph(
             runs=[
@@ -434,18 +406,14 @@ def build_recipe_template(doc: Document) -> None:
         doc,
         "RecipeHeading",
         "Recipe Heading",
-        p_pr=ParagraphProperties(
-            sp=SpacingProperties(before=16.0, after=6.0), keep_next=True
-        ),
+        p_pr=ParagraphProperties(sp=SpacingProperties(before=16.0, after=6.0), keep_next=True),
         r_pr=RunProperties(font="Georgia", sz=14.0, b=True, color="7A3B10"),
     )
     define_style(
         doc,
         "RecipeText",
         "Recipe Text",
-        p_pr=ParagraphProperties(
-            sp=SpacingProperties(after=4.0, line=1.15, line_rule="auto")
-        ),
+        p_pr=ParagraphProperties(sp=SpacingProperties(after=4.0, line=1.15, line_rule="auto")),
         r_pr=RunProperties(font="Georgia", sz=11.0),
     )
 
@@ -455,9 +423,7 @@ def build_recipe_template(doc: Document) -> None:
     def ing(text: str) -> Paragraph:
         return Paragraph(
             runs=placeholder(text),
-            p_pr=ParagraphProperties(
-                style="RecipeText", num=NumberingRef(id=bullets, lvl=0)
-            ),
+            p_pr=ParagraphProperties(style="RecipeText", num=NumberingRef(id=bullets, lvl=0)),
         )
 
     def step(text: str) -> Paragraph:
@@ -496,9 +462,7 @@ def build_recipe_template(doc: Document) -> None:
                 "One line about the dish: where it comes from, when you make it",
                 RunProperties(i=True, color="595959"),
             ),
-            p_pr=ParagraphProperties(
-                style="RecipeText", sp=SpacingProperties(after=10.0)
-            ),
+            p_pr=ParagraphProperties(style="RecipeText", sp=SpacingProperties(after=10.0)),
         ),
         servings_table,
         head("Ingredients"),
@@ -514,9 +478,7 @@ def build_recipe_template(doc: Document) -> None:
         step("Serve"),
         head("Notes"),
         Paragraph(
-            runs=placeholder(
-                "Variations, what to serve it with, how long it keeps"
-            ),
+            runs=placeholder("Variations, what to serve it with, how long it keeps"),
             p_pr=ParagraphProperties(style="RecipeText"),
         ),
     ]

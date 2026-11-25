@@ -201,9 +201,7 @@ class MailMergeRecipientsDialog(QDialog):
         total = len(self.ds.rows)
         active = len(self.ds.active_records())
         self.lbl_desc.setText(
-            safe_tr("数据源: {0} (选中 {1} / 共 {2} 条记录)").format(
-                self.ds.name, active, total
-            )
+            safe_tr("数据源: {0} (选中 {1} / 共 {2} 条记录)").format(self.ds.name, active, total)
         )
 
     def _select_all(self) -> None:
@@ -263,7 +261,7 @@ class AddressListDialog(QDialog):
         self.resize(520, 520)
 
         self.fields = list(ADDRESS_FIELDS)
-        self.rows: list[list[str]] = [[ "" for _ in self.fields ]]
+        self.rows: list[list[str]] = [["" for _ in self.fields]]
         self.current_index = 0
 
         layout = QVBoxLayout(self)

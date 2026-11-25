@@ -36,6 +36,7 @@ class PortionType(Enum):
     GRAPHIC = "graphic"
     MARK = "mark"
 
+
 @dataclass
 class Portion:
     type: PortionType
@@ -99,7 +100,9 @@ class ParagraphLayout:
 ### 3.2 东亚行网格公式
 当节属性 `doc_grid.type in ("lines", "linesAndChars")` 时：
 ```python
-def compute_grid_line_height(pitch: float, mult: float, font_size: float, font_family: str) -> float:
+def compute_grid_line_height(
+    pitch: float, mult: float, font_size: float, font_family: str
+) -> float:
     factor = get_line_factor(font_family)
     natural_line = font_size * factor
     needed = math.ceil(natural_line / pitch - 0.02)
@@ -110,9 +113,7 @@ def compute_grid_line_height(pitch: float, mult: float, font_size: float, font_f
 ### 3.3 Word 间距折叠
 ```python
 def collapse_paragraph_spacing(
-    prev_p_sp_after: float,
-    curr_p_sp_before: float,
-    is_at_page_top: bool = False
+    prev_p_sp_after: float, curr_p_sp_before: float, is_at_page_top: bool = False
 ) -> tuple[float, float]:
     if is_at_page_top:
         effective_before = 0.0

@@ -84,8 +84,15 @@ class PrintPreviewPanel(QWidget):
         self.extra_layout.setSpacing(4)
         self.btn_close = self._button(self.close_preview)
 
-        for w in (self.btn_print, self.btn_magnifier, self.btn_one_page, self.btn_multi_page,
-                  self.btn_all_pages, self.combo_zoom, self.btn_setup):
+        for w in (
+            self.btn_print,
+            self.btn_magnifier,
+            self.btn_one_page,
+            self.btn_multi_page,
+            self.btn_all_pages,
+            self.combo_zoom,
+            self.btn_setup,
+        ):
             self.bar_layout.addWidget(w)
         self.bar_layout.addLayout(self.extra_layout)
         self.bar_layout.addStretch(1)

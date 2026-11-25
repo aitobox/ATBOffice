@@ -16,7 +16,12 @@ from atboffice.vfs import etree as ET
 # theme's own ``a:ea`` / ``a:cs`` face is empty (settings.xml ``w:themeFontLang``).
 _EA_SCRIPTS = (("ja", "Jpan"), ("ko", "Hang"), ("zh-cn", "Hans"), ("zh-sg", "Hans"), ("zh", "Hant"))
 _CS_SCRIPTS = (
-    ("ar", "Arab"), ("fa", "Arab"), ("ur", "Arab"), ("he", "Hebr"), ("yi", "Hebr"), ("th", "Thai"),
+    ("ar", "Arab"),
+    ("fa", "Arab"),
+    ("ur", "Arab"),
+    ("he", "Hebr"),
+    ("yi", "Hebr"),
+    ("th", "Thai"),
 )
 
 

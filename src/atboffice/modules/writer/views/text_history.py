@@ -212,8 +212,7 @@ class TextEditRecorder:
         ):
             tail += 1
         before = [
-            saved[i] if i in saved else copy.deepcopy(old[i])
-            for i in range(start, len(old) - tail)
+            saved[i] if i in saved else copy.deepcopy(old[i]) for i in range(start, len(old) - tail)
         ]
         after = copy.deepcopy(new[start : len(new) - tail])
         text = ""

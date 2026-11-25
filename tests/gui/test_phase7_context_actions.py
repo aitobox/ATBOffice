@@ -65,9 +65,7 @@ def make_right_click(x: float, y: float) -> QMouseEvent:
 class TestCellContextMenuTargetingAndEditor:
     """Test selection preservation, re-targeting, editor commit, and Shift+F10 dispatch."""
 
-    def test_right_click_inside_selection_preserves_selection(
-        self, viewport: GridViewport
-    ) -> None:
+    def test_right_click_inside_selection_preserves_selection(self, viewport: GridViewport) -> None:
         viewport.selection.select_cell(1, 1)
         viewport.selection.extend_to(3, 3)
         assert viewport.selection.primary_range == SelectionRange(1, 1, 3, 3)
@@ -93,9 +91,7 @@ class TestCellContextMenuTargetingAndEditor:
         assert viewport.selection.active_cell == (5, 5)
         assert viewport.selection.primary_range == SelectionRange(5, 5, 5, 5)
 
-    def test_in_cell_editor_commits_on_context_menu(
-        self, viewport: GridViewport
-    ) -> None:
+    def test_in_cell_editor_commits_on_context_menu(self, viewport: GridViewport) -> None:
         ctrl = viewport.editor_controller
         ctrl.begin_edit(0, 0, initial_text="TypedValue")
         assert ctrl.is_active is True
@@ -112,9 +108,7 @@ class TestCellContextMenuTargetingAndEditor:
         assert ctrl.is_active is False
         assert viewport.model.get_cell(0, 0).value == "TypedValue"
 
-    def test_shift_f10_opens_context_menu_at_active_cell(
-        self, viewport: GridViewport
-    ) -> None:
+    def test_shift_f10_opens_context_menu_at_active_cell(self, viewport: GridViewport) -> None:
         viewport.selection.select_cell(2, 3)
         key_event = QKeyEvent(
             QKeyEvent.Type.KeyPress,
@@ -195,9 +189,7 @@ class TestPasteSpecialExecution:
         assert c2.value == 30
         assert c2.formula is None
 
-    def test_paste_special_formulas_relative_translation(
-        self, viewport: GridViewport
-    ) -> None:
+    def test_paste_special_formulas_relative_translation(self, viewport: GridViewport) -> None:
         # Source at (1, 1) with relative formula '=A1+10' and absolute reference '=$A$1+5'
         viewport.model.set_cell(1, 1, CellData(value=15, formula="=A1+10"))
         viewport.model.set_cell(1, 2, CellData(value=20, formula="=$A$1+5"))
@@ -241,9 +233,7 @@ class TestPasteSpecialExecution:
 
         # Transpose paste to (5, 5) -> becomes 3x2 block
         viewport.selection.select_cell(5, 5)
-        viewport.paste_special(
-            {"type": "all", "operation": "none", "transpose": True}
-        )
+        viewport.paste_special({"type": "all", "operation": "none", "transpose": True})
 
         assert viewport.model.get_cell(5, 5).value == 1
         assert viewport.model.get_cell(6, 5).value == 2
@@ -252,9 +242,7 @@ class TestPasteSpecialExecution:
         assert viewport.model.get_cell(6, 6).value == 5
         assert viewport.model.get_cell(7, 6).value == 6
 
-    def test_paste_special_arithmetic_operations(
-        self, viewport: GridViewport
-    ) -> None:
+    def test_paste_special_arithmetic_operations(self, viewport: GridViewport) -> None:
         # Source = 5
         viewport.model.set_cell(0, 0, CellData(value=5))
         viewport.selection.select_cell(0, 0)
@@ -295,9 +283,7 @@ class TestPasteSpecialExecution:
         viewport.model.set_cell(2, 1, CellData(value="OrigB"))
 
         viewport.selection.select_cell(2, 0)
-        viewport.paste_special(
-            {"type": "all", "operation": "none", "skip_blanks": True}
-        )
+        viewport.paste_special({"type": "all", "operation": "none", "skip_blanks": True})
 
         assert viewport.model.get_cell(2, 0).value == "Filled"
         # OrigB must NOT have been overwritten by the blank source cell
@@ -356,9 +342,7 @@ class TestTableListContextMenuActions:
 class TestSparseBoundsCopyClearPerformance:
     """Test that selecting 1,048,576 rows executes copy and clear in milliseconds."""
 
-    def test_sparse_bounds_full_column_copy_and_clear(
-        self, viewport: GridViewport
-    ) -> None:
+    def test_sparse_bounds_full_column_copy_and_clear(self, viewport: GridViewport) -> None:
         # Populate only 3 cells in column 0
         viewport.model.set_cell(0, 0, CellData(value=1))
         viewport.model.set_cell(10, 0, CellData(value=2))
@@ -445,9 +429,7 @@ class TestSheetTabBarContextActions:
 class TestObjectLayerContextMenu:
     """Test FloatingObject context menu for shapes, textboxes, and charts."""
 
-    def test_shape_object_context_menu_and_edit_text(
-        self, qapp: QApplication
-    ) -> None:
+    def test_shape_object_context_menu_and_edit_text(self, qapp: QApplication) -> None:
         layer = SpreadsheetObjectLayer()
         try:
             shape = FloatingObject(
@@ -460,9 +442,7 @@ class TestObjectLayerContextMenu:
             layer.select_object(shape)
 
             # Test start text editing with QInputDialog mock
-            with patch.object(
-                QInputDialog, "getMultiLineText", return_value=("UpdatedText", True)
-            ):
+            with patch.object(QInputDialog, "getMultiLineText", return_value=("UpdatedText", True)):
                 layer.start_text_editing(shape)
                 assert shape.text == "UpdatedText"
 
@@ -484,9 +464,7 @@ class TestObjectLayerContextMenu:
 class TestUndoRedoContextMenuOperations:
     """Test undo/redo transactions for paste special and clear contents."""
 
-    def test_undo_redo_paste_special_and_clear(
-        self, viewport: GridViewport
-    ) -> None:
+    def test_undo_redo_paste_special_and_clear(self, viewport: GridViewport) -> None:
         viewport.model.set_cell(0, 0, CellData(value="Initial"))
         viewport.selection.select_cell(0, 0)
         viewport.copy()

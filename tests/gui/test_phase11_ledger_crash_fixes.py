@@ -100,15 +100,11 @@ def test_copy_paste_selected_object_uses_standard_keys(ledger: LedgerWindow) -> 
         layer.model.drawings = [obj]
     layer.select_object(obj)
 
-    copy_evt = QKeyEvent(
-        QEvent.Type.KeyPress, Qt.Key.Key_C, Qt.KeyboardModifier.ControlModifier
-    )
+    copy_evt = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_C, Qt.KeyboardModifier.ControlModifier)
     layer.keyPressEvent(copy_evt)
     assert layer._clipboard_object is not None
 
-    paste_evt = QKeyEvent(
-        QEvent.Type.KeyPress, Qt.Key.Key_V, Qt.KeyboardModifier.ControlModifier
-    )
+    paste_evt = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_V, Qt.KeyboardModifier.ControlModifier)
     layer.keyPressEvent(paste_evt)
     assert len(layer.objects) == 2
 
@@ -172,9 +168,7 @@ def test_sheet_model_ensure_cell(qapp) -> None:
     assert sheet.ensure_cell(2, 3) is cell
 
 
-@pytest.mark.parametrize(
-    "method", ["_toggle_bold", "_toggle_italic", "_toggle_underline"]
-)
+@pytest.mark.parametrize("method", ["_toggle_bold", "_toggle_italic", "_toggle_underline"])
 def test_ledger_formatting_empty_cells(qtbot, method: str) -> None:
     win = LedgerWindow()
     qtbot.addWidget(win)
@@ -210,9 +204,7 @@ def test_status_updates_after_open_and_sheet_switch(
     ledger: LedgerWindow, tmp_path: Path, monkeypatch
 ) -> None:
     calls: list[int] = []
-    monkeypatch.setattr(
-        ledger.status_bar, "update_calculation", lambda *a, **k: calls.append(1)
-    )
+    monkeypatch.setattr(ledger.status_bar, "update_calculation", lambda *a, **k: calls.append(1))
     path = _two_sheet_xlsx(tmp_path / "two.xlsx")
     assert ledger.open_file(path) is True
 

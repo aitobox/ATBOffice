@@ -56,8 +56,12 @@ def block_size(geo: Any, page: PrintPage, scale: float, headings: bool) -> tuple
 
 
 def _paint_headings(
-    painter: QPainter, geo: Any, rows: list[tuple[int, int]], cols: list[tuple[int, int]],
-    hw: float, hh: float,
+    painter: QPainter,
+    geo: Any,
+    rows: list[tuple[int, int]],
+    cols: list[tuple[int, int]],
+    hw: float,
+    hh: float,
 ) -> None:
     """Row numbers and column letters (grid-pixel units, painter already scaled)."""
     painter.save()
@@ -93,7 +97,11 @@ def _paint_headings(
 
 
 def _paint_drawings(
-    painter: QPainter, grid: Any, sheet: Any, rows: tuple[int, int], cols: tuple[int, int],
+    painter: QPainter,
+    grid: Any,
+    sheet: Any,
+    rows: tuple[int, int],
+    cols: tuple[int, int],
 ) -> None:
     """Charts, pictures and shapes overlapping this cell block (grid-pixel units)."""
     from atboffice.modules.spreadsheet.views.object_layer import object_to_rect
@@ -118,7 +126,11 @@ def _paint_drawings(
 
 
 def _paint_block(
-    painter: QPainter, grid: Any, sheet: Any, page: PrintPage, setup: SheetPrintSetup,
+    painter: QPainter,
+    grid: Any,
+    sheet: Any,
+    page: PrintPage,
+    setup: SheetPrintSetup,
 ) -> None:
     """Cells (+ titles, headings, drawings) of one page; painter in grid pixels."""
     geo = sheet.geometry
@@ -134,8 +146,13 @@ def _paint_block(
             painter.save()
             painter.translate(x, y)
             grid.paint_print_region(
-                painter, rs[0], rs[1], cs[0], cs[1],
-                gridlines=setup.gridlines, font_factor=CELL_FONT_FACTOR,
+                painter,
+                rs[0],
+                rs[1],
+                cs[0],
+                cs[1],
+                gridlines=setup.gridlines,
+                font_factor=CELL_FONT_FACTOR,
             )
             _paint_drawings(painter, grid, sheet, rs, cs)
             painter.restore()
@@ -144,8 +161,15 @@ def _paint_block(
 
 
 def _paint_header_footer(
-    painter: QPainter, setup: SheetPrintSetup, page_w: float, page_h: float,
-    page_no: int, pages: int, sheet_name: str, file_name: str, file_path: str,
+    painter: QPainter,
+    setup: SheetPrintSetup,
+    page_w: float,
+    page_h: float,
+    page_no: int,
+    pages: int,
+    sheet_name: str,
+    file_name: str,
+    file_path: str,
 ) -> None:
     m = setup.margins
     font = QFont("Arial")
@@ -160,14 +184,17 @@ def _paint_header_footer(
         rect = QRectF(m["left"], y, page_w - m["left"] - m["right"], 14.0)
         for section, align in zip(
             header_footer.split_sections(text),
-            (Qt.AlignmentFlag.AlignLeft, Qt.AlignmentFlag.AlignHCenter,
-             Qt.AlignmentFlag.AlignRight),
+            (
+                Qt.AlignmentFlag.AlignLeft,
+                Qt.AlignmentFlag.AlignHCenter,
+                Qt.AlignmentFlag.AlignRight,
+            ),
         ):
             if section:
                 painter.drawText(
-                    rect, int(align | Qt.AlignmentFlag.AlignVCenter),
-                    header_footer.expand(section, page_no, pages, sheet_name, file_name,
-                                         file_path),
+                    rect,
+                    int(align | Qt.AlignmentFlag.AlignVCenter),
+                    header_footer.expand(section, page_no, pages, sheet_name, file_name, file_path),
                 )
     painter.restore()
 
@@ -215,8 +242,9 @@ def render_sheet(
             x = m["left"] + (max(0.0, avail_w - bw) / 2 if setup.center_h else 0.0)
             y = m["top"] + (max(0.0, avail_h - bh) / 2 if setup.center_v else 0.0)
             if setup.black_white:
-                _paint_block_bw(painter, grid, sheet, page, setup, layout.scale,
-                                QRectF(x, y, bw, bh))
+                _paint_block_bw(
+                    painter, grid, sheet, page, setup, layout.scale, QRectF(x, y, bw, bh)
+                )
             else:
                 painter.save()
                 painter.translate(x, y)
@@ -224,8 +252,17 @@ def render_sheet(
                 painter.setClipRect(QRectF(0, 0, bw / layout.scale, bh / layout.scale))
                 _paint_block(painter, grid, sheet, page, setup)
                 painter.restore()
-            _paint_header_footer(painter, setup, page_w, page_h, first_no + i,
-                                 first_no + total - 1, sheet.name, file_name, file_path)
+            _paint_header_footer(
+                painter,
+                setup,
+                page_w,
+                page_h,
+                first_no + i,
+                first_no + total - 1,
+                sheet.name,
+                file_name,
+                file_path,
+            )
             if show_margins:
                 _paint_margin_guides(painter, setup, page_w, page_h)
     finally:
@@ -234,8 +271,13 @@ def render_sheet(
 
 
 def _paint_block_bw(
-    painter: QPainter, grid: Any, sheet: Any, page: PrintPage, setup: SheetPrintSetup,
-    scale: float, target: QRectF,
+    painter: QPainter,
+    grid: Any,
+    sheet: Any,
+    page: PrintPage,
+    setup: SheetPrintSetup,
+    scale: float,
+    target: QRectF,
 ) -> None:
     """Black & white: rasterise at ~200 dpi, threshold to pure black and white."""
     dpi = 200.0

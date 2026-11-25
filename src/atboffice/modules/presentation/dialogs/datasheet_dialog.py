@@ -246,7 +246,7 @@ class DatasheetDialog(QDialog):
 
         for ri, s in enumerate(series):
             # Column 0: Series Name
-            s_name = s.name or f"Series {ri+1}"
+            s_name = s.name or f"Series {ri + 1}"
             name_item = QTableWidgetItem(s_name)
             col = resolve_color(s.color or CH_PALETTE[ri % len(CH_PALETTE)])
             name_item.setBackground(col.lighter(170))

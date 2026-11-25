@@ -172,13 +172,10 @@ class ThemeCard(QFrame):
     def _update_style(self) -> None:
         if self.is_selected:
             self.setStyleSheet(
-                "ThemeCard { background: #F0F7FF; border: 2px solid #0284C7; "
-                "border-radius: 6px; }"
+                "ThemeCard { background: #F0F7FF; border: 2px solid #0284C7; border-radius: 6px; }"
             )
             self.lbl_badge.setText("✓ " + safe_tr("当前"))
-            self.lbl_badge.setStyleSheet(
-                "color: #0284C7; font-weight: bold; font-size: 10px;"
-            )
+            self.lbl_badge.setStyleSheet("color: #0284C7; font-weight: bold; font-size: 10px;")
         else:
             self.setStyleSheet(
                 "ThemeCard { background: #FFFFFF; border: 1px solid #CBD5E1; "
@@ -229,9 +226,7 @@ class ThemeDialog(QDialog):
             cards_layout.setSpacing(12)
 
             for t_key, t_title, t_desc, layout_type in SUITE_THEMES:
-                card = SuiteThemeCard(
-                    t_key, safe_tr(t_title), safe_tr(t_desc), layout_type, self
-                )
+                card = SuiteThemeCard(t_key, safe_tr(t_title), safe_tr(t_desc), layout_type, self)
                 card.clicked.connect(self._on_card_selected)
                 if t_key == self.selected_theme:
                     card.set_selected(True)
@@ -556,9 +551,7 @@ class SuiteThemeCard(QFrame):
                 "border-radius: 6px; }"
             )
             self.lbl_badge.setText("✓ " + safe_tr("当前"))
-            self.lbl_badge.setStyleSheet(
-                "color: #0284C7; font-weight: bold; font-size: 10px;"
-            )
+            self.lbl_badge.setStyleSheet("color: #0284C7; font-weight: bold; font-size: 10px;")
         else:
             self.setStyleSheet(
                 "SuiteThemeCard { background: #FFFFFF; border: 1px solid #CBD5E1; "
@@ -612,9 +605,7 @@ class SuiteThemeDialog(QDialog):
         cards_layout.setSpacing(12)
 
         for t_key, t_title, t_desc, layout_type in SUITE_THEMES:
-            card = SuiteThemeCard(
-                t_key, safe_tr(t_title), safe_tr(t_desc), layout_type, self
-            )
+            card = SuiteThemeCard(t_key, safe_tr(t_title), safe_tr(t_desc), layout_type, self)
             card.clicked.connect(self._on_card_selected)
             if t_key == self.selected_theme:
                 card.set_selected(True)

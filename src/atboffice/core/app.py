@@ -28,14 +28,17 @@ class ATBApplication(QApplication):
         self._main_window: Any | None = None
 
         from atboffice.core.diagnostics import drain_event_loop
+
         self.aboutToQuit.connect(drain_event_loop)
 
         from atboffice.utils.font_registry import register_bundled_fonts
+
         register_bundled_fonts()
 
         # The same light Luna look on every platform, whatever the system
         # theme; the saved theme is applied later by the startup settings.
         from atboffice.ui.styles.luna_2003 import apply_application_look
+
         apply_application_look(self)
 
     @property
@@ -62,10 +65,7 @@ class ATBApplication(QApplication):
 
             if file_path:
                 self.file_open_requested.emit(file_path)
-                if (
-                    self._main_window is not None
-                    and hasattr(self._main_window, "open_file")
-                ):
+                if self._main_window is not None and hasattr(self._main_window, "open_file"):
                     self._main_window.open_file(file_path)
                 else:
                     self._pending_files.append(file_path)

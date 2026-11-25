@@ -111,9 +111,7 @@ class UpdateCheckWorker(QThread):
                 tag_name=tag_name,
                 name=data.get("name", f"ATBOffice {tag_name}"),
                 body=data.get("body", ""),
-                html_url=data.get(
-                    "html_url", "https://github.com/aitobox/ATBOffice/releases"
-                ),
+                html_url=data.get("html_url", "https://github.com/aitobox/ATBOffice/releases"),
                 published_at=data.get("published_at", ""),
             )
 
@@ -127,9 +125,7 @@ class UpdateCheckWorker(QThread):
                 safe_tr("网络连接失败，请检查网络设置: {err}").format(err=str(e))
             )
         except Exception as e:
-            self.check_failed.emit(
-                safe_tr("检查更新出错: {err}").format(err=str(e))
-            )
+            self.check_failed.emit(safe_tr("检查更新出错: {err}").format(err=str(e)))
 
 
 # Running checks. The workers have no Qt parent, so closing the window that

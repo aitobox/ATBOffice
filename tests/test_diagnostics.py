@@ -33,10 +33,10 @@ def test_get_environment_telemetry():
 
 def test_sanitize_traceback_removes_sensitive_document_content():
     raw_traceback = (
-        'Traceback (most recent call last):\n'
+        "Traceback (most recent call last):\n"
         '  File "/path/to/atboffice/modules/writer/views/editor.py", line 42, in insert_text\n'
         '    doc.insert("CONFIDENTIAL_FINANCIAL_REPORT_2026_Q3")\n'
-        'ValueError: Document string payload corrupted: CONFIDENTIAL_FINANCIAL_REPORT_2026_Q3\n'
+        "ValueError: Document string payload corrupted: CONFIDENTIAL_FINANCIAL_REPORT_2026_Q3\n"
     )
     sanitized = sanitize_traceback(raw_traceback)
     assert "/path/to/atboffice/modules/writer/views/editor.py" in sanitized

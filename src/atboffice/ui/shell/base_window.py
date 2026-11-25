@@ -133,9 +133,11 @@ class BaseOfficeWindow(QMainWindow):
         from atboffice.core.compat import coerce, macro_loss
 
         try:
-            losses = coerce(self.compat_model_losses()) + macro_loss(
-                self.current_file_path, target
-            ) + coerce(self.save_losses(target))
+            losses = (
+                coerce(self.compat_model_losses())
+                + macro_loss(self.current_file_path, target)
+                + coerce(self.save_losses(target))
+            )
         except Exception:
             logger.debug("Compatibility check failed for %s", target, exc_info=True)
             return True
@@ -247,9 +249,7 @@ class BaseOfficeWindow(QMainWindow):
             tpl = reg.get(template_id)
 
         if tpl is None:
-            logger.warning(
-                "Template %r not found for %s", template_id, self.app_name
-            )
+            logger.warning("Template %r not found for %s", template_id, self.app_name)
             return False
 
         # Reset path to None to guarantee this is an unsaved new document
@@ -262,9 +262,7 @@ class BaseOfficeWindow(QMainWindow):
                 res = tpl.builder(self)
                 self._apply_template_result(res)
             except Exception as exc:
-                logger.exception(
-                    "Error executing builder for template %s: %s", template_id, exc
-                )
+                logger.exception("Error executing builder for template %s: %s", template_id, exc)
                 self.active_template = None
                 return False
 
@@ -351,9 +349,7 @@ class BaseOfficeWindow(QMainWindow):
         """
         from atboffice.vfs.crypto import inspect_file_format
 
-        inspection = inspect_file_format(
-            path, expected_app=app_name, allow_excel97=allow_excel97
-        )
+        inspection = inspect_file_format(path, expected_app=app_name, allow_excel97=allow_excel97)
         if inspection.should_reject:
             title = inspection.guidance_title or safe_tr("文件格式提示")
             msg = inspection.guidance_message or safe_tr("不支持的旧版二进制文件格式。")
@@ -706,8 +702,10 @@ class BaseOfficeWindow(QMainWindow):
             return False
 
         # 1. Overwrite confirmation if saving to an existing file different from current path
-        if confirm_overwrite and target.exists() and (
-            self.current_file_path is None or target != self.current_file_path
+        if (
+            confirm_overwrite
+            and target.exists()
+            and (self.current_file_path is None or target != self.current_file_path)
         ):
             res = QMessageBox.warning(
                 self,
@@ -1044,9 +1042,7 @@ class BaseOfficeWindow(QMainWindow):
             self.clipboard_pane = ClipboardTaskPane(parent=self.task_pane_dock)
             self.clipboard_pane.item_clicked.connect(self._on_clipboard_item_clicked)
             self.clipboard_pane.paste_all_requested.connect(self._on_clipboard_paste_all)
-            self.task_pane_dock.register_pane(
-                "clipboard", safe_tr("剪贴板"), self.clipboard_pane
-            )
+            self.task_pane_dock.register_pane("clipboard", safe_tr("剪贴板"), self.clipboard_pane)
 
             self.task_pane_dock.hide()
         return self.task_pane_dock

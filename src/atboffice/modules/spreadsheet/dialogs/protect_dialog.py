@@ -161,7 +161,7 @@ class ProtectSheetDialog(QDialog):
         for idx in range(self.list_permissions.count()):
             item = self.list_permissions.item(idx)
             perm_id = item.data(Qt.ItemDataRole.UserRole)
-            perms[perm_id] = (item.checkState() == Qt.CheckState.Checked)
+            perms[perm_id] = item.checkState() == Qt.CheckState.Checked
 
         pwd = self.edit_password.text()
         pwd_hash = hashlib.sha256(pwd.encode("utf-8")).hexdigest() if pwd else ""

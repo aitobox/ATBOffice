@@ -90,9 +90,8 @@ def parse_cli_args(args: list[str]) -> tuple[str, str | None]:
     # Strip executable name if caller passed raw sys.argv
     normalized = list(args)
     first_item = normalized[0].strip()
-    if (
-        first_item in ("atboffice", "atboffice.py", "__main__.py")
-        or first_item.endswith(("/atboffice", "\\atboffice", ".py"))
+    if first_item in ("atboffice", "atboffice.py", "__main__.py") or first_item.endswith(
+        ("/atboffice", "\\atboffice", ".py")
     ):
         normalized = normalized[1:]
 
@@ -213,9 +212,7 @@ def main(argv: list[str] | None = None, exec_app: bool = True) -> int:
     elif action == "file" and path:
         window = win_mgr.open_file_auto(path)
     else:
-        start_beh = get_app_settings().get_value(
-            "general/start_behavior", "start_center"
-        )
+        start_beh = get_app_settings().get_value("general/start_behavior", "start_center")
         if start_beh == "new_doc":
             window = win_mgr.open_quire()
         else:

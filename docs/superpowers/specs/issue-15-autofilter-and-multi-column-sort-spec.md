@@ -71,6 +71,7 @@ class ColumnFilter:
     top10_percent: bool = False
     top10_val: int = 10
 
+
 @dataclass
 class AutoFilter:
     r1: int
@@ -91,7 +92,7 @@ class AutoFilter:
 ```python
 class FilterDropdown(QMenu):
     filter_applied = Signal(int, object)  # col_idx, ColumnFilter or None
-    sort_requested = Signal(int, bool)    # col, desc
+    sort_requested = Signal(int, bool)  # col, desc
 ```
 
 ### 2.4 `SortDialog`

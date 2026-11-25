@@ -56,7 +56,7 @@ class TestShapeConnectionSitesAndRouting:
         # 100x80 triangle with default center apex
         sites = get_shape_connection_sites("triangle", 100.0, 80.0, {"adj": 50000})
         assert len(sites) == 4
-        assert sites[0] == (50.0, 0.0)   # Apex
+        assert sites[0] == (50.0, 0.0)  # Apex
         assert sites[2] == (50.0, 80.0)  # Bottom center
 
     def test_straight_connector_route(self):
@@ -70,7 +70,7 @@ class TestShapeConnectionSitesAndRouting:
         )
         assert len(route) == 4
         assert route[0] == (0.0, 0.0)
-        assert route[1] == (50.0, 0.0)   # Stepped halfway along x
+        assert route[1] == (50.0, 0.0)  # Stepped halfway along x
         assert route[2] == (50.0, 60.0)  # Stepped along y
         assert route[3] == (100.0, 60.0)
 
@@ -81,7 +81,7 @@ class TestShapeConnectionSitesAndRouting:
         )
         assert len(route) == 4
         assert route[0] == (0.0, 0.0)
-        assert route[1] == (0.0, 50.0)   # Stepped halfway along y
+        assert route[1] == (0.0, 50.0)  # Stepped halfway along y
         assert route[2] == (80.0, 50.0)  # Stepped along x
         assert route[3] == (80.0, 100.0)
 
@@ -186,9 +186,7 @@ class TestMagneticSnappingAndDynamicRecalculation:
         scene = SlideScene(slide_width=800.0, slide_height=600.0)
         # Target shape at (200, 200, 100, 60)
         # Site 3 (left center) is at (200, 230)
-        target = Shape(
-            id="target_1", type="shape", geom="rect", x=200.0, y=200.0, w=100.0, h=60.0
-        )
+        target = Shape(id="target_1", type="shape", geom="rect", x=200.0, y=200.0, w=100.0, h=60.0)
         scene.slide.shapes.append(target)
         target_item = ShapeGraphicsItem(target)
         scene.addItem(target_item)

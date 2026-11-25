@@ -217,6 +217,7 @@ class ChartSamplePreviewWidget(QWidget):
             ]
             from PySide6.QtCore import QPoint
             from PySide6.QtGui import QPolygon
+
             painter.drawPolygon(QPolygon([QPoint(px, py) for px, py in poly]))
 
 
@@ -829,9 +830,7 @@ class ChartWizardDialog(QDialog):
                 self.new_sheet_name if self.location_as_new_sheet else self.existing_sheet_name
             ),
             "series": [dict(s) for s in self.series_list],
-            "custom_series": (
-                [dict(s) for s in self.series_list] if self._series_dirty else []
-            ),
+            "custom_series": ([dict(s) for s in self.series_list] if self._series_dirty else []),
         }
 
     def set_sheet_model(self, sheet_model: SheetDataModel | None) -> None:

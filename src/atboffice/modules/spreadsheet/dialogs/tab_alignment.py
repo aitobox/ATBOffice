@@ -90,9 +90,7 @@ class OrientationDialWidget(QWidget):
             rad = math.radians(deg)
             x = cx + radius * math.cos(rad)
             y = cy - radius * math.sin(rad)
-            painter.setBrush(
-                QColor("#000000") if i % 6 == 0 else QColor("#888888")
-            )
+            painter.setBrush(QColor("#000000") if i % 6 == 0 else QColor("#888888"))
             r = 2.5 if i % 6 == 0 else 1.5
             painter.drawEllipse(QRect(int(x - r), int(y - r), int(r * 2), int(r * 2)))
 

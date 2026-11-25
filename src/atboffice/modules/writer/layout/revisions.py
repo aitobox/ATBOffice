@@ -28,8 +28,11 @@ HIDE = "hide"
 def mode(doc: Any) -> str:
     settings = getattr(doc, "settings", None) or {}
     value = settings.get("revisionView", "final_markup")
-    return value if value in ("final_markup", "final", "original_markup", "original") else \
-        "final_markup"
+    return (
+        value
+        if value in ("final_markup", "final", "original_markup", "original")
+        else "final_markup"
+    )
 
 
 def author_color(stamp: Any) -> str:

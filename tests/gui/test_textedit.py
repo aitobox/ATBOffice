@@ -275,8 +275,7 @@ class TestAutoFitIntegration:
 
         editor = item.start_text_editing()
         editor.setPlainText(
-            "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\n"
-            "Line 6\nLine 7\nLine 8\nLine 9\nLine 10"
+            "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10"
         )
         editor.apply_autofit("shape")
 
@@ -299,6 +298,7 @@ class TestContextAndI18n:
         editor = item.start_text_editing()
 
         from PySide6.QtWidgets import QMenu
+
         menu = QMenu()
         editor._populate_context_menu(menu)
         action_texts = [a.text() for a in menu.actions() if a.text()]

@@ -14,8 +14,7 @@ This implementation provides standard ECMA-376 (SpreadsheetML) serialization dir
        workbook: WorkbookModel,
        output_path: str | Path | BinaryIO | None = None,
        source_opc: SourcePackage | bytes | str | Path | None = None,
-   ) -> bytes:
-       ...
+   ) -> bytes: ...
    ```
    - Accepts a `WorkbookModel` instance.
    - If `output_path` is a filesystem path (`str` or `Path`), atomically writes the generated package to disk.

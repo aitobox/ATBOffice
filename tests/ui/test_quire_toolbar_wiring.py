@@ -178,6 +178,7 @@ def test_quire_window_toolbar_actions_wired(qtbot) -> None:
     # 5. Trigger trackChanges
     win.action_registry.trigger_action("trackChanges")
     from atboffice.modules.writer.models.revision import is_tracking
+
     assert is_tracking(win.writer_view.canvas_view.doc) is True
 
 
@@ -422,7 +423,3 @@ def test_quire_toolbars_7_language_dynamic_retranslate(qtbot) -> None:
             for btn in tb.findChildren(OfficeDropDownButton):
                 tip = btn.toolTip()
                 assert tip, f"Dropdown button in {name} has empty tooltip in {locale}"
-
-
-
-

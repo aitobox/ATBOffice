@@ -402,9 +402,7 @@ class FilterDropdownPopup(QWidget):
             v_item.checkState() == Qt.CheckState.Checked for v_item, _ in self.value_items
         )
         if self.blank_item is not None:
-            all_checked = all_checked and (
-                self.blank_item.checkState() == Qt.CheckState.Checked
-            )
+            all_checked = all_checked and (self.blank_item.checkState() == Qt.CheckState.Checked)
 
         if all_checked and not self.search_edit.text().strip():
             self.filter_cleared.emit()

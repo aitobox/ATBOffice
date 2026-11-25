@@ -108,8 +108,7 @@ ARG_HELP_DATA: dict[str, str] = {
     "col_index_num": "为 table_array 中待返回匹配值的列序号。第一列为 1。",
     "row_index_num": "为 table_array 中待返回匹配值的行序号。第一行为 1。",
     "range_lookup": (
-        "为逻辑值：指明是要寻找精确匹配还是近似匹配。"
-        "TRUE 或省略表示近似匹配；FALSE 表示精确匹配。"
+        "为逻辑值：指明是要寻找精确匹配还是近似匹配。TRUE 或省略表示近似匹配；FALSE 表示精确匹配。"
     ),
     "range": "为需要计算或评估的单元格区域。",
     "criteria": "为定义哪些单元格将被计入的条件，可以是数字、表达式或文本。",

@@ -381,9 +381,7 @@ class SlideSorterView(QScrollArea):
         if end < len(self.cards):
             QTimer.singleShot(
                 0,
-                lambda g=gen, next_start=end: self._refresh_card_chunk(
-                    g, next_start, chunk_size
-                ),
+                lambda g=gen, next_start=end: self._refresh_card_chunk(g, next_start, chunk_size),
             )
 
     def get_selected_indices(self) -> set[int]:
@@ -535,9 +533,7 @@ class SlideSorterView(QScrollArea):
             self._drop_target_index = target_idx
             geo = best_ref.geometry()
             marker_x = (
-                (geo.left() - self.spacing // 2)
-                if before
-                else (geo.right() + self.spacing // 2)
+                (geo.left() - self.spacing // 2) if before else (geo.right() + self.spacing // 2)
             )
             self.grid_widget.drop_marker_x = marker_x
             self.grid_widget.drop_marker_y = geo.top()

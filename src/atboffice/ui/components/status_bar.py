@@ -65,9 +65,7 @@ class StatusBar(OfficeStatusBar):
         self.lbl_calc = AutoCalcLabel(self, self)
         self.lbl_calc.setProperty("statusField", True)
         self.lbl_calc.setMinimumWidth(110)
-        self.lbl_calc.setAlignment(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
+        self.lbl_calc.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.addPermanentWidget(self.lbl_calc, 0)
 
         # 4. Keyboard lock indicators
@@ -125,9 +123,7 @@ class StatusBar(OfficeStatusBar):
             if isinstance(new_fn, str):
                 self.set_calc_function(new_fn)
 
-    def update_calculation(
-        self, model: SheetDataModel, selection: SelectionModel
-    ) -> None:
+    def update_calculation(self, model: SheetDataModel, selection: SelectionModel) -> None:
         """Recalculate AutoCalculate aggregation for the current selection."""
         self._last_model = model
         self._last_selection = selection
@@ -137,9 +133,7 @@ class StatusBar(OfficeStatusBar):
             return
 
         ranges = selection.ranges
-        is_multi = len(ranges) > 1 or any(
-            r.min_r != r.max_r or r.min_c != r.max_c for r in ranges
-        )
+        is_multi = len(ranges) > 1 or any(r.min_r != r.max_r or r.min_c != r.max_c for r in ranges)
         if not is_multi:
             self.lbl_calc.setText("")
             return

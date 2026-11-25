@@ -15,13 +15,13 @@ from atboffice.modules.spreadsheet.models.color_utils import (
 def test_rgb_to_hsl_and_back():
     """Verify lossless RGB <-> HSL conversions for primary colors."""
     cases = [
-        (255, 0, 0),      # Red
-        (0, 255, 0),      # Green
-        (0, 0, 255),      # Blue
+        (255, 0, 0),  # Red
+        (0, 255, 0),  # Green
+        (0, 0, 255),  # Blue
         (255, 255, 255),  # White
-        (0, 0, 0),        # Black
+        (0, 0, 0),  # Black
         (128, 128, 128),  # Gray
-        (79, 129, 189),   # Excel Accent 1 (#4F81BD)
+        (79, 129, 189),  # Excel Accent 1 (#4F81BD)
     ]
     for r, g, b in cases:
         h, s, lum = rgb_to_hsl(r, g, b)

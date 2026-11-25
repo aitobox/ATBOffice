@@ -334,13 +334,24 @@ def run_isolated_capture(
 def main() -> None:
     parser = argparse.ArgumentParser(description="ATBOffice Offscreen Canvas Capture Worker")
     parser.add_argument("--file", required=True, help="Path to document file")
-    parser.add_argument("--app", choices=["word", "excel", "powerpoint"], required=True, help="App type")
-    parser.add_argument("--out", default=str(repo_root / "screenshots" / "atboffice_docs"), help="Output directory")
+    parser.add_argument(
+        "--app", choices=["word", "excel", "powerpoint"], required=True, help="App type"
+    )
+    parser.add_argument(
+        "--out", default=str(repo_root / "screenshots" / "atboffice_docs"), help="Output directory"
+    )
     parser.add_argument("--width", type=int, default=1440, help="Viewport width")
     parser.add_argument("--height", type=int, default=900, help="Viewport height")
     parser.add_argument("--canvas-only", action="store_true", help="Alias for --region canvas")
-    parser.add_argument("--region", choices=region_names(), default=None, help="Named capture region (default from regions.json)")
-    parser.add_argument("--baseline-dir", default=None, help="Baseline directory whose sizes the capture must match")
+    parser.add_argument(
+        "--region",
+        choices=region_names(),
+        default=None,
+        help="Named capture region (default from regions.json)",
+    )
+    parser.add_argument(
+        "--baseline-dir", default=None, help="Baseline directory whose sizes the capture must match"
+    )
     parser.add_argument("--json-single", action="store_true", help="Output JSON and exit")
     args = parser.parse_args()
 

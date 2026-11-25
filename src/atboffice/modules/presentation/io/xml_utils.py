@@ -55,9 +55,7 @@ REL_DIAGRAM_STYLE = (
 REL_COMMENT_AUTHORS = (
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/commentAuthors"
 )
-REL_COMMENTS = (
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
-)
+REL_COMMENTS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
 REL_AUTHORS_MODERN = "http://schemas.microsoft.com/office/2018/10/relationships/authors"
 REL_COMMENTS_MODERN = "http://schemas.microsoft.com/office/2018/10/relationships/comments"
 
@@ -155,6 +153,7 @@ class RelationshipBuilder:
     @property
     def _relationships(self) -> list[Any]:
         """Compatibility property exposing objects with .type, .target, .id."""
+
         class _RelProxy:
             def __init__(self, d: dict[str, str]) -> None:
                 self.id = d["id"]

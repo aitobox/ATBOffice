@@ -29,6 +29,7 @@ class FormatSegment:
     kind: Literal["text", "pad", "fill"]
     value: str
 
+
 @dataclass(frozen=True)
 class FormattedResult:
     text: str

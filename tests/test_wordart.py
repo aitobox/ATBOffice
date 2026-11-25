@@ -47,8 +47,8 @@ def test_wordart_warp_points_all_modes():
 def test_wordart_composite_path_generation(qapp):
     """Test generating vector QPainterPath for both plain and warped text."""
     style_plain = WA_STYLES[0]  # Plain text
-    style_arch = WA_STYLES[4]   # Arch Up
-    style_wave = WA_STYLES[5]   # Wave
+    style_arch = WA_STYLES[4]  # Arch Up
+    style_wave = WA_STYLES[5]  # Wave
 
     rect = QRectF(0.0, 0.0, 300.0, 150.0)
 
@@ -176,4 +176,3 @@ def test_mac_menu_and_base_window_wordart_integration(qapp):
     assert "艺术字" in act.text()
 
     win.close()
-

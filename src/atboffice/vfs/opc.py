@@ -328,7 +328,7 @@ class SourcePackage:
 
                 if is_ole_compound_file(data):
                     ole_fmt = detect_ole_format(data)
-                    is_enc = (ole_fmt == "encrypted_ooxml")
+                    is_enc = ole_fmt == "encrypted_ooxml"
                     msg = (
                         "This file is password-protected."
                         if is_enc
@@ -526,9 +526,7 @@ class PackageWriter:
         self._deleted_parts: set[str] = set()
         self._part_content_types: dict[str, str] = {}
 
-    def replace_part(
-        self, part_name: str, content: bytes, content_type: str | None = None
-    ) -> None:
+    def replace_part(self, part_name: str, content: bytes, content_type: str | None = None) -> None:
         """Replace an existing part with new content."""
         norm = normalize_part_name(part_name)
         self._modified_parts[norm] = content
@@ -553,9 +551,7 @@ class PackageWriter:
         self._added_parts.pop(norm, None)
         self._part_content_types.pop(norm, None)
 
-    def _build_content_types_xml(
-        self, active_parts: dict[str, bytes]
-    ) -> bytes:
+    def _build_content_types_xml(self, active_parts: dict[str, bytes]) -> bytes:
         """Reconstruct [Content_Types].xml reflecting all additions, overrides, and deletions."""
         defaults: dict[str, str] = {}
         overrides: dict[str, str] = {}
@@ -592,9 +588,7 @@ class PackageWriter:
 
         for part in sorted(overrides.keys()):
             entry = self._source.zip_name(part) if self._source else part
-            ET.SubElement(
-                root, f"{q}Override", PartName=f"/{entry}", ContentType=overrides[part]
-            )
+            ET.SubElement(root, f"{q}Override", PartName=f"/{entry}", ContentType=overrides[part])
 
         return ET.tostring(root, encoding="UTF-8", xml_declaration=True, standalone=True)
 
@@ -624,10 +618,7 @@ class PackageWriter:
 
         # 4. Handle [Content_Types].xml
         has_mutations = bool(
-            self._added_parts
-            or self._deleted_parts
-            or self._part_content_types
-            or not self._source
+            self._added_parts or self._deleted_parts or self._part_content_types or not self._source
         )
         if "[Content_Types].xml" in self._modified_parts:
             active_parts["[Content_Types].xml"] = self._modified_parts["[Content_Types].xml"]
@@ -666,9 +657,7 @@ class PackageWriter:
         payload = self.to_bytes()
 
         # Atomic write: write to NamedTemporaryFile in same directory, fsync, then atomic replace
-        temp_file = tempfile.NamedTemporaryFile(
-            dir=path.parent, prefix=".tmp_opc_", delete=False
-        )
+        temp_file = tempfile.NamedTemporaryFile(dir=path.parent, prefix=".tmp_opc_", delete=False)
         temp_path = Path(temp_file.name)
         try:
             temp_file.write(payload)

@@ -33,9 +33,7 @@ def _reset_wm():
     WindowManager.reset_instance()
 
 
-def test_ledger_imported_xls_enforces_readonly_save_constraint(
-    qtbot, monkeypatch, tmp_path: Path
-):
+def test_ledger_imported_xls_enforces_readonly_save_constraint(qtbot, monkeypatch, tmp_path: Path):
     """Imported binary .xls must be read-only for in-place .xls saving, preserving disk bytes."""
     src_xls = Path("tests/docs/excel/xls/libreoffice__AutoFilter.xls")
     assert src_xls.exists()
@@ -85,9 +83,7 @@ def test_ledger_imported_xls_enforces_readonly_save_constraint(
     assert win.is_read_only_import is False
 
 
-def test_corrupt_xls_shows_corrupt_critical_dialog_not_unsupported_format(
-    qtbot, monkeypatch
-):
+def test_corrupt_xls_shows_corrupt_critical_dialog_not_unsupported_format(qtbot, monkeypatch):
     """Corrupt .xls files must trigger a corrupt dialog, not an unsupported format warning."""
     corrupt_samples = [
         Path("tests/docs/excel/xls/libreoffice__CVE-2010-1246-1.xls"),
@@ -270,4 +266,3 @@ def test_real_open_isolated_timeout_crash_and_unexecuted_render_guard():
     assert crash_res["outcome"] == "crash"
     assert crash_res.get("exitcode") != 0
     assert crash_res["stages"]["render"] == "skip"
-

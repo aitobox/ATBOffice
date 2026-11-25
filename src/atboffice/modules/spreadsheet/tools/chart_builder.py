@@ -96,8 +96,11 @@ def _clamp_used(sheet: Any, r1: int, c1: int, r2: int, c2: int) -> tuple[int, in
     """Shrink whole-row/whole-column ranges to the populated cells."""
     cells = getattr(sheet, "cells", {}) or {}
     if r2 - r1 > 5000 or c2 - c1 > 500:
-        used = [(r, c) for (r, c), cell in cells.items()
-                if r1 <= r <= r2 and c1 <= c <= c2 and getattr(cell, "value", None) is not None]
+        used = [
+            (r, c)
+            for (r, c), cell in cells.items()
+            if r1 <= r <= r2 and c1 <= c <= c2 and getattr(cell, "value", None) is not None
+        ]
         if used:
             r2 = min(r2, max(r for r, _ in used))
             c2 = min(c2, max(c for _, c in used))
@@ -123,12 +126,16 @@ def table_from_range(
         return [], []
     n_rows, n_cols = len(grid), len(grid[0])
 
-    header_row = n_rows > 1 and all(
-        _is_label(v) or v in (None, "") for v in grid[0][1 if n_cols > 1 else 0:]
-    ) and any(_is_label(v) for v in grid[0])
-    header_col = n_cols > 1 and all(
-        _is_label(row[0]) or row[0] in (None, "") for row in grid[1 if header_row else 0:]
-    ) and any(_is_label(row[0]) for row in grid[1 if header_row else 0:])
+    header_row = (
+        n_rows > 1
+        and all(_is_label(v) or v in (None, "") for v in grid[0][1 if n_cols > 1 else 0 :])
+        and any(_is_label(v) for v in grid[0])
+    )
+    header_col = (
+        n_cols > 1
+        and all(_is_label(row[0]) or row[0] in (None, "") for row in grid[1 if header_row else 0 :])
+        and any(_is_label(row[0]) for row in grid[1 if header_row else 0 :])
+    )
 
     data_rows = grid[1:] if header_row else grid
     first_data_col = 1 if header_col else 0

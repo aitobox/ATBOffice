@@ -362,9 +362,7 @@ def evaluate_ast(node: ASTNode, ctx: EvalContext | None = None) -> Any:
     return VALUE
 
 
-def evaluate(
-    formula: str, ctx: EvalContext | None = None, workbook: Any | None = None
-) -> Any:
+def evaluate(formula: str, ctx: EvalContext | None = None, workbook: Any | None = None) -> Any:
     """Parse and evaluate an Excel formula expression (with or without leading '=')."""
     if ctx is None:
         ctx = EvalContext(workbook=workbook)

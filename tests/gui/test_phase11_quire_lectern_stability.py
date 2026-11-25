@@ -121,9 +121,7 @@ def test_table_operations_keep_undo_history(quire: QuireWindow) -> None:
     assert labels[-2] == "插入表格"
 
 
-def test_hidden_review_pane_is_not_rebuilt_per_keystroke(
-    quire: QuireWindow, monkeypatch
-) -> None:
+def test_hidden_review_pane_is_not_rebuilt_per_keystroke(quire: QuireWindow, monkeypatch) -> None:
     view = quire.writer_view
     calls: list[int] = []
     monkeypatch.setattr(view.review_pane, "refresh_items", lambda: calls.append(1))

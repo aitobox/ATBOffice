@@ -418,10 +418,7 @@ def _left_edge_colors(view, r: int, c: int) -> set[str]:
     dpr = img.devicePixelRatio() or 1.0
     rect = view.grid.device_cell_rect(r, c)
     y = int(rect.center().y() * dpr)
-    return {
-        img.pixelColor(int(x * dpr), y).name()
-        for x in range(rect.left() - 2, rect.left() + 3)
-    }
+    return {img.pixelColor(int(x * dpr), y).name() for x in range(rect.left() - 2, rect.left() + 3)}
 
 
 def test_page_layout_form_hides_gridlines_under_filled_column_styles(qtbot):

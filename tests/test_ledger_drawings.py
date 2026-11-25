@@ -23,8 +23,6 @@ FIXTURES = Path(__file__).parent / "docs" / "excel" / "xlsx"
 A = "http://schemas.openxmlformats.org/drawingml/2006/main"
 
 
-
-
 def _xml(body: str) -> ET.Element:
     return ET.fromstring(f'<a:spPr xmlns:a="{A}">{body}</a:spPr>')
 

@@ -187,12 +187,14 @@ class WriterView(QWidget):
 
                 old_tabs = copy.deepcopy(p.p_pr.tabs)
                 p.p_pr.tabs = copy.deepcopy(new_tabs)
-                self.canvas_view.push_undo_command({
-                    "type": "paragraph_tabs",
-                    "para_id": p.id,
-                    "before": old_tabs,
-                    "after": copy.deepcopy(new_tabs),
-                })
+                self.canvas_view.push_undo_command(
+                    {
+                        "type": "paragraph_tabs",
+                        "para_id": p.id,
+                        "before": old_tabs,
+                        "after": copy.deepcopy(new_tabs),
+                    }
+                )
                 self.h_ruler.tab_stops_changed.emit(p.p_pr.tabs)
                 self.canvas_view.controller.repaginate_and_refresh()
                 self.h_ruler.update_geometry_from_canvas()
@@ -210,12 +212,14 @@ class WriterView(QWidget):
         if dlg.exec():
             new_state = {"ml": sect.ml, "mr": sect.mr, "mt": sect.mt, "mb": sect.mb}
             if self.canvas_view and new_state != old_state:
-                self.canvas_view.push_undo_command({
-                    "type": "section_margins",
-                    "sect": sect,
-                    "before": old_state,
-                    "after": new_state,
-                })
+                self.canvas_view.push_undo_command(
+                    {
+                        "type": "section_margins",
+                        "sect": sect,
+                        "before": old_state,
+                        "after": new_state,
+                    }
+                )
                 self.canvas_view.controller.repaginate_and_refresh()
                 self.h_ruler.update_geometry_from_canvas()
                 self.v_ruler.update_geometry_from_canvas()

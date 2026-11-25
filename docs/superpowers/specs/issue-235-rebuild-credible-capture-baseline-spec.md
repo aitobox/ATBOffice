@@ -44,6 +44,7 @@ tests/
       MISSING = "missing"
       FAILED = "failed"
 
+
   @dataclass
   class CaptureScenario:
       id: int

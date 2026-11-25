@@ -140,9 +140,7 @@ class FormulaBar(QWidget):
         if ":" in text:
             rng = parse_range(text)
             if rng is not None:
-                self.range_navigate_requested.emit(
-                    rng["r1"], rng["c1"], rng["r2"], rng["c2"]
-                )
+                self.range_navigate_requested.emit(rng["r1"], rng["c1"], rng["r2"], rng["c2"])
                 return
 
         # Check for single cell: e.g. B5

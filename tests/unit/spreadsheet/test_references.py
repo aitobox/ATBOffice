@@ -1,6 +1,5 @@
 """Unit tests for spreadsheet cell and range reference arithmetic."""
 
-
 from atboffice.modules.spreadsheet.calc.references import (
     MAXC,
     MAXR,

@@ -256,7 +256,3 @@ def test_feature_matrix_entry() -> None:
                 assert row[4] == "yes", f"Expected 'yes' clone status, got {row[4]}"
                 break
     assert found, "Document Printing and Print Preview Subsystem entry not found in features.csv"
-
-
-
-

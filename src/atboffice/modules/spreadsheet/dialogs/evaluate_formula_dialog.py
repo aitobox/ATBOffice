@@ -277,9 +277,7 @@ class EvaluateFormulaDialog(QDialog):
         if self.cur_target is None or is_lit(self.ast):
             # Final result reached
             escaped_text = html.escape(full_text)
-            self.edit_preview.setHtml(
-                f"<div style='{style}'><b>={escaped_text}</b></div>"
-            )
+            self.edit_preview.setHtml(f"<div style='{style}'><b>={escaped_text}</b></div>")
             self.btn_evaluate.setText(safe_tr("重新启动(&R)"))
             return
 

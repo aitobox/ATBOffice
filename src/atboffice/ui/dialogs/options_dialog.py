@@ -147,12 +147,8 @@ class OptionsDialog(QDialog):
         grp_layout = QVBoxLayout(self.grp_startup)
         grp_layout.setSpacing(8)
 
-        self.rb_start_center = QRadioButton(
-            safe_tr("显示启动中心（推荐）"), self.grp_startup
-        )
-        self.rb_start_new_doc = QRadioButton(
-            safe_tr("直接新建空白文档"), self.grp_startup
-        )
+        self.rb_start_center = QRadioButton(safe_tr("显示启动中心（推荐）"), self.grp_startup)
+        self.rb_start_new_doc = QRadioButton(safe_tr("直接新建空白文档"), self.grp_startup)
         self.start_group = QButtonGroup(self.tab_general)
         self.start_group.addButton(self.rb_start_center, 0)
         self.start_group.addButton(self.rb_start_new_doc, 1)
@@ -197,9 +193,7 @@ class OptionsDialog(QDialog):
         )
         theme_layout.addWidget(self.lbl_theme_desc)
         theme_layout.addStretch(1)
-        self.btn_open_theme_dialog = QPushButton(
-            safe_tr("打开主题选择器…"), self.grp_theme_view
-        )
+        self.btn_open_theme_dialog = QPushButton(safe_tr("打开主题选择器…"), self.grp_theme_view)
         self.btn_open_theme_dialog.clicked.connect(self._on_open_theme_dialog)
         theme_layout.addWidget(self.btn_open_theme_dialog)
         layout.addWidget(self.grp_theme_view)
@@ -274,9 +268,7 @@ class OptionsDialog(QDialog):
         self.spin_auto_save = QSpinBox(self.tab_save)
         self.spin_auto_save.setRange(1, 60)
         self.spin_auto_save.setValue(10)
-        self.lbl_auto_save = QLabel(
-            safe_tr("自动恢复信息保存时间间隔："), self.tab_save
-        )
+        self.lbl_auto_save = QLabel(safe_tr("自动恢复信息保存时间间隔："), self.tab_save)
         form.addRow(self.lbl_auto_save, self.spin_auto_save)
 
         # Default Save Format
@@ -424,9 +416,7 @@ class OptionsDialog(QDialog):
         try:
             families = QFontDatabase.families()
             count = len(families)
-            self.lbl_font_info.setText(
-                safe_tr("已加载 {count} 款系统字体。").format(count=count)
-            )
+            self.lbl_font_info.setText(safe_tr("已加载 {count} 款系统字体。").format(count=count))
         except Exception:
             self.lbl_font_info.setText(safe_tr("系统字体可用。"))
 
@@ -470,9 +460,7 @@ class OptionsDialog(QDialog):
             self._update_font_info_text()
 
         self.spin_auto_save.setValue(int(DEFAULT_SETTINGS["save/auto_save_interval"]))
-        fmt_idx = self.combo_save_format.findText(
-            str(DEFAULT_SETTINGS["save/default_save_format"])
-        )
+        fmt_idx = self.combo_save_format.findText(str(DEFAULT_SETTINGS["save/default_save_format"]))
         if fmt_idx >= 0:
             self.combo_save_format.setCurrentIndex(fmt_idx)
 
@@ -513,17 +501,13 @@ class OptionsDialog(QDialog):
         self.lbl_ui_scale.setText(safe_tr("界面缩放比率："))
         self.lbl_status_timeout.setText(safe_tr("状态栏提示显示时间："))
         self.grp_theme_view.setTitle(safe_tr("外观与主题"))
-        self.lbl_theme_desc.setText(
-            safe_tr("ATBOffice 包含 4 款经典 Office 2003 质感外观配色。")
-        )
+        self.lbl_theme_desc.setText(safe_tr("ATBOffice 包含 4 款经典 Office 2003 质感外观配色。"))
         self.btn_open_theme_dialog.setText(safe_tr("打开主题选择器…"))
 
         # Edit
         self.lbl_font_family.setText(safe_tr("默认字体："))
         self.lbl_font_size.setText(safe_tr("默认字号："))
-        self.chk_show_gridlines.setText(
-            safe_tr("在 Ledger 电子表格中默认显示单元格网格线")
-        )
+        self.chk_show_gridlines.setText(safe_tr("在 Ledger 电子表格中默认显示单元格网格线"))
         if hasattr(self, "grp_system_fonts"):
             self.grp_system_fonts.setTitle(safe_tr("本机安装字体与扫描"))
         if hasattr(self, "chk_scan_system_fonts"):

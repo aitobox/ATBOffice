@@ -259,7 +259,7 @@ def test_tr_height_omitted_hrule_defaults_to_at_least() -> None:
     reader = DocxReader()
     tbl_xml = ET.fromstring(
         '<w:tbl xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
-        "<w:tblGrid><w:gridCol w:w=\"2000\"/></w:tblGrid>"
+        '<w:tblGrid><w:gridCol w:w="2000"/></w:tblGrid>'
         '<w:tr><w:trPr><w:trHeight w:val="500" w:hRule="auto"/></w:trPr>'
         "<w:tc><w:p/></w:tc></w:tr>"
         "<w:tr><w:trPr><w:trHeight/></w:trPr>"

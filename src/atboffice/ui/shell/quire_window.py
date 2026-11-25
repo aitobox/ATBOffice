@@ -370,8 +370,7 @@ class QuireWindow(BaseOfficeWindow):
             ("promoteH1", outline.promote_selected_h1, lambda: canvas.set_outline_level(1)),
             ("promote", outline.promote_selected, lambda: canvas.change_outline_level(-1)),
             ("demote", outline.demote_selected, lambda: canvas.change_outline_level(1)),
-            ("demoteBody", outline.demote_selected_body,
-             lambda: canvas.set_outline_level(None)),
+            ("demoteBody", outline.demote_selected_body, lambda: canvas.set_outline_level(None)),
             ("moveUp", outline.move_selected_up, lambda: canvas.move_paragraph(-1)),
             ("moveDown", outline.move_selected_down, lambda: canvas.move_paragraph(1)),
         ):
@@ -568,7 +567,6 @@ class QuireWindow(BaseOfficeWindow):
 
         self.toolbar_commands = bind_quire_toolbar_commands(self)
 
-
     def _outline_dispatch(self, pane_cmd: Any, canvas_cmd: Any) -> None:
         if getattr(self.writer_view, "view_mode", None) == ViewMode.OUTLINE:
             pane_cmd()
@@ -589,16 +587,21 @@ class QuireWindow(BaseOfficeWindow):
         reg.set_handler("table_delete", self.open_delete_cells_dialog)
         reg.set_handler("table_select", lambda: doc_actions.select_table(canvas))
         reg.set_handler("table_properties", self.open_table_properties_dialog)
-        reg.set_handler("insert_page_break", lambda: self._apply_dialog(
-            lambda: doc_actions.insert_page_break(canvas)))
+        reg.set_handler(
+            "insert_page_break",
+            lambda: self._apply_dialog(lambda: doc_actions.insert_page_break(canvas)),
+        )
         reg.set_handler("insert_page_number", self.open_page_numbers_dialog)
         reg.set_handler("insert_date_time", self.open_date_time_dialog)
         reg.set_handler("insert_symbol", self.open_symbol_dialog)
         reg.set_handler("columns", self.open_columns_dialog)
-        reg.set_handler("col_left", lambda: self._apply_dialog(
-            lambda: doc_actions.set_columns(canvas, "left")))
-        reg.set_handler("col_right", lambda: self._apply_dialog(
-            lambda: doc_actions.set_columns(canvas, "right")))
+        reg.set_handler(
+            "col_left", lambda: self._apply_dialog(lambda: doc_actions.set_columns(canvas, "left"))
+        )
+        reg.set_handler(
+            "col_right",
+            lambda: self._apply_dialog(lambda: doc_actions.set_columns(canvas, "right")),
+        )
         # Toolbar IDs that name the same commands as the View menu.
         reg.register_alias("docMap", "view_doc_map")
         reg.register_alias("viewReading", "view_reading")
@@ -619,8 +622,23 @@ class QuireWindow(BaseOfficeWindow):
         dlg = FontDialog(props=self._selection_run_props(), parent=self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             new = dlg.get_properties()
-            fields = ("font", "font_ea", "font_cs", "sz", "b", "i", "u", "color", "vert",
-                      "strike", "dstrike", "caps", "small_caps", "spacing", "highlight")
+            fields = (
+                "font",
+                "font_ea",
+                "font_cs",
+                "sz",
+                "b",
+                "i",
+                "u",
+                "color",
+                "vert",
+                "strike",
+                "dstrike",
+                "caps",
+                "small_caps",
+                "spacing",
+                "highlight",
+            )
 
             def apply(r_pr: Any) -> None:
                 for name in fields:
@@ -641,8 +659,16 @@ class QuireWindow(BaseOfficeWindow):
 
             def apply() -> None:
                 for para in self._selected_paragraphs():
-                    for name in ("jc", "ind", "sp", "keep_next", "keep_lines",
-                                 "page_break_before", "widow_control", "outline_level"):
+                    for name in (
+                        "jc",
+                        "ind",
+                        "sp",
+                        "keep_next",
+                        "keep_lines",
+                        "page_break_before",
+                        "widow_control",
+                        "outline_level",
+                    ):
                         setattr(para.p_pr, name, copy.deepcopy(getattr(new, name)))
 
             self._apply_dialog(apply)
@@ -699,8 +725,9 @@ class QuireWindow(BaseOfficeWindow):
 
         canvas = self.writer_view.canvas_view
         sect = canvas.doc.sect
-        dlg = ColumnsDialog(parent=self, cols=sect.cols, page_width=sect.pg_w,
-                            margins=(sect.ml, sect.mr))
+        dlg = ColumnsDialog(
+            parent=self, cols=sect.cols, page_width=sect.pg_w, margins=(sect.ml, sect.mr)
+        )
         if dlg.exec() == QDialog.DialogCode.Accepted:
             cols = dlg.get_columns()
             self._apply_dialog(lambda: setattr(canvas.doc.sect, "cols", copy.deepcopy(cols)))
@@ -740,10 +767,16 @@ class QuireWindow(BaseOfficeWindow):
         from PySide6.QtWidgets import QInputDialog
 
         languages = [
-            ("English (United States)", "en-US"), ("English (United Kingdom)", "en-GB"),
-            ("中文(中国)", "zh-CN"), ("中文(台湾)", "zh-TW"), ("日本語", "ja-JP"),
-            ("한국어", "ko-KR"), ("Deutsch", "de-DE"), ("Français", "fr-FR"),
-            ("Español", "es-ES"), ("Русский", "ru-RU"),
+            ("English (United States)", "en-US"),
+            ("English (United Kingdom)", "en-GB"),
+            ("中文(中国)", "zh-CN"),
+            ("中文(台湾)", "zh-TW"),
+            ("日本語", "ja-JP"),
+            ("한국어", "ko-KR"),
+            ("Deutsch", "de-DE"),
+            ("Français", "fr-FR"),
+            ("Español", "es-ES"),
+            ("Русский", "ru-RU"),
         ]
         labels = [name for name, _ in languages]
         choice, ok = QInputDialog.getItem(
@@ -1458,9 +1491,13 @@ class QuireWindow(BaseOfficeWindow):
         if self._syncing_toolbars or not text:
             return
         style_ids = {
-            safe_tr("正文"): "Normal", safe_tr("标题 1"): "Heading1",
-            safe_tr("标题 2"): "Heading2", safe_tr("标题 3"): "Heading3",
-            safe_tr("副标题"): "Subtitle", safe_tr("页眉"): "Header", safe_tr("页脚"): "Footer",
+            safe_tr("正文"): "Normal",
+            safe_tr("标题 1"): "Heading1",
+            safe_tr("标题 2"): "Heading2",
+            safe_tr("标题 3"): "Heading3",
+            safe_tr("副标题"): "Subtitle",
+            safe_tr("页眉"): "Header",
+            safe_tr("页脚"): "Footer",
         }
         style_id = style_ids.get(text)
         if style_id is None:
@@ -1626,9 +1663,7 @@ class QuireWindow(BaseOfficeWindow):
 
         doc = getattr(self.writer_view.canvas_view, "doc", None)
         self.styles_pane = StylesAndFormattingPane(doc=doc, parent=self.task_pane_dock)
-        self.styles_pane.apply_style_requested.connect(
-            self.writer_view.canvas_view.apply_style
-        )
+        self.styles_pane.apply_style_requested.connect(self.writer_view.canvas_view.apply_style)
         self.styles_pane.clear_formatting_requested.connect(
             self.writer_view.canvas_view.clear_formatting
         )
@@ -1796,7 +1831,10 @@ class QuireWindow(BaseOfficeWindow):
             "none": (),
             "all": ("top", "left", "bottom", "right", "between"),
             "outside": ("top", "left", "bottom", "right"),
-            "top": ("top",), "bottom": ("bottom",), "left": ("left",), "right": ("right",),
+            "top": ("top",),
+            "bottom": ("bottom",),
+            "left": ("left",),
+            "right": ("right",),
             "inside": ("between",),
         }.get(preset)
         if sides is None:

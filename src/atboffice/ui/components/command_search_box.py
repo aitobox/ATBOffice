@@ -513,8 +513,7 @@ class CommandSearchBox(QWidget):
                 words = set(_WORD.findall(lbl_lower)) | set(_WORD.findall(aid_lower))
                 long_tokens = [t for t in tokens if len(t) >= 3]
                 if long_tokens and all(
-                    any(len(w) >= 3 and within_one_edit(t, w) for w in words)
-                    for t in long_tokens
+                    any(len(w) >= 3 and within_one_edit(t, w) for w in words) for t in long_tokens
                 ):
                     score = 3.0
 

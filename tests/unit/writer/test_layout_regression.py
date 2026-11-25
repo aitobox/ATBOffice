@@ -54,14 +54,16 @@ class TestPortionsSegmentationAndMeasuring:
     def test_mixed_inline_elements_portions(self) -> None:
         """Verify paragraph with text, tab, symbol, and line break breaks into portions."""
         p = Paragraph()
-        p.runs.extend([
-            TextItem("Item 1", r_pr=RunProperties(font="Calibri", sz=11.0, b=True)),
-            TabItem(),
-            TextItem("Details", r_pr=RunProperties(font="Calibri", sz=11.0)),
-            BreakItem(break_type="line"),
-            SymbolItem(font="Wingdings", char="★"),
-            TextItem(" Note on new line", r_pr=RunProperties(font="Arial", sz=9.0, i=True)),
-        ])
+        p.runs.extend(
+            [
+                TextItem("Item 1", r_pr=RunProperties(font="Calibri", sz=11.0, b=True)),
+                TabItem(),
+                TextItem("Details", r_pr=RunProperties(font="Calibri", sz=11.0)),
+                BreakItem(break_type="line"),
+                SymbolItem(font="Wingdings", char="★"),
+                TextItem(" Note on new line", r_pr=RunProperties(font="Arial", sz=9.0, i=True)),
+            ]
+        )
 
         # Width of 400 pt allows line 1 to fit before the hard line break
         res = layout_paragraph(p, container_width=400.0)
@@ -117,16 +119,12 @@ class TestLineHeightAndSpacingRules:
     def test_multiple_line_spacing(self) -> None:
         """Verify 1.5x and 2.0x multiple line spacing scales font line height."""
         p_single = Paragraph()
-        p_single.p_pr = ParagraphProperties(
-            sp=SpacingProperties(line=1.0, line_rule="auto")
-        )
+        p_single.p_pr = ParagraphProperties(sp=SpacingProperties(line=1.0, line_rule="auto"))
         p_single.runs.append(TextItem("Single line spacing.", r_pr=RunProperties(sz=12.0)))
         res_single = layout_paragraph(p_single, container_width=400.0)
 
         p_double = Paragraph()
-        p_double.p_pr = ParagraphProperties(
-            sp=SpacingProperties(line=2.0, line_rule="auto")
-        )
+        p_double.p_pr = ParagraphProperties(sp=SpacingProperties(line=2.0, line_rule="auto"))
         p_double.runs.append(TextItem("Double line spacing.", r_pr=RunProperties(sz=12.0)))
         res_double = layout_paragraph(p_double, container_width=400.0)
 
@@ -348,9 +346,7 @@ class TestDynamicNumberFormatting:
             (23, "ordinal", "23rd"),
         ],
     )
-    def test_number_formatting_comprehensive(
-        self, number: int, fmt: str, expected: str
-    ) -> None:
+    def test_number_formatting_comprehensive(self, number: int, fmt: str, expected: str) -> None:
         assert format_number(number, fmt) == expected
 
 
@@ -477,9 +473,7 @@ class TestIEEEHeadingFrameWrapping:
         assert title_box.x + title_box.w <= sect.pg_w - sect.mr
 
         assert len(title_box.lines) == 2
-        line_texts = [
-            "".join(po.text for po in line.portions).strip() for line in title_box.lines
-        ]
+        line_texts = ["".join(po.text for po in line.portions).strip() for line in title_box.lines]
         assert line_texts == [
             "Preparation of Papers for IEEE TRANSACTIONS",
             "and JOURNALS (November 2012)",

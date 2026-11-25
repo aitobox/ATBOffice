@@ -167,11 +167,7 @@ def render_slide_thumbnail(
                                     cell_tx = TextBody.from_dict(cell_tx)
                                 except Exception:
                                     cell_tx = None
-                            if (
-                                cell_tx
-                                and hasattr(cell_tx, "is_empty")
-                                and not cell_tx.is_empty()
-                            ):
+                            if cell_tx and hasattr(cell_tx, "is_empty") and not cell_tx.is_empty():
                                 c_col = QColor(design.colors.dk1 if design else "#000000")
                                 for p in cell_tx.paragraphs:
                                     for r_item in p.runs:
@@ -1083,10 +1079,7 @@ class DegradedLoadBanner(QFrame):
         self.setObjectName("degradedLoadBanner")
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setStyleSheet(
-            "#degradedLoadBanner {"
-            "  background-color: #FFF4CE;"
-            "  border-bottom: 1px solid #E2B857;"
-            "}"
+            "#degradedLoadBanner {  background-color: #FFF4CE;  border-bottom: 1px solid #E2B857;}"
         )
         layout = QHBoxLayout(self)
         layout.setContentsMargins(12, 6, 12, 6)
@@ -1126,10 +1119,7 @@ class DegradedLoadBanner(QFrame):
 
     def _on_details_clicked(self) -> None:
         max_items = 50
-        lines = [
-            f"[{w.scope}] {w.location}: {w.message}"
-            for w in self._warnings[:max_items]
-        ]
+        lines = [f"[{w.scope}] {w.location}: {w.message}" for w in self._warnings[:max_items]]
         if len(self._warnings) > max_items:
             more_tpl = safe_tr("……另有 {rest} 条未展开显示")
             lines.append(more_tpl.format(rest=len(self._warnings) - max_items))

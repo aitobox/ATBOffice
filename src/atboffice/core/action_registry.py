@@ -119,13 +119,9 @@ class ActionRegistry(QObject):
         action = QAction(action_parent or self)
         self._apply_spec_to_action(action, spec)
 
-        action.triggered.connect(
-            lambda checked=False, aid=spec.id: self._on_action_triggered(aid)
-        )
+        action.triggered.connect(lambda checked=False, aid=spec.id: self._on_action_triggered(aid))
         action.toggled.connect(
-            lambda chk, aid=spec.id: self.action_state_changed.emit(
-                aid, action.isEnabled(), chk
-            )
+            lambda chk, aid=spec.id: self.action_state_changed.emit(aid, action.isEnabled(), chk)
         )
 
         self._actions[spec.id] = action

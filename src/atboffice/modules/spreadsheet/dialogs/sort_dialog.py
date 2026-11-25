@@ -122,8 +122,7 @@ class SortDialog(QDialog):
 
         # 6. Dialog buttons (OK / Cancel)
         self.button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok
-            | QDialogButtonBox.StandardButton.Cancel,
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
             self,
         )
         self.button_box.accepted.connect(self.accept)

@@ -372,9 +372,7 @@ class CFFormatDialog(QDialog):
         self.btn_fill.setStyleSheet(f"background: {self.bg_color or '#FFFFFF'};")
 
     def _pick_font_color(self) -> None:
-        col = QColorDialog.getColor(
-            QColor(self.fg_color or "#9C0006"), self, safe_tr("Font Color")
-        )
+        col = QColorDialog.getColor(QColor(self.fg_color or "#9C0006"), self, safe_tr("Font Color"))
         if col.isValid():
             self.fg_color = col.name().upper()
             self._refresh()

@@ -389,9 +389,7 @@ class AnimationPane(QWidget):
             target_row = 0
         if target_row >= 0:
             self.list_anims.setCurrentRow(target_row)
-            self._selected_anim_id = self.list_anims.item(target_row).data(
-                Qt.ItemDataRole.UserRole
-            )
+            self._selected_anim_id = self.list_anims.item(target_row).data(Qt.ItemDataRole.UserRole)
         self._updating_ui = False
         self._update_property_controls(self._get_selected_animation() if target_row >= 0 else None)
 

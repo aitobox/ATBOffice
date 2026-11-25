@@ -288,8 +288,13 @@ class PageSetupDialog(QDialog):
         self.radio_landscape.toggled.connect(self._on_orientation_toggled)
 
         for spin in [
-            self.spin_top, self.spin_bottom, self.spin_left, self.spin_right,
-            self.spin_gutter, self.spin_hdr_margin, self.spin_ftr_margin
+            self.spin_top,
+            self.spin_bottom,
+            self.spin_left,
+            self.spin_right,
+            self.spin_gutter,
+            self.spin_hdr_margin,
+            self.spin_ftr_margin,
         ]:
             spin.valueChanged.connect(self._trigger_preview)
 
@@ -388,8 +393,8 @@ class PageSetupDialog(QDialog):
                 matches_normal = abs(w - pw) < 0.5 and abs(h - ph) < 0.5
             matches_swapped = abs(w - ph) < 0.5 and abs(h - pw) < 0.5
             if matches_normal or matches_swapped:
-                    matched_idx = i
-                    break
+                matched_idx = i
+                break
         if matched_idx >= 0:
             self.combo_paper_size.setCurrentIndex(matched_idx)
         else:

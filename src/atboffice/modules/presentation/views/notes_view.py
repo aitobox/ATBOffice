@@ -353,9 +353,7 @@ class NotesPageView(QScrollArea):
         self._current_slide_index = max(0, min(total - 1, index))
         curr = self._current_slide_index
         first_num = getattr(self.presentation, "first_num", 1)
-        self.lbl_indicator.setText(
-            f"{safe_tr('幻灯片')} {curr + first_num} / {total}"
-        )
+        self.lbl_indicator.setText(f"{safe_tr('幻灯片')} {curr + first_num} / {total}")
         self.btn_prev.setEnabled(curr > 0)
         self.btn_next.setEnabled(curr < total - 1)
 

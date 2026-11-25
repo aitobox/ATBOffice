@@ -45,8 +45,10 @@ def _pdf_printer(path: Path) -> QPrinter:
 def _pdf_pages(path: Path) -> list[tuple[float, float]]:
     doc = QPdfDocument()
     doc.load(str(path))
-    return [(doc.pagePointSize(i).width(), doc.pagePointSize(i).height())
-            for i in range(doc.pageCount())]
+    return [
+        (doc.pagePointSize(i).width(), doc.pagePointSize(i).height())
+        for i in range(doc.pageCount())
+    ]
 
 
 def _raster(path: Path, page: int = 0, zoom: float = 1.0) -> QImage:
@@ -114,9 +116,17 @@ def _deck(win: LecternWindow, n: int = 5) -> object:
 
 @pytest.mark.parametrize(
     ("what", "per", "expected"),
-    [("slides", 0, 4), ("handouts", 1, 4), ("handouts", 2, 2), ("handouts", 3, 2),
-     ("handouts", 4, 1), ("handouts", 6, 1), ("handouts", 9, 1), ("notes", 0, 4),
-     ("outline", 0, 1)],
+    [
+        ("slides", 0, 4),
+        ("handouts", 1, 4),
+        ("handouts", 2, 2),
+        ("handouts", 3, 2),
+        ("handouts", 4, 1),
+        ("handouts", 6, 1),
+        ("handouts", 9, 1),
+        ("notes", 0, 4),
+        ("outline", 0, 1),
+    ],
 )
 def test_lectern_print_layouts(qtbot, tmp_path, what, per, expected) -> None:
     win = LecternWindow()
@@ -260,8 +270,11 @@ def test_ledger_print_renders_merges_fills_and_drawings(qtbot, tmp_path) -> None
     cell.bg_color = "#00B050"
     sheet.merges.append((2, 0, 3, 2))
     obj = FloatingObject(
-        id=1, kind="rect", anchor_type=AnchorType.TWO_CELL,
-        from_point=CellAnchorPoint(row=5, col=1), to_point=CellAnchorPoint(row=8, col=3),
+        id=1,
+        kind="rect",
+        anchor_type=AnchorType.TWO_CELL,
+        from_point=CellAnchorPoint(row=5, col=1),
+        to_point=CellAnchorPoint(row=8, col=3),
     )
     obj.fill_color = "#FF0000"
     sheet.drawings.append(obj)
@@ -298,7 +311,10 @@ def test_ledger_page_setup_dialog_and_menu(qtbot, monkeypatch) -> None:
     dlg._apply_preset("footer", 2)
     st = dlg.result_setup()
     assert (st.orientation, st.fit_to, st.print_area, st.title_rows) == (
-        "landscape", True, (0, 0, 3, 2), (0, 0)
+        "landscape",
+        True,
+        (0, 0, 3, 2),
+        (0, 0),
     )
     assert "&P" in st.footer
     dlg.edit_area.setText("A0:??")
@@ -341,9 +357,19 @@ def test_ledger_page_setup_xlsx_round_trip(qtbot, tmp_path) -> None:
     wb = WorkbookModel()
     sheet = wb.sheets[0]
     sheet.set_cell_value(0, 0, "x")
-    st = SheetPrintSetup(orientation="landscape", paper="Letter", fit_to=True, fit_height=0,
-                         gridlines=True, headings=True, header="&L&A", footer="&C&P",
-                         first_page_number=3, page_order="over_then_down", black_white=True)
+    st = SheetPrintSetup(
+        orientation="landscape",
+        paper="Letter",
+        fit_to=True,
+        fit_height=0,
+        gridlines=True,
+        headings=True,
+        header="&L&A",
+        footer="&C&P",
+        first_page_number=3,
+        page_order="over_then_down",
+        black_white=True,
+    )
     st.margins["left"] = 36.0
     set_print_setup(sheet, st)
     out = tmp_path / "ps.xlsx"
@@ -400,8 +426,9 @@ def test_quire_text_metrics_match_device(qtbot) -> None:
     page = canvas.pagination.pages[0]
     ink = []
     for dpi in (72, 200):
-        img = QImage(int(page.width * dpi / 72), int(page.height * dpi / 72),
-                     QImage.Format.Format_ARGB32)
+        img = QImage(
+            int(page.width * dpi / 72), int(page.height * dpi / 72), QImage.Format.Format_ARGB32
+        )
         img.fill(QColor("#FFFFFF"))
         dpm = int(round(dpi / 0.0254))
         img.setDotsPerMeterX(dpm)
