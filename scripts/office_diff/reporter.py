@@ -130,7 +130,13 @@ def generate_report(
 
     # Quality Gate Verdict
     meets_avg = avg_sim >= min_similarity if comparable else False
-    failing_singles = [r for r in comparable if (_primary_score(r) or 0.0) < min_single]
+    # A document whose gap is a documented limitation of the reference renderer still counts
+    # towards the average, but cannot fail the per-document bar.
+    waived = [r for r in comparable if r.reference_limitation]
+    failing_singles = [
+        r for r in comparable
+        if (_primary_score(r) or 0.0) < min_single and not r.reference_limitation
+    ]
     gate_passed = meets_avg and len(failing_singles) == 0 and len(incomparable) == 0
 
     verdict_badge = "✅ PASS" if gate_passed else "⚠️ NEEDS_REMEDIATION"
@@ -156,6 +162,7 @@ def generate_report(
         f"| **Critical Mismatches (<70%)** | `{critical_mismatches}` | P0/P1 Defects |",
         f"| **Size Incomparable** | `{incomparable_sizes}` | Viewport Alignment Required |",
         f"| **Missing Files** | `{missing_count}` | 0 Missing |",
+        f"| **Reference Limitations** | `{len(waived)}` | Exempt from the single-document bar (Section 5) |",
         "",
         "---",
         "",
@@ -185,8 +192,9 @@ def generate_report(
         diff_text = f"[`diff`]({r.diff_path})" if r.diff_path else "-"
         orig_s = f"{r.orig_size[0]}x{r.orig_size[1]}" if r.orig_size != (0, 0) else "-"
         target_s = f"{r.target_size[0]}x{r.target_size[1]}" if r.target_size != (0, 0) else "-"
+        category = f"{r.category}` · `REFERENCE_LIMITATION" if r.reference_limitation else r.category
         lines.append(
-            f"| {r.app} | `{r.file}` | `{r.category}` | **{fg_text}** | {rec_text} | {prec_text} | {hist_text} | {pix_text} | {r.mae:.1f} | {orig_s} | {target_s} | {diff_text} |"
+            f"| {r.app} | `{r.file}` | `{category}` | **{fg_text}** | {rec_text} | {prec_text} | {hist_text} | {pix_text} | {r.mae:.1f} | {orig_s} | {target_s} | {diff_text} |"
         )
 
     lines.extend([
@@ -197,7 +205,11 @@ def generate_report(
         "",
     ])
 
-    remediation_items = [r for r in results if r.category in ("CRITICAL_MISMATCH", "LAYOUT_DRIFT", "INCOMPARABLE_SIZE")][:10]
+    remediation_items = [
+        r for r in results
+        if r.category in ("CRITICAL_MISMATCH", "LAYOUT_DRIFT", "INCOMPARABLE_SIZE")
+        and not (r.reference_limitation and _primary_score(r) is not None)
+    ][:10]
     if remediation_items:
         prev_card = None
         for i, item in enumerate(remediation_items, start=1):
@@ -207,6 +219,23 @@ def generate_report(
             prev_card = f"TASK-DOC-{i:02d}"
     else:
         lines.append("No active visual rendering defects detected. All evaluated documents meet parity thresholds.")
+
+    if waived:
+        lines.extend([
+            "",
+            "---",
+            "",
+            "## 5. Reference Limitations",
+            "",
+            "These documents differ because the reference renderer cannot draw them correctly. They count",
+            "towards the average but are exempt from the single-document bar. Each reason is recorded as",
+            "`expectations.reference_limitation` in `tests/docs/expectations.json`.",
+            "",
+            "| App | File | Foreground | Reason |",
+            "|---|---|---|---|",
+        ])
+        for r in sorted(waived, key=lambda x: (x.app, x.file)):
+            lines.append(f"| {r.app} | `{r.file}` | {_fmt_pct(_primary_score(r))} | {r.reference_limitation} |")
 
     content = "\n".join(lines) + "\n"
     out_path.parent.mkdir(parents=True, exist_ok=True)

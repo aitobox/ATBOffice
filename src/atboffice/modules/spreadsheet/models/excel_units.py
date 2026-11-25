@@ -24,6 +24,11 @@ _MDW_PER_PT: dict[str, float] = {
     "courier new": 8.0 / 10.0,
     "segoe ui": 7.0 / 10.0,
     "ms pgothic": 8.0 / 11.0,
+    # Century Gothic is a wide face: its digits are ~0.55em, 8px at 11pt, as are those of the
+    # faces the reference draws it with when it is missing (TeX Gyre Adventor, URW Gothic,
+    # Futura, Arial). The 7px fallback left every column of a Century Gothic workbook ~12%
+    # too narrow, so its tables ended well short of the reference's.
+    "century gothic": 8.0 / 11.0,
 }
 
 # Row height (pt) Excel gives the default font at common sizes
