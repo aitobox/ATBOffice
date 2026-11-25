@@ -24,7 +24,9 @@ QT_QPA_PLATFORM=offscreen pytest -n auto      # whole suite, in parallel
 QT_QPA_PLATFORM=offscreen pytest tests/core/test_i18n.py
 ```
 
-CI (`.github/workflows/ci.yml`) runs, in order, and each must pass:
+CI (`.github/workflows/ci.yml`) runs on every pull request and on every push to `main`,
+including squash merges, so a break on `main` shows up right after merge. Tag pushes run the
+same job on Ubuntu, macOS and Windows. It runs, in order, and each must pass:
 
 ```bash
 ruff check .

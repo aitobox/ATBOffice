@@ -36,16 +36,6 @@ jobs:
     name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
     needs: matrix-prep
     runs-on: ${{ matrix.os }}
-    # A push of main that only lands an already-tested pull request is skipped.
-    # Tag pushes always run: they carry the full OS matrix for a release.
-    if: |
-      github.event_name != 'push' ||
-      startsWith(github.ref, 'refs/tags/') ||
-      (
-        !startsWith(github.event.head_commit.message, 'Merge pull request') &&
-        !startsWith(github.event.head_commit.message, 'Merge branch') &&
-        !contains(github.event.head_commit.message, '(#')
-      )
     strategy:
       fail-fast: false
       matrix:
