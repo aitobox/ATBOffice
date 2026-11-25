@@ -8,11 +8,9 @@ and absence of raw unlocalized text.
 from __future__ import annotations
 
 import ast
-import os
 from pathlib import Path
 
 import pytest
-from PySide6.QtWidgets import QApplication
 
 from atboffice.ui.dialogs.customize_toolbars_dialog import (
     CustomizeToolbarsDialog,
@@ -20,16 +18,6 @@ from atboffice.ui.dialogs.customize_toolbars_dialog import (
 from atboffice.ui.dialogs.customize_toolbars_dialog import (
     safe_tr as customize_safe_tr,
 )
-
-
-@pytest.fixture(scope="module")
-def qapp():
-    """Ensure headless QApplication instance is available."""
-    os.environ["QT_QPA_PLATFORM"] = "offscreen"
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(["pytest_i18n", "-platform", "offscreen"])
-    return app
 
 
 def test_customize_toolbars_dialog_i18n_completeness(qapp):

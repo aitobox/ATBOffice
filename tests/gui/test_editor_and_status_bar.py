@@ -16,7 +16,7 @@ from atboffice.modules.spreadsheet.views.editor_controller import (
 )
 from atboffice.modules.spreadsheet.views.formula_bar import FormulaBar
 from atboffice.ui.components.status_bar import StatusBar
-from atboffice.ui.shell.main_window import MainWindow
+from atboffice.ui.shell.ledger_window import LedgerWindow
 
 
 @pytest.fixture
@@ -298,13 +298,13 @@ class TestAutoCalculateStatusBar:
         assert sb.lbl_calc.text() == ""
 
 
-class TestMainWindowIntegration:
-    """Test full integration with MainWindow shell."""
+class TestLedgerWindowIntegration:
+    """Test full integration with the Ledger window."""
 
     def test_main_window_has_status_bar_and_formula_bar(
         self, qapp: QApplication
     ) -> None:
-        win = MainWindow()
+        win = LedgerWindow()
         assert win.status_bar is not None
         assert win.spreadsheet_view.formula_bar is not None
         assert win.spreadsheet_view.editor_controller is not None

@@ -13,7 +13,6 @@ from atboffice.modules.spreadsheet.models.sheet_model import CellData, SheetData
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 from atboffice.modules.spreadsheet.views.object_layer import FloatingObject
 from atboffice.ui.shell.ledger_window import LedgerWindow
-from atboffice.ui.shell.main_window import MainWindow
 
 
 class _KeyRecorder(QObject):
@@ -176,11 +175,11 @@ def test_sheet_model_ensure_cell(qapp) -> None:
 @pytest.mark.parametrize(
     "method", ["_toggle_bold", "_toggle_italic", "_toggle_underline"]
 )
-def test_main_window_formatting_empty_cells(qtbot, method: str) -> None:
-    win = MainWindow()
+def test_ledger_formatting_empty_cells(qtbot, method: str) -> None:
+    win = LedgerWindow()
     qtbot.addWidget(win)
     if not hasattr(win, method):
-        pytest.skip(f"MainWindow has no {method}")
+        pytest.skip(f"LedgerWindow has no {method}")
     from atboffice.modules.spreadsheet.models.selection_model import SelectionRange
 
     sel = win.spreadsheet_view.selection

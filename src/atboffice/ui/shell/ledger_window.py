@@ -142,6 +142,8 @@ class LedgerWindow(BaseOfficeWindow):
 
         self.set_modified(False)
         self.menu_bar.retranslate_ui()
+        # Menus and toolbars offer only the commands this window implements.
+        self.action_registry.hide_unhandled_actions()
 
     def _bind_action_handlers(self) -> None:
         """Bind window callbacks to core action IDs in ActionRegistry."""

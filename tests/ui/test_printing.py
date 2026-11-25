@@ -49,8 +49,10 @@ def test_base_window_print_interfaces(qapp: QApplication, tmp_path: Path) -> Non
     preview_printer.setOutputFileName(str(preview_pdf))
 
     assert win.print_preview(printer=preview_printer) is True
+    # The preview opens over the document and renders the pages into itself.
+    assert win._print_preview_panel is not None
     assert win.render_count == 2
-    assert preview_pdf.exists()
+    win._print_preview_panel.close_preview()
 
     # 3. Test export_pdf
     pdf_target = tmp_path / "exported_doc.pdf"
@@ -100,8 +102,9 @@ def test_quire_print_and_pdf_export(qapp: QApplication, tmp_path: Path) -> None:
     out_prev = tmp_path / "quire_preview.pdf"
     preview_printer.setOutputFileName(str(out_prev))
     assert win.print_preview(printer=preview_printer) is True
-    assert out_prev.exists()
-    assert out_prev.stat().st_size > 500
+    panel = win._print_preview_panel
+    assert panel is not None and panel.page_count() >= 1
+    panel.close_preview()
 
 
 def test_ledger_print_and_pdf_export(qapp: QApplication, tmp_path: Path) -> None:
@@ -155,8 +158,9 @@ def test_ledger_print_and_pdf_export(qapp: QApplication, tmp_path: Path) -> None
     out_prev = tmp_path / "ledger_preview.pdf"
     preview_printer.setOutputFileName(str(out_prev))
     assert win.print_preview(printer=preview_printer) is True
-    assert out_prev.exists()
-    assert out_prev.stat().st_size > 500
+    panel = win._print_preview_panel
+    assert panel is not None and panel.page_count() >= 1
+    panel.close_preview()
 
 
 def test_lectern_print_and_pdf_export(qapp: QApplication, tmp_path: Path) -> None:
@@ -200,8 +204,9 @@ def test_lectern_print_and_pdf_export(qapp: QApplication, tmp_path: Path) -> Non
     out_prev = tmp_path / "lectern_preview.pdf"
     preview_printer.setOutputFileName(str(out_prev))
     assert win.print_preview(printer=preview_printer) is True
-    assert out_prev.exists()
-    assert out_prev.stat().st_size > 500
+    panel = win._print_preview_panel
+    assert panel is not None and panel.page_count() >= 1
+    panel.close_preview()
 
     # 4. Handouts Mode (3 slides per page with note lines)
     handout_printer = QPrinter(QPrinter.PrinterMode.HighResolution)

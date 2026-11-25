@@ -12,6 +12,7 @@ dependencies = [
     "PySide6>=6.6",
     "lxml>=5.2",
     "msoffcrypto-tool>=5.4",
+    "packaging>=23.0",
     "xlrd>=2.0.1",
 ]
 
@@ -19,6 +20,8 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-qt>=4.4",
+    "pytest-xdist>=3.5",
+    "mypy>=1.10",
     "ruff>=0.6",
     "pyyaml>=6.0",
 ]
@@ -40,6 +43,12 @@ atboffice = ["resources/**/*"]
 testpaths = ["tests"]
 pythonpath = ["src", "."]
 addopts = "-q --import-mode=importlib"
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+# CI type-checks src/atboffice/core; other packages are followed silently.
+follow_imports = "silent"
 
 [tool.ruff]
 line-length = 100

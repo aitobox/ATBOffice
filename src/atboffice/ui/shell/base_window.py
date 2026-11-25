@@ -362,10 +362,6 @@ class BaseOfficeWindow(QMainWindow):
 
     def open_file_dialog(self) -> bool:
         """Present standard file dialog to select and open a document."""
-        if os.environ.get("PYTEST_CURRENT_TEST") and isinstance(
-            QFileDialog.getOpenFileName, type(print)
-        ):
-            return False
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             safe_tr("打开文档"),
@@ -454,7 +450,7 @@ class BaseOfficeWindow(QMainWindow):
             wm.recent_files.add_file(path, app_type)
             self._cache_thumbnail(path, wm.recent_files)
         except Exception:
-            pass
+            logger.warning("Could not add %s to the recent files", path, exc_info=True)
 
         return True
 
@@ -609,8 +605,6 @@ class BaseOfficeWindow(QMainWindow):
 
     def show_help(self) -> None:
         """Display help documentation dialog for current application."""
-        if os.environ.get("PYTEST_CURRENT_TEST"):
-            return
         QMessageBox.information(
             self,
             safe_tr("帮助 — {app_name}").format(app_name=self.app_name),
@@ -742,6 +736,7 @@ class BaseOfficeWindow(QMainWindow):
             # Execute serialization to the staging file
             save_ok = self.do_save(staged_temp_path)
             if not save_ok:
+                logger.error("do_save returned False for %s", target)
                 if staged_temp_path.exists():
                     try:
                         staged_temp_path.unlink()
@@ -773,11 +768,12 @@ class BaseOfficeWindow(QMainWindow):
                 wm.recent_files.add_file(target, app_type)
                 self._cache_thumbnail(target, wm.recent_files)
             except Exception:
-                pass
+                logger.warning("Could not add %s to the recent files", target, exc_info=True)
 
             return True
 
         except PermissionError as exc:
+            logger.warning("No permission to save %s: %s", target, exc)
             if staged_temp_path and staged_temp_path.exists():
                 try:
                     staged_temp_path.unlink()
@@ -792,6 +788,7 @@ class BaseOfficeWindow(QMainWindow):
             )
             return False
         except Exception as exc:
+            logger.exception("Failed to save %s", target)
             if staged_temp_path and staged_temp_path.exists():
                 try:
                     staged_temp_path.unlink()
@@ -812,10 +809,6 @@ class BaseOfficeWindow(QMainWindow):
 
     def save_file_as(self) -> bool:
         """Prompt user with standard file dialog to save document to a new path."""
-        if os.environ.get("PYTEST_CURRENT_TEST") and isinstance(
-            QFileDialog.getSaveFileName, type(print)
-        ):
-            return False
         default_path = str(self.current_file_path) if self.current_file_path is not None else ""
         file_path, _ = QFileDialog.getSaveFileName(
             self,
@@ -831,12 +824,6 @@ class BaseOfficeWindow(QMainWindow):
         """Prompt system print dialog and print current document to printer."""
         if printer is None:
             printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-            if os.environ.get("PYTEST_CURRENT_TEST"):
-                try:
-                    self.render_to_printer(printer)
-                    return True
-                except Exception:
-                    return False
             dialog = QPrintDialog(printer, self)
             dialog.setWindowTitle(safe_tr("打印 — {name}").format(name=self.app_name))
             if dialog.exec() != QPrintDialog.DialogCode.Accepted:
@@ -857,18 +844,6 @@ class BaseOfficeWindow(QMainWindow):
         """File > Print Preview: open the in-window Office 2003 preview (non-modal)."""
         if printer is None:
             printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-
-        if os.environ.get("PYTEST_CURRENT_TEST"):
-            try:
-                self.render_to_printer(printer)
-                return True
-            except Exception as exc:
-                QMessageBox.critical(
-                    self,
-                    safe_tr("打印预览失败"),
-                    safe_tr("生成打印预览时发生错误：\n{exc}").format(exc=exc),
-                )
-                return False
 
         try:
             self.open_print_preview_panel(printer)
@@ -923,10 +898,6 @@ class BaseOfficeWindow(QMainWindow):
     def export_pdf(self, output_path: str | Path | None = None) -> bool:
         """Export current document as lossless vector PDF file."""
         if output_path is None:
-            if os.environ.get("PYTEST_CURRENT_TEST") and isinstance(
-                QFileDialog.getSaveFileName, type(print)
-            ):
-                return False
             default_stem = (
                 self.current_file_path.stem
                 if self.current_file_path is not None

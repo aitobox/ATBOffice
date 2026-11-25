@@ -7,8 +7,9 @@ import urllib.request
 from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
 
+import shiboken6
 from packaging import version
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QCoreApplication, QObject, QThread, Signal
 from PySide6.QtWidgets import (
     QMessageBox,
     QWidget,
@@ -18,6 +19,9 @@ from atboffice.core.i18n import safe_tr
 from atboffice.ui.dialogs.update_dialog import UpdateDialog
 
 DEFAULT_RELEASES_API = "https://api.github.com/repos/aitobox/ATBOffice/releases/latest"
+
+#: Seconds the release request may take; quitting waits at most a little longer.
+REQUEST_TIMEOUT_S = 5.0
 
 
 @dataclass
@@ -95,8 +99,10 @@ class UpdateCheckWorker(QThread):
             },
         )
         try:
-            with urllib.request.urlopen(req, timeout=8.0) as resp:
+            with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_S) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
+            if self.isInterruptionRequested():
+                return
 
             tag_name = data.get("tag_name", "")
             remote_ver = tag_name.lstrip("vV") if tag_name else "0.0.0"
@@ -115,6 +121,8 @@ class UpdateCheckWorker(QThread):
             self.check_completed.emit(has_update, info)
 
         except (HTTPError, URLError, TimeoutError) as e:
+            if self.isInterruptionRequested():
+                return
             self.check_failed.emit(
                 safe_tr("网络连接失败，请检查网络设置: {err}").format(err=str(e))
             )
@@ -124,8 +132,38 @@ class UpdateCheckWorker(QThread):
             )
 
 
-# Module-level active worker reference to prevent Python garbage collection mid-flight
-_active_worker: UpdateCheckWorker | None = None
+# Running checks. The workers have no Qt parent, so closing the window that
+# started a check can't destroy a thread that is still running; they are
+# released when they finish, and waited for when the application quits.
+_active_workers: set[UpdateCheckWorker] = set()
+_quit_hook_installed = False
+
+
+def _release_worker(worker: UpdateCheckWorker) -> None:
+    _active_workers.discard(worker)
+    worker.deleteLater()
+
+
+def stop_update_checks(timeout_s: float = REQUEST_TIMEOUT_S + 1.0) -> None:
+    """Ask running checks to stop and wait for their threads to end."""
+    for worker in list(_active_workers):
+        worker.requestInterruption()
+        worker.wait(int(timeout_s * 1000))
+        _active_workers.discard(worker)
+
+
+def _install_quit_hook() -> None:
+    global _quit_hook_installed
+    app = QCoreApplication.instance()
+    if app is None or _quit_hook_installed:
+        return
+    app.aboutToQuit.connect(stop_update_checks)
+    _quit_hook_installed = True
+
+
+def _alive(widget: QWidget | None) -> QWidget | None:
+    """``widget`` if it still exists (the window may have closed meanwhile)."""
+    return widget if widget is not None and shiboken6.isValid(widget) else None
 
 
 def check_for_updates(
@@ -138,21 +176,20 @@ def check_for_updates(
     If manual is True, shows feedback dialogs on up-to-date and failure.
     If manual is False (background check), silently ignores failures.
     """
-    global _active_worker
     from atboffice import __version__
 
-    worker = UpdateCheckWorker(current_version=__version__, api_url=api_url, parent=parent)
-    _active_worker = worker
+    worker = UpdateCheckWorker(current_version=__version__, api_url=api_url)
+    _active_workers.add(worker)
+    _install_quit_hook()
 
     def on_success(has_update: bool, info: VersionInfo) -> None:
-        global _active_worker
-        _active_worker = None
+        owner = _alive(parent)
         if has_update:
-            dlg = UpdateDialog(info=info, current_version=__version__, parent=parent)
+            dlg = UpdateDialog(info=info, current_version=__version__, parent=owner)
             dlg.exec()
         elif manual:
             QMessageBox.information(
-                parent,
+                owner,
                 safe_tr("检查更新"),
                 safe_tr("您使用的是最新版本 ATBOffice (v{ver})，暂无可用更新。").format(
                     ver=__version__
@@ -160,15 +197,10 @@ def check_for_updates(
             )
 
     def on_error(err_msg: str) -> None:
-        global _active_worker
-        _active_worker = None
         if manual:
-            QMessageBox.warning(
-                parent,
-                safe_tr("检查更新失败"),
-                err_msg,
-            )
+            QMessageBox.warning(_alive(parent), safe_tr("检查更新失败"), err_msg)
 
     worker.check_completed.connect(on_success)
     worker.check_failed.connect(on_error)
+    worker.finished.connect(lambda: _release_worker(worker))
     worker.start()

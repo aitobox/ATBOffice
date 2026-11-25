@@ -115,6 +115,8 @@ class LecternWindow(BaseOfficeWindow):
         self.set_modified(False)
         self._setup_status_bar_view_buttons()
         self.menu_bar.retranslate_ui()
+        # Menus and toolbars offer only the commands this window implements.
+        self.action_registry.hide_unhandled_actions()
 
     def _setup_status_bar_view_buttons(self) -> None:
         """PowerPoint 2003 status bar: slide counter, design name and view buttons."""

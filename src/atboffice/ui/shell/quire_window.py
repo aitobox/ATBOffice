@@ -197,6 +197,8 @@ class QuireWindow(BaseOfficeWindow):
         self.bind_undo_service()
         self._setup_status_bar()
         self.menu_bar.retranslate_ui()
+        # Menus and toolbars offer only the commands this window implements.
+        self.action_registry.hide_unhandled_actions()
 
     # -- status bar ------------------------------------------------------------
 

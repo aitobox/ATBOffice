@@ -79,12 +79,12 @@ class AppSettings:
                 return str(val).lower() in ("true", "1", "yes")
             if isinstance(expected_default, int):
                 try:
-                    return int(val)
+                    return int(val)  # type: ignore[call-overload]
                 except (ValueError, TypeError):
                     return expected_default
             if isinstance(expected_default, float):
                 try:
-                    return float(val)
+                    return float(val)  # type: ignore[arg-type]
                 except (ValueError, TypeError):
                     return expected_default
             if isinstance(expected_default, str):

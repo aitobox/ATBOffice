@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -432,8 +431,6 @@ class OptionsDialog(QDialog):
             self.lbl_font_info.setText(safe_tr("系统字体可用。"))
 
     def _on_browse_path(self) -> None:
-        if os.environ.get("PYTEST_CURRENT_TEST"):
-            return
         selected = QFileDialog.getExistingDirectory(
             self,
             safe_tr("选择默认打开位置"),

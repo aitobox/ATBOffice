@@ -195,15 +195,15 @@ def test_edge_cases():
 
 
 def test_window_retranslate_on_locale_change(qapp):
-    """Test that BaseOfficeWindow and MainWindow respond to locale_changed signal."""
+    """Test that BaseOfficeWindow and LedgerWindow respond to locale_changed signal."""
     from atboffice.ui.shell.base_window import BaseOfficeWindow
-    from atboffice.ui.shell.main_window import MainWindow
+    from atboffice.ui.shell.ledger_window import LedgerWindow
 
     win = BaseOfficeWindow()
     called = []
     win.retranslate_ui = lambda: called.append("base")
 
-    main_win = MainWindow()
+    main_win = LedgerWindow()
     main_called = []
     main_win.retranslate_ui = lambda: main_called.append("main")
 
@@ -213,6 +213,7 @@ def test_window_retranslate_on_locale_change(qapp):
 
     load_locale("zh-CN")
     win.close()
+    main_win.set_modified(False)
     main_win.close()
 
 

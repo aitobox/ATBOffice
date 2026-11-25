@@ -3,9 +3,6 @@
 import io
 import zipfile
 
-import pytest
-from PySide6.QtWidgets import QApplication
-
 from atboffice.modules.spreadsheet.dialogs.pivot_dialog import (
     PivotTableWizardDialog,
 )
@@ -19,14 +16,6 @@ from atboffice.modules.spreadsheet.models.pivot_model import (
 from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 from atboffice.vfs import etree as ET
-
-
-@pytest.fixture(scope="session")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication([])
-    return app
 
 
 def create_sample_sales_workbook() -> tuple[WorkbookModel, SheetDataModel]:

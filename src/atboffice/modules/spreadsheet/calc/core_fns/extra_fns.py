@@ -12,6 +12,7 @@ from atboffice.modules.spreadsheet.calc.core_fns.common import (
     to_float,
 )
 from atboffice.modules.spreadsheet.calc.errors import (
+    NA,
     NUM,
     VALUE,
     ExcelError,
@@ -128,12 +129,13 @@ def fn_minifs(
     return min(nums) if nums else 0.0
 
 
-# ETS Forecast stubs
+# Exponential-smoothing statistics are not implemented. #N/A says so; the
+# old 0 looked like a real result and silently fed later calculations.
 @register_core("FORECAST.ETS.CONFINT")
 @register_core("FORECAST.ETS.SEASONALITY")
 @register_core("FORECAST.ETS.STAT")
-def fn_forecast_ets_stubs(*args: Any, ctx: EvalContext | None = None) -> float:
-    return 0.0
+def fn_forecast_ets_unsupported(*args: Any, ctx: EvalContext | None = None) -> ExcelError:
+    return NA
 
 
 # Hyperlink & Dynamic array functions

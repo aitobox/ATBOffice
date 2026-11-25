@@ -8,10 +8,8 @@ from typing import Any
 from atboffice import __version__
 from atboffice.core.app import create_application
 from atboffice.core.window_manager import WindowManager
-from atboffice.ui.shell.main_window import MainWindow  # noqa: F401
 
 __all__ = [
-    "MainWindow",
     "main",
     "main_lectern",
     "main_ledger",
