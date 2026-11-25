@@ -18,7 +18,6 @@ from PySide6.QtGui import (
     QPixmap,
 )
 from PySide6.QtWidgets import (
-    QApplication,
     QGraphicsItem,
     QGraphicsObject,
     QGraphicsSceneMouseEvent,
@@ -26,6 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.layouts import PROMPTS
 from atboffice.modules.presentation.models.shape import Shape
 from atboffice.modules.presentation.models.text import Paragraph, TextBody, TextRun
@@ -64,16 +64,6 @@ DASH_PATTERNS: dict[str, list[float] | None] = {
     "sysDashDot": [3.0, 1.0, 1.0, 1.0],
     "sysDashDotDot": [3.0, 1.0, 1.0, 1.0, 1.0, 1.0],
 }
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text with fallback to Chinese native text for ATBOffice."""
-    app = QApplication.instance()
-    if app:
-        translated = app.translate("ShapeGraphicsItem", text)
-        if translated and translated != text:
-            return translated
-    return text
 
 
 # Edit-view outline of an empty placeholder (original: 1px dashed rgba(90,90,90,.75)).

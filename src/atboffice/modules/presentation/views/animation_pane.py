@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.slide import Animation, Slide
 from atboffice.modules.presentation.slideshow.animations import (
     E_EMPH,
@@ -39,7 +40,6 @@ from atboffice.modules.presentation.slideshow.animations import (
     default_dir,
     effect_display_name,
     find_effect,
-    safe_tr,
 )
 
 if TYPE_CHECKING:

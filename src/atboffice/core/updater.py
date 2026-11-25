@@ -10,23 +10,12 @@ from urllib.error import HTTPError, URLError
 from packaging import version
 from PySide6.QtCore import QObject, QThread, Signal
 from PySide6.QtWidgets import (
-    QApplication,
     QMessageBox,
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.ui.dialogs.update_dialog import UpdateDialog
-
-
-def safe_tr(text: str) -> str:
-    """Translate text with fallback to original."""
-    app = QApplication.instance()
-    if app:
-        translated = app.translate("Updater", text)
-        if translated and translated != text:
-            return translated
-    return text
-
 
 DEFAULT_RELEASES_API = "https://api.github.com/repos/aitobox/ATBOffice/releases/latest"
 

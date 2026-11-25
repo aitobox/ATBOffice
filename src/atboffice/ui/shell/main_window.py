@@ -8,8 +8,7 @@ from typing import Any
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QTabWidget
 
-from atboffice.core.i18n import get_i18n_manager
-from atboffice.core.i18n import safe_tr as core_safe_tr
+from atboffice.core.i18n import get_i18n_manager, safe_tr
 from atboffice.modules.presentation.view import PresentationView
 from atboffice.modules.spreadsheet.models.sheet_model import CellData
 from atboffice.modules.spreadsheet.view import SpreadsheetView
@@ -19,11 +18,6 @@ from atboffice.ui.components.status_bar import StatusBar
 from atboffice.ui.components.toolbar import OfficeToolBar
 from atboffice.ui.shell.mac_menu import MacMenuBar, setup_mac_menu
 from atboffice.ui.styles.luna_2003 import apply_luna_theme
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for MainWindow."""
-    return core_safe_tr(text)
 
 
 class MainWindow(QMainWindow):
@@ -146,7 +140,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(
                 self,
                 safe_tr("打开失败"),
-                safe_tr(f"无法打开文件：找不到指定的文件“{path}”。"),
+                safe_tr("无法打开文件：找不到指定的文件“{0}”。", path),
             )
             return False
 
@@ -182,7 +176,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(
                 self,
                 safe_tr("保存失败"),
-                safe_tr(f"无法保存文件“{target}”：\n{exc}"),
+                safe_tr("无法保存文件“{0}”：\n{1}", target, exc),
             )
             return False
 
@@ -216,9 +210,7 @@ class MainWindow(QMainWindow):
         res = QMessageBox.warning(
             self,
             "ATBOffice",
-            safe_tr(
-                f"是否保存对“{doc_name}”的更改？\n如果您不保存，所做的修改将会永久丢失。"
-            ),
+            safe_tr("是否保存对“{0}”的更改？\n如果您不保存，所做的修改将会永久丢失。", doc_name),
             QMessageBox.StandardButton.Save
             | QMessageBox.StandardButton.Discard
             | QMessageBox.StandardButton.Cancel,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import QCoreApplication, QEvent, QObject, Qt, Signal
+from PySide6.QtCore import QEvent, QObject, Qt, Signal
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtPrintSupport import QPrinter, QPrintPreviewWidget
 from PySide6.QtWidgets import (
@@ -16,10 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("PrintPreviewPanel", text)
-
+from atboffice.core.i18n import safe_tr
 
 ZOOM_CHOICES: list[tuple[str, float | str]] = [
     ("整页", "fit"),

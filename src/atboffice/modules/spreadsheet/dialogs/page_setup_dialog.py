@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import copy
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -26,14 +25,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.references import cell_name, parse_range
 from atboffice.modules.spreadsheet.printing import header_footer
 from atboffice.modules.spreadsheet.printing.setup import PAPER_SIZES, SheetPrintSetup
-
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("LedgerPageSetupDialog", text)
-
 
 PT_PER_CM = 72.0 / 2.54
 HF_PRESETS = [

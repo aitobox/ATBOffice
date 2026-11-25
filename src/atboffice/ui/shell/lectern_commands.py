@@ -6,18 +6,15 @@ import copy
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, QEvent, QObject, QPointF, Qt
+from PySide6.QtCore import QEvent, QObject, QPointF, Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QDialog, QInputDialog, QMessageBox
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.tools import shape_styles, table_ops
 
 if TYPE_CHECKING:
     from atboffice.ui.shell.lectern_window import LecternWindow
-
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("LecternCommands", text)
 
 
 CONTAINER_COMMANDS = (

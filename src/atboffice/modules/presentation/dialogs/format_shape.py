@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QCoreApplication, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -24,13 +24,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.shape import Fill, Line, Shape
 from atboffice.modules.presentation.models.text import TextBody
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for FormatShapeDialog."""
-    return QCoreApplication.translate("FormatShapeDialog", text)
 
 
 class ColorButton(QPushButton):

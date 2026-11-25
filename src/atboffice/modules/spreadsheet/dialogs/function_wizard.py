@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, QSettings, Qt, Signal
+from PySide6.QtCore import QSettings, Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QComboBox,
@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.context import EvalContext
 from atboffice.modules.spreadsheet.calc.evaluator import evaluate
 from atboffice.modules.spreadsheet.calc.fn_info import (
@@ -43,11 +44,6 @@ if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
     from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
     from atboffice.modules.spreadsheet.views.editor_controller import EditorController
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for the function wizard dialogs."""
-    return QCoreApplication.translate("FunctionWizard", text)
 
 
 DEFAULT_MRU: list[str] = [

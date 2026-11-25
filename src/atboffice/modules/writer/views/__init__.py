@@ -1,9 +1,7 @@
 """Views and controllers for Quire word processing module."""
 
-from atboffice.modules.writer.views.canvas_view import (
-    WriterCanvasView,
-    safe_tr,
-)
+from atboffice.core.i18n import safe_tr
+from atboffice.modules.writer.views.canvas_view import WriterCanvasView
 from atboffice.modules.writer.views.caret_controller import (
     CaretController,
     DocPos,

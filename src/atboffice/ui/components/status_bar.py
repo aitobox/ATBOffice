@@ -4,19 +4,16 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import QCoreApplication, QPoint, Qt
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QAction, QActionGroup, QContextMenuEvent, QMouseEvent
-from PySide6.QtWidgets import QLabel, QMenu, QStatusBar, QWidget
+from PySide6.QtWidgets import QLabel, QMenu, QWidget
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.coercion import round_15
 from atboffice.modules.spreadsheet.calc.errors import ExcelError, is_error
 from atboffice.modules.spreadsheet.models.selection_model import SelectionModel
 from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for StatusBar."""
-    return QCoreApplication.translate("StatusBar", text)
+from atboffice.ui.components.office_status_bar import OfficeStatusBar
 
 
 class AutoCalcLabel(QLabel):
@@ -37,7 +34,7 @@ class AutoCalcLabel(QLabel):
             super().mousePressEvent(event)
 
 
-class StatusBar(QStatusBar):
+class StatusBar(OfficeStatusBar):
     """Excel 2003 / Office Luna style status bar with mode and AutoCalculate."""
 
     CALC_FUNCTIONS = [
@@ -57,29 +54,16 @@ class StatusBar(QStatusBar):
         self._last_model: SheetDataModel | None = None
         self._last_selection: SelectionModel | None = None
 
-        self.setSizeGripEnabled(False)
-        self.setStyleSheet(
-            "QStatusBar { background: #ece9d8; color: #000000; "
-            "border-top: 1px solid #9eb6ce; font-size: 11px; } "
-            "QLabel { padding: 1px 6px; } "
-            "QLabel.cell-border { border-left: 1px solid #ffffff; "
-            "border-right: 1px solid #aca899; }"
-        )
-
-        # 1. Mode indicator (Ready, Enter, Edit, Point)
+        # 1. Mode indicator (Ready, Enter, Edit, Point), left of the message area
         self.lbl_mode = QLabel(self)
-        self.lbl_mode.setProperty("class", "cell-border")
+        self.lbl_mode.setProperty("statusField", True)
         self.lbl_mode.setMinimumWidth(55)
         self.lbl_mode.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.addWidget(self.lbl_mode, 0)
-
-        # 2. Message area (Elastic)
-        self.lbl_message = QLabel(self)
-        self.addWidget(self.lbl_message, 1)
+        self.insertWidget(0, self.lbl_mode, 0)
 
         # 3. AutoCalculate indicator (Sum, Average, etc.)
         self.lbl_calc = AutoCalcLabel(self, self)
-        self.lbl_calc.setProperty("class", "cell-border")
+        self.lbl_calc.setProperty("statusField", True)
         self.lbl_calc.setMinimumWidth(110)
         self.lbl_calc.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
@@ -112,10 +96,6 @@ class StatusBar(QStatusBar):
             "point": safe_tr("点选"),
         }
         self.lbl_mode.setText(mode_names.get(self._current_mode, safe_tr("就绪")))
-
-    def set_message(self, message: str) -> None:
-        """Set informational status text in the elastic area."""
-        self.lbl_message.setText(message)
 
     def set_calc_function(self, func_name: str) -> None:
         """Change the active AutoCalculate aggregation function."""

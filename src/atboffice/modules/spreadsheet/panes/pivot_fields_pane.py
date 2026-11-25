@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QByteArray, QCoreApplication, QMimeData, Qt, Signal
+from PySide6.QtCore import QByteArray, QMimeData, Qt, Signal
 from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.pivots import (
     AGG_FUNCTIONS,
     PivotFieldSpec,
@@ -54,11 +55,6 @@ _AGG_DISPLAY_NAMES: dict[str, str] = {
     "product": "乘积项",
     "countNums": "数值计数项",
 }
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for PivotFieldsTaskPane."""
-    return QCoreApplication.translate("PivotFieldsTaskPane", text)
 
 
 class ValueFieldSettingsDialog(QDialog):

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -29,12 +29,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.ui.icons import get_office_icon
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for DocumentPropertiesDialog."""
-    return QCoreApplication.translate("DocumentPropertiesDialog", text)
 
 
 @dataclass

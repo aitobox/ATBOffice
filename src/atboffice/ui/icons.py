@@ -500,6 +500,16 @@ ICON_ALIASES: Final[dict[str, str]] = {
     "diagramTextPane": "taskpane",
     "diagramReset": "resetGraphic",
     "diagramToShapes": "toShapes",
+    "drawLine": "line",
+    "drawArrow": "arrowTool",
+    "drawRect": "rect",
+    "drawOval": "oval",
+    "textBox": "textbox",
+    "draw_insertWordArt": "wordart",
+    "draw_insertDiagram": "diagram",
+    "draw_insertPicture": "picture",
+    "showGrid": "grid",
+    "slideDesign": "design",
 }
 
 

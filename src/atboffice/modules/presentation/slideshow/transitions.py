@@ -17,8 +17,8 @@ from PySide6.QtGui import (
     QPen,
     QPolygonF,
 )
-from PySide6.QtWidgets import QApplication
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.slide import Slide, Transition
 from atboffice.modules.presentation.models.text import TextBody
 from atboffice.modules.presentation.views.background_renderer import paint_fill_rect
@@ -27,16 +27,6 @@ from atboffice.modules.presentation.views.picture_painter import paint_picture_s
 
 if TYPE_CHECKING:
     from atboffice.modules.presentation.models.presentation import Presentation
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text with fallbacks."""
-    app = QApplication.instance()
-    if app:
-        translated = app.translate("Transitions", text)
-        if translated and translated != text:
-            return translated
-    return text
 
 
 @dataclass(frozen=True)

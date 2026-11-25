@@ -32,6 +32,10 @@ atboffice-lectern = "atboffice.__main__:main_lectern"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+# Locale catalogs, fonts and dictionaries ship inside the package.
+atboffice = ["resources/**/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "."]

@@ -15,7 +15,6 @@ from PySide6.QtGui import (
     QPen,
 )
 from PySide6.QtWidgets import (
-    QApplication,
     QFrame,
     QGraphicsItem,
     QGraphicsSceneMouseEvent,
@@ -30,6 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.comment import (
     Comment,
     format_relative_time,
@@ -37,17 +37,6 @@ from atboffice.modules.presentation.models.comment import (
 
 if TYPE_CHECKING:
     from atboffice.modules.presentation.models.presentation import Presentation
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text with fallbacks."""
-    app = QApplication.instance()
-    if app:
-        translated = app.translate("CommentOverlay", text)
-        if translated and translated != text:
-            return translated
-    # Default to Chinese native text for ATBOffice
-    return text
 
 
 class CommentMarkerItem(QGraphicsItem):

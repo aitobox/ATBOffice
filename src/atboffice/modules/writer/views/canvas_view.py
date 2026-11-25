@@ -10,7 +10,6 @@ from collections.abc import Callable
 from typing import Any
 
 from PySide6.QtCore import (
-    QCoreApplication,
     QPoint,
     QPointF,
     QRectF,
@@ -42,6 +41,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.core.i18n import safe_tr as core_safe_tr
 from atboffice.core.undo import UndoService
 from atboffice.modules.presentation.chart.painter import ChartPainter
@@ -112,11 +112,6 @@ from atboffice.modules.writer.views.text_history import TextEditRecorder
 from atboffice.modules.writer.views.view_modes import ViewMode
 
 logger = logging.getLogger(__name__)
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("WriterCanvasView", text)
 
 
 def _undoable(label: str, parts: tuple[str, ...] = ()) -> Callable[[Any], Any]:

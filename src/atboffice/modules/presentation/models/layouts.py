@@ -11,16 +11,6 @@ from atboffice.modules.presentation.models.shape import Fill, Line, PlaceholderI
 from atboffice.modules.presentation.models.text import Paragraph, TextBody
 
 
-def safe_tr(text: str) -> str:
-    """Safe translation fallback when Qt QCoreApplication is not instantiated."""
-    try:
-        from PySide6.QtCore import QCoreApplication
-
-        return QCoreApplication.translate("LecternLayouts", text)
-    except Exception:
-        return text
-
-
 @dataclass(frozen=True)
 class LayoutInfo:
     """Definition metadata for a slide layout."""

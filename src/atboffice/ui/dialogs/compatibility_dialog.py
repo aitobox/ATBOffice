@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -15,10 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from atboffice.core.compat import Loss
-
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("CompatibilityDialog", text)
+from atboffice.core.i18n import safe_tr
 
 
 class CompatibilityDialog(QDialog):

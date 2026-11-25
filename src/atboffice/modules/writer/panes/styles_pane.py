@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QComboBox,
@@ -18,15 +18,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.writer.models.styles import builtin_styles
 
 if TYPE_CHECKING:
     from atboffice.modules.writer.models.document import Document
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for StylesAndFormattingPane."""
-    return QCoreApplication.translate("StylesAndFormattingPane", text)
 
 
 class StyleItemWidget(QPushButton):

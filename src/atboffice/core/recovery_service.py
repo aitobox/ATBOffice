@@ -15,17 +15,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, QObject, QTimer
+from PySide6.QtCore import QObject, QTimer
 
 if TYPE_CHECKING:
     from atboffice.ui.shell.base_window import BaseOfficeWindow
 
 logger = logging.getLogger(__name__)
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for RecoveryService."""
-    return QCoreApplication.translate("RecoveryService", text)
 
 
 class RecoveryService(QObject):

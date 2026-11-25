@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QCoreApplication, QLibraryInfo, QObject, QTranslator, Signal
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +88,48 @@ def clean_asian_mnemonic(s: str) -> str:
     return RE_ASIAN_MNEMONIC.sub("", s)
 
 
+_LOCALE_DIR = Path(__file__).resolve().parent.parent / "resources" / "locale"
+_SOURCE_EN: dict[str, str] | None = None
+
+
+def _source_en() -> dict[str, str]:
+    """Chinese UI source text -> English text, loaded once.
+
+    Most UI strings are written in Chinese in the source code, while the locale
+    catalogs are keyed by English text. This map links the two so that other
+    locales can translate Chinese source strings.
+    """
+    global _SOURCE_EN
+    if _SOURCE_EN is None:
+        try:
+            with open(_LOCALE_DIR / "source" / "zh-CN_to_en.json", encoding="utf-8") as f:
+                data = json.load(f)
+            _SOURCE_EN = {k: v for k, v in data.items() if isinstance(v, str) and v}
+        except Exception as e:
+            logger.error("Failed to load the source text map: %s", e)
+            _SOURCE_EN = {}
+    return _SOURCE_EN
+
+
+def source_to_english(text: str) -> str | None:
+    """English text for a Chinese UI source string, or None when unknown.
+
+    Accelerators survive only when the Chinese text has one, so a menu label
+    "保存(&S)" becomes "&Save" while a message "保存" becomes "Save".
+    """
+    table = _source_en()
+    english = table.get(text)
+    if english is None:
+        bare = clean_asian_mnemonic(text)
+        if bare != text:
+            english = table.get(bare)
+    if english is None:
+        return None
+    if "&" not in text:
+        english = clean_amp(english)
+    return english
+
+
 class TranslationCatalog:
     """High-performance translation dictionary loader and lookup engine."""
 
@@ -98,8 +140,7 @@ class TranslationCatalog:
         self._load_dictionary()
 
     def _get_locale_file_path(self, locale: str) -> Path:
-        base_dir = Path(__file__).resolve().parent.parent / "resources" / "locale"
-        return base_dir / f"{locale}.json"
+        return _LOCALE_DIR / f"{locale}.json"
 
     def _load_dictionary(self) -> None:
         file_path = self._get_locale_file_path(self.locale)
@@ -136,6 +177,11 @@ class TranslationCatalog:
             key = str(key)
         if not key:
             return ""
+
+        # Chinese source text: Simplified Chinese shows it as written; other
+        # locales go through its English text.
+        if self.locale != "zh-CN" and RE_CJK.search(key):
+            return self._translate_source(key, *args)
 
         # English locale returns plain key
         if self.locale == "en":
@@ -179,6 +225,26 @@ class TranslationCatalog:
         # 5. Untranslated fallback: return plain base key
         return self._format(base_key, *args)
 
+    def _translate_source(self, key: str, *args: Any) -> str:
+        english = source_to_english(key)
+        if english is None:
+            return self._format(key, *args)
+        if self.locale == "en":
+            return self._format(english, *args)
+        if self._lookup(english) is not None:
+            return self.translate(english, *args)
+        # Not in this locale's catalog: Traditional Chinese readers are better
+        # served by the Simplified source text, everyone else by English.
+        return self._format(key if self.locale == "zh-Hant" else english, *args)
+
+    def _lookup(self, key: str) -> str | None:
+        """The catalog's own entry for ``key`` (with or without accelerators)."""
+        for candidate in (key, plain_key(key), clean_amp(key)):
+            val = self._raw_dict.get(candidate)
+            if isinstance(val, str) and val:
+                return val
+        return self._stripped_lookup.get(clean_amp(key))
+
     def _format(self, template: str, *args: Any) -> str:
         """Safely format string using positional args ({0}, {1}, etc.)."""
         if not args:
@@ -191,6 +257,20 @@ class TranslationCatalog:
             return template
 
 
+#: Qt's own catalog name for each locale (for standard dialogs and buttons).
+_QT_LOCALE_NAMES = {"zh-CN": "zh_CN", "zh-Hant": "zh_TW"}
+
+
+def _qt_translator(locale: str) -> QTranslator | None:
+    """Qt's translation of its standard dialogs and buttons for ``locale``."""
+    name = _QT_LOCALE_NAMES.get(locale, locale)
+    folder = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
+    translator = QTranslator()
+    if translator.load(f"qtbase_{name}", folder):
+        return translator
+    return None
+
+
 class I18nManager(QObject):
     """Global manager for application locale state and dynamic switching."""
 
@@ -200,6 +280,8 @@ class I18nManager(QObject):
         super().__init__(parent)
         self._current_locale = "zh-CN"
         self._catalog = TranslationCatalog(self._current_locale)
+        self._qt_translator: QTranslator | None = None
+        self._qt_translator_locale: str | None = None
 
     @property
     def current_locale(self) -> str:
@@ -209,10 +291,24 @@ class I18nManager(QObject):
     def set_locale(self, locale_name: str) -> None:
         """Switch active locale, reload catalog, and emit locale_changed."""
         norm = normalize_locale_name(locale_name)
+        self._install_qt_translator(norm)
         if norm != self._current_locale or self._catalog.locale != norm:
             self._current_locale = norm
             self._catalog = TranslationCatalog(norm)
             self.locale_changed.emit(norm)
+
+    def _install_qt_translator(self, locale: str) -> None:
+        """Translate Qt's own texts (standard buttons, file dialogs) too."""
+        app = QCoreApplication.instance()
+        if app is None or self._qt_translator_locale == locale:
+            return
+        if self._qt_translator is not None:
+            app.removeTranslator(self._qt_translator)
+            self._qt_translator = None
+        translator = _qt_translator(locale)
+        if translator is not None and app.installTranslator(translator):
+            self._qt_translator = translator
+        self._qt_translator_locale = locale
 
     def load_locale(self, locale_name: str) -> None:
         """Alias for set_locale."""

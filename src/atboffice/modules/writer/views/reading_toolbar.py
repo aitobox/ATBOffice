@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QCoreApplication, Signal
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QToolBar,
     QToolButton,
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for ReadingLayoutToolbar."""
-    return QCoreApplication.translate("ReadingLayoutToolbar", text)
+from atboffice.core.i18n import safe_tr
 
 
 class ReadingLayoutToolbar(QToolBar):

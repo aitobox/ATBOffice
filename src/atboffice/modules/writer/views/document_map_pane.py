@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QTreeWidget,
@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.writer.layout.toc import get_paragraph_heading_level
 from atboffice.modules.writer.models.document import (
     Document,
@@ -23,11 +24,6 @@ from atboffice.modules.writer.models.document import (
 
 if TYPE_CHECKING:
     from atboffice.modules.writer.views.caret_controller import CaretController
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for DocumentMapPane."""
-    return QCoreApplication.translate("DocumentMapPane", text)
 
 
 class DocumentMapPane(QWidget):

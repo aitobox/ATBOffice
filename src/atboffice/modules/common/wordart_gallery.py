@@ -21,7 +21,6 @@ from PySide6.QtGui import (
     QTransform,
 )
 from PySide6.QtWidgets import (
-    QApplication,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -35,15 +34,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    """Translate UI text with fallback to Chinese native text for ATBOffice."""
-    app = QApplication.instance()
-    if app:
-        translated = app.translate("WordArtGallery", text)
-        if translated and translated != text:
-            return translated
-    return text
+from atboffice.core.i18n import safe_tr
 
 
 class WarpMode(StrEnum):
@@ -415,7 +406,7 @@ class WordArtThumbnailWidget(QWidget):
         self.is_selected = is_selected
         self.setFixedSize(70, 48)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setAccessibleName(safe_tr(f"艺术字样式 {style.id + 1}"))
+        self.setAccessibleName(safe_tr("艺术字样式 {0}", style.id + 1))
 
     def sizeHint(self) -> QSize:
         return QSize(70, 48)

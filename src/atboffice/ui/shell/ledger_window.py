@@ -13,7 +13,7 @@ from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QComboBox, QDialog, QFileDialog, QMessageBox, QWidget
 
 from atboffice.core.action_registry import ActionRegistry
-from atboffice.core.i18n import safe_tr as core_safe_tr
+from atboffice.core.i18n import safe_tr
 from atboffice.core.search import SearchController, SpreadsheetSearchAdapter
 from atboffice.modules.spreadsheet.calc.references import cell_name
 from atboffice.modules.spreadsheet.models.filter_model import sort_sheet_range
@@ -38,12 +38,6 @@ from atboffice.ui.shell.ledger_toolbars import (
     retranslate_ledger_toolbars,
 )
 from atboffice.ui.shell.mac_menu import MacMenuBar, setup_mac_menu
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for LedgerWindow."""
-    return core_safe_tr(text)
-
 
 
 def _cell_edit(
@@ -1886,7 +1880,7 @@ class LedgerWindow(BaseOfficeWindow):
         r, c = self.spreadsheet_view.selection.active_cell
         self.watch_pane.add_watch(sheet.name, r, c)
         cname = f"{sheet.name}!${cell_name(r, c)}"
-        self.statusBar().showMessage(safe_tr(f"已添加到监视窗口: {cname}"), 3000)
+        self.statusBar().showMessage(safe_tr("已添加到监视窗口: {0}", cname), 3000)
 
     def open_watch_pane(self) -> None:
         """Open or activate Watch Window task pane."""
@@ -2856,6 +2850,9 @@ class LedgerWindow(BaseOfficeWindow):
 
         if not getattr(self, "_format_painter_sticky", False):
             self._cancel_format_painter()
+
+    def document_widget(self) -> QWidget | None:
+        return self.spreadsheet_view.grid
 
     def undo_service(self) -> Any | None:
         view = getattr(self, "spreadsheet_view", None)

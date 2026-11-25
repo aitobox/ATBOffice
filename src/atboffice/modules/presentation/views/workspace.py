@@ -28,7 +28,6 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -48,6 +47,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.comment import Comment
 from atboffice.modules.presentation.models.designs import (
     DESIGNS,
@@ -70,17 +70,7 @@ from atboffice.modules.presentation.views.slide_canvas import (
     SlideCanvasView,
     SlideScene,
 )
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text with fallbacks."""
-    app = QApplication.instance()
-    if app:
-        translated = app.translate("LecternWorkspace", text)
-        if translated and translated != text:
-            return translated
-    # Default to Chinese native text for ATBOffice
-    return text
+from atboffice.ui.styles.luna_2003 import ui_font
 
 
 def render_slide_thumbnail(
@@ -416,7 +406,7 @@ class MasterViewCloseBar(QFrame):
         layout.setSpacing(12)
 
         self.title_label = QLabel(safe_tr("幻灯片母版视图 — 在此定制全局母版排版与样式"), self)
-        self.title_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        self.title_label.setFont(ui_font(10, bold=True))
         self.title_label.setStyleSheet("color: #7F6000;")
         layout.addWidget(self.title_label)
 
@@ -424,7 +414,7 @@ class MasterViewCloseBar(QFrame):
 
         self.btn_close = QToolButton(self)
         self.btn_close.setText(safe_tr("关闭母版视图"))
-        self.btn_close.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self.btn_close.setFont(ui_font(9, bold=True))
         self.btn_close.setStyleSheet(
             """
             QToolButton {
@@ -489,6 +479,21 @@ class SlideThumbnailList(QListWidget):
             """
         )
 
+    #: Room taken around each thumbnail by the list and item padding, borders,
+    #: spacing and a possible vertical scroll bar.
+    _THUMB_CHROME = 40
+
+    def resizeEvent(self, event: Any) -> None:
+        super().resizeEvent(event)
+        self._fit_icon_size()
+
+    def _fit_icon_size(self) -> None:
+        """Size thumbnails to the pane, so they are never cut off on the right."""
+        width = max(64, min(240, self.width() - self._THUMB_CHROME))
+        size = QSize(width, round(width * 9 / 16))
+        if size != self.iconSize():
+            self.setIconSize(size)
+
     def dropEvent(self, event: Any) -> None:
         from_idx = self.currentRow()
         super().dropEvent(event)
@@ -549,7 +554,7 @@ class OutlineEditorWidget(QWidget):
         layout.setSpacing(0)
 
         self.editor = QTextEdit(self)
-        self.editor.setFont(QFont("Arial", 11))
+        self.editor.setFont(ui_font(11))
         self.editor.setPlaceholderText(safe_tr("在此处输入演示文稿大纲..."))
         self.editor.textChanged.connect(self._on_text_changed)
         self.editor.cursorPositionChanged.connect(self._on_cursor_changed)
@@ -791,7 +796,7 @@ class SlideLayoutPane(QWidget):
 
         for grp_key, grp_layouts in groups.items():
             lbl = QLabel(group_names.get(grp_key, grp_key), self)
-            lbl.setFont(QFont("Arial", 9, QFont.Bold))
+            lbl.setFont(ui_font(9, bold=True))
             lbl.setStyleSheet("color: #333333; margin-top: 4px;")
             layout.addWidget(lbl)
 
@@ -891,7 +896,7 @@ class SlideDesignPane(QWidget):
         layout.setSpacing(8)
 
         lbl = QLabel(safe_tr("可供使用的设计模板:"), self)
-        lbl.setFont(QFont("Arial", 9, QFont.Bold))
+        lbl.setFont(ui_font(9, bold=True))
         lbl.setStyleSheet("color: #333333;")
         layout.addWidget(lbl)
 
@@ -1327,6 +1332,11 @@ class LecternWorkspace(QWidget):
         self._shortcut_f5.activated.connect(lambda: self.start_slideshow(from_current=False))
         self._shortcut_shift_f5 = QShortcut(QKeySequence("Shift+F5"), self)
         self._shortcut_shift_f5.activated.connect(lambda: self.start_slideshow(from_current=True))
+
+    def set_own_shortcuts_enabled(self, enabled: bool) -> None:
+        """Turn off F5 / Shift+F5 when a window's actions already provide them."""
+        self._shortcut_f5.setEnabled(enabled)
+        self._shortcut_shift_f5.setEnabled(enabled)
 
     def load_presentation(self, presentation: Presentation) -> None:
         """Load presentation document and update all panes."""

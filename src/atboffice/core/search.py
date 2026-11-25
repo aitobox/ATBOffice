@@ -13,8 +13,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QObject, Signal
+from PySide6.QtCore import QObject, Signal
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.models.selection_model import SelectionModel
 from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
 from atboffice.modules.writer.models.document import (
@@ -32,11 +33,6 @@ from atboffice.modules.writer.views.caret_controller import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for search system."""
-    return QCoreApplication.translate("Search", text)
 
 
 @dataclass

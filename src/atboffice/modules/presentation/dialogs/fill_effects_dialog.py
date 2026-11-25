@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import QWidget
 
 from atboffice.modules.presentation.dialogs.background_dlg import (
@@ -14,11 +13,6 @@ from atboffice.modules.presentation.models.shape import Fill
 
 if TYPE_CHECKING:
     from atboffice.modules.presentation.models.designs import DesignTemplate
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for FillEffectsDialog."""
-    return QCoreApplication.translate("FillEffectsDialog", text)
 
 
 class FillEffectsDialog(BaseFillEffectsDialog):

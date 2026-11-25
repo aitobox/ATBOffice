@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from atboffice.core.action_registry import ActionRegistry, ActionSpec
-from atboffice.core.i18n import safe_tr as core_safe_tr
+from atboffice.core.i18n import safe_tr
 from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.toolbar import OfficeToolBar
 from atboffice.ui.components.toolbar_buttons import (
@@ -35,12 +35,6 @@ from atboffice.ui.components.toolbar_buttons import (
     OfficeSplitButton,
 )
 from atboffice.ui.icons import get_office_icon, has_office_icon
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for Quire toolbars."""
-    return core_safe_tr(text)
-
 
 _QUIRE_DROP_ICONS: Final[dict[str, str]] = {
     "插入表格": "table",
@@ -700,7 +694,7 @@ class QuireToolBarCluster:
 
         olvl_combo = QComboBox(tb)
         olvl_combo.setObjectName("Quire_OutlineLevelCombo")
-        olvl_combo.addItems([safe_tr(f"{n} 级") for n in range(1, 10)] + [safe_tr("正文文本")])
+        olvl_combo.addItems([safe_tr("{0} 级", n) for n in range(1, 10)] + [safe_tr("正文文本")])
         olvl_combo.setCurrentText(safe_tr("正文文本"))
         olvl_combo.setToolTip(safe_tr("大纲级别"))
         tb.addWidget(olvl_combo)
@@ -718,7 +712,7 @@ class QuireToolBarCluster:
         show_lvl_combo = QComboBox(tb)
         show_lvl_combo.setObjectName("Quire_ShowLevelCombo")
         show_lvl_combo.addItems(
-            [safe_tr("显示所有级别")] + [safe_tr(f"显示级别 {n}") for n in range(1, 10)]
+            [safe_tr("显示所有级别")] + [safe_tr("显示级别 {0}", n) for n in range(1, 10)]
         )
         show_lvl_combo.setToolTip(safe_tr("显示级别"))
         tb.addWidget(show_lvl_combo)

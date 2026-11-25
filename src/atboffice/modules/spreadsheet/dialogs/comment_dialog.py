@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -14,10 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("CommentDialog", text)
+from atboffice.core.i18n import safe_tr
 
 
 class CommentDialog(QDialog):

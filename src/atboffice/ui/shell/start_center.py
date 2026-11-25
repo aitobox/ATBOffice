@@ -13,7 +13,6 @@ from PySide6.QtGui import (
     QDragEnterEvent,
     QDragMoveEvent,
     QDropEvent,
-    QFont,
     QMouseEvent,
     QPixmap,
 )
@@ -34,17 +33,97 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from atboffice.core.i18n import safe_tr as core_safe_tr
+from atboffice.core.i18n import safe_tr
 from atboffice.core.recent_files import RecentItem
+from atboffice.ui.icons import get_office_icon, get_office_pixmap
 from atboffice.ui.shell.base_window import BaseOfficeWindow
 from atboffice.ui.shell.mac_menu import MacMenuBar, setup_mac_menu
+from atboffice.ui.styles.luna_2003 import theme_tokens, ui_font
 
 logger = logging.getLogger(__name__)
 
 
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for StartCenterWindow."""
-    return core_safe_tr(text)
+#: Icon of each editor, in the recent list, the template cards and the sidebar.
+APP_ICONS: dict[str, str] = {
+    "quire": "app_quire",
+    "ledger": "app_ledger",
+    "lectern": "app_lectern",
+    "generic": "app_suite",
+}
+
+
+def start_center_stylesheet(theme: str | None = "blue") -> str:
+    """Office 2003 task-pane look for the Start Center, in the colors of ``theme``."""
+    t = theme_tokens(theme)
+    return f"""
+    #scSidebar {{
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {t.tb_a}, stop:1 {t.tb_b});
+        border-right: 1px solid {t.tb_border};
+    }}
+    #scBrand {{ color: {t.grip}; }}
+    #scSubtitle {{ color: #4D4D4D; }}
+    QLabel[scSection="true"] {{
+        color: {t.grip};
+        font-weight: bold;
+        border-bottom: 1px solid {t.tb_c};
+        padding: 6px 0 2px 0;
+    }}
+    QPushButton[scLink="true"] {{
+        text-align: left;
+        padding: 4px 6px;
+        border: 1px solid transparent;
+        border-radius: 2px;
+        background: transparent;
+        color: #0033CC;
+    }}
+    QPushButton[scLink="true"]:hover {{
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {t.hot_a}, stop:1 {t.hot_b});
+        border-color: {t.hot_border};
+        color: #000000;
+    }}
+    QPushButton[scLink="true"]:checked {{
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {t.chk_a}, stop:1 {t.chk_b});
+        border-color: {t.hot_border};
+        color: #000000;
+        font-weight: bold;
+    }}
+    QLabel[scTitle="true"] {{ color: {t.grip}; }}
+    QLabel[scMuted="true"] {{ color: #555555; }}
+    #scRecentList {{
+        background: #FFFFFF;
+        border: 1px solid {t.tb_border};
+        outline: none;
+    }}
+    #scRecentList::item {{ border-bottom: 1px solid #E4E8F0; }}
+    #scRecentList::item:hover {{ background: {t.hot_a}; }}
+    #scRecentList::item:selected {{ background: {t.menu_hot}; color: #000000; }}
+    #scThumb {{ border: 1px solid #A0A0A0; background: #FFFFFF; }}
+    QPushButton#scRemove {{
+        border: 1px solid transparent;
+        border-radius: 2px;
+        background: transparent;
+        color: #707070;
+        font-size: 14px;
+    }}
+    QPushButton#scRemove:hover {{
+        border-color: {t.hot_border};
+        background: {t.hot_a};
+        color: #C00000;
+    }}
+    TemplateCard {{
+        background: #FFFFFF;
+        border: 1px solid {t.tb_edge};
+        border-radius: 2px;
+    }}
+    TemplateCard:hover {{
+        background: {t.hot_a};
+        border: 1px solid {t.hot_border};
+    }}
+    #recoveryBox {{
+        background: #FFFFE1;
+        border: 1px solid #ACA899;
+    }}
+    """
 
 
 class RecentItemWidget(QWidget):
@@ -68,20 +147,11 @@ class RecentItemWidget(QWidget):
         layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(12)
 
-        # App type icon badge
-        app_icons = {
-            "quire": ("📘", "#2563EB"),
-            "ledger": ("📗", "#16A34A"),
-            "lectern": ("📙", "#EA580C"),
-            "generic": ("📄", "#64748B"),
-        }
-        icon_symbol, _ = app_icons.get(self.item.app, app_icons["generic"])
-
-        self.lbl_icon = QLabel(icon_symbol, self)
-        font = self.lbl_icon.font()
-        font.setPointSize(20)
-        self.lbl_icon.setFont(font)
-        self.lbl_icon.setFixedWidth(28)
+        # Editor icon, replaced by the document's thumbnail when there is one
+        icon_name = APP_ICONS.get(self.item.app, APP_ICONS["generic"])
+        self.lbl_icon = QLabel(self)
+        self.lbl_icon.setPixmap(get_office_pixmap(icon_name, 32))
+        self.lbl_icon.setFixedWidth(34)
         self.has_thumbnail = False
         if self.thumbnail is not None and self.thumbnail.exists():
             pix = QPixmap(str(self.thumbnail))
@@ -91,7 +161,7 @@ class RecentItemWidget(QWidget):
                                Qt.TransformationMode.SmoothTransformation)
                 )
                 self.lbl_icon.setFixedSize(66, 50)
-                self.lbl_icon.setStyleSheet("border: 1px solid #CBD5E1; background: #FFFFFF;")
+                self.lbl_icon.setObjectName("scThumb")
                 self.lbl_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.has_thumbnail = True
         layout.addWidget(self.lbl_icon)
@@ -101,9 +171,7 @@ class RecentItemWidget(QWidget):
         text_col.setSpacing(2)
 
         self.lbl_title = QLabel(self.item.title, self)
-        title_font = QFont()
-        title_font.setPointSize(13)
-        title_font.setBold(True)
+        title_font = ui_font(10, bold=True)
         self.lbl_title.setFont(title_font)
         text_col.addWidget(self.lbl_title)
 
@@ -126,24 +194,17 @@ class RecentItemWidget(QWidget):
         meta_parts.append(str(self.item.path.parent))
 
         self.lbl_meta = QLabel(" · ".join(meta_parts), self)
-        meta_font = QFont()
-        meta_font.setPointSize(11)
-        self.lbl_meta.setFont(meta_font)
-        self.lbl_meta.setStyleSheet("color: #64748B;")
+        self.lbl_meta.setFont(ui_font(8.5))
+        self.lbl_meta.setProperty("scMuted", True)
         text_col.addWidget(self.lbl_meta)
 
         layout.addLayout(text_col, stretch=1)
 
         # Remove button
         self.btn_remove = QPushButton("×", self)
-        self.btn_remove.setFixedSize(24, 24)
+        self.btn_remove.setObjectName("scRemove")
+        self.btn_remove.setFixedSize(22, 22)
         self.btn_remove.setToolTip(safe_tr("从历史列表中移除"))
-        self.btn_remove.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_remove.setStyleSheet(
-            "QPushButton { border: none; font-size: 16px; color: #94A3B8; "
-            "border-radius: 12px; }"
-            "QPushButton:hover { background: #F1F5F9; color: #DC2626; font-weight: bold; }"
-        )
         self.btn_remove.clicked.connect(lambda: self.on_remove(self.item.path))
         layout.addWidget(self.btn_remove)
 
@@ -190,42 +251,32 @@ class TemplateCard(QFrame):
         self.template_id = template_id
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFixedSize(180, 160)
-        self.setStyleSheet(
-            "TemplateCard { background: #FFFFFF; border: 1px solid #E2E8F0; "
-            "border-radius: 8px; }"
-            "TemplateCard:hover { border: 1.5px solid #3B82F6; background: #F8FAFC; }"
-        )
+        self.setFixedSize(168, 132)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 16, 12, 12)
         layout.setSpacing(6)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # Icon
-        self.lbl_icon = QLabel(icon_text, self)
-        font = self.lbl_icon.font()
-        font.setPointSize(36)
-        self.lbl_icon.setFont(font)
+        # Icon: ``icon_text`` names a vector icon (an editor's, by default)
+        self.lbl_icon = QLabel(self)
+        self.lbl_icon.setPixmap(get_office_pixmap(icon_text, 32))
         self.lbl_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.lbl_icon)
 
         # Title
         self.lbl_title = QLabel(title, self)
-        title_font = QFont()
-        title_font.setPointSize(12)
-        title_font.setBold(True)
-        self.lbl_title.setFont(title_font)
+        self.lbl_title.setFont(ui_font(9, bold=True))
         self.lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_title.setWordWrap(True)
         layout.addWidget(self.lbl_title)
 
         # Subtitle
         self.lbl_subtitle = QLabel(subtitle, self)
-        sub_font = QFont()
-        sub_font.setPointSize(10)
-        self.lbl_subtitle.setFont(sub_font)
-        self.lbl_subtitle.setStyleSheet("color: #64748B;")
+        self.lbl_subtitle.setFont(ui_font(8))
+        self.lbl_subtitle.setProperty("scMuted", True)
         self.lbl_subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_subtitle.setWordWrap(True)
         layout.addWidget(self.lbl_subtitle)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
@@ -251,9 +302,16 @@ class StartCenterWindow(BaseOfficeWindow):
         self.menu_bar: MacMenuBar = setup_mac_menu(self)
 
         self._build_ui()
+        self.apply_theme(self.current_theme)
         self._bind_start_center_actions()
         self.retranslate_ui()
         self.refresh_recent_files()
+
+    def apply_theme(self, theme_name: str) -> None:
+        super().apply_theme(theme_name)
+        central = self.centralWidget()
+        if central is not None:
+            central.setStyleSheet(start_center_stylesheet(theme_name))
 
     def update_window_title(self) -> None:
         """Set window title adhering to application launcher convention."""
@@ -283,164 +341,73 @@ class StartCenterWindow(BaseOfficeWindow):
         root_layout.addWidget(self.stacked_widget, stretch=1)
 
     def _create_sidebar(self) -> QWidget:
-        """Create left navigation sidebar."""
+        """Create the left task pane: new documents, open, views and utilities."""
         sidebar = QFrame(self)
-        sidebar.setFixedWidth(240)
-        sidebar.setStyleSheet(
-            "QFrame { background-color: #F8FAFC; border-right: 1px solid #E2E8F0; }"
-        )
+        sidebar.setObjectName("scSidebar")
+        sidebar.setFixedWidth(232)
 
         layout = QVBoxLayout(sidebar)
-        layout.setContentsMargins(16, 24, 16, 20)
-        layout.setSpacing(10)
+        layout.setContentsMargins(14, 18, 14, 14)
+        layout.setSpacing(4)
 
         # Brand header
         self.lbl_brand_title = QLabel("ATBOffice", sidebar)
-        brand_font = QFont()
-        brand_font.setPointSize(20)
-        brand_font.setBold(True)
-        self.lbl_brand_title.setFont(brand_font)
-        self.lbl_brand_title.setStyleSheet("color: #0F172A; border: none;")
+        self.lbl_brand_title.setObjectName("scBrand")
+        self.lbl_brand_title.setFont(ui_font(16, bold=True))
         layout.addWidget(self.lbl_brand_title)
 
-        self.lbl_brand_subtitle = QLabel(safe_tr("原生现代办公套件"), sidebar)
-        sub_font = QFont()
-        sub_font.setPointSize(11)
-        self.lbl_brand_subtitle.setFont(sub_font)
-        self.lbl_brand_subtitle.setStyleSheet(
-            "color: #64748B; border: none; margin-bottom: 8px;"
-        )
+        self.lbl_brand_subtitle = QLabel(sidebar)
+        self.lbl_brand_subtitle.setObjectName("scSubtitle")
         layout.addWidget(self.lbl_brand_subtitle)
+        layout.addSpacing(8)
 
-        # Quick Launch Section Header
-        self.lbl_section_new = QLabel(safe_tr("新建"), sidebar)
-        sec_font = QFont()
-        sec_font.setPointSize(11)
-        sec_font.setBold(True)
-        self.lbl_section_new.setFont(sec_font)
-        self.lbl_section_new.setStyleSheet(
-            "color: #94A3B8; border: none; margin-top: 8px;"
-        )
-        layout.addWidget(self.lbl_section_new)
+        def section() -> QLabel:
+            label = QLabel(sidebar)
+            label.setProperty("scSection", True)
+            layout.addWidget(label)
+            return label
 
-        # Quick Launch Buttons
-        btn_style = (
-            "QPushButton { text-align: left; padding: 8px 12px; font-size: 13px; "
-            "border: 1px solid transparent; border-radius: 6px; "
-            "background: transparent; color: #1E293B; }"
-            "QPushButton:hover { background: #EDF2F7; border-color: #CBD5E1; }"
-            "QPushButton:pressed { background: #E2E8F0; }"
-        )
+        def link(icon: str, slot: Callable[[], Any], *, checkable: bool = False) -> QPushButton:
+            btn = QPushButton(sidebar)
+            btn.setProperty("scLink", True)
+            btn.setIcon(get_office_icon(icon))
+            btn.setIconSize(QSize(16, 16))
+            btn.setCheckable(checkable)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(slot)
+            layout.addWidget(btn)
+            return btn
 
-        self.btn_new_quire = QPushButton("📘  " + safe_tr("Quire 文本文档"), sidebar)
-        self.btn_new_quire.setStyleSheet(btn_style)
-        self.btn_new_quire.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_new_quire.clicked.connect(self._on_new_quire_clicked)
-        layout.addWidget(self.btn_new_quire)
+        self.lbl_section_new = section()
+        self.btn_new_quire = link(APP_ICONS["quire"], self._on_new_quire_clicked)
+        self.btn_new_ledger = link(APP_ICONS["ledger"], self._on_new_ledger_clicked)
+        self.btn_new_lectern = link(APP_ICONS["lectern"], self._on_new_lectern_clicked)
+        self.btn_open_file = link("open", self._on_open_file_clicked)
 
-        self.btn_new_ledger = QPushButton("📗  " + safe_tr("Ledger 电子表格"), sidebar)
-        self.btn_new_ledger.setStyleSheet(btn_style)
-        self.btn_new_ledger.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_new_ledger.clicked.connect(self._on_new_ledger_clicked)
-        layout.addWidget(self.btn_new_ledger)
-
-        self.btn_new_lectern = QPushButton("📙  " + safe_tr("Lectern 演示文稿"), sidebar)
-        self.btn_new_lectern.setStyleSheet(btn_style)
-        self.btn_new_lectern.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_new_lectern.clicked.connect(self._on_new_lectern_clicked)
-        layout.addWidget(self.btn_new_lectern)
-
-        # Action: Open Local File
-        layout.addSpacing(6)
-        self.btn_open_file = QPushButton("📂  " + safe_tr("打开本地文件..."), sidebar)
-        open_style = (
-            "QPushButton { text-align: left; padding: 8px 12px; font-size: 13px; "
-            "font-weight: bold; border: 1px solid #CBD5E1; border-radius: 6px; "
-            "background: #FFFFFF; color: #1E293B; }"
-            "QPushButton:hover { background: #F1F5F9; border-color: #94A3B8; }"
-            "QPushButton:pressed { background: #E2E8F0; }"
-        )
-        self.btn_open_file.setStyleSheet(open_style)
-        self.btn_open_file.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_open_file.clicked.connect(self._on_open_file_clicked)
-        layout.addWidget(self.btn_open_file)
-
-        # Navigation Toggles Section Header
-        layout.addSpacing(12)
-        self.lbl_section_nav = QLabel(safe_tr("视图"), sidebar)
-        self.lbl_section_nav.setFont(sec_font)
-        self.lbl_section_nav.setStyleSheet("color: #94A3B8; border: none;")
-        layout.addWidget(self.lbl_section_nav)
-
-        nav_style = (
-            "QPushButton { text-align: left; padding: 8px 12px; font-size: 13px; "
-            "border: 1px solid transparent; border-radius: 6px; "
-            "background: transparent; color: #334155; }"
-            "QPushButton:hover { background: #EDF2F7; }"
-            "QPushButton:checked { background: #E0E7FF; color: #1D4ED8; "
-            "font-weight: bold; border-color: #BFDBFE; }"
-        )
-
-        self.btn_nav_recent = QPushButton("🕒  " + safe_tr("最近文档"), sidebar)
-        self.btn_nav_recent.setCheckable(True)
+        layout.addSpacing(8)
+        self.lbl_section_nav = section()
+        self.btn_nav_recent = link("open", self._on_nav_recent_clicked, checkable=True)
         self.btn_nav_recent.setChecked(True)
-        self.btn_nav_recent.setStyleSheet(nav_style)
-        self.btn_nav_recent.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_nav_recent.clicked.connect(self._on_nav_recent_clicked)
-        layout.addWidget(self.btn_nav_recent)
-
-        self.btn_nav_templates = QPushButton("🗂️  " + safe_tr("模板库"), sidebar)
-        self.btn_nav_templates.setCheckable(True)
-        self.btn_nav_templates.setChecked(False)
-        self.btn_nav_templates.setStyleSheet(nav_style)
-        self.btn_nav_templates.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_nav_templates.clicked.connect(self._on_nav_templates_clicked)
-        layout.addWidget(self.btn_nav_templates)
+        self.btn_nav_templates = link("templates", self._on_nav_templates_clicked, checkable=True)
 
         layout.addStretch(1)
 
-        # Bottom Utilities (Themes, Settings, About, Update)
-        bottom_box = QVBoxLayout()
-        bottom_box.setSpacing(6)
-
-        row_top = QHBoxLayout()
-        row_top.setSpacing(6)
-        row_bot = QHBoxLayout()
-        row_bot.setSpacing(6)
-
-        util_style = (
-            "QPushButton { padding: 6px 8px; font-size: 12px; border: 1px solid #E2E8F0; "
-            "border-radius: 6px; background: #FFFFFF; color: #475569; }"
-            "QPushButton:hover { background: #F1F5F9; color: #0F172A; border-color: #CBD5E1; }"
-        )
-
-        self.btn_themes = QPushButton(safe_tr("主题"), sidebar)
-        self.btn_themes.setStyleSheet(util_style)
-        self.btn_themes.setCursor(Qt.CursorShape.PointingHandCursor)
+        # Utilities: plain Office buttons
+        grid = QGridLayout()
+        grid.setSpacing(6)
+        self.btn_themes = QPushButton(sidebar)
         self.btn_themes.clicked.connect(self.show_theme_dialog)
-        row_top.addWidget(self.btn_themes)
-
-        self.btn_settings = QPushButton(safe_tr("设置"), sidebar)
-        self.btn_settings.setStyleSheet(util_style)
-        self.btn_settings.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_settings = QPushButton(sidebar)
         self.btn_settings.clicked.connect(self._on_settings_clicked)
-        row_top.addWidget(self.btn_settings)
-
-        self.btn_about = QPushButton(safe_tr("关于"), sidebar)
-        self.btn_about.setStyleSheet(util_style)
-        self.btn_about.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_about = QPushButton(sidebar)
         self.btn_about.clicked.connect(self.show_about)
-        row_bot.addWidget(self.btn_about)
-
-        self.btn_update = QPushButton(safe_tr("检查更新"), sidebar)
-        self.btn_update.setStyleSheet(util_style)
-        self.btn_update.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_update = QPushButton(sidebar)
         self.btn_update.clicked.connect(self.check_for_updates)
-        row_bot.addWidget(self.btn_update)
-
-        bottom_box.addLayout(row_top)
-        bottom_box.addLayout(row_bot)
-        layout.addLayout(bottom_box)
+        grid.addWidget(self.btn_themes, 0, 0)
+        grid.addWidget(self.btn_settings, 0, 1)
+        grid.addWidget(self.btn_about, 1, 0)
+        grid.addWidget(self.btn_update, 1, 1)
+        layout.addLayout(grid)
         return sidebar
 
     def _create_recent_page(self) -> QWidget:
@@ -455,24 +422,13 @@ class StartCenterWindow(BaseOfficeWindow):
         top_bar.setSpacing(12)
 
         self.lbl_recent_title = QLabel(safe_tr("最近打开的文档"), page)
-        title_font = QFont()
-        title_font.setPointSize(18)
-        title_font.setBold(True)
-        self.lbl_recent_title.setFont(title_font)
-        self.lbl_recent_title.setStyleSheet("color: #0F172A;")
+        self.lbl_recent_title.setFont(ui_font(14, bold=True))
+        self.lbl_recent_title.setProperty("scTitle", True)
         top_bar.addWidget(self.lbl_recent_title)
 
         top_bar.addStretch(1)
 
         self.btn_clear_recent = QPushButton(safe_tr("清空历史"), page)
-        self.btn_clear_recent.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_clear_recent.setStyleSheet(
-            "QPushButton { padding: 5px 12px; font-size: 12px; border: 1px solid #CBD5E1; "
-            "border-radius: 6px; background: #FFFFFF; color: #475569; }"
-            "QPushButton:hover { background: #FEE2E2; border-color: #F87171; color: #B91C1C; }"
-            "QPushButton:disabled { color: #CBD5E1; border-color: #E2E8F0; "
-            "background: transparent; }"
-        )
         self.btn_clear_recent.clicked.connect(self._on_clear_recent_clicked)
         top_bar.addWidget(self.btn_clear_recent)
 
@@ -485,19 +441,14 @@ class StartCenterWindow(BaseOfficeWindow):
         empty_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         empty_layout.setSpacing(12)
 
-        lbl_empty_icon = QLabel("📁", self.empty_state_widget)
-        empty_icon_font = lbl_empty_icon.font()
-        empty_icon_font.setPointSize(48)
-        lbl_empty_icon.setFont(empty_icon_font)
+        lbl_empty_icon = QLabel(self.empty_state_widget)
+        lbl_empty_icon.setPixmap(get_office_pixmap("open", 48))
         lbl_empty_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         empty_layout.addWidget(lbl_empty_icon)
 
         self.lbl_empty_main = QLabel(safe_tr("暂无最近打开的文档"), self.empty_state_widget)
-        empty_main_font = QFont()
-        empty_main_font.setPointSize(15)
-        empty_main_font.setBold(True)
-        self.lbl_empty_main.setFont(empty_main_font)
-        self.lbl_empty_main.setStyleSheet("color: #334155;")
+        self.lbl_empty_main.setFont(ui_font(12, bold=True))
+        self.lbl_empty_main.setProperty("scTitle", True)
         self.lbl_empty_main.setAlignment(Qt.AlignmentFlag.AlignCenter)
         empty_layout.addWidget(self.lbl_empty_main)
 
@@ -505,7 +456,7 @@ class StartCenterWindow(BaseOfficeWindow):
             safe_tr("拖拽文件到此处，或点击左侧“打开本地文件”开始工作。"),
             self.empty_state_widget,
         )
-        self.lbl_empty_desc.setStyleSheet("color: #64748B; font-size: 13px;")
+        self.lbl_empty_desc.setProperty("scMuted", True)
         self.lbl_empty_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
         empty_layout.addWidget(self.lbl_empty_desc)
 
@@ -513,28 +464,17 @@ class StartCenterWindow(BaseOfficeWindow):
 
         # Recent Items List
         self.recent_list_widget = QListWidget(page)
-        self.recent_list_widget.setStyleSheet(
-            "QListWidget { border: 1px solid #E2E8F0; border-radius: 8px; "
-            "background: #FFFFFF; outline: none; }"
-            "QListWidget::item { border-bottom: 1px solid #F1F5F9; padding: 2px 0px; }"
-            "QListWidget::item:hover { background: #F8FAFC; }"
-            "QListWidget::item:selected { background: #EFF6FF; }"
-        )
+        self.recent_list_widget.setObjectName("scRecentList")
         self.recent_list_widget.itemActivated.connect(self._on_recent_item_activated)
         layout.addWidget(self.recent_list_widget, stretch=1)
 
         # Document Recovery: drafts left by a session that did not close cleanly
         self.recovery_box = QFrame(page)
         self.recovery_box.setObjectName("recoveryBox")
-        self.recovery_box.setStyleSheet(
-            "#recoveryBox { background: #FFFBEB; border: 1px solid #FCD34D; border-radius: 8px; }"
-        )
         rec_layout = QVBoxLayout(self.recovery_box)
         rec_layout.setContentsMargins(12, 8, 12, 8)
         self.lbl_recovery_title = QLabel(self.recovery_box)
-        rec_font = QFont()
-        rec_font.setBold(True)
-        self.lbl_recovery_title.setFont(rec_font)
+        self.lbl_recovery_title.setFont(ui_font(9, bold=True))
         rec_layout.addWidget(self.lbl_recovery_title)
         self.recovery_rows = QVBoxLayout()
         rec_layout.addLayout(self.recovery_rows)
@@ -551,11 +491,8 @@ class StartCenterWindow(BaseOfficeWindow):
         layout.setSpacing(16)
 
         self.lbl_templates_title = QLabel(safe_tr("模板库与新建"), page)
-        title_font = QFont()
-        title_font.setPointSize(18)
-        title_font.setBold(True)
-        self.lbl_templates_title.setFont(title_font)
-        self.lbl_templates_title.setStyleSheet("color: #0F172A;")
+        self.lbl_templates_title.setFont(ui_font(14, bold=True))
+        self.lbl_templates_title.setProperty("scTitle", True)
         layout.addWidget(self.lbl_templates_title)
 
         scroll = QScrollArea(page)
@@ -574,11 +511,11 @@ class StartCenterWindow(BaseOfficeWindow):
         self.template_cards: list[TemplateCard] = []
         sections = (
             ("quire", "Quire " + safe_tr("文本文档"), safe_tr("空白文档"),
-             safe_tr("标准空白页面"), "📄"),
+             safe_tr("标准空白页面"), APP_ICONS["quire"]),
             ("ledger", "Ledger " + safe_tr("电子表格"), safe_tr("空白工作簿"),
-             safe_tr("标准多标签表格"), "📗"),
+             safe_tr("标准多标签表格"), APP_ICONS["ledger"]),
             ("lectern", "Lectern " + safe_tr("演示文稿"), safe_tr("空白幻灯片"),
-             safe_tr("16:9 宽屏演示"), "📙"),
+             safe_tr("16:9 宽屏演示"), APP_ICONS["lectern"]),
         )
         def opener(app: str, template_id: str | None = None) -> Callable[[], Any]:
             # Resolve the WindowManager method at click time, not when the page is built
@@ -596,7 +533,7 @@ class StartCenterWindow(BaseOfficeWindow):
                 items.append((
                     safe_tr(info.name),
                     safe_tr(info.description or info.category or ""),
-                    info.icon or "📄",
+                    blank_icon,
                     opener(app, info.id),
                     info.id,
                 ))
@@ -616,11 +553,7 @@ class StartCenterWindow(BaseOfficeWindow):
     ) -> None:
         """Add a category row of template cards."""
         sec_title = QLabel(title)
-        font = QFont()
-        font.setPointSize(13)
-        font.setBold(True)
-        sec_title.setFont(font)
-        sec_title.setStyleSheet("color: #334155; margin-top: 8px;")
+        sec_title.setProperty("scSection", True)
         container_layout.addWidget(sec_title)
 
         grid = QGridLayout()
@@ -991,23 +924,23 @@ class StartCenterWindow(BaseOfficeWindow):
         if hasattr(self, "lbl_section_new"):
             self.lbl_section_new.setText(safe_tr("新建"))
         if hasattr(self, "btn_new_quire"):
-            self.btn_new_quire.setText("📘  " + safe_tr("Quire 文本文档"))
+            self.btn_new_quire.setText(safe_tr("Quire 文本文档"))
         if hasattr(self, "btn_new_ledger"):
-            self.btn_new_ledger.setText("📗  " + safe_tr("Ledger 电子表格"))
+            self.btn_new_ledger.setText(safe_tr("Ledger 电子表格"))
         if hasattr(self, "btn_new_lectern"):
-            self.btn_new_lectern.setText("📙  " + safe_tr("Lectern 演示文稿"))
+            self.btn_new_lectern.setText(safe_tr("Lectern 演示文稿"))
         if hasattr(self, "btn_open_file"):
-            self.btn_open_file.setText("📂  " + safe_tr("打开本地文件..."))
+            self.btn_open_file.setText(safe_tr("打开本地文件..."))
         if hasattr(self, "lbl_section_nav"):
             self.lbl_section_nav.setText(safe_tr("视图"))
         if hasattr(self, "btn_nav_recent"):
-            self.btn_nav_recent.setText("🕒  " + safe_tr("最近文档"))
+            self.btn_nav_recent.setText(safe_tr("最近文档"))
         if hasattr(self, "btn_nav_templates"):
-            self.btn_nav_templates.setText("🗂️  " + safe_tr("模板库"))
+            self.btn_nav_templates.setText(safe_tr("模板库"))
         if hasattr(self, "btn_themes"):
             self.btn_themes.setText(safe_tr("主题"))
         if hasattr(self, "btn_settings"):
-            self.btn_settings.setText(safe_tr("设置"))
+            self.btn_settings.setText(safe_tr("选项"))
         if hasattr(self, "btn_about"):
             self.btn_about.setText(safe_tr("关于"))
         if hasattr(self, "btn_update"):

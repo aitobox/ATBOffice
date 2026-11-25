@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QSize, Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter
 from PySide6.QtWidgets import (
     QDialog,
@@ -17,17 +17,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.dialogs.pattern_defs import (
     PATTERN_NAMES,
     PATTERNS,
     create_pattern_brush,
     create_pattern_pixmap,
 )
-
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("PatternsTab", text)
-
 
 STANDARD_PALETTE = [
     "#000000",

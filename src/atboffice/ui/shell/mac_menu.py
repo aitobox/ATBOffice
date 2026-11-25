@@ -2,21 +2,17 @@
 
 from __future__ import annotations
 
+import sys
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QMenu, QMenuBar
 
 from atboffice.core.action_registry import ActionRegistry, ActionSpec
-from atboffice.core.i18n import safe_tr as core_safe_tr
+from atboffice.core.i18n import safe_tr
 
 if TYPE_CHECKING:
     from PySide6.QtWidgets import QMainWindow
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for macOS menu bar."""
-    return core_safe_tr(text)
 
 
 # Menu items that only make sense inside specific editors. Every other app type
@@ -159,8 +155,29 @@ class MacMenuBar(QMenuBar):
         if self.sep_format_cells is not None:
             self.sep_format_cells.setVisible(is_ledger)
 
+    def _update_app_shortcuts(self) -> None:
+        """Shortcuts whose keys mean something else in another editor.
+
+        Cmd+M minimizes on macOS, except in Lectern where Ctrl+M adds a slide;
+        Alt+Shift+Right / Left group rows in Ledger but promote and demote text
+        in Quire and Lectern.
+        """
+        is_ledger = self.app_type == "ledger"
+        wanted = {
+            "window_minimize": "Ctrl+M"
+            if sys.platform == "darwin" and self.app_type != "lectern"
+            else "",
+            "outlineGroup": "Alt+Shift+Right" if is_ledger else "",
+            "outlineUngroup": "Alt+Shift+Left" if is_ledger else "",
+        }
+        for aid, keys in wanted.items():
+            action = self.action_map.get(aid)
+            if action is not None:
+                action.setShortcut(QKeySequence(keys))
+
     def _update_app_menu(self) -> None:
         """Dynamically attach application-specific 7th menu before Window menu."""
+        self._update_app_shortcuts()
         if self.app_menu is not None:
             self.removeAction(self.app_menu.menuAction())
             self.app_menu = None
@@ -490,12 +507,9 @@ class MacMenuBar(QMenuBar):
         self._reg_act(menu_outline, "outlineHideDetail", "data_hide_detail")
         self._reg_act(menu_outline, "outlineShowDetail", "data_show_detail")
         menu_outline.addSeparator()
-        self._reg_act(
-            menu_outline, "outlineGroup", "data_group", shortcut=QKeySequence("Alt+Shift+Right")
-        )
-        self._reg_act(
-            menu_outline, "outlineUngroup", "data_ungroup", shortcut=QKeySequence("Alt+Shift+Left")
-        )
+        # Alt+Shift+Right / Left are set in Ledger only (see _update_app_shortcuts).
+        self._reg_act(menu_outline, "outlineGroup", "data_group")
+        self._reg_act(menu_outline, "outlineUngroup", "data_ungroup")
         self._reg_act(menu_outline, "outlineClear", "data_clear_outline")
         menu_data.addSeparator()
         self._reg_act(menu_data, "importHtml", "data_import_html")
@@ -526,9 +540,7 @@ class MacMenuBar(QMenuBar):
         menu_window = self.addMenu("")
         self.menu_map["window"] = menu_window
 
-        self._reg_act(
-            menu_window, "window_minimize", "window_minimize", shortcut=QKeySequence("Ctrl+M")
-        )
+        self._reg_act(menu_window, "window_minimize", "window_minimize")
         self._reg_act(menu_window, "window_zoom", "window_zoom")
         self._reg_act(menu_window, "windowSplit", "window_split")
         menu_window.addSeparator()

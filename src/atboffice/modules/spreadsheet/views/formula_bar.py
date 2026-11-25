@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QCoreApplication, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -11,12 +11,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.references import parse_cell, parse_range
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for FormulaBar."""
-    return QCoreApplication.translate("FormulaBar", text)
 
 
 class FormulaBar(QWidget):

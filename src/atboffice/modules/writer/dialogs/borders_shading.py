@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 
-from PySide6.QtCore import QCoreApplication, QRect, Qt
+from PySide6.QtCore import QRect, Qt
 from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import (
     QColorDialog,
@@ -22,16 +22,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.writer.models.properties import (
     BorderProperties,
     ShadingProperties,
 )
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("BordersShadingDialog", text)
-
 
 BORDER_STYLE_NAMES: list[tuple[str, str]] = [
     ("single", safe_tr("单实线")),

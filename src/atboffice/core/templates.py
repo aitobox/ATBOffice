@@ -7,14 +7,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication
+from atboffice.core.i18n import safe_tr
 
 logger = logging.getLogger(__name__)
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for template system."""
-    return QCoreApplication.translate("TemplateRegistry", text)
 
 
 @dataclass

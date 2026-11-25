@@ -12,11 +12,7 @@ Provides:
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import (
-    QFont,
-)
 from PySide6.QtWidgets import (
-    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -29,19 +25,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.presentation import Presentation
 from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.views.workspace import render_slide_thumbnail
-
-
-def safe_tr(text: str) -> str:
-    """Safe translation for Notes Page UI."""
-    app = QApplication.instance()
-    if app:
-        translated = app.translate("NotesPage", text)
-        if translated and translated != text:
-            return translated
-    return text
+from atboffice.ui.styles.luna_2003 import ui_font
 
 
 class NotesPagePaper(QFrame):
@@ -87,12 +75,12 @@ class NotesPagePaper(QFrame):
         h_layout = QHBoxLayout(self.header_row)
         h_layout.setContentsMargins(0, 0, 0, 0)
         self.lbl_header = QLabel(safe_tr("页眉"), self.header_row)
-        self.lbl_header.setFont(QFont("Arial", 8))
+        self.lbl_header.setFont(ui_font(8))
         self.lbl_header.setStyleSheet("color: #888888;")
         h_layout.addWidget(self.lbl_header)
         h_layout.addStretch()
         self.lbl_date = QLabel("", self.header_row)
-        self.lbl_date.setFont(QFont("Arial", 8))
+        self.lbl_date.setFont(ui_font(8))
         self.lbl_date.setStyleSheet("color: #888888;")
         h_layout.addWidget(self.lbl_date)
         self.main_layout.addWidget(self.header_row)
@@ -118,13 +106,13 @@ class NotesPagePaper(QFrame):
         n_layout.setSpacing(4)
 
         self.lbl_notes_title = QLabel(safe_tr("单击此处添加备注"), self.notes_container)
-        self.lbl_notes_title.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self.lbl_notes_title.setFont(ui_font(9, bold=True))
         self.lbl_notes_title.setStyleSheet("color: #555555;")
         n_layout.addWidget(self.lbl_notes_title)
 
         self.notes_edit = QTextEdit(self.notes_container)
         self.notes_edit.setPlaceholderText(safe_tr("在此处输入演讲者的详细演讲备注与旁白..."))
-        self.notes_edit.setFont(QFont("Arial", 10))
+        self.notes_edit.setFont(ui_font(10))
         self.notes_edit.setStyleSheet(
             """
             QTextEdit {
@@ -148,12 +136,12 @@ class NotesPagePaper(QFrame):
         f_layout = QHBoxLayout(self.footer_row)
         f_layout.setContentsMargins(0, 0, 0, 0)
         self.lbl_footer = QLabel(safe_tr("页脚"), self.footer_row)
-        self.lbl_footer.setFont(QFont("Arial", 8))
+        self.lbl_footer.setFont(ui_font(8))
         self.lbl_footer.setStyleSheet("color: #888888;")
         f_layout.addWidget(self.lbl_footer)
         f_layout.addStretch()
         self.lbl_slide_num = QLabel("1", self.footer_row)
-        self.lbl_slide_num.setFont(QFont("Arial", 8, QFont.Weight.Bold))
+        self.lbl_slide_num.setFont(ui_font(8, bold=True))
         self.lbl_slide_num.setStyleSheet("color: #444444;")
         f_layout.addWidget(self.lbl_slide_num)
         self.main_layout.addWidget(self.footer_row)
@@ -289,7 +277,7 @@ class NotesPageView(QScrollArea):
         nav_layout.addWidget(self.btn_prev)
 
         self.lbl_indicator = QLabel(self.nav_bar)
-        self.lbl_indicator.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self.lbl_indicator.setFont(ui_font(9, bold=True))
         self.lbl_indicator.setStyleSheet("color: #333333; padding: 0 6px;")
         nav_layout.addWidget(self.lbl_indicator)
 
@@ -307,7 +295,7 @@ class NotesPageView(QScrollArea):
         nav_layout.addWidget(self.btn_zoom_out)
 
         self.lbl_zoom = QLabel("100%", self.nav_bar)
-        self.lbl_zoom.setFont(QFont("Arial", 9))
+        self.lbl_zoom.setFont(ui_font(9))
         self.lbl_zoom.setStyleSheet("color: #444444;")
         nav_layout.addWidget(self.lbl_zoom)
 

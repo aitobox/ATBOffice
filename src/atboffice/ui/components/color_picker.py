@@ -18,15 +18,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from atboffice.core.i18n import safe_tr as core_safe_tr
+from atboffice.core.i18n import safe_tr
 from atboffice.ui.icons import get_office_icon
 from atboffice.ui.styles.luna_2003 import LUNA_BLUE_HOT_BORDER
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for ColorPicker."""
-    return core_safe_tr(text)
-
 
 # Standard 40 colors of Office 2003 (5 rows x 8 columns)
 OFFICE_2003_STANDARD_COLORS: Final[list[str]] = [

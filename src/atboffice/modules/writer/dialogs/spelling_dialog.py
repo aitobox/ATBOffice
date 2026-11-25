@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -18,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.writer.autocorrect import AutoCorrectEngine
 from atboffice.modules.writer.models.document import (
     Document,
@@ -32,11 +32,6 @@ from atboffice.modules.writer.views.caret_controller import (
     delete_range_in_paragraph,
     insert_text_in_paragraph,
 )
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("SpellingGrammarDialog", text)
 
 
 class SpellingGrammarDialog(QDialog):

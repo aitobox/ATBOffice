@@ -72,6 +72,11 @@ class ATBApplication(QApplication):
         from atboffice.utils.font_registry import register_bundled_fonts
         register_bundled_fonts()
 
+        # The same light Luna look on every platform, whatever the system
+        # theme; the saved theme is applied later by the startup settings.
+        from atboffice.ui.styles.luna_2003 import apply_application_look
+        apply_application_look(self)
+
     @property
     def pending_files(self) -> list[str]:
         """Return a copy of the pending file queue."""

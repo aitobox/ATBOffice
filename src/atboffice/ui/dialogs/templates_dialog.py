@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication, QSize, Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QComboBox,
@@ -20,13 +20,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
+
 if TYPE_CHECKING:
     from atboffice.core.templates import TemplateInfo
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for TemplatesDialog."""
-    return QCoreApplication.translate("TemplatesDialog", text)
 
 
 class TemplatesDialog(QDialog):

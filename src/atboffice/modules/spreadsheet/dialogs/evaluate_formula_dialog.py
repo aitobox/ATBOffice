@@ -5,7 +5,6 @@ from __future__ import annotations
 import html
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QDialog,
@@ -17,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.context import EvalContext
 from atboffice.modules.spreadsheet.calc.evaluator import evaluate_ast
 from atboffice.modules.spreadsheet.calc.parser import parse, to_text
@@ -38,11 +38,6 @@ from atboffice.modules.spreadsheet.calc.tokens import (
 if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
     from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("EvaluateFormulaDialog", text)
 
 
 def is_lit(n: ASTNode | None) -> bool:

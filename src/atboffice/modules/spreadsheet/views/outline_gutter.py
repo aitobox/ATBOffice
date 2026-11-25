@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QPoint, QRect, Qt
+from PySide6.QtCore import QPoint, QRect, Qt
 from PySide6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
@@ -12,10 +12,6 @@ from atboffice.modules.spreadsheet.models import outline
 
 STEP = 14  # px per outline level
 BUTTON = 11
-
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("OutlineGutter", text)
 
 
 class OutlineGutter(QWidget):

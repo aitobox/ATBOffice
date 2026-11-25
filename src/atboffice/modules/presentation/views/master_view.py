@@ -15,9 +15,8 @@ from __future__ import annotations
 import copy
 
 from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
-    QApplication,
     QLabel,
     QListWidget,
     QListWidgetItem,
@@ -28,6 +27,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.presentation import Presentation
 from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.views.slide_canvas import (
@@ -39,16 +39,7 @@ from atboffice.modules.presentation.views.workspace import (
     render_slide_thumbnail,
     sync_master_slide,
 )
-
-
-def safe_tr(text: str) -> str:
-    """Safe translation for Slide Master UI."""
-    app = QApplication.instance()
-    if app:
-        translated = app.translate("SlideMaster", text)
-        if translated and translated != text:
-            return translated
-    return text
+from atboffice.ui.styles.luna_2003 import ui_font
 
 
 class MasterCloseBar(QToolBar):
@@ -95,7 +86,7 @@ class MasterCloseBar(QToolBar):
         )
 
         self.lbl_title = QLabel(safe_tr("幻灯片母版视图"), self)
-        self.lbl_title.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self.lbl_title.setFont(ui_font(9, bold=True))
         self.lbl_title.setStyleSheet("color: #333333; margin-right: 12px;")
         self.addWidget(self.lbl_title)
 
@@ -177,7 +168,7 @@ class SlideMasterView(QWidget):
         left_layout.setSpacing(4)
 
         self.lbl_left_title = QLabel(safe_tr("母版样式"), self.left_pane)
-        self.lbl_left_title.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self.lbl_left_title.setFont(ui_font(9, bold=True))
         self.lbl_left_title.setStyleSheet("color: #444444; padding: 2px 4px;")
         left_layout.addWidget(self.lbl_left_title)
 

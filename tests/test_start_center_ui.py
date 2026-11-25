@@ -547,13 +547,13 @@ def test_start_center_retranslate_full_coverage(qtbot):
 
     load_locale("en")
     win.retranslate_ui()
-    assert win.btn_themes.text() in ("Themes", "主题")
-    assert win.btn_settings.text() in ("Settings", "设置")
-    assert win.btn_about.text() in ("About", "关于")
+    assert win.btn_themes.text() == "Theme"
+    assert win.btn_settings.text() == "Options"
+    assert win.btn_about.text() == "About"
 
     load_locale("zh-CN")
     win.retranslate_ui()
     assert win.btn_themes.text() == "主题"
-    assert win.btn_settings.text() == "设置"
+    assert win.btn_settings.text() == "选项"
     assert win.btn_about.text() == "关于"
 

@@ -19,7 +19,6 @@ from PySide6.QtGui import (
     QWheelEvent,
 )
 from PySide6.QtWidgets import (
-    QApplication,
     QFrame,
     QGraphicsItem,
     QGraphicsScene,
@@ -29,6 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.comment import Comment
 from atboffice.modules.presentation.models.placeholder_resolver import (
     apply_cascading_placeholder_styles,
@@ -45,17 +45,6 @@ from atboffice.modules.presentation.views.comment_overlay import (
 from atboffice.modules.presentation.views.geometry_helper import connector_local_endpoints
 from atboffice.modules.presentation.views.shape_item import ShapeGraphicsItem
 from atboffice.modules.presentation.views.smart_guides import SmartGuideController
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text with fallbacks."""
-    app = QApplication.instance()
-    if app:
-        translated = app.translate("SlideCanvas", text)
-        if translated and translated != text:
-            return translated
-    # Default to Chinese native text for ATBOffice
-    return text
 
 
 class SlideScene(QGraphicsScene):

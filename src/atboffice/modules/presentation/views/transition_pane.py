@@ -28,11 +28,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.slide import Slide, Transition
 from atboffice.modules.presentation.slideshow.transitions import (
     TRANSITION_CATALOGUE,
     TransitionEffect,
-    safe_tr,
 )
 
 if TYPE_CHECKING:

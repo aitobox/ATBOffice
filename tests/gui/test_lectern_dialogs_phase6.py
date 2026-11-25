@@ -18,6 +18,7 @@ from __future__ import annotations
 import pytest
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.dialogs import (
     ActionSettingsDialog,
     EditWordArtTextDialog,
@@ -205,7 +206,7 @@ class TestSetUpShowDialog:
         assert pres.show.use_timings is False
 
         dlg.retranslate_ui()
-        assert "Set Up Show" in dlg.windowTitle()
+        assert dlg.windowTitle() == safe_tr("Set Up Show")
 
 
 class TestFillEffectsDialog:

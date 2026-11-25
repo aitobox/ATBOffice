@@ -12,7 +12,6 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Final
 
 from PySide6.QtCore import (
-    QCoreApplication,
     QEvent,
     QObject,
     QPoint,
@@ -51,6 +50,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.core.undo import UndoService
 from atboffice.drawing.numfmt import FormatSegment, FormattedResult, format_value
 from atboffice.modules.spreadsheet.calc.parser import parse, to_text
@@ -94,11 +94,6 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("GridViewport", text)
 
 
 class HitZone(Enum):
