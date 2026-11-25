@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import functools
 import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +44,23 @@ def safe_tr(text: str) -> str:
     """Translate UI text safely for LedgerWindow."""
     return core_safe_tr(text)
 
+
+
+def _cell_edit(
+    action: str, *, scope: str = "sheet", recalc: bool = False
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Make the decorated LedgerWindow command one undo step (see ``run_cell_edit``)."""
+
+    def deco(fn: Callable[..., Any]) -> Callable[..., Any]:
+        @functools.wraps(fn)
+        def wrapper(self: LedgerWindow, *args: Any, **kwargs: Any) -> Any:
+            return self.run_cell_edit(
+                lambda: fn(self, *args, **kwargs), action, scope=scope, recalc=recalc
+            )
+
+        return wrapper
+
+    return deco
 
 class LedgerWindow(BaseOfficeWindow):
     """Dedicated spreadsheet window embedding SpreadsheetView with Excel 2003 styling."""
@@ -125,6 +144,7 @@ class LedgerWindow(BaseOfficeWindow):
 
         self.ledger_commands = bind_ledger_commands(self)
         self.attach_undo_history()
+        self.bind_undo_service()
 
         self.set_modified(False)
         self.menu_bar.retranslate_ui()
@@ -796,6 +816,7 @@ class LedgerWindow(BaseOfficeWindow):
         if act_fp:
             act_fp.setChecked(bool(getattr(self, "_format_painter_active", False)))
 
+    @_cell_edit("format", scope="selection")
     def _apply_font_family(self, family: str) -> None:
         if not family:
             return
@@ -809,6 +830,7 @@ class LedgerWindow(BaseOfficeWindow):
         self.spreadsheet_view.grid.viewport().update()
         self.set_modified(True)
 
+    @_cell_edit("format", scope="selection")
     def _apply_font_size(self, size_str: str) -> None:
         try:
             pt = int(size_str.strip())
@@ -852,6 +874,7 @@ class LedgerWindow(BaseOfficeWindow):
         except (ValueError, TypeError):
             pass
 
+    @_cell_edit("format", scope="selection")
     def _toggle_bold(self) -> None:
         """Toggle bold formatting on selected cells."""
         r1, c1, r2, c2 = self._get_selected_cell_range()
@@ -868,6 +891,7 @@ class LedgerWindow(BaseOfficeWindow):
             self.act_bold.setChecked(new_val)
         self.set_modified(True)
 
+    @_cell_edit("format", scope="selection")
     def _toggle_italic(self) -> None:
         """Toggle italic formatting on selected cells."""
         r1, c1, r2, c2 = self._get_selected_cell_range()
@@ -884,6 +908,7 @@ class LedgerWindow(BaseOfficeWindow):
             self.act_italic.setChecked(new_val)
         self.set_modified(True)
 
+    @_cell_edit("format", scope="selection")
     def _toggle_underline(self) -> None:
         """Toggle underline formatting on selected cells."""
         r1, c1, r2, c2 = self._get_selected_cell_range()
@@ -900,6 +925,7 @@ class LedgerWindow(BaseOfficeWindow):
             self.act_underline.setChecked(new_val)
         self.set_modified(True)
 
+    @_cell_edit("format", scope="selection")
     def set_horizontal_alignment(self, align: str) -> None:
         """Set horizontal text alignment for selected cells."""
         r1, c1, r2, c2 = self._get_selected_cell_range()
@@ -913,6 +939,7 @@ class LedgerWindow(BaseOfficeWindow):
         self._sync_formatting_toolbar_states()
         self.set_modified(True)
 
+    @_cell_edit("format", scope="selection")
     def change_cell_indent(self, delta: int) -> None:
         """Increase or decrease cell text indentation level."""
         r1, c1, r2, c2 = self._get_selected_cell_range()
@@ -926,6 +953,7 @@ class LedgerWindow(BaseOfficeWindow):
         self.spreadsheet_view.grid.viewport().update()
         self.set_modified(True)
 
+    @_cell_edit("merge", scope="selection")
     def toggle_merge_and_center(self) -> None:
         """Toggle merge and center formatting on selected cell range."""
         r1, c1, r2, c2 = self._get_selected_cell_range()
@@ -962,6 +990,7 @@ class LedgerWindow(BaseOfficeWindow):
         self._sync_formatting_toolbar_states()
         self.set_modified(True)
 
+    @_cell_edit("format", scope="selection")
     def apply_number_format(self, format_code: str) -> None:
         """Apply number formatting code to selected cells."""
         r1, c1, r2, c2 = self._get_selected_cell_range()
@@ -995,6 +1024,7 @@ class LedgerWindow(BaseOfficeWindow):
             return fmt + "." + ("0" * delta)
         return fmt
 
+    @_cell_edit("format", scope="selection")
     def change_decimal_places(self, delta: int) -> None:
         """Increase or decrease visible decimal places for selected cells."""
         r1, c1, r2, c2 = self._get_selected_cell_range()
@@ -1009,6 +1039,7 @@ class LedgerWindow(BaseOfficeWindow):
         self.spreadsheet_view.grid.viewport().update()
         self.set_modified(True)
 
+    @_cell_edit("auto_sum", recalc=True)
     def auto_sum(self, fn: str = "SUM") -> None:
         """Intelligently sniff contiguous numeric cells and inject AutoSum formula."""
         sel = self.spreadsheet_view.selection
@@ -1076,6 +1107,7 @@ class LedgerWindow(BaseOfficeWindow):
         self.spreadsheet_view.grid.viewport().update()
         self.set_modified(True)
 
+    @_cell_edit("sort", recalc=True)
     def quick_sort(self, desc: bool = False) -> None:
         """Sort selection or surrounding contiguous data table by the active column."""
         pr = self.spreadsheet_view.selection.primary_range
@@ -1119,6 +1151,7 @@ class LedgerWindow(BaseOfficeWindow):
         self.spreadsheet_view.grid.viewport().update()
         self.set_modified(True)
 
+    @_cell_edit("format", scope="selection")
     def apply_border_preset(self, preset: str) -> None:
         """Apply predefined border style preset to selected cell range."""
         r1, c1, r2, c2 = self._get_selected_cell_range()
@@ -1185,6 +1218,7 @@ class LedgerWindow(BaseOfficeWindow):
         self.spreadsheet_view.grid.viewport().update()
         self.set_modified(True)
 
+    @_cell_edit("format", scope="selection")
     def apply_border_color(self, color: str | None) -> None:
         """Apply border line color to existing borders of selected cells."""
         self.last_border_color = color
@@ -1202,6 +1236,7 @@ class LedgerWindow(BaseOfficeWindow):
         self.spreadsheet_view.grid.viewport().update()
         self.set_modified(True)
 
+    @_cell_edit("insert_rows", recalc=True)
     def insert_rows(self) -> None:
         """Insert rows above current selection, shifting cells down."""
         r1, c1, r2, c2 = self._get_selected_cell_range()
@@ -1226,6 +1261,7 @@ class LedgerWindow(BaseOfficeWindow):
         self.spreadsheet_view.grid.viewport().update()
         self.set_modified(True)
 
+    @_cell_edit("insert_cols", recalc=True)
     def insert_columns(self) -> None:
         """Insert columns to the left of current selection, shifting cells right."""
         r1, c1, r2, c2 = self._get_selected_cell_range()
@@ -1250,6 +1286,7 @@ class LedgerWindow(BaseOfficeWindow):
         self.spreadsheet_view.grid.viewport().update()
         self.set_modified(True)
 
+    @_cell_edit("delete_rows", recalc=True)
     def delete_rows(self) -> None:
         """Delete rows in current selection, shifting remaining cells up."""
         if hasattr(self.spreadsheet_view, "grid") and hasattr(
@@ -1258,6 +1295,7 @@ class LedgerWindow(BaseOfficeWindow):
             self.spreadsheet_view.grid.delete_selected_rows()
             self.set_modified(True)
 
+    @_cell_edit("delete_cols", recalc=True)
     def delete_columns(self) -> None:
         """Delete columns in current selection, shifting remaining cells left."""
         if hasattr(self.spreadsheet_view, "grid") and hasattr(
@@ -1380,6 +1418,7 @@ class LedgerWindow(BaseOfficeWindow):
         if act_format_obj:
             act_format_obj.setEnabled(obj is not None)
 
+    @_cell_edit("format", scope="selection")
     def _apply_font_color(self, color: str) -> None:
         """Apply font color to selected cells."""
         r1, c1, r2, c2 = self._get_selected_cell_range()
@@ -1393,6 +1432,7 @@ class LedgerWindow(BaseOfficeWindow):
         self.spreadsheet_view.grid.viewport().update()
         self.set_modified(True)
 
+    @_cell_edit("format", scope="selection")
     def _apply_fill_color(self, color: str) -> None:
         """Apply fill background color to selected cells."""
         r1, c1, r2, c2 = self._get_selected_cell_range()
@@ -2026,21 +2066,31 @@ class LedgerWindow(BaseOfficeWindow):
         if layer is not None:
             layer.update()
 
-    def run_cell_edit(self, mutate: Any, action: str = "edit") -> Any:
+    def run_cell_edit(
+        self,
+        mutate: Any,
+        action: str = "edit",
+        *,
+        scope: str = "sheet",
+        recalc: bool = True,
+    ) -> Any:
         """Run ``mutate()`` as one undoable worksheet edit and recalculate formulas.
 
-        ``mutate`` may return ``False`` to signal that nothing changed.
+        ``scope`` is ``"sheet"`` when any cell may change, or ``"selection"``
+        for edits limited to the selected cells (formatting): only those cells
+        are copied for undo. ``mutate`` may return ``False`` when nothing changed.
         """
         grid = getattr(self.spreadsheet_view, "grid", None)
-        before = grid._snapshot_state() if grid is not None else None
-        result = mutate()
+        if grid is None or not hasattr(grid, "undoable_edit"):
+            return mutate()
+        with grid.undoable_edit(action, scope=scope):
+            result = mutate()
+            if result is not False and recalc:
+                workbook = getattr(self.spreadsheet_view, "workbook", None)
+                if workbook is not None and hasattr(workbook, "recalculate"):
+                    workbook.recalculate()
         if result is False:
             return result
-        workbook = getattr(self.spreadsheet_view, "workbook", None)
-        if workbook is not None and hasattr(workbook, "recalculate"):
-            workbook.recalculate()
-        if grid is not None and before is not None:
-            grid._commit_undo(before, action)
         self._refresh_after_cell_edit()
         self.set_modified(True)
         return result
@@ -2050,21 +2100,13 @@ class LedgerWindow(BaseOfficeWindow):
         grid = getattr(self.spreadsheet_view, "grid", None)
         before = grid._snapshot_state() if grid is not None else None
         accepted = dlg.exec() == QDialog.DialogCode.Accepted
-        model = getattr(self.spreadsheet_view, "model", None)
-        changed = before is not None and model is not None and (
-            set(before["before_cells"]) != set(model.cells)
-            or any(
-                vars(before["before_cells"][k]) != vars(v)
-                for k, v in model.cells.items()
-                if k in before["before_cells"]
-            )
-        )
-        if changed:
+        if before is not None and before["sheet"] is self.spreadsheet_view.model:
+            # Recalculate first so that undo also restores the cached values.
             workbook = getattr(self.spreadsheet_view, "workbook", None)
             if workbook is not None and hasattr(workbook, "recalculate"):
                 workbook.recalculate()
-            grid._commit_undo(before, action)
-            self.set_modified(True)
+            if grid._commit_undo(before, action):
+                self.set_modified(True)
         self._refresh_after_cell_edit()
         return accepted
 
@@ -2276,8 +2318,8 @@ class LedgerWindow(BaseOfficeWindow):
                     if (r_total, c) in model.cells:
                         del model.cells[(r_total, c)]
                 after_cells = {k: v.clone() for k, v in model.cells.items()}
-                if grid and hasattr(grid, "_undo_stack"):
-                    grid._undo_stack.append(
+                if grid and hasattr(grid, "_record_entry"):
+                    grid._record_entry(
                         {
                             "action": "total_row",
                             "before_cells": before_cells,
@@ -2289,7 +2331,6 @@ class LedgerWindow(BaseOfficeWindow):
                             "active": False,
                         }
                     )
-                    grid._redo_stack.clear()
             self._total_row_active = False
             self._total_row_r = None
             self.action_registry.set_checked("totalRow", False)
@@ -2368,8 +2409,8 @@ class LedgerWindow(BaseOfficeWindow):
         self._total_row_cols = (c1, c2)
         self.action_registry.set_checked("totalRow", True)
 
-        if grid and hasattr(grid, "_undo_stack"):
-            grid._undo_stack.append(
+        if grid and hasattr(grid, "_record_entry"):
+            grid._record_entry(
                 {
                     "action": "total_row",
                     "before_cells": before_cells,
@@ -2383,7 +2424,6 @@ class LedgerWindow(BaseOfficeWindow):
                     "cols": (c1, c2),
                 }
             )
-            grid._redo_stack.clear()
 
         if grid:
             grid._update_scrollbars()
@@ -2496,6 +2536,7 @@ class LedgerWindow(BaseOfficeWindow):
         self.set_modified(True)
         return True
 
+    @_cell_edit("hyperlink")
     def insert_hyperlink(self) -> None:
         """Open insert or edit hyperlink dialog."""
         r1, c1, r2, c2 = self._get_selected_cell_range()
@@ -2589,8 +2630,8 @@ class LedgerWindow(BaseOfficeWindow):
             cur_cell.fg_color = "#0000FF"
             model.set_cell(r1, c1, cur_cell)
 
-        if grid and hasattr(grid, "_undo_stack"):
-            grid._undo_stack.append(
+        if grid and hasattr(grid, "_record_entry"):
+            grid._record_entry(
                 {
                     "action": "hyperlink",
                     "before_cells": before_cells,
@@ -2605,7 +2646,6 @@ class LedgerWindow(BaseOfficeWindow):
                     "after_sel": grid.selection.snapshot(),
                 }
             )
-            grid._redo_stack.clear()
 
         self.spreadsheet_view.grid.viewport().update()
         self.set_modified(True)
@@ -2738,6 +2778,7 @@ class LedgerWindow(BaseOfficeWindow):
             grid.set_format_painter_armed(None)
         self.statusBar().clearMessage()
 
+    @_cell_edit("format_painter")
     def apply_format_painter_to_range(
         self, r1: int, c1: int, r2: int, c2: int
     ) -> None:
@@ -2796,8 +2837,8 @@ class LedgerWindow(BaseOfficeWindow):
                 cell.hidden = src.hidden
                 model.set_cell(r, c, cell)
 
-        if grid and hasattr(grid, "_undo_stack"):
-            grid._undo_stack.append(
+        if grid and hasattr(grid, "_record_entry"):
+            grid._record_entry(
                 {
                     "action": "format_painter",
                     "before_cells": before_cells,
@@ -2808,7 +2849,6 @@ class LedgerWindow(BaseOfficeWindow):
                     "after_sel": grid.selection.snapshot(),
                 }
             )
-            grid._redo_stack.clear()
 
         if grid:
             grid.viewport().update()
@@ -2817,19 +2857,14 @@ class LedgerWindow(BaseOfficeWindow):
         if not getattr(self, "_format_painter_sticky", False):
             self._cancel_format_painter()
 
-    def undo(self) -> None:
-        """Delegate undo to grid viewport if available."""
-        grid = getattr(self.spreadsheet_view, "grid", None)
-        if grid and hasattr(grid, "undo"):
-            grid.undo()
-            self.set_modified(True)
+    def undo_service(self) -> Any | None:
+        view = getattr(self, "spreadsheet_view", None)
+        grid = getattr(view, "grid", None)
+        return getattr(grid, "history", None)
 
-    def redo(self) -> None:
-        """Delegate redo to grid viewport if available."""
-        grid = getattr(self.spreadsheet_view, "grid", None)
-        if grid and hasattr(grid, "redo"):
-            grid.redo()
-            self.set_modified(True)
+    def after_undo_redo(self) -> None:
+        super().after_undo_redo()
+        self._refresh_after_cell_edit()
 
     def compat_model_losses(self) -> list[Any]:
         return list(getattr(self.spreadsheet_view.workbook, "losses", None) or [])
@@ -2860,15 +2895,6 @@ class LedgerWindow(BaseOfficeWindow):
         grid.paint_print_region(painter, 0, rows - 1, 0, cols - 1, gridlines=True)
         painter.end()
         return img
-
-    def undo_history(self, kind: str) -> list[str]:
-        from atboffice.ui.components.undo_history import entry_label
-
-        grid = getattr(self.spreadsheet_view, "grid", None)
-        if grid is None:
-            return []
-        stack = grid._undo_stack if kind == "undo" else grid._redo_stack
-        return [entry_label(e) for e in reversed(stack)]
 
     def set_view_mode(self, mode: str, prompt_welcome: bool = False) -> None:
         """Switch spreadsheet view mode ('normal' or 'page_break')."""

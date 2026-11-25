@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import functools
 import logging
 import math
 from collections.abc import Callable
@@ -41,6 +42,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr as core_safe_tr
+from atboffice.core.undo import UndoService
 from atboffice.modules.presentation.chart.painter import ChartPainter
 from atboffice.modules.writer.layout.math_layout import paint_math
 from atboffice.modules.writer.layout.pagination import (
@@ -105,6 +108,7 @@ from atboffice.modules.writer.views.caret_controller import (
     insert_text_in_paragraph,
 )
 from atboffice.modules.writer.views.shape_painter import paint_shape
+from atboffice.modules.writer.views.text_history import TextEditRecorder
 from atboffice.modules.writer.views.view_modes import ViewMode
 
 logger = logging.getLogger(__name__)
@@ -113,6 +117,39 @@ logger = logging.getLogger(__name__)
 def safe_tr(text: str) -> str:
     """Translate UI text safely."""
     return QCoreApplication.translate("WriterCanvasView", text)
+
+
+def _undoable(label: str, parts: tuple[str, ...] = ()) -> Callable[[Any], Any]:
+    """Record the decorated edit of the blocks around the caret as one undo step.
+
+    ``parts`` names other document parts the edit may change (``styles``,
+    ``comments``...); they are copied before and after as well.
+    """
+
+    def deco(fn: Any) -> Any:
+        @functools.wraps(fn)
+        def wrapper(self: WriterCanvasView, *args: Any, **kwargs: Any) -> Any:
+            with self.controller.edit_scope(label, parts):
+                return fn(self, *args, **kwargs)
+
+        return wrapper
+
+    return deco
+
+
+def _undoable_document(label: str) -> Callable[[Any], Any]:
+    """Record the decorated edit, which may touch the whole document, as one step."""
+
+    def deco(fn: Any) -> Any:
+        @functools.wraps(fn)
+        def wrapper(self: WriterCanvasView, *args: Any, **kwargs: Any) -> Any:
+            out: list[Any] = []
+            self.run_undoable(lambda: out.append(fn(self, *args, **kwargs)), label)
+            return out[0] if out else None
+
+        return wrapper
+
+    return deco
 
 
 # Standard Word 2003 visual styling constants matching .vibeoffice looks
@@ -211,9 +248,9 @@ class WriterCanvasView(QAbstractScrollArea):
         self._ruler_guide_x: float | None = None
         self._ruler_guide_y: float | None = None
 
-        # Undo/Redo transaction stack
-        self._undo_stack: list[dict[str, Any]] = []
-        self._redo_stack: list[dict[str, Any]] = []
+        # Undo / redo history; typing and deleting are recorded by the controller.
+        self.history = UndoService(self)
+        self.controller.edit_recorder = TextEditRecorder(self)
 
         # Inline & floating picture raster pixmap cache
         self._pixmap_cache: dict[str, QPixmap] = {}
@@ -240,8 +277,7 @@ class WriterCanvasView(QAbstractScrollArea):
     def set_document(self, doc: Document) -> None:
         """Set a new document and repaginate."""
         self._pixmap_cache.clear()
-        self._undo_stack.clear()
-        self._redo_stack.clear()
+        self.history.clear()
         self._float_sel = None
         self._float_drag = None
         self.hf_edit_kind = None
@@ -262,6 +298,8 @@ class WriterCanvasView(QAbstractScrollArea):
         """
         if not self.doc.main.blocks:
             self.doc.main.blocks.append(Paragraph())
+        # Reindex first: a stale index still finds paragraphs that were removed.
+        reindex(self.doc)
         self.controller.doc = self.doc
         self.controller._ensure_valid_pos()
         # Emits document_modified, which syncs self.pagination and the scroll ranges.
@@ -289,54 +327,60 @@ class WriterCanvasView(QAbstractScrollArea):
 
         return {attr: copy.deepcopy(getattr(self.doc, attr)) for attr in self._SNAPSHOT_PARTS}
 
-    def run_undoable(self, mutate: Any) -> Any:
+    def run_undoable(self, mutate: Any, label: str | None = None) -> Any:
         """Run ``mutate()`` on the document as one undoable step and relayout.
 
         Used by dialog and toolbar commands that change arbitrary document parts.
         Nothing is recorded when ``mutate`` returns ``False``.
         """
+        if not self.history.is_recording:
+            result = mutate()
+            if result is not False:
+                self.refresh_layout()
+            return result
         before = self._snapshot_doc()
-        result = mutate()
+        with self.history.paused():
+            result = mutate()
         if result is False:
             return result
         after = self._snapshot_doc()
         if after != before:
-            self._undo_stack.append({"type": "doc_snapshot", "before": before, "after": after})
-            self._redo_stack.clear()
+            self.history.record_states(
+                label or core_safe_tr("编辑"), before, after, self._restore_doc_snapshot
+            )
         self.refresh_layout()
         return result
 
+    def _restore_doc_snapshot(self, state: dict[str, Any]) -> None:
+        self._apply_command_state({"type": "doc_snapshot", "before": state}, is_undo=True)
+
     def push_undo_command(self, cmd: dict[str, Any]) -> None:
-        """Push an undoable command onto the undo stack and clear redo stack."""
-        self._undo_stack.append(cmd)
-        self._redo_stack.clear()
+        """Record an already-applied ``{"type", "before", "after"}`` change."""
+        from atboffice.ui.components.undo_history import entry_label
+
+        self.history.record(
+            entry_label(cmd),
+            lambda: self._apply_command_state(cmd, is_undo=True),
+            lambda: self._apply_command_state(cmd, is_undo=False),
+            data=cmd,
+        )
         self.controller.document_modified.emit()
 
     def can_undo(self) -> bool:
         """Return True if there are actions that can be undone."""
-        return bool(self._undo_stack)
+        return self.history.can_undo()
 
     def can_redo(self) -> bool:
         """Return True if there are undone actions that can be redone."""
-        return bool(self._redo_stack)
+        return self.history.can_redo()
 
     def undo(self) -> bool:
         """Undo the last editing or formatting command."""
-        if not self._undo_stack:
-            return False
-        cmd = self._undo_stack.pop()
-        self._redo_stack.append(cmd)
-        self._apply_command_state(cmd, is_undo=True)
-        return True
+        return self.history.undo()
 
     def redo(self) -> bool:
         """Redo the last undone command."""
-        if not self._redo_stack:
-            return False
-        cmd = self._redo_stack.pop()
-        self._undo_stack.append(cmd)
-        self._apply_command_state(cmd, is_undo=False)
-        return True
+        return self.history.redo()
 
     def _apply_command_state(self, cmd: dict[str, Any], is_undo: bool) -> None:
         """Apply the before or after state of a transaction command."""
@@ -2834,7 +2878,8 @@ class WriterCanvasView(QAbstractScrollArea):
     def cut_selection(self) -> None:
         """Cut selected text to system clipboard."""
         self.copy_selection()
-        self.controller.delete_selection()
+        with self.controller.edit_scope("剪切"):
+            self.controller.delete_selection()
 
     def paste_from_clipboard(self) -> None:
         """Paste plain text from system clipboard."""
@@ -2842,7 +2887,8 @@ class WriterCanvasView(QAbstractScrollArea):
         if cb:
             text = cb.text()
             if text:
-                self.controller.insert_text(text)
+                with self.controller.edit_scope("粘贴"):
+                    self.controller.insert_text(text)
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         """Update scroll ranges and repaginate/repaint upon resize."""
@@ -2867,6 +2913,7 @@ class WriterCanvasView(QAbstractScrollArea):
             return paras_between(self.doc, pa, pb)
         return [pa] if pa is not None else []
 
+    @_undoable("设置格式")
     def set_paragraph_alignment(self, jc: str) -> None:
         """Set paragraph alignment (left, center, right, both/justify)."""
         for p in self._get_selected_paragraphs():
@@ -2875,6 +2922,7 @@ class WriterCanvasView(QAbstractScrollArea):
             p.p_pr.jc = jc
         self._on_formatting_applied()
 
+    @_undoable("段落缩进")
     def change_indent(self, delta_pt: float) -> None:
         """Increase or decrease left indent for selected paragraphs."""
         for p in self._get_selected_paragraphs():
@@ -2885,6 +2933,7 @@ class WriterCanvasView(QAbstractScrollArea):
             p.p_pr.ind.left = max(0.0, (p.p_pr.ind.left or 0.0) + delta_pt)
         self._on_formatting_applied()
 
+    @_undoable("设置格式")
     def set_line_spacing(self, line: float, line_rule: str = "auto") -> None:
         """Set line spacing multiplier (e.g. 1.0, 1.5, 2.0)."""
         for p in self._get_selected_paragraphs():
@@ -2896,6 +2945,7 @@ class WriterCanvasView(QAbstractScrollArea):
             p.p_pr.sp.line_rule = line_rule
         self._on_formatting_applied()
 
+    @_undoable("项目符号和编号")
     def toggle_list_style(self, kind: str) -> None:
         """Toggle bullet or numbering list on selected paragraphs."""
         paras = self._get_selected_paragraphs()
@@ -2916,7 +2966,11 @@ class WriterCanvasView(QAbstractScrollArea):
         self._on_formatting_applied()
 
     def format_range(self, fn: Callable[[RunProperties], None]) -> None:
-        """Apply a formatting function to all runs in the current selection."""
+        """Apply a formatting function to all runs in the current selection (one undo step)."""
+        with self.controller.edit_scope("设置格式"):
+            self._format_range(fn)
+
+    def _format_range(self, fn: Callable[[RunProperties], None]) -> None:
         if self.controller.selection.is_collapsed:
             p = self.controller._paragraph_by_id(self.controller.pos.para_id)
             if p is not None:
@@ -3016,6 +3070,7 @@ class WriterCanvasView(QAbstractScrollArea):
             return p.p_pr.style
         return "Normal"
 
+    @_undoable("样式", ("styles",))
     def apply_style(self, style_id: str) -> None:
         """Apply a named style to the currently selected paragraph(s)."""
         from atboffice.modules.writer.models.styles import builtin_styles
@@ -3038,6 +3093,7 @@ class WriterCanvasView(QAbstractScrollArea):
 
         self._on_formatting_applied()
 
+    @_undoable("清除格式")
     def clear_formatting(self) -> None:
         """Reset paragraph style to Normal and clear run character overrides."""
         paras = self._get_selected_paragraphs()
@@ -3092,6 +3148,7 @@ class WriterCanvasView(QAbstractScrollArea):
                 }
         return None
 
+    @_undoable("插入表格")
     def insert_table(self, rows: int = 2, cols: int = 2) -> None:
         """Insert a new table at the current position."""
         tbl = create_simple_table(rows, cols)
@@ -3106,6 +3163,7 @@ class WriterCanvasView(QAbstractScrollArea):
         self.controller.selection = Selection(self.controller.pos, self.controller.pos)
         self.controller.repaginate_and_refresh()
 
+    @_undoable("插入行")
     def insert_table_row(self, above: bool = False) -> None:
         """Insert a row above or below current cell."""
         ctx = self.get_current_table_context()
@@ -3116,6 +3174,7 @@ class WriterCanvasView(QAbstractScrollArea):
         insert_rows(tbl, r_idx, count=1, above=above)
         self._on_formatting_applied()
 
+    @_undoable("插入列")
     def insert_table_col(self, left: bool = False) -> None:
         """Insert a column to the left or right of current cell."""
         ctx = self.get_current_table_context()
@@ -3126,6 +3185,7 @@ class WriterCanvasView(QAbstractScrollArea):
         insert_cols(tbl, c_idx, count=1, left=left)
         self._on_formatting_applied()
 
+    @_undoable("删除行")
     def delete_table_row(self) -> None:
         """Delete the current table row."""
         ctx = self.get_current_table_context()
@@ -3142,6 +3202,7 @@ class WriterCanvasView(QAbstractScrollArea):
             self.controller.selection = Selection(self.controller.pos, self.controller.pos)
             self.controller.caret_changed.emit()
 
+    @_undoable("删除列")
     def delete_table_col(self) -> None:
         """Delete the current table column."""
         ctx = self.get_current_table_context()
@@ -3163,6 +3224,7 @@ class WriterCanvasView(QAbstractScrollArea):
                 self.controller.selection = Selection(self.controller.pos, self.controller.pos)
                 self.controller.caret_changed.emit()
 
+    @_undoable("合并单元格")
     def merge_table_cells(self) -> None:
         """Merge cells in the current table."""
         ctx = self.get_current_table_context()
@@ -3175,6 +3237,7 @@ class WriterCanvasView(QAbstractScrollArea):
             merge_cells(tbl, r_idx, r_idx, c_idx, c_idx + 1)
             self._on_formatting_applied()
 
+    @_undoable("拆分单元格")
     def split_table_cells(self, num_rows: int = 1, num_cols: int = 2) -> None:
         """Split the current cell into num_rows x num_cols."""
         ctx = self.get_current_table_context()
@@ -3183,6 +3246,7 @@ class WriterCanvasView(QAbstractScrollArea):
         split_cells(ctx["tbl"], ctx["cell"], num_rows, num_cols)
         self._on_formatting_applied()
 
+    @_undoable("平均分布各行")
     def distribute_table_rows(self) -> None:
         """Equalize height of all rows in current table."""
         ctx = self.get_current_table_context()
@@ -3194,6 +3258,7 @@ class WriterCanvasView(QAbstractScrollArea):
             row.tr_pr.h_rule = "exact"
         self._on_formatting_applied()
 
+    @_undoable("平均分布各列")
     def distribute_table_cols(self) -> None:
         """Equalize width of all columns in current table."""
         ctx = self.get_current_table_context()
@@ -3205,6 +3270,7 @@ class WriterCanvasView(QAbstractScrollArea):
             tbl.grid = [round(avg, 2)] * len(tbl.grid)
         self._on_formatting_applied()
 
+    @_undoable("排序")
     def sort_table(self, ascending: bool = True) -> None:
         """Sort data rows of the current table by the current column text."""
         ctx = self.get_current_table_context()
@@ -3227,6 +3293,7 @@ class WriterCanvasView(QAbstractScrollArea):
             tbl.rows = [header] + rest
             self._on_formatting_applied()
 
+    @_undoable("自动求和")
     def auto_sum_table(self) -> None:
         """Calculate and insert the sum of numbers above current cell."""
         ctx = self.get_current_table_context()
@@ -3261,6 +3328,7 @@ class WriterCanvasView(QAbstractScrollArea):
         self._on_formatting_applied()
         return res
 
+    @_undoable_document("接受修订")
     def accept_current_revision(self, all_revisions: bool = False) -> None:
         """Accept revision at current position or all revisions."""
         if all_revisions:
@@ -3271,6 +3339,7 @@ class WriterCanvasView(QAbstractScrollArea):
                 accept_revision(self.doc, revs[0])
         self._on_formatting_applied()
 
+    @_undoable_document("拒绝修订")
     def reject_current_revision(self, all_revisions: bool = False) -> None:
         """Reject revision at current position or all revisions."""
         if all_revisions:
@@ -3281,6 +3350,7 @@ class WriterCanvasView(QAbstractScrollArea):
                 reject_revision(self.doc, revs[0])
         self._on_formatting_applied()
 
+    @_undoable("插入批注", ("comments",))
     def insert_comment(self, author: str = "User", text: str = "") -> None:
         """Insert a comment on the current paragraph/selection."""
         p = self.controller._paragraph_by_id(self.controller.pos.para_id)
@@ -3297,6 +3367,7 @@ class WriterCanvasView(QAbstractScrollArea):
             )
             self._on_formatting_applied()
 
+    @_undoable("大纲级别")
     def change_outline_level(self, delta: int) -> None:
         """Promote (delta < 0) or demote (delta > 0) outline level."""
         for p in self._get_selected_paragraphs():
@@ -3307,6 +3378,7 @@ class WriterCanvasView(QAbstractScrollArea):
             p.p_pr.outline_level = new_lvl
         self._on_formatting_applied()
 
+    @_undoable("大纲级别")
     def set_outline_level(self, level: int | None) -> None:
         """Set outline level (1-9 or None for body text)."""
         for p in self._get_selected_paragraphs():
@@ -3315,6 +3387,7 @@ class WriterCanvasView(QAbstractScrollArea):
             p.p_pr.outline_level = level
         self._on_formatting_applied()
 
+    @_undoable("移动段落")
     def move_paragraph(self, delta: int) -> None:
         """Move selected paragraph up (delta < 0) or down (delta > 0)."""
         p = self.controller._paragraph_by_id(self.controller.pos.para_id)

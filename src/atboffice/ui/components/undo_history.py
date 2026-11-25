@@ -50,6 +50,8 @@ LABELS: dict[str, str] = {
     "delete_rows": "删除行",
     "delete_cols": "删除列",
     "merge": "合并单元格",
+    "auto_sum": "自动求和",
+    "edit_cell": "键入",
 }
 
 

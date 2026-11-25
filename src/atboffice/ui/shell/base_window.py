@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QDialog, QFileDialog, QMainWindow, QMessageBox, QW
 
 from atboffice.core.i18n import get_i18n_manager
 from atboffice.core.i18n import safe_tr as core_safe_tr
+from atboffice.core.undo import UndoService
 from atboffice.ui.styles.luna_2003 import apply_luna_theme
 
 
@@ -169,6 +170,10 @@ class BaseOfficeWindow(QMainWindow):
     def set_modified(self, modified: bool) -> None:
         """Update document dirty status and window modified dot."""
         self._is_modified = modified
+        if not modified:
+            svc = self.undo_service()
+            if svc is not None:
+                svc.set_clean()
         self.setWindowModified(modified)
         self.update_window_title()
 
@@ -474,21 +479,76 @@ class BaseOfficeWindow(QMainWindow):
         else:
             self.showMaximized()
 
-    def undo(self) -> None:
-        """Undo last action, dispatching to focused widget or active document."""
+    # -- Undo / Redo ---------------------------------------------------------
+
+    def undo_service(self) -> UndoService | None:
+        """The active document's undo history (subclass hook)."""
+        return None
+
+    def flush_pending_edits(self) -> None:
+        """Record edits that are still waiting to become an undo step (subclass hook)."""
+
+    def bind_undo_service(self) -> None:
+        """Connect the document's undo history to the window's modified flag.
+
+        Call after the editing view (and so its history) exists. Moving away
+        from the saved position marks the document modified; saving or loading
+        marks the current position as clean.
+        """
+        svc = self.undo_service()
+        if svc is None or getattr(svc, "_bound_window", None) is self:
+            return
+        svc._bound_window = self  # type: ignore[attr-defined]
+        svc.stack.cleanChanged.connect(self._on_undo_clean_changed)
+
+    def _on_undo_clean_changed(self, clean: bool) -> None:
+        if not clean:
+            self.set_modified(True)
+
+    def _focused_text_input(self, kind: str) -> Any | None:
+        """The focused line / text edit when it has its own step to undo or redo."""
+        from PySide6.QtWidgets import QLineEdit, QPlainTextEdit, QTextEdit
+
         fw = self.focusWidget()
-        if fw and hasattr(fw, "undo"):
-            fw.undo()
-        elif hasattr(self, "centralWidget") and hasattr(self.centralWidget(), "undo"):
-            self.centralWidget().undo()
+        if isinstance(fw, QLineEdit) and not fw.isReadOnly():
+            available = fw.isUndoAvailable() if kind == "undo" else fw.isRedoAvailable()
+            return fw if available else None
+        if isinstance(fw, (QTextEdit, QPlainTextEdit)) and not fw.isReadOnly():
+            doc = fw.document()
+            available = doc.isUndoAvailable() if kind == "undo" else doc.isRedoAvailable()
+            return fw if available else None
+        return None
+
+    def undo(self) -> None:
+        """Undo the last step: in the focused text box, else in the document."""
+        self._undo_redo("undo")
 
     def redo(self) -> None:
-        """Redo last undone action, dispatching to focused widget or active document."""
+        """Redo the last undone step: in the focused text box, else in the document."""
+        self._undo_redo("redo")
+
+    def _undo_redo(self, kind: str) -> None:
+        text_input = self._focused_text_input(kind)
+        if text_input is not None:
+            getattr(text_input, kind)()
+            return
+        self.flush_pending_edits()
+        svc = self.undo_service()
+        if svc is not None:
+            if svc.undo_steps(kind, 1):
+                self.after_undo_redo()
+            return
+        # Editors without a shared history: let the focused widget or the
+        # central widget handle it.
         fw = self.focusWidget()
-        if fw and hasattr(fw, "redo"):
-            fw.redo()
-        elif hasattr(self, "centralWidget") and hasattr(self.centralWidget(), "redo"):
-            self.centralWidget().redo()
+        if fw is not None and hasattr(fw, kind):
+            getattr(fw, kind)()
+        elif hasattr(self.centralWidget(), kind):
+            getattr(self.centralWidget(), kind)()
+
+    def after_undo_redo(self) -> None:
+        """Refresh after the document history moved (subclass hook)."""
+        self.set_modified(True)
 
     def cut(self) -> None:
         """Cut selection to clipboard, dispatching to focused widget or active document."""
@@ -1112,16 +1172,21 @@ class BaseOfficeWindow(QMainWindow):
             recent.save_thumbnail(path, image)
 
     def undo_history(self, kind: str) -> list[str]:
-        """Labels of the undo (or redo) history, most recent first (subclass hook)."""
-        return []
+        """Labels of the undo (or redo) history, most recent first."""
+        self.flush_pending_edits()
+        svc = self.undo_service()
+        return svc.labels(kind) if svc is not None else []
 
     def undo_steps(self, kind: str, steps: int) -> None:
         """Undo (or redo) ``steps`` actions at once (Undo/Redo drop-down)."""
+        self.flush_pending_edits()
+        svc = self.undo_service()
+        if svc is not None:
+            if svc.undo_steps(kind, steps):
+                self.after_undo_redo()
+            return
         for _ in range(max(0, steps)):
-            if kind == "undo":
-                self.undo()
-            else:
-                self.redo()
+            self._undo_redo(kind)
 
     def attach_undo_history(self) -> None:
         """Make the toolbar Undo/Redo drop-downs list the real history."""

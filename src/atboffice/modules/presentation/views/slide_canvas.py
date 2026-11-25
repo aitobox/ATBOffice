@@ -65,6 +65,8 @@ class SlideScene(QGraphicsScene):
     commentClicked = Signal(object)
     shapeCreated = Signal(object)
     toolChanged = Signal(object)
+    #: The slide's shapes were edited on the canvas (moved, resized, deleted...).
+    contentEdited = Signal()
 
     def __init__(
         self,
@@ -567,7 +569,16 @@ class SlideScene(QGraphicsScene):
     # ------------------------------------------------------------------
     # Mouse events & Smart Guide magnetic snapping
     # ------------------------------------------------------------------
+    def geometry_fingerprint(self) -> dict[str, tuple[Any, ...]]:
+        """Position, size, rotation and adjustments of every shape on the slide."""
+        out: dict[str, tuple[Any, ...]] = {}
+        for sid, item in self._items_by_id.items():
+            m = item.model
+            out[sid] = (m.x, m.y, m.w, m.h, getattr(m, "rot", None), repr(getattr(m, "adj", None)))
+        return out
+
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> None:
+        self._press_fingerprint = self.geometry_fingerprint()
         if self.current_tool and event.button() == Qt.MouseButton.LeftButton:
             self.clearSelection()
             self._is_drawing_shape = True
@@ -656,6 +667,10 @@ class SlideScene(QGraphicsScene):
         self._is_dragging_item = False
         self._dragged_item = None
         self.guide_controller.clear_guides(self)
+        before = getattr(self, "_press_fingerprint", None)
+        self._press_fingerprint = None
+        if before is not None and before != self.geometry_fingerprint():
+            self.contentEdited.emit()
 
     # ------------------------------------------------------------------
     # Z-Order Operations
@@ -1145,6 +1160,7 @@ class SlideCanvasView(QGraphicsView):
         ctrl_held = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
         if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
             self._scene.delete_selected()
+            self._scene.contentEdited.emit()
             event.accept()
             return
         elif event.key() == Qt.Key.Key_G and ctrl_held:
@@ -1152,6 +1168,7 @@ class SlideCanvasView(QGraphicsView):
                 self._scene.ungroup_selected()
             else:
                 self._scene.group_selected()
+            self._scene.contentEdited.emit()
             event.accept()
             return
         elif event.key() in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
@@ -1171,6 +1188,8 @@ class SlideCanvasView(QGraphicsView):
                 it.model.x = round(it.pos().x(), 2)
                 it.model.y = round(it.pos().y(), 2)
             self._scene.update()
+            if self._scene.selected_shape_items():
+                self._scene.contentEdited.emit()
             event.accept()
             return
 

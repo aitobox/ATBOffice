@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 import math
 import weakref
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Final
@@ -49,6 +51,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.undo import UndoService
 from atboffice.drawing.numfmt import FormatSegment, FormattedResult, format_value
 from atboffice.modules.spreadsheet.calc.parser import parse, to_text
 from atboffice.modules.spreadsheet.calc.references import (
@@ -160,6 +163,37 @@ def page_bounds(breaks: list[int], total: int, per_page: int) -> list[int]:
     return bounds
 
 
+
+def cell_delta(
+    before: dict[tuple[int, int], CellData], after: dict[tuple[int, int], CellData]
+) -> tuple[dict[tuple[int, int], CellData | None], dict[tuple[int, int], CellData | None]]:
+    """The cells that differ between two copies, as (old values, new values).
+
+    A missing cell is recorded as None on that side.
+    """
+    old: dict[tuple[int, int], CellData | None] = {}
+    new: dict[tuple[int, int], CellData | None] = {}
+    for key in before.keys() | after.keys():
+        a, b = before.get(key), after.get(key)
+        if a is None and b is None:
+            continue
+        if a is not None and b is not None and vars(a) == vars(b):
+            continue
+        old[key] = a
+        new[key] = b
+    return old, new
+
+
+def _copy_comments(model: Any) -> dict[Any, Any]:
+    comments = getattr(model, "comments", None)
+    if not comments:
+        return {}
+    return {k: CellComment(**v.__dict__) for k, v in comments.items()}
+
+
+def _copy_links(model: Any) -> list[Any]:
+    return [dict(lk) if isinstance(lk, dict) else lk for lk in getattr(model, "links", None) or []]
+
 class GridViewport(QAbstractScrollArea):
     """High-performance virtualized 2D grid viewport for ATBOffice Ledger.
 
@@ -241,8 +275,9 @@ class GridViewport(QAbstractScrollArea):
         self._move_grab_cell: tuple[int, int] | None = None
         self._move_preview_range: SelectionRange | None = None
         self._move_ctrl_pressed: bool = False
-        self._undo_stack: list[dict[str, Any]] = []
-        self._redo_stack: list[dict[str, Any]] = []
+        # Undo / redo history of the whole workbook; entries remember their sheet.
+        self.history = UndoService(self)
+        self._edit_depth = 0
         self._dv_dropdown_rect: QRect | None = None
         self._format_painter_window: Any | None = None
         self._view_mode: str = "normal"  # "normal" | "page_break"
@@ -486,8 +521,11 @@ class GridViewport(QAbstractScrollArea):
 
     def clear_undo_stack(self) -> None:
         """Clear all undo and redo history and reset transient interaction states."""
-        self._undo_stack.clear()
-        self._redo_stack.clear()
+        self.history.clear()
+        self._reset_transient_state()
+
+    def _reset_transient_state(self) -> None:
+        """Drop drag previews and the internal clipboard (another sheet is shown)."""
         self._internal_clipboard = None
         self._fill_preview_range = None
         self._move_preview_range = None
@@ -500,7 +538,8 @@ class GridViewport(QAbstractScrollArea):
     ) -> None:
         """Switch active SheetDataModel and SelectionModel."""
         self.cancel_drag(why="api")
-        self.clear_undo_stack()
+        # The history is kept: each entry switches back to its own sheet.
+        self._reset_transient_state()
         # Hover state refers to the previous sheet's cells; never carry it over.
         self._hover_comment_cell = None
         QToolTip.hideText()
@@ -4205,7 +4244,7 @@ class GridViewport(QAbstractScrollArea):
                 }
                 after_sel = self.selection.snapshot()
 
-                self._undo_stack.append(
+                self._record_entry(
                     {
                         "action": "autofill",
                         "affected_coords": affected_coords,
@@ -4215,7 +4254,6 @@ class GridViewport(QAbstractScrollArea):
                         "after_sel": after_sel,
                     }
                 )
-                self._redo_stack.clear()
                 self.mark_dirty()
                 if hasattr(self.model, "recalculate"):
                     self.model.recalculate()
@@ -4236,7 +4274,7 @@ class GridViewport(QAbstractScrollArea):
                 after_sizes = {c: new_w for c in self._resize_targets}
                 for c in self._resize_targets:
                     self.geometry_mapper.set_col_width(c, new_w)
-                self._undo_stack.append(
+                self._record_entry(
                     {
                         "action": "col_resize",
                         "targets": list(self._resize_targets),
@@ -4244,7 +4282,6 @@ class GridViewport(QAbstractScrollArea):
                         "after_sizes": after_sizes,
                     }
                 )
-                self._redo_stack.clear()
                 self._update_scrollbars()
             self._resize_targets = []
             self._resize_orig_sizes = {}
@@ -4259,7 +4296,7 @@ class GridViewport(QAbstractScrollArea):
                 after_sizes = {r: new_h for r in self._resize_targets}
                 for r in self._resize_targets:
                     self.geometry_mapper.set_row_height(r, new_h)
-                self._undo_stack.append(
+                self._record_entry(
                     {
                         "action": "row_resize",
                         "targets": list(self._resize_targets),
@@ -4267,7 +4304,6 @@ class GridViewport(QAbstractScrollArea):
                         "after_sizes": after_sizes,
                     }
                 )
-                self._redo_stack.clear()
                 self._update_scrollbars()
             self._resize_targets = []
             self._resize_orig_sizes = {}
@@ -4439,7 +4475,7 @@ class GridViewport(QAbstractScrollArea):
         }
         after_sel = self.selection.snapshot()
 
-        self._undo_stack.append(
+        self._record_entry(
             {
                 "action": "autofill",
                 "affected_coords": affected_coords,
@@ -4449,7 +4485,6 @@ class GridViewport(QAbstractScrollArea):
                 "after_sel": after_sel,
             }
         )
-        self._redo_stack.clear()
         self.mark_dirty()
         if hasattr(self.model, "recalculate"):
             self.model.recalculate()
@@ -5157,45 +5192,164 @@ class GridViewport(QAbstractScrollArea):
             "is_cut": False,
         }
 
-    def _snapshot_state(self) -> dict[str, Any]:
-        """Capture cell, merge, comment, and selection snapshot for undo."""
-        before_cells = {k: v.clone() for k, v in self.model.cells.items()}
-        before_merges = list(self.model.merges)
-        before_comments = (
-            {k: CellComment(**v.__dict__) for k, v in self.model.comments.items()}
-            if hasattr(self.model, "comments")
-            else {}
-        )
-        before_sel = self.selection.snapshot()
+    # -------------------------------------------------------------------------
+    # Undo / redo
+    # -------------------------------------------------------------------------
+
+    def _clone_cells(
+        self, scope: list[SelectionRange] | None, model: Any = None
+    ) -> dict[tuple[int, int], CellData]:
+        """Clones of the cells inside ``scope`` (every cell when ``scope`` is None)."""
+        cells = (model or self.model).cells
+        if scope is None:
+            return {k: v.clone() for k, v in cells.items()}
+        out: dict[tuple[int, int], CellData] = {}
+        for rg in scope:
+            area = (rg.max_r - rg.min_r + 1) * (rg.max_c - rg.min_c + 1)
+            if area <= len(cells):
+                for r in range(rg.min_r, rg.max_r + 1):
+                    for c in range(rg.min_c, rg.max_c + 1):
+                        cell = cells.get((r, c))
+                        if cell is not None:
+                            out[(r, c)] = cell.clone()
+            else:
+                for (r, c), cell in cells.items():
+                    if rg.min_r <= r <= rg.max_r and rg.min_c <= c <= rg.max_c:
+                        out[(r, c)] = cell.clone()
+        return out
+
+    def selection_scope(self, margin: int = 1) -> list[SelectionRange]:
+        """The selected ranges grown by ``margin`` cells (borders reach neighbours)."""
+        return [
+            SelectionRange(
+                max(0, rg.min_r - margin),
+                max(0, rg.min_c - margin),
+                rg.max_r + margin,
+                rg.max_c + margin,
+            )
+            for rg in self.selection.ranges
+        ]
+
+    @contextmanager
+    def undoable_edit(
+        self,
+        action: str = "edit",
+        *,
+        scope: str | list[SelectionRange] = "sheet",
+        label: str | None = None,
+    ) -> Iterator[None]:
+        """Record every change made inside the block as one undo step.
+
+        ``scope`` is ``"sheet"`` (any cell may change), ``"selection"`` (only the
+        selected cells and their neighbours) or explicit ranges. Edits nest: an
+        inner edit is part of the outer step.
+        """
+        if self._edit_depth or not self.history.is_recording:
+            self._edit_depth += 1
+            try:
+                yield
+            finally:
+                self._edit_depth -= 1
+            return
+        if scope == "selection":
+            ranges: list[SelectionRange] | None = self.selection_scope()
+        elif scope == "sheet":
+            ranges = None
+        else:
+            ranges = list(scope)
+        before = self._snapshot_state(ranges)
+        self._edit_depth += 1
+        try:
+            with self.history.paused():
+                yield
+        finally:
+            self._edit_depth -= 1
+        self._commit_undo(before, action, label)
+
+    def _snapshot_state(
+        self, scope: list[SelectionRange] | SelectionRange | None = None
+    ) -> dict[str, Any]:
+        """Capture the state an edit may change, for :meth:`_commit_undo`.
+
+        ``scope`` limits the cells copied to the ranges the edit touches; with
+        None every cell of the sheet is copied. Merges, comments and links are
+        small and always copied.
+        """
+        if isinstance(scope, SelectionRange):
+            scope = [scope]
+        scope = [SelectionRange(rg.r1, rg.c1, rg.r2, rg.c2) for rg in scope] if scope else None
+        model = self.model
         return {
-            "before_cells": before_cells,
-            "before_merges": before_merges,
-            "before_comments": before_comments,
-            "before_sel": before_sel,
+            "sheet": model,
+            "scope": scope,
+            "before_cells": self._clone_cells(scope, model),
+            "before_merges": list(model.merges),
+            "before_comments": _copy_comments(model),
+            "before_links": _copy_links(model),
+            "before_sel": self.selection.snapshot(),
         }
 
-    def _commit_undo(self, before_state: dict[str, Any], action: str = "edit") -> None:
-        """Record state transition in undo stack and flag document dirty."""
-        after_cells = {k: v.clone() for k, v in self.model.cells.items()}
-        after_merges = list(self.model.merges)
-        after_comments = (
-            {k: CellComment(**v.__dict__) for k, v in self.model.comments.items()}
-            if hasattr(self.model, "comments")
-            else {}
-        )
-        after_sel = self.selection.snapshot()
-        entry = {
-            **before_state,
-            "after_cells": after_cells,
-            "after_merges": after_merges,
-            "after_comments": after_comments,
-            "after_sel": after_sel,
-            "action": action,
-        }
-        self._undo_stack.append(entry)
-        self._redo_stack.clear()
+    def _commit_undo(
+        self, before_state: dict[str, Any], action: str = "edit", label: str | None = None
+    ) -> bool:
+        """Record the change since ``before_state`` as one undo step (changed cells only).
+
+        Returns False, and records nothing, when nothing changed.
+        """
+        model = before_state.get("sheet") or self.model
+        after_cells = self._clone_cells(before_state.get("scope"), model)
+        entry: dict[str, Any] = {"action": action, "sheet": model}
+        if label:
+            entry["label"] = label
+        delta_before, delta_after = cell_delta(before_state["before_cells"], after_cells)
+        changed = bool(delta_before or delta_after)
+        if changed:
+            entry["before_delta_cells"] = delta_before
+            entry["after_delta_cells"] = delta_after
+        for key, now in (
+            ("merges", list(model.merges)),
+            ("comments", _copy_comments(model)),
+            ("links", _copy_links(model)),
+        ):
+            was = before_state.get(f"before_{key}")
+            if was is not None and was != now:
+                entry[f"before_{key}"] = was
+                entry[f"after_{key}"] = now
+                changed = True
+        if not changed:
+            return False
+        entry["before_sel"] = before_state.get("before_sel")
+        entry["after_sel"] = self.selection.snapshot()
+        self._record_entry(entry)
         self.mark_dirty()
         self.viewport().update()
+        return True
+
+    def _record_entry(self, entry: dict[str, Any]) -> None:
+        """Push an already-applied change described by ``entry`` onto the history.
+
+        Entries holding whole-sheet ``before_cells`` / ``after_cells`` copies are
+        reduced to the cells that changed before they are stored.
+        """
+        from atboffice.ui.components.undo_history import entry_label
+
+        entry.setdefault("sheet", self.model)
+        if "before_cells" in entry and "after_cells" in entry:
+            delta_before, delta_after = cell_delta(
+                entry.pop("before_cells"), entry.pop("after_cells")
+            )
+            entry["before_delta_cells"] = delta_before
+            entry["after_delta_cells"] = delta_after
+            for key in ("merges", "comments", "links"):
+                if entry.get(f"before_{key}") == entry.get(f"after_{key}"):
+                    entry.pop(f"before_{key}", None)
+                    entry.pop(f"after_{key}", None)
+        self.history.record(
+            entry_label(entry),
+            lambda: self._apply_entry(entry, undo=True),
+            lambda: self._apply_entry(entry, undo=False),
+            data=entry,
+        )
 
     def mark_dirty(self) -> None:
         """Mark workbook as modified."""
@@ -6350,7 +6504,7 @@ class GridViewport(QAbstractScrollArea):
         )
         after_sel = self.selection.snapshot()
 
-        self._undo_stack.append(
+        self._record_entry(
             {
                 "before_cells": before_cells,
                 "before_merges": before_merges,
@@ -6362,92 +6516,40 @@ class GridViewport(QAbstractScrollArea):
                 "after_sel": after_sel,
             }
         )
-        self._redo_stack.clear()
         self.viewport().update()
         return True
 
-    def undo(self) -> None:
+    def undo(self) -> bool:
         """Undo the last spreadsheet edit operation."""
-        if not self._undo_stack:
-            return
-        cmd = self._undo_stack.pop()
-        self._redo_stack.append(cmd)
-        action = cmd.get("action")
-        if action == "filter":
-            from atboffice.modules.spreadsheet.models.filter_model import (
-                ColumnFilter,
-                apply_auto_filter,
-            )
+        return self.history.undo()
 
-            af = cmd["af"]
-            af.cols = {
-                c: ColumnFilter(**(vars(cf) if hasattr(cf, "__dict__") else cf))
-                if isinstance(cf, ColumnFilter)
-                else cf
-                for c, cf in cmd["before_cols"].items()
-            }
-            apply_auto_filter(self.model, af)
-            self._update_filter_status(af)
-            self._update_scrollbars()
-            self.viewport().update()
-            return
-        if action == "col_resize":
-            for c, sz in cmd["before_sizes"].items():
-                self.geometry_mapper.set_col_width(c, sz)
-            self._update_scrollbars()
-            self.viewport().update()
-            return
-        if action == "row_resize":
-            for r, sz in cmd["before_sizes"].items():
-                self.geometry_mapper.set_row_height(r, sz)
-            self._update_scrollbars()
-            self.viewport().update()
-            return
-
-        if action == "autofill" and "before_delta_cells" in cmd:
-            for (r, c), old_cell in cmd["before_delta_cells"].items():
-                if old_cell is None:
-                    self.model.cells.pop((r, c), None)
-                else:
-                    self.model.cells[(r, c)] = old_cell.clone()
-            self.selection.restore_snapshot(cmd["before_sel"])
-            self.mark_dirty()
-            if hasattr(self.model, "recalculate"):
-                self.model.recalculate()
-            elif (
-                hasattr(self, "workbook")
-                and self.workbook
-                and hasattr(self.workbook, "recalculate")
-            ):
-                self.workbook.recalculate()
-            self.viewport().update()
-            return
-
-        self.model.cells = {k: v.clone() for k, v in cmd["before_cells"].items()}
-        self.model.merges = list(cmd["before_merges"])
-        if hasattr(self.model, "links") and "before_links" in cmd:
-            self.model.links = [
-                dict(lk) if isinstance(lk, dict) else lk for lk in cmd["before_links"]
-            ]
-        if hasattr(self.model, "comments") and "before_comments" in cmd:
-            self.model.comments = {
-                k: CellComment(**v.__dict__) for k, v in cmd["before_comments"].items()
-            }
-        if action == "total_row":
-            win = self.window()
-            if hasattr(win, "_total_row_active"):
-                win._total_row_active = not cmd.get("active", True)
-                if hasattr(win, "action_registry"):
-                    win.action_registry.set_checked("totalRow", win._total_row_active)
-        self.selection.restore_snapshot(cmd["before_sel"])
-        self.viewport().update()
-
-    def redo(self) -> None:
+    def redo(self) -> bool:
         """Redo the last undone spreadsheet edit operation."""
-        if not self._redo_stack:
+        return self.history.redo()
+
+    def _activate_sheet(self, sheet: Any) -> None:
+        """Show ``sheet`` before one of its edits is undone or redone."""
+        if sheet is None or sheet is self.model:
             return
-        cmd = self._redo_stack.pop()
-        self._undo_stack.append(cmd)
+        wb = self._resolve_workbook()
+        if wb is None or not hasattr(wb, "sheet_index"):
+            return
+        idx = wb.sheet_index(sheet)
+        if idx >= 0:
+            wb.set_active_sheet_index(idx)
+
+    def _recalculate(self) -> None:
+        if hasattr(self.model, "recalculate"):
+            self.model.recalculate()
+        elif getattr(self, "workbook", None) is not None and hasattr(
+            self.workbook, "recalculate"
+        ):
+            self.workbook.recalculate()
+
+    def _apply_entry(self, cmd: dict[str, Any], *, undo: bool) -> None:
+        """Move the model to the ``before`` (undo) or ``after`` (redo) side of ``cmd``."""
+        side = "before" if undo else "after"
+        self._activate_sheet(cmd.get("sheet"))
         action = cmd.get("action")
         if action == "filter":
             from atboffice.modules.spreadsheet.models.filter_model import (
@@ -6460,163 +6562,159 @@ class GridViewport(QAbstractScrollArea):
                 c: ColumnFilter(**(vars(cf) if hasattr(cf, "__dict__") else cf))
                 if isinstance(cf, ColumnFilter)
                 else cf
-                for c, cf in cmd["after_cols"].items()
+                for c, cf in cmd[f"{side}_cols"].items()
             }
             apply_auto_filter(self.model, af)
             self._update_filter_status(af)
             self._update_scrollbars()
             self.viewport().update()
             return
-        if action == "col_resize":
-            for c, sz in cmd["after_sizes"].items():
-                self.geometry_mapper.set_col_width(c, sz)
-            self._update_scrollbars()
-            self.viewport().update()
-            return
-        if action == "row_resize":
-            for r, sz in cmd["after_sizes"].items():
-                self.geometry_mapper.set_row_height(r, sz)
+        if action in ("col_resize", "row_resize"):
+            setter = (
+                self.geometry_mapper.set_col_width
+                if action == "col_resize"
+                else self.geometry_mapper.set_row_height
+            )
+            for idx, size in cmd[f"{side}_sizes"].items():
+                setter(idx, size)
             self._update_scrollbars()
             self.viewport().update()
             return
 
-        if action == "autofill" and "after_delta_cells" in cmd:
-            for (r, c), new_cell in cmd["after_delta_cells"].items():
-                if new_cell is None:
-                    self.model.cells.pop((r, c), None)
+        cells = cmd.get(f"{side}_delta_cells")
+        if cells is not None:
+            for key, cell in cells.items():
+                if cell is None:
+                    self.model.cells.pop(key, None)
                 else:
-                    self.model.cells[(r, c)] = new_cell.clone()
-            self.selection.restore_snapshot(cmd["after_sel"])
-            self.mark_dirty()
-            if hasattr(self.model, "recalculate"):
-                self.model.recalculate()
-            elif (
-                hasattr(self, "workbook")
-                and self.workbook
-                and hasattr(self.workbook, "recalculate")
-            ):
-                self.workbook.recalculate()
-            self.viewport().update()
-            return
-
-        self.model.cells = {k: v.clone() for k, v in cmd["after_cells"].items()}
-        self.model.merges = list(cmd["after_merges"])
-        if hasattr(self.model, "links") and "after_links" in cmd:
+                    self.model.cells[key] = cell.clone()
+        if f"{side}_merges" in cmd:
+            self.model.merges = list(cmd[f"{side}_merges"])
+        if hasattr(self.model, "links") and f"{side}_links" in cmd:
             self.model.links = [
-                dict(lk) if isinstance(lk, dict) else lk for lk in cmd["after_links"]
+                dict(lk) if isinstance(lk, dict) else lk for lk in cmd[f"{side}_links"]
             ]
-        if hasattr(self.model, "comments") and "after_comments" in cmd:
+        if hasattr(self.model, "comments") and f"{side}_comments" in cmd:
             self.model.comments = {
-                k: CellComment(**v.__dict__) for k, v in cmd["after_comments"].items()
+                k: CellComment(**v.__dict__) for k, v in cmd[f"{side}_comments"].items()
             }
         if action == "total_row":
             win = self.window()
             if hasattr(win, "_total_row_active"):
-                win._total_row_active = cmd.get("active", True)
+                active = cmd.get("active", True)
+                win._total_row_active = (not active) if undo else active
                 if hasattr(win, "action_registry"):
                     win.action_registry.set_checked("totalRow", win._total_row_active)
-        self.selection.restore_snapshot(cmd["after_sel"])
+        if cmd.get(f"{side}_sel"):
+            self.selection.restore_snapshot(cmd[f"{side}_sel"])
+        if cells:
+            self._recalculate()
+        self.mark_dirty()
         self.viewport().update()
 
     def insert_selected_cols(self) -> None:
         """Insert columns to the left of the current selection."""
-        if self.guard_protect("insertColumns"):
-            return
-        pr = self.selection.primary_range
-        c1, c2 = pr.min_c, pr.max_c
-        count = c2 - c1 + 1
-        new_cells: dict[tuple[int, int], CellData] = {}
-        for (r, c), cell in self.model.cells.items():
-            if c >= c1:
-                new_cells[(r, c + count)] = cell
-            else:
-                new_cells[(r, c)] = cell
-        self.model.cells = new_cells
-        new_merges: list[tuple[int, int, int, int]] = []
-        for mr1, mc1, mr2, mc2 in self.model.merges:
-            if mc1 >= c1:
-                new_merges.append((mr1, mc1 + count, mr2, mc2 + count))
-            elif mc2 >= c1:
-                new_merges.append((mr1, mc1, mr2, mc2 + count))
-            else:
-                new_merges.append((mr1, mc1, mr2, mc2))
-        self.model.merges = new_merges
-        self.viewport().update()
+        with self.undoable_edit("insert_cols"):
+            if self.guard_protect("insertColumns"):
+                return
+            pr = self.selection.primary_range
+            c1, c2 = pr.min_c, pr.max_c
+            count = c2 - c1 + 1
+            new_cells: dict[tuple[int, int], CellData] = {}
+            for (r, c), cell in self.model.cells.items():
+                if c >= c1:
+                    new_cells[(r, c + count)] = cell
+                else:
+                    new_cells[(r, c)] = cell
+            self.model.cells = new_cells
+            new_merges: list[tuple[int, int, int, int]] = []
+            for mr1, mc1, mr2, mc2 in self.model.merges:
+                if mc1 >= c1:
+                    new_merges.append((mr1, mc1 + count, mr2, mc2 + count))
+                elif mc2 >= c1:
+                    new_merges.append((mr1, mc1, mr2, mc2 + count))
+                else:
+                    new_merges.append((mr1, mc1, mr2, mc2))
+            self.model.merges = new_merges
+            self.viewport().update()
 
     def delete_selected_cols(self) -> None:
         """Delete columns in the current selection."""
-        if self.guard_protect("deleteColumns"):
-            return
-        pr = self.selection.primary_range
-        c1, c2 = pr.min_c, pr.max_c
-        count = c2 - c1 + 1
-        new_cells: dict[tuple[int, int], CellData] = {}
-        for (r, c), cell in self.model.cells.items():
-            if c1 <= c <= c2:
-                continue
-            elif c > c2:
-                new_cells[(r, c - count)] = cell
-            else:
-                new_cells[(r, c)] = cell
-        self.model.cells = new_cells
-        new_merges: list[tuple[int, int, int, int]] = []
-        for mr1, mc1, mr2, mc2 in self.model.merges:
-            if mc1 > c2:
-                new_merges.append((mr1, mc1 - count, mr2, mc2 - count))
-            elif mc2 < c1:
-                new_merges.append((mr1, mc1, mr2, mc2))
-        self.model.merges = new_merges
-        self.viewport().update()
+        with self.undoable_edit("delete_cols"):
+            if self.guard_protect("deleteColumns"):
+                return
+            pr = self.selection.primary_range
+            c1, c2 = pr.min_c, pr.max_c
+            count = c2 - c1 + 1
+            new_cells: dict[tuple[int, int], CellData] = {}
+            for (r, c), cell in self.model.cells.items():
+                if c1 <= c <= c2:
+                    continue
+                elif c > c2:
+                    new_cells[(r, c - count)] = cell
+                else:
+                    new_cells[(r, c)] = cell
+            self.model.cells = new_cells
+            new_merges: list[tuple[int, int, int, int]] = []
+            for mr1, mc1, mr2, mc2 in self.model.merges:
+                if mc1 > c2:
+                    new_merges.append((mr1, mc1 - count, mr2, mc2 - count))
+                elif mc2 < c1:
+                    new_merges.append((mr1, mc1, mr2, mc2))
+            self.model.merges = new_merges
+            self.viewport().update()
 
     def insert_selected_rows(self) -> None:
         """Insert rows above the current selection."""
-        if self.guard_protect("insertRows"):
-            return
-        pr = self.selection.primary_range
-        r1, r2 = pr.min_r, pr.max_r
-        count = r2 - r1 + 1
-        new_cells: dict[tuple[int, int], CellData] = {}
-        for (r, c), cell in self.model.cells.items():
-            if r >= r1:
-                new_cells[(r + count, c)] = cell
-            else:
-                new_cells[(r, c)] = cell
-        self.model.cells = new_cells
-        new_merges: list[tuple[int, int, int, int]] = []
-        for mr1, mc1, mr2, mc2 in self.model.merges:
-            if mr1 >= r1:
-                new_merges.append((mr1 + count, mc1, mr2 + count, mc2))
-            elif mr2 >= r1:
-                new_merges.append((mr1, mc1, mr2 + count, mc2))
-            else:
-                new_merges.append((mr1, mc1, mr2, mc2))
-        self.model.merges = new_merges
-        self.viewport().update()
+        with self.undoable_edit("insert_rows"):
+            if self.guard_protect("insertRows"):
+                return
+            pr = self.selection.primary_range
+            r1, r2 = pr.min_r, pr.max_r
+            count = r2 - r1 + 1
+            new_cells: dict[tuple[int, int], CellData] = {}
+            for (r, c), cell in self.model.cells.items():
+                if r >= r1:
+                    new_cells[(r + count, c)] = cell
+                else:
+                    new_cells[(r, c)] = cell
+            self.model.cells = new_cells
+            new_merges: list[tuple[int, int, int, int]] = []
+            for mr1, mc1, mr2, mc2 in self.model.merges:
+                if mr1 >= r1:
+                    new_merges.append((mr1 + count, mc1, mr2 + count, mc2))
+                elif mr2 >= r1:
+                    new_merges.append((mr1, mc1, mr2 + count, mc2))
+                else:
+                    new_merges.append((mr1, mc1, mr2, mc2))
+            self.model.merges = new_merges
+            self.viewport().update()
 
     def delete_selected_rows(self) -> None:
         """Delete rows in the current selection."""
-        if self.guard_protect("deleteRows"):
-            return
-        pr = self.selection.primary_range
-        r1, r2 = pr.min_r, pr.max_r
-        count = r2 - r1 + 1
-        new_cells: dict[tuple[int, int], CellData] = {}
-        for (r, c), cell in self.model.cells.items():
-            if r1 <= r <= r2:
-                continue
-            elif r > r2:
-                new_cells[(r - count, c)] = cell
-            else:
-                new_cells[(r, c)] = cell
-        self.model.cells = new_cells
-        new_merges: list[tuple[int, int, int, int]] = []
-        for mr1, mc1, mr2, mc2 in self.model.merges:
-            if mr1 > r2:
-                new_merges.append((mr1 - count, mc1, mr2 - count, mc2))
-            elif mr2 < r1:
-                new_merges.append((mr1, mc1, mr2, mc2))
-        self.model.merges = new_merges
-        self.viewport().update()
+        with self.undoable_edit("delete_rows"):
+            if self.guard_protect("deleteRows"):
+                return
+            pr = self.selection.primary_range
+            r1, r2 = pr.min_r, pr.max_r
+            count = r2 - r1 + 1
+            new_cells: dict[tuple[int, int], CellData] = {}
+            for (r, c), cell in self.model.cells.items():
+                if r1 <= r <= r2:
+                    continue
+                elif r > r2:
+                    new_cells[(r - count, c)] = cell
+                else:
+                    new_cells[(r, c)] = cell
+            self.model.cells = new_cells
+            new_merges: list[tuple[int, int, int, int]] = []
+            for mr1, mc1, mr2, mc2 in self.model.merges:
+                if mr1 > r2:
+                    new_merges.append((mr1 - count, mc1, mr2 - count, mc2))
+                elif mr2 < r1:
+                    new_merges.append((mr1, mc1, mr2, mc2))
+            self.model.merges = new_merges
+            self.viewport().update()
 
     def set_col_width_dialog(self) -> None:
         """Show dialog to set column width for selected columns."""
@@ -7018,7 +7116,7 @@ class GridViewport(QAbstractScrollArea):
             for c, cf in af.cols.items()
         }
 
-        self._undo_stack.append(
+        self._record_entry(
             {
                 "action": "filter",
                 "af": af,
@@ -7027,7 +7125,6 @@ class GridViewport(QAbstractScrollArea):
                 "after_cols": after_cols,
             }
         )
-        self._redo_stack.clear()
 
         self._update_filter_status(af)
         self._update_scrollbars()
@@ -7057,7 +7154,7 @@ class GridViewport(QAbstractScrollArea):
             for c, cf in af.cols.items()
         }
 
-        self._undo_stack.append(
+        self._record_entry(
             {
                 "action": "filter",
                 "af": af,
@@ -7066,7 +7163,6 @@ class GridViewport(QAbstractScrollArea):
                 "after_cols": after_cols,
             }
         )
-        self._redo_stack.clear()
 
         self._update_filter_status(af)
         self._update_scrollbars()

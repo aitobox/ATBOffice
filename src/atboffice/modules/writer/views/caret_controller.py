@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import copy
+import functools
 import re
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
+from typing import Any, TypeVar
 
 from PySide6.QtCore import QObject, QPointF, Qt, QTimer, Signal
 from PySide6.QtGui import QKeyEvent
@@ -202,6 +206,23 @@ def split_paragraph(p: Paragraph, offset: int) -> Paragraph:
 # ---------------------------------------------------------------------------
 
 
+_F = TypeVar("_F", bound=Callable[..., Any])
+
+
+def _text_edit(label: str) -> Callable[[_F], _F]:
+    """Record the decorated editing method as one undo step (see ``edit_scope``)."""
+
+    def deco(fn: _F) -> _F:
+        @functools.wraps(fn)
+        def wrapper(self: CaretController, *args: Any, **kwargs: Any) -> Any:
+            with self.edit_scope(label):
+                return fn(self, *args, **kwargs)
+
+        return wrapper  # type: ignore[return-value]
+
+    return deco
+
+
 class CaretController(QObject):
     """In-place caret and selection controller for Quire document editing."""
 
@@ -229,12 +250,33 @@ class CaretController(QObject):
         self.caret_visible: bool = True
         self.preferred_x: float | None = None
         self.autocorrect: AutoCorrectEngine = AutoCorrectEngine()
+        # Undo recorder (``TextEditRecorder``) installed by the canvas view.
+        self.edit_recorder: Any | None = None
 
         # Blinking timer (500 ms)
         self._blink_timer = QTimer(self)
         self._blink_timer.setInterval(500)
         self._blink_timer.timeout.connect(self._toggle_blink)
         self._blink_timer.start()
+
+    @contextmanager
+    def edit_scope(self, label: str, parts: tuple[str, ...] = ()) -> Iterator[None]:
+        """Record every text edit made inside the block as one undo step.
+
+        Scopes nest: only the outermost one records, under its own label, so a
+        paste that first deletes the selection is a single "Paste" step.
+        ``parts`` names document attributes outside the story that the edit
+        may change, such as ``styles``.
+        """
+        recorder = self.edit_recorder
+        if recorder is None:
+            yield
+            return
+        recorder.begin(label, parts)
+        try:
+            yield
+        finally:
+            recorder.end()
 
     def set_document_and_pagination(self, doc: Document, pagination: PaginationResult) -> None:
         """Update active document model and pagination result."""
@@ -743,6 +785,7 @@ class CaretController(QObject):
                 parts.append(pt)
         return "\n".join(parts)
 
+    @_text_edit("删除")
     def delete_selection(self) -> bool:
         """Delete active selection range if non-collapsed."""
         if self.selection.is_collapsed:
@@ -782,6 +825,7 @@ class CaretController(QObject):
         self.repaginate_and_refresh()
         return True
 
+    @_text_edit("键入")
     def insert_text(self, text: str) -> None:
         """Insert text at caret position, advancing caret."""
         if not text:
@@ -828,6 +872,7 @@ class CaretController(QObject):
         self.preferred_x = None
         self.repaginate_and_refresh()
 
+    @_text_edit("删除")
     def delete_backspace(self) -> None:
         """Handle Backspace key: delete selection, delete char, or merge paragraphs."""
         if not self.selection.is_collapsed:
@@ -867,6 +912,7 @@ class CaretController(QObject):
                 self.preferred_x = None
                 self.repaginate_and_refresh()
 
+    @_text_edit("删除")
     def delete_forward(self) -> None:
         """Handle Delete key: delete selection, delete char forward, or merge next paragraph."""
         if not self.selection.is_collapsed:
@@ -902,6 +948,7 @@ class CaretController(QObject):
                 self.preferred_x = None
                 self.repaginate_and_refresh()
 
+    @_text_edit("键入")
     def insert_paragraph_break(self) -> None:
         """Handle Enter / Return key: split paragraph into two."""
         if not self.selection.is_collapsed:
