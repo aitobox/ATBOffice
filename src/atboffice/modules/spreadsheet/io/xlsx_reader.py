@@ -15,9 +15,11 @@ from atboffice.drawing.dml import theme_map as dml_theme_map
 from atboffice.modules.spreadsheet.calc.references import (
     parse_cell,
     parse_range,
+    translate,
 )
 from atboffice.modules.spreadsheet.io.xlsx_drawing_shapes import (
     DrawingContext,
+    drawings_signature,
     element_xfrm,
     first_shape_element,
     parse_shape_element,
@@ -203,6 +205,30 @@ def _attr(element: ET.Element | None, name: str, default: str | None = None) -> 
     return default
 
 
+def _cell_formula(
+    f_el: ET.Element, r: int, c: int, shared: dict[str, tuple[int, int, str]]
+) -> str | None:
+    """Return the formula text of a ``<c><f>`` element.
+
+    Shared formulas (``t="shared"``) store their text only on the master cell; every other
+    cell in the group carries just ``si``. Those cells get the master formula translated by
+    their offset from the master, which is what Excel does on load.
+    """
+    text = (f_el.text or "").strip().lstrip("=")
+    if _attr(f_el, "t") != "shared":
+        return text or None
+    si = _attr(f_el, "si")
+    if text:
+        if si is not None:
+            shared[si] = (r, c, text)
+        return text
+    master = shared.get(si) if si is not None else None
+    if master is None:
+        return None
+    mr, mc, mtext = master
+    return translate(mtext, r - mr, c - mc)
+
+
 def _resolve_rel_path(base_file: str, target: str) -> str:
     """Normalize relative target path against base file directory in zip archive."""
     target_clean = target.replace("\\", "/")
@@ -235,7 +261,12 @@ def _parse_rels(zip_file: zipfile.ZipFile, rels_path: str) -> dict[str, tuple[st
     except ET.ParseError:
         return rels
 
-    base_dir = rels_path.replace("/_rels/", "/").rsplit(".rels", 1)[0]
+    # "_rels/.rels" describes the package root; "dir/_rels/part.xml.rels" describes
+    # "dir/part.xml". Targets resolve relative to the source part's directory.
+    if rels_path.lstrip("/") == "_rels/.rels":
+        base_dir = ""
+    else:
+        base_dir = rels_path.replace("_rels/", "").rsplit(".rels", 1)[0]
     for rel in _find_children(root, "Relationship"):
         r_id = _attr(rel, "Id")
         r_type = _attr(rel, "Type", "") or ""
@@ -1017,6 +1048,7 @@ def _parse_worksheet(
     sd_el = _find_child(root, "sheetData")
     if sd_el is not None:
         curr_r = 0
+        shared_formulas: dict[str, tuple[int, int, str]] = {}
         for row_el in _find_children(sd_el, "row"):
             r_str = _attr(row_el, "r")
             if r_str:
@@ -1074,9 +1106,8 @@ def _parse_worksheet(
                 # Parse formula
                 formula_el = _find_child(c_el, "f")
                 formula_str: str | None = None
-                if formula_el is not None and formula_el.text:
-                    ftext = formula_el.text.strip()
-                    formula_str = ftext.lstrip("=")
+                if formula_el is not None:
+                    formula_str = _cell_formula(formula_el, r, c, shared_formulas)
 
                 # Parse value
                 val_str: str | None = None
@@ -1335,6 +1366,7 @@ def _parse_worksheet(
 
     # 6. Floating drawings
     _parse_worksheet_drawings(zip_file, sheet_path, sheet, theme_colors)
+    sheet.extra["xlsx_drawings_signature"] = drawings_signature(sheet.drawings)
 
     # 7. Worksheet comments
     _parse_worksheet_comments(zip_file, sheet_path, sheet)
@@ -1801,6 +1833,7 @@ def read_xlsx(
                     wb_part = name
                     break
 
+        wb.extra["xlsx_workbook_part"] = wb_part
         try:
             wb_xml_content = z.read(wb_part)
             wb_root = ET.fromstring(wb_xml_content)
@@ -1839,6 +1872,7 @@ def read_xlsx(
                 dn_raw,
             )
             wb.extra["defined_names"] = dn_clean
+            wb.extra["defined_names_loaded"] = dn_clean
 
         # 2. Parse workbook relationships
         wb_dir = wb_part.rsplit("/", 1)[0] if "/" in wb_part else ""
@@ -1906,6 +1940,11 @@ def read_xlsx(
             if styles_path
             else [FormatDelta()]
         )
+        if styles_path:
+            # The writer appends to the original stylesheet on save, so that style
+            # indices carried in untouched XML (cols, rows, CF dxfIds) stay valid.
+            wb.extra["xlsx_styles_part"] = styles_path
+            wb.extra["xlsx_style_deltas"] = style_deltas
         active_palette = wb.indexed_palette or DEFAULT_INDEXED_PALETTE
         sst = (
             _parse_shared_strings(
@@ -1920,12 +1959,17 @@ def read_xlsx(
         if sheets_el is None:
             raise ValueError("Workbook XML contains no <sheets> definition.")
 
-        sheet_entries: list[tuple[str, str | None]] = []
+        sheet_entries: list[tuple[str, str | None, dict[str, str | None]]] = []
         for s_el in _find_children(sheets_el, "sheet"):
             s_name = _unescape_xml_text(_attr(s_el, "name", "Sheet1"))
             r_id = _attr(s_el, "id")
             s_part = wb_rels.get(r_id, (None, None))[1] if r_id else None
-            sheet_entries.append((s_name, s_part))
+            meta = {
+                "sheet_id": _attr(s_el, "sheetId"),
+                "sheet_state": _attr(s_el, "state"),
+                "sheet_rel_id": r_id,
+            }
+            sheet_entries.append((s_name, s_part, meta))
 
         if not sheet_entries:
             raise ValueError("No worksheets found in workbook.")
@@ -1956,11 +2000,14 @@ def read_xlsx(
                 break
 
         # 5. Populate sheets
-        for idx, (s_name, s_part) in enumerate(sheet_entries):
+        for idx, (s_name, s_part, meta) in enumerate(sheet_entries):
             if idx == 0 and len(wb) == 1 and wb[0].name == s_name:
                 sheet_model = wb[0]
             else:
                 sheet_model = wb.add_sheet(name=s_name)
+            for key, value in meta.items():
+                if value:
+                    sheet_model.extra[key] = value
 
             if s_part:
                 sheet_model._ooxml_part = s_part

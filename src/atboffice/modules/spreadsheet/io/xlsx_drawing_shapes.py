@@ -363,3 +363,32 @@ def _parse_sp(
     else:
         obj.kind = _KIND_BY_PRESET.get(geometry, "rect")
     return obj
+
+
+_SIGNATURE_ATTRS = (
+    "id", "name", "kind", "from_point", "to_point", "text", "text_color", "font_size",
+    "font_family", "fill_color", "fill_alpha", "fill_type", "line_color", "line_width",
+    "line_visible", "geometry", "flip_h", "flip_v", "z_index",
+)
+
+
+def drawings_signature(drawings: list[FloatingObject] | None) -> tuple:
+    """Fingerprint of the user-editable state of a sheet's drawings.
+
+    The writer compares this with the fingerprint taken at load time: while it is
+    unchanged, the original drawing part (with charts, SmartArt and anything else the
+    model cannot express) is carried verbatim instead of being regenerated.
+    """
+    out = []
+    for obj in drawings or []:
+        values = []
+        for attr in _SIGNATURE_ATTRS:
+            v = getattr(obj, attr, None)
+            if hasattr(v, "__dataclass_fields__"):
+                v = tuple(getattr(v, f) for f in v.__dataclass_fields__)
+            values.append(v)
+        data = getattr(obj, "image_data", None)
+        values.append(hash(data) if data else None)
+        values.append(drawings_signature(getattr(obj, "children", None)))
+        out.append(tuple(values))
+    return tuple(out)
