@@ -47,7 +47,7 @@ jobs:
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install nuitka zstandard pyside6 cryptography xlrd packaging
+          python -m pip install nuitka zstandard .  # project dependencies: PySide6, lxml, msoffcrypto-tool, packaging, xlrd
 
       - name: Build and Sign macOS DMG
         env:
@@ -89,7 +89,7 @@ jobs:
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install nuitka zstandard pyside6 cryptography xlrd packaging
+          python -m pip install nuitka zstandard .  # project dependencies: PySide6, lxml, msoffcrypto-tool, packaging, xlrd
 
       - name: Prepare appimagetool
         run: |
@@ -126,7 +126,7 @@ jobs:
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install nuitka zstandard pyside6 cryptography xlrd packaging
+          python -m pip install nuitka zstandard .  # project dependencies: PySide6, lxml, msoffcrypto-tool, packaging, xlrd
 
       - name: Build Windows Portable ZIP
         run: |

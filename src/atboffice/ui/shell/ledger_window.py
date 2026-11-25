@@ -498,7 +498,7 @@ class LedgerWindow(BaseOfficeWindow):
             pass
 
         from atboffice.modules.spreadsheet.io.xls_reader import is_xls_supported, read_xls
-        from atboffice.ui.shell.base_window import FileOpenWarningHandled
+        from atboffice.ui.shell.base_window import FileOpenCancelled, FileOpenWarningHandled
 
         is_binary_xls = (ext in {".xls", ".xlt"}) and not is_xml_markup
         allow_excel97 = is_binary_xls and is_xls_supported()
@@ -547,18 +547,22 @@ class LedgerWindow(BaseOfficeWindow):
                 self.check_legacy_or_disguised_file(path, "ledger", allow_excel97=False)
                 return False
             try:
-                candidate_wb = read_xls(path)
+                try:
+                    candidate_wb = read_xls(path)
+                except PermissionError:
+                    # Not openable with Excel's default password: ask for the real one.
+                    pwd = self.prompt_for_package_password(path.name)
+                    if pwd is None:
+                        raise FileOpenCancelled("User cancelled password prompt") from None
+                    candidate_wb = read_xls(path, password=pwd)
             except InterruptedError:
                 self.status_bar.showMessage(safe_tr("已取消打开工作簿。"), 5000)
                 return False
             except PermissionError as p_err:
                 QMessageBox.warning(
                     self,
-                    safe_tr("文件已加密"),
-                    safe_tr(
-                        "“{name}”包含密码保护或加密。旧版加密格式无法直接打开，请在"
-                        " Excel 中解密或保存为现代 .xlsx 格式。"
-                    ).format(name=path.name),
+                    safe_tr("打开失败"),
+                    safe_tr("密码不正确，无法打开文档。"),
                 )
                 raise FileOpenWarningHandled(f"Encrypted XLS workbook: {path.name}") from p_err
             except Exception as exc:

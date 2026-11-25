@@ -8,7 +8,6 @@ source package, so only the information needed for rendering is modelled here.
 from __future__ import annotations
 
 import logging
-import xml.etree.ElementTree as ET
 import zipfile
 from collections.abc import Sequence
 from typing import Any
@@ -21,6 +20,7 @@ from atboffice.modules.spreadsheet.models.sheet_model import (
     TableStyleInfo,
 )
 from atboffice.modules.spreadsheet.models.table_style import resolve_table_style
+from atboffice.vfs import etree as ET
 
 logger = logging.getLogger(__name__)
 

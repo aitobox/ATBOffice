@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
-
 import pytest
 from PySide6.QtCore import QRectF
 from PySide6.QtGui import QColor, QImage, QPainter
@@ -16,6 +14,7 @@ from atboffice.modules.presentation.views.text_editor import (
     measure_text_body_height,
     solve_norm_autofit_scale,
 )
+from atboffice.vfs import etree as ET
 from atboffice.vfs.opc import SourcePackage
 
 pytestmark = pytest.mark.usefixtures("qapp")

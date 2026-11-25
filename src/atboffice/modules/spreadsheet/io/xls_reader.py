@@ -222,8 +222,12 @@ def read_xls(
     workbook: WorkbookModel | None = None,
     cancel_check: Callable[[], bool] | None = None,
     progress_callback: Callable[[int, int], None] | None = None,
+    password: str | None = None,
 ) -> WorkbookModel:
     """Read a binary Excel 97-2003 (.xls) workbook into a WorkbookModel.
+
+    Encrypted workbooks are decrypted with msoffcrypto-tool first, using
+    ``password`` or, when it is None, Excel's built-in default password.
 
     Args:
         source: File path, raw bytes, or binary stream of an .xls file.
@@ -236,7 +240,8 @@ def read_xls(
 
     Raises:
         RuntimeError: If xlrd is not installed in the environment.
-        PermissionError: If the workbook is password protected / encrypted.
+        PermissionError: If the workbook is encrypted and ``password`` (or the
+            default password) does not open it.
         ValueError: If the file is not a valid BIFF workbook or is corrupted.
         InterruptedError: If cancel_check returns True during processing.
     """
@@ -269,7 +274,25 @@ def read_xls(
     except xlrd.biffh.XLRDError as err:
         err_msg = str(err).lower()
         if "encrypted" in err_msg or "password" in err_msg:
-            raise PermissionError(f"Workbook is encrypted: {err}") from err
+            from atboffice.vfs.crypto import InvalidPasswordError, decrypt_legacy_binary
+
+            raw = (
+                Path(book_kwargs["filename"]).read_bytes()
+                if "filename" in book_kwargs
+                else book_kwargs["file_contents"]
+            )
+            try:
+                plain = decrypt_legacy_binary(raw, password)
+            except InvalidPasswordError as pw_err:
+                raise PermissionError(f"Workbook is encrypted: {err}") from pw_err
+            except ValueError as dec_err:
+                raise ValueError(f"Cannot decrypt XLS workbook: {dec_err}") from dec_err
+            return read_xls(
+                plain,
+                workbook=workbook,
+                cancel_check=cancel_check,
+                progress_callback=progress_callback,
+            )
         # Try without formatting info if error was formatting related
         try:
             has_formatting = False

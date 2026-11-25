@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
 from collections.abc import Sequence
+
+from atboffice.vfs import etree as ET
 
 # Canonical ECMA-376 child tag ordering tables
 SCHEMA_ORDERS: dict[str, list[str]] = {

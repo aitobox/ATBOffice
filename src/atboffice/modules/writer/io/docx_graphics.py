@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import math
 import re
-import xml.etree.ElementTree as ET
 from collections.abc import Mapping
 from typing import Any
 
@@ -32,6 +31,7 @@ from atboffice.modules.writer.models.properties import (
     RunProperties,
     SpacingProperties,
 )
+from atboffice.vfs import etree as ET
 
 _PERCENT_RE = re.compile(r"^-?\d+(\.\d+)?%$")
 _JC = {"l": "left", "ctr": "center", "r": "right", "just": "both", "dist": "distribute"}

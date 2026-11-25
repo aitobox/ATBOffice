@@ -99,10 +99,17 @@ all work from the initial scaffold through Phase 11.
   false-success file opens; the crash recovery service now starts reliably.
 - Wired previously disconnected dialogs and toolbar actions in Quire, Ledger and Lectern,
   and removed double-firing between the menu bar and the action registry.
+- Lossless saving: XLSX keeps shared formulas, styles, hidden sheets and workbook
+  settings; DOCX keeps comments, footnotes, endnotes and style definitions; PPTX keeps
+  slide ids so sections and custom shows still resolve.
+- Hardened package handling: a safe XML parser (no network access or entity
+  expansion) and refusal of zip bombs.
 
 ### Changed
-- Release builds now install `xlrd` and `packaging`, so `.xls` import and the update
-  checker work in packaged apps. `packaging` is now a declared runtime dependency.
+- All OOXML code now uses lxml, and file encryption uses `msoffcrypto-tool`.
+- Release builds install the project's declared dependencies, so `.xls` import and
+  the update checker work in packaged apps. `packaging` is now a declared runtime
+  dependency.
 - Release artifact names drop the tag's `v` prefix (`ATBOffice-0.2.0-…`).
 
 [Unreleased]: https://github.com/aitobox/ATBOffice/compare/v0.2.0...HEAD

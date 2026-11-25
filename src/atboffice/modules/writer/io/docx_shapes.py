@@ -8,7 +8,6 @@ the shared Qt-free helpers in ``atboffice.drawing``.
 from __future__ import annotations
 
 import re
-import xml.etree.ElementTree as ET
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -23,6 +22,7 @@ from atboffice.drawing.shape_style import (
 )
 from atboffice.modules.writer.models.document import Story
 from atboffice.modules.writer.models.drawing import ShapeChild, ShapeItem
+from atboffice.vfs import etree as ET
 
 EMU_PER_PT = 12700.0
 DEFAULT_INSETS = (7.2, 3.6, 7.2, 3.6)
