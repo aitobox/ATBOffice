@@ -203,7 +203,7 @@ def build_toc(
             [
                 FieldBeginItem(
                     field_type="PAGEREF",
-                    instr=f'PAGEREF {bm_name} \\h',
+                    instr=f"PAGEREF {bm_name} \\h",
                     r_pr=r_pr,
                 ),
                 FieldSeparateItem(r_pr=r_pr),

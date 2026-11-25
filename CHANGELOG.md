@@ -102,6 +102,11 @@ all work from the initial scaffold through Phase 11.
 - Lossless saving: XLSX keeps shared formulas, styles, hidden sheets and workbook
   settings; DOCX keeps comments, footnotes, endnotes and style definitions; PPTX keeps
   slide ids so sections and custom shows still resolve.
+- One bounded undo history per document in Quire, Ledger and Lectern.
+- The English interface now works throughout, the Luna palette is applied
+  consistently, and a round of visible UI bugs is fixed.
+- Saves and background threads are hardened, and test-only code paths are removed
+  from the shipped application.
 - Hardened package handling: a safe XML parser (no network access or entity
   expansion) and refusal of zip bombs.
 

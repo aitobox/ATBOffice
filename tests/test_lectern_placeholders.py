@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from PySide6.QtGui import QColor, QImage, QPainter
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.io.pptx_reader import read_pptx
 from atboffice.modules.presentation.models.layouts import PROMPTS
 from atboffice.modules.presentation.models.placeholder_resolver import (
@@ -76,7 +77,7 @@ def test_ctr_title_prompt_uses_inherited_red(qapp) -> None:
 
     body = build_prompt_body(sh.text, "ctrTitle")
     assert body is not None
-    assert body.plain_text == "Click to add title"
+    assert body.plain_text == safe_tr("Click to add title")
     run = body.paragraphs[0].runs[0]
     assert run.size and run.size > 20
     color = QColor(run.color) if run.color and run.color.startswith("#") else None
@@ -88,7 +89,7 @@ def test_subtitle_prompt_keeps_bullet(qapp) -> None:
     sh = _ph_shape(pres.slides[0], "subTitle")
     body = build_prompt_body(sh.text, "subTitle")
     assert body is not None
-    assert body.plain_text == "Click to add subtitle"
+    assert body.plain_text == safe_tr("Click to add subtitle")
     assert body.paragraphs[0].props.get("bu", {}).get("t") == "char"
 
 
@@ -112,7 +113,7 @@ def test_unknown_placeholder_type_falls_back_to_text_prompt() -> None:
     from atboffice.modules.presentation.models.text import TextBody
 
     body = build_prompt_body(TextBody.create_empty(), "media")
-    assert body is not None and body.plain_text == "Click to add text"
+    assert body is not None and body.plain_text == safe_tr("Click to add text")
 
 
 def test_non_empty_text_has_no_prompt() -> None:

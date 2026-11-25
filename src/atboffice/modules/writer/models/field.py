@@ -235,7 +235,7 @@ def tokenize_field_instruction(instr: str) -> list[FieldToken]:
     for m in pattern.finditer(s):
         if m.group(1) is not None:
             # Quoted string
-            val = m.group(1).replace(r'\"', '"').replace(r"\\", "\\")
+            val = m.group(1).replace(r"\"", '"').replace(r"\\", "\\")
             out.append(FieldToken(v=val, q=True))
         elif m.group(2) is not None:
             # Switch

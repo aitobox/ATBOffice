@@ -30,9 +30,7 @@ def sample_shape() -> Shape:
     )
 
 
-def test_shape_graphics_item_shape_method_callable(
-    qapp: QApplication, sample_shape: Shape
-) -> None:
+def test_shape_graphics_item_shape_method_callable(qapp: QApplication, sample_shape: Shape) -> None:
     """Verify ShapeGraphicsItem.shape is a callable QGraphicsItem virtual method."""
     item = ShapeGraphicsItem(sample_shape)
 

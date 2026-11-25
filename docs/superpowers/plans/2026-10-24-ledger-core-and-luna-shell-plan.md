@@ -56,28 +56,40 @@ import io
 from pathlib import Path
 from atboffice.vfs.opc import SourcePackage, PackageWriter
 
+
 def test_opc_byte_for_byte_carry(tmp_path: Path):
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
-        zf.writestr("[Content_Types].xml", b"<Types><Default Extension='xml' ContentType='text/xml'/></Types>")
-        zf.writestr("xl/workbook.xml", b"<workbook><sheets><sheet name='Sheet1' sheetId='1'/></sheets></workbook>")
-        zf.writestr("xl/vbaProject.bin", b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x01\x02\x03")
+        zf.writestr(
+            "[Content_Types].xml",
+            b"<Types><Default Extension='xml' ContentType='text/xml'/></Types>",
+        )
+        zf.writestr(
+            "xl/workbook.xml",
+            b"<workbook><sheets><sheet name='Sheet1' sheetId='1'/></sheets></workbook>",
+        )
+        zf.writestr("xl/vbaProject.bin", b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1\x00\x01\x02\x03")
     pkg_bytes = buf.getvalue()
 
     pkg = SourcePackage.from_bytes(pkg_bytes)
     assert pkg.has_part("xl/vbaProject.bin")
 
     writer = PackageWriter(source_package=pkg)
-    writer.replace_part("xl/workbook.xml", b"<workbook><sheets><sheet name='Sheet1' sheetId='1' state='visible'/></sheets></workbook>")
+    writer.replace_part(
+        "xl/workbook.xml",
+        b"<workbook><sheets><sheet name='Sheet1' sheetId='1' state='visible'/></sheets></workbook>",
+    )
     out_file = tmp_path / "saved.xlsx"
     writer.save(out_file)
 
     with zipfile.ZipFile(out_file, "r") as zf:
-        assert zf.read("xl/vbaProject.bin") == b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x01\x02\x03"
+        assert zf.read("xl/vbaProject.bin") == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1\x00\x01\x02\x03"
+
 
 # tests/unit/vfs/test_order.py
 import xml.etree.ElementTree as ET
 from atboffice.vfs.order import enforce_schema_order
+
 
 def test_worksheet_schema_ordering():
     # Intentionally out of order: mergeCells before sheetData
@@ -133,6 +145,7 @@ git commit -m "feat(vfs): implement lossless OPC packaging and strict schema ord
 import pytest
 from atboffice.vfs.crypto import is_encrypted_package, decrypt_package, encrypt_package
 
+
 def test_agile_encryption_roundtrip():
     payload = b"PK\x03\x04test_xlsx_payload_content"
     password = "OfficePassword2026!"
@@ -140,6 +153,7 @@ def test_agile_encryption_roundtrip():
     assert is_encrypted_package(encrypted)
     decrypted = decrypt_package(encrypted, password=password)
     assert decrypted == payload
+
 
 def test_agile_encryption_bad_password():
     payload = b"PK\x03\x04test_xlsx_payload_content"
@@ -198,6 +212,7 @@ git commit -m "feat(vfs): add ECMA-376 Agile and Standard AES encryption engine"
 from atboffice.modules.spreadsheet.calc.parser import FormulaParser
 from atboffice.modules.spreadsheet.calc.tokens import FunctionCallNode, BinaryOpNode, ReferenceNode
 
+
 def test_parse_simple_and_nested_formulas():
     parser = FormulaParser()
     ast = parser.parse("=SUM(A1:B10) + 5 * C$2")
@@ -208,9 +223,11 @@ def test_parse_simple_and_nested_formulas():
     assert isinstance(ast.right, BinaryOpNode)
     assert ast.right.op == "*"
 
+
 # tests/unit/spreadsheet/test_references.py
 from atboffice.modules.spreadsheet.calc.references import CellAddress, shift_references
 from atboffice.modules.spreadsheet.calc.parser import FormulaParser, serialize_formula
+
 
 def test_relative_formula_shifting():
     parser = FormulaParser()
@@ -267,18 +284,20 @@ git commit -m "feat(calc): implement formula tokenizer, Pratt AST parser, and re
 from atboffice.modules.spreadsheet.calc.dag import DependencyGraph
 from atboffice.modules.spreadsheet.calc.parser import FormulaParser
 
+
 def test_dag_topological_order():
     dag = DependencyGraph()
     parser = FormulaParser()
     # C1 depends on B1, B1 depends on A1
     dag.set_cell_formula("Sheet1", 0, 2, parser.parse("=B1*2"))
     dag.set_cell_formula("Sheet1", 0, 1, parser.parse("=A1+10"))
-    
+
     # Mark A1 as dirty
     dag.mark_dirty("Sheet1", 0, 0)
     order = dag.get_eval_order()
     # B1 (0, 1) must be evaluated before C1 (0, 2)
     assert order == [("Sheet1", 0, 1), ("Sheet1", 0, 2)]
+
 
 def test_dag_cycle_detection():
     dag = DependencyGraph()
@@ -343,8 +362,10 @@ git commit -m "feat(calc): implement DAG dependency graph, cycle detector, and t
 # tests/unit/spreadsheet/test_functions_all.py
 from atboffice.modules.spreadsheet.calc.functions.registry import FunctionRegistry
 
+
 def test_full_function_count():
     assert FunctionRegistry.get_registered_count() == 519
+
 
 def test_xlookup_and_dynamic_arrays():
     # Test XLOOKUP exact match
@@ -353,6 +374,7 @@ def test_xlookup_and_dynamic_arrays():
     return_array = [100, 200, 300]
     res = FunctionRegistry.call("XLOOKUP", [lookup_val, lookup_array, return_array], None)
     assert res == 200
+
 
 def test_sequence_dynamic_array():
     res = FunctionRegistry.call("SEQUENCE", [3, 2, 1, 1], None)
@@ -415,17 +437,18 @@ git commit -m "feat(calc): implement all 519 worksheet functions with dynamic ar
 from atboffice.modules.spreadsheet.views.grid_viewport import GridViewport
 from atboffice.modules.spreadsheet.models.workbook import Workbook
 
+
 def test_grid_viewport_rendering_and_selection(qtbot):
     wb = Workbook()
     sheet = wb.active_sheet
     sheet.set_cell_value(0, 0, "Test Value")
-    
+
     grid = GridViewport()
     grid.set_workbook(wb)
     qtbot.addWidget(grid)
     grid.resize(800, 600)
     grid.show()
-    
+
     # Assert selection starts at (0, 0)
     sel = grid.get_selected_range()
     assert sel.r1 == 0 and sel.c1 == 0
@@ -478,10 +501,12 @@ git commit -m "feat(ui): implement virtualized custom-drawn spreadsheet grid vie
 # tests/gui/test_autofill.py
 from atboffice.modules.spreadsheet.views.autofill import extrapolate_series
 
+
 def test_numeric_linear_progression():
     # Source [10, 20] -> extrapolate 3 more cells -> [30, 40, 50]
     result = extrapolate_series([10, 20], target_len=5)
     assert result == [10, 20, 30, 40, 50]
+
 
 def test_month_name_series():
     result = extrapolate_series(["January", "February"], target_len=4)
@@ -532,6 +557,7 @@ git commit -m "feat(ui): implement AutoFill smart handle and series extrapolatio
 ```python
 # tests/gui/test_editor_and_status_bar.py
 from atboffice.ui.components.status_bar import AutoCalculateStatusBar
+
 
 def test_status_bar_autocalculate():
     sb = AutoCalculateStatusBar()
@@ -588,6 +614,7 @@ git commit -m "feat(ui): implement in-place cell editor, formula bar, and AutoCa
 # tests/gui/test_luna_ui.py
 from atboffice.modules.spreadsheet.dialogs.format_cells import FormatCellsDialog
 
+
 def test_format_cells_dialog_tabs(qtbot):
     dlg = FormatCellsDialog(None)
     qtbot.addWidget(dlg)
@@ -643,6 +670,7 @@ git commit -m "feat(ui): implement Office 2003 Luna visual theme and 6-tab Forma
 ```python
 # tests/gui/test_mac_shell.py
 from atboffice.ui.shell.main_window import MainWindow
+
 
 def test_mac_native_menu_and_shortcuts(qtbot):
     win = MainWindow()
@@ -701,15 +729,18 @@ from atboffice.modules.spreadsheet.calc.parser import FormulaParser
 from atboffice.modules.spreadsheet.calc.dag import DependencyGraph
 from atboffice.modules.spreadsheet.calc.functions.registry import FunctionRegistry
 
+
 def test_end_to_end_calculation_and_lossless_save(tmp_path: Path):
     # 1. Parse formula and calculate via DAG + functions
     parser = FormulaParser()
     ast = parser.parse("=SUM(10, 20) + XLOOKUP(1, [1, 2], [100, 200])")
     dag = DependencyGraph()
     dag.set_cell_formula("Sheet1", 0, 0, ast)
-    
+
     # 2. Evaluate
-    calc_val = FunctionRegistry.call("SUM", [10, 20], None) + FunctionRegistry.call("XLOOKUP", [1, [1, 2], [100, 200]], None)
+    calc_val = FunctionRegistry.call("SUM", [10, 20], None) + FunctionRegistry.call(
+        "XLOOKUP", [1, [1, 2], [100, 200]], None
+    )
     assert calc_val == 130
 ```
 

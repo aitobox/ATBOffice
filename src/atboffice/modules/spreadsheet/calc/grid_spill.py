@@ -87,8 +87,9 @@ def apply_spill(sheet: Any, r: int, c: int, value: Any) -> tuple[Any, bool]:
     return anchor, before != after
 
 
-def _fit_array_range(sheet: Any, r: int, c: int, matrix: list[list[Any]] | None,
-                     value: Any) -> list[list[Any]] | None:
+def _fit_array_range(
+    sheet: Any, r: int, c: int, matrix: list[list[Any]] | None, value: Any
+) -> list[list[Any]] | None:
     """Legacy array formula (Ctrl+Shift+Enter): fit the result to its entered range."""
     from atboffice.modules.spreadsheet.calc.errors import NA
 

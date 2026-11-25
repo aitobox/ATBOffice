@@ -305,6 +305,7 @@ class OfficeMathItem(RunItem):
 
     def plain_text(self) -> str:
         """Return plain text of all math runs within this formula."""
+
         def _node_text(node: Any) -> str:
             if isinstance(node, MathRun):
                 return node.text
@@ -612,10 +613,7 @@ def parse_omml(elem_or_xml: ET.Element | str) -> OfficeMathItem:
         try:
             raw_str = ET.tostring(root, encoding="unicode")
             if raw_str and NS_STRICT_M in raw_str:
-                raw_str = (
-                    raw_str.replace(NS_STRICT_M, NS_M)
-                    .replace(NS_STRICT_W, NS_W)
-                )
+                raw_str = raw_str.replace(NS_STRICT_M, NS_M).replace(NS_STRICT_W, NS_W)
         except Exception:
             raw_str = None
 
@@ -785,10 +783,7 @@ def serialize_omml(item: OfficeMathItem) -> ET.Element:
         try:
             raw = item.raw_xml
             if NS_STRICT_M in raw:
-                raw = (
-                    raw.replace(NS_STRICT_M, NS_M)
-                    .replace(NS_STRICT_W, NS_W)
-                )
+                raw = raw.replace(NS_STRICT_M, NS_M).replace(NS_STRICT_W, NS_W)
             return ET.fromstring(raw)
         except Exception:
             pass

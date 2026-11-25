@@ -147,7 +147,7 @@ def build_sheet_from_spec(
                 for c in range(r_info["c1"], r_info["c2"] + 1):
                     cell = sheet.get_cell(r, c) or CellData()
                     if st:
-                        apply_cell_spec(sheet, f"R{r+1}C{c+1}", cell.value, st)
+                        apply_cell_spec(sheet, f"R{r + 1}C{c + 1}", cell.value, st)
 
     # 3. Column widths
     for col_letter, width in sheet_data.get("cols", {}).items():

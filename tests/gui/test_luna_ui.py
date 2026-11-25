@@ -10,7 +10,7 @@ from atboffice.ui.components.color_picker import (
     ColorPickerPopup,
 )
 from atboffice.ui.components.toolbar import DottedGrip, OfficeToolBar
-from atboffice.ui.shell.main_window import MainWindow
+from atboffice.ui.shell.ledger_window import LedgerWindow
 from atboffice.ui.styles.luna_2003 import (
     apply_luna_theme,
     format_mnemonic,
@@ -141,8 +141,8 @@ def test_color_picker_button(qtbot):
 
 
 def test_main_window_luna_integration(qtbot):
-    """Verify MainWindow integrates OfficeToolBar and Luna theme switching."""
-    win = MainWindow()
+    """Verify LedgerWindow integrates OfficeToolBar and Luna theme switching."""
+    win = LedgerWindow()
     qtbot.addWidget(win)
 
     # Standard and Formatting toolbars should be present

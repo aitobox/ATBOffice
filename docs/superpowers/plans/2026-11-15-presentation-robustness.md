@@ -164,6 +164,7 @@ def test_read_pptx_isolates_broken_chart_and_populates_load_warnings(): ...
 def test_read_pptx_isolates_corrupt_slide_xml_while_loading_valid_slides(): ...
 def test_chart_scale_terminates_on_extreme_log_or_tiny_step(): ...
 
+
 # tests/gui/test_degraded_load_banner.py
 def test_degraded_load_banner_shows_warning_count_details_and_retranslates(qapp): ...
 def test_degraded_load_banner_hidden_when_zero_warnings_and_dismissible(qapp): ...
@@ -279,12 +280,15 @@ git commit -m "perf(presentation): cache shape media/text layouts, guard paint b
 
 ```python
 # tests/unit/corpus/test_presentation_malformed_corpus.py
-@pytest.mark.parametrize("pptx_name,min_warnings", [
-    ("malformed_numeric_attrs.pptx", 1),
-    ("broken_chart_and_rels.pptx", 1),
-    ("degenerate_shapes_and_cycles.pptx", 0),
-    ("partial_corrupt_slide.pptx", 1),
-])
+@pytest.mark.parametrize(
+    "pptx_name,min_warnings",
+    [
+        ("malformed_numeric_attrs.pptx", 1),
+        ("broken_chart_and_rels.pptx", 1),
+        ("degenerate_shapes_and_cycles.pptx", 0),
+        ("partial_corrupt_slide.pptx", 1),
+    ],
+)
 def test_malformed_pptx_opens_renders_and_shows_warning_banner(qapp, pptx_name, min_warnings): ...
 ```
 

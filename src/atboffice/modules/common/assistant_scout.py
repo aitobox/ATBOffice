@@ -32,15 +32,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    """Translate UI text with fallback to original string."""
-    app = QApplication.instance()
-    if app:
-        translated = app.translate("AssistantScout", text)
-        if translated and translated != text:
-            return translated
-    return text
+from atboffice.core.i18n import safe_tr
 
 
 def get_greeting() -> str:

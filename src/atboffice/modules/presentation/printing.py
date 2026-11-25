@@ -5,10 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen
 from PySide6.QtPrintSupport import QPrinter
 
+from atboffice.core.i18n import safe_tr
 from atboffice.ui.printing.printer_setup import (
     A4_PT,
     begin_points_painter,
@@ -16,11 +17,6 @@ from atboffice.ui.printing.printer_setup import (
     new_page,
     print_font_scale,
 )
-
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("LecternPrinting", text)
-
 
 PRINT_WHAT = ("slides", "handouts", "notes", "outline")
 HANDOUT_COUNTS = (1, 2, 3, 4, 6, 9)
@@ -187,8 +183,10 @@ def handout_slots(
     if order == "vertical":
         cells.sort(key=lambda rc: (rc[1], rc[0]))
     return [
-        _fit(QRectF(body.x() + c * (cell_w + gap), body.y() + r * (cell_h + gap), cell_w, cell_h),
-             aspect)
+        _fit(
+            QRectF(body.x() + c * (cell_w + gap), body.y() + r * (cell_h + gap), cell_w, cell_h),
+            aspect,
+        )
         for r, c in cells
     ]
 
@@ -260,6 +258,7 @@ def render_presentation(printer: QPrinter, pres: Any, options: PresentationPrint
     painter = begin_points_painter(printer)
     pages = 0
     try:
+
         def start() -> None:
             nonlocal pages
             if pages:
@@ -269,8 +268,14 @@ def render_presentation(printer: QPrinter, pres: Any, options: PresentationPrint
         if options.what == "slides":
             for _idx, slide in slides:
                 start()
-                paint_slide(painter, slide, pres, QRectF(0, 0, page_w, page_h),
-                            options.color, options.frame_slides)
+                paint_slide(
+                    painter,
+                    slide,
+                    pres,
+                    QRectF(0, 0, page_w, page_h),
+                    options.color,
+                    options.frame_slides,
+                )
         elif options.what == "handouts":
             per = options.per_page if options.per_page in HANDOUT_GRID else 6
             total = (len(slides) + per - 1) // per
@@ -287,18 +292,29 @@ def render_presentation(printer: QPrinter, pres: Any, options: PresentationPrint
             for idx, slide in slides:
                 start()
                 _header_footer(painter, page_w, page_h, options.title, idx + 1)
-                top = QRectF(MARGIN + 36, MARGIN + HEADER_H, page_w - 2 * MARGIN - 72,
-                             (page_h - 2 * MARGIN) * 0.42)
+                top = QRectF(
+                    MARGIN + 36,
+                    MARGIN + HEADER_H,
+                    page_w - 2 * MARGIN - 72,
+                    (page_h - 2 * MARGIN) * 0.42,
+                )
                 paint_slide(painter, slide, pres, _fit(top, aspect), options.color, True)
-                notes_rect = QRectF(MARGIN + 36, top.bottom() + 24.0, page_w - 2 * MARGIN - 72,
-                                    page_h - top.bottom() - 24.0 - MARGIN - FOOTER_H)
+                notes_rect = QRectF(
+                    MARGIN + 36,
+                    top.bottom() + 24.0,
+                    page_w - 2 * MARGIN - 72,
+                    page_h - top.bottom() - 24.0 - MARGIN - FOOTER_H,
+                )
                 painter.save()
                 painter.setFont(_font(painter, 12))
                 painter.setPen(QColor("#000000"))
                 painter.drawText(
                     notes_rect,
-                    int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
-                        | Qt.TextFlag.TextWordWrap),
+                    int(
+                        Qt.AlignmentFlag.AlignLeft
+                        | Qt.AlignmentFlag.AlignTop
+                        | Qt.TextFlag.TextWordWrap
+                    ),
                     getattr(slide, "notes", "") or "",
                 )
                 painter.restore()

@@ -374,4 +374,3 @@ class TestTableInteraction:
         ok = canvas.jump_to_bookmark(bm_ch2)
         assert ok is True
         assert canvas.controller.pos.para_id == p_ch2.id
-

@@ -37,13 +37,13 @@ def chart_to_xml(chart: ChartData | dict[str, Any]) -> str:
         for line in title_lines:
             escaped = html.escape(line)
             para_xmls.append(
-                f"<a:p><a:pPr><a:defRPr sz=\"{int(c.fsz * 120)}\" b=\"1\"/></a:pPr>"
+                f'<a:p><a:pPr><a:defRPr sz="{int(c.fsz * 120)}" b="1"/></a:pPr>'
                 f'<a:r><a:rPr lang="en-US" sz="{int(c.fsz * 120)}" b="1"/>'
                 f"<a:t>{escaped}</a:t></a:r></a:p>"
             )
         title_xml = (
             f"<c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/>"
-            f"{''.join(para_xmls)}</c:rich></c:tx><c:overlay val=\"0\"/></c:title>"
+            f'{"".join(para_xmls)}</c:rich></c:tx><c:overlay val="0"/></c:title>'
             f'<c:autoTitleDeleted val="0"/>'
         )
     else:
@@ -52,27 +52,18 @@ def chart_to_xml(chart: ChartData | dict[str, Any]) -> str:
     # Legend XML
     legend_xml = ""
     if c.legend and c.legend != "none":
-        legend_xml = (
-            f'<c:legend><c:legendPos val="{c.legend}"/><c:overlay val="0"/></c:legend>'
-        )
+        legend_xml = f'<c:legend><c:legendPos val="{c.legend}"/><c:overlay val="0"/></c:legend>'
 
     # Categories XML for a series
     def cat_xml() -> str:
         pt_xmls = "".join(
-            f'<c:pt idx="{i}"><c:v>{html.escape(cat)}</c:v></c:pt>'
-            for i, cat in enumerate(cats)
+            f'<c:pt idx="{i}"><c:v>{html.escape(cat)}</c:v></c:pt>' for i, cat in enumerate(cats)
         )
-        return (
-            f"<c:cat><c:strLit><c:ptCount val=\"{len(cats)}\"/>"
-            f"{pt_xmls}</c:strLit></c:cat>"
-        )
+        return f'<c:cat><c:strLit><c:ptCount val="{len(cats)}"/>{pt_xmls}</c:strLit></c:cat>'
 
     # Values XML for a series
     def val_xml(vals: list[float], tag: str = "c:val") -> str:
-        pt_xmls = "".join(
-            f'<c:pt idx="{i}"><c:v>{v}</c:v></c:pt>'
-            for i, v in enumerate(vals)
-        )
+        pt_xmls = "".join(f'<c:pt idx="{i}"><c:v>{v}</c:v></c:pt>' for i, v in enumerate(vals))
         return (
             f"<{tag}><c:numLit><c:formatCode>General</c:formatCode>"
             f'<c:ptCount val="{len(vals)}"/>{pt_xmls}</c:numLit></{tag}>'
@@ -86,28 +77,18 @@ def chart_to_xml(chart: ChartData | dict[str, Any]) -> str:
         sp_pr = ""
         if s.color:
             hex_c = s.color.lstrip("#")
-            sp_pr = (
-                f"<c:spPr><a:solidFill><a:srgbClr val=\"{hex_c}\"/>"
-                f"</a:solidFill></c:spPr>"
-            )
+            sp_pr = f'<c:spPr><a:solidFill><a:srgbClr val="{hex_c}"/></a:solidFill></c:spPr>'
 
         if kind in ("scatter", "bubble"):
             xs = s.xs or [float(k + 1) for k in range(len(s.vals))]
             x_xml = val_xml(xs, tag="c:xVal")
             y_xml = val_xml(s.vals, tag="c:yVal")
-            bubble_sz = (
-                val_xml(s.sizes or s.vals, tag="c:bubbleSize")
-                if kind == "bubble"
-                else ""
-            )
+            bubble_sz = val_xml(s.sizes or s.vals, tag="c:bubbleSize") if kind == "bubble" else ""
             ser_body = f"{tx_xml}{sp_pr}{x_xml}{y_xml}{bubble_sz}"
         else:
             ser_body = f"{tx_xml}{sp_pr}{cat_xml()}{val_xml(s.vals)}"
 
-        ser_xmls.append(
-            f"<c:ser><c:idx val=\"{i}\"/><c:order val=\"{i}\"/>"
-            f"{ser_body}</c:ser>"
-        )
+        ser_xmls.append(f'<c:ser><c:idx val="{i}"/><c:order val="{i}"/>{ser_body}</c:ser>')
 
     all_ser = "".join(ser_xmls)
     ax1 = 50010001
@@ -120,9 +101,7 @@ def chart_to_xml(chart: ChartData | dict[str, Any]) -> str:
         f'<c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>'
         f'<c:crossAx val="{ax2}"/><c:crosses val="autoZero"/></c:catAx>'
     )
-    grid_xml = (
-        "<c:majorGridlines/>" if c.grid_y else ""
-    )
+    grid_xml = "<c:majorGridlines/>" if c.grid_y else ""
     val_ax = (
         f'<c:valAx><c:axId val="{ax2}"/><c:scaling><c:orientation val="minMax"/>'
         f'</c:scaling><c:delete val="0"/><c:axPos val="l"/>{grid_xml}'
@@ -171,13 +150,11 @@ def chart_to_xml(chart: ChartData | dict[str, Any]) -> str:
             f'<c:{bar_tag}><c:barDir val="bar"/><c:grouping val="{grp}"/>'
             f"{all_ser}{ax_ids}</c:{bar_tag}>"
         )
-        plot_area = (
-            f"<c:plotArea><c:layout/>{plot_type}{cat_ax}{val_ax}{ser_ax}</c:plotArea>"
-        )
+        plot_area = f"<c:plotArea><c:layout/>{plot_type}{cat_ax}{val_ax}{ser_ax}</c:plotArea>"
     elif kind in ("line", "lineMarkers"):
         plot_type = (
             f'<c:lineChart><c:grouping val="standard"/>'
-            f"{all_ser}<c:marker val=\"1\"/>{ax_ids}</c:lineChart>"
+            f'{all_ser}<c:marker val="1"/>{ax_ids}</c:lineChart>'
         )
         plot_area = f"<c:plotArea><c:layout/>{plot_type}{cat_ax}{val_ax}</c:plotArea>"
     elif kind in ("area", "areaStacked", "areaPct"):
@@ -201,18 +178,16 @@ def chart_to_xml(chart: ChartData | dict[str, Any]) -> str:
         plot_area = f"<c:plotArea><c:layout/>{plot_type}</c:plotArea>"
     elif kind == "scatter":
         plot_type = (
-            f'<c:scatterChart><c:scatterStyle val="lineMarker"/>'
-            f"{all_ser}{ax_ids}</c:scatterChart>"
+            f'<c:scatterChart><c:scatterStyle val="lineMarker"/>{all_ser}{ax_ids}</c:scatterChart>'
         )
         plot_area = f"<c:plotArea><c:layout/>{plot_type}{cat_ax}{val_ax}</c:plotArea>"
     elif kind == "bubble":
-        plot_type = f'<c:bubbleChart>{all_ser}{ax_ids}</c:bubbleChart>'
+        plot_type = f"<c:bubbleChart>{all_ser}{ax_ids}</c:bubbleChart>"
         plot_area = f"<c:plotArea><c:layout/>{plot_type}{cat_ax}{val_ax}</c:plotArea>"
     elif kind in ("radar", "radarFilled"):
         style_val = "filled" if kind == "radarFilled" else "marker"
         plot_type = (
-            f'<c:radarChart><c:radarStyle val="{style_val}"/>'
-            f"{all_ser}{ax_ids}</c:radarChart>"
+            f'<c:radarChart><c:radarStyle val="{style_val}"/>{all_ser}{ax_ids}</c:radarChart>'
         )
         plot_area = f"<c:plotArea><c:layout/>{plot_type}{cat_ax}{val_ax}</c:plotArea>"
     else:  # col, colStacked, colPct default
@@ -229,9 +204,7 @@ def chart_to_xml(chart: ChartData | dict[str, Any]) -> str:
             f'<c:{bar_tag}><c:barDir val="col"/><c:grouping val="{grp}"/>'
             f"{all_ser}{ax_ids}</c:{bar_tag}>"
         )
-        plot_area = (
-            f"<c:plotArea><c:layout/>{plot_type}{cat_ax}{val_ax}{ser_ax}</c:plotArea>"
-        )
+        plot_area = f"<c:plotArea><c:layout/>{plot_type}{cat_ax}{val_ax}{ser_ax}</c:plotArea>"
 
     return (
         f"{XML_DECL}"
@@ -397,14 +370,18 @@ def parse_chart_xml(
                 is_h_bar = bar_dir is not None and bar_dir.get("val") == "bar"
                 if is_h_bar:
                     kind = (
-                        "barPct" if grp_val == "percentStacked"
-                        else "barStacked" if grp_val == "stacked"
+                        "barPct"
+                        if grp_val == "percentStacked"
+                        else "barStacked"
+                        if grp_val == "stacked"
                         else "bar"
                     )
                 else:
                     kind = (
-                        "colPct" if grp_val == "percentStacked"
-                        else "colStacked" if grp_val == "stacked"
+                        "colPct"
+                        if grp_val == "percentStacked"
+                        else "colStacked"
+                        if grp_val == "stacked"
                         else "col"
                     )
             elif tag_name in ("lineChart", "line3DChart"):
@@ -414,8 +391,10 @@ def parse_chart_xml(
                 grouping = child.find("c:grouping", ns)
                 grp_val = grouping.get("val") if grouping is not None else "standard"
                 kind = (
-                    "areaPct" if grp_val == "percentStacked"
-                    else "areaStacked" if grp_val == "stacked"
+                    "areaPct"
+                    if grp_val == "percentStacked"
+                    else "areaStacked"
+                    if grp_val == "stacked"
                     else "area"
                 )
             elif tag_name in ("pieChart", "pie3DChart", "ofPieChart"):
@@ -428,10 +407,7 @@ def parse_chart_xml(
                 kind = "bubble"
             elif tag_name == "radarChart":
                 radar_style = child.find("c:radarStyle", ns)
-                is_filled = (
-                    radar_style is not None
-                    and radar_style.get("val") == "filled"
-                )
+                is_filled = radar_style is not None and radar_style.get("val") == "filled"
                 kind = "radarFilled" if is_filled else "radar"
             break
 
@@ -591,7 +567,7 @@ def create_embedded_workbook(chart: ChartData) -> bytes:
         sheet_xml = (
             '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-            f'<sheetData>{"".join(rows_xml)}</sheetData>'
+            f"<sheetData>{''.join(rows_xml)}</sheetData>"
             "</worksheet>"
         )
         z.writestr("xl/worksheets/sheet1.xml", sheet_xml)

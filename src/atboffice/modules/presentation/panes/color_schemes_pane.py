@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPixmap
+from PySide6.QtCore import QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QLabel,
@@ -18,15 +18,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.designs import DESIGNS, ColorScheme
+from atboffice.ui.styles.luna_2003 import ui_font
 
 if TYPE_CHECKING:
     from atboffice.modules.presentation.models.presentation import Presentation
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for ColorSchemesPane."""
-    return QCoreApplication.translate("ColorSchemesPane", text)
 
 
 class PaneLinkButton(QPushButton):
@@ -172,7 +169,7 @@ class ColorSchemesPane(QWidget):
 
         # 2. Section label
         self.lbl_apply = QLabel(safe_tr("应用配色方案:"), self)
-        self.lbl_apply.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self.lbl_apply.setFont(ui_font(9, bold=True))
         main_layout.addWidget(self.lbl_apply)
 
         # 3. Scrollable schemes grid

@@ -187,9 +187,7 @@ def walk(node: ASTNode | None, fn: Callable[[ASTNode], None]) -> None:
             walk(node.target, fn)
 
 
-def map_ast(
-    node: ASTNode | None, fn: Callable[[ASTNode], ASTNode | None]
-) -> ASTNode | None:
+def map_ast(node: ASTNode | None, fn: Callable[[ASTNode], ASTNode | None]) -> ASTNode | None:
     """Deep copy with a mapping function for reference or other nodes."""
     if node is None:
         return None
@@ -199,15 +197,11 @@ def map_ast(
 
     copied = copy.copy(node)
     if isinstance(copied, FunctionCallNode):
-        copied.args = [
-            res for a in copied.args if (res := map_ast(a, fn)) is not None
-        ]
+        copied.args = [res for a in copied.args if (res := map_ast(a, fn)) is not None]
         return copied
     elif isinstance(copied, InvokeNode):
         copied.fn = map_ast(copied.fn, fn)
-        copied.args = [
-            res for a in copied.args if (res := map_ast(a, fn)) is not None
-        ]
+        copied.args = [res for a in copied.args if (res := map_ast(a, fn)) is not None]
         return copied
     elif isinstance(copied, (ParenNode, UnaryOpNode, PercentNode)):
         copied.a = map_ast(copied.a, fn)
@@ -220,14 +214,11 @@ def map_ast(
         copied.b = copied.right
         return copied
     elif isinstance(copied, UnionNode):
-        copied.items = [
-            res for item in copied.items if (res := map_ast(item, fn)) is not None
-        ]
+        copied.items = [res for item in copied.items if (res := map_ast(item, fn)) is not None]
         return copied
     elif isinstance(copied, ArrayNode):
         copied.rows = [
-            [res for item in row if (res := map_ast(item, fn)) is not None]
-            for row in copied.rows
+            [res for item in row if (res := map_ast(item, fn)) is not None] for row in copied.rows
         ]
         return copied
     elif isinstance(copied, SheetReference):
@@ -310,9 +301,7 @@ def translate(text: str, dr: int, dc: int) -> str:
         return text
 
 
-def transpose_formula(
-    text: str, src_r: int, src_c: int, target_r: int, target_c: int
-) -> str:
+def transpose_formula(text: str, src_r: int, src_c: int, target_r: int, target_c: int) -> str:
     """Transpose relative formula references written for (src_r, src_c) to (target_r, target_c)."""
     from atboffice.modules.spreadsheet.calc.parser import parse, to_text
 
@@ -403,16 +392,10 @@ def _same_sheet(n: ASTNode, target: str | None, home: str | None) -> bool:
         return False
     if getattr(n, "sheet2", None) is not None:
         return False
-    return (
-        s is not None
-        and target is not None
-        and str(s).lower() == str(target).lower()
-    )
+    return s is not None and target is not None and str(s).lower() == str(target).lower()
 
 
-def adjust(
-    ast: ASTNode, op: dict[str, Any], home: str | None = None
-) -> tuple[ASTNode, bool]:
+def adjust(ast: ASTNode, op: dict[str, Any], home: str | None = None) -> tuple[ASTNode, bool]:
     """Adjust references for a row/column insertion or deletion."""
     changed = False
     ins = op["n"] > 0
@@ -452,9 +435,7 @@ def adjust(
         if isinstance(n, AreaRefNode):
             k1 = "r1" if op["axis"] == "r" else "c1"
             k2 = "r2" if op["axis"] == "r" else "c2"
-            if (op["axis"] == "r" and n.kind == "cols") or (
-                op["axis"] == "c" and n.kind == "rows"
-            ):
+            if (op["axis"] == "r" and n.kind == "cols") or (op["axis"] == "c" and n.kind == "rows"):
                 return None
             a = getattr(n, k1)
             b = getattr(n, k2)
@@ -510,12 +491,7 @@ def adjust_move(
     changed = False
 
     def inside(r: int, c: int) -> bool:
-        return (
-            r >= src["r1"]
-            and r <= src["r2"]
-            and c >= src["c1"]
-            and c <= src["c2"]
-        )
+        return r >= src["r1"] and r <= src["r2"] and c >= src["c1"] and c <= src["c2"]
 
     def mapper(n: ASTNode) -> ASTNode | None:
         nonlocal changed
@@ -536,12 +512,7 @@ def adjust_move(
             res.c += dc
             return qual(res)
 
-        if (
-            isinstance(n, AreaRefNode)
-            and not n.kind
-            and inside(n.r1, n.c1)
-            and inside(n.r2, n.c2)
-        ):
+        if isinstance(n, AreaRefNode) and not n.kind and inside(n.r1, n.c1) and inside(n.r2, n.c2):
             changed = True
             res = copy.copy(n)
             res.r1 += dr
@@ -556,9 +527,7 @@ def adjust_move(
     return (out if out is not None and changed else ast, changed)
 
 
-def rename_sheet(
-    ast: ASTNode, from_name: str, to_name: str | None
-) -> tuple[ASTNode, bool]:
+def rename_sheet(ast: ASTNode, from_name: str, to_name: str | None) -> tuple[ASTNode, bool]:
     """Rename sheet references, or convert to #REF! if to_name is None (sheet deleted)."""
     changed = False
     f = str(from_name).lower()

@@ -14,7 +14,7 @@ In PowerPoint presentations, connectors (`straightConnector1`, `bentConnector2`,
 Add `cxn_start` and `cxn_end` attributes to `Shape`:
 ```python
 cxn_start: dict[str, Any] | None = None  # e.g. {"id": "target_shape_id", "idx": 0}
-cxn_end: dict[str, Any] | None = None    # e.g. {"id": "target_shape_id", "idx": 2}
+cxn_end: dict[str, Any] | None = None  # e.g. {"id": "target_shape_id", "idx": 2}
 ```
 - Fully serialized and deserialized in `Shape.to_dict()` and `Shape.from_dict()`.
 - Deep-copied in `Shape.clone()`.

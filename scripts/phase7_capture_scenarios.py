@@ -169,12 +169,33 @@ class CaptureScenarioRegistry:
         elif cat == "dialog":
             # Dialogs that are implemented in atboffice
             known_dialogs = [
-                "Page_Setup", "Font", "Paragraph", "Columns", "Tabs", "Break",
-                "Insert_Table", "Table_Properties", "Word_Count", "Spelling",
-                "Mail_Merge", "Options", "Theme", "About", "Chart",
-                "Data_Validation", "Sort", "Text_to_Columns", "Goal_Seek",
-                "Subtotal", "Consolidate", "Conditional", "Action_Settings",
-                "Background", "Set_Up_Show", "WordArt", "Fill_Effects"
+                "Page_Setup",
+                "Font",
+                "Paragraph",
+                "Columns",
+                "Tabs",
+                "Break",
+                "Insert_Table",
+                "Table_Properties",
+                "Word_Count",
+                "Spelling",
+                "Mail_Merge",
+                "Options",
+                "Theme",
+                "About",
+                "Chart",
+                "Data_Validation",
+                "Sort",
+                "Text_to_Columns",
+                "Goal_Seek",
+                "Subtotal",
+                "Consolidate",
+                "Conditional",
+                "Action_Settings",
+                "Background",
+                "Set_Up_Show",
+                "WordArt",
+                "Fill_Effects",
             ]
             if any(kd in fn for kd in known_dialogs):
                 scenario.status = ScenarioStatus.PARTIAL

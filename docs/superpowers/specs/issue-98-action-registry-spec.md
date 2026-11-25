@@ -19,17 +19,17 @@
 ```python
 @dataclass
 class ActionSpec:
-    id: str                                  # 唯一命令标识符，如 "file_save", "spelling"
-    label: str                               # 规范文本，带助记键如 "&Save" 或 "保存(&S)"
-    icon: QIcon | str | None = None          # 图标或图标资源名
-    tip: str = ""                            # 提示文本（ToolTip 与 StatusTip）
+    id: str  # 唯一命令标识符，如 "file_save", "spelling"
+    label: str  # 规范文本，带助记键如 "&Save" 或 "保存(&S)"
+    icon: QIcon | str | None = None  # 图标或图标资源名
+    tip: str = ""  # 提示文本（ToolTip 与 StatusTip）
     shortcut: str | QKeySequence | QKeySequence.StandardKey | None = None
-    checkable: bool = False                  # 是否为开关型动作
-    checked: bool = False                    # 默认开关状态
-    enabled: bool = True                     # 默认启用状态
-    is_split: bool = False                   # 是否适合拆分按钮（OfficeSplitButton）
-    is_drop: bool = False                    # 是否适合下拉按钮（OfficeDropDownButton）
-    handler: Callable[[], Any] | None = None # 点击触发的回调业务逻辑
+    checkable: bool = False  # 是否为开关型动作
+    checked: bool = False  # 默认开关状态
+    enabled: bool = True  # 默认启用状态
+    is_split: bool = False  # 是否适合拆分按钮（OfficeSplitButton）
+    is_drop: bool = False  # 是否适合下拉按钮（OfficeDropDownButton）
+    handler: Callable[[], Any] | None = None  # 点击触发的回调业务逻辑
 ```
 
 ### 2.2 ActionRegistry (命令总线与注册表)

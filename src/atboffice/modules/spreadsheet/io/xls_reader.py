@@ -22,6 +22,7 @@ from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
 
 try:
     import xlrd
+
     HAS_XLRD = True
 except ImportError:
     xlrd = None  # type: ignore[assignment]

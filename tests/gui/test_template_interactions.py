@@ -89,8 +89,10 @@ def test_task_pane_templates_action_in_lectern_window(qtbot):
 
     dlg_exec = "atboffice.ui.dialogs.templates_dialog.TemplatesDialog.exec"
     dlg_id = "atboffice.ui.dialogs.templates_dialog.TemplatesDialog.get_selected_template_id"
-    with patch(dlg_exec, return_value=QDialog.DialogCode.Accepted), \
-         patch(dlg_id, return_value="meeting"):
+    with (
+        patch(dlg_exec, return_value=QDialog.DialogCode.Accepted),
+        patch(dlg_id, return_value="meeting"),
+    ):
         win._on_task_pane_action("templates")
 
     assert win.active_template is not None
@@ -106,8 +108,10 @@ def test_task_pane_templates_action_in_quire_window(qtbot):
 
     dlg_exec = "atboffice.ui.dialogs.templates_dialog.TemplatesDialog.exec"
     dlg_id = "atboffice.ui.dialogs.templates_dialog.TemplatesDialog.get_selected_template_id"
-    with patch(dlg_exec, return_value=QDialog.DialogCode.Accepted), \
-         patch(dlg_id, return_value="memo"):
+    with (
+        patch(dlg_exec, return_value=QDialog.DialogCode.Accepted),
+        patch(dlg_id, return_value="memo"),
+    ):
         win._on_task_pane_action("templates")
 
     assert win.active_template is not None
@@ -122,8 +126,10 @@ def test_task_pane_templates_action_in_ledger_window(qtbot):
 
     dlg_exec = "atboffice.ui.dialogs.templates_dialog.TemplatesDialog.exec"
     dlg_id = "atboffice.ui.dialogs.templates_dialog.TemplatesDialog.get_selected_template_id"
-    with patch(dlg_exec, return_value=QDialog.DialogCode.Accepted), \
-         patch(dlg_id, return_value="budget"):
+    with (
+        patch(dlg_exec, return_value=QDialog.DialogCode.Accepted),
+        patch(dlg_id, return_value="budget"),
+    ):
         win._on_task_pane_action("templates")
 
     assert win.active_template is not None

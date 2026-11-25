@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -29,12 +29,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.ui.icons import get_office_icon
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for DocumentPropertiesDialog."""
-    return QCoreApplication.translate("DocumentPropertiesDialog", text)
 
 
 @dataclass
@@ -93,6 +89,7 @@ class DocumentMetadata:
     @classmethod
     def from_dict(cls, data: dict[str, Any], file_path: Path | None = None) -> DocumentMetadata:
         """Create metadata instance from dictionary."""
+
         def parse_dt(val: Any) -> datetime.datetime | None:
             if isinstance(val, datetime.datetime):
                 return val
@@ -133,11 +130,33 @@ class DocumentMetadata:
 
 
 STANDARD_CUSTOM_PROPERTY_NAMES: list[str] = [
-    "Checked by", "Client", "Date completed", "Department", "Destination",
-    "Disposition", "Division", "Document number", "Editor", "Forward to",
-    "Group", "Language", "Mailstop", "Matter", "Office", "Owner", "Project",
-    "Publisher", "Purpose", "Received from", "Recorded by", "Recorded date",
-    "Reference", "Source", "Status", "Telephone number", "Typist",
+    "Checked by",
+    "Client",
+    "Date completed",
+    "Department",
+    "Destination",
+    "Disposition",
+    "Division",
+    "Document number",
+    "Editor",
+    "Forward to",
+    "Group",
+    "Language",
+    "Mailstop",
+    "Matter",
+    "Office",
+    "Owner",
+    "Project",
+    "Publisher",
+    "Purpose",
+    "Received from",
+    "Recorded by",
+    "Recorded date",
+    "Reference",
+    "Source",
+    "Status",
+    "Telephone number",
+    "Typist",
 ]
 
 
@@ -378,12 +397,14 @@ class DocumentPropertiesDialog(QDialog):
 
         # Type ComboBox
         self.combo_prop_type = QComboBox(parent)
-        self.combo_prop_type.addItems([
-            safe_tr("文本"),
-            safe_tr("日期"),
-            safe_tr("数字"),
-            safe_tr("是或否"),
-        ])
+        self.combo_prop_type.addItems(
+            [
+                safe_tr("文本"),
+                safe_tr("日期"),
+                safe_tr("数字"),
+                safe_tr("是或否"),
+            ]
+        )
         form.addRow(safe_tr("类型(&T):"), self.combo_prop_type)
 
         # Value LineEdit
@@ -409,11 +430,13 @@ class DocumentPropertiesDialog(QDialog):
 
         # Custom properties table
         self.table_custom = QTableWidget(0, 3, parent)
-        self.table_custom.setHorizontalHeaderLabels([
-            safe_tr("名称"),
-            safe_tr("类型"),
-            safe_tr("值"),
-        ])
+        self.table_custom.setHorizontalHeaderLabels(
+            [
+                safe_tr("名称"),
+                safe_tr("类型"),
+                safe_tr("值"),
+            ]
+        )
         hh = self.table_custom.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         hh.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)

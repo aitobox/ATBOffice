@@ -13,8 +13,7 @@ import statistics
 from collections.abc import Callable, Iterable
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication
-
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.references import cell_name, col_name
 from atboffice.modules.spreadsheet.models.sheet_model import CellData
 from atboffice.modules.spreadsheet.tools.chart_builder import resolve_range
@@ -22,10 +21,6 @@ from atboffice.modules.spreadsheet.tools.chart_builder import resolve_range
 Rect = tuple[int, int, int, int]
 
 MAX_DATA_TABLE_CELLS = 2500
-
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("LedgerDataTools", text)
 
 
 # ------------------------------------------------------------------ helpers
@@ -106,9 +101,7 @@ AGGREGATES: dict[str, Callable[[list[Any]], Any]] = {
     ),
     "MAX": lambda v: max((x for x in map(_num, v) if x is not None), default=0),
     "MIN": lambda v: min((x for x in map(_num, v) if x is not None), default=0),
-    "PRODUCT": lambda v: (
-        math.prod(n) if (n := [x for x in map(_num, v) if x is not None]) else 0
-    ),
+    "PRODUCT": lambda v: math.prod(n) if (n := [x for x in map(_num, v) if x is not None]) else 0,
     "STDEV": lambda v: (
         statistics.stdev(n) if len(n := [x for x in map(_num, v) if x is not None]) > 1 else 0
     ),
@@ -345,8 +338,7 @@ def filter_matching_rows(
     lr1, lc1, lr2, lc2 = list_rect
     cr1, cc1, cr2, cc2 = crit_rect
     headers = {
-        str(list_sheet.get_cell_value(lr1, c) or "").strip().lower(): c
-        for c in range(lc1, lc2 + 1)
+        str(list_sheet.get_cell_value(lr1, c) or "").strip().lower(): c for c in range(lc1, lc2 + 1)
     }
     conditions: list[list[tuple[int, Any]]] = []
     for r in range(cr1 + 1, cr2 + 1):
@@ -472,8 +464,9 @@ def compute_data_table(
     if r2 <= r1 and c2 <= c1:
         raise ValueError(safe_tr("请选择包含输入值和公式的区域。"))
     if (r2 - r1) * (c2 - c1) > MAX_DATA_TABLE_CELLS:
-        raise ValueError(safe_tr("模拟运算表过大（最多 {0} 个结果单元格）。").format(
-            MAX_DATA_TABLE_CELLS))
+        raise ValueError(
+            safe_tr("模拟运算表过大（最多 {0} 个结果单元格）。").format(MAX_DATA_TABLE_CELLS)
+        )
     wb = ensure_workbook(workbook, sheet)
     row_cell = _single_cell(row_input, wb, sheet)
     col_cell = _single_cell(col_input, wb, sheet)
@@ -481,8 +474,10 @@ def compute_data_table(
         raise ValueError(safe_tr("必须指定行输入单元格或列输入单元格。"))
 
     inputs = [x for x in (row_cell, col_cell) if x is not None]
-    saved = {(id(sh), r, c): (sh, sh.get_cell(r, c).clone() if sh.get_cell(r, c) else None)
-             for sh, r, c in inputs}
+    saved = {
+        (id(sh), r, c): (sh, sh.get_cell(r, c).clone() if sh.get_cell(r, c) else None)
+        for sh, r, c in inputs
+    }
 
     def substitute(target: tuple[Any, int, int] | None, value: Any) -> None:
         if target is None:
@@ -494,10 +489,17 @@ def compute_data_table(
     if row_cell is not None and col_cell is not None:
         for r in range(r1 + 1, r2 + 1):
             for c in range(c1 + 1, c2 + 1):
-                jobs.append((r, c, (r1, c1), [
-                    (row_cell, sheet.get_cell_value(r1, c)),
-                    (col_cell, sheet.get_cell_value(r, c1)),
-                ]))
+                jobs.append(
+                    (
+                        r,
+                        c,
+                        (r1, c1),
+                        [
+                            (row_cell, sheet.get_cell_value(r1, c)),
+                            (col_cell, sheet.get_cell_value(r, c1)),
+                        ],
+                    )
+                )
     elif col_cell is not None:
         for r in range(r1 + 1, r2 + 1):
             for c in range(c1 + 1, c2 + 1):
@@ -568,8 +570,10 @@ def scenario_summary(
         [p.strip() for p in re.split(r"[,;]", result_refs or "") if p.strip()], workbook, sheet
     )
 
-    saved = {(id(sh), r, c): (sh, r, c, sh.get_cell(r, c).clone() if sh.get_cell(r, c) else None)
-             for _, sh, r, c in change_cells}
+    saved = {
+        (id(sh), r, c): (sh, r, c, sh.get_cell(r, c).clone() if sh.get_cell(r, c) else None)
+        for _, sh, r, c in change_cells
+    }
 
     def read(cells: list[tuple[str, Any, int, int]]) -> list[Any]:
         return [sh.get_cell_value(r, c) for _, sh, r, c in cells]
@@ -667,4 +671,3 @@ def suggest_fixed_breaks(lines: list[str]) -> list[int]:
         if all(p[pos - 1] == " " for p in padded) and any(p[pos] != " " for p in padded):
             breaks.append(pos)
     return breaks
-

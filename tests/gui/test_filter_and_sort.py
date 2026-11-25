@@ -229,4 +229,3 @@ class TestGridViewportFilterIntegration:
         # Repaint
         vp.viewport().update()
         qapp.processEvents()
-

@@ -14,16 +14,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from atboffice.core.i18n import safe_tr as core_safe_tr
+from atboffice.core.i18n import safe_tr
 from atboffice.ui.styles.luna_2003 import (
     LUNA_BLUE_HOT_BORDER,
     format_mnemonic,
 )
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for toolbar buttons."""
-    return core_safe_tr(text)
 
 
 class OfficeSplitButton(QToolButton):

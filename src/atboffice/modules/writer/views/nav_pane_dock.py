@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QCoreApplication, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDockWidget,
@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.writer.models.document import Document
 from atboffice.modules.writer.views.document_map_pane import DocumentMapPane
 from atboffice.modules.writer.views.thumbnails_pane import ThumbnailsPane
@@ -22,11 +23,6 @@ from atboffice.modules.writer.views.thumbnails_pane import ThumbnailsPane
 if TYPE_CHECKING:
     from atboffice.modules.writer.views.canvas_view import WriterCanvasView
     from atboffice.modules.writer.views.caret_controller import CaretController
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for QuireNavDock."""
-    return QCoreApplication.translate("QuireNavDock", text)
 
 
 class QuireNavDock(QDockWidget):

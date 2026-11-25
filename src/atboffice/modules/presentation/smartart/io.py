@@ -66,11 +66,11 @@ def data_xml(
             text = html.escape(str(it.get("text", "")))
 
             t_elem = (
-                f'<dgm:t><a:bodyPr/><a:lstStyle/><a:p><a:r>'
+                f"<dgm:t><a:bodyPr/><a:lstStyle/><a:p><a:r>"
                 f'<a:rPr lang="en-US" dirty="0"/><a:t>{text}</a:t></a:r></a:p></dgm:t>'
                 if text
                 else (
-                    '<dgm:t><a:bodyPr/><a:lstStyle/><a:p>'
+                    "<dgm:t><a:bodyPr/><a:lstStyle/><a:p>"
                     '<a:endParaRPr lang="en-US" dirty="0"/></a:p></dgm:t>'
                 )
             )
@@ -127,11 +127,11 @@ def layout_xml(layout_id: str, ctx: dict[str, Any] | None = None) -> str:
 
     sample = (
         '<dgm:sampData useDef="1"><dgm:dataModel>'
-        '<dgm:ptLst/><dgm:bg/><dgm:whole/></dgm:dataModel></dgm:sampData>'
+        "<dgm:ptLst/><dgm:bg/><dgm:whole/></dgm:dataModel></dgm:sampData>"
         '<dgm:styleData useDef="1"><dgm:dataModel>'
-        '<dgm:ptLst/><dgm:bg/><dgm:whole/></dgm:dataModel></dgm:styleData>'
+        "<dgm:ptLst/><dgm:bg/><dgm:whole/></dgm:dataModel></dgm:styleData>"
         '<dgm:clrData useDef="1"><dgm:dataModel>'
-        '<dgm:ptLst/><dgm:bg/><dgm:whole/></dgm:dataModel></dgm:clrData>'
+        "<dgm:ptLst/><dgm:bg/><dgm:whole/></dgm:dataModel></dgm:clrData>"
     )
     body = (
         '<dgm:layoutNode name="diagram"><dgm:varLst><dgm:dir/>'

@@ -14,6 +14,7 @@
 @dataclass
 class CellComment:
     """Cell comment/annotation."""
+
     text: str
     author: str = ""
     visible: bool = False

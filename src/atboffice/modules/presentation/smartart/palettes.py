@@ -93,9 +93,7 @@ def style_refs(style_id: str) -> list[int]:
     return list(style_info(style_id)[2])
 
 
-THEME_ACCENTS: tuple[str, ...] = (
-    "accent1", "accent2", "accent3", "accent4", "accent5", "accent6"
-)
+THEME_ACCENTS: tuple[str, ...] = ("accent1", "accent2", "accent3", "accent4", "accent5", "accent6")
 
 
 def _contrast_text(hex_color: str, pal: dict[str, str]) -> str:

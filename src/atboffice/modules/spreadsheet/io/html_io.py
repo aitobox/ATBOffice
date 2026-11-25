@@ -58,11 +58,15 @@ def sheet_to_html(sheet: Any) -> str:
                 if (rr, cc) != (mr1, mc1):
                     covered.add((rr, cc))
     geo = sheet.geometry
-    rows = ['<table border="1" cellspacing="0" cellpadding="2" '
-            'style="border-collapse:collapse;font-family:Arial;font-size:10pt">']
-    rows.append("<colgroup>" + "".join(
-        f'<col style="width:{geo.col_size(c)}px">' for c in range(c1, c2 + 1)
-    ) + "</colgroup>")
+    rows = [
+        '<table border="1" cellspacing="0" cellpadding="2" '
+        'style="border-collapse:collapse;font-family:Arial;font-size:10pt">'
+    ]
+    rows.append(
+        "<colgroup>"
+        + "".join(f'<col style="width:{geo.col_size(c)}px">' for c in range(c1, c2 + 1))
+        + "</colgroup>"
+    )
     for r in range(r1, r2 + 1):
         if geo.row_size(r) == 0:
             continue
@@ -96,7 +100,7 @@ def write_html(workbook: Any, path: str | Path, active_only: bool = False) -> No
         body.append(sheet_to_html(sheet))
     title = html.escape(Path(path).stem)
     doc = (
-        "<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\">"
+        '<!DOCTYPE html>\n<html><head><meta charset="utf-8">'
         f"<title>{title}</title></head><body>\n" + "\n".join(body) + "\n</body></html>\n"
     )
     Path(path).write_text(doc, encoding="utf-8")
@@ -140,8 +144,11 @@ class _TableParser(HTMLParser):
                 except ValueError:
                     return 1
 
-            self._cell = HtmlCell(rowspan=num("rowspan"), colspan=num("colspan"),
-                                  bold=tag == "th" or "bold" in a.get("style", ""))
+            self._cell = HtmlCell(
+                rowspan=num("rowspan"),
+                colspan=num("colspan"),
+                bold=tag == "th" or "bold" in a.get("style", ""),
+            )
             self._stack[-1].rows[-1].append(self._cell)
         elif tag in ("b", "strong"):
             self._bold += 1
@@ -208,8 +215,9 @@ def import_table(sheet: Any, table: HtmlTable, at: tuple[int, int] = (0, 0)) -> 
             cell.formula = None
             cell.bold = hc.bold
             if hc.rowspan > 1 or hc.colspan > 1:
-                sheet.merges.append((r0 + i, c0 + c, r0 + i + hc.rowspan - 1,
-                                     c0 + c + hc.colspan - 1))
+                sheet.merges.append(
+                    (r0 + i, c0 + c, r0 + i + hc.rowspan - 1, c0 + c + hc.colspan - 1)
+                )
             for dr in range(hc.rowspan):
                 for dc in range(hc.colspan):
                     occupied.add((i + dr, c + dc))

@@ -13,6 +13,7 @@ from atboffice.modules.presentation.models.text import Paragraph, TextBody, Text
 from atboffice.modules.presentation.views.workspace import LecternWorkspace
 from atboffice.modules.writer.models.document import TextItem
 from atboffice.modules.writer.views.caret_controller import DocPos, Selection
+from atboffice.ui.components.undo_history import entry_label
 from atboffice.ui.shell.quire_window import QuireWindow
 
 # ---------------------------------------------------------------------------
@@ -41,19 +42,36 @@ def _select_range(canvas, start: int, end: int) -> None:
 def test_formatting_keeps_undo_history_caret_and_selection(quire: QuireWindow) -> None:
     canvas = quire.writer_view.canvas_view
     canvas.push_undo_command({"type": "noop_marker"})
-    canvas._redo_stack.append({"type": "redo_marker"})
     canvas._pixmap_cache["img"] = object()
     _select_range(canvas, 0, 5)
 
     quire._toggle_bold()
     quire._toggle_italic()
 
-    assert {"type": "noop_marker"} in canvas._undo_stack
-    assert canvas._redo_stack == [{"type": "redo_marker"}]
+    # Each format change is its own step on top of the earlier history.
+    assert canvas.history.labels("undo")[2] == entry_label({"type": "noop_marker"})
+    assert len(canvas.history) == 3
     assert "img" in canvas._pixmap_cache
     assert canvas.controller.pos.offset == 5
     sel = canvas.controller.selection
     assert (sel.anchor.offset, sel.focus.offset) == (0, 5)
+
+
+def test_format_change_is_undoable(quire: QuireWindow) -> None:
+    canvas = quire.writer_view.canvas_view
+    para = canvas.doc.main.blocks[0]
+    _select_range(canvas, 0, 5)
+
+    quire._toggle_bold()
+    assert para.runs[0].r_pr.b is True
+
+    assert canvas.undo() is True
+    para = canvas.doc.main.blocks[0]
+    assert not any(getattr(r.r_pr, "b", None) for r in para.runs)
+    sel = canvas.controller.selection
+    assert (sel.anchor.offset, sel.focus.offset) == (0, 5)
+    canvas.redo()
+    assert canvas.doc.main.blocks[0].runs[0].r_pr.b is True
 
 
 def test_multi_step_format_then_undo_redo(quire: QuireWindow) -> None:
@@ -79,11 +97,13 @@ def test_multi_step_format_then_undo_redo(quire: QuireWindow) -> None:
     quire._toggle_underline()
 
     # The earlier edit is still undoable after formatting, and can be redone.
-    assert canvas.undo() is True
+    assert canvas.history.undo_steps("undo", 3) == 3
+    # Undo restores copies of the paragraph: look it up again.
+    para = canvas.doc.main.blocks[0]
     assert para.p_pr.tabs == old_tabs
     assert canvas.can_redo()
     canvas.redo()
-    assert para.p_pr.tabs == [TabStop(pos=72.0)]
+    assert canvas.doc.main.blocks[0].p_pr.tabs == [TabStop(pos=72.0)]
 
 
 def test_table_operations_keep_undo_history(quire: QuireWindow) -> None:
@@ -91,17 +111,17 @@ def test_table_operations_keep_undo_history(quire: QuireWindow) -> None:
     canvas.push_undo_command({"type": "noop_marker"})
 
     canvas.insert_table(2, 2)
-    assert {"type": "noop_marker"} in canvas._undo_stack
     assert canvas.get_current_table_context() is not None
 
     canvas.distribute_table_rows()
     canvas.distribute_table_cols()
-    assert {"type": "noop_marker"} in canvas._undo_stack
+    marker = entry_label({"type": "noop_marker"})
+    labels = canvas.history.labels("undo")
+    assert labels[-1] == marker
+    assert labels[-2] == "插入表格"
 
 
-def test_hidden_review_pane_is_not_rebuilt_per_keystroke(
-    quire: QuireWindow, monkeypatch
-) -> None:
+def test_hidden_review_pane_is_not_rebuilt_per_keystroke(quire: QuireWindow, monkeypatch) -> None:
     view = quire.writer_view
     calls: list[int] = []
     monkeypatch.setattr(view.review_pane, "refresh_items", lambda: calls.append(1))

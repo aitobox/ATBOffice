@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -25,11 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    """Safely translate OptionsDialog UI string."""
-    return QCoreApplication.translate("LedgerOptionsDialog", text)
-
+from atboffice.core.i18n import safe_tr
 
 BUILTIN_CUSTOM_LISTS = [
     [

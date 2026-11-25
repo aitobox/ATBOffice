@@ -455,4 +455,3 @@ def test_fdo52208_document_regression():
                         if "second para, still on the first page" in getattr(r, "text", ""):
                             found_text = True
     assert found_text is True
-

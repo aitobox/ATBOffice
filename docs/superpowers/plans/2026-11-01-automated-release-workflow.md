@@ -55,18 +55,22 @@ from scripts.build.common import (
     get_artifact_name,
 )
 
+
 def test_get_project_root():
     root = get_project_root()
     assert (root / "pyproject.toml").exists()
+
 
 def test_get_app_version():
     ver = get_app_version()
     assert isinstance(ver, str)
     assert len(ver.split(".")) >= 2
 
+
 def test_get_artifact_name():
     name = get_artifact_name("macos", "arm64", "dmg", version="1.0.0")
     assert name == "ATBOffice-1.0.0-macos-arm64.dmg"
+
 
 def test_get_base_nuitka_args(tmp_path):
     args = get_base_nuitka_args(tmp_path)
@@ -117,10 +121,12 @@ from unittest.mock import patch, MagicMock
 from pathlib import Path
 from scripts.build.build_macos import build_macos, setup_temp_keychain
 
+
 def test_setup_temp_keychain_skip_when_no_secrets():
     with patch.dict("os.environ", {}, clear=True):
         keychain = setup_temp_keychain()
         assert keychain is None
+
 
 @patch("subprocess.run")
 def test_build_macos_skip_signing_generates_dmg(mock_run, tmp_path):
@@ -128,7 +134,7 @@ def test_build_macos_skip_signing_generates_dmg(mock_run, tmp_path):
     # Mock existence of compiled app bundle
     app_bundle = tmp_path / "ATBOffice.app"
     app_bundle.mkdir()
-    
+
     with patch("scripts.build.build_macos.run_nuitka_build", return_value=app_bundle):
         dmg_path = build_macos(output_dir=tmp_path, skip_signing=True, skip_notarize=True)
         assert dmg_path.name.endswith(".dmg")
@@ -182,22 +188,24 @@ from unittest.mock import patch, MagicMock
 from pathlib import Path
 from scripts.build.build_linux import build_linux, prepare_appdir
 
+
 def test_prepare_appdir(tmp_path):
     dist_dir = tmp_path / "dist_test"
     dist_dir.mkdir()
     (dist_dir / "atboffice.bin").touch()
     appdir = prepare_appdir(dist_dir, tmp_path / "AppDir")
-    
+
     assert (appdir / "AppRun").exists()
     assert (appdir / "atboffice.desktop").exists()
     assert (appdir / "usr/bin").exists()
+
 
 @patch("subprocess.run")
 def test_build_linux_invokes_appimagetool(mock_run, tmp_path):
     mock_run.return_value = MagicMock(returncode=0)
     fake_tool = tmp_path / "appimagetool"
     fake_tool.touch()
-    
+
     with patch("scripts.build.build_linux.run_nuitka_build", return_value=tmp_path / "dist"):
         (tmp_path / "dist").mkdir()
         img_path = build_linux(output_dir=tmp_path, appimagetool_path=fake_tool)
@@ -246,16 +254,18 @@ from unittest.mock import patch
 from pathlib import Path
 from scripts.build.build_windows import build_windows, package_portable_zip
 
+
 def test_package_portable_zip(tmp_path):
     dist_dir = tmp_path / "atboffice.dist"
     dist_dir.mkdir()
     (dist_dir / "atboffice.exe").write_text("dummy exe")
-    
+
     zip_path = tmp_path / "out" / "ATBOffice-windows-x64.zip"
     package_portable_zip(dist_dir, zip_path)
-    
+
     assert zip_path.exists()
     import zipfile
+
     with zipfile.ZipFile(zip_path) as z:
         assert "atboffice/atboffice.exe" in z.namelist() or "atboffice.exe" in z.namelist()
 ```
@@ -300,10 +310,12 @@ from unittest.mock import patch
 import pytest
 from scripts.build.package import main
 
+
 def test_package_cli_help(capsys):
     with pytest.raises(SystemExit) as exc:
         main(["--help"])
     assert exc.value.code == 0
+
 
 @patch("scripts.build.build_macos.build_macos")
 def test_package_cli_dispatch_macos(mock_macos):
@@ -350,16 +362,17 @@ git commit -m "feat(build): add unified packaging CLI dispatcher"
 from pathlib import Path
 import yaml
 
+
 def test_release_workflow_syntax():
     workflow_path = Path(".github/workflows/release.yml")
     assert workflow_path.exists()
     data = yaml.safe_load(workflow_path.read_text())
-    
+
     # Verify triggers
     tags = data["on"]["push"]["tags"]
     assert "test*" in tags
     assert "v[0-9]+.[0-9]+.[0-9]+*" in tags
-    
+
     # Verify jobs
     jobs = data["jobs"]
     assert "build-macos" in jobs

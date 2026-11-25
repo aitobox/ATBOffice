@@ -4,9 +4,15 @@ from collections.abc import Generator
 from typing import Any
 
 import pytest
-from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox
+from PySide6.QtPrintSupport import QPrintDialog
+from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
 
 from atboffice.core.app import ATBApplication, create_application
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Create the suite's application before any test module can make a plain one."""
+    create_application([])
 
 
 @pytest.fixture(scope="session")
@@ -98,7 +104,26 @@ def guard_modal_dialogs_session() -> Generator[None, None, None]:
     QMessageBox.critical = safe_critical  # type: ignore[assignment]
     QMessageBox.about = safe_about  # type: ignore[assignment]
 
+    # File dialogs answer "cancelled" and the print dialog "OK", so commands
+    # that ask for a path or a printer run without a person at the keyboard.
+    # Tests that need a path monkeypatch these themselves.
+    file_dialog_stubs = {
+        "getOpenFileName": lambda *a, **k: ("", ""),
+        "getOpenFileNames": lambda *a, **k: ([], ""),
+        "getSaveFileName": lambda *a, **k: ("", ""),
+        "getExistingDirectory": lambda *a, **k: "",
+    }
+    orig_file_dialog = {name: getattr(QFileDialog, name) for name in file_dialog_stubs}
+    for name, stub in file_dialog_stubs.items():
+        setattr(QFileDialog, name, staticmethod(stub))
+    orig_print_exec = QPrintDialog.exec
+    QPrintDialog.exec = lambda self: QPrintDialog.DialogCode.Accepted  # type: ignore[assignment]
+
     yield
+
+    for name, original in orig_file_dialog.items():
+        setattr(QFileDialog, name, original)
+    QPrintDialog.exec = orig_print_exec  # type: ignore[assignment]
 
     QMessageBox.warning = orig_warning  # type: ignore[assignment]
     QMessageBox.question = orig_question  # type: ignore[assignment]
@@ -164,3 +189,20 @@ def _no_unexpected_compatibility_dialog(monkeypatch: pytest.MonkeyPatch) -> None
         )
 
     monkeypatch.setattr(CompatibilityDialog, "exec", unexpected)
+
+
+@pytest.fixture(autouse=True)
+def _restore_default_locale() -> Generator[None, None, None]:
+    """Every test starts and ends in Simplified Chinese, the default UI language.
+
+    Tests that switch to another language would otherwise change the text later
+    tests on the same worker see.
+    """
+    from atboffice.core.i18n import get_i18n_manager
+
+    manager = get_i18n_manager()
+    if manager.current_locale != "zh-CN":
+        manager.set_locale("zh-CN")
+    yield
+    if manager.current_locale != "zh-CN":
+        manager.set_locale("zh-CN")

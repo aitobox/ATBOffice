@@ -22,9 +22,10 @@ def _rewrite_zip(
 ) -> bytes:
     """Return deterministic ZIP bytes with specified parts replaced or added."""
     out = io.BytesIO()
-    with zipfile.ZipFile(io.BytesIO(raw_bytes), "r") as zin, zipfile.ZipFile(
-        out, "w", compression=zipfile.ZIP_DEFLATED
-    ) as zout:
+    with (
+        zipfile.ZipFile(io.BytesIO(raw_bytes), "r") as zin,
+        zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as zout,
+    ):
         written: set[str] = set()
         for info in zin.infolist():
             name = info.filename

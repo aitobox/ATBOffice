@@ -75,9 +75,7 @@ class DataValidation:
     ranges: list[tuple[int, int, int, int]] = field(default_factory=list)
 
 
-def get_validation_for_cell(
-    sheet: SheetDataModel, r: int, c: int
-) -> DataValidation | None:
+def get_validation_for_cell(sheet: SheetDataModel, r: int, c: int) -> DataValidation | None:
     """Return the applicable DataValidation rule for cell (r, c) or None."""
     dvs: list[DataValidation] = getattr(sheet, "data_validations", [])
     for dv in reversed(dvs):
@@ -87,9 +85,7 @@ def get_validation_for_cell(
     return None
 
 
-def get_list_items(
-    sheet: SheetDataModel, dv: DataValidation, r: int = 0, c: int = 0
-) -> list[str]:
+def get_list_items(sheet: SheetDataModel, dv: DataValidation, r: int = 0, c: int = 0) -> list[str]:
     """Extract list validation choices from literal or sheet range formula."""
     f = (dv.formula1 or "").strip()
     if not f:
@@ -225,9 +221,7 @@ def validate_cell_value(
     return True, None
 
 
-def _check_numeric_op(
-    x: float, a: float | None, b: float | None, op: str
-) -> bool:
+def _check_numeric_op(x: float, a: float | None, b: float | None, op: str) -> bool:
     """Check number x against operand a and optional operand b using operator op."""
     if a is None:
         return True

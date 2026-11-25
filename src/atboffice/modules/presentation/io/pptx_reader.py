@@ -229,7 +229,7 @@ def _diagram_color_style(dm_xml: ET.Element) -> tuple[str | None, str | None]:
     colors: str | None = None
     prefix = _OFFICE_DIAGRAM_URN + "colors/"
     if cs_id.startswith(prefix):
-        name = cs_id[len(prefix):]
+        name = cs_id[len(prefix) :]
         if re.search("colorful", name, re.IGNORECASE):
             colors = "colorful"
         else:
@@ -240,7 +240,7 @@ def _diagram_color_style(dm_xml: ET.Element) -> tuple[str | None, str | None]:
     style: str | None = None
     prefix = _OFFICE_DIAGRAM_URN + "quickstyle/"
     if qs_id.startswith(prefix):
-        name = qs_id[len(prefix):]
+        name = qs_id[len(prefix) :]
         if re.search(r"intense|3d|polished|cartoon", name, re.IGNORECASE):
             style = "intense"
         elif re.search(r"moderate|simple[45]", name, re.IGNORECASE):
@@ -512,9 +512,7 @@ class PptxReader:
 
         # 2.1 Presentation Default Text Style
         dft_elem = _get_child(pres_xml, "defaultTextStyle")
-        self.default_text_style = (
-            self._parse_style_levels(dft_elem) if dft_elem is not None else {}
-        )
+        self.default_text_style = self._parse_style_levels(dft_elem) if dft_elem is not None else {}
         pres.props["default_text_style"] = self.default_text_style
 
         # 3. Resolve presentation relationships
@@ -815,9 +813,7 @@ class PptxReader:
         if not self.package.has_part(ts_path):
             return
         try:
-            self._table_styles = tstyles.TableStyleCatalog.from_xml(
-                self.package.read_part(ts_path)
-            )
+            self._table_styles = tstyles.TableStyleCatalog.from_xml(self.package.read_part(ts_path))
         except ET.ParseError as exc:
             self._warnings.append(
                 LoadWarning(scope="tableStyles", location=ts_path, message=str(exc))
@@ -1058,9 +1054,8 @@ class PptxReader:
 
             if m_info.design is None:
                 d_stem = Path(m_info.master_path).stem
-                d_colors = (
-                    self._get_theme_colors(m_info.theme_path)
-                    or next(iter(self.themes.values()), ColorScheme())
+                d_colors = self._get_theme_colors(m_info.theme_path) or next(
+                    iter(self.themes.values()), ColorScheme()
                 )
                 d_fonts = {
                     "major": m_info.major_font or "Arial",
@@ -1185,9 +1180,7 @@ class PptxReader:
             if notes_text:
                 slide.notes = notes_text
         except Exception as exc:
-            self._warnings.append(
-                LoadWarning(scope="notes", location=slide_path, message=str(exc))
-            )
+            self._warnings.append(LoadWarning(scope="notes", location=slide_path, message=str(exc)))
 
         # 4. Slide Comments
         self._parse_slide_comments(slide_path, rel_map, slide, pres)
@@ -1572,7 +1565,8 @@ class PptxReader:
                         break
 
         if shape_type == "shape" and (
-            geom in (
+            geom
+            in (
                 "line",
                 "straightConnector1",
                 "bentConnector2",
@@ -1950,8 +1944,16 @@ class PptxReader:
                     sa_obj["theme"] = {
                         slot: getattr(theme, slot)
                         for slot in (
-                            "dk1", "lt1", "dk2", "lt2",
-                            "accent1", "accent2", "accent3", "accent4", "accent5", "accent6",
+                            "dk1",
+                            "lt1",
+                            "dk2",
+                            "lt2",
+                            "accent1",
+                            "accent2",
+                            "accent3",
+                            "accent4",
+                            "accent5",
+                            "accent6",
                         )
                         if getattr(theme, slot, None)
                     }
@@ -2976,9 +2978,7 @@ class PptxReader:
                 if lst_style_elem is not None:
                     shape_lst_styles = self._parse_style_levels(lst_style_elem)
 
-        default_font = (
-            master_info.minor_font if master_info and master_info.minor_font else "Arial"
-        )
+        default_font = master_info.minor_font if master_info and master_info.minor_font else "Arial"
 
         for p in text_body.paragraphs:
             lvl = p.level
@@ -3471,11 +3471,7 @@ class PptxReader:
                 autofit = "shape"
 
         lst_style_elem = _get_child(tx_body, "lstStyle")
-        lst_styles = (
-            self._parse_style_levels(lst_style_elem)
-            if lst_style_elem is not None
-            else {}
-        )
+        lst_styles = self._parse_style_levels(lst_style_elem) if lst_style_elem is not None else {}
 
         paragraphs: list[Paragraph] = []
         for p_elem in _get_children(tx_body, "p"):

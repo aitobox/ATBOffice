@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 
-from PySide6.QtCore import QCoreApplication, QRectF, Qt
+from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -24,15 +24,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.writer.models.properties import (
     PAPER_SIZES,
     SectionProperties,
 )
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("PageSetupDialog", text)
 
 
 class PagePreviewWidget(QWidget):
@@ -292,8 +288,13 @@ class PageSetupDialog(QDialog):
         self.radio_landscape.toggled.connect(self._on_orientation_toggled)
 
         for spin in [
-            self.spin_top, self.spin_bottom, self.spin_left, self.spin_right,
-            self.spin_gutter, self.spin_hdr_margin, self.spin_ftr_margin
+            self.spin_top,
+            self.spin_bottom,
+            self.spin_left,
+            self.spin_right,
+            self.spin_gutter,
+            self.spin_hdr_margin,
+            self.spin_ftr_margin,
         ]:
             spin.valueChanged.connect(self._trigger_preview)
 
@@ -392,8 +393,8 @@ class PageSetupDialog(QDialog):
                 matches_normal = abs(w - pw) < 0.5 and abs(h - ph) < 0.5
             matches_swapped = abs(w - ph) < 0.5 and abs(h - pw) < 0.5
             if matches_normal or matches_swapped:
-                    matched_idx = i
-                    break
+                matched_idx = i
+                break
         if matched_idx >= 0:
             self.combo_paper_size.setCurrentIndex(matched_idx)
         else:

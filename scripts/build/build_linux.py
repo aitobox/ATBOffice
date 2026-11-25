@@ -162,9 +162,7 @@ def build_linux(
     subprocess.run(cmd, check=True, env=env)
 
     if target_image.exists():
-        target_image.chmod(
-            target_image.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH
-        )
+        target_image.chmod(target_image.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     print(f"Successfully generated Linux AppImage at: {target_image}")
     return target_image
 

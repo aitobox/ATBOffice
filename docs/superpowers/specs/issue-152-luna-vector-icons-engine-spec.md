@@ -46,15 +46,15 @@ This feature creates a pure Python vector icon engine based on `PySide6.QtSvg` (
 ### 3.1 Luna Palette
 ```python
 LUNA_PALETTE = {
-    "B": "#1d4f9e",      # Deep navy blue
-    "B2": "#3a74d6",     # Accent royal blue
-    "LB": "#cfe0fb",     # Soft light blue
-    "Y": "#f5c842",      # Luna golden yellow
-    "YD": "#9a7a12",     # Dark gold / border
-    "R": "#d33a2c",      # Crimson red
-    "G": "#2f9a3a",      # Office green
-    "K": "#333333",      # Dark charcoal black
-    "GR": "#6b6b6b",     # Neutral gray
+    "B": "#1d4f9e",  # Deep navy blue
+    "B2": "#3a74d6",  # Accent royal blue
+    "LB": "#cfe0fb",  # Soft light blue
+    "Y": "#f5c842",  # Luna golden yellow
+    "YD": "#9a7a12",  # Dark gold / border
+    "R": "#d33a2c",  # Crimson red
+    "G": "#2f9a3a",  # Office green
+    "K": "#333333",  # Dark charcoal black
+    "GR": "#6b6b6b",  # Neutral gray
 }
 ```
 

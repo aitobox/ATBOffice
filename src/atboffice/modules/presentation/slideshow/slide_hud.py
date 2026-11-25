@@ -24,7 +24,6 @@ from PySide6.QtCore import (
     Signal,
 )
 from PySide6.QtWidgets import (
-    QApplication,
     QFrame,
     QGraphicsOpacityEffect,
     QHBoxLayout,
@@ -33,18 +32,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
+
 if TYPE_CHECKING:
     from atboffice.modules.presentation.models.presentation import Presentation
-
-
-def safe_tr(text: str) -> str:
-    """Safe translation for SlideShow HUD."""
-    app = QApplication.instance()
-    if app:
-        translated = app.translate("SlideShowHud", text)
-        if translated and translated != text:
-            return translated
-    return text
 
 
 class SlideShowHud(QFrame):

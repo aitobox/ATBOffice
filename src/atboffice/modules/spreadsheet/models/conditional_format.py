@@ -211,9 +211,7 @@ def _get_range_values(
                 if cell is not None:
                     v = cell.value
                     if (
-                        v is None
-                        or v == ""
-                        or (isinstance(v, str) and v.startswith("#"))
+                        v is None or v == "" or (isinstance(v, str) and v.startswith("#"))
                     ) and getattr(cell, "cached_value", None) is not None:
                         v = cell.cached_value
                     if v is not None and v != "":
@@ -292,7 +290,15 @@ def _is_error_value(val: Any) -> bool:
     if isinstance(val, ExcelError):
         return True
     return isinstance(val, str) and val in (
-        "#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A", "#SPILL!", "#CALC!",
+        "#NULL!",
+        "#DIV/0!",
+        "#VALUE!",
+        "#REF!",
+        "#NAME?",
+        "#NUM!",
+        "#N/A",
+        "#SPILL!",
+        "#CALC!",
     )
 
 

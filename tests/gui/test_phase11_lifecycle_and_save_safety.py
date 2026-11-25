@@ -73,9 +73,7 @@ def test_close_event_does_not_drain_event_loop(qtbot, monkeypatch) -> None:
 
 
 @pytest.mark.parametrize("window_cls", [QuireWindow, LedgerWindow, LecternWindow])
-def test_rapid_open_close_stress_releases_windows_safely(
-    qapp, window_manager, window_cls
-) -> None:
+def test_rapid_open_close_stress_releases_windows_safely(qapp, window_manager, window_cls) -> None:
     for _ in range(5):
         win = window_cls()
         window_manager.register_window(win)

@@ -36,39 +36,27 @@ def build_report_template(doc: Document) -> None:
     """Build Professional Report template."""
     # Modify existing builtin styles or add customized styles
     if "Title" in doc.styles:
-        doc.styles["Title"].r_pr = RunProperties(
-            font="Arial Black", sz=32.0, b=False, kern=14.0
-        )
+        doc.styles["Title"].r_pr = RunProperties(font="Arial Black", sz=32.0, b=False, kern=14.0)
         doc.styles["Title"].p_pr = ParagraphProperties(
             jc="left",
             sp=SpacingProperties(before=180.0, after=12.0),
             outline_level=0,
-            borders={
-                "bottom": BorderProperties(
-                    val="single", sz=3.0, color="000000", space=6.0
-                )
-            },
+            borders={"bottom": BorderProperties(val="single", sz=3.0, color="000000", space=6.0)},
         )
 
     if "Subtitle" in doc.styles:
-        doc.styles["Subtitle"].r_pr = RunProperties(
-            font="Arial", sz=14.0, i=False, color="595959"
-        )
+        doc.styles["Subtitle"].r_pr = RunProperties(font="Arial", sz=14.0, i=False, color="595959")
         doc.styles["Subtitle"].p_pr = ParagraphProperties(
             jc="left", sp=SpacingProperties(after=120.0)
         )
 
     if "Heading1" in doc.styles:
-        doc.styles["Heading1"].r_pr = RunProperties(
-            font="Arial Black", sz=16.0, b=False
-        )
+        doc.styles["Heading1"].r_pr = RunProperties(font="Arial Black", sz=16.0, b=False)
         doc.styles["Heading1"].p_pr.page_break_before = False
         doc.styles["Heading1"].p_pr.sp = SpacingProperties(before=24.0, after=6.0)
 
     if "Heading2" in doc.styles:
-        doc.styles["Heading2"].r_pr = RunProperties(
-            font="Arial", sz=13.0, b=True
-        )
+        doc.styles["Heading2"].r_pr = RunProperties(font="Arial", sz=13.0, b=True)
 
     if "Normal" in doc.styles:
         doc.styles["Normal"].r_pr = RunProperties(font="Garamond", sz=11.0)
@@ -191,12 +179,8 @@ def build_agenda_template(doc: Document) -> None:
         doc,
         "AgendaTitle",
         "Agenda Title",
-        p_pr=ParagraphProperties(
-            jc="center", sp=SpacingProperties(after=6.0)
-        ),
-        r_pr=RunProperties(
-            font="Tahoma", sz=26.0, b=True, color="1F3864"
-        ),
+        p_pr=ParagraphProperties(jc="center", sp=SpacingProperties(after=6.0)),
+        r_pr=RunProperties(font="Tahoma", sz=26.0, b=True, color="1F3864"),
     )
     define_style(
         doc,
@@ -263,11 +247,7 @@ def build_minutes_template(doc: Document) -> None:
         p_pr=ParagraphProperties(
             sp=SpacingProperties(before=16.0, after=6.0),
             keep_next=True,
-            borders={
-                "bottom": BorderProperties(
-                    val="single", sz=0.75, color="8EAADB", space=2.0
-                )
-            },
+            borders={"bottom": BorderProperties(val="single", sz=0.75, color="8EAADB", space=2.0)},
         ),
         r_pr=RunProperties(font="Tahoma", sz=11.0, b=True, color="1F3864"),
     )
@@ -314,9 +294,7 @@ def build_minutes_template(doc: Document) -> None:
     def point(txt: str) -> Paragraph:
         return Paragraph(
             runs=placeholder(txt),
-            p_pr=ParagraphProperties(
-                style="MinutesText", num=NumberingRef(id=abs_id, lvl=0)
-            ),
+            p_pr=ParagraphProperties(style="MinutesText", num=NumberingRef(id=abs_id, lvl=0)),
         )
 
     action_table = simple_table(
@@ -344,9 +322,7 @@ def build_minutes_template(doc: Document) -> None:
                     r_pr=RunProperties(color="595959"),
                 )
             ],
-            p_pr=ParagraphProperties(
-                style="MinutesText", sp=SpacingProperties(after=12.0)
-            ),
+            p_pr=ParagraphProperties(style="MinutesText", sp=SpacingProperties(after=12.0)),
         ),
         line("Date:", date_field("dddd, MMMM d, yyyy")),
         line("Time:", placeholder("Start – End")),

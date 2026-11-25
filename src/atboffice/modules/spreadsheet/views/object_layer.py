@@ -29,6 +29,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QMenu, QWidget
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.views.object_painting import (
     child_rect,
     paint_geometry,
@@ -44,11 +45,6 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely."""
-    return QCoreApplication.translate("SpreadsheetObjectLayer", text)
 
 
 class AnchorType(Enum):
@@ -481,6 +477,7 @@ class SpreadsheetObjectLayer(QWidget):
         if geom is None:
             # Fallback geometry if none bound
             from atboffice.modules.spreadsheet.models.sheet_model import SheetGeometry
+
             geom = SheetGeometry()
 
         return object_to_rect(
@@ -645,9 +642,7 @@ class SpreadsheetObjectLayer(QWidget):
 
         painter.end()
 
-    def _paint_object(
-        self, painter: QPainter, obj: FloatingObject, rect: QRect
-    ) -> None:
+    def _paint_object(self, painter: QPainter, obj: FloatingObject, rect: QRect) -> None:
         """Render a single floating object on canvas."""
         if obj.kind == "group":
             for sub in sorted(obj.children, key=lambda o: o.z_index):
@@ -725,9 +720,7 @@ class SpreadsheetObjectLayer(QWidget):
     def _paint_selection(self, painter: QPainter, rect: QRect) -> None:
         """Render selection rectangle and 8 directional control handles."""
         # Dashed bounding frame
-        outline_pen = QPen(
-            QColor(33, 115, 70), 1.5, Qt.PenStyle.DashLine
-        )  # Excel green accent
+        outline_pen = QPen(QColor(33, 115, 70), 1.5, Qt.PenStyle.DashLine)  # Excel green accent
         painter.setPen(outline_pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRect(rect)

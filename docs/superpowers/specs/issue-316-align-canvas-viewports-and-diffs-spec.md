@@ -34,13 +34,19 @@ Accurately resolve the inner document canvas viewport for each module:
   ```
 - **Excel (`Ledger`)**:
   ```python
-  grid = getattr(window.spreadsheet_view, "grid", None) or getattr(window.spreadsheet_view, "grid_viewport", None)
+  grid = getattr(window.spreadsheet_view, "grid", None) or getattr(
+      window.spreadsheet_view, "grid_viewport", None
+  )
   grab_target = grid.viewport() if (grid and hasattr(grid, "viewport")) else window.spreadsheet_view
   ```
 - **PowerPoint (`Lectern`)**:
   ```python
   ws = getattr(window.presentation_view, "workspace", None)
-  grab_target = ws.canvas_view.viewport() if (ws and hasattr(ws, "canvas_view") and hasattr(ws.canvas_view, "viewport")) else window.presentation_view
+  grab_target = (
+      ws.canvas_view.viewport()
+      if (ws and hasattr(ws, "canvas_view") and hasattr(ws.canvas_view, "viewport"))
+      else window.presentation_view
+  )
   ```
 
 ### 2.3 Viewport Alignment and Clipping Bounding Box

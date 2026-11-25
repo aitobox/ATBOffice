@@ -15,9 +15,7 @@ def _part(files: dict[str, str], pat: str) -> str:
     return "\n".join(x for n, x in files.items() if re.search(pat, n))
 
 
-def _cnt(
-    pat: str, where: str = SHEETS
-) -> Callable[[list[str], dict[str, str]], int]:
+def _cnt(pat: str, where: str = SHEETS) -> Callable[[list[str], dict[str, str]], int]:
     return lambda names, f: len(re.findall(pat, _part(f, where)))
 
 
@@ -30,12 +28,8 @@ EXCEL_FEATURES: dict[str, Callable[[list[str], dict[str, str]], int]] = {
     "chart sheets": _parts(r"xl/chartsheets/sheet\d+\.xml$"),
     "merged cells": _cnt(r"<mergeCell\b"),
     "data validation": _cnt(r"<dataValidation\b|<x14:dataValidation\b"),
-    "conditional formatting": _cnt(
-        r"<conditionalFormatting\b|<x14:conditionalFormatting\b"
-    ),
-    "data bars / icon sets (Excel 2010 extensions)": _cnt(
-        r"<x14:dataBar\b|<x14:iconSet\b"
-    ),
+    "conditional formatting": _cnt(r"<conditionalFormatting\b|<x14:conditionalFormatting\b"),
+    "data bars / icon sets (Excel 2010 extensions)": _cnt(r"<x14:dataBar\b|<x14:iconSet\b"),
     "notes (comments)": _cnt(r"<comment\b", r"xl/comments\d*\.xml$"),
     "threaded comments": _cnt(r"<threadedComment\b", r"xl/threadedComments/"),
     "hyperlinks": _cnt(r"<hyperlink\b"),
@@ -53,12 +47,8 @@ EXCEL_FEATURES: dict[str, Callable[[list[str], dict[str, str]], int]] = {
     "custom XML parts": lambda names, f: sum(
         1 for n in names if re.match(r"customXml/item\d+\.xml$", n)
     ),
-    "custom document properties": lambda names, f: int(
-        "docProps/custom.xml" in names
-    ),
-    "VBA macros": lambda names, f: sum(
-        1 for n in names if n.lower().endswith("vbaproject.bin")
-    ),
+    "custom document properties": lambda names, f: int("docProps/custom.xml" in names),
+    "VBA macros": lambda names, f: sum(1 for n in names if n.lower().endswith("vbaproject.bin")),
     "auto filter": _cnt(r"<autoFilter\b"),
     "sparklines": _cnt(r"<x14:sparkline\b"),
     "sheet protection": _cnt(r"<sheetProtection\b"),
@@ -67,8 +57,6 @@ EXCEL_FEATURES: dict[str, Callable[[list[str], dict[str, str]], int]] = {
 }
 
 
-def extract_excel_features(
-    names: list[str], files: dict[str, str]
-) -> dict[str, int]:
+def extract_excel_features(names: list[str], files: dict[str, str]) -> dict[str, int]:
     """Extract all ECMA-376 feature counts from loaded Excel package XML parts."""
     return {feat: fn(names, files) for feat, fn in EXCEL_FEATURES.items()}

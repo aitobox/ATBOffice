@@ -21,7 +21,6 @@ from PySide6.QtGui import (
     QTransform,
 )
 from PySide6.QtWidgets import (
-    QApplication,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -35,15 +34,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    """Translate UI text with fallback to Chinese native text for ATBOffice."""
-    app = QApplication.instance()
-    if app:
-        translated = app.translate("WordArtGallery", text)
-        if translated and translated != text:
-            return translated
-    return text
+from atboffice.core.i18n import safe_tr
 
 
 class WarpMode(StrEnum):
@@ -238,9 +229,7 @@ def warp_points(
     return pts
 
 
-def create_wordart_composite_path(
-    text: str, style: WordArtStyle, rect: QRectF
-) -> QPainterPath:
+def create_wordart_composite_path(text: str, style: WordArtStyle, rect: QRectF) -> QPainterPath:
     """Generate a combined vector QPainterPath of deformed glyphs for WordArt."""
     composite_path = QPainterPath()
     cleaned = text.strip()
@@ -345,9 +334,7 @@ def create_wordart_composite_path(
     return composite_path
 
 
-def render_wordart(
-    painter: QPainter, text: str, style: WordArtStyle, rect: QRectF
-) -> None:
+def render_wordart(painter: QPainter, text: str, style: WordArtStyle, rect: QRectF) -> None:
     """Render WordArt onto a QPainter surface with fills, outlines, and shadows."""
     path = create_wordart_composite_path(text, style, rect)
     if path.isEmpty():
@@ -415,7 +402,7 @@ class WordArtThumbnailWidget(QWidget):
         self.is_selected = is_selected
         self.setFixedSize(70, 48)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setAccessibleName(safe_tr(f"艺术字样式 {style.id + 1}"))
+        self.setAccessibleName(safe_tr("艺术字样式 {0}", style.id + 1))
 
     def sizeHint(self) -> QSize:
         return QSize(70, 48)
@@ -602,8 +589,24 @@ class WordArtTextDialog(QDialog):
         self.lbl_size = QLabel(self)
         self.size_combo = QComboBox(self)
         sizes = [
-            "12", "14", "16", "18", "20", "24", "28", "32", "36",
-            "40", "44", "48", "54", "60", "66", "72", "80", "96",
+            "12",
+            "14",
+            "16",
+            "18",
+            "20",
+            "24",
+            "28",
+            "32",
+            "36",
+            "40",
+            "44",
+            "48",
+            "54",
+            "60",
+            "66",
+            "72",
+            "80",
+            "96",
         ]
         self.size_combo.addItems(sizes)
         s_idx = self.size_combo.findText(str(self._initial_size))

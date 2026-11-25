@@ -44,15 +44,20 @@ import io
 import zipfile
 from atboffice.deep.audit.core import xml_text, load_package_xml, AuditSession
 
+
 def test_xml_text_encodings():
     assert xml_text(b"<?xml?>hello") == "<?xml?>hello"
     assert xml_text(b"\xef\xbb\xbf<?xml?>bom") == "<?xml?>bom"
     assert xml_text("<?xml?>utf16".encode("utf-16le")) == "<?xml?>utf16"
 
+
 def test_load_package_xml_alternate_content():
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
-        z.writestr("word/document.xml", "<mc:AlternateContent><mc:Choice>A</mc:Choice><mc:Fallback>B</mc:Fallback></mc:AlternateContent>")
+        z.writestr(
+            "word/document.xml",
+            "<mc:AlternateContent><mc:Choice>A</mc:Choice><mc:Fallback>B</mc:Fallback></mc:AlternateContent>",
+        )
     names, files = load_package_xml(buf.getvalue())
     assert "word/document.xml" in files
     assert "B" not in files["word/document.xml"]
@@ -110,6 +115,7 @@ from atboffice.deep.audit.word import extract_word_features
 from atboffice.deep.audit.excel import extract_excel_features
 from atboffice.deep.audit.presentation import extract_presentation_features
 
+
 def test_extractors_on_curated_samples():
     sample_docx = next(Path("tests/docs/word/docx").glob("*.docx"))
     names, files = load_package_xml(sample_docx)
@@ -163,6 +169,7 @@ import pytest
 from atboffice.modules.writer.io import read_docx, write_docx
 from atboffice.deep.audit.core import load_package_xml
 from atboffice.deep.audit.word import extract_word_features, count_document_words
+
 
 def test_curated_docx_roundtrip_loss_audit():
     docx_dir = Path("tests/docs/word/docx")
@@ -228,6 +235,7 @@ from atboffice.modules.spreadsheet.io.xlsx_writer import write_xlsx
 from atboffice.deep.audit.core import load_package_xml
 from atboffice.deep.audit.excel import extract_excel_features
 
+
 def test_curated_xlsx_roundtrip_loss_audit():
     xlsx_dir = Path("tests/docs/excel/xlsx")
     for xlsx_path in sorted(xlsx_dir.glob("*.xlsx"))[:5]:
@@ -290,6 +298,7 @@ from atboffice.modules.presentation.io import read_pptx, write_pptx
 from atboffice.deep.audit.core import load_package_xml
 from atboffice.deep.audit.presentation import extract_presentation_features
 
+
 def test_curated_pptx_roundtrip_loss_audit():
     pptx_dir = Path("tests/docs/powerpoint/pptx")
     for pptx_path in sorted(pptx_dir.glob("*.pptx"))[:5]:
@@ -348,6 +357,7 @@ git commit -m "test(corpus): add PowerPoint corpus roundtrip and loss-audit regr
 # In tests/unit/test_audit_core.py
 from scripts.run_corpus_audit import audit_single_file
 from pathlib import Path
+
 
 def test_audit_single_file_helper():
     sample = next(Path("tests/docs/word/docx").glob("*.docx"))

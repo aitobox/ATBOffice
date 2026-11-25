@@ -99,8 +99,10 @@ def test_callout_is_pale_yellow_in_light_and_dark_palettes(qtbot):
     app = QApplication.instance()
     original = app.palette()
     try:
-        for window, text in ((QColor("#FFFFFF"), QColor("#000000")),
-                             (QColor("#202020"), QColor("#F0F0F0"))):
+        for window, text in (
+            (QColor("#FFFFFF"), QColor("#000000")),
+            (QColor("#202020"), QColor("#F0F0F0")),
+        ):
             pal = QPalette(original)
             pal.setColor(QPalette.ColorRole.Window, window)
             pal.setColor(QPalette.ColorRole.Base, window)
@@ -120,8 +122,11 @@ def test_callout_text_is_black(qtbot):
     img, _ = _render(vp)
     rect = vp._comment_callout_rect(2, 1, vp.model.get_comment(2, 1))
     darkest = min(
-        (img.pixelColor(x, y) for y in range(rect.top() + 2, rect.top() + 30)
-         for x in range(rect.left() + 4, rect.right() - 4)),
+        (
+            img.pixelColor(x, y)
+            for y in range(rect.top() + 2, rect.top() + 30)
+            for x in range(rect.left() + 4, rect.right() - 4)
+        ),
         key=lambda c: c.red() + c.green() + c.blue(),
     )
     assert darkest.red() < 60 and darkest.green() < 60 and darkest.blue() < 60
@@ -180,5 +185,6 @@ def test_hover_does_not_show_system_tooltip_for_comment(qtbot, monkeypatch):
     vp.show()
     cell = vp.cell_rect(2, 1)
     from PySide6.QtCore import QPoint
+
     qtbot.mouseMove(vp.viewport(), QPoint(cell.center().x(), cell.center().y()))
     assert not any("third cell" in s for s in shown)

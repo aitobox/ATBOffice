@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QPoint, QRect, Qt
+from PySide6.QtCore import QPoint, QRect, Qt
 from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -20,10 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("AlignmentTab", text)
-
+from atboffice.core.i18n import safe_tr
 
 H_ALIGNS = [
     ("general", "常规"),
@@ -93,9 +90,7 @@ class OrientationDialWidget(QWidget):
             rad = math.radians(deg)
             x = cx + radius * math.cos(rad)
             y = cy - radius * math.sin(rad)
-            painter.setBrush(
-                QColor("#000000") if i % 6 == 0 else QColor("#888888")
-            )
+            painter.setBrush(QColor("#000000") if i % 6 == 0 else QColor("#888888"))
             r = 2.5 if i % 6 == 0 else 1.5
             painter.drawEllipse(QRect(int(x - r), int(y - r), int(r * 2), int(r * 2)))
 

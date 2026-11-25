@@ -48,9 +48,7 @@ def make_right_click(x: float, y: float) -> QMouseEvent:
 
 
 class TestRightClickSelection:
-    def test_right_click_inside_selection_preserves_selection(
-        self, viewport: GridViewport
-    ) -> None:
+    def test_right_click_inside_selection_preserves_selection(self, viewport: GridViewport) -> None:
         # Select range (1, 1) to (3, 3)
         viewport.selection.select_cell(1, 1)
         viewport.selection.extend_to(3, 3)
@@ -134,9 +132,7 @@ class TestRightClickEditorCommitAndAbort:
         assert viewport.model.get_cell_value(0, 0) == 42
         assert viewport.selection.active_cell == (2, 2)
 
-    def test_right_click_aborts_when_commit_fails(
-        self, viewport: GridViewport
-    ) -> None:
+    def test_right_click_aborts_when_commit_fails(self, viewport: GridViewport) -> None:
         viewport.selection.select_cell(0, 0)
         viewport.editor_controller.begin_edit(0, 0)
         assert viewport.editor_controller.is_active
@@ -372,6 +368,7 @@ class TestMoveCopySheetDialogAndTabContextMenu:
                 if dlg.is_create_copy:
                     src_sheet = wb.sheets[0]
                     import copy as cp
+
                     copy_sheet = cp.deepcopy(src_sheet)
                     wb.add_sheet(name="Alpha (2)", index=target_idx, sheet=copy_sheet)
                 assert len(wb.sheets) == 4
@@ -394,6 +391,7 @@ class TestStatusBarAutoCalculate:
             model.set_cell(1, 0, CellData(value=30))
 
             from atboffice.modules.spreadsheet.models.selection_model import SelectionModel
+
             sel = SelectionModel()
             sel.select_cell(0, 0)
             sel.extend_to(1, 1)

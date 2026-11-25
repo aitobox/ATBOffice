@@ -13,10 +13,12 @@ def test_get_project_root():
     root = get_project_root()
     assert (root / "pyproject.toml").exists()
 
+
 def test_get_app_version():
     ver = get_app_version()
     assert isinstance(ver, str)
     assert len(ver.split(".")) >= 2
+
 
 def test_get_artifact_name():
     name = get_artifact_name("macos", "arm64", "dmg", version="1.0.0")
@@ -32,17 +34,20 @@ def test_get_artifact_name_strips_tag_prefix():
         "ATBOffice-test0.2.0-windows-x64.zip"
     )
 
+
 def test_get_base_nuitka_args(tmp_path):
     args = get_base_nuitka_args(tmp_path)
     assert "--standalone" in args
     assert "--enable-plugin=pyside6" in args
     assert "--include-package-data=atboffice" in args
 
+
 def test_get_nuitka_env():
     env = get_nuitka_env()
     root = get_project_root()
     assert "PYTHONPATH" in env
     assert str(root / "src") in env["PYTHONPATH"]
+
 
 def test_ensure_clean_dir(tmp_path):
     target = tmp_path / "subdir"

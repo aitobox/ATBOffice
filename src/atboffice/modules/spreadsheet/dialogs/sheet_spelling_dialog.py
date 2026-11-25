@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QDialog,
     QGridLayout,
@@ -17,12 +16,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.references import cell_name
 from atboffice.modules.spreadsheet.tools.sheet_spelling import SheetSpellChecker, SpellIssue
-
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("SheetSpellingDialog", text)
 
 
 class SheetSpellingDialog(QDialog):

@@ -126,7 +126,8 @@ class CellData:
             or (
                 isinstance(val, str)
                 and (
-                    val in {
+                    val
+                    in {
                         "#NULL!",
                         "#DIV/0!",
                         "#VALUE!",
@@ -158,21 +159,18 @@ class CellData:
         # Check errors
         if isinstance(val, str):
             v_upper = val.strip().upper()
-            if (
-                v_upper in {
-                    "#NULL!",
-                    "#DIV/0!",
-                    "#VALUE!",
-                    "#REF!",
-                    "#NAME?",
-                    "#NUM!",
-                    "#N/A",
-                    "#SPILL!",
-                    "#CALC!",
-                    "#GETTING_DATA",
-                }
-                or (val.startswith("#") and (val.endswith("!") or val.endswith("?")))
-            ):
+            if v_upper in {
+                "#NULL!",
+                "#DIV/0!",
+                "#VALUE!",
+                "#REF!",
+                "#NAME?",
+                "#NUM!",
+                "#N/A",
+                "#SPILL!",
+                "#CALC!",
+                "#GETTING_DATA",
+            } or (val.startswith("#") and (val.endswith("!") or val.endswith("?"))):
                 return "center"
             if v_upper in ("TRUE", "FALSE"):
                 return "center"
@@ -570,41 +568,26 @@ class SheetDataModel:
         self.merges = [
             m
             for m in self.merges
-            if not (
-                min_r <= m[2]
-                and max_r >= m[0]
-                and min_c <= m[3]
-                and max_c >= m[1]
-            )
+            if not (min_r <= m[2] and max_r >= m[0] and min_c <= m[3] and max_c >= m[1])
         ]
         self.merges.append((min_r, min_c, max_r, max_c))
 
     def remove_merge(self, r: int, c: int) -> None:
         """Remove any merge containing cell (r, c)."""
-        self.merges = [
-            m
-            for m in self.merges
-            if not (m[0] <= r <= m[2] and m[1] <= c <= m[3])
-        ]
+        self.merges = [m for m in self.merges if not (m[0] <= r <= m[2] and m[1] <= c <= m[3])]
 
     def is_merged(self, r: int, c: int) -> bool:
         """Return True if (r, c) is part of a merged region."""
-        return any(
-            m[0] <= r <= m[2] and m[1] <= c <= m[3] for m in self.merges
-        )
+        return any(m[0] <= r <= m[2] and m[1] <= c <= m[3] for m in self.merges)
 
-    def get_merge_range(
-        self, r: int, c: int
-    ) -> tuple[int, int, int, int] | None:
+    def get_merge_range(self, r: int, c: int) -> tuple[int, int, int, int] | None:
         """Return the (min_r, min_c, max_r, max_c) region for cell (r, c) or None."""
         for m in self.merges:
             if m[0] <= r <= m[2] and m[1] <= c <= m[3]:
                 return m
         return None
 
-    def apply_format_delta(
-        self, r: int, c: int, delta: FormatDelta
-    ) -> CellData:
+    def apply_format_delta(self, r: int, c: int, delta: FormatDelta) -> CellData:
         """Apply style modifications in delta to cell (r, c)."""
         cell = self.get_cell(r, c)
         if cell is None:

@@ -7,8 +7,8 @@ from PySide6.QtGui import QCloseEvent, QFileOpenEvent, QKeySequence
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from atboffice.core.app import ATBApplication
+from atboffice.ui.shell.ledger_window import LedgerWindow
 from atboffice.ui.shell.mac_menu import MacMenuBar
-from atboffice.ui.shell.main_window import MainWindow
 
 
 class TestATBApplication:
@@ -50,7 +50,7 @@ class TestATBApplication:
 
 class TestMacMenuBar:
     def test_mac_menu_structure_and_shortcuts(self, qapp: ATBApplication, qtbot) -> None:
-        window = MainWindow()
+        window = LedgerWindow()
         qtbot.addWidget(window)
         menu_bar = window.menuBar()
         assert isinstance(menu_bar, MacMenuBar)
@@ -87,7 +87,7 @@ class TestMacMenuBar:
         assert action_map["edit_format_cells"].shortcut().toString() == ctrl_1_seq
 
     def test_menu_retranslate(self, qapp: ATBApplication, qtbot) -> None:
-        window = MainWindow()
+        window = LedgerWindow()
         qtbot.addWidget(window)
         menu_bar = window.menuBar()
         assert isinstance(menu_bar, MacMenuBar)
@@ -95,15 +95,9 @@ class TestMacMenuBar:
         assert menu_bar.action_map["file_save"].text() != ""
 
 
-class TestMainWindowLifecycle:
-    def test_main_window_has_three_modules(self, qapp: ATBApplication, qtbot) -> None:
-        window = MainWindow()
-        qtbot.addWidget(window)
-        tabs = window.centralWidget()
-        assert tabs.count() == 3
-
+class TestWindowLifecycle:
     def test_window_dirty_lifecycle(self, qapp: ATBApplication, qtbot) -> None:
-        window = MainWindow()
+        window = LedgerWindow()
         qtbot.addWidget(window)
         assert window.is_modified is False
         assert window.isWindowModified() is False
@@ -116,24 +110,8 @@ class TestMainWindowLifecycle:
         assert window.is_modified is False
         assert window.isWindowModified() is False
 
-    def test_open_file_and_save(self, qapp: ATBApplication, qtbot, tmp_path: Path) -> None:
-        window = MainWindow()
-        qtbot.addWidget(window)
-
-        test_file = tmp_path / "test_ledger.xlsx"
-        test_file.write_text("dummy")
-
-        assert window.open_file(str(test_file)) is True
-        assert window.current_file_path == test_file
-        assert test_file.name in window.windowTitle()
-
-        # Mark modified then save
-        window.set_modified(True)
-        assert window.save_file() is True
-        assert window.is_modified is False
-
     def test_close_event_unmodified(self, qapp: ATBApplication, qtbot) -> None:
-        window = MainWindow()
+        window = LedgerWindow()
         qtbot.addWidget(window)
         window.set_modified(False)
 
@@ -142,7 +120,7 @@ class TestMainWindowLifecycle:
         assert close_event.isAccepted()
 
     def test_close_event_modified_cancel(self, qapp: ATBApplication, qtbot, monkeypatch) -> None:
-        window = MainWindow()
+        window = LedgerWindow()
         qtbot.addWidget(window)
         window.set_modified(True)
 
@@ -157,7 +135,7 @@ class TestMainWindowLifecycle:
         window.set_modified(False)
 
     def test_close_event_modified_discard(self, qapp: ATBApplication, qtbot, monkeypatch) -> None:
-        window = MainWindow()
+        window = LedgerWindow()
         qtbot.addWidget(window)
         window.set_modified(True)
 
@@ -177,8 +155,6 @@ class TestMainWindowLifecycle:
 
         test_file = tmp_path / "cli_opened.xlsx"
         test_file.write_text("data")
-
-        monkeypatch.setattr(main_entry.MainWindow, "show", lambda self: None)
 
         exit_code = main_entry.main(["atboffice", str(test_file)], exec_app=False)
         assert exit_code == 0

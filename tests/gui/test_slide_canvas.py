@@ -147,9 +147,7 @@ class TestShapeGraphicsItemAndHandles:
         assert item is not None
         item.setSelected(True)
 
-        rot_handle = next(
-            h for h in item._handles if h.handle_type == HandleType.ROTATE
-        )
+        rot_handle = next(h for h in item._handles if h.handle_type == HandleType.ROTATE)
         assert rot_handle is not None
 
         # Begin drag
@@ -157,9 +155,7 @@ class TestShapeGraphicsItemAndHandles:
 
         # Rotate to right (around center (200, 150))
         # Drag to (300, 150) -> should be 90 degrees
-        item.update_handle_drag(
-            rot_handle, QPointF(300.0, 150.0), Qt.KeyboardModifier.NoModifier
-        )
+        item.update_handle_drag(rot_handle, QPointF(300.0, 150.0), Qt.KeyboardModifier.NoModifier)
         assert item.model.rot == pytest.approx(90.0, abs=1.0)
 
         # With Shift modifier: snap to 15 deg
@@ -177,15 +173,11 @@ class TestShapeGraphicsItemAndHandles:
         assert item is not None
         item.setSelected(True)
 
-        adj_handle = next(
-            h for h in item._handles if h.handle_type == HandleType.ADJUST
-        )
+        adj_handle = next(h for h in item._handles if h.handle_type == HandleType.ADJUST)
         item.begin_handle_drag(adj_handle, QPointF(120.0, 100.0))
 
         # Drag adjustment handle rightwards
-        item.update_handle_drag(
-            adj_handle, QPointF(140.0, 100.0), Qt.KeyboardModifier.NoModifier
-        )
+        item.update_handle_drag(adj_handle, QPointF(140.0, 100.0), Qt.KeyboardModifier.NoModifier)
         assert item.model.adj is not None
         assert item.model.adj["adj"] > 20000
 
@@ -198,18 +190,14 @@ class TestShapeGraphicsItemAndHandles:
         assert item is not None
         item.setSelected(True)
 
-        se_handle = next(
-            h for h in item._handles if h.handle_type == HandleType.SE
-        )
+        se_handle = next(h for h in item._handles if h.handle_type == HandleType.SE)
 
         init_w = item.model.w
         init_h = item.model.h
 
         # Normal resize
         item.begin_handle_drag(se_handle, QPointF(300.0, 200.0))
-        item.update_handle_drag(
-            se_handle, QPointF(350.0, 220.0), Qt.KeyboardModifier.NoModifier
-        )
+        item.update_handle_drag(se_handle, QPointF(350.0, 220.0), Qt.KeyboardModifier.NoModifier)
         assert item.model.w > init_w
         assert item.model.h > init_h
         item.end_handle_drag(se_handle)
@@ -321,9 +309,7 @@ class TestAlignmentAndDistribution:
 
         # Align Right
         scene.align_shapes("R")
-        assert (item1.pos().x() + item1.model.w) == pytest.approx(
-            item2.pos().x() + item2.model.w
-        )
+        assert (item1.pos().x() + item1.model.w) == pytest.approx(item2.pos().x() + item2.model.w)
 
     def test_align_to_slide(self, canvas: SlideCanvasView) -> None:
         scene = canvas.scene()
@@ -338,9 +324,7 @@ class TestAlignmentAndDistribution:
         scene.align_shapes("T", align_to_slide=True)
         assert item1.pos().y() == pytest.approx(0.0)
 
-    def test_distribute_shapes_horizontally_and_vertically(
-        self, canvas: SlideCanvasView
-    ) -> None:
+    def test_distribute_shapes_horizontally_and_vertically(self, canvas: SlideCanvasView) -> None:
         scene = canvas.scene()
         assert isinstance(scene, SlideScene)
         item1 = scene.get_shape_item("s1")

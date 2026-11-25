@@ -19,7 +19,6 @@ import shiboken6
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
-    QFont,
     QMouseEvent,
     QPainter,
     QPaintEvent,
@@ -39,19 +38,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.presentation import Presentation
 from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.views.workspace import render_slide_thumbnail
-
-
-def safe_tr(text: str) -> str:
-    """Safe translation for Slide Sorter UI."""
-    app = QApplication.instance()
-    if app:
-        translated = app.translate("SlideSorter", text)
-        if translated and translated != text:
-            return translated
-    return text
+from atboffice.ui.styles.luna_2003 import ui_font
 
 
 def fmt_duration(seconds: float | None) -> str:
@@ -124,7 +115,7 @@ class SlideSorterCard(QFrame):
         trans = getattr(self.slide, "transition", None)
         if trans and trans.type and trans.type != "none":
             self.star_label = QLabel("★", self.footer)
-            self.star_label.setFont(QFont("Arial", 11))
+            self.star_label.setFont(ui_font(11))
             self.star_label.setStyleSheet("color: #444444;")
             tip = f"{safe_tr('转场效果')}: {trans.type}"
             if trans.speed:
@@ -137,7 +128,7 @@ class SlideSorterCard(QFrame):
         if trans and trans.after is not None:
             formatted_time = fmt_duration(trans.after)
             self.time_label = QLabel(formatted_time, self.footer)
-            self.time_label.setFont(QFont("Arial", 8))
+            self.time_label.setFont(ui_font(8))
             self.time_label.setStyleSheet("color: #666666;")
             footer_layout.addWidget(self.time_label)
 
@@ -147,7 +138,7 @@ class SlideSorterCard(QFrame):
         self.hidden_badge: QLabel | None = None
         if self.is_hidden_slide:
             self.hidden_badge = QLabel(safe_tr("[隐藏]"), self.footer)
-            self.hidden_badge.setFont(QFont("Arial", 8, QFont.Weight.Bold))
+            self.hidden_badge.setFont(ui_font(8, bold=True))
             self.hidden_badge.setStyleSheet("color: #999999;")
             footer_layout.addWidget(self.hidden_badge)
 
@@ -155,7 +146,7 @@ class SlideSorterCard(QFrame):
         first_num = getattr(self.presentation, "first_num", 1)
         slide_num_str = str(self.index + first_num)
         self.number_label = QLabel(slide_num_str, self.footer)
-        self.number_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self.number_label.setFont(ui_font(9, bold=True))
         self.number_label.setStyleSheet("color: #333333;")
         footer_layout.addWidget(self.number_label)
 
@@ -320,7 +311,7 @@ class SlideSorterView(QScrollArea):
 
         self.empty_label = QLabel(safe_tr("暂无幻灯片"), self.grid_widget)
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.empty_label.setFont(QFont("Arial", 12))
+        self.empty_label.setFont(ui_font(12))
         self.empty_label.setStyleSheet("color: #888888; padding: 40px;")
         self.empty_label.hide()
 
@@ -390,9 +381,7 @@ class SlideSorterView(QScrollArea):
         if end < len(self.cards):
             QTimer.singleShot(
                 0,
-                lambda g=gen, next_start=end: self._refresh_card_chunk(
-                    g, next_start, chunk_size
-                ),
+                lambda g=gen, next_start=end: self._refresh_card_chunk(g, next_start, chunk_size),
             )
 
     def get_selected_indices(self) -> set[int]:
@@ -544,9 +533,7 @@ class SlideSorterView(QScrollArea):
             self._drop_target_index = target_idx
             geo = best_ref.geometry()
             marker_x = (
-                (geo.left() - self.spacing // 2)
-                if before
-                else (geo.right() + self.spacing // 2)
+                (geo.left() - self.spacing // 2) if before else (geo.right() + self.spacing // 2)
             )
             self.grid_widget.drop_marker_x = marker_x
             self.grid_widget.drop_marker_y = geo.top()

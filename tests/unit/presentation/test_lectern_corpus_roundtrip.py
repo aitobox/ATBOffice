@@ -39,6 +39,7 @@ from atboffice.vfs.opc import SourcePackage
 # Loss-Audit Feature Extraction Engine (ported from .vibeoffice loss-audit.py)
 # ---------------------------------------------------------------------------
 
+
 def _load_package_xmls(pkg_bytes: bytes) -> tuple[list[str], dict[str, str]]:
     """Extract all part names and XML text bodies from a zip package."""
     z = zipfile.ZipFile(io.BytesIO(pkg_bytes))
@@ -88,9 +89,7 @@ LECTERN_AUDIT_FEATURES = {
     "video / audio on a slide": lambda names, f: sum(
         _rel_targets(f, r"ppt/slides/_rels/")[k] for k in ("video", "audio", "media")
     ),
-    "VBA macros": lambda names, f: sum(
-        1 for n in names if n.lower().endswith("vbaproject.bin")
-    ),
+    "VBA macros": lambda names, f: sum(1 for n in names if n.lower().endswith("vbaproject.bin")),
     "custom XML parts / tags": lambda names, f: sum(
         1 for n in names if n.startswith("customXml/") or n.startswith("ppt/tags/")
     ),
@@ -128,9 +127,7 @@ def _extract_slide_words(files: dict[str, str]) -> collections.Counter:
                 if not para.tag.endswith("}p"):
                     continue
                 t = "".join(
-                    el.text or ""
-                    for el in para.iter()
-                    if el.tag.endswith("}t") and el.text
+                    el.text or "" for el in para.iter() if el.tag.endswith("}t") and el.text
                 )
                 c.update(re.findall(r"\w+", t.lower()))
         except Exception:
@@ -141,6 +138,7 @@ def _extract_slide_words(files: dict[str, str]) -> collections.Counter:
 # ---------------------------------------------------------------------------
 # Module Fixture
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def complex_multislide_package_bytes() -> bytes:
@@ -276,6 +274,7 @@ def complex_multislide_package_bytes() -> bytes:
 # ---------------------------------------------------------------------------
 # Test Cases
 # ---------------------------------------------------------------------------
+
 
 class TestLosslessCorpusRoundtrip:
     """Verify lossless incremental packaging and byte-for-byte fidelity."""

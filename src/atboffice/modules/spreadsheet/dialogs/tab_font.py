@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -21,10 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("FontTab", text)
-
+from atboffice.core.i18n import safe_tr
 
 COMMON_FONTS = [
     "Arial",
@@ -176,12 +173,8 @@ class FontTab(QWidget):
         self.check_sub = QCheckBox(safe_tr("下标(&B)"))
         self.check_sub.setChecked(vert_align == "subscript")
 
-        self.check_super.toggled.connect(
-            lambda c: self.check_sub.setChecked(False) if c else None
-        )
-        self.check_sub.toggled.connect(
-            lambda c: self.check_super.setChecked(False) if c else None
-        )
+        self.check_super.toggled.connect(lambda c: self.check_sub.setChecked(False) if c else None)
+        self.check_sub.toggled.connect(lambda c: self.check_super.setChecked(False) if c else None)
 
         eff_layout.addWidget(self.check_strike)
         eff_layout.addWidget(self.check_super)
@@ -194,32 +187,22 @@ class FontTab(QWidget):
         self.font_preview = QLabel("AaBbCcYyZz 123 预览文本")
         self.font_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.font_preview.setFixedHeight(70)
-        self.font_preview.setStyleSheet(
-            "background: #FFFFFF; border: 1px solid #C0C0C0;"
-        )
+        self.font_preview.setStyleSheet("background: #FFFFFF; border: 1px solid #C0C0C0;")
         prev_layout.addWidget(self.font_preview)
         bottom_layout.addWidget(self.grp_preview, 2)
 
         main_layout.addLayout(bottom_layout)
 
         # Signals
-        self.list_family.itemClicked.connect(
-            lambda item: self.edit_family.setText(item.text())
-        )
+        self.list_family.itemClicked.connect(lambda item: self.edit_family.setText(item.text()))
         self.edit_family.textChanged.connect(self._on_family_changed)
 
-        self.list_style.currentRowChanged.connect(
-            lambda _: self.update_preview()
-        )
+        self.list_style.currentRowChanged.connect(lambda _: self.update_preview())
 
-        self.list_size.itemClicked.connect(
-            lambda item: self.edit_size.setText(item.text())
-        )
+        self.list_size.itemClicked.connect(lambda item: self.edit_size.setText(item.text()))
         self.edit_size.textChanged.connect(self._on_size_changed)
 
-        self.combo_underline.currentIndexChanged.connect(
-            lambda _: self.update_preview()
-        )
+        self.combo_underline.currentIndexChanged.connect(lambda _: self.update_preview())
         self.check_strike.toggled.connect(lambda _: self.update_preview())
         self.check_super.toggled.connect(lambda _: self.update_preview())
         self.check_sub.toggled.connect(lambda _: self.update_preview())

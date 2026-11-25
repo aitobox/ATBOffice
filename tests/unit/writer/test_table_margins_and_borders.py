@@ -150,8 +150,7 @@ def test_cell_vertical_alignment_offsets():
 
 
 def test_docx_roundtrip_table_margins_and_borders():
-    """Verify that tblCellMar, tblBorders, tcMar, and tcBorders survive docx read/write.
-    """
+    """Verify that tblCellMar, tblBorders, tcMar, and tcBorders survive docx read/write."""
     doc = Document()
     tbl = Table(
         grid=[120.0, 120.0],

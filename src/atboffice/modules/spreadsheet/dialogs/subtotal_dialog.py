@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -18,13 +18,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
+
 if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
-
-
-def safe_tr(text: str) -> str:
-    """Safely translate SubtotalDialog UI string."""
-    return QCoreApplication.translate("SubtotalDialog", text)
 
 
 SUBTOTAL_FUNCTIONS = [
@@ -101,9 +98,7 @@ class SubtotalDialog(QDialog):
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             # Default check the last column
             check_state = (
-                Qt.CheckState.Checked
-                if idx == len(self.headers) - 1
-                else Qt.CheckState.Unchecked
+                Qt.CheckState.Checked if idx == len(self.headers) - 1 else Qt.CheckState.Unchecked
             )
             item.setCheckState(check_state)
         left_layout.addWidget(self.list_columns, 1)

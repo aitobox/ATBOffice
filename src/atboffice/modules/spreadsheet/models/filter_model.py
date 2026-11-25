@@ -42,9 +42,7 @@ def type_rank(val: Any) -> int:
     return 1
 
 
-def excel_sort_cmp(
-    a: Any, b: Any, desc: bool = False, case_sensitive: bool = False
-) -> int:
+def excel_sort_cmp(a: Any, b: Any, desc: bool = False, case_sensitive: bool = False) -> int:
     """Three-way comparator for Excel cell values.
     Returns:
       < 0 if a < b
@@ -105,30 +103,15 @@ class ExcelSortItem:
     case_sensitive: bool = False
 
     def __lt__(self, other: ExcelSortItem) -> bool:
-        return (
-            excel_sort_cmp(
-                self.val, other.val, self.desc, self.case_sensitive
-            )
-            < 0
-        )
+        return excel_sort_cmp(self.val, other.val, self.desc, self.case_sensitive) < 0
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, ExcelSortItem):
             return False
-        return (
-            excel_sort_cmp(
-                self.val, other.val, self.desc, self.case_sensitive
-            )
-            == 0
-        )
+        return excel_sort_cmp(self.val, other.val, self.desc, self.case_sensitive) == 0
 
     def __gt__(self, other: ExcelSortItem) -> bool:
-        return (
-            excel_sort_cmp(
-                self.val, other.val, self.desc, self.case_sensitive
-            )
-            > 0
-        )
+        return excel_sort_cmp(self.val, other.val, self.desc, self.case_sensitive) > 0
 
     def __le__(self, other: ExcelSortItem) -> bool:
         return not (self > other)
@@ -137,9 +120,7 @@ class ExcelSortItem:
         return not (self < other)
 
 
-def excel_sort_key(
-    val: Any, desc: bool = False, case_sensitive: bool = False
-) -> ExcelSortItem:
+def excel_sort_key(val: Any, desc: bool = False, case_sensitive: bool = False) -> ExcelSortItem:
     """Generate a comparable key wrapper for sorting Excel cells."""
     return ExcelSortItem(val, desc=desc, case_sensitive=case_sensitive)
 
@@ -230,10 +211,7 @@ class ColumnFilter:
 
     def has_criteria(self) -> bool:
         return bool(
-            self.values is not None
-            or self.blank
-            or self.custom_list
-            or self.top10_top is not None
+            self.values is not None or self.blank or self.custom_list or self.top10_top is not None
         )
 
 
@@ -359,23 +337,14 @@ def make_row_tester(
 
         if crit.custom_list:
             cond_results = [
-                test_custom_condition(op, pat, val, text)
-                for op, pat in crit.custom_list
+                test_custom_condition(op, pat, val, text) for op, pat in crit.custom_list
             ]
-            return (
-                all(cond_results)
-                if crit.custom_and
-                else any(cond_results)
-            )
+            return all(cond_results) if crit.custom_and else any(cond_results)
 
         if crit.top10_top is not None:
             if not isinstance(val, (int, float)) or top_cutoff is None:
                 return False
-            return (
-                val >= top_cutoff
-                if crit.top10_top
-                else val <= top_cutoff
-            )
+            return val >= top_cutoff if crit.top10_top else val <= top_cutoff
 
         return True
 
@@ -406,9 +375,7 @@ def apply_auto_filter(model: SheetDataModel, af: AutoFilter) -> None:
                 model.geometry.hidden_rows.add(r)
 
 
-def clear_auto_filter(
-    model: SheetDataModel, af: AutoFilter, col_idx: int | None = None
-) -> None:
+def clear_auto_filter(model: SheetDataModel, af: AutoFilter, col_idx: int | None = None) -> None:
     """Clear filter criteria for a column or the entire AutoFilter."""
     if col_idx is not None:
         if col_idx in af.cols:

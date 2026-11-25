@@ -164,7 +164,6 @@ def normalize_strict_namespaces(xml_str: str | None) -> str | None:
     return xml_str
 
 
-
 def _local_tag(elem: ET.Element | str) -> str:
     """Extract tag name stripped of namespace or Clark notation."""
     tag = elem.tag if ET.iselement(elem) else elem
@@ -782,9 +781,7 @@ class DocxReader:
 
                 pic_bullet_elem = _find_elem(lv, "lvlPicBulletId", W_NAMESPACES)
                 pic_bullet_id = (
-                    _get_attr(pic_bullet_elem, "val")
-                    if pic_bullet_elem is not None
-                    else None
+                    _get_attr(pic_bullet_elem, "val") if pic_bullet_elem is not None else None
                 )
 
                 levels[ilvl] = {
@@ -940,9 +937,7 @@ class DocxReader:
 
         self.doc.main = Story(kind="main", blocks=blocks)
 
-    def _collect_blocks(
-        self, parent: ET.Element, blocks: list[Paragraph | Table]
-    ) -> None:
+    def _collect_blocks(self, parent: ET.Element, blocks: list[Paragraph | Table]) -> None:
         """Recursively collect paragraph and table blocks from a container element."""
         for child in parent:
             tag = _local_tag(child)
@@ -968,9 +963,7 @@ class DocxReader:
                 last_pr = last.p_pr if isinstance(last, Paragraph) else last.tbl_pr
                 first_pr.sdts.insert(0, control)
                 last_pr.sdte.append(control["key"])
-            elif tag in (
-                "sdtContent", "customXml", "ins", "del", "smartTag", "moveTo", "moveFrom"
-            ):
+            elif tag in ("sdtContent", "customXml", "ins", "del", "smartTag", "moveTo", "moveFrom"):
                 self._collect_blocks(child, blocks)
             elif tag == "sectPr":
                 self.doc.sect = self._parse_sect_pr(child)
@@ -1649,8 +1642,11 @@ class DocxReader:
                 space=max(0.0, space),
                 sep=(_get_attr(cols_elem, "sep", "0") or "0").lower()
                 not in ("0", "false", "off", "no"),
-                equal_width=(not children if equal is None else
-                             equal.lower() not in ("0", "false", "off", "no")),
+                equal_width=(
+                    not children
+                    if equal is None
+                    else equal.lower() not in ("0", "false", "off", "no")
+                ),
                 widths=[_twips_to_pt(_get_attr(c, "w")) for c in children],
                 spaces=[max(0.0, _twips_to_pt(_get_attr(c, "space"))) for c in children],
             )

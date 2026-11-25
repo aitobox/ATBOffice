@@ -357,12 +357,36 @@ def _unbound_visible_actions(win: LedgerWindow) -> list[str]:
 def test_menu_ids_reconciled_and_ledger_items_present(win: LedgerWindow) -> None:
     menu = win.menu_bar
     for aid in (
-        "data_filter", "data_validation", "insert_page_break", "insert_symbol", "insert_shape",
-        "format_font", "format_borders", "selectAll", "clearAll", "clearFormats",
-        "clearContents", "clearComments", "defineName", "headerFooter", "condFormat",
-        "autoFormat", "sortDlg", "advancedFilter", "showAllFilter", "textToColumns",
-        "consolidate", "dataTable", "scenarios", "protectSheet", "protectWorkbook",
-        "insertComment", "insertChart", "drawBorder", "draw_ungroup", "spelling",
+        "data_filter",
+        "data_validation",
+        "insert_page_break",
+        "insert_symbol",
+        "insert_shape",
+        "format_font",
+        "format_borders",
+        "selectAll",
+        "clearAll",
+        "clearFormats",
+        "clearContents",
+        "clearComments",
+        "defineName",
+        "headerFooter",
+        "condFormat",
+        "autoFormat",
+        "sortDlg",
+        "advancedFilter",
+        "showAllFilter",
+        "textToColumns",
+        "consolidate",
+        "dataTable",
+        "scenarios",
+        "protectSheet",
+        "protectWorkbook",
+        "insertComment",
+        "insertChart",
+        "drawBorder",
+        "draw_ungroup",
+        "spelling",
     ):
         spec = win.action_registry.get_spec(aid)
         assert spec is not None and spec.handler is not None, aid
@@ -372,9 +396,12 @@ def test_menu_ids_reconciled_and_ledger_items_present(win: LedgerWindow) -> None
     assert menu.menu_map["edit_clear"].menuAction().isVisible()
     # Only menus that Ledger never mounts (Table / Slide Show) still lack handlers.
     leftovers = [
-        a for a in _unbound_visible_actions(win)
-        if not (a.startswith(("table_", "slideshow_", "start_slideshow"))
-                or a in ("drawTable", "mergeCells", "splitCells"))
+        a
+        for a in _unbound_visible_actions(win)
+        if not (
+            a.startswith(("table_", "slideshow_", "start_slideshow"))
+            or a in ("drawTable", "mergeCells", "splitCells")
+        )
     ]
     assert leftovers == []
     assert not win.action_registry.is_enabled("draw_group")
@@ -551,8 +578,9 @@ def test_window_zoom_to_selection(win: LedgerWindow) -> None:
 
 def test_ungroup_splits_group_children(win: LedgerWindow) -> None:
     layer = win.spreadsheet_view.object_layer
-    group = FloatingObject(id=1, kind="rect", anchor_type=AnchorType.ABSOLUTE,
-                           abs_rect=(100, 100, 200, 100))
+    group = FloatingObject(
+        id=1, kind="rect", anchor_type=AnchorType.ABSOLUTE, abs_rect=(100, 100, 200, 100)
+    )
     group.children = [
         FloatingObject(id=2, kind="oval", group_frac=(0.0, 0.0, 0.5, 1.0)),
         FloatingObject(id=3, kind="rect", group_frac=(0.5, 0.0, 0.5, 1.0)),
@@ -609,14 +637,18 @@ def test_spelling_command_uses_engine(win: LedgerWindow) -> None:
             dlg._on_change()
         return QDialog.DialogCode.Accepted
 
-    with patch.object(SpellEngine, "get_instance", return_value=_FakeEngine()), \
-            patch.object(SheetSpellingDialog, "exec", fake_exec):
+    with (
+        patch.object(SpellEngine, "get_instance", return_value=_FakeEngine()),
+        patch.object(SheetSpellingDialog, "exec", fake_exec),
+    ):
         win.action_registry.trigger_action("spelling")
     assert sheet.get_cell_value(0, 0) == "the report"
 
     sheet.set_cell_value(0, 0, "clean report")
-    with patch.object(SpellEngine, "get_instance", return_value=_FakeEngine()), \
-            patch.object(QMessageBox, "information") as info:
+    with (
+        patch.object(SpellEngine, "get_instance", return_value=_FakeEngine()),
+        patch.object(QMessageBox, "information") as info,
+    ):
         win.action_registry.trigger_action("spelling")
     assert info.called
 
@@ -651,8 +683,10 @@ def test_advanced_filter_from_window_error_is_reported(win: LedgerWindow) -> Non
         dlg._on_ok()
         return dlg.result()
 
-    with patch.object(AdvancedFilterDialog, "exec", fake_exec), \
-            patch("atboffice.ui.shell.ledger_window.QMessageBox.warning") as warn:
+    with (
+        patch.object(AdvancedFilterDialog, "exec", fake_exec),
+        patch("atboffice.ui.shell.ledger_window.QMessageBox.warning") as warn,
+    ):
         win.action_registry.trigger_action("advancedFilter")
     assert warn.called
 
@@ -662,8 +696,10 @@ def test_input_dialog_symbol_insert(win: LedgerWindow) -> None:
 
     _select(win, 0, 0, 0, 0)
     win.spreadsheet_view.model.set_cell_value(0, 0, "x")
-    with patch.object(SymbolDialog, "exec", return_value=QDialog.DialogCode.Accepted), \
-            patch.object(SymbolDialog, "get_selected_character", return_value="©"):
+    with (
+        patch.object(SymbolDialog, "exec", return_value=QDialog.DialogCode.Accepted),
+        patch.object(SymbolDialog, "get_selected_character", return_value="©"),
+    ):
         win.action_registry.trigger_action("insert_symbol")
     assert win.spreadsheet_view.model.get_cell_value(0, 0) == "x©"
     assert QInputDialog is not None

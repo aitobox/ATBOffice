@@ -111,7 +111,7 @@ class ChartPainter:
                 legend_items.append((cat, col))
         else:
             for si, s in enumerate(chart.series):
-                s_name = str(s.name) if s.name is not None else f"Series {si+1}"
+                s_name = str(s.name) if s.name is not None else f"Series {si + 1}"
                 legend_items.append((s_name, get_series_color(s, si)))
 
         plot_area = draw_legend(
@@ -223,9 +223,7 @@ class ChartPainter:
             min_v, max_v = sc["min"], sc["max"]
             v_range = max_v - min_v if max_v != min_v else 1.0
             if dep != (0.0, 0.0):
-                xs = [
-                    plot_rect.left() + (t - min_v) / v_range * plot_rect.width() for t in ticks
-                ]
+                xs = [plot_rect.left() + (t - min_v) / v_range * plot_rect.width() for t in ticks]
                 cls._draw_depth_grid(painter, chart, plot_rect, dep, xs, horizontal=True)
 
             for tick in ticks:
@@ -280,8 +278,7 @@ class ChartPainter:
             v_range = max_v - min_v if max_v != min_v else 1.0
             if dep != (0.0, 0.0):
                 ys = [
-                    plot_rect.bottom() - (t - min_v) / v_range * plot_rect.height()
-                    for t in ticks
+                    plot_rect.bottom() - (t - min_v) / v_range * plot_rect.height() for t in ticks
                 ]
                 cls._draw_depth_grid(painter, chart, plot_rect, dep, ys, horizontal=False)
 

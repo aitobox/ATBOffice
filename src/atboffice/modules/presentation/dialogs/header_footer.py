@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -19,15 +18,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.presentation import (
     HeaderFooterSettings,
     Presentation,
 )
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for HeaderFooterDialog."""
-    return QCoreApplication.translate("HeaderFooterDialog", text)
 
 
 class HeaderFooterDialog(QDialog):

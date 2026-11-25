@@ -27,8 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from atboffice.core.action_registry import ActionRegistry, ActionSpec
-from atboffice.core.i18n import clean_asian_mnemonic
-from atboffice.core.i18n import safe_tr as core_safe_tr
+from atboffice.core.i18n import clean_asian_mnemonic, safe_tr
 from atboffice.ui.components.color_picker import ColorPickerButton
 from atboffice.ui.components.toolbar import OfficeToolBar
 from atboffice.ui.components.toolbar_buttons import (
@@ -36,12 +35,6 @@ from atboffice.ui.components.toolbar_buttons import (
     OfficeSplitButton,
 )
 from atboffice.ui.icons import get_office_icon, has_office_icon
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for Lectern toolbars."""
-    return core_safe_tr(text)
-
 
 _LECTERN_DROP_ICONS: Final[dict[str, str]] = {
     "Border Style": "dashStyle",
@@ -303,12 +296,6 @@ class LecternToolBarCluster:
         handler: Callable[[], Any] | None = None,
         icon: QIcon | str | None = None,
     ) -> QAction:
-        existing = self.action_registry.get_action(aid)
-        if existing is not None:
-            if checkable and not existing.isCheckable():
-                existing.setCheckable(True)
-            return existing
-
         resolved_icon = None
         if isinstance(icon, QIcon):
             resolved_icon = icon
@@ -316,6 +303,15 @@ class LecternToolBarCluster:
             resolved_icon = get_office_icon(icon)
         elif has_office_icon(aid):
             resolved_icon = get_office_icon(aid)
+
+        existing = self.action_registry.get_action(aid)
+        if existing is not None:
+            # The menus may have registered the action first, without an icon.
+            if resolved_icon is not None and existing.icon().isNull():
+                existing.setIcon(resolved_icon)
+            if checkable and not existing.isCheckable():
+                existing.setCheckable(True)
+            return existing
 
         spec = ActionSpec(
             id=aid,
@@ -473,9 +469,9 @@ class LecternToolBarCluster:
             or "更改颜色" in label
             or "样式" in label
             or "艺术字" in label
-        )
+        ) and plain_lbl not in ("箭头样式", "阴影样式")
         btn_text = safe_tr(label) if not resolved_icon or keep_text else ""
-        btn = tb.add_drop_button(btn_text, resolved_icon, menu, tooltip=label)
+        btn = tb.add_drop_button(btn_text, resolved_icon, menu, tooltip=safe_tr(label))
         if resolved_icon and not btn_text:
             btn.setToolTip(safe_tr(label))
         return btn
@@ -692,8 +688,9 @@ class LecternToolBarCluster:
 
         self._add(tb, "slideDesign", "幻灯片设计(&D)", "打开幻灯片设计任务窗格")
         self._add(tb, "newSlide", "新幻灯片(&M)", "插入新幻灯片 (Ctrl+M)", "Ctrl+M")
-        # Register aliases for standard action IDs
-        self._reg_act("new_slide", "新幻灯片(&M)", "插入新幻灯片 (Ctrl+M)", "Ctrl+M")
+        # Standard action ID for the same command (one QAction, so Ctrl+M is unambiguous)
+        if self.action_registry.get_action("new_slide") is None:
+            self.action_registry.register_alias("new_slide", "newSlide")
         self._reg_act("start_slideshow", "放映幻灯片(&S)", "从首页开始放映 (F5)", "F5")
         self._reg_act(
             "start_slideshow_current",
@@ -746,12 +743,14 @@ class LecternToolBarCluster:
     def _build_outlining_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("大纲"), self.window)
 
-        self._add(
-            tb, "outline_promote", "提升(&P)", "提升大纲级别 (Alt+Shift+Left)", "Alt+Shift+Left"
-        )
-        self._add(
-            tb, "outline_demote", "降低(&D)", "降低大纲级别 (Alt+Shift+Right)", "Alt+Shift+Right"
-        )
+        # Same commands (and QActions) as Promote / Demote on the Formatting toolbar.
+        promote_tip = "降低缩进量 / 提升级别 (Alt+Shift+Left)"
+        demote_tip = "增加缩进量 / 降低级别 (Alt+Shift+Right)"
+        self._add(tb, "promote", "提升级别(&P)", promote_tip, "Alt+Shift+Left")
+        self._add(tb, "demote", "降低级别(&D)", demote_tip, "Alt+Shift+Right")
+        for alias, canonical in (("outline_promote", "promote"), ("outline_demote", "demote")):
+            if self.action_registry.get_action(alias) is None:
+                self.action_registry.register_alias(alias, canonical)
         self._add(tb, "moveParaUp", "上移(&U)", "上移选定段落 (Alt+Shift+Up)", "Alt+Shift+Up")
         self._add(tb, "moveParaDown", "下移(&O)", "下移选定段落 (Alt+Shift+Down)", "Alt+Shift+Down")
 

@@ -25,6 +25,7 @@ def get_app_version() -> str:
 
     try:
         from atboffice import __version__
+
         return __version__
     except ImportError:
         # Fallback to reading pyproject.toml or env
@@ -32,7 +33,7 @@ def get_app_version() -> str:
         if pyproject.exists():
             for line in pyproject.read_text(encoding="utf-8").splitlines():
                 if line.strip().startswith("version ="):
-                    return line.split("=")[1].strip().strip('"\'')
+                    return line.split("=")[1].strip().strip("\"'")
         return os.environ.get("RELEASE_VERSION", "0.1.0")
     finally:
         if sys_path_added and str(src_dir) in sys.path:

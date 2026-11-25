@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -20,12 +20,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.core.search import SearchController, SearchOptions
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for Find & Replace dialog."""
-    return QCoreApplication.translate("FindReplaceDialog", text)
 
 
 class FindReplaceDialog(QDialog):
@@ -189,12 +185,8 @@ class FindReplaceDialog(QDialog):
         # Synchronize checkbox states between tabs
         self.case_checkbox.toggled.connect(self.repl_case_checkbox.setChecked)
         self.repl_case_checkbox.toggled.connect(self.case_checkbox.setChecked)
-        self.whole_word_checkbox.toggled.connect(
-            self.repl_whole_word_checkbox.setChecked
-        )
-        self.repl_whole_word_checkbox.toggled.connect(
-            self.whole_word_checkbox.setChecked
-        )
+        self.whole_word_checkbox.toggled.connect(self.repl_whole_word_checkbox.setChecked)
+        self.repl_whole_word_checkbox.toggled.connect(self.whole_word_checkbox.setChecked)
         self.regex_checkbox.toggled.connect(self.repl_regex_checkbox.setChecked)
         self.repl_regex_checkbox.toggled.connect(self.regex_checkbox.setChecked)
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -11,6 +10,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.dialogs.tab_alignment import AlignmentTab
 from atboffice.modules.spreadsheet.dialogs.tab_border import BorderTab
 from atboffice.modules.spreadsheet.dialogs.tab_font import FontTab
@@ -23,10 +23,6 @@ from atboffice.modules.spreadsheet.models.sheet_model import (
     FormatDelta,
     SheetDataModel,
 )
-
-
-def safe_tr(text: str) -> str:
-    return QCoreApplication.translate("FormatCellsDialog", text)
 
 
 class FormatCellsDialog(QDialog):
@@ -126,8 +122,7 @@ class FormatCellsDialog(QDialog):
 
         # OK / Cancel Buttons
         self.button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok
-            | QDialogButtonBox.StandardButton.Cancel
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         self.button_box.accepted.connect(self._on_accept)
         self.button_box.rejected.connect(self.reject)

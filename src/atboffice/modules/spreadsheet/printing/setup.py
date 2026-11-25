@@ -21,8 +21,14 @@ Range = tuple[int, int, int, int]
 
 def _default_margins() -> dict[str, float]:
     # Excel 2003 defaults, in points: 1" top/bottom, 0.75" left/right, 0.5" header/footer
-    return {"top": 72.0, "bottom": 72.0, "left": 54.0, "right": 54.0,
-            "header": 36.0, "footer": 36.0}
+    return {
+        "top": 72.0,
+        "bottom": 72.0,
+        "left": 54.0,
+        "right": 54.0,
+        "header": 36.0,
+        "footer": 36.0,
+    }
 
 
 @dataclass

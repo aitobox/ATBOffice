@@ -12,7 +12,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QMimeData, Qt, Signal
+from PySide6.QtCore import QMimeData, Qt, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QFrame,
@@ -27,12 +27,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.ui.icons import get_office_icon
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for ClipboardTaskPane."""
-    return QCoreApplication.translate("ClipboardTaskPane", text)
 
 
 @dataclass

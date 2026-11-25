@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import re
 import sys
+from dataclasses import dataclass, fields
 from typing import Final
 
-from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QFont, QPalette
+from PySide6.QtWidgets import QApplication, QWidget
 
 # --- Luna Blue Color Tokens ---
 LUNA_BLUE_DOCK_TOP: Final = "#9EBEF5"
@@ -135,112 +137,27 @@ def format_mnemonic(text: str, is_macos: bool | None = None) -> str:
 
 def get_luna_stylesheet(theme: str = "blue") -> str:
     """Generate complete Qt Style Sheet (QSS) for Office 2003 Luna and Classic themes."""
-    t = theme.lower().strip()
-    if t == "silver":
-        tb_a = LUNA_SILVER_TB_A
-        tb_b = LUNA_SILVER_TB_B
-        tb_c = LUNA_SILVER_TB_C
-        tb_border = LUNA_SILVER_TB_BORDER
-        tb_edge = LUNA_SILVER_TB_EDGE
-        dock_top = LUNA_SILVER_DOCK_TOP
-        dock_bottom = LUNA_SILVER_DOCK_BOTTOM
-        hot_a = LUNA_SILVER_HOT_A
-        hot_b = LUNA_SILVER_HOT_B
-        hot_border = LUNA_SILVER_HOT_BORDER
-        press_a = LUNA_SILVER_PRESS_A
-        press_b = LUNA_SILVER_PRESS_B
-        press_border = LUNA_SILVER_PRESS_BORDER
-        chk_a = LUNA_SILVER_CHK_A
-        chk_b = LUNA_SILVER_CHK_B
-        menu_border = LUNA_SILVER_MENU_BORDER
-        menu_hot = LUNA_SILVER_MENU_HOT
-        menu_face = LUNA_SILVER_MENU_FACE
-        status_bg = LUNA_SILVER_STATUS_BG
-        status_sep = LUNA_SILVER_STATUS_SEP
-    elif t == "olive":
-        tb_a = LUNA_OLIVE_TB_A
-        tb_b = LUNA_OLIVE_TB_B
-        tb_c = LUNA_OLIVE_TB_C
-        tb_border = LUNA_OLIVE_TB_BORDER
-        tb_edge = LUNA_OLIVE_TB_EDGE
-        dock_top = LUNA_OLIVE_DOCK_TOP
-        dock_bottom = LUNA_OLIVE_DOCK_BOTTOM
-        hot_a = LUNA_OLIVE_HOT_A
-        hot_b = LUNA_OLIVE_HOT_B
-        hot_border = LUNA_OLIVE_HOT_BORDER
-        press_a = LUNA_OLIVE_PRESS_A
-        press_b = LUNA_OLIVE_PRESS_B
-        press_border = LUNA_OLIVE_PRESS_BORDER
-        chk_a = LUNA_OLIVE_CHK_A
-        chk_b = LUNA_OLIVE_CHK_B
-        menu_border = LUNA_OLIVE_MENU_BORDER
-        menu_hot = LUNA_OLIVE_MENU_HOT
-        menu_face = LUNA_OLIVE_MENU_FACE
-        status_bg = LUNA_OLIVE_STATUS_BG
-        status_sep = LUNA_OLIVE_STATUS_SEP
-    elif t == "classic":
-        tb_a = CLASSIC_TB_A
-        tb_b = CLASSIC_TB_B
-        tb_c = CLASSIC_TB_C
-        tb_border = CLASSIC_TB_BORDER
-        tb_edge = CLASSIC_TB_EDGE
-        dock_top = CLASSIC_DOCK_TOP
-        dock_bottom = CLASSIC_DOCK_BOTTOM
-        hot_a = CLASSIC_HOT_A
-        hot_b = CLASSIC_HOT_B
-        hot_border = CLASSIC_HOT_BORDER
-        press_a = CLASSIC_PRESS_A
-        press_b = CLASSIC_PRESS_B
-        press_border = CLASSIC_PRESS_BORDER
-        chk_a = CLASSIC_CHK_A
-        chk_b = CLASSIC_CHK_B
-        menu_border = CLASSIC_MENU_BORDER
-        menu_hot = CLASSIC_MENU_HOT
-        menu_face = CLASSIC_MENU_FACE
-        status_bg = CLASSIC_STATUS_BG
-        status_sep = CLASSIC_STATUS_SEP
-    elif t in ("paper", "paper2016"):
-        tb_a = PAPER_TB_A
-        tb_b = PAPER_TB_B
-        tb_c = PAPER_TB_C
-        tb_border = PAPER_TB_BORDER
-        tb_edge = PAPER_TB_EDGE
-        dock_top = PAPER_DOCK_TOP
-        dock_bottom = PAPER_DOCK_BOTTOM
-        hot_a = PAPER_HOT_A
-        hot_b = PAPER_HOT_B
-        hot_border = PAPER_HOT_BORDER
-        press_a = PAPER_PRESS_A
-        press_b = PAPER_PRESS_B
-        press_border = PAPER_PRESS_BORDER
-        chk_a = PAPER_CHK_A
-        chk_b = PAPER_CHK_B
-        menu_border = PAPER_MENU_BORDER
-        menu_hot = PAPER_MENU_HOT
-        menu_face = PAPER_MENU_FACE
-        status_bg = PAPER_STATUS_BG
-        status_sep = PAPER_STATUS_SEP
-    else:  # default "blue"
-        tb_a = LUNA_BLUE_TB_A
-        tb_b = LUNA_BLUE_TB_B
-        tb_c = LUNA_BLUE_TB_C
-        tb_border = LUNA_BLUE_TB_BORDER
-        tb_edge = LUNA_BLUE_TB_EDGE
-        dock_top = LUNA_BLUE_DOCK_TOP
-        dock_bottom = LUNA_BLUE_DOCK_BOTTOM
-        hot_a = LUNA_BLUE_HOT_A
-        hot_b = LUNA_BLUE_HOT_B
-        hot_border = LUNA_BLUE_HOT_BORDER
-        press_a = LUNA_BLUE_PRESS_A
-        press_b = LUNA_BLUE_PRESS_B
-        press_border = LUNA_BLUE_PRESS_BORDER
-        chk_a = LUNA_BLUE_CHK_A
-        chk_b = LUNA_BLUE_CHK_B
-        menu_border = LUNA_BLUE_MENU_BORDER
-        menu_hot = LUNA_BLUE_MENU_HOT
-        menu_face = LUNA_BLUE_MENU_FACE
-        status_bg = LUNA_BLUE_STATUS_BG
-        status_sep = LUNA_BLUE_STATUS_SEP
+    tok = theme_tokens(theme)
+    tb_a = tok.tb_a
+    tb_b = tok.tb_b
+    tb_c = tok.tb_c
+    tb_border = tok.tb_border
+    tb_edge = tok.tb_edge
+    dock_top = tok.dock_top
+    dock_bottom = tok.dock_bottom
+    hot_a = tok.hot_a
+    hot_b = tok.hot_b
+    hot_border = tok.hot_border
+    press_a = tok.press_a
+    press_b = tok.press_b
+    press_border = tok.press_border
+    chk_a = tok.chk_a
+    chk_b = tok.chk_b
+    menu_border = tok.menu_border
+    menu_hot = tok.menu_hot
+    menu_face = tok.menu_face
+    status_bg = tok.status_bg
+    status_sep = tok.status_sep
 
     return f"""
     /* Main Window and Docking area */
@@ -366,26 +283,8 @@ def get_luna_stylesheet(theme: str = "blue") -> str:
 
 def apply_luna_theme(widget: QWidget, theme: str = "blue") -> None:
     """Apply the Luna Blue, Silver, Olive Green, or Windows Classic theme to widget."""
-    t = theme.lower().strip()
-    qss = get_luna_stylesheet(t)
-    widget.setStyleSheet(qss)
-
-    palette = widget.palette()
-    if t == "silver":
-        bg_hex = LUNA_SILVER_DOCK_TOP
-    elif t == "olive":
-        bg_hex = LUNA_OLIVE_DOCK_TOP
-    elif t == "classic":
-        bg_hex = CLASSIC_DOCK_TOP
-    elif t in ("paper", "paper2016"):
-        bg_hex = PAPER_DOCK_TOP
-    else:
-        bg_hex = LUNA_BLUE_DOCK_TOP
-
-    bg_color = QColor(bg_hex)
-    palette.setColor(QPalette.ColorRole.Window, bg_color)
-    palette.setColor(QPalette.ColorRole.WindowText, QColor("#000000"))
-    widget.setPalette(palette)
+    widget.setStyleSheet(get_luna_stylesheet(theme))
+    widget.setPalette(luna_palette(theme))
 
 
 # --- Paper Modern & Paper 2016 Color Tokens ---
@@ -413,6 +312,157 @@ PAPER_STATUS_BG: Final = "#E8E4DC"
 PAPER_STATUS_SEP: Final = "#B8B0A2"
 PAPER_STATUS_SEP_HI: Final = "#FFFFFF"
 
+THEME_KEYS: Final = ("blue", "silver", "olive", "classic", "paper", "paper2016")
+
+_TOKEN_PREFIX: Final = {
+    "blue": "LUNA_BLUE",
+    "silver": "LUNA_SILVER",
+    "olive": "LUNA_OLIVE",
+    "classic": "CLASSIC",
+    "paper": "PAPER",
+    "paper2016": "PAPER",
+}
+
+
+@dataclass(frozen=True)
+class ThemeTokens:
+    """The colors of one theme, shared by the style sheet, the palette and painters."""
+
+    key: str
+    dock_top: str
+    dock_bottom: str
+    tb_a: str
+    tb_b: str
+    tb_c: str
+    tb_border: str
+    tb_edge: str
+    grip: str
+    grip_hi: str
+    hot_a: str
+    hot_b: str
+    hot_border: str
+    press_a: str
+    press_b: str
+    press_border: str
+    chk_a: str
+    chk_b: str
+    menu_border: str
+    menu_hot: str
+    menu_face: str
+    status_bg: str
+    status_sep: str
+    status_sep_hi: str
+    #: Selection color of lists, text and menus.
+    highlight: str = "#316AC5"
+    #: Background of panes and dialogs (the classic 3D face color).
+    face: str = "#ECE9D8"
+
+
+def normalize_theme(theme: str | None) -> str:
+    """A known theme key ("blue" when ``theme`` is unknown)."""
+    key = (theme or "").lower().strip()
+    return key if key in THEME_KEYS else "blue"
+
+
+def theme_tokens(theme: str | None = "blue") -> ThemeTokens:
+    """The color tokens of ``theme``."""
+    key = normalize_theme(theme)
+    prefix = _TOKEN_PREFIX[key]
+    values = {
+        f.name: globals()[f"{prefix}_{f.name.upper()}"]
+        for f in fields(ThemeTokens)
+        if f"{prefix}_{f.name.upper()}" in globals()
+    }
+    extra: dict[str, str] = {}
+    if key == "silver":
+        extra = {"highlight": "#7C7C94", "face": "#EEEEF3"}
+    elif key == "olive":
+        extra = {"highlight": "#6F8A4C", "face": "#EEF1E6"}
+    elif key == "classic":
+        extra = {"highlight": "#0A246A", "face": "#D4D0C8"}
+    elif key in ("paper", "paper2016"):
+        extra = {"highlight": "#008080", "face": "#F2EFE9"}
+    return ThemeTokens(key=key, **values, **extra)
+
+
+def luna_palette(theme: str | None = "blue") -> QPalette:
+    """A complete light palette for ``theme``.
+
+    Every role is set, so the system's dark mode can never leak dark text
+    fields or white-on-white labels into the Luna look.
+    """
+    tok = theme_tokens(theme)
+    face = QColor(tok.face)
+    black = QColor("#000000")
+    white = QColor("#FFFFFF")
+    gray = QColor("#808080")
+    pal = QPalette()
+    roles = QPalette.ColorRole
+    for group in (QPalette.ColorGroup.Active, QPalette.ColorGroup.Inactive):
+        pal.setColor(group, roles.Window, face)
+        pal.setColor(group, roles.WindowText, black)
+        pal.setColor(group, roles.Base, white)
+        pal.setColor(group, roles.AlternateBase, QColor("#F5F7FB"))
+        pal.setColor(group, roles.Text, black)
+        pal.setColor(group, roles.PlaceholderText, gray)
+        pal.setColor(group, roles.Button, face)
+        pal.setColor(group, roles.ButtonText, black)
+        pal.setColor(group, roles.BrightText, QColor("#FF0000"))
+        pal.setColor(group, roles.ToolTipBase, QColor("#FFFFE1"))
+        pal.setColor(group, roles.ToolTipText, black)
+        pal.setColor(group, roles.Highlight, QColor(tok.highlight))
+        pal.setColor(group, roles.HighlightedText, white)
+        pal.setColor(group, roles.Link, QColor("#0000FF"))
+        pal.setColor(group, roles.LinkVisited, QColor("#800080"))
+        pal.setColor(group, roles.Light, white)
+        pal.setColor(group, roles.Midlight, face.lighter(110))
+        pal.setColor(group, roles.Mid, QColor("#A0A0A0"))
+        pal.setColor(group, roles.Dark, gray)
+        pal.setColor(group, roles.Shadow, QColor("#404040"))
+    disabled = QPalette.ColorGroup.Disabled
+    for role in (roles.WindowText, roles.Text, roles.ButtonText, roles.PlaceholderText):
+        pal.setColor(disabled, role, QColor("#ACA899"))
+    for role in (roles.Window, roles.Button):
+        pal.setColor(disabled, role, face)
+    pal.setColor(disabled, roles.Base, face)
+    pal.setColor(disabled, roles.Highlight, QColor("#C0C0C0"))
+    pal.setColor(disabled, roles.HighlightedText, white)
+    return pal
+
+
+#: The interface font, in order of preference (Latin first, then CJK).
+UI_FONT_FAMILIES: Final = (
+    "Tahoma",
+    "Segoe UI",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    "Noto Sans",
+    "DejaVu Sans",
+)
+UI_FONT_POINT_SIZE: Final = 9
+
+
+def ui_font(point_size: float = UI_FONT_POINT_SIZE, *, bold: bool = False) -> QFont:
+    """The one interface font of the suite, at ``point_size``."""
+    font = QFont()
+    font.setFamilies(list(UI_FONT_FAMILIES))
+    font.setPointSizeF(point_size)
+    font.setBold(bold)
+    return font
+
+
+def apply_application_look(app: QApplication, theme: str | None = "blue") -> None:
+    """Fusion style, the light Luna palette and the interface font for ``app``."""
+    if app.style().name().lower() != "fusion":
+        app.setStyle("Fusion")
+    hints = app.styleHints()
+    if hasattr(hints, "setColorScheme"):
+        hints.setColorScheme(Qt.ColorScheme.Light)
+    app.setPalette(luna_palette(theme))
+    app.setFont(ui_font())
+
+
 THEMES: list[tuple[str, str, str]] = [
     ("blue", "Luna 2003 蓝色", "经典 Windows XP 湛蓝风格，搭配淡蓝渐变工具栏与深蓝命令菜单"),
     ("silver", "Luna 2003 银色", "沉稳金属拉丝质感，精致灰白高光与银灰立体底衬"),
@@ -427,15 +477,13 @@ def apply_theme_globally(theme: str) -> None:
 
     from atboffice.core.settings import get_app_settings
 
-    theme_key = theme.lower().strip()
-    if theme_key not in ("blue", "silver", "olive", "classic", "paper", "paper2016"):
-        theme_key = "blue"
+    theme_key = normalize_theme(theme)
 
-    import os
     app = QApplication.instance()
     qss = get_luna_stylesheet(theme_key)
-    if app is not None and app.styleSheet() != qss:
-        if not os.environ.get("PYTEST_CURRENT_TEST"):
+    if app is not None:
+        app.setPalette(luna_palette(theme_key))
+        if app.styleSheet() != qss:
             app.setStyleSheet(qss)
 
     try:
@@ -445,6 +493,7 @@ def apply_theme_globally(theme: str) -> None:
 
     try:
         from atboffice.core.window_manager import WindowManager
+
         wm = WindowManager.get_instance()
         all_wins = set(wm.active_windows)
         if wm.start_center is not None:
@@ -464,4 +513,3 @@ def apply_theme_globally(theme: str) -> None:
                 pass
     except Exception:
         pass
-

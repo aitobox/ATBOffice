@@ -15,16 +15,17 @@ A lightweight, typed dataclass representing a registered document template:
 from dataclasses import dataclass
 from typing import Callable, Any
 
+
 @dataclass
 class TemplateInfo:
-    id: str                                    # Unique ID: e.g. "letter", "loan", "status"
-    name: str                                  # Display name: e.g. "Contemporary Letter"
-    app: str                                   # Target app: "quire", "ledger", "lectern"
-    category: str                              # Category: "Letters & Faxes", "Reports", etc.
-    icon: str = "📄"                           # Emoji or icon identifier
-    builder: Callable[[Any], Any] | None = None# Generator callback taking window or model
-    description: str = ""                      # Human-readable summary
-    sample_path: str | None = None             # Optional preview image / asset path
+    id: str  # Unique ID: e.g. "letter", "loan", "status"
+    name: str  # Display name: e.g. "Contemporary Letter"
+    app: str  # Target app: "quire", "ledger", "lectern"
+    category: str  # Category: "Letters & Faxes", "Reports", etc.
+    icon: str = "📄"  # Emoji or icon identifier
+    builder: Callable[[Any], Any] | None = None  # Generator callback taking window or model
+    description: str = ""  # Human-readable summary
+    sample_path: str | None = None  # Optional preview image / asset path
 ```
 
 ### 2.2 `TemplateRegistry` (`src/atboffice/core/templates.py`)
@@ -45,9 +46,15 @@ Central thread-safe singleton managing template definitions:
 ### 2.3 `WindowManager` Integration (`src/atboffice/core/window_manager.py`)
 Enhance the three window factory methods with an optional `template_id` parameter:
 ```python
-def open_quire(self, path: str | Path | None = None, template_id: str | None = None) -> BaseOfficeWindow: ...
-def open_ledger(self, path: str | Path | None = None, template_id: str | None = None) -> BaseOfficeWindow: ...
-def open_lectern(self, path: str | Path | None = None, template_id: str | None = None) -> BaseOfficeWindow: ...
+def open_quire(
+    self, path: str | Path | None = None, template_id: str | None = None
+) -> BaseOfficeWindow: ...
+def open_ledger(
+    self, path: str | Path | None = None, template_id: str | None = None
+) -> BaseOfficeWindow: ...
+def open_lectern(
+    self, path: str | Path | None = None, template_id: str | None = None
+) -> BaseOfficeWindow: ...
 ```
 When `template_id` is supplied:
 1. Window is instantiated (with `file_path=None`).

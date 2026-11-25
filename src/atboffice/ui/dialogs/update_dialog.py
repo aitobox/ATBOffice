@@ -119,9 +119,7 @@ class UpdateDialog(QDialog):
             "有更高版本的 ATBOffice 可用。当前版本为 v{cur_ver}，最新版本为 v{new_ver}。"
         ).format(cur_ver=self.current_version, new_ver=new_ver)
         self.label_version.setText(msg)
-        self.label_prompt.setText(
-            safe_tr("现在下载更新吗？您的文档和最近打开的文件将保持原样。")
-        )
+        self.label_prompt.setText(safe_tr("现在下载更新吗？您的文档和最近打开的文件将保持原样。"))
         self.label_notes_title.setText(safe_tr("更新说明与日志："))
         self.btn_later.setText(safe_tr("稍后提醒(&L)"))
         self.btn_download.setText(safe_tr("前往下载(&D)"))

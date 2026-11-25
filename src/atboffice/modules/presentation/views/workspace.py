@@ -28,7 +28,6 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -48,6 +47,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.comment import Comment
 from atboffice.modules.presentation.models.designs import (
     DESIGNS,
@@ -70,17 +70,7 @@ from atboffice.modules.presentation.views.slide_canvas import (
     SlideCanvasView,
     SlideScene,
 )
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text with fallbacks."""
-    app = QApplication.instance()
-    if app:
-        translated = app.translate("LecternWorkspace", text)
-        if translated and translated != text:
-            return translated
-    # Default to Chinese native text for ATBOffice
-    return text
+from atboffice.ui.styles.luna_2003 import ui_font
 
 
 def render_slide_thumbnail(
@@ -177,11 +167,7 @@ def render_slide_thumbnail(
                                     cell_tx = TextBody.from_dict(cell_tx)
                                 except Exception:
                                     cell_tx = None
-                            if (
-                                cell_tx
-                                and hasattr(cell_tx, "is_empty")
-                                and not cell_tx.is_empty()
-                            ):
+                            if cell_tx and hasattr(cell_tx, "is_empty") and not cell_tx.is_empty():
                                 c_col = QColor(design.colors.dk1 if design else "#000000")
                                 for p in cell_tx.paragraphs:
                                     for r_item in p.runs:
@@ -416,7 +402,7 @@ class MasterViewCloseBar(QFrame):
         layout.setSpacing(12)
 
         self.title_label = QLabel(safe_tr("幻灯片母版视图 — 在此定制全局母版排版与样式"), self)
-        self.title_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        self.title_label.setFont(ui_font(10, bold=True))
         self.title_label.setStyleSheet("color: #7F6000;")
         layout.addWidget(self.title_label)
 
@@ -424,7 +410,7 @@ class MasterViewCloseBar(QFrame):
 
         self.btn_close = QToolButton(self)
         self.btn_close.setText(safe_tr("关闭母版视图"))
-        self.btn_close.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self.btn_close.setFont(ui_font(9, bold=True))
         self.btn_close.setStyleSheet(
             """
             QToolButton {
@@ -489,6 +475,21 @@ class SlideThumbnailList(QListWidget):
             """
         )
 
+    #: Room taken around each thumbnail by the list and item padding, borders,
+    #: spacing and a possible vertical scroll bar.
+    _THUMB_CHROME = 40
+
+    def resizeEvent(self, event: Any) -> None:
+        super().resizeEvent(event)
+        self._fit_icon_size()
+
+    def _fit_icon_size(self) -> None:
+        """Size thumbnails to the pane, so they are never cut off on the right."""
+        width = max(64, min(240, self.width() - self._THUMB_CHROME))
+        size = QSize(width, round(width * 9 / 16))
+        if size != self.iconSize():
+            self.setIconSize(size)
+
     def dropEvent(self, event: Any) -> None:
         from_idx = self.currentRow()
         super().dropEvent(event)
@@ -549,7 +550,7 @@ class OutlineEditorWidget(QWidget):
         layout.setSpacing(0)
 
         self.editor = QTextEdit(self)
-        self.editor.setFont(QFont("Arial", 11))
+        self.editor.setFont(ui_font(11))
         self.editor.setPlaceholderText(safe_tr("在此处输入演示文稿大纲..."))
         self.editor.textChanged.connect(self._on_text_changed)
         self.editor.cursorPositionChanged.connect(self._on_cursor_changed)
@@ -791,7 +792,7 @@ class SlideLayoutPane(QWidget):
 
         for grp_key, grp_layouts in groups.items():
             lbl = QLabel(group_names.get(grp_key, grp_key), self)
-            lbl.setFont(QFont("Arial", 9, QFont.Bold))
+            lbl.setFont(ui_font(9, bold=True))
             lbl.setStyleSheet("color: #333333; margin-top: 4px;")
             layout.addWidget(lbl)
 
@@ -891,7 +892,7 @@ class SlideDesignPane(QWidget):
         layout.setSpacing(8)
 
         lbl = QLabel(safe_tr("可供使用的设计模板:"), self)
-        lbl.setFont(QFont("Arial", 9, QFont.Bold))
+        lbl.setFont(ui_font(9, bold=True))
         lbl.setStyleSheet("color: #333333;")
         layout.addWidget(lbl)
 
@@ -1078,10 +1079,7 @@ class DegradedLoadBanner(QFrame):
         self.setObjectName("degradedLoadBanner")
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setStyleSheet(
-            "#degradedLoadBanner {"
-            "  background-color: #FFF4CE;"
-            "  border-bottom: 1px solid #E2B857;"
-            "}"
+            "#degradedLoadBanner {  background-color: #FFF4CE;  border-bottom: 1px solid #E2B857;}"
         )
         layout = QHBoxLayout(self)
         layout.setContentsMargins(12, 6, 12, 6)
@@ -1121,10 +1119,7 @@ class DegradedLoadBanner(QFrame):
 
     def _on_details_clicked(self) -> None:
         max_items = 50
-        lines = [
-            f"[{w.scope}] {w.location}: {w.message}"
-            for w in self._warnings[:max_items]
-        ]
+        lines = [f"[{w.scope}] {w.location}: {w.message}" for w in self._warnings[:max_items]]
         if len(self._warnings) > max_items:
             more_tpl = safe_tr("……另有 {rest} 条未展开显示")
             lines.append(more_tpl.format(rest=len(self._warnings) - max_items))
@@ -1146,6 +1141,9 @@ class LecternWorkspace(QWidget):
     """Complete three-pane workspace implementation for Lectern."""
 
     slide_changed = Signal(int)
+    #: The presentation was edited in the workspace; the argument names the kind
+    #: of edit ("canvas", "notes", "outline", "move_slide").
+    content_edited = Signal(str)
 
     def __init__(
         self,
@@ -1228,6 +1226,7 @@ class LecternWorkspace(QWidget):
             parent=self,
         )
         self.canvas_view = SlideCanvasView(scene=self.scene, parent=self.center_splitter)
+        self.scene.contentEdited.connect(lambda: self.content_edited.emit("canvas"))
         self.center_splitter.addWidget(self.canvas_view)
 
         self.notes_pane = SpeakerNotesPane(self.center_splitter)
@@ -1323,6 +1322,11 @@ class LecternWorkspace(QWidget):
         self._shortcut_f5.activated.connect(lambda: self.start_slideshow(from_current=False))
         self._shortcut_shift_f5 = QShortcut(QKeySequence("Shift+F5"), self)
         self._shortcut_shift_f5.activated.connect(lambda: self.start_slideshow(from_current=True))
+
+    def set_own_shortcuts_enabled(self, enabled: bool) -> None:
+        """Turn off F5 / Shift+F5 when a window's actions already provide them."""
+        self._shortcut_f5.setEnabled(enabled)
+        self._shortcut_shift_f5.setEnabled(enabled)
 
     def load_presentation(self, presentation: Presentation) -> None:
         """Load presentation document and update all panes."""
@@ -1447,6 +1451,7 @@ class LecternWorkspace(QWidget):
         self._refresh_thumbnails()
         self.outline_editor.reload(self.presentation)
         self.set_current_slide_index(to_idx)
+        self.content_edited.emit("move_slide")
 
     def apply_layout(self, layout_key: str) -> None:
         """Apply layout to the currently active slide."""
@@ -1647,6 +1652,7 @@ class LecternWorkspace(QWidget):
             self.presentation.slides[index].notes = text
             if index == self.current_slide_index:
                 self.notes_pane.set_plain_text(text)
+            self.content_edited.emit("notes")
 
     def _on_notes_slide_navigated(self, index: int) -> None:
         if 0 <= index < len(self.presentation.slides):
@@ -1662,6 +1668,7 @@ class LecternWorkspace(QWidget):
         self._refresh_thumbnails()
         self.outline_editor.reload(self.presentation)
         self._refresh_active_slide()
+        self.content_edited.emit("move_slide")
 
     def enter_master_view(self, master_kind: str = "slide") -> None:
         """Enter master editing view."""
@@ -1754,10 +1761,12 @@ class LecternWorkspace(QWidget):
         if self.presentation.slides:
             self.scene.load_slide(self.current_slide)
             self._refresh_current_thumbnail()
+        self.content_edited.emit("outline")
 
     def _on_notes_changed(self, text: str) -> None:
-        if self.presentation.slides:
+        if self.presentation.slides and self.current_slide.notes != text:
             self.current_slide.notes = text
+            self.content_edited.emit("notes")
 
     def _on_canvas_selection_changed(self) -> None:
         items = self.scene.selectedItems()

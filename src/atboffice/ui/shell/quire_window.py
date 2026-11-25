@@ -11,7 +11,7 @@ from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QComboBox, QDialog, QMessageBox, QWidget
 
 from atboffice.core.action_registry import ActionRegistry
-from atboffice.core.i18n import safe_tr as core_safe_tr
+from atboffice.core.i18n import safe_tr
 from atboffice.core.search import SearchController, WriterSearchAdapter
 from atboffice.modules.writer.dialogs import (
     AutoCorrectDialog,
@@ -55,6 +55,7 @@ from atboffice.modules.writer.views import (
     doc_actions,
 )
 from atboffice.ui.components.color_picker import ColorPickerButton
+from atboffice.ui.components.office_status_bar import OfficeStatusBar
 from atboffice.ui.components.toolbar import OfficeToolBar
 from atboffice.ui.dialogs.find_replace_dialog import FindReplaceDialog
 from atboffice.ui.shell.base_window import BaseOfficeWindow, UnsupportedSaveFormatError
@@ -63,11 +64,6 @@ from atboffice.ui.shell.quire_toolbars import (
     build_quire_toolbars,
     retranslate_quire_toolbars,
 )
-
-
-def safe_tr(text: str) -> str:
-    """Translate UI text safely for QuireWindow."""
-    return core_safe_tr(text)
 
 
 def _document_plain_text(doc: Any) -> str:
@@ -198,7 +194,57 @@ class QuireWindow(BaseOfficeWindow):
         self.set_modified(False)
         self._sync_toolbar_states()
         self.attach_undo_history()
+        self.bind_undo_service()
+        self._setup_status_bar()
         self.menu_bar.retranslate_ui()
+        # Menus and toolbars offer only the commands this window implements.
+        self.action_registry.hide_unhandled_actions()
+
+    # -- status bar ------------------------------------------------------------
+
+    def _setup_status_bar(self) -> None:
+        """Word 2003 status bar: page, section, position and column of the caret."""
+        sb = OfficeStatusBar(self)
+        self.setStatusBar(sb)
+        self.status_bar = sb
+        sb.add_field("page", min_width=60)
+        sb.add_field("section", min_width=50)
+        sb.add_field("page_of", min_width=60)
+        sb.add_field("at", min_width=80)
+        sb.add_field("col", min_width=60)
+        # Message area after the fields, as in Word.
+        sb.removeWidget(sb.lbl_message)
+        sb.addWidget(sb.lbl_message, 1)
+        sb.lbl_message.show()
+        sb.add_field("trk", "TRK", permanent=True)
+        self._status_timer = QTimer(self)
+        self._status_timer.setSingleShot(True)
+        self._status_timer.setInterval(30)
+        self._status_timer.timeout.connect(self.update_status_fields)
+        canvas = self.writer_view.canvas_view
+        canvas.caret_moved.connect(lambda *_: self._status_timer.start())
+        canvas.controller.document_modified.connect(self._status_timer.start)
+        self.update_status_fields()
+
+    def update_status_fields(self) -> None:
+        sb = getattr(self, "status_bar", None)
+        if sb is None:
+            return
+        canvas = self.writer_view.canvas_view
+        ctl = canvas.controller
+        pages = ctl.pagination.pages if ctl.pagination else []
+        page_idx, point, _height = ctl.pos_to_canvas(ctl.pos)
+        page = pages[page_idx] if 0 <= page_idx < len(pages) else None
+        number = page.page_number if page is not None else 1
+        section = (page.section_index + 1) if page is not None else 1
+        sb.set_field("page", safe_tr("页 {0}", number))
+        sb.set_field("section", safe_tr("节 {0}", section))
+        sb.set_field("page_of", f"{page_idx + 1}/{max(1, len(pages))}")
+        sb.set_field("at", safe_tr("位置 {0} 厘米", f"{point.y() / 72 * 2.54:.1f}"))
+        sb.set_field("col", safe_tr("列 {0}", ctl.pos.offset + 1))
+        trk = sb.field("trk")
+        if trk is not None:
+            trk.setEnabled(bool(is_tracking(canvas.doc)))
 
     def _bind_action_handlers(self) -> None:
         """Bind window callbacks to core action IDs in ActionRegistry."""
@@ -324,8 +370,7 @@ class QuireWindow(BaseOfficeWindow):
             ("promoteH1", outline.promote_selected_h1, lambda: canvas.set_outline_level(1)),
             ("promote", outline.promote_selected, lambda: canvas.change_outline_level(-1)),
             ("demote", outline.demote_selected, lambda: canvas.change_outline_level(1)),
-            ("demoteBody", outline.demote_selected_body,
-             lambda: canvas.set_outline_level(None)),
+            ("demoteBody", outline.demote_selected_body, lambda: canvas.set_outline_level(None)),
             ("moveUp", outline.move_selected_up, lambda: canvas.move_paragraph(-1)),
             ("moveDown", outline.move_selected_down, lambda: canvas.move_paragraph(1)),
         ):
@@ -522,7 +567,6 @@ class QuireWindow(BaseOfficeWindow):
 
         self.toolbar_commands = bind_quire_toolbar_commands(self)
 
-
     def _outline_dispatch(self, pane_cmd: Any, canvas_cmd: Any) -> None:
         if getattr(self.writer_view, "view_mode", None) == ViewMode.OUTLINE:
             pane_cmd()
@@ -543,16 +587,21 @@ class QuireWindow(BaseOfficeWindow):
         reg.set_handler("table_delete", self.open_delete_cells_dialog)
         reg.set_handler("table_select", lambda: doc_actions.select_table(canvas))
         reg.set_handler("table_properties", self.open_table_properties_dialog)
-        reg.set_handler("insert_page_break", lambda: self._apply_dialog(
-            lambda: doc_actions.insert_page_break(canvas)))
+        reg.set_handler(
+            "insert_page_break",
+            lambda: self._apply_dialog(lambda: doc_actions.insert_page_break(canvas)),
+        )
         reg.set_handler("insert_page_number", self.open_page_numbers_dialog)
         reg.set_handler("insert_date_time", self.open_date_time_dialog)
         reg.set_handler("insert_symbol", self.open_symbol_dialog)
         reg.set_handler("columns", self.open_columns_dialog)
-        reg.set_handler("col_left", lambda: self._apply_dialog(
-            lambda: doc_actions.set_columns(canvas, "left")))
-        reg.set_handler("col_right", lambda: self._apply_dialog(
-            lambda: doc_actions.set_columns(canvas, "right")))
+        reg.set_handler(
+            "col_left", lambda: self._apply_dialog(lambda: doc_actions.set_columns(canvas, "left"))
+        )
+        reg.set_handler(
+            "col_right",
+            lambda: self._apply_dialog(lambda: doc_actions.set_columns(canvas, "right")),
+        )
         # Toolbar IDs that name the same commands as the View menu.
         reg.register_alias("docMap", "view_doc_map")
         reg.register_alias("viewReading", "view_reading")
@@ -573,8 +622,23 @@ class QuireWindow(BaseOfficeWindow):
         dlg = FontDialog(props=self._selection_run_props(), parent=self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             new = dlg.get_properties()
-            fields = ("font", "font_ea", "font_cs", "sz", "b", "i", "u", "color", "vert",
-                      "strike", "dstrike", "caps", "small_caps", "spacing", "highlight")
+            fields = (
+                "font",
+                "font_ea",
+                "font_cs",
+                "sz",
+                "b",
+                "i",
+                "u",
+                "color",
+                "vert",
+                "strike",
+                "dstrike",
+                "caps",
+                "small_caps",
+                "spacing",
+                "highlight",
+            )
 
             def apply(r_pr: Any) -> None:
                 for name in fields:
@@ -595,8 +659,16 @@ class QuireWindow(BaseOfficeWindow):
 
             def apply() -> None:
                 for para in self._selected_paragraphs():
-                    for name in ("jc", "ind", "sp", "keep_next", "keep_lines",
-                                 "page_break_before", "widow_control", "outline_level"):
+                    for name in (
+                        "jc",
+                        "ind",
+                        "sp",
+                        "keep_next",
+                        "keep_lines",
+                        "page_break_before",
+                        "widow_control",
+                        "outline_level",
+                    ):
                         setattr(para.p_pr, name, copy.deepcopy(getattr(new, name)))
 
             self._apply_dialog(apply)
@@ -653,8 +725,9 @@ class QuireWindow(BaseOfficeWindow):
 
         canvas = self.writer_view.canvas_view
         sect = canvas.doc.sect
-        dlg = ColumnsDialog(parent=self, cols=sect.cols, page_width=sect.pg_w,
-                            margins=(sect.ml, sect.mr))
+        dlg = ColumnsDialog(
+            parent=self, cols=sect.cols, page_width=sect.pg_w, margins=(sect.ml, sect.mr)
+        )
         if dlg.exec() == QDialog.DialogCode.Accepted:
             cols = dlg.get_columns()
             self._apply_dialog(lambda: setattr(canvas.doc.sect, "cols", copy.deepcopy(cols)))
@@ -694,10 +767,16 @@ class QuireWindow(BaseOfficeWindow):
         from PySide6.QtWidgets import QInputDialog
 
         languages = [
-            ("English (United States)", "en-US"), ("English (United Kingdom)", "en-GB"),
-            ("中文(中国)", "zh-CN"), ("中文(台湾)", "zh-TW"), ("日本語", "ja-JP"),
-            ("한국어", "ko-KR"), ("Deutsch", "de-DE"), ("Français", "fr-FR"),
-            ("Español", "es-ES"), ("Русский", "ru-RU"),
+            ("English (United States)", "en-US"),
+            ("English (United Kingdom)", "en-GB"),
+            ("中文(中国)", "zh-CN"),
+            ("中文(台湾)", "zh-TW"),
+            ("日本語", "ja-JP"),
+            ("한국어", "ko-KR"),
+            ("Deutsch", "de-DE"),
+            ("Français", "fr-FR"),
+            ("Español", "es-ES"),
+            ("Русский", "ru-RU"),
         ]
         labels = [name for name, _ in languages]
         choice, ok = QInputDialog.getItem(
@@ -1125,23 +1204,13 @@ class QuireWindow(BaseOfficeWindow):
         painter.end()
         return img
 
-    def undo_history(self, kind: str) -> list[str]:
-        from atboffice.ui.components.undo_history import entry_label
+    def document_widget(self) -> QWidget | None:
+        return self.writer_view.canvas_view
 
-        canvas = self.writer_view.canvas_view
-        stack = canvas._undo_stack if kind == "undo" else canvas._redo_stack
-        return [entry_label(e) for e in reversed(stack)]
-
-    def undo_steps(self, kind: str, steps: int) -> None:
-        canvas = self.writer_view.canvas_view
-        done = 0
-        for _ in range(max(0, steps)):
-            if not (canvas.undo() if kind == "undo" else canvas.redo()):
-                break
-            done += 1
-        if done:
-            canvas.viewport().update()
-            self.set_modified(True)
+    def undo_service(self) -> Any | None:
+        view = getattr(self, "writer_view", None)
+        canvas = getattr(view, "canvas_view", None)
+        return getattr(canvas, "history", None)
 
     def new_web_page(self) -> None:
         """New Document pane > Blank Web page: a new document in Web Layout view."""
@@ -1422,9 +1491,13 @@ class QuireWindow(BaseOfficeWindow):
         if self._syncing_toolbars or not text:
             return
         style_ids = {
-            safe_tr("正文"): "Normal", safe_tr("标题 1"): "Heading1",
-            safe_tr("标题 2"): "Heading2", safe_tr("标题 3"): "Heading3",
-            safe_tr("副标题"): "Subtitle", safe_tr("页眉"): "Header", safe_tr("页脚"): "Footer",
+            safe_tr("正文"): "Normal",
+            safe_tr("标题 1"): "Heading1",
+            safe_tr("标题 2"): "Heading2",
+            safe_tr("标题 3"): "Heading3",
+            safe_tr("副标题"): "Subtitle",
+            safe_tr("页眉"): "Header",
+            safe_tr("页脚"): "Footer",
         }
         style_id = style_ids.get(text)
         if style_id is None:
@@ -1590,9 +1663,7 @@ class QuireWindow(BaseOfficeWindow):
 
         doc = getattr(self.writer_view.canvas_view, "doc", None)
         self.styles_pane = StylesAndFormattingPane(doc=doc, parent=self.task_pane_dock)
-        self.styles_pane.apply_style_requested.connect(
-            self.writer_view.canvas_view.apply_style
-        )
+        self.styles_pane.apply_style_requested.connect(self.writer_view.canvas_view.apply_style)
         self.styles_pane.clear_formatting_requested.connect(
             self.writer_view.canvas_view.clear_formatting
         )
@@ -1716,7 +1787,7 @@ class QuireWindow(BaseOfficeWindow):
         canvas = self.writer_view.canvas_view
         if hasattr(canvas, "reorder_selected_object"):
             canvas.reorder_selected_object(direction)
-        self.show_status_message(safe_tr(f"已调整对象叠放次序: {direction}"))
+        self.show_status_message(safe_tr("已调整对象叠放次序: {0}", direction))
 
     def nudge_selected_object(self, dx: int, dy: int) -> None:
         """Nudge selected drawing object by (dx, dy) pixels."""
@@ -1730,21 +1801,21 @@ class QuireWindow(BaseOfficeWindow):
         canvas = self.writer_view.canvas_view
         if hasattr(canvas, "align_selected_objects"):
             canvas.align_selected_objects(alignment)
-        self.show_status_message(safe_tr(f"对齐对象: {alignment}"))
+        self.show_status_message(safe_tr("对齐对象: {0}", alignment))
 
     def rotate_selected_object(self, angle: float) -> None:
         """Rotate selected drawing object by angle in degrees."""
         canvas = self.writer_view.canvas_view
         if hasattr(canvas, "rotate_selected_object"):
             canvas.rotate_selected_object(angle)
-        self.show_status_message(safe_tr(f"旋转对象: {angle}°"))
+        self.show_status_message(safe_tr("旋转对象: {0}°", angle))
 
     def insert_shape(self, shape_type: str) -> None:
         """Insert or activate shape drawing mode ('line', 'basic', 'arrow', etc.)."""
         canvas = self.writer_view.canvas_view
         if hasattr(canvas, "insert_shape"):
             canvas.insert_shape(shape_type)
-        self.show_status_message(safe_tr(f"插入自选图形: {shape_type}"))
+        self.show_status_message(safe_tr("插入自选图形: {0}", shape_type))
 
     def apply_border_preset(self, preset: str) -> None:
         """Apply border preset ('none', 'all', 'outside', 'bottom', 'top', 'left', 'right')."""
@@ -1760,7 +1831,10 @@ class QuireWindow(BaseOfficeWindow):
             "none": (),
             "all": ("top", "left", "bottom", "right", "between"),
             "outside": ("top", "left", "bottom", "right"),
-            "top": ("top",), "bottom": ("bottom",), "left": ("left",), "right": ("right",),
+            "top": ("top",),
+            "bottom": ("bottom",),
+            "left": ("left",),
+            "right": ("right",),
             "inside": ("between",),
         }.get(preset)
         if sides is None:
@@ -1790,7 +1864,7 @@ class QuireWindow(BaseOfficeWindow):
             tbl.tbl_pr.borders = {"type": border_type}
         canvas.controller.document_modified.emit()
         canvas.update()
-        self.show_status_message(safe_tr(f"应用表格边框: {border_type}"))
+        self.show_status_message(safe_tr("应用表格边框: {0}", border_type))
 
     def set_table_cell_valign(self, align: str) -> None:
         """Set vertical alignment of current table cell ('top', 'center', 'bottom')."""
@@ -1805,7 +1879,7 @@ class QuireWindow(BaseOfficeWindow):
             cell.tc_pr.valign = align
         canvas.controller.document_modified.emit()
         canvas.update()
-        self.show_status_message(safe_tr(f"单元格对齐: {align}"))
+        self.show_status_message(safe_tr("单元格对齐: {0}", align))
 
     def _sync_toolbar_states(self) -> None:
         """Synchronize toolbar toggle buttons and combos with current selection/caret formatting."""

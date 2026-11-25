@@ -41,7 +41,7 @@ def qapp():
 
 
 def test_parse_delimited_csv() -> None:
-    csv_text = "Name,Age,City\nAlice,30,New York\nBob,25,\"San Francisco, CA\"\n"
+    csv_text = 'Name,Age,City\nAlice,30,New York\nBob,25,"San Francisco, CA"\n'
     rows = parse_delimited(csv_text)
     assert len(rows) == 3
     assert rows[0] == ["Name", "Age", "City"]
@@ -142,12 +142,11 @@ def test_mergefield_evaluation() -> None:
     assert engine.evaluate_merge_instruction("MERGEFIELD First_Name", 1) == "Bob"
 
     # Formatting switch (\* Upper)
-    assert engine.evaluate_merge_instruction('MERGEFIELD First_Name \\* Upper', 0) == "ALICE"
+    assert engine.evaluate_merge_instruction("MERGEFIELD First_Name \\* Upper", 0) == "ALICE"
 
     # Prefix switch (\b) and suffix switch (\f)
     assert (
-        engine.evaluate_merge_instruction('MERGEFIELD Title \\b "Dear " \\f " "', 0)
-        == "Dear Dr. "
+        engine.evaluate_merge_instruction('MERGEFIELD Title \\b "Dear " \\f " "', 0) == "Dear Dr. "
     )
     # When field value is empty, \b and \f are not output
     assert engine.evaluate_merge_instruction('MERGEFIELD Title \\b "Dear " \\f " "', 1) == ""
@@ -212,14 +211,16 @@ def test_batch_build_merged_document() -> None:
         TextItem(","),
     ]
 
-    p2 = Paragraph(runs=[
-        TextItem("Welcome to "),
-        FieldBeginItem(field_type="MERGEFIELD", instr="MERGEFIELD Company"),
-        FieldSeparateItem(),
-        TextItem("«Company»"),
-        FieldEndItem(),
-        TextItem("!"),
-    ])
+    p2 = Paragraph(
+        runs=[
+            TextItem("Welcome to "),
+            FieldBeginItem(field_type="MERGEFIELD", instr="MERGEFIELD Company"),
+            FieldSeparateItem(),
+            TextItem("«Company»"),
+            FieldEndItem(),
+            TextItem("!"),
+        ]
+    )
 
     doc.main.paras = [p1, p2]
 
@@ -251,20 +252,24 @@ def test_batch_build_merged_document() -> None:
 def test_blank_line_suppression_in_merge() -> None:
     doc = Document()
     # Paragraph flagged as address block line
-    p_addr2 = Paragraph(runs=[
-        FieldBeginItem(field_type="MERGEFIELD", instr="MERGEFIELD AddressLine2"),
-        FieldSeparateItem(),
-        TextItem("«AddressLine2»"),
-        FieldEndItem(),
-    ])
+    p_addr2 = Paragraph(
+        runs=[
+            FieldBeginItem(field_type="MERGEFIELD", instr="MERGEFIELD AddressLine2"),
+            FieldSeparateItem(),
+            TextItem("«AddressLine2»"),
+            FieldEndItem(),
+        ]
+    )
     p_addr2._was_address_block = True  # type: ignore[attr-defined]
 
-    p_city = Paragraph(runs=[
-        FieldBeginItem(field_type="MERGEFIELD", instr="MERGEFIELD City"),
-        FieldSeparateItem(),
-        TextItem("«City»"),
-        FieldEndItem(),
-    ])
+    p_city = Paragraph(
+        runs=[
+            FieldBeginItem(field_type="MERGEFIELD", instr="MERGEFIELD City"),
+            FieldSeparateItem(),
+            TextItem("«City»"),
+            FieldEndItem(),
+        ]
+    )
 
     doc.main.paras = [p_addr2, p_city]
 
@@ -281,8 +286,7 @@ def test_blank_line_suppression_in_merge() -> None:
 
     # Seattle's section should NOT contain an empty paragraph for AddressLine2
     recs_text = [
-        "".join(r.text for r in p.runs if isinstance(r, TextItem))
-        for p in merged_doc.main.paras
+        "".join(r.text for r in p.runs if isinstance(r, TextItem)) for p in merged_doc.main.paras
     ]
     # Check that Suite 400 is in the text
     assert "Suite 400" in recs_text
@@ -342,9 +346,7 @@ def test_load_data_source_from_csv_disk(tmp_path: Path) -> None:
     from atboffice.modules.writer.models.mailmerge import load_data_source_from_csv
 
     csv_file = tmp_path / "test_contacts.csv"
-    csv_content = (
-        "First Name,Last Name,City\nAlice,Wonder,London\nBob,Marley,Kingston\n"
-    )
+    csv_content = "First Name,Last Name,City\nAlice,Wonder,London\nBob,Marley,Kingston\n"
     csv_file.write_text(csv_content, encoding="utf-8")
 
     ds = load_data_source_from_csv(csv_file)
@@ -387,8 +389,7 @@ def test_insert_address_block_and_greeting_line() -> None:
     created_paras = engine.insert_address_block(doc, insert_after_p=p)
     assert len(created_paras) > 0
     all_addr_text = " ".join(
-        "".join(r.text for r in cp.runs if isinstance(r, TextItem))
-        for cp in created_paras
+        "".join(r.text for r in cp.runs if isinstance(r, TextItem)) for cp in created_paras
     )
     assert "«City»" in all_addr_text or "«State»" in all_addr_text
 
@@ -416,14 +417,16 @@ def test_writer_view_mailmerge_integration(qapp) -> None:
 
 def test_export_merged_pdf(tmp_path: Path) -> None:
     doc = Document()
-    p = Paragraph(runs=[
-        TextItem("Hello "),
-        FieldBeginItem(field_type="MERGEFIELD", instr="MERGEFIELD Recipient"),
-        FieldSeparateItem(),
-        TextItem("«Recipient»"),
-        FieldEndItem(),
-        TextItem("!"),
-    ])
+    p = Paragraph(
+        runs=[
+            TextItem("Hello "),
+            FieldBeginItem(field_type="MERGEFIELD", instr="MERGEFIELD Recipient"),
+            FieldSeparateItem(),
+            TextItem("«Recipient»"),
+            FieldEndItem(),
+            TextItem("!"),
+        ]
+    )
     doc.main.paras = [p]
 
     headers = ["Recipient"]
@@ -436,4 +439,3 @@ def test_export_merged_pdf(tmp_path: Path) -> None:
     assert success is True
     assert pdf_out.exists()
     assert pdf_out.stat().st_size > 0
-

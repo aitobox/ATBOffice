@@ -93,7 +93,6 @@ ET.register_namespace("w14", "http://schemas.microsoft.com/office/word/2010/word
 ET.register_namespace("w15", "http://schemas.microsoft.com/office/word/2012/wordml")
 
 
-
 def _w(tag: str) -> str:
     """Helper to return Clark notation for WordprocessingML tag."""
     return f"{{{NS_W}}}{tag}"
@@ -669,9 +668,7 @@ class DocxWriter:
 
             i = j
 
-    def _serialize_run_item(
-        self, parent: ET.Element, item: RunItem, is_del: bool = False
-    ) -> None:
+    def _serialize_run_item(self, parent: ET.Element, item: RunItem, is_del: bool = False) -> None:
         """Serialize a RunItem into corresponding XML elements under <w:p> or wrapper."""
         if isinstance(item, OfficeMathItem):
             math_elem = serialize_omml(item)
@@ -1046,11 +1043,7 @@ class DocxWriter:
                     cell_stack[-1][1].append(finished_sdt)
 
             for key in getattr(tr_pr, "sdte", []):
-                if (
-                    len(row_stack) > 1
-                    and row_stack[-1][2]
-                    and row_stack[-1][2].get("key") == key
-                ):
+                if len(row_stack) > 1 and row_stack[-1][2] and row_stack[-1][2].get("key") == key:
                     finished_sdt, _, _ = row_stack.pop()
                     if finished_sdt is not None:
                         row_stack[-1][1].append(finished_sdt)
@@ -1182,9 +1175,7 @@ class DocxWriter:
             return original
 
         root = ET.fromstring(original)
-        by_id = {
-            el.get(_w("styleId")): el for el in root if el.tag == _w("style")
-        }
+        by_id = {el.get(_w("styleId")): el for el in root if el.tag == _w("style")}
         for s_id in removed_ids:
             el = by_id.get(s_id)
             if el is not None:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-from PySide6.QtWidgets import QApplication
 
 from atboffice.modules.spreadsheet.calc.goal_seek import (
     GoalSeekParams,
@@ -17,14 +16,6 @@ from atboffice.modules.spreadsheet.dialogs.goal_seek_dlg import (
 )
 from atboffice.modules.spreadsheet.models.sheet_model import CellData
 from atboffice.modules.spreadsheet.models.workbook_model import WorkbookModel
-
-
-@pytest.fixture(scope="session")
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication([])
-    return app
 
 
 class TestGoalSeekParser:

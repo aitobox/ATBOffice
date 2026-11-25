@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -24,15 +24,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.goal_seek import parse_cell_reference
 
 if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
-
-
-def safe_tr(text: str) -> str:
-    """Safely translate ScenarioManagerDialog UI text."""
-    return QCoreApplication.translate("ScenarioManagerDialog", text)
 
 
 class ScenarioValuesDialog(QDialog):
@@ -226,14 +222,16 @@ class ScenarioManagerDialog(QDialog):
 
         if not self.scenarios:
             # Default starter scenario
-            self.scenarios.append({
-                "name": "当前值",
-                "changing_cells": "$B$2:$B$4",
-                "comment": "初始基线方案",
-                "values": {"$B$2": "100", "$B$3": "120", "$B$4": "150"},
-                "prevent_changes": True,
-                "hide": False,
-            })
+            self.scenarios.append(
+                {
+                    "name": "当前值",
+                    "changing_cells": "$B$2:$B$4",
+                    "comment": "初始基线方案",
+                    "values": {"$B$2": "100", "$B$3": "120", "$B$4": "150"},
+                    "prevent_changes": True,
+                    "hide": False,
+                }
+            )
 
         self._init_ui()
         self._refresh_list()
@@ -426,7 +424,7 @@ class ScenarioManagerDialog(QDialog):
                 QMessageBox.information(
                     self,
                     safe_tr("合并方案"),
-                    safe_tr(f"未在工作表 {sheet_name} 中找到可合并的方案。"),
+                    safe_tr("未在工作表 {0} 中找到可合并的方案。", sheet_name),
                 )
 
     def merge_scenarios(self, new_scenarios: list[dict[str, Any]]) -> int:

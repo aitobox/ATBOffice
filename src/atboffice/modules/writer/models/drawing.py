@@ -181,7 +181,6 @@ class DrawingObject(RunItem):
             return ""
 
 
-
 @dataclass
 class PictureItem(DrawingObject):
     """Picture / Image drawing object."""
@@ -334,8 +333,18 @@ class ShapeItem(PictureItem):
         own = {
             k: kwargs.pop(k)
             for k in (
-                "geometry", "adjustments", "custom_path", "fill", "line", "flip_h",
-                "flip_v", "story", "insets", "v_anchor", "text_color", "children",
+                "geometry",
+                "adjustments",
+                "custom_path",
+                "fill",
+                "line",
+                "flip_h",
+                "flip_v",
+                "story",
+                "insets",
+                "v_anchor",
+                "text_color",
+                "children",
             )
             if k in kwargs
         }

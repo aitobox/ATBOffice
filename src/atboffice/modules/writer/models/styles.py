@@ -404,8 +404,10 @@ def _apply_numbering_indent(
     direct = getattr(para, "p_pr", None)
     direct_num = getattr(direct, "num", None) if direct is not None else None
     num = direct_num if direct_num is not None else base.num
-    if num is None or str(getattr(num, "id", "0")) in ("0", "") or not getattr(
-        doc, "numbering", None
+    if (
+        num is None
+        or str(getattr(num, "id", "0")) in ("0", "")
+        or not getattr(doc, "numbering", None)
     ):
         return base
     from atboffice.modules.writer.layout.portions import num_level_def

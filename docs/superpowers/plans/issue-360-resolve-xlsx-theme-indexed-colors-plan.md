@@ -63,9 +63,7 @@ def test_default_indexed_palette_entries() -> None:
 
 
 def test_color_priority_theme_beats_rgb_beats_indexed() -> None:
-    el = ET.fromstring(
-        '<color theme="5" rgb="FF112233" indexed="41" tint="0.5"/>'
-    )
+    el = ET.fromstring('<color theme="5" rgb="FF112233" indexed="41" tint="0.5"/>')
     spec = parse_color_element(el)
     assert spec == {"theme": 5, "tint": 0.5}
     resolved = resolve_color_spec(spec, DEFAULT_THEME_COLORS, DEFAULT_INDEXED_PALETTE)
@@ -81,7 +79,7 @@ def test_indexed_64_and_65_and_auto() -> None:
 
 
 def test_parse_theme_xml_extracts_12_colors_in_spreadsheetml_order() -> None:
-    theme_xml = b'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    theme_xml = b"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Custom">
       <a:themeElements>
         <a:clrScheme name="Custom">
@@ -99,7 +97,7 @@ def test_parse_theme_xml_extracts_12_colors_in_spreadsheetml_order() -> None:
           <a:folHlink><a:srgbClr val="800080"/></a:folHlink>
         </a:clrScheme>
       </a:themeElements>
-    </a:theme>'''
+    </a:theme>"""
     parsed = parse_theme_xml(theme_xml)
     assert parsed["name"] == "Custom"
     assert parsed["colors"][0] == "#FAFAFA"  # lt1
@@ -184,9 +182,9 @@ def test_sortconditionref_orange_fill_and_black_text() -> None:
 def test_poi_49156_indexed_fills() -> None:
     wb = read_xlsx(XLSX_CORPUS / "poi__49156.xlsx")
     sh = wb[0]
-    assert sh.get_cell(9, 3).bg_color == "#CCFFFF"   # D10 indexed=41
-    assert sh.get_cell(9, 4).bg_color == "#FF99CC"   # E10 indexed=45
-    assert sh.get_cell(9, 5).bg_color == "#C0C0C0"   # F10 indexed=22
+    assert sh.get_cell(9, 3).bg_color == "#CCFFFF"  # D10 indexed=41
+    assert sh.get_cell(9, 4).bg_color == "#FF99CC"  # E10 indexed=45
+    assert sh.get_cell(9, 5).bg_color == "#C0C0C0"  # F10 indexed=22
 
 
 def test_openxml_noextdatab1_indexed_53_font() -> None:
@@ -262,9 +260,10 @@ def test_roundtrip_preserves_theme_and_indexed_attributes(filename: str) -> None
     wb = read_xlsx(orig_bytes)
     saved_bytes = write_xlsx(wb)
 
-    with zipfile.ZipFile(io.BytesIO(orig_bytes)) as z_orig, zipfile.ZipFile(
-        io.BytesIO(saved_bytes)
-    ) as z_saved:
+    with (
+        zipfile.ZipFile(io.BytesIO(orig_bytes)) as z_orig,
+        zipfile.ZipFile(io.BytesIO(saved_bytes)) as z_saved,
+    ):
         orig_styles = z_orig.read("xl/styles.xml").decode("utf-8", "replace")
         saved_styles = z_saved.read("xl/styles.xml").decode("utf-8", "replace")
         if "theme=" in orig_styles:

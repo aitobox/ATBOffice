@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QCoreApplication, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -27,15 +27,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.references import cell_name
 
 if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
-
-
-def safe_tr(text: str) -> str:
-    """Safely translate TextToColumnsWizard UI text."""
-    return QCoreApplication.translate("TextToColumnsWizard", text)
 
 
 class TextToColumnsWizard(QDialog):
@@ -62,10 +58,7 @@ class TextToColumnsWizard(QDialog):
         elif sheet_model is not None:
             r1, c1, r2, c2 = self.selected_range
             for r in range(r1, r2 + 1):
-                cell_vals = [
-                    str(sheet_model.get_cell_value(r, c) or "")
-                    for c in range(c1, c2 + 1)
-                ]
+                cell_vals = [str(sheet_model.get_cell_value(r, c) or "") for c in range(c1, c2 + 1)]
                 # Join row cells or take first column cell
                 line = " ".join(v for v in cell_vals if v)
                 self.raw_lines.append(line)
@@ -372,7 +365,7 @@ class TextToColumnsWizard(QDialog):
             pattern = f"({pattern})+"
 
         parts = re.split(pattern, line)
-        return [p.strip('"\'') for p in parts]
+        return [p.strip("\"'") for p in parts]
 
     def _refresh_split_preview(self) -> None:
         start = self.spin_start_row.value() - 1
@@ -502,6 +495,7 @@ class TextToColumnsWizard(QDialog):
             dest_text = self.edit_dest.text().replace("$", "").strip()
             dest_r, dest_c = self.selected_range[0], self.selected_range[1]
             from atboffice.modules.spreadsheet.calc.goal_seek import parse_cell_reference
+
             ref = parse_cell_reference(dest_text)
             if ref:
                 dest_r, dest_c = ref[1], ref[2]

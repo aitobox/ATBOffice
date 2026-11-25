@@ -36,9 +36,7 @@ def _media_key(presentation: Any, ext: str) -> str:
     return f"ppt/media/inserted{n}.{ext}"
 
 
-def fit_size(
-    px_w: int, px_h: int, max_w: float, max_h: float
-) -> tuple[float, float]:
+def fit_size(px_w: int, px_h: int, max_w: float, max_h: float) -> tuple[float, float]:
     """Natural size in points (96 dpi pixels -> 72 dpi points), shrunk to fit the box."""
     w = px_w * 0.75
     h = px_h * 0.75

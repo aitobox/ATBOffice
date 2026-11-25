@@ -749,11 +749,7 @@ def _balance_multicolumn_region(region: PageRegion | None) -> None:
     for idx, (p, line) in enumerate(all_items):
         col = region.columns[col_idx]
         col_accum = col.used_height + sum(ln.height for ln in cur_p_lines) + line.height
-        if (
-            col_idx + 1 < n_cols
-            and col_accum > target_h
-            and (cur_p_lines or col.fragments)
-        ):
+        if col_idx + 1 < n_cols and col_accum > target_h and (cur_p_lines or col.fragments):
             flush_frag()
             col_idx += 1
             cur_p = None
@@ -1038,17 +1034,29 @@ def _execute_single_pagination_pass(doc: Document) -> PaginationResult:
                 while lines_to_place:
                     col = ctx.current_column()
                     if abs(col.width - layout_width) > 0.01:
-                        start_char = min(
-                            (pt.char_offset for ln in lines_to_place for pt in ln.portions
-                             if pt.length > 0),
-                            default=0,
-                        ) if line_offset else 0
+                        start_char = (
+                            min(
+                                (
+                                    pt.char_offset
+                                    for ln in lines_to_place
+                                    for pt in ln.portions
+                                    if pt.length > 0
+                                ),
+                                default=0,
+                            )
+                            if line_offset
+                            else 0
+                        )
                         p_layout = layout_paragraph(
-                            p=p_seg, container_width=col.width, section_props=sect,
-                            doc=doc, is_page_top=col.used_height == 0.0,
+                            p=p_seg,
+                            container_width=col.width,
+                            section_props=sect,
+                            doc=doc,
+                            is_page_top=col.used_height == 0.0,
                             float_boxes=ctx.current_page.float_boxes,
                             y_offset=col.used_height + sect.mt,
-                            col_left=col.left + sect.ml, start_char_offset=start_char,
+                            col_left=col.left + sect.ml,
+                            start_char_offset=start_char,
                         )
                         lines_to_place = list(p_layout.lines)
                         layout_width = col.width
@@ -1340,10 +1348,7 @@ def paginate_document(doc: Document, max_passes: int = 4) -> PaginationResult:
         current_pass += 1
 
         # Check if geometry stabilized
-        if (
-            res_next.total_pages == res.total_pages
-            and res_next.section_pages == res.section_pages
-        ):
+        if res_next.total_pages == res.total_pages and res_next.section_pages == res.section_pages:
             changed_final = update_fields(doc, res_next, types=LAYOUT_FIELD_TYPES)
             res = res_next
             if not changed_final:
