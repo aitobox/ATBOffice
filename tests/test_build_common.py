@@ -22,6 +22,16 @@ def test_get_artifact_name():
     name = get_artifact_name("macos", "arm64", "dmg", version="1.0.0")
     assert name == "ATBOffice-1.0.0-macos-arm64.dmg"
 
+
+def test_get_artifact_name_strips_tag_prefix():
+    assert get_artifact_name("linux", "x86_64", "AppImage", version="v0.2.0") == (
+        "ATBOffice-0.2.0-linux-x86_64.AppImage"
+    )
+    # Test tags keep their full name so pre-release assets stay distinguishable.
+    assert get_artifact_name("windows", "x64", "zip", version="test0.2.0") == (
+        "ATBOffice-test0.2.0-windows-x64.zip"
+    )
+
 def test_get_base_nuitka_args(tmp_path):
     args = get_base_nuitka_args(tmp_path)
     assert "--standalone" in args
