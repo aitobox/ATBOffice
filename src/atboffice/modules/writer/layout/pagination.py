@@ -618,18 +618,22 @@ class _PaginationContext:
 
 def _split_paragraph_by_hard_breaks(p: Paragraph) -> list[tuple[Paragraph, str | None]]:
     """Split paragraph into sub-paragraphs along hard BreakItems ('page' or 'column')."""
+    checked = bool(getattr(p, "_lists_checked", False))
     sub_paras: list[tuple[Paragraph, str | None]] = []
     cur_runs = []
     for it in p.runs:
         if isinstance(it, BreakItem) and it.break_type in ("page", "column"):
+            is_tail = bool(sub_paras)
             sub_p = Paragraph(
                 id=p.id,
                 runs=list(cur_runs),
                 p_pr=p.p_pr,
                 r_pr=p.r_pr,
                 sect=p.sect,
-                label="" if sub_paras else p.label,
+                label="" if is_tail else p.label,
             )
+            if is_tail or checked:
+                sub_p._lists_checked = True
             sub_paras.append((sub_p, it.break_type))
             cur_runs = []
         else:
@@ -637,14 +641,17 @@ def _split_paragraph_by_hard_breaks(p: Paragraph) -> list[tuple[Paragraph, str |
 
     # Only append trailing segment if it has runs or if no break occurred
     if cur_runs or not sub_paras:
+        is_tail = bool(sub_paras)
         sub_p = Paragraph(
             id=p.id,
             runs=list(cur_runs),
             p_pr=p.p_pr,
             r_pr=p.r_pr,
             sect=p.sect,
-            label="" if sub_paras else p.label,
+            label="" if is_tail else p.label,
         )
+        if is_tail or checked:
+            sub_p._lists_checked = True
         sub_paras.append((sub_p, None))
     return sub_paras
 

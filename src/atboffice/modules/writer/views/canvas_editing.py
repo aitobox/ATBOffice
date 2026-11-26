@@ -7,8 +7,11 @@ from collections.abc import Callable
 from typing import Any
 
 from atboffice.core.i18n import safe_tr
+from atboffice.drawing.dml import DmlFill
+from atboffice.drawing.shape_style import DmlLine
 from atboffice.modules.writer.models.document import (
     Paragraph,
+    Story,
     TextItem,
     info,
     normalize,
@@ -17,6 +20,13 @@ from atboffice.modules.writer.models.document import (
     ptext,
     reindex,
     split_at,
+)
+from atboffice.modules.writer.models.drawing import (
+    FloatProperties,
+    PositionH,
+    PositionV,
+    ShapeItem,
+    WrapMode,
 )
 from atboffice.modules.writer.models.properties import (
     IndentProperties,
@@ -550,3 +560,139 @@ class CanvasEditingMixin:
                 story.blocks.pop(idx)
                 story.blocks.insert(new_idx, p)
                 self._on_formatting_applied()
+
+    _SHAPE_GEOM_MAP: dict[str, str] = {
+        "rect": "rect",
+        "basic": "roundRect",
+        "oval": "ellipse",
+        "line": "line",
+        "arrow": "rightArrow",
+        "connector": "straightConnector1",
+        "flowchart": "flowChartProcess",
+        "star": "star5",
+        "callout": "wedgeRoundRectCallout",
+        "textbox": "rect",
+    }
+
+    @_undoable("插入图形")
+    def insert_shape(self, shape_type: str = "rect") -> ShapeItem | None:
+        """Insert a floating DrawingML shape or text box anchored at the caret paragraph."""
+        p = self.controller._paragraph_by_id(self.controller.pos.para_id)
+        if p is None:
+            if not self.doc.main.blocks:
+                return None
+            p = next((b for b in self.doc.main.blocks if isinstance(b, Paragraph)), None)
+            if p is None:
+                return None
+        geom = self._SHAPE_GEOM_MAP.get(shape_type, shape_type or "rect")
+        is_line = shape_type in ("line", "connector")
+        is_textbox = shape_type == "textbox"
+        width = 144.0
+        height = 2.0 if is_line else 72.0
+        story = (
+            Story(blocks=[Paragraph(runs=[TextItem(text=safe_tr("文本框"))])])
+            if is_textbox
+            else None
+        )
+        fill = (
+            DmlFill(kind="none")
+            if is_line
+            else DmlFill(kind="solid", color="#FFFFFF" if is_textbox else "#D9E2F3")
+        )
+        line = DmlLine(visible=True, color="#2F5597", width=1.25)
+        next_id = max((getattr(r, "id", 0) for r in p.runs), default=0) + 1
+        item = ShapeItem(
+            id=next_id,
+            name=f"{shape_type}_{next_id}",
+            width=width,
+            height=height,
+            float_pr=FloatProperties(
+                wrap=WrapMode.IN_FRONT,
+                pos_h=PositionH(rel="margin", offset=72.0),
+                pos_v=PositionV(rel="paragraph", offset=12.0),
+                z_index=max(
+                    (getattr(getattr(r, "float_pr", None), "z_index", 0) for r in p.runs),
+                    default=0,
+                )
+                + 1,
+            ),
+            geometry=geom,
+            fill=fill,
+            line=line,
+            story=story,
+        )
+        p.runs.append(item)
+        self._on_formatting_applied()
+        page_idx = 0
+        if getattr(self, "pagination", None) and self.pagination.pages:
+            from atboffice.modules.writer.views import float_edit
+
+            for idx, page in enumerate(self.pagination.pages):
+                if float_edit.box_for_item(page, item) is not None:
+                    page_idx = idx
+                    break
+        self.select_float(page_idx, item)
+        return item
+
+    @_undoable("调整对象叠放次序")
+    def reorder_selected_object(self, direction: str) -> bool:
+        """Adjust z-order of the currently selected floating object."""
+        item = self.selected_float()
+        fp = getattr(item, "float_pr", None) if item is not None else None
+        if fp is None:
+            return False
+        if direction in ("front", "bring_to_front"):
+            fp.behind = False
+            fp.z_index = fp.z_index + 10
+        elif direction in ("back", "send_to_back"):
+            fp.z_index = max(0, fp.z_index - 10)
+        elif direction in ("forward", "bring_forward"):
+            fp.z_index = fp.z_index + 1
+        elif direction in ("backward", "send_backward"):
+            fp.z_index = max(0, fp.z_index - 1)
+        self._on_formatting_applied()
+        return True
+
+    @_undoable("微移对象")
+    def nudge_selected_object(self, dx: float, dy: float) -> bool:
+        """Move the currently selected floating object by (dx, dy) points."""
+        item = self.selected_float()
+        fp = getattr(item, "float_pr", None) if item is not None else None
+        if fp is None:
+            return False
+        from atboffice.modules.writer.views import float_edit
+
+        found = self._selected_float_box()
+        fb_x = found[1].x if found is not None else fp.pos_h.offset
+        fb_y = found[1].y if found is not None else fp.pos_v.offset
+        float_edit.apply_move(item, fb_x, fb_y, float(dx), float(dy))
+        self._on_formatting_applied()
+        return True
+
+    @_undoable("对齐对象")
+    def align_selected_objects(self, alignment: str) -> bool:
+        """Align the selected floating object horizontally or vertically on the page."""
+        item = self.selected_float()
+        fp = getattr(item, "float_pr", None) if item is not None else None
+        if fp is None:
+            return False
+        if alignment in ("left", "center", "right"):
+            fp.pos_h.rel = "margin"
+            fp.pos_h.align = alignment
+            fp.pos_h.percent = None
+        elif alignment in ("top", "middle", "bottom"):
+            fp.pos_v.rel = "margin"
+            fp.pos_v.align = "center" if alignment == "middle" else alignment
+            fp.pos_v.percent = None
+        self._on_formatting_applied()
+        return True
+
+    @_undoable("旋转对象")
+    def rotate_selected_object(self, angle: float) -> bool:
+        """Rotate the selected floating object by ``angle`` degrees."""
+        item = self.selected_float()
+        if item is None:
+            return False
+        item.rotation = (float(getattr(item, "rotation", 0.0)) + float(angle)) % 360.0
+        self._on_formatting_applied()
+        return True

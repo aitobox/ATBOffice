@@ -225,13 +225,41 @@ def style_chain(doc: Any, style_id: str) -> list[Style]:
     return chain
 
 
-def merge_p_props(
-    base: ParagraphProperties, over: ParagraphProperties | None
+def _clone_p_props(p: ParagraphProperties) -> ParagraphProperties:
+    """Fast clone of ``ParagraphProperties`` avoiding generic deepcopy overhead."""
+    res = copy.copy(p)
+    res.ind = copy.copy(p.ind)
+    res.sp = copy.copy(p.sp)
+    res.tabs = [copy.copy(t) for t in p.tabs] if p.tabs else []
+    res.num = copy.copy(p.num) if p.num is not None else None
+    res.borders = copy.deepcopy(p.borders) if p.borders else {}
+    res.frame_pr = dict(p.frame_pr) if p.frame_pr is not None else None
+    res.chg = copy.deepcopy(p.chg) if p.chg is not None else None
+    res.sdts = copy.deepcopy(p.sdts) if p.sdts else []
+    res.sdte = list(p.sdte) if p.sdte else []
+    return res
+
+
+def _clone_r_props(r: RunProperties) -> RunProperties:
+    """Fast clone of ``RunProperties`` avoiding generic deepcopy overhead."""
+    res = copy.copy(r)
+    if r.link is not None:
+        res.link = copy.deepcopy(r.link)
+    if r.ins is not None:
+        res.ins = copy.deepcopy(r.ins)
+    if r.del_rev is not None:
+        res.del_rev = copy.deepcopy(r.del_rev)
+    if r.chg is not None:
+        res.chg = copy.deepcopy(r.chg)
+    return res
+
+
+def _merge_p_props_into(
+    res: ParagraphProperties, over: ParagraphProperties | None
 ) -> ParagraphProperties:
-    """Merge override paragraph properties on top of base properties."""
+    """Apply ``over`` paragraph properties in-place onto ``res`` and return ``res``."""
     if not over:
-        return copy.deepcopy(base)
-    res = copy.deepcopy(base)
+        return res
 
     if over.style != "Normal":
         res.style = over.style
@@ -286,7 +314,6 @@ def merge_p_props(
 
     # Tabs
     if over.tabs:
-        # Merge tabs by position
         tab_map = {t.pos: t for t in res.tabs}
         for t in over.tabs:
             tab_map[t.pos] = t
@@ -294,23 +321,29 @@ def merge_p_props(
 
     # Numbering
     if over.num is not None:
-        res.num = copy.deepcopy(over.num)
+        res.num = copy.copy(over.num)
 
     # Frame properties (framePr)
     if over.frame_pr is not None:
         if res.frame_pr is None:
-            res.frame_pr = copy.deepcopy(over.frame_pr)
+            res.frame_pr = dict(over.frame_pr)
         else:
-            res.frame_pr.update(copy.deepcopy(over.frame_pr))
+            res.frame_pr.update(over.frame_pr)
 
     return res
 
 
-def merge_r_props(base: RunProperties, over: RunProperties | None) -> RunProperties:
-    """Merge override run properties on top of base properties."""
+def merge_p_props(
+    base: ParagraphProperties, over: ParagraphProperties | None
+) -> ParagraphProperties:
+    """Merge override paragraph properties on top of base properties."""
+    return _merge_p_props_into(_clone_p_props(base), over)
+
+
+def _merge_r_props_into(res: RunProperties, over: RunProperties | None) -> RunProperties:
+    """Apply ``over`` run properties in-place onto ``res`` and return ``res``."""
     if not over:
-        return copy.deepcopy(base)
-    res = copy.deepcopy(base)
+        return res
 
     if over.style:
         res.style = over.style
@@ -362,6 +395,11 @@ def merge_r_props(base: RunProperties, over: RunProperties | None) -> RunPropert
     return res
 
 
+def merge_r_props(base: RunProperties, over: RunProperties | None) -> RunProperties:
+    """Merge override run properties on top of base properties."""
+    return _merge_r_props_into(_clone_r_props(base), over)
+
+
 def _default_style_id(doc: Any, style_type: str) -> str:
     """Return the document's default style ID for a given style type."""
     styles = getattr(doc, "styles", {}) or {}
@@ -393,6 +431,19 @@ def _extract_tbl_context(
     return getattr(context, "tbl_p_pr", None), getattr(context, "tbl_r_pr", None)
 
 
+_NUM_LEVEL_DEF: Any = None
+
+
+def _get_num_level_def() -> Any:
+    """Return cached ``num_level_def`` helper without repeated lazy-import overhead."""
+    global _NUM_LEVEL_DEF
+    if _NUM_LEVEL_DEF is None:
+        from atboffice.modules.writer.layout.portions import num_level_def
+
+        _NUM_LEVEL_DEF = num_level_def
+    return _NUM_LEVEL_DEF
+
+
 def _apply_numbering_indent(
     doc: Any, para: Any, chain: list[Style], base: ParagraphProperties
 ) -> ParagraphProperties:
@@ -410,13 +461,11 @@ def _apply_numbering_indent(
         or not getattr(doc, "numbering", None)
     ):
         return base
-    from atboffice.modules.writer.layout.portions import num_level_def
-
-    lvl = num_level_def(doc, num.id, num.lvl if num.lvl is not None else 0)
+    lvl = _get_num_level_def()(doc, num.id, num.lvl if num.lvl is not None else 0)
     lvl_ind = lvl.get("ind") if isinstance(lvl, dict) else None
     if not lvl_ind:
         return base
-    res = copy.deepcopy(base)
+    res = _clone_p_props(base)
     if lvl_ind.get("l") is not None:
         res.ind.left = float(lvl_ind["l"])
         res.ind.left_explicit = True
@@ -428,15 +477,16 @@ def _apply_numbering_indent(
         if k >= 0:
             style_ind = ParagraphProperties()
             for s in chain[k:]:
-                style_ind = merge_p_props(style_ind, ParagraphProperties(ind=s.p_pr.ind))
-            res = merge_p_props(res, style_ind)
+                _merge_p_props_into(style_ind, ParagraphProperties(ind=s.p_pr.ind))
+            _merge_p_props_into(res, style_ind)
     return res
 
 
 def resolve_p_props(doc: Any, para: Any, context: Any = None) -> ParagraphProperties:
     """Resolve full cascading paragraph properties for a paragraph."""
     defaults = getattr(doc, "defaults", {})
-    base = copy.deepcopy(defaults.get("p_pr", ParagraphProperties()))
+    default_p = defaults.get("p_pr")
+    base = _clone_p_props(default_p) if default_p is not None else ParagraphProperties()
 
     # Apply style chain with Word / LibreOffice table-style precedence:
     # docDefaults < table style < non-default paragraph style < direct.
@@ -449,12 +499,12 @@ def resolve_p_props(doc: Any, para: Any, context: Any = None) -> ParagraphProper
         if _is_default_para_style(doc, sid):
             own = chain[-1].p_pr if chain else None
             if own is not None:
-                base = merge_p_props(base, own)
-            base = merge_p_props(base, tbl_p_pr)
+                _merge_p_props_into(base, own)
+            _merge_p_props_into(base, tbl_p_pr)
             if len(chain) > 1:
                 anc_merged = ParagraphProperties()
                 for anc in chain[:-1]:
-                    anc_merged = merge_p_props(anc_merged, anc.p_pr)
+                    _merge_p_props_into(anc_merged, anc.p_pr)
                 # Only ancestor properties NOT overridden by own still inherit over tbl_p_pr.
                 if own is not None:
                     if own.sp.before != 0.0 or getattr(own.sp, "before_explicit", False):
@@ -469,20 +519,20 @@ def resolve_p_props(doc: Any, para: Any, context: Any = None) -> ParagraphProper
                     if own.sp.line_rule != "auto" or getattr(own.sp, "line_rule_explicit", False):
                         anc_merged.sp.line_rule = "auto"
                         anc_merged.sp.line_rule_explicit = False
-                base = merge_p_props(base, anc_merged)
+                _merge_p_props_into(base, anc_merged)
         else:
-            base = merge_p_props(base, tbl_p_pr)
+            _merge_p_props_into(base, tbl_p_pr)
             for s in chain:
-                base = merge_p_props(base, s.p_pr)
+                _merge_p_props_into(base, s.p_pr)
     else:
         for s in chain:
-            base = merge_p_props(base, s.p_pr)
+            _merge_p_props_into(base, s.p_pr)
 
     # Numbering level indents sit between the styles and direct formatting
     base = _apply_numbering_indent(doc, para, chain, base)
 
     # Direct paragraph formatting
-    base = merge_p_props(base, getattr(para, "p_pr", None))
+    _merge_p_props_into(base, getattr(para, "p_pr", None))
     if getattr(base, "bidi", False) and not getattr(base, "jc_explicit", False):
         base.jc = "right"
     return base
@@ -491,21 +541,22 @@ def resolve_p_props(doc: Any, para: Any, context: Any = None) -> ParagraphProper
 def resolve_r_props(doc: Any, para: Any, item: Any = None, context: Any = None) -> RunProperties:
     """Resolve full cascading run properties for an inline item or paragraph mark."""
     defaults = getattr(doc, "defaults", {})
-    base = copy.deepcopy(defaults.get("r_pr", RunProperties()))
+    default_r = defaults.get("r_pr")
+    base = _clone_r_props(default_r) if default_r is not None else RunProperties()
 
     # Apply table style and paragraph style chain run properties
     sid = getattr(para.p_pr, "style", "Normal") or "Normal"
     chain = style_chain(doc, sid)
     _, tbl_r_pr = _extract_tbl_context(context)
     if tbl_r_pr is not None:
-        base = merge_r_props(base, tbl_r_pr)
+        _merge_r_props_into(base, tbl_r_pr)
         for s in chain:
-            base = merge_r_props(base, s.r_pr)
+            _merge_r_props_into(base, s.r_pr)
         if _is_default_para_style(doc, sid) and (tbl_r_pr.sz != 12.0 or tbl_r_pr.sz_explicit):
             base.sz = tbl_r_pr.sz
     else:
         for s in chain:
-            base = merge_r_props(base, s.r_pr)
+            _merge_r_props_into(base, s.r_pr)
 
     rp = item.r_pr if item and hasattr(item, "r_pr") else getattr(para, "r_pr", None)
 
@@ -513,10 +564,10 @@ def resolve_r_props(doc: Any, para: Any, item: Any = None, context: Any = None) 
     if rp and getattr(rp, "style", None):
         for cs in style_chain(doc, rp.style):
             if cs.style_type == "character":
-                base = merge_r_props(base, cs.r_pr)
+                _merge_r_props_into(base, cs.r_pr)
 
     # Direct run formatting
     if rp:
-        base = merge_r_props(base, rp)
+        _merge_r_props_into(base, rp)
 
     return base

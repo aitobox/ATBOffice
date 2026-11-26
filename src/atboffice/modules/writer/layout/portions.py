@@ -347,11 +347,13 @@ def compute_lists(doc: Any, stories: list[Any] | None = None) -> dict[int, dict[
         # carries a section break
         if getattr(p, "sect", None) is not None and plen(p) == 0:
             p.label = ""
+            p._lists_checked = True
             return
 
         definition = num_def(doc, num.id)
         if not definition or not definition.get("abs"):
             p.label = ""
+            p._lists_checked = True
             return
 
         raw_lvl = getattr(num, "lvl", 0)
@@ -432,6 +434,7 @@ def compute_lists(doc: Any, stories: list[Any] | None = None) -> dict[int, dict[
             text = text.replace("%", "")
 
         p.label = text
+        p._lists_checked = True
         labels[p.id] = {
             "text": text,
             "lv": lv_def,
@@ -620,6 +623,7 @@ def _get_font_metrics(
 
 _EM_PX = 1000
 _em_cache: dict[tuple[str, bool, bool], Any] = {}
+_em_char_cache: dict[int, dict[str, float]] = {}
 # Faces measured from the bundled metric-compatible font (same advances as the Office face).
 # Every other face keeps the calibrated estimates so layout is identical on every machine.
 _BUNDLED_METRICS = {
@@ -667,6 +671,16 @@ def _em_metrics(font_family: str, bold: bool = False, italic: bool = False) -> A
     return fm
 
 
+def _fm_char_em(fm: Any, ch: str) -> float:
+    """Return cached unhinted em width for ``ch`` from ``fm``."""
+    adv_map = _em_char_cache.setdefault(id(fm), {})
+    em = adv_map.get(ch)
+    if em is None:
+        em = fm.horizontalAdvance(ch) / _EM_PX
+        adv_map[ch] = em
+    return em
+
+
 def measure_char_width(
     ch: str, font_size: float, font_family: str, bold: bool = False, italic: bool = False
 ) -> float:
@@ -679,7 +693,7 @@ def measure_char_width(
         return 0.0
     fm = _em_metrics(font_family, bold, italic)
     if fm is not None:
-        return fm.horizontalAdvance(ch) * font_size / _EM_PX
+        return _fm_char_em(fm, ch) * font_size
     calibrated_em = get_calibrated_char_em(ch, font_family, bold=bold, italic=italic)
     if calibrated_em is not None:
         return font_size * calibrated_em
@@ -705,6 +719,15 @@ def measure_text_width(
     """Calculate the total layout width of a string in points."""
     if not text:
         return 0.0
+    fm = _em_metrics(font_family, bold, italic)
+    if fm is not None:
+        total = 0.0
+        for ch in text:
+            if is_cjk_char(ch):
+                total += font_size
+            elif ch != "\t":
+                total += _fm_char_em(fm, ch) * font_size
+        return total
     return sum(
         measure_char_width(c, font_size, font_family, bold=bold, italic=italic) for c in text
     )

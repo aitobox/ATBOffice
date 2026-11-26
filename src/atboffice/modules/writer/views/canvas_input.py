@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QMenu,
 )
 
+from atboffice.core.fault_guard import guard_qt_event
 from atboffice.core.i18n import safe_tr
 from atboffice.modules.writer.models.document import (
     Paragraph,
@@ -183,6 +184,7 @@ class CanvasInputMixin:
         self.viewport().update()
         return True
 
+    @guard_qt_event("writer_canvas", "mouse_press")
     def mousePressEvent(self, event: QMouseEvent) -> None:
         """Handle single-click, double-click, triple-click, and table divider resize."""
         pos_pt = self._event_pos(event)
@@ -198,6 +200,7 @@ class CanvasInputMixin:
             page_idx, pt_doc = self.viewport_to_doc_coords(pos_pt)
             if self._float_press(page_idx, pt_doc):
                 return
+            self.setFocus()
             pos = self.controller.canvas_to_pos(page_idx, pt_doc)
 
             # Hyperlink navigation check
@@ -221,6 +224,7 @@ class CanvasInputMixin:
             self.controller.set_pos(pos, extend_selection=shift)
             self.viewport().update()
 
+    @guard_qt_event("writer_canvas", "mouse_move")
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         """Handle mouse dragging for continuous selection and table resizing."""
         pos_pt = self._event_pos(event)
@@ -269,6 +273,7 @@ class CanvasInputMixin:
             else:
                 self.viewport().setCursor(Qt.CursorShape.IBeamCursor)
 
+    @guard_qt_event("writer_canvas", "mouse_release")
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         """End mouse selection drag or commit table resize."""
         pos_pt = self._event_pos(event)
@@ -351,7 +356,16 @@ class CanvasInputMixin:
 
     # ------------------------------------------------------------ floating objects
     def selected_float(self) -> Any | None:
-        return self._float_sel[1] if self._float_sel else None
+        if not self._float_sel:
+            return None
+        item = self._float_sel[1]
+        if getattr(self, "pagination", None) and self.pagination.pages:
+            found = self._selected_float_box()
+            if found is None:
+                self._float_sel = None
+                return None
+            return found[1].item
+        return item
 
     def select_float(self, page_idx: int | None, item: Any | None) -> None:
         self._float_sel = (page_idx, item) if item is not None and page_idx is not None else None
@@ -370,6 +384,22 @@ class CanvasInputMixin:
                 fb = float_edit.box_for_item(pages[idx], item)
                 if fb is not None:
                     return idx, fb
+        # Undo/redo replaces Paragraph/item instances with deep copies; rebind by identity key.
+        item_id = getattr(item, "id", 0)
+        item_name = getattr(item, "name", "")
+        if item_id or item_name:
+            item_cls = type(item)
+            for idx in order:
+                if 0 <= idx < len(pages):
+                    for fb in getattr(pages[idx], "float_boxes", ()):
+                        cand = fb.item
+                        if (
+                            type(cand) is item_cls
+                            and getattr(cand, "id", 0) == item_id
+                            and getattr(cand, "name", "") == item_name
+                        ):
+                            self._float_sel = (idx, cand)
+                            return idx, fb
         return None
 
     def _float_press(self, page_idx: int, pt: QPointF) -> bool:
@@ -460,6 +490,7 @@ class CanvasInputMixin:
             return True
         return False
 
+    @guard_qt_event("writer_canvas", "key_press")
     def keyPressEvent(self, event: QKeyEvent) -> None:
         """Dispatch keyboard events to CaretController or trigger F7 spelling dialog."""
         if event.key() == Qt.Key.Key_F7:
