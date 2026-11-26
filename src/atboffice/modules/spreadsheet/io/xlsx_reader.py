@@ -1367,6 +1367,7 @@ def _parse_worksheet(
 
     # 7. Worksheet comments
     _parse_worksheet_comments(zip_file, sheet_path, sheet)
+    sheet.extra["xlsx_comments_signature"] = comments_signature(sheet.comments)
 
 
 def _parse_worksheet_drawings(
@@ -1568,6 +1569,24 @@ def _strip_author_prefix(text: str, author: str) -> str:
     if not text.startswith(prefix):
         return text
     return text[len(prefix) :].lstrip(" \t").removeprefix("\r\n").removeprefix("\n")
+
+
+def comments_signature(comments: dict[Any, Any] | None) -> tuple[Any, ...]:
+    """Return a hashable signature of worksheet comments for dirty-tracking on save."""
+    if not comments:
+        return ()
+    return tuple(
+        sorted(
+            (
+                r,
+                c,
+                getattr(cm, "text", ""),
+                getattr(cm, "author", ""),
+                bool(getattr(cm, "visible", False)),
+            )
+            for (r, c), cm in comments.items()
+        )
+    )
 
 
 def _parse_worksheet_comments(

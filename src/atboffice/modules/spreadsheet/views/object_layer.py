@@ -29,6 +29,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QMenu, QWidget
 
+from atboffice.core.fault_guard import guard_qt_event
 from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.views.object_painting import (
     child_rect,
@@ -383,6 +384,7 @@ class SpreadsheetObjectLayer(QWidget):
         self._drag_mode: HandleType = HandleType.NONE
         self._drag_start_pos: QPoint | None = None
         self._drag_start_rect: QRect | None = None
+        self._drag_start_snapshot: list[FloatingObject] | None = None
 
         self.setMouseTracking(True)
         # Never take focus on its own: the layer covers the whole grid viewport, so
@@ -524,10 +526,8 @@ class SpreadsheetObjectLayer(QWidget):
                 if handle_rect.contains(pt):
                     return self.selected_object, handle_type
 
-        # 2. Test object bodies in reverse Z-order (topmost first)
-        sorted_objs = list(self.objects)
-        sorted_objs.sort(key=lambda o: o.z_index, reverse=True)
-        for obj in sorted_objs:
+        # 2. Test object bodies in reverse Z-order (topmost painted object first)
+        for obj in reversed(self.objects):
             rect = self.get_object_rect(obj)
             if rect.contains(pt):
                 return obj, HandleType.BODY
@@ -604,43 +604,75 @@ class SpreadsheetObjectLayer(QWidget):
         pasted.to_point.row += 1
         pasted.z_index = len(self.objects)
 
+        before = copy.deepcopy(getattr(self.model, "drawings", []))
         self.add_object(pasted)
         self.select_object(pasted)
+        self._record_layer_snapshot(before, "粘贴对象")
         self.object_modified.emit(pasted)
         return pasted
+
+    def _record_layer_snapshot(self, before: list[FloatingObject], label: str) -> None:
+        sheet = self.model
+        win = self.window()
+        svc = win.undo_service() if hasattr(win, "undo_service") else None
+        if sheet is None or svc is None or not svc.is_recording:
+            return
+        after = copy.deepcopy(getattr(sheet, "drawings", []))
+        if len(after) == len(before) and repr(after) == repr(before):
+            return
+
+        def _restore(snap: list[FloatingObject]) -> None:
+            sheet.drawings = copy.deepcopy(snap)
+            if self.model is sheet:
+                self.set_model(sheet)
+            grid = self._owner_grid()
+            if grid is not None:
+                grid.viewport().update()
+
+        svc.record(
+            safe_tr(label),
+            lambda s=before: _restore(s),
+            lambda s=after: _restore(s),
+        )
+        if hasattr(win, "set_modified"):
+            win.set_modified(True)
 
     def delete_selected(self) -> bool:
         """Delete currently selected object."""
         if self.selected_object is not None:
+            before = copy.deepcopy(getattr(self.model, "drawings", []))
             target = self.selected_object
             self.remove_object(target)
+            self._record_layer_snapshot(before, "删除对象")
             self.object_modified.emit(target)
             return True
         return False
 
     # Painting
+    @guard_qt_event("spreadsheet_object_layer", "paint")
     def paintEvent(self, event: Any) -> None:
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        z = self.zoom
-        if z != 1.0:
-            painter.scale(z, z)
-        visible = QRect(0, 0, math.ceil(self.width() / z), math.ceil(self.height() / z))
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            z = self.zoom
+            if z != 1.0:
+                painter.scale(z, z)
+            visible = QRect(0, 0, math.ceil(self.width() / z), math.ceil(self.height() / z))
 
-        # Draw objects sorted by Z-index
-        for obj in self.objects:
-            rect = self.get_object_rect(obj)
-            # Only draw if intersects visible widget region
-            if not rect.intersects(visible):
-                continue
-            self._paint_object(painter, obj, rect)
+            # Draw objects sorted by Z-index
+            for obj in self.objects:
+                rect = self.get_object_rect(obj)
+                # Only draw if intersects visible widget region
+                if not rect.intersects(visible):
+                    continue
+                self._paint_object(painter, obj, rect)
 
-        # Draw selection adornments if an object is selected
-        if self.selected_object is not None:
-            sel_rect = self.get_object_rect(self.selected_object)
-            self._paint_selection(painter, sel_rect)
-
-        painter.end()
+            # Draw selection adornments if an object is selected
+            if self.selected_object is not None:
+                sel_rect = self.get_object_rect(self.selected_object)
+                self._paint_selection(painter, sel_rect)
+        finally:
+            painter.end()
 
     def _paint_object(self, painter: QPainter, obj: FloatingObject, rect: QRect) -> None:
         """Render a single floating object on canvas."""
@@ -736,6 +768,7 @@ class SpreadsheetObjectLayer(QWidget):
             painter.drawRect(handle_rect)
 
     # Mouse & Keyboard Events
+    @guard_qt_event("spreadsheet_object_layer", "mouse_press")
     def mousePressEvent(self, event: QMouseEvent) -> None:
         pos = self._grid_pos(event.pos())
         if event.button() == Qt.MouseButton.LeftButton:
@@ -745,6 +778,7 @@ class SpreadsheetObjectLayer(QWidget):
                 self._drag_mode = handle
                 self._drag_start_pos = pos
                 self._drag_start_rect = self.get_object_rect(hit_obj)
+                self._drag_start_snapshot = copy.deepcopy(getattr(self.model, "drawings", []))
                 self.setFocus(Qt.FocusReason.MouseFocusReason)
                 event.accept()
                 return
@@ -767,6 +801,7 @@ class SpreadsheetObjectLayer(QWidget):
         else:
             super().mousePressEvent(event)
 
+    @guard_qt_event("spreadsheet_object_layer", "mouse_move")
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         pos = self._grid_pos(event.pos())
 
@@ -858,11 +893,16 @@ class SpreadsheetObjectLayer(QWidget):
         event.ignore()
         super().mouseMoveEvent(event)
 
+    @guard_qt_event("spreadsheet_object_layer", "mouse_release")
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if self._drag_mode != HandleType.NONE:
+            before = self._drag_start_snapshot
             self._drag_mode = HandleType.NONE
             self._drag_start_pos = None
             self._drag_start_rect = None
+            self._drag_start_snapshot = None
+            if before is not None:
+                self._record_layer_snapshot(before, "调整对象")
             if self.selected_object is not None:
                 self.object_modified.emit(self.selected_object)
             event.accept()
@@ -886,6 +926,7 @@ class SpreadsheetObjectLayer(QWidget):
             grid.setFocus(Qt.FocusReason.OtherFocusReason)
         return grid
 
+    @guard_qt_event("spreadsheet_object_layer", "key_press")
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if self.selected_object is not None:
             if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
@@ -914,6 +955,7 @@ class SpreadsheetObjectLayer(QWidget):
             return
         super().keyPressEvent(event)
 
+    @guard_qt_event("spreadsheet_object_layer", "context_menu")
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         grid_pos = self._grid_pos(event.pos())
         hit_obj, _ = self.hit_test(grid_pos.x(), grid_pos.y())

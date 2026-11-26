@@ -111,6 +111,36 @@ class LedgerAuditingMixin:
         self.spreadsheet_view.grid.viewport().update()
         self.statusBar().showMessage(safe_tr("已移去所有公式审核箭头。"), 3000)
 
+    def _record_comment_edit(self, label: str, mutate: Any) -> Any:
+        """Apply a sheet comment mutation and record an UndoService snapshot step."""
+        import copy as _copy
+
+        sheet = self.spreadsheet_view.model
+        svc = self.undo_service() if hasattr(self, "undo_service") else None
+        if svc is None or not svc.is_recording:
+            res = mutate()
+            self.spreadsheet_view.grid.viewport().update()
+            return res
+
+        before_comments = _copy.deepcopy(sheet.comments)
+        with svc.paused():
+            res = mutate()
+        after_comments = _copy.deepcopy(sheet.comments)
+
+        def _restore_comments(snap: dict[Any, Any]) -> None:
+            sheet.comments = _copy.deepcopy(snap)
+            self.spreadsheet_view.grid.viewport().update()
+
+        if after_comments != before_comments:
+            svc.record(
+                safe_tr(label),
+                lambda s=before_comments: _restore_comments(s),
+                lambda s=after_comments: _restore_comments(s),
+            )
+            self.set_modified(True)
+        self.spreadsheet_view.grid.viewport().update()
+        return res
+
     def insert_comment(self) -> None:
         """Insert or edit comment for the active cell."""
         sheet = self.spreadsheet_view.model
@@ -136,17 +166,21 @@ class LedgerAuditingMixin:
         if dlg.exec():
             new_text = dlg.get_text()
             new_author = dlg.get_author()
-            if new_text:
-                sheet.set_comment(
-                    r,
-                    c,
-                    text=new_text,
-                    author=new_author,
-                    visible=cm.visible if cm else False,
-                )
-            else:
-                sheet.delete_comment(r, c)
-            self.spreadsheet_view.grid.viewport().update()
+
+            def _apply_comment() -> None:
+                if new_text:
+                    sheet.set_comment(
+                        r,
+                        c,
+                        text=new_text,
+                        author=new_author,
+                        visible=cm.visible if cm else False,
+                    )
+                else:
+                    sheet.delete_comment(r, c)
+
+            label = "编辑批注" if cm is not None else "插入批注"
+            self._record_comment_edit(label, _apply_comment)
 
     def show_hide_comment(self) -> None:
         """Toggle visibility of comment for the active cell."""
@@ -165,9 +199,8 @@ class LedgerAuditingMixin:
         sheet = self.spreadsheet_view.model
         sel = self.spreadsheet_view.selection
         r, c = sel.active_cell
-        deleted = sheet.delete_comment(r, c)
+        deleted = self._record_comment_edit("删除批注", lambda: sheet.delete_comment(r, c))
         if deleted:
-            self.spreadsheet_view.grid.viewport().update()
             self.statusBar().showMessage(safe_tr("已删除单元格批注。"), 3000)
         else:
             self.statusBar().showMessage(safe_tr("当前单元格没有批注。"), 3000)

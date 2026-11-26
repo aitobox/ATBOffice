@@ -25,6 +25,39 @@ from atboffice.ui.shell.ledger_common import (
 class LedgerObjectsMixin:
     """Charts, the Drawing toolbar, text boxes, shapes, pictures and hyperlinks."""
 
+    def _record_drawing_edit(self, label: str, mutate: Any) -> Any:
+        """Apply a sheet drawing mutation and record an UndoService snapshot step."""
+        import copy as _copy
+
+        sheet = getattr(self.spreadsheet_view, "model", None)
+        layer = getattr(self.spreadsheet_view, "object_layer", None)
+        svc = self.undo_service() if hasattr(self, "undo_service") else None
+        if sheet is None or svc is None or not svc.is_recording:
+            res = mutate()
+            if layer is not None:
+                layer.update()
+            return res
+
+        before = _copy.deepcopy(getattr(sheet, "drawings", []))
+        with svc.paused():
+            res = mutate()
+        after = _copy.deepcopy(getattr(sheet, "drawings", []))
+
+        def _restore(snapshot: list[Any]) -> None:
+            sheet.drawings = _copy.deepcopy(snapshot)
+            if layer is not None and getattr(layer, "model", None) is sheet:
+                layer.set_model(sheet)
+            self.spreadsheet_view.grid.viewport().update()
+
+        if len(after) != len(before) or repr(after) != repr(before):
+            svc.record(
+                safe_tr(label),
+                lambda s=before: _restore(s),
+                lambda s=after: _restore(s),
+            )
+            self.set_modified(True)
+        return res
+
     def set_chart_type(self, chart_type: str) -> None:
         """Set the chart type of the selected chart object or create a new chart."""
         layer = getattr(self.spreadsheet_view, "object_layer", None)
@@ -32,15 +65,18 @@ class LedgerObjectsMixin:
         if sel_obj and getattr(sel_obj, "kind", None) == "chart":
             from atboffice.modules.spreadsheet.tools.chart_builder import chart_kind
 
-            setattr(sel_obj, "chart_type", chart_type)
-            data = dict(sel_obj.chart_data or {})
-            if not data:
-                from atboffice.modules.presentation.chart.model import ChartData
+            def _mutate_chart() -> None:
+                setattr(sel_obj, "chart_type", chart_type)
+                data = dict(sel_obj.chart_data or {})
+                if not data:
+                    from atboffice.modules.presentation.chart.model import ChartData
 
-                data = ChartData.create_sample().to_dict()
-            data["kind"] = chart_kind(chart_type)
-            sel_obj.chart_data = data
-            layer.update()
+                    data = ChartData.create_sample().to_dict()
+                data["kind"] = chart_kind(chart_type)
+                sel_obj.chart_data = data
+                layer.update()
+
+            self._record_drawing_edit("更改图表类型", _mutate_chart)
             self.set_modified(True)
         else:
             self.open_chart_wizard(initial_type=chart_type)
@@ -53,33 +89,54 @@ class LedgerObjectsMixin:
             new_mode = not cur if isinstance(cur, bool) else tb.isHidden()
             self.set_toolbar_mode("drawing", new_mode)
 
+    def _next_object_id_and_z(self) -> tuple[int, int]:
+        """Return the next unique drawing id and top z-index for the active sheet."""
+        drawings = getattr(getattr(self.spreadsheet_view, "model", None), "drawings", None) or []
+        max_id = max((getattr(o, "id", 0) for o in drawings), default=0)
+        max_z = max((getattr(o, "z_index", -1) for o in drawings), default=-1)
+        return max_id + 1, max_z + 1
+
     def insert_textbox(self) -> None:
         """Insert floating text box at current selection."""
         sel = self.spreadsheet_view.selection
         r, c = sel.active_cell
+        obj_id, z_idx = self._next_object_id_and_z()
         obj = FloatingObject(
+            id=obj_id,
             kind="textbox",
             text="TextBox",
             anchor_type=AnchorType.TWO_CELL,
             from_point=CellAnchorPoint(col=c, row=r),
             to_point=CellAnchorPoint(col=c + 2, row=r + 3),
+            z_index=z_idx,
         )
-        self.spreadsheet_view.object_layer.add_object(obj)
-        self.spreadsheet_view.object_layer.select_object(obj)
+
+        def _add() -> None:
+            self.spreadsheet_view.object_layer.add_object(obj)
+            self.spreadsheet_view.object_layer.select_object(obj)
+
+        self._record_drawing_edit("插入文本框", _add)
         self.set_modified(True)
 
     def insert_shape(self, kind: str = "rect") -> None:
         """Insert floating geometric shape at current selection."""
         sel = self.spreadsheet_view.selection
         r, c = sel.active_cell
+        obj_id, z_idx = self._next_object_id_and_z()
         obj = FloatingObject(
+            id=obj_id,
             kind=kind,
             anchor_type=AnchorType.TWO_CELL,
             from_point=CellAnchorPoint(col=c, row=r),
             to_point=CellAnchorPoint(col=c + 2, row=r + 3),
+            z_index=z_idx,
         )
-        self.spreadsheet_view.object_layer.add_object(obj)
-        self.spreadsheet_view.object_layer.select_object(obj)
+
+        def _add() -> None:
+            self.spreadsheet_view.object_layer.add_object(obj)
+            self.spreadsheet_view.object_layer.select_object(obj)
+
+        self._record_drawing_edit("插入图形", _add)
         self.set_modified(True)
 
     def chart_wizard(self) -> None:
@@ -90,25 +147,29 @@ class LedgerObjectsMixin:
         """Bring selected floating object to top of z-order."""
         layer = getattr(self.spreadsheet_view, "object_layer", None)
         if layer and hasattr(layer, "selected_object") and layer.selected_object:
-            layer.bring_to_front(layer.selected_object)
-            self.set_modified(True)
+            target = layer.selected_object
+            self._record_drawing_edit("置于顶层", lambda: layer.bring_to_front(target))
 
     def send_to_back(self) -> None:
         """Send selected floating object to bottom of z-order."""
         layer = getattr(self.spreadsheet_view, "object_layer", None)
         if layer and hasattr(layer, "selected_object") and layer.selected_object:
-            layer.send_to_back(layer.selected_object)
-            self.set_modified(True)
+            target = layer.selected_object
+            self._record_drawing_edit("置于底层", lambda: layer.send_to_back(target))
 
     def _apply_drawing_fill_color(self, color: str) -> None:
         """Apply fill color to selected floating drawing object."""
         layer = getattr(self.spreadsheet_view, "object_layer", None)
         if layer and hasattr(layer, "selected_object") and layer.selected_object:
-            layer.selected_object.fill_color = color
-            if hasattr(layer.selected_object, "fill_type"):
-                layer.selected_object.fill_type = "solid"
-            layer.update()
-            self.set_modified(True)
+            target = layer.selected_object
+
+            def _apply() -> None:
+                target.fill_color = color
+                if hasattr(target, "fill_type"):
+                    target.fill_type = "solid"
+                layer.update()
+
+            self._record_drawing_edit("设置填充色", _apply)
 
     def _on_object_selected(self, obj: Any) -> None:
         """Update contextual toolbars when floating object selection changes."""
@@ -147,22 +208,26 @@ class LedgerObjectsMixin:
                 dlg.list_types.setCurrentRow(row)
         created: list[object] = []
         dlg.chart_created.connect(lambda obj, _target: created.append(obj))
-        if dlg.exec() != QDialog.DialogCode.Accepted or not created:
-            return
-        chart_obj = created[0]
-        # Keep the legacy attribute that set_chart_type / the chart toolbar read.
-        setattr(chart_obj, "chart_type", dlg.selected_type_id)
-        if dlg.created_sheet is not None and workbook is not None:
-            idx = workbook.sheet_index(dlg.created_sheet)
-            if hasattr(self.spreadsheet_view, "set_active_sheet_index") and idx >= 0:
-                self.spreadsheet_view.set_active_sheet_index(idx)
-        layer = getattr(self.spreadsheet_view, "object_layer", None)
-        if layer is not None:
-            layer.set_model(getattr(self.spreadsheet_view, "model", None))
-            layer.select_object(chart_obj)
-            layer.update()
-        self.set_toolbar_mode("chart", True)
-        self.set_modified(True)
+
+        def _run_wizard() -> None:
+            if dlg.exec() != QDialog.DialogCode.Accepted or not created:
+                return
+            chart_obj = created[0]
+            # Keep the legacy attribute that set_chart_type / the chart toolbar read.
+            setattr(chart_obj, "chart_type", dlg.selected_type_id)
+            if dlg.created_sheet is not None and workbook is not None:
+                idx = workbook.sheet_index(dlg.created_sheet)
+                if hasattr(self.spreadsheet_view, "set_active_sheet_index") and idx >= 0:
+                    self.spreadsheet_view.set_active_sheet_index(idx)
+            layer = getattr(self.spreadsheet_view, "object_layer", None)
+            if layer is not None:
+                layer.set_model(getattr(self.spreadsheet_view, "model", None))
+                layer.select_object(chart_obj)
+                layer.update()
+            self.set_toolbar_mode("chart", True)
+            self.set_modified(True)
+
+        self._record_drawing_edit("插入图表", _run_wizard)
 
     def format_selected_object(self) -> None:
         """Format properties of selected chart or floating shape."""
@@ -230,8 +295,9 @@ class LedgerObjectsMixin:
             height_px += model.geometry.row_size(r + rows)
             rows += 1
         layer = self.spreadsheet_view.object_layer
+        obj_id, z_idx = self._next_object_id_and_z()
         obj = FloatingObject(
-            id=len(getattr(model, "drawings", []) or []) + 1,
+            id=obj_id,
             name=name or "Picture",
             kind="image",
             anchor_type=AnchorType.TWO_CELL,
@@ -239,10 +305,15 @@ class LedgerObjectsMixin:
             to_point=CellAnchorPoint(col=c + max(1, cols), row=r + max(1, rows)),
             image_data=data,
             image_mime=mime,
+            z_index=z_idx,
             lock_aspect=True,
         )
-        layer.add_object(obj)
-        layer.select_object(obj)
+
+        def _add_img() -> None:
+            layer.add_object(obj)
+            layer.select_object(obj)
+
+        self._record_drawing_edit("插入图片", _add_img)
         self.set_modified(True)
         return True
 

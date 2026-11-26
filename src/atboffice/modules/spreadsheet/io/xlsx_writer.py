@@ -12,7 +12,7 @@ from typing import Any, BinaryIO
 
 from atboffice.modules.spreadsheet.calc.references import MAXC, MAXR, cell_name, parse_range
 from atboffice.modules.spreadsheet.io.xlsx_drawing_shapes import drawings_signature
-from atboffice.modules.spreadsheet.io.xlsx_reader import BUILTIN_NUMFMTS
+from atboffice.modules.spreadsheet.io.xlsx_reader import BUILTIN_NUMFMTS, comments_signature
 from atboffice.modules.spreadsheet.models.color_utils import (
     DEFAULT_INDEXED_PALETTE,
     DEFAULT_THEME_COLORS,
@@ -63,6 +63,8 @@ CT_CORE_PROPS = "application/vnd.openxmlformats-package.core-properties+xml"
 CT_APP_PROPS = "application/vnd.openxmlformats-officedocument.extended-properties+xml"
 CT_RELATIONSHIPS = "application/vnd.openxmlformats-package.relationships+xml"
 CT_DRAWING = "application/vnd.openxmlformats-officedocument.drawing+xml"
+CT_COMMENTS = "application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml"
+CT_VML_DRAWING = "application/vnd.openxmlformats-officedocument.vmlDrawing"
 
 REL_OFFICE_DOC = (
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
@@ -80,6 +82,8 @@ REL_APP_PROPS = (
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties"
 )
 REL_DRAWING = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing"
+REL_COMMENTS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
+REL_VML_DRAWING = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing"
 REL_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
 REL_PIVOT_TABLE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable"
 REL_PIVOT_CACHE = (
@@ -1180,6 +1184,7 @@ def _serialize_worksheet(
     sst_manager: SharedStringsManager,
     is_active: bool,
     drawing_rid: str | None = None,
+    legacy_drawing_rid: str | None = None,
 ) -> bytes:
     """Serialize a single worksheet to SpreadsheetML XML."""
     coords = list(sheet.cells.keys())
@@ -1356,6 +1361,8 @@ def _serialize_worksheet(
     parts.append(_breaks_xml("colBreaks", sheet.view_state.col_breaks, MAXR - 1))
     if drawing_rid:
         parts.append(f'<drawing r:id="{drawing_rid}"/>')
+    if legacy_drawing_rid:
+        parts.append(f'<legacyDrawing r:id="{legacy_drawing_rid}"/>')
     if x14_icon_formats:
         parts.append(_x14_icon_set_ext_xml(x14_icon_formats))
     parts.append("</worksheet>")
@@ -1729,6 +1736,76 @@ _WORKBOOK_ORDER = [
 ]
 
 
+def _serialize_comments_xml(comments: dict[Any, Any]) -> bytes:
+    """Serialize worksheet comments into SpreadsheetML comments XML (xl/commentsN.xml)."""
+    authors: list[str] = []
+    author_index: dict[str, int] = {}
+    items = sorted(comments.items(), key=lambda kv: kv[0])
+    for _, cm in items:
+        author = str(getattr(cm, "author", "") or "")
+        if author not in author_index:
+            author_index[author] = len(authors)
+            authors.append(author)
+    if not authors:
+        authors.append("")
+        author_index[""] = 0
+
+    parts = [
+        XML_HEADER,
+        f'<comments xmlns="{NS_MAIN}"><authors>',
+    ]
+    for a in authors:
+        parts.append(f"<author>{_xml_escape(_clean_text(a))}</author>")
+    parts.append("</authors><commentList>")
+    for (r, c), cm in items:
+        author = str(getattr(cm, "author", "") or "")
+        aid = author_index[author]
+        ref = cell_name(r, c)
+        text = str(getattr(cm, "text", "") or "")
+        parts.append(
+            f'<comment ref="{ref}" authorId="{aid}"><text>{_text_element(text)}</text></comment>'
+        )
+    parts.append("</commentList></comments>")
+    return "".join(parts).encode("utf-8")
+
+
+def _serialize_comments_vml(comments: dict[Any, Any]) -> bytes:
+    """Serialize VML note shapes so comment visibility survives XLSX round-trip."""
+    parts = [
+        '<xml xmlns:v="urn:schemas-microsoft-com:vml"\r\n',
+        ' xmlns:o="urn:schemas-microsoft-com:office:office"\r\n',
+        ' xmlns:x="urn:schemas-microsoft-com:office:excel">\r\n',
+        ' <o:shapelayout v:ext="edit"><o:idmap v:ext="edit" data="1"/></o:shapelayout>\r\n',
+        ' <v:shapetype id="_x0000_t202" coordsize="21600,21600" o:spt="202"\r\n',
+        '  path="m,l,21600r21600,l21600,xe">\r\n',
+        '  <v:stroke joinstyle="miter"/>\r\n',
+        '  <v:path gradientshapeok="t" o:connecttype="rect"/>\r\n',
+        " </v:shapetype>\r\n",
+    ]
+    for idx, ((r, c), cm) in enumerate(sorted(comments.items(), key=lambda kv: kv[0]), start=1):
+        vis = bool(getattr(cm, "visible", False))
+        vis_css = "visible" if vis else "hidden"
+        vis_tag = "<x:Visible/>" if vis else ""
+        parts.append(
+            f' <v:shape id="_x0000_s{1024 + idx}" type="#_x0000_t202"'
+            f" style='position:absolute;width:96pt;height:55.5pt;z-index:{idx};"
+            f'visibility:{vis_css}\' fillcolor="infoBackground [80]" o:insetmode="auto">\r\n'
+            '  <v:fill color2="infoBackground [80]"/>\r\n'
+            '  <v:shadow on="t" color="black" obscured="t"/>\r\n'
+            '  <v:path o:connecttype="none"/>\r\n'
+            "  <v:textbox style='mso-direction-alt:auto'>"
+            "<div style='text-align:left'></div></v:textbox>\r\n"
+            '  <x:ClientData ObjectType="Note">\r\n'
+            "   <x:MoveWithCells/><x:SizeWithCells/>\r\n"
+            "   <x:AutoFill>False</x:AutoFill>\r\n"
+            f"   {vis_tag}<x:Row>{r}</x:Row><x:Column>{c}</x:Column>\r\n"
+            "  </x:ClientData>\r\n"
+            " </v:shape>\r\n"
+        )
+    parts.append("</xml>")
+    return "".join(parts).encode("utf-8")
+
+
 @dataclass
 class _SheetEntry:
     """Where one worksheet lives in the written package."""
@@ -2099,16 +2176,26 @@ def _splice_sheet_data(original: bytes, sheet_data_xml: str, dim_ref: str) -> by
     return serialize_lxml(root)
 
 
-def _ensure_drawing_ref(ws_bytes: bytes, rel_id: str) -> bytes:
-    """Add ``<drawing r:id>`` to a worksheet that did not have drawings before."""
+def _ensure_worksheet_rel_ref(ws_bytes: bytes, tag: str, rel_id: str) -> bytes:
+    """Add ``<tag r:id>`` to a worksheet in schema order if not already present."""
     root = parse_lxml(ws_bytes)
-    if find_local(root, "drawing") is not None:
+    if find_local(root, tag) is not None:
         return ws_bytes
     ns = namespace_of(root)
-    el = LET.Element(f"{{{ns}}}drawing" if ns else "drawing")
+    el = LET.Element(f"{{{ns}}}{tag}" if ns else tag)
     el.set(f"{{{NS_R}}}id", rel_id)
     insert_in_order(root, el, _WORKSHEET_ORDER)
     return serialize_lxml(root)
+
+
+def _ensure_drawing_ref(ws_bytes: bytes, rel_id: str) -> bytes:
+    """Add ``<drawing r:id>`` to a worksheet that did not have drawings before."""
+    return _ensure_worksheet_rel_ref(ws_bytes, "drawing", rel_id)
+
+
+def _ensure_legacy_drawing_ref(ws_bytes: bytes, rel_id: str) -> bytes:
+    """Add ``<legacyDrawing r:id>`` to a worksheet that did not have VML notes before."""
+    return _ensure_worksheet_rel_ref(ws_bytes, "legacyDrawing", rel_id)
 
 
 def _rel_type_is(rel_type: str, name: str) -> bool:
@@ -2265,6 +2352,11 @@ def write_xlsx(
         orig_drawing_rel = next(
             (r for r in src_sheet_rels if _rel_type_is(r.type, "drawing")), None
         )
+        orig_comments_rel = next(
+            (r for r in src_sheet_rels if _rel_type_is(r.type, "comments")), None
+        )
+        orig_vml_rel = next((r for r in src_sheet_rels if _rel_type_is(r.type, "vmlDrawing")), None)
+        reserved_rids: set[str] = {r.id for r in src_sheet_rels}
         has_drawings = bool(getattr(sheet, "drawings", None))
         drawings_unchanged = orig_drawing_rel is not None and sheet.extra.get(
             "xlsx_drawings_signature"
@@ -2272,32 +2364,64 @@ def write_xlsx(
         regenerate_drawings = has_drawings and not drawings_unchanged
         drawing_rid = None
         if regenerate_drawings:
-            drawing_rid = orig_drawing_rel.id if orig_drawing_rel else "rIdDrawing"
+            if orig_drawing_rel:
+                drawing_rid = orig_drawing_rel.id
+            elif "rIdDrawing" not in reserved_rids:
+                drawing_rid = "rIdDrawing"
+            else:
+                drawing_rid = _unique_id(reserved_rids)
+            reserved_rids.add(drawing_rid)
+
+        sheet_comments = getattr(sheet, "comments", None) or {}
+        has_comments = bool(sheet_comments)
+        comments_unchanged = orig_comments_rel is not None and sheet.extra.get(
+            "xlsx_comments_signature"
+        ) == comments_signature(sheet_comments)
+        regenerate_comments = has_comments and not comments_unchanged
+        delete_comments = not has_comments and orig_comments_rel is not None
+        comments_rid = None
+        legacy_drawing_rid = None
+        if regenerate_comments:
+            comments_rid = orig_comments_rel.id if orig_comments_rel else _unique_id(reserved_rids)
+            reserved_rids.add(comments_rid)
+            if orig_vml_rel is None:
+                legacy_drawing_rid = _unique_id(reserved_rids)
+                reserved_rids.add(legacy_drawing_rid)
 
         if entry.from_source:
-            if not any_dirty:
+            if not any_dirty and not regenerate_drawings and not regenerate_comments:
                 ws_bytes = source_pkg.read_part(part_name)
             else:
-                ws_bytes = _splice_sheet_data(
-                    source_pkg.read_part(part_name),
-                    _serialize_sheet_data(sheet, style_manager, sst_manager),
-                    _dimension_ref(sheet),
-                )
-                patched = _patch_page_setup(ws_bytes.decode("utf-8"), sheet)
-                ws_bytes = patched.encode("utf-8")
-                if regenerate_drawings and orig_drawing_rel is None:
+                if any_dirty:
+                    ws_bytes = _splice_sheet_data(
+                        source_pkg.read_part(part_name),
+                        _serialize_sheet_data(sheet, style_manager, sst_manager),
+                        _dimension_ref(sheet),
+                    )
+                    patched = _patch_page_setup(ws_bytes.decode("utf-8"), sheet)
+                    ws_bytes = patched.encode("utf-8")
+                else:
+                    ws_bytes = source_pkg.read_part(part_name)
+                if regenerate_drawings and orig_drawing_rel is None and drawing_rid:
                     ws_bytes = _ensure_drawing_ref(ws_bytes, drawing_rid)
+                if regenerate_comments and orig_vml_rel is None and legacy_drawing_rid:
+                    ws_bytes = _ensure_legacy_drawing_ref(ws_bytes, legacy_drawing_rid)
             pkg_writer.add_part(part_name, ws_bytes, CT_WORKSHEET)
         else:
             ws_bytes = _serialize_worksheet(
-                sheet, style_manager, sst_manager, is_active, drawing_rid=drawing_rid
+                sheet,
+                style_manager,
+                sst_manager,
+                is_active,
+                drawing_rid=drawing_rid,
+                legacy_drawing_rid=legacy_drawing_rid,
             )
             pkg_writer.add_part(part_name, ws_bytes, CT_WORKSHEET)
 
         sheet_rels: list[tuple[str, str, str, str]] = []
         used_sheet_rids: set[str] = set()
 
-        if regenerate_drawings:
+        if regenerate_drawings and drawing_rid:
             if orig_drawing_rel is not None:
                 drawing_part = orig_drawing_rel.resolve_target(part_name)
                 # Its old relationships (images, charts) are replaced below.
@@ -2334,6 +2458,36 @@ def write_xlsx(
             )
             used_sheet_rids.add(drawing_rid)
 
+        if regenerate_comments and comments_rid:
+            comments_part = (
+                orig_comments_rel.resolve_target(part_name)
+                if orig_comments_rel is not None
+                else _unique_part("xl/comments{}.xml", used_parts)
+            )
+            pkg_writer.add_part(comments_part, _serialize_comments_xml(sheet_comments), CT_COMMENTS)
+            sheet_rels.append(
+                (comments_rid, REL_COMMENTS, relative_part_uri(part_name, comments_part), "")
+            )
+            used_sheet_rids.add(comments_rid)
+            if orig_vml_rel is None and legacy_drawing_rid:
+                vml_part = _unique_part("xl/drawings/vmlDrawing{}.vml", used_parts)
+                pkg_writer.add_part(
+                    vml_part, _serialize_comments_vml(sheet_comments), CT_VML_DRAWING
+                )
+                vml_rel_uri = relative_part_uri(part_name, vml_part)
+                sheet_rels.append((legacy_drawing_rid, REL_VML_DRAWING, vml_rel_uri, ""))
+                used_sheet_rids.add(legacy_drawing_rid)
+            elif orig_vml_rel is not None and not any(
+                _rel_type_is(r.type, "ctrlProp") for r in src_sheet_rels
+            ):
+                pkg_writer.add_part(
+                    orig_vml_rel.resolve_target(part_name),
+                    _serialize_comments_vml(sheet_comments),
+                    CT_VML_DRAWING,
+                )
+        elif delete_comments and orig_comments_rel is not None:
+            pkg_writer.delete_part(orig_comments_rel.resolve_target(part_name))
+
         # Pivot tables attached to this sheet
         if pivots:
             for t in getattr(pivots, "tables", []):
@@ -2347,6 +2501,8 @@ def write_xlsx(
         # Every other original sheet relationship is kept with its id.
         for r in src_sheet_rels:
             if _rel_type_is(r.type, "drawing") and regenerate_drawings:
+                continue
+            if _rel_type_is(r.type, "comments") and (regenerate_comments or delete_comments):
                 continue
             if _rel_type_is(r.type, "pivotTable") and pivots:
                 continue
