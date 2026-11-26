@@ -13,6 +13,7 @@ from atboffice.modules.writer.models.document import (
     Paragraph,
     Story,
     TextItem,
+    all_stories,
     info,
     normalize,
     paras_between,
@@ -600,7 +601,10 @@ class CanvasEditingMixin:
             else DmlFill(kind="solid", color="#FFFFFF" if is_textbox else "#D9E2F3")
         )
         line = DmlLine(visible=True, color="#2F5597", width=1.25)
-        next_id = max((getattr(r, "id", 0) for r in p.runs), default=0) + 1
+        all_runs = [
+            r for story_obj in all_stories(self.doc) for para in story_obj.paras for r in para.runs
+        ]
+        next_id = max((getattr(r, "id", 0) for r in all_runs), default=0) + 1
         item = ShapeItem(
             id=next_id,
             name=f"{shape_type}_{next_id}",
@@ -611,7 +615,7 @@ class CanvasEditingMixin:
                 pos_h=PositionH(rel="margin", offset=72.0),
                 pos_v=PositionV(rel="paragraph", offset=12.0),
                 z_index=max(
-                    (getattr(getattr(r, "float_pr", None), "z_index", 0) for r in p.runs),
+                    (getattr(getattr(r, "float_pr", None), "z_index", 0) for r in all_runs),
                     default=0,
                 )
                 + 1,
@@ -634,7 +638,7 @@ class CanvasEditingMixin:
         self.select_float(page_idx, item)
         return item
 
-    @_undoable("调整对象叠放次序")
+    @_undoable_document("调整对象叠放次序")
     def reorder_selected_object(self, direction: str) -> bool:
         """Adjust z-order of the currently selected floating object."""
         item = self.selected_float()
@@ -653,7 +657,7 @@ class CanvasEditingMixin:
         self._on_formatting_applied()
         return True
 
-    @_undoable("微移对象")
+    @_undoable_document("微移对象")
     def nudge_selected_object(self, dx: float, dy: float) -> bool:
         """Move the currently selected floating object by (dx, dy) points."""
         item = self.selected_float()
@@ -669,7 +673,7 @@ class CanvasEditingMixin:
         self._on_formatting_applied()
         return True
 
-    @_undoable("对齐对象")
+    @_undoable_document("对齐对象")
     def align_selected_objects(self, alignment: str) -> bool:
         """Align the selected floating object horizontally or vertically on the page."""
         item = self.selected_float()
@@ -687,7 +691,7 @@ class CanvasEditingMixin:
         self._on_formatting_applied()
         return True
 
-    @_undoable("旋转对象")
+    @_undoable_document("旋转对象")
     def rotate_selected_object(self, angle: float) -> bool:
         """Rotate the selected floating object by ``angle`` degrees."""
         item = self.selected_float()
