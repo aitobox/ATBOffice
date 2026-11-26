@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import zipfile
+
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QColor, QImage
 from PySide6.QtTest import QTest
@@ -77,6 +79,17 @@ def test_ledger_insert_shape_textbox_picture_and_comment_are_undoable_and_save(
     reopened.delete_comment()
     out2 = tmp_path / "objects_no_comment.xlsx"
     assert reopened.save_file(out2, confirm_overwrite=False) is True
+    with zipfile.ZipFile(out2, "r") as zf:
+        names = zf.namelist()
+        assert not any("comments" in n for n in names)
+        assert not any("vmlDrawing" in n for n in names)
+        s1_xml = zf.read("xl/worksheets/sheet1.xml").decode("utf-8")
+        assert "<legacyDrawing" not in s1_xml
+        if "xl/worksheets/_rels/sheet1.xml.rels" in names:
+            s1_rels = zf.read("xl/worksheets/_rels/sheet1.xml.rels").decode("utf-8")
+            assert "relationships/comments" not in s1_rels
+            assert "relationships/vmlDrawing" not in s1_rels
+
     reopened2 = LedgerWindow()
     qtbot.addWidget(reopened2)
     assert reopened2.open_file(out2) is True

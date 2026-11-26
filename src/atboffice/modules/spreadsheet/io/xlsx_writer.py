@@ -2198,6 +2198,19 @@ def _ensure_legacy_drawing_ref(ws_bytes: bytes, rel_id: str) -> bytes:
     return _ensure_worksheet_rel_ref(ws_bytes, "legacyDrawing", rel_id)
 
 
+def _remove_worksheet_rel_ref(ws_bytes: bytes, tag: str) -> bytes:
+    """Remove ``<tag .../>`` elements from a worksheet if present."""
+    root = parse_lxml(ws_bytes)
+    matches = find_all_local(root, tag)
+    if not matches:
+        return ws_bytes
+    for el in matches:
+        parent = el.getparent()
+        if parent is not None:
+            parent.remove(el)
+    return serialize_lxml(root)
+
+
 def _rel_type_is(rel_type: str, name: str) -> bool:
     return rel_type.rsplit("/", 1)[-1] == name
 
@@ -2379,6 +2392,10 @@ def write_xlsx(
         ) == comments_signature(sheet_comments)
         regenerate_comments = has_comments and not comments_unchanged
         delete_comments = not has_comments and orig_comments_rel is not None
+        has_ctrl_props = any(_rel_type_is(r.type, "ctrlProp") for r in src_sheet_rels)
+        delete_comments_vml = bool(
+            delete_comments and orig_vml_rel is not None and not has_ctrl_props
+        )
         comments_rid = None
         legacy_drawing_rid = None
         if regenerate_comments:
@@ -2389,7 +2406,12 @@ def write_xlsx(
                 reserved_rids.add(legacy_drawing_rid)
 
         if entry.from_source:
-            if not any_dirty and not regenerate_drawings and not regenerate_comments:
+            if (
+                not any_dirty
+                and not regenerate_drawings
+                and not regenerate_comments
+                and not delete_comments_vml
+            ):
                 ws_bytes = source_pkg.read_part(part_name)
             else:
                 if any_dirty:
@@ -2406,6 +2428,8 @@ def write_xlsx(
                     ws_bytes = _ensure_drawing_ref(ws_bytes, drawing_rid)
                 if regenerate_comments and orig_vml_rel is None and legacy_drawing_rid:
                     ws_bytes = _ensure_legacy_drawing_ref(ws_bytes, legacy_drawing_rid)
+                if delete_comments_vml:
+                    ws_bytes = _remove_worksheet_rel_ref(ws_bytes, "legacyDrawing")
             pkg_writer.add_part(part_name, ws_bytes, CT_WORKSHEET)
         else:
             ws_bytes = _serialize_worksheet(
@@ -2477,9 +2501,7 @@ def write_xlsx(
                 vml_rel_uri = relative_part_uri(part_name, vml_part)
                 sheet_rels.append((legacy_drawing_rid, REL_VML_DRAWING, vml_rel_uri, ""))
                 used_sheet_rids.add(legacy_drawing_rid)
-            elif orig_vml_rel is not None and not any(
-                _rel_type_is(r.type, "ctrlProp") for r in src_sheet_rels
-            ):
+            elif orig_vml_rel is not None and not has_ctrl_props:
                 pkg_writer.add_part(
                     orig_vml_rel.resolve_target(part_name),
                     _serialize_comments_vml(sheet_comments),
@@ -2487,6 +2509,10 @@ def write_xlsx(
                 )
         elif delete_comments and orig_comments_rel is not None:
             pkg_writer.delete_part(orig_comments_rel.resolve_target(part_name))
+            if delete_comments_vml and orig_vml_rel is not None:
+                vml_target = orig_vml_rel.resolve_target(part_name)
+                if source_pkg is None or source_pkg.has_part(vml_target):
+                    pkg_writer.delete_part(vml_target)
 
         # Pivot tables attached to this sheet
         if pivots:
@@ -2503,6 +2529,8 @@ def write_xlsx(
             if _rel_type_is(r.type, "drawing") and regenerate_drawings:
                 continue
             if _rel_type_is(r.type, "comments") and (regenerate_comments or delete_comments):
+                continue
+            if _rel_type_is(r.type, "vmlDrawing") and delete_comments_vml:
                 continue
             if _rel_type_is(r.type, "pivotTable") and pivots:
                 continue
