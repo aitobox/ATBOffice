@@ -57,6 +57,7 @@ class BaseOfficeWindow(QMainWindow):
         self._is_modified: bool = False
         self._in_close_event: bool = False
         self._is_closed: bool = False
+        self._owned_timers: list[QTimer] = []
         self.current_theme: str = "blue"
         self.task_pane_dock: Any | None = None
         self.clipboard_pane: Any | None = None
@@ -939,6 +940,22 @@ class BaseOfficeWindow(QMainWindow):
         if cw and hasattr(cw, "render_to_printer"):
             cw.render_to_printer(printer)
 
+    def register_owned_timer(self, timer: QTimer) -> None:
+        """Track a timer so ``cleanup_resources`` stops it even if not parented to self."""
+        if timer not in self._owned_timers:
+            self._owned_timers.append(timer)
+
+    def stop_owned_timers(self) -> None:
+        """Stop all timers explicitly registered with this window."""
+        for timer in list(getattr(self, "_owned_timers", [])):
+            try:
+                if timer is not None and timer.isActive():
+                    timer.stop()
+            except Exception:
+                pass
+        if hasattr(self, "_owned_timers"):
+            self._owned_timers.clear()
+
     def cleanup_resources(self) -> None:
         """Explicitly disconnect model/window signals and stop pending QTimer instances.
 
@@ -953,7 +970,8 @@ class BaseOfficeWindow(QMainWindow):
             except Exception as exc:
                 logger.debug("Error cleaning up recovery service: %s", exc)
 
-        # 2. Stop all descendant QTimer instances in the window hierarchy
+        # 2. Stop explicitly owned timers and all descendant QTimer instances
+        self.stop_owned_timers()
         from PySide6.QtCore import QTimer
 
         for timer in self.findChildren(QTimer):
