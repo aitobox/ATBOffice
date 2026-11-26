@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QGridLayout, QStackedWidget, QVBoxLayout, QWidget
 
+from atboffice.core.i18n import safe_tr
 from atboffice.modules.writer.models.document import Document, Paragraph, all_paragraphs
 from atboffice.modules.writer.models.mailmerge import MailMergeEngine
 from atboffice.modules.writer.views.canvas_view import WriterCanvasView
@@ -307,12 +308,8 @@ class WriterView(QWidget):
         self.review_pane.refresh_items()
 
     def _on_new_comment(self) -> None:
-        """Insert new comment at caret."""
-        doc = self.canvas_view.doc
-        from atboffice.modules.writer.models.revision import add_comment
-
-        add_comment(doc, text="New Comment", author="Author")
-        self.canvas_view.update()
+        """Insert new comment at caret via undoable canvas action."""
+        self.canvas_view.insert_comment(author="Author", text=safe_tr("新批注"))
         self.review_pane.refresh_items()
 
     def _on_prev_review_item(self) -> None:

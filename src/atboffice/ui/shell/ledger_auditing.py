@@ -117,9 +117,9 @@ class LedgerAuditingMixin:
         sel = self.spreadsheet_view.selection
         r, c = sel.active_cell
         cm = sheet.get_comment(r, c)
-        from atboffice.modules.spreadsheet.calc.references import to_a1
+        from atboffice.modules.spreadsheet.calc.references import cell_name
 
-        cell_ref = to_a1(r, c)
+        cell_ref = cell_name(r, c)
         from atboffice.modules.spreadsheet.dialogs.comment_dialog import (
             CommentDialog,
         )
@@ -189,12 +189,12 @@ class LedgerAuditingMixin:
         ar, ac = sel.active_cell
         existing_dv = sheet.get_validation_at(ar, ac)
         pr = sel.primary_range
-        from atboffice.modules.spreadsheet.calc.references import to_a1
+        from atboffice.modules.spreadsheet.calc.references import cell_name
 
         if pr.min_r == pr.max_r and pr.min_c == pr.max_c:
-            sqref = to_a1(pr.min_r, pr.min_c)
+            sqref = cell_name(pr.min_r, pr.min_c)
         else:
-            sqref = f"{to_a1(pr.min_r, pr.min_c)}:{to_a1(pr.max_r, pr.max_c)}"
+            sqref = f"{cell_name(pr.min_r, pr.min_c)}:{cell_name(pr.max_r, pr.max_c)}"
         ranges = [(rg.min_r, rg.min_c, rg.max_r, rg.max_c) for rg in sel.ranges]
 
         from atboffice.modules.spreadsheet.dialogs.data_validation_dialog import (

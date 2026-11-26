@@ -794,12 +794,11 @@ def fn_indirect(ref_text: Any, a1: Any = True, ctx: EvalContext | None = None) -
         sheet_part, s = s.split("!", 1)
         sheet = sheet_part.strip("'\"")
 
-    from atboffice.modules.spreadsheet.calc.references import parse_cell_reference
+    from atboffice.modules.spreadsheet.calc.references import parse_range
 
-    parsed = parse_cell_reference(s)
+    parsed = parse_range(s)
     if parsed is not None:
-        r1, c1, r2, c2 = parsed
-        return ctx.create_ref(sheet, r1, c1, r2, c2)
+        return ctx.create_ref(sheet, parsed["r1"], parsed["c1"], parsed["r2"], parsed["c2"])
     return REF
 
 
