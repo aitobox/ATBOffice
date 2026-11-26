@@ -19,10 +19,7 @@ import struct
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final
-
-import msoffcrypto
-from msoffcrypto import exceptions as _msoff_errors
+from typing import Any, Final
 
 logger = logging.getLogger(__name__)
 
@@ -494,7 +491,21 @@ class InvalidPasswordError(ValueError):
         super().__init__(message)
 
 
-def _office_file(raw: bytes) -> msoffcrypto.OfficeFile:
+def _require_msoffcrypto() -> tuple[Any, Any]:
+    """Import ``msoffcrypto`` on demand so unencrypted flows don't require it at startup."""
+    try:
+        import msoffcrypto
+        from msoffcrypto import exceptions as msoff_errors
+    except ImportError as err:
+        raise ImportError(
+            "msoffcrypto-tool is required for encrypted Office files; "
+            "install it with `pip install msoffcrypto-tool`."
+        ) from err
+    return msoffcrypto, msoff_errors
+
+
+def _office_file(raw: bytes) -> Any:
+    msoffcrypto, _ = _require_msoffcrypto()
     try:
         return msoffcrypto.OfficeFile(io.BytesIO(raw))
     except Exception as err:  # unsupported or damaged container
@@ -524,6 +535,8 @@ def decrypt_package(
     if not password:
         raise InvalidPasswordError()
 
+    _, msoff_errors = _require_msoffcrypto()
+
     def _run(verify: bool) -> bytes:
         office = _office_file(raw)
         office.load_key(password=password)
@@ -533,11 +546,11 @@ def decrypt_package(
 
     try:
         return _run(verify=True)
-    except _msoff_errors.InvalidKeyError as err:
+    except msoff_errors.InvalidKeyError as err:
         if "integrity" not in str(err).lower():
             raise InvalidPasswordError() from err
         integrity_error: Exception = err
-    except (_msoff_errors.FileFormatError, _msoff_errors.ParseError) as err:
+    except (msoff_errors.FileFormatError, msoff_errors.ParseError) as err:
         raise ValueError(f"Unsupported encryption: {err}") from err
     except Exception as err:
         raise ValueError(f"Corrupted encrypted package: {err}") from err
@@ -548,7 +561,7 @@ def decrypt_package(
     logger.warning("Encrypted package failed its integrity check: %s", integrity_error)
     try:
         payload = _run(verify=False)
-    except _msoff_errors.InvalidKeyError as err:
+    except msoff_errors.InvalidKeyError as err:
         # Agile packages do not verify the password before the HMAC check, so a
         # wrong password surfaces as an integrity failure first and is only
         # recognised here, when the decrypted bytes are not a package.
@@ -566,6 +579,7 @@ def decrypt_package(
 
 def encrypt_package(package_bytes: bytes, passcode: str = "", **kwargs: str) -> bytes:
     """Encrypt OOXML package bytes with Agile encryption (AES-256, SHA-512)."""
+    _require_msoffcrypto()
     from msoffcrypto.method.ecma376_agile import ECMA376Agile
 
     password = kwargs.get("password", passcode) or ""
@@ -599,6 +613,7 @@ def is_encrypted_legacy_binary(data: bytes | str | Path) -> bool:
     if raw[:8] != CFB_SIGNATURE:
         return False
     try:
+        msoffcrypto, _ = _require_msoffcrypto()
         office = msoffcrypto.OfficeFile(io.BytesIO(raw))
         return office.format != "ooxml" and bool(office.is_encrypted())
     except Exception:
@@ -616,17 +631,18 @@ def decrypt_legacy_binary(data: bytes | str | Path, password: str | None = None)
         ValueError: the encryption scheme is unsupported or the file is damaged.
     """
     raw = _to_bytes(data)
+    _, msoff_errors = _require_msoffcrypto()
     office = _office_file(raw)
     try:
         office.load_key(password=password if password is not None else EXCEL_DEFAULT_PASSWORD)
         out = io.BytesIO()
         office.decrypt(out)
-    except _msoff_errors.InvalidKeyError as err:
+    except msoff_errors.InvalidKeyError as err:
         raise InvalidPasswordError() from err
-    except _msoff_errors.DecryptionError as err:
+    except msoff_errors.DecryptionError as err:
         if "password" in str(err).lower() or "key" in str(err).lower():
             raise InvalidPasswordError() from err
         raise ValueError(f"Cannot decrypt document: {err}") from err
-    except (_msoff_errors.FileFormatError, _msoff_errors.ParseError) as err:
+    except (msoff_errors.FileFormatError, msoff_errors.ParseError) as err:
         raise ValueError(f"Unsupported encryption: {err}") from err
     return out.getvalue()

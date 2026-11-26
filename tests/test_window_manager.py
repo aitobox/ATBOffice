@@ -1,5 +1,8 @@
 """Tests for WindowManager lifecycle, app routing, and auto-resurrection."""
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -284,3 +287,62 @@ def test_window_manager_quit_application_discard_dirty_window(qtbot):
             assert result is True
             mock_quit.assert_called_once()
             assert len(mgr.active_windows) == 0
+
+
+def test_show_start_center_creates_real_window_with_content(qtbot):
+    """show_start_center must instantiate StartCenterWindow, not a blank BaseOfficeWindow."""
+    from atboffice.ui.shell.start_center import StartCenterWindow
+
+    mgr = WindowManager()
+    sc = mgr.show_start_center()
+    qtbot.addWidget(sc)
+    assert isinstance(sc, StartCenterWindow)
+    assert sc.centralWidget() is not None
+
+
+def test_window_manager_propagates_window_init_errors(qtbot):
+    """WindowManager must surface initialization failures instead of falling back to blank."""
+    mgr = WindowManager()
+
+    with patch(
+        "atboffice.ui.shell.start_center.StartCenterWindow",
+        side_effect=RuntimeError("boom"),
+    ):
+        with pytest.raises(RuntimeError, match="boom"):
+            mgr.show_start_center()
+
+    with patch(
+        "atboffice.ui.shell.quire_window.QuireWindow",
+        side_effect=RuntimeError("quire boom"),
+    ):
+        with pytest.raises(RuntimeError, match="quire boom"):
+            mgr.open_quire()
+
+
+def test_ui_shell_lazy_exports_avoid_eager_editor_imports():
+    """Importing StartCenterWindow must not eagerly import all editor windows."""
+    from atboffice.ui.shell import BaseOfficeWindow, StartCenterWindow
+
+    assert BaseOfficeWindow.__name__ == "BaseOfficeWindow"
+    assert StartCenterWindow.__name__ == "StartCenterWindow"
+
+    src_dir = str(Path(__file__).resolve().parents[1] / "src")
+    env = dict(os.environ)
+    env["PYTHONPATH"] = (
+        f"{src_dir}{os.pathsep}{env['PYTHONPATH']}" if env.get("PYTHONPATH") else src_dir
+    )
+    script = (
+        "import sys, atboffice.ui.shell.start_center; "
+        "loaded = [m for m in ('atboffice.ui.shell.lectern_window', "
+        "'atboffice.ui.shell.ledger_window', 'atboffice.ui.shell.quire_window') "
+        "if m in sys.modules]; "
+        "assert not loaded, loaded"
+    )
+    res = subprocess.run(
+        [sys.executable, "-c", script],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert res.returncode == 0, res.stderr or res.stdout

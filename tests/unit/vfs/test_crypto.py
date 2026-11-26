@@ -1,4 +1,5 @@
 import io
+import sys
 import zipfile
 from pathlib import Path
 
@@ -165,3 +166,19 @@ def test_legacy_binary_detection_and_errors():
     assert not is_encrypted_legacy_binary(b"PK\x03\x04")
     with pytest.raises(ValueError):
         decrypt_legacy_binary(b"not an office file")
+
+
+def test_crypto_lazy_msoffcrypto_import(monkeypatch):
+    """Unencrypted checks work without msoffcrypto; crypto ops raise a clear ImportError."""
+    monkeypatch.setitem(sys.modules, "msoffcrypto", None)
+    monkeypatch.setitem(sys.modules, "msoffcrypto.exceptions", None)
+    monkeypatch.setitem(sys.modules, "msoffcrypto.method", None)
+    monkeypatch.setitem(sys.modules, "msoffcrypto.method.ecma376_agile", None)
+
+    assert not is_encrypted_package(b"PK\x03\x04plain")
+
+    with pytest.raises(ImportError, match="msoffcrypto-tool"):
+        decrypt_package(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 504, passcode="pw")
+
+    with pytest.raises(ImportError, match="msoffcrypto-tool"):
+        encrypt_package(_ooxml(b"x"), passcode="pw")

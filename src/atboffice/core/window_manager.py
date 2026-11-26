@@ -141,15 +141,9 @@ class WindowManager(QObject):
 
                 self._start_center = StartCenterWindow()
                 self._start_center.window_closed.connect(self._retarget_main_window)
-            except (ImportError, Exception) as exc:
-                logger.debug(
-                    "StartCenterWindow not yet available, falling back to BaseOfficeWindow: %s",
-                    exc,
-                )
-                from atboffice.ui.shell.base_window import BaseOfficeWindow
-
-                self._start_center = BaseOfficeWindow()
-                self._start_center.setWindowTitle("ATBOffice Start Center")
+            except Exception:
+                logger.exception("Failed to initialize StartCenterWindow")
+                raise
 
         # Refresh recent files view if the window supports it
         if hasattr(self._start_center, "refresh_recent_files"):
@@ -253,15 +247,9 @@ class WindowManager(QObject):
             from atboffice.ui.shell.quire_window import QuireWindow
 
             win = QuireWindow(file_path=None)
-        except (ImportError, Exception) as exc:
-            logger.debug(
-                "QuireWindow not yet available, falling back to BaseOfficeWindow: %s",
-                exc,
-            )
-            from atboffice.ui.shell.base_window import BaseOfficeWindow
-
-            win = BaseOfficeWindow()
-            win.app_name = "Quire"
+        except Exception:
+            logger.exception("Failed to initialize QuireWindow")
+            raise
 
         if template_id is not None:
             win.load_template(template_id)
@@ -297,15 +285,9 @@ class WindowManager(QObject):
             from atboffice.ui.shell.ledger_window import LedgerWindow
 
             win = LedgerWindow(file_path=None)
-        except (ImportError, Exception) as exc:
-            logger.debug(
-                "LedgerWindow not yet available, falling back to BaseOfficeWindow: %s",
-                exc,
-            )
-            from atboffice.ui.shell.base_window import BaseOfficeWindow
-
-            win = BaseOfficeWindow()
-            win.app_name = "Ledger"
+        except Exception:
+            logger.exception("Failed to initialize LedgerWindow")
+            raise
 
         if template_id is not None:
             win.load_template(template_id)
@@ -341,15 +323,9 @@ class WindowManager(QObject):
             from atboffice.ui.shell.lectern_window import LecternWindow
 
             win = LecternWindow(file_path=None)
-        except (ImportError, Exception) as exc:
-            logger.debug(
-                "LecternWindow not yet available, falling back to BaseOfficeWindow: %s",
-                exc,
-            )
-            from atboffice.ui.shell.base_window import BaseOfficeWindow
-
-            win = BaseOfficeWindow()
-            win.app_name = "Lectern"
+        except Exception:
+            logger.exception("Failed to initialize LecternWindow")
+            raise
 
         if template_id is not None:
             win.load_template(template_id)
