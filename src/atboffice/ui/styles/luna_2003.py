@@ -281,6 +281,77 @@ def get_luna_stylesheet(theme: str = "blue") -> str:
     """
 
 
+#: Light scrollbar chrome for Spreadsheet GridViewport (clean track, no arrow buttons).
+GRID_SCROLLBAR_TRACK: Final = "#FAFAFA"
+GRID_SCROLLBAR_THUMB: Final = "#C1C1C1"
+GRID_SCROLLBAR_THUMB_HOVER: Final = "#A8A8A8"
+GRID_SCROLLBAR_VBORDER: Final = "#E8E8E8"
+GRID_SCROLLBAR_HBORDER: Final = "#A0A0A0"
+GRID_SCROLLBAR_CORNER: Final = "#F4F4F0"
+
+
+def grid_scrollbar_stylesheet() -> str:
+    """Return compact light scrollbar QSS matching the spreadsheet grid layout."""
+    return f"""
+    QAbstractScrollArea {{
+        border: none;
+    }}
+    QScrollBar:vertical {{
+        background: {GRID_SCROLLBAR_TRACK};
+        width: 15px;
+        border-left: 1px solid {GRID_SCROLLBAR_VBORDER};
+        margin: 0px;
+    }}
+    QScrollBar::handle:vertical {{
+        background: {GRID_SCROLLBAR_THUMB};
+        border-radius: 4px;
+        margin: 2px 3px;
+        min-height: 24px;
+    }}
+    QScrollBar::handle:vertical:hover {{
+        background: {GRID_SCROLLBAR_THUMB_HOVER};
+    }}
+    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+        height: 0px;
+        width: 0px;
+        border: none;
+        background: none;
+    }}
+    QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+        background: none;
+    }}
+    QScrollBar:horizontal {{
+        background: {GRID_SCROLLBAR_TRACK};
+        height: 18px;
+        border-top: 1px solid {GRID_SCROLLBAR_HBORDER};
+        margin: 0px;
+    }}
+    QScrollBar::handle:horizontal {{
+        background: {GRID_SCROLLBAR_THUMB};
+        border-radius: 4px;
+        margin: 4px 2px;
+        min-width: 24px;
+    }}
+    QScrollBar::handle:horizontal:hover {{
+        background: {GRID_SCROLLBAR_THUMB_HOVER};
+    }}
+    QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
+        width: 0px;
+        height: 0px;
+        border: none;
+        background: none;
+    }}
+    QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
+        background: none;
+    }}
+    QAbstractScrollArea::corner {{
+        background: {GRID_SCROLLBAR_CORNER};
+        border-top: 1px solid {GRID_SCROLLBAR_HBORDER};
+        border-left: 1px solid {GRID_SCROLLBAR_VBORDER};
+    }}
+    """
+
+
 def apply_luna_theme(widget: QWidget, theme: str = "blue") -> None:
     """Apply the Luna Blue, Silver, Olive Green, or Windows Classic theme to widget."""
     widget.setStyleSheet(get_luna_stylesheet(theme))

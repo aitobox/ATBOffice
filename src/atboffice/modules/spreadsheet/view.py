@@ -96,8 +96,9 @@ class SpreadsheetView(QWidget):
         self.sheet_tab_bar = SheetTabBar(workbook=self._workbook, parent=self)
         self.grid.addScrollBarWidget(self.sheet_tab_bar, Qt.AlignmentFlag.AlignLeft)
         # The tabs share the scroll bar's row, which is only as tall as the scroll
-        # bar itself (14 px in Fusion); make the row tall enough for the tabs.
+        # bar itself; keep the row at least as tall as the tab strip.
         self.grid.horizontalScrollBar().setMinimumHeight(self.sheet_tab_bar.height())
+        self._sync_sheet_tab_bar_width()
 
         # 6. Floating Object Layer overlay
         self.object_layer = SpreadsheetObjectLayer(model=active_sheet, parent=self.grid.viewport())
@@ -136,8 +137,17 @@ class SpreadsheetView(QWidget):
                 self.grid.verticalScrollBar().value(),
             )
 
+    def _sync_sheet_tab_bar_width(self) -> None:
+        """Keep the bottom tab strip proportional so the horizontal scrollbar spans the right edge."""
+        if not hasattr(self, "sheet_tab_bar") or not hasattr(self, "grid"):
+            return
+        grid_w = self.grid.width()
+        if grid_w >= 320:
+            self.sheet_tab_bar.setFixedWidth(max(200, int(grid_w * 0.65)))
+
     def resizeEvent(self, event: Any) -> None:
         super().resizeEvent(event)
+        self._sync_sheet_tab_bar_width()
         if hasattr(self, "object_layer") and hasattr(self, "grid"):
             self.object_layer.setGeometry(self.grid.viewport().rect())
             self.object_layer.set_header_dimensions(

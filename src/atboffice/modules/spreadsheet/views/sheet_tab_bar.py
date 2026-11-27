@@ -41,13 +41,13 @@ from atboffice.ui.styles.luna_2003 import ui_font
 
 
 class TabNavButton(QToolButton):
-    """Compact 16x20 navigation arrow button matching Excel 2003 tab nav."""
+    """Compact 16x18 navigation arrow button matching Excel 2003 tab nav."""
 
     def __init__(self, kind: str, parent: SheetTabBar) -> None:
         super().__init__(parent)
         self.kind = kind  # "first", "prev", "next", "last"
         self._parent_bar = parent
-        self.setFixedSize(16, 22)
+        self.setFixedSize(16, 18)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setAutoRaise(True)
         self.retranslate_ui()
@@ -199,7 +199,7 @@ class TabStripWidget(QWidget):
         self._hover_index: int = -1
 
         self.setMouseTracking(True)
-        self.setFixedHeight(22)
+        self.setFixedHeight(18)
 
     @property
     def scroll_offset(self) -> int:
@@ -283,30 +283,28 @@ class TabStripWidget(QWidget):
         if not wb or not wb.sheets:
             return
 
-        font = ui_font(9)
+        font = ui_font(8.5)
         painter.setFont(font)
         fm = QFontMetrics(font)
 
         w = self.width()
         h = self.height()
 
-        # Background bar
+        # Background bar + top hairline matching grid/scrollbar seam
         painter.fillRect(0, 0, w, h, QColor(236, 233, 216))
-
-        # Bottom baseline
-        painter.setPen(QColor(158, 154, 145))
-        painter.drawLine(0, h - 1, w, h - 1)
+        painter.setPen(QColor(160, 160, 160))
+        painter.drawLine(0, 0, w - 1, 0)
 
         # Calculate rects
         cur_x = 4 - self._scroll_offset
         self._tab_rects = []
         tab_widths = []
         for s in wb.sheets:
-            tw = max(56, fm.horizontalAdvance(s.name) + 24)
+            tw = max(56, fm.horizontalAdvance(s.name) + 20)
             tab_widths.append(tw)
 
         for tw in tab_widths:
-            self._tab_rects.append(QRect(cur_x, 2, tw, h - 2))
+            self._tab_rects.append(QRect(cur_x, 0, tw, h - 2))
             cur_x += tw - 3
 
         active_idx = self._tab_bar.active_index
@@ -321,6 +319,14 @@ class TabStripWidget(QWidget):
         if 0 <= active_idx < len(self._tab_rects):
             active_rect = self._tab_rects[active_idx]
             self._draw_tab(painter, active_idx, active_rect, is_active=True)
+
+        # Subtle 6px right splitter matching .vibeoffice .tabsplit
+        if w > 12:
+            painter.fillRect(w - 6, 1, 6, h - 1, QColor(225, 221, 204))
+            painter.setPen(QColor(214, 210, 193))
+            painter.drawLine(w - 6, 1, w - 6, h - 1)
+            painter.setPen(QColor(168, 165, 150))
+            painter.drawLine(w - 1, 1, w - 1, h - 1)
 
     def _draw_tab(self, painter: QPainter, index: int, rect: QRect, is_active: bool) -> None:
         wb = self._tab_bar.workbook
@@ -345,18 +351,19 @@ class TabStripWidget(QWidget):
             )
         )
 
-        r = rect.adjusted(0, 0, 0, 0 if not is_active else 1)
+        # Active tab sits flush against the top grid edge; inactive tabs sit slightly below the hairline
+        r = rect.adjusted(0, 0 if is_active else 1, 0, 0)
 
-        # Tab polygon with classic slanted top corners
+        # Inverted trapezoid tab polygon matching .vibeoffice (.stab clip-path)
         x1, y1, x2, y2 = r.left(), r.top(), r.right(), r.bottom()
         poly = QPolygon(
             [
-                QPoint(x1, y2),
-                QPoint(x1 + 3, y1 + 1),
-                QPoint(x1 + 5, y1),
-                QPoint(x2 - 5, y1),
-                QPoint(x2 - 3, y1 + 1),
-                QPoint(x2, y2),
+                QPoint(x1, y1),
+                QPoint(x2, y1),
+                QPoint(x2 - 4, y2 - 1),
+                QPoint(x2 - 6, y2),
+                QPoint(x1 + 6, y2),
+                QPoint(x1 + 4, y2 - 1),
             ]
         )
 
@@ -366,12 +373,12 @@ class TabStripWidget(QWidget):
 
         # Tab Color stripe if set
         if tab_color:
-            painter.fillRect(x1 + 4, y2 - 3, x2 - x1 - 7, 3, tab_color)
+            painter.fillRect(x1 + 5, y2 - 2, max(0, x2 - x1 - 9), 2, tab_color)
 
-        # If active, erase bottom baseline so tab seamlessly connects to grid
+        # If active, erase top hairline so tab seamlessly connects to the grid above
         if is_active:
             painter.setPen(QColor(255, 255, 255))
-            painter.drawLine(x1 + 1, y2, x2 - 1, y2)
+            painter.drawLine(x1 + 1, y1, x2 - 1, y1)
 
         # Draw sheet name text
         painter.setPen(QColor(0, 0, 0))
@@ -379,7 +386,7 @@ class TabStripWidget(QWidget):
         font.setBold(is_active)
         painter.setFont(font)
 
-        text_rect = r.adjusted(4, 1, -4, -1)
+        text_rect = r.adjusted(4, 0, -4, -1)
         painter.drawText(
             text_rect,
             Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter,
@@ -416,7 +423,7 @@ class SheetTabBar(QWidget):
         self._rename_editor: RenameInlineEditor | None = None
         self._renaming_index: int = -1
 
-        self.setFixedHeight(22)
+        self.setFixedHeight(18)
         self.setMinimumWidth(200)
 
         # Main horizontal layout: Nav Buttons Area + Tabs Strip

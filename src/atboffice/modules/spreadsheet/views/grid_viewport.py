@@ -178,6 +178,10 @@ class GridViewport(
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.viewport().installEventFilter(self)
 
+        from atboffice.ui.styles.luna_2003 import grid_scrollbar_stylesheet
+
+        self.setStyleSheet(grid_scrollbar_stylesheet())
+
         self.horizontalScrollBar().valueChanged.connect(self._on_scroll)
         self.verticalScrollBar().valueChanged.connect(self._on_scroll)
 
@@ -483,6 +487,8 @@ class GridViewport(
     def _on_scroll(self, _: int) -> None:
         if self.editor_controller is not None:
             self.editor_controller.reposition_editor()
+        if not getattr(self, "_updating_scrollbars", False):
+            self._update_scrollbars()
         self.viewport().update()
         gutter = getattr(self, "outline_gutter", None)
         if gutter is not None:
@@ -497,23 +503,51 @@ class GridViewport(
         if self.editor_controller is not None:
             self.editor_controller.reposition_editor()
 
-    def _update_scrollbars(self) -> None:
-        """Synchronize Qt scrollbars with virtualized sheet dimensions."""
+    def _used_scroll_extent(self) -> tuple[int, int]:
+        """Return (bottom_y, right_x) in grid coordinates covering used cells, merges, and drawings."""
+        model = self.model
+        cells = getattr(model, "cells", None) or {}
+        max_r = max((r for r, _c in cells), default=0)
+        max_c = max((c for _r, c in cells), default=0)
+        for m in getattr(model, "merges", None) or ():
+            max_r = max(max_r, getattr(m, "r2", 0))
+            max_c = max(max_c, getattr(m, "c2", 0))
+        for d in getattr(model, "drawings", None) or ():
+            to_pt = getattr(d, "to_point", None)
+            if to_pt is not None:
+                max_r = max(max_r, int(getattr(to_pt, "row", 0)))
+                max_c = max(max_c, int(getattr(to_pt, "col", 0)))
+        r_idx = min(self.geometry_mapper.max_rows - 1, max_r + 1)
+        c_idx = min(self.geometry_mapper.max_cols - 1, max_c + 1)
+        return (
+            self.geometry_mapper.row_pos(r_idx),
+            self.geometry_mapper.col_pos(c_idx),
+        )
+
+    def _update_scrollbars(self, min_bottom: int = 0, min_right: int = 0) -> None:
+        """Synchronize Qt scrollbars with used sheet extent plus one viewport page."""
         view_w, view_h = self._view_size()
         vw = max(1, view_w - self.row_header_width)
         vh = max(1, view_h - self.col_header_height)
 
-        # Allow scrolling beyond used data by 30 rows / 10 cols
-        max_vis_r = min(self.geometry_mapper.max_rows - 1, 1000)
-        max_vis_c = min(self.geometry_mapper.max_cols - 1, 100)
+        used_h, used_w = self._used_scroll_extent()
+        scroll_x = self.horizontalScrollBar().value()
+        scroll_y = self.verticalScrollBar().value()
 
-        total_h = self.geometry_mapper.row_pos(max_vis_r)
-        total_w = self.geometry_mapper.col_pos(max_vis_c)
+        max_total_h = self.geometry_mapper.row_pos(self.geometry_mapper.max_rows - 1)
+        max_total_w = self.geometry_mapper.col_pos(self.geometry_mapper.max_cols - 1)
 
-        self.horizontalScrollBar().setRange(0, max(0, total_w - vw))
-        self.horizontalScrollBar().setPageStep(vw)
-        self.verticalScrollBar().setRange(0, max(0, total_h - vh))
-        self.verticalScrollBar().setPageStep(vh)
+        total_h = min(max_total_h, max(used_h, scroll_y + vh, min_bottom) + vh)
+        total_w = min(max_total_w, max(used_w, scroll_x + vw, min_right) + vw)
+
+        self._updating_scrollbars = True
+        try:
+            self.horizontalScrollBar().setRange(0, max(0, total_w - vw))
+            self.horizontalScrollBar().setPageStep(vw)
+            self.verticalScrollBar().setRange(0, max(0, total_h - vh))
+            self.verticalScrollBar().setPageStep(vh)
+        finally:
+            self._updating_scrollbars = False
 
     def hit_test(self, x: int, y: int) -> HitResult:
         """Determine hit zone and target under grid point (x, y).
@@ -882,6 +916,8 @@ class GridViewport(
             # Pinned row: already visible at the top
             pass
         else:
+            if cell_bottom > self.verticalScrollBar().maximum() + vh:
+                self._update_scrollbars(min_bottom=cell_bottom)
             if cell_top < scroll_y + fz_r_h:
                 self.verticalScrollBar().setValue(max(0, cell_top - fz_r_h))
             elif cell_bottom > scroll_y + vh:
@@ -891,6 +927,8 @@ class GridViewport(
             # Pinned column: already visible at the left
             pass
         else:
+            if cell_right > self.horizontalScrollBar().maximum() + vw:
+                self._update_scrollbars(min_right=cell_right)
             if cell_left < scroll_x + fz_c_w:
                 self.horizontalScrollBar().setValue(max(0, cell_left - fz_c_w))
             elif cell_right > scroll_x + vw:
