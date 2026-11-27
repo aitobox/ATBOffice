@@ -46,11 +46,11 @@ flowchart TD
 
 > 为遵循门禁隔离与零占位符要求，Wave 2 与 Wave 3 的逐行 TDD 实施计划将在各自前置 Gate 通过后立刻编写；范围与接口合同已冻结在设计规格中：
 
-- **Wave 2 — 渲染回归清零与 `.vibeoffice` 全面对比审计**：
-  1. 修复 Luna 样式下 Ledger 滚动条与 `SheetTabBar` 像素偏移，校准 `poi__45540_form_Header.xlsx` 与 `poi__49156.xlsx`；
-  2. 统一 `scripts/run_office_diff.py:332` 与 `reporter.py` 对 `reference_limitation` 的单文档豁免口径；
-  3. 修正工具栏/菜单错配提示（如 Quire `insertComment`），补充 77 份旧格式/损坏语料真实窗口 GUI 错误弹窗与状态回滚测试；
-  4. 生成最新 `docs/clone/OFFICE_DOCS_DIFF.md`、`docs/clone/TOOLBAR_BASELINE_MATRIX.md` 与 `docs/clone/ATBOFFICE_PARITY_AND_STABILITY_AUDIT_2026_12.md`。
+- **Wave 2 — 渲染回归清零与 `.vibeoffice` 全面对比审计（done — 73 份 `--strict` 均值 `95.37%`，0 低于阈值）**：
+  1. 已修复 Luna 样式下 Ledger 滚动条与 `SheetTabBar` 像素偏移，Excel 24 份前景均值恢复至 `96.86%`（`libreoffice__empty.xlsx` `98.9%`、`poi__45540_form_Header.xlsx` `97.9%`、`poi__49156.xlsx` `95.1%`、`libreoffice__totalsRowFunction.xlsx` `87.0%`）；
+  2. 已统一 `scripts/run_office_diff.py` `evaluate_strict_gate()` 与 `reporter.py` 对 `reference_limitation` 的单文档豁免口径；
+  3. 已修正 Quire `insertComment` 跨端提示文案错配，补充 `tests/gui/test_phase12_corpus_gui_resilience.py` 验证 77 份旧格式/加密/损坏语料 GUI 错误弹窗与脏文档状态回滚保护；
+  4. 已更新 [OFFICE_DOCS_DIFF.md](file:///Users/aitobox/work/aitobox/ATBOffice/docs/clone/OFFICE_DOCS_DIFF.md)、[TOOLBAR_BASELINE_MATRIX.md](file:///Users/aitobox/work/aitobox/ATBOffice/docs/clone/TOOLBAR_BASELINE_MATRIX.md) 与 [ATBOFFICE_PARITY_AND_STABILITY_AUDIT_2026_12.md](file:///Users/aitobox/work/aitobox/ATBOffice/docs/clone/ATBOFFICE_PARITY_AND_STABILITY_AUDIT_2026_12.md)。
 - **Wave 3 — `.vibeoffice` 四项重点能力模块化补齐**：
   1. `context_tools_pane.py` + `BaseOfficeWindow` 上下文任务窗格自动跟随（`view/pane_follows_selection`）；
   2. `ribbon_bar.py` + 三端声明式 `*_ribbon.py` 懒构建 Paper 2016 Ribbon 模式与契约测试；

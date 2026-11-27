@@ -21,11 +21,11 @@
 | 2 | `selectObjects` | `selectObjects` | Action | 选择对象(S) | 选择画布上的图形对象 | ✓ | — | `WIRED` |
 | 3 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
 | 4 | `autoShapes (drop)` | `自选图形` | DropDownButton | 自选图形 | 自选图形 | — | — | `WIRED` |
-| 5 | `drawLine` | `drawLine` | Action | 线条(L) | 绘制直线 | — | — | `WIRED` |
-| 6 | `drawArrow` | `drawArrow` | Action | 箭头(A) | 绘制箭头 | — | — | `WIRED` |
-| 7 | `drawRect` | `drawRect` | Action | 矩形(R) | 绘制矩形 | — | — | `WIRED` |
-| 8 | `drawOval` | `drawOval` | Action | 椭圆(O) | 绘制椭圆 | — | — | `WIRED` |
-| 9 | `textBox` | `textBox` | Action | 文本框(T) | 绘制文本框 | — | — | `WIRED` |
+| 5 | `drawLine` | `drawLine` | Action | 线条(L) | 绘制直线 | ✓ | — | `WIRED` |
+| 6 | `drawArrow` | `drawArrow` | Action | 箭头(A) | 绘制箭头 | ✓ | — | `WIRED` |
+| 7 | `drawRect` | `drawRect` | Action | 矩形(R) | 绘制矩形 | ✓ | — | `WIRED` |
+| 8 | `drawOval` | `drawOval` | Action | 椭圆(O) | 绘制椭圆 | ✓ | — | `WIRED` |
+| 9 | `textBox` | `textBox` | Action | 文本框(T) | 绘制文本框 | ✓ | — | `WIRED` |
 | 10 | `insertWordArt` | `insertWordArt` | Action | 插入艺术字(W)... | 插入艺术字 | ✓ | — | `WIRED` |
 | 11 | `insertDiagram` | `insertDiagram` | Action | 插入图示(D)... | 插入组织结构图或循环图 | ✓ | — | `WIRED` |
 | 12 | `insertClipArt` | `insertClipArt` | Action | 剪贴画(C)... | 插入剪贴画 | ✓ | — | `WIRED` |
@@ -44,7 +44,7 @@
 
 | # | 原版项 (JS) | 目标 Action ID (PySide6) | 控件类型 | 标签 | 提示 (Tooltip) | 图标 | 快捷键 | 状态 |
 | :-: | :--- | :--- | :--- | :--- | :--- | :-: | :--- | :-: |
-| 1 | `stylesPane` | `format_styles` | Action | 样式和格式… | 打开样式面板应用正文或标题层级样式 | ✓ | — | `WIRED` |
+| 1 | `stylesPane` | `stylesPane` | Action | 样式和格式… | 打开样式面板应用正文或标题层级样式 | ✓ | — | `WIRED` |
 | 2 | `style (combo)` | `Quire_StyleCombo` | ComboBox | 样式 | 样式 | — | — | `WIRED` |
 | 3 | `font (combo)` | `Quire_FontCombo` | ComboBox | 字体 | 字体 | — | — | `WIRED` |
 | 4 | `size (combo)` | `Quire_SizeCombo` | ComboBox | 字号 | 字号 | — | — | `WIRED` |
@@ -59,8 +59,8 @@
 | 13 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
 | 14 | `lineSpacing (drop)` | `行距` | DropDownButton | 行距 | 行距 | ✓ | — | `WIRED` |
 | 15 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
-| 16 | `numbering` | `format_numbering` | Action | 项目编号 | 开启或关闭段落顺序编号列表 | ✓ | — | `WIRED` |
-| 17 | `bullets` | `format_bullets` | Action | 项目符号 | 开启或关闭段落项目符号列表 | ✓ | — | `WIRED` |
+| 16 | `numbering` | `numbering` | Action | 项目编号 | 开启或关闭段落顺序编号列表 | ✓ | — | `WIRED` |
+| 17 | `bullets` | `bullets` | Action | 项目符号 | 开启或关闭段落项目符号列表 | ✓ | — | `WIRED` |
 | 18 | `decIndent` | `decIndent` | Action | 减少缩进量(D) | 减少缩进量 | ✓ | — | `WIRED` |
 | 19 | `incIndent` | `incIndent` | Action | 增加缩进量(I) | 增加缩进量 | ✓ | — | `WIRED` |
 | 20 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
@@ -80,7 +80,7 @@
 | 6 | `hfDate` | `hfDate` | Action | 插入日期(D) | 插入当前日期字段 | ✓ | — | `WIRED` |
 | 7 | `hfTime` | `hfTime` | Action | 插入时间(T) | 插入当前时间字段 | ✓ | — | `WIRED` |
 | 8 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
-| 9 | `pageSetup` | `pageSetup` | Action | 页面设置(U)... | 页面设置 | ✓ | — | `WIRED` |
+| 9 | `pageSetup` | `pageSetup` | Action | 页面设置(U)… | 设置纸张大小、方向、页边距和页眉页脚 | ✓ | — | `WIRED` |
 | 10 | `hfShowText` | `hfShowText` | Action | 显示/隐藏文档文字(W) | 显示或隐藏正文文字 | ✓ | — | `WIRED` |
 | 11 | `hfLinkPrev` | `hfLinkPrev` | Action | 链接到前一个(L) | 链接到前一节页眉页脚 | ✓ | — | `WIRED` |
 | 12 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
@@ -165,7 +165,7 @@
 | 7 | `acceptChange (split)` | `acceptChange` | SplitButton | 接受所选修订(A) | 接受所选修订 | ✓ | — | `WIRED` |
 | 8 | `rejectChange (split)` | `rejectChange` | SplitButton | 拒绝所选修订(R) | 拒绝所选修订或删除批注 | ✓ | — | `WIRED` |
 | 9 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
-| 10 | `insertComment` | `insertComment` | Action | 插入批注(C) | 插入新批注 | — | — | `WIRED` |
+| 10 | `insertComment` | `insertComment` | Action | 批注(M) | 插入新批注 | — | — | `WIRED` |
 | 11 | `trackChanges` | `trackChanges` | Action | 修订(T) | 开启或关闭修订记录 (Ctrl+Shift+E) | ✓ | Ctrl+Shift+E | `WIRED` |
 | 12 | `reviewingPane` | `reviewingPane` | Action | 审阅窗格(V) | 显示或隐藏审阅窗格 | ✓ | — | `WIRED` |
 
@@ -173,25 +173,25 @@
 
 | # | 原版项 (JS) | 目标 Action ID (PySide6) | 控件类型 | 标签 | 提示 (Tooltip) | 图标 | 快捷键 | 状态 |
 | :-: | :--- | :--- | :--- | :--- | :--- | :-: | :--- | :-: |
-| 1 | `new` | `file_new` | Action | 新建文档 | 创建空白文档 | ✓ | Ctrl+N | `WIRED` |
-| 2 | `open` | `file_open` | Action | 打开… | 打开现有文档或文件 | ✓ | Ctrl+O | `WIRED` |
-| 3 | `save` | `file_save` | Action | 保存当前文档 | 保存当前文本文档 | ✓ | Ctrl+S | `WIRED` |
+| 1 | `new` | `new` | Action | 新建文档 | 创建空白文档 | ✓ | Ctrl+N | `WIRED` |
+| 2 | `open` | `open` | Action | 打开… | 打开现有文档或文件 | ✓ | Ctrl+O | `WIRED` |
+| 3 | `save` | `save` | Action | 保存当前文档 | 保存当前文本文档 | ✓ | Ctrl+S | `WIRED` |
 | 4 | `permission` | `permission` | Action | 权限(M) | 权限设置 (只读/编辑) | ✓ | — | `WIRED` |
 | 5 | `sendMail` | `sendMail` | Action | 发送(E) | 通过电子邮件发送 | ✓ | — | `WIRED` |
-| 6 | `print` | `file_print` | Action | 打印… | 调用打印机配置打印文档 | ✓ | Ctrl+P | `WIRED` |
-| 7 | `printPreview` | `file_print_preview` | Action | 打印预览 | 打开全功能交互式打印预览视口 | ✓ | — | `WIRED` |
-| 8 | `spelling` | `tools_spelling` | Action | 拼写和语法检查… | 运行词典校对并审查拼写错误 (F7) | ✓ | F7 | `WIRED` |
+| 6 | `print` | `print` | Action | 打印… | 调用打印机配置打印文档 | ✓ | Ctrl+P | `WIRED` |
+| 7 | `printPreview` | `printPreview` | Action | 打印预览 | 打开全功能交互式打印预览视口 | ✓ | — | `WIRED` |
+| 8 | `spelling` | `spelling` | Action | 拼写和语法检查… | 运行词典校对并审查拼写错误 (F7) | ✓ | F7 | `WIRED` |
 | 9 | `research` | `research` | Action | 信息检索(R)... | 信息检索与翻译 (Alt+Click) | ✓ | — | `WIRED` |
 | 10 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
-| 11 | `cut` | `edit_cut` | Action | 剪切 | 剪切选中内容 | ✓ | Ctrl+X | `WIRED` |
-| 12 | `copy` | `edit_copy` | Action | 复制 | 复制选中内容 | ✓ | Ctrl+C | `WIRED` |
-| 13 | `paste` | `edit_paste` | Action | 粘贴 | 粘贴剪贴板内容 | ✓ | Ctrl+V | `WIRED` |
+| 11 | `cut` | `cut` | Action | 剪切 | 剪切选中内容 | ✓ | Ctrl+X | `WIRED` |
+| 12 | `copy` | `copy` | Action | 复制 | 复制选中内容 | ✓ | Ctrl+C | `WIRED` |
+| 13 | `paste` | `paste` | Action | 粘贴 | 粘贴剪贴板内容 | ✓ | Ctrl+V | `WIRED` |
 | 14 | `painter` | `painter` | Action | 格式刷(P) | 格式刷 (双击可连续应用) | ✓ | — | `WIRED` |
 | 15 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
-| 16 | `undo (split)` | `edit_undo` | SplitButton | 撤销 | 撤销上一步操作 | ✓ | Ctrl+Z | `WIRED` |
-| 17 | `redo (split)` | `edit_redo` | SplitButton | 重做 | 恢复撤销的操作 | ✓ | Ctrl+Y | `WIRED` |
+| 16 | `undo (split)` | `undo` | SplitButton | 撤销 | 撤销上一步操作 | ✓ | Ctrl+Z | `WIRED` |
+| 17 | `redo (split)` | `redo` | SplitButton | 重做 | 恢复撤销的操作 | ✓ | Ctrl+Y | `WIRED` |
 | 18 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
-| 19 | `hyperlink` | `insert_hyperlink` | Action | 超链接… | 插入或编辑网页、书签跳转超链接 | ✓ | Ctrl+K | `WIRED` |
+| 19 | `hyperlink` | `hyperlink` | Action | 超链接… | 插入或编辑网页、书签跳转超链接 | ✓ | Ctrl+K | `WIRED` |
 | 20 | `tb_tables` | `tb_tables` | Action | 表格和边框(B) | 显示或隐藏表格和边框工具栏 | ✓ | — | `WIRED` |
 | 21 | `table (drop)` | `插入表格` | DropDownButton | 插入表格 | 插入表格 | ✓ | — | `WIRED` |
 | 22 | `insertExcel` | `insertExcel` | Action | 插入 Excel 工作表(E) | 插入 Microsoft Excel 工作表 | ✓ | — | `WIRED` |
@@ -200,14 +200,14 @@
 | 25 | `docMap` | `docMap` | Action | 文档结构图(D) | 显示或隐藏文档结构图 | ✓ | — | `WIRED` |
 | 26 | `showMarks` | `showMarks` | Action | 显示/隐藏编辑标记(S) | 显示或隐藏段落标记与格式 | ✓ | — | `WIRED` |
 | 27 | `zoom (combo)` | `Quire_ZoomCombo` | ComboBox | 显示比例 | 显示比例 | — | — | `WIRED` |
-| 28 | `help` | `help_contents` | Action | ATBOffice 帮助 | 打开用户帮助文档 | ✓ | F1 | `WIRED` |
+| 28 | `help` | `help` | Action | ATBOffice 帮助 | 打开用户帮助文档 | ✓ | F1 | `WIRED` |
 | 29 | `viewReading` | `viewReading` | Action | 阅读版式(R) | 进入阅读版式视图 | ✓ | — | `WIRED` |
 
 ### Quire — Toolbar: `tables` (23 项，18/18 已接线)
 
 | # | 原版项 (JS) | 目标 Action ID (PySide6) | 控件类型 | 标签 | 提示 (Tooltip) | 图标 | 快捷键 | 状态 |
 | :-: | :--- | :--- | :--- | :--- | :--- | :-: | :--- | :-: |
-| 1 | `drawTable` | `table_draw` | Action | 绘制表格 | 使用画笔自由绘制表格线网格 | ✓ | — | `WIRED` |
+| 1 | `drawTable` | `drawTable` | Action | 绘制表格 | 使用画笔自由绘制表格线网格 | ✓ | — | `WIRED` |
 | 2 | `eraser` | `eraser` | Action | 擦除(E) | 擦除表格线 | ✓ | — | `WIRED` |
 | 3 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
 | 4 | `dashStyle (drop)` | `线型` | DropDownButton | 线型 | 线型 | ✓ | — | `WIRED` |
@@ -217,8 +217,8 @@
 | 8 | `fillColor (drop)` | `底纹颜色` | DropDownButton | 底纹颜色 | 底纹颜色 | ✓ | — | `WIRED` |
 | 9 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
 | 10 | `table (drop)` | `插入` | DropDownButton | 插入 | 插入 | ✓ | — | `WIRED` |
-| 11 | `mergeCells` | `table_merge` | Action | 合并单元格 | 将选中的多个连续单元格合并为单个单元格 | ✓ | — | `WIRED` |
-| 12 | `splitCells` | `table_split` | Action | 拆分单元格… | 将单元格按行列数重新拆分为多个小单元格 | ✓ | — | `WIRED` |
+| 11 | `mergeCells` | `mergeCells` | Action | 合并单元格 | 将选中的多个连续单元格合并为单个单元格 | ✓ | — | `WIRED` |
+| 12 | `splitCells` | `splitCells` | Action | 拆分单元格… | 将单元格按行列数重新拆分为多个小单元格 | ✓ | — | `WIRED` |
 | 13 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
 | 14 | `alignTop (drop)` | `对齐` | DropDownButton | 对齐 | 对齐 | ✓ | — | `WIRED` |
 | 15 | `distRows` | `distRows` | Action | 平均分布各行(R) | 平均分布各行高度 | ✓ | — | `WIRED` |
@@ -227,8 +227,8 @@
 | 18 | `tableAutoFormat` | `tableAutoFormat` | Action | 表格自动套用格式(F)... | 表格自动套用格式 | ✓ | — | `WIRED` |
 | 19 | `textDirection` | `textDirection` | Action | 更改文字方向(D) | 更改单元格文字方向 | ✓ | — | `WIRED` |
 | 20 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
-| 21 | `sortAsc` | `data_sort_asc` | Action | 升序排序 | 按选中列的值进行递增从小到大排序 | ✓ | — | `WIRED` |
-| 22 | `sortDesc` | `data_sort_desc` | Action | 降序排序 | 按选中列的值进行递减从大到小排序 | ✓ | — | `WIRED` |
+| 21 | `sortAsc` | `sortAsc` | Action | 升序排序 | 按选中列的值进行递增从小到大排序 | ✓ | — | `WIRED` |
+| 22 | `sortDesc` | `sortDesc` | Action | 降序排序 | 按选中列的值进行递减从大到小排序 | ✓ | — | `WIRED` |
 | 23 | `autoSum` | `autoSum` | Action | 自动求和(S) | 计算单元格总和 | ✓ | — | `WIRED` |
 
 ### Quire — Toolbar: `wordart` (6 项，6/6 已接线)
@@ -254,7 +254,7 @@
 | 4 | `traceDependents` | `traceDependents` | Action | 追踪从属单元格(D) | 追踪引用当前单元格数值的从属单元格 | ✓ | — | `WIRED` |
 | 5 | `removeArrows` | `removeArrows` | Action | 移去所有箭头(A) | 移去工作表中的所有追踪箭头 | ✓ | — | `WIRED` |
 | 6 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
-| 7 | `insertComment` | `insertComment` | Action | 新建批注(C) | 新建或编辑单元格批注 | — | — | `WIRED` |
+| 7 | `insertComment` | `insertComment` | Action | 批注(M) | 为活动单元格添加批注 | — | — | `WIRED` |
 | 8 | `validation` | `validation` | SplitButton | 数据有效性(V)... | 设置单元格数据输入有效性规则 | ✓ | — | `WIRED` |
 | 9 | `circleInvalid` | `circleInvalid` | Action | 圈释无效数据(I) | 圈释不满足有效性规则的无效数据 | ✓ | — | `WIRED` |
 | 10 | `clearCircles` | `clearCircles` | Action | 清除无效数据圈(L) | 清除无效数据标识圈 | ✓ | — | `WIRED` |
@@ -339,32 +339,32 @@
 
 | # | 原版项 (JS) | 目标 Action ID (PySide6) | 控件类型 | 标签 | 提示 (Tooltip) | 图标 | 快捷键 | 状态 |
 | :-: | :--- | :--- | :--- | :--- | :--- | :-: | :--- | :-: |
-| 1 | `newBook` | `file_new` | Action | 新建工作簿 | 创建空白工作簿 | ✓ | Ctrl+N | `WIRED` |
-| 2 | `open` | `file_open` | Action | 打开… | 打开现有文档或文件 | ✓ | Ctrl+O | `WIRED` |
-| 3 | `save` | `file_save` | Action | 保存当前工作簿 | 保存当前电子表格 | ✓ | Ctrl+S | `WIRED` |
+| 1 | `newBook` | `new` | Action | 新建工作簿 | 创建空白工作簿 | ✓ | Ctrl+N | `WIRED` |
+| 2 | `open` | `open` | Action | 打开… | 打开现有文档或文件 | ✓ | Ctrl+O | `WIRED` |
+| 3 | `save` | `save` | Action | 保存当前工作簿 | 保存当前电子表格 | ✓ | Ctrl+S | `WIRED` |
 | 4 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
-| 5 | `printQuick` | `file_print` | Action | 打印… | 调用打印机配置打印文档 | ✓ | Ctrl+P | `WIRED` |
-| 6 | `printPreview` | `file_print_preview` | Action | 打印预览 | 打开全功能交互式打印预览视口 | ✓ | — | `WIRED` |
-| 7 | `spelling` | `tools_spelling` | Action | 拼写和语法检查… | 运行词典校对并审查拼写错误 (F7) | ✓ | F7 | `WIRED` |
+| 5 | `printQuick` | `print` | Action | 打印… | 调用打印机配置打印文档 | ✓ | Ctrl+P | `WIRED` |
+| 6 | `printPreview` | `printPreview` | Action | 打印预览 | 打开全功能交互式打印预览视口 | ✓ | — | `WIRED` |
+| 7 | `spelling` | `spelling` | Action | 拼写和语法检查… | 运行词典校对并审查拼写错误 (F7) | ✓ | F7 | `WIRED` |
 | 8 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
-| 9 | `cut` | `edit_cut` | Action | 剪切 | 剪切选中内容 | ✓ | Ctrl+X | `WIRED` |
-| 10 | `copy` | `edit_copy` | Action | 复制 | 复制选中内容 | ✓ | Ctrl+C | `WIRED` |
-| 11 | `paste` | `edit_paste` | Action | 粘贴 | 粘贴剪贴板内容 | ✓ | Ctrl+V | `WIRED` |
+| 9 | `cut` | `cut` | Action | 剪切 | 剪切选中内容 | ✓ | Ctrl+X | `WIRED` |
+| 10 | `copy` | `copy` | Action | 复制 | 复制选中内容 | ✓ | Ctrl+C | `WIRED` |
+| 11 | `paste` | `paste` | Action | 粘贴 | 粘贴剪贴板内容 | ✓ | Ctrl+V | `WIRED` |
 | 12 | `formatPainter` | `formatPainter` | Action | 格式刷(P) | 格式刷 (双击可连续应用) | ✓ | — | `WIRED` |
 | 13 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
-| 14 | `undo` | `edit_undo` | SplitButton | 撤销 | 撤销上一步操作 | ✓ | Ctrl+Z | `WIRED` |
-| 15 | `redo` | `edit_redo` | SplitButton | 重做 | 恢复撤销的操作 | ✓ | Ctrl+Y | `WIRED` |
+| 14 | `undo` | `undo` | SplitButton | 撤销 | 撤销上一步操作 | ✓ | Ctrl+Z | `WIRED` |
+| 15 | `redo` | `redo` | SplitButton | 重做 | 恢复撤销的操作 | ✓ | Ctrl+Y | `WIRED` |
 | 16 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
-| 17 | `hyperlink` | `insert_hyperlink` | Action | 超链接… | 插入或编辑网页、书签跳转超链接 | ✓ | Ctrl+K | `WIRED` |
+| 17 | `hyperlink` | `hyperlink` | Action | 超链接… | 插入或编辑网页、书签跳转超链接 | ✓ | Ctrl+K | `WIRED` |
 | 18 | `autoSum (split)` | `autoSum` | SplitButton | 自动求和(U) | 计算所选区域的总和 | ✓ | — | `WIRED` |
-| 19 | `sortAsc` | `data_sort_asc` | Action | 升序排序 | 按选中列的值进行递增从小到大排序 | ✓ | — | `WIRED` |
-| 20 | `sortDesc` | `data_sort_desc` | Action | 降序排序 | 按选中列的值进行递减从大到小排序 | ✓ | — | `WIRED` |
+| 19 | `sortAsc` | `sortAsc` | Action | 升序排序 | 按选中列的值进行递增从小到大排序 | ✓ | — | `WIRED` |
+| 20 | `sortDesc` | `sortDesc` | Action | 降序排序 | 按选中列的值进行递减从大到小排序 | ✓ | — | `WIRED` |
 | 21 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
 | 22 | `chartWizard` | `chartWizard` | Action | 图表向导(W)... | 启动图表向导创建统计图表 | ✓ | — | `WIRED` |
 | 23 | `tb_drawing` | `tb_drawing` | Action | 绘图(D) | 显示或隐藏绘图工具栏 | ✓ | — | `WIRED` |
 | 24 | `zoom (combo)` | `Ledger_ZoomCombo` | ComboBox | 显示比例 | 显示比例 | — | — | `WIRED` |
 | 25 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
-| 26 | `help` | `help_contents` | Action | ATBOffice 帮助 | 打开用户帮助文档 | ✓ | F1 | `WIRED` |
+| 26 | `help` | `help` | Action | ATBOffice 帮助 | 打开用户帮助文档 | ✓ | F1 | `WIRED` |
 
 ## 2. Lectern 逐工具栏详细对照表
 
@@ -394,15 +394,15 @@
 | 2 | `select` | `selectObjects` | Action | 选择对象(S) | 框选画布中的图形对象 | ✓ | — | `WIRED` |
 | 3 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
 | 4 | `autoShapes (drop)` | `自选图形` | DropDownButton | 自选图形 | 自选图形 | — | — | `WIRED` |
-| 5 | `drawLine` | `drawLine` | Action | 线条(L) | 自由绘制直线段 | — | — | `WIRED` |
-| 6 | `drawArrow` | `drawArrow` | Action | 箭头(A) | 绘制单向箭头线 | — | — | `WIRED` |
-| 7 | `drawRect` | `drawRect` | Action | 矩形(R) | 绘制矩形几何图形 | — | — | `WIRED` |
-| 8 | `drawOval` | `drawOval` | Action | 椭圆(O) | 绘制椭圆或正圆形 | — | — | `WIRED` |
-| 9 | `textBox` | `textBox` | Action | 文本框(T) | 在幻灯片中绘制横向文本框 | — | — | `WIRED` |
-| 10 | `insertWordArt` | `draw_insertWordArt` | Action | 插入艺术字(W)... | 插入艺术字 | — | — | `WIRED` |
-| 11 | `insertDiagram` | `draw_insertDiagram` | Action | 插入图示(D)... | 插入组织结构图或循环图 | — | — | `WIRED` |
+| 5 | `drawLine` | `drawLine` | Action | 线条(L) | 自由绘制直线段 | ✓ | — | `WIRED` |
+| 6 | `drawArrow` | `drawArrow` | Action | 箭头(A) | 绘制单向箭头线 | ✓ | — | `WIRED` |
+| 7 | `drawRect` | `drawRect` | Action | 矩形(R) | 绘制矩形几何图形 | ✓ | — | `WIRED` |
+| 8 | `drawOval` | `drawOval` | Action | 椭圆(O) | 绘制椭圆或正圆形 | ✓ | — | `WIRED` |
+| 9 | `textBox` | `textBox` | Action | 文本框(T) | 在幻灯片中绘制横向文本框 | ✓ | — | `WIRED` |
+| 10 | `insertWordArt` | `draw_insertWordArt` | Action | 插入艺术字(W)... | 插入艺术字 | ✓ | — | `WIRED` |
+| 11 | `insertDiagram` | `draw_insertDiagram` | Action | 插入图示(D)... | 插入组织结构图或循环图 | ✓ | — | `WIRED` |
 | 12 | `insertClipArt` | `insertClipArt` | Action | 剪贴画(C)... | 从剪贴画库中插入素材 | ✓ | — | `WIRED` |
-| 13 | `insertPicture` | `draw_insertPicture` | Action | 来自文件的图片(P)... | 从磁盘文件插入图片 | — | — | `WIRED` |
+| 13 | `insertPicture` | `draw_insertPicture` | Action | 来自文件的图片(P)... | 从磁盘文件插入图片 | ✓ | — | `WIRED` |
 | 14 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
 | 15 | `fillColor (split)` | `填充颜色` | ColorPicker | 填充颜色 | 填充颜色 | ✓ | — | `WIRED` |
 | 16 | `lineColor (split)` | `线条颜色` | ColorPicker | 线条颜色 | 线条颜色 | ✓ | — | `WIRED` |
@@ -429,8 +429,8 @@
 | 10 | `alignRight` | `alignCenter` | Action | 居中(E) | 居中 (Ctrl+E) | ✓ | Ctrl+E | `WIRED` |
 | 11 | `|` | `alignRight` | Action | 右对齐(R) | 右对齐 (Ctrl+R) | ✓ | Ctrl+R | `WIRED` |
 | 12 | `numbering` | `separator` | Separator | — | — | — | — | `WIRED` |
-| 13 | `bullets` | `format_numbering` | Action | 项目编号 | 开启或关闭段落顺序编号列表 | — | — | `WIRED` |
-| 14 | `|` | `format_bullets` | Action | 项目符号 | 开启或关闭段落项目符号列表 | — | — | `WIRED` |
+| 13 | `bullets` | `numbering` | Action | 项目编号 | 开启或关闭段落顺序编号列表 | ✓ | — | `WIRED` |
+| 14 | `|` | `bullets` | Action | 项目符号 | 开启或关闭段落项目符号列表 | ✓ | — | `WIRED` |
 | 15 | `growFont` | `separator` | Separator | — | — | — | — | `WIRED` |
 | 16 | `shrinkFont` | `growFont` | Action | 增大字号(G) | 增大文本字号 | ✓ | — | `WIRED` |
 | 17 | `|` | `shrinkFont` | Action | 减小字号(K) | 减小文本字号 | ✓ | — | `WIRED` |
@@ -440,7 +440,7 @@
 | 21 | `fontColor (split)` | `separator` | Separator | — | — | — | — | `WIRED` |
 | 22 | `|` | `字体颜色` | ColorPicker | 字体颜色 | 字体颜色 | ✓ | — | `WIRED` |
 | 23 | `slideDesign` | `separator` | Separator | — | — | — | — | `WIRED` |
-| 24 | `newSlide` | `slideDesign` | Action | 幻灯片设计(D) | 打开幻灯片设计任务窗格 | — | — | `WIRED` |
+| 24 | `newSlide` | `slideDesign` | Action | 幻灯片设计(D) | 打开幻灯片设计任务窗格 | ✓ | — | `WIRED` |
 
 ### Lectern — Toolbar: `master` (4 项，4/4 已接线)
 
@@ -455,8 +455,8 @@
 
 | # | 原版项 (JS) | 目标 Action ID (PySide6) | 控件类型 | 标签 | 提示 (Tooltip) | 图标 | 快捷键 | 状态 |
 | :-: | :--- | :--- | :--- | :--- | :--- | :-: | :--- | :-: |
-| 1 | `promote` | `outline_promote` | Action | 提升(P) | 提升大纲级别 (Alt+Shift+Left) | — | Alt+Shift+Left | `WIRED` |
-| 2 | `demote` | `outline_demote` | Action | 降低(D) | 降低大纲级别 (Alt+Shift+Right) | — | Alt+Shift+Right | `WIRED` |
+| 1 | `promote` | `promote` | Action | 提升级别(P) | 降低缩进量 / 提升级别 (Alt+Shift+Left) | ✓ | Alt+Shift+Left | `WIRED` |
+| 2 | `demote` | `demote` | Action | 降低级别(D) | 增加缩进量 / 降低级别 (Alt+Shift+Right) | ✓ | Alt+Shift+Right | `WIRED` |
 | 3 | `moveParaUp` | `moveParaUp` | Action | 上移(U) | 上移选定段落 (Alt+Shift+Up) | ✓ | Alt+Shift+Up | `WIRED` |
 | 4 | `moveParaDown` | `moveParaDown` | Action | 下移(O) | 下移选定段落 (Alt+Shift+Down) | ✓ | Alt+Shift+Down | `WIRED` |
 | 5 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
@@ -500,30 +500,30 @@
 
 | # | 原版项 (JS) | 目标 Action ID (PySide6) | 控件类型 | 标签 | 提示 (Tooltip) | 图标 | 快捷键 | 状态 |
 | :-: | :--- | :--- | :--- | :--- | :--- | :-: | :--- | :-: |
-| 1 | `new` | `file_new` | Action | 新建演示文稿 | 创建空白演示文稿 | — | Ctrl+N | `WIRED` |
-| 2 | `open` | `file_open` | Action | 打开… | 打开现有文档或文件 | — | Ctrl+O | `WIRED` |
-| 3 | `save` | `file_save` | Action | 保存当前演示文稿 | 保存当前幻灯片演示 | — | Ctrl+S | `WIRED` |
+| 1 | `new` | `new` | Action | 新建演示文稿 | 创建空白演示文稿 | ✓ | Ctrl+N | `WIRED` |
+| 2 | `open` | `open` | Action | 打开… | 打开现有文档或文件 | ✓ | Ctrl+O | `WIRED` |
+| 3 | `save` | `save` | Action | 保存当前演示文稿 | 保存当前幻灯片演示 | ✓ | Ctrl+S | `WIRED` |
 | 4 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
-| 5 | `print` | `file_print` | Action | 打印… | 调用打印机配置打印文档 | — | Ctrl+P | `WIRED` |
-| 6 | `printPreview` | `file_print_preview` | Action | 打印预览 | 打开全功能交互式打印预览视口 | — | — | `WIRED` |
-| 7 | `spelling` | `tools_spelling` | Action | 拼写和语法检查… | 运行词典校对并审查拼写错误 (F7) | — | F7 | `WIRED` |
+| 5 | `print` | `print` | Action | 打印… | 调用打印机配置打印文档 | ✓ | Ctrl+P | `WIRED` |
+| 6 | `printPreview` | `printPreview` | Action | 打印预览 | 打开全功能交互式打印预览视口 | ✓ | — | `WIRED` |
+| 7 | `spelling` | `spelling` | Action | 拼写和语法检查… | 运行词典校对并审查拼写错误 (F7) | ✓ | F7 | `WIRED` |
 | 8 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
-| 9 | `cut` | `edit_cut` | Action | 剪切 | 剪切选中内容 | — | Ctrl+X | `WIRED` |
-| 10 | `copy` | `edit_copy` | Action | 复制 | 复制选中内容 | — | Ctrl+C | `WIRED` |
-| 11 | `paste` | `edit_paste` | Action | 粘贴 | 粘贴剪贴板内容 | — | Ctrl+V | `WIRED` |
+| 9 | `cut` | `cut` | Action | 剪切 | 剪切选中内容 | ✓ | Ctrl+X | `WIRED` |
+| 10 | `copy` | `copy` | Action | 复制 | 复制选中内容 | ✓ | Ctrl+C | `WIRED` |
+| 11 | `paste` | `paste` | Action | 粘贴 | 粘贴剪贴板内容 | ✓ | Ctrl+V | `WIRED` |
 | 12 | `painter` | `formatPainter` | Action | 格式刷(P) | 格式刷 (双击可连续应用) | ✓ | — | `WIRED` |
 | 13 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
-| 14 | `undo` | `edit_undo` | SplitButton | 撤销 | 撤销上一步操作 | — | Ctrl+Z | `WIRED` |
-| 15 | `redo` | `edit_redo` | SplitButton | 重做 | 恢复撤销的操作 | — | Ctrl+Y | `WIRED` |
+| 14 | `undo` | `undo` | SplitButton | 撤销 | 撤销上一步操作 | ✓ | Ctrl+Z | `WIRED` |
+| 15 | `redo` | `redo` | SplitButton | 重做 | 恢复撤销的操作 | ✓ | Ctrl+Y | `WIRED` |
 | 16 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
-| 17 | `insertChart` | `insertChart` | Action | 插入图表(H)... | 插入统计图表 | ✓ | — | `WIRED` |
+| 17 | `insertChart` | `insertChart` | Action | 图表(H)... | 启动图表向导，根据选定数据创建图表 | ✓ | — | `WIRED` |
 | 18 | `insertTable` | `insertTable` | Action | 插入表格(B)... | 插入表格 | ✓ | — | `WIRED` |
 | 19 | `tb_tables` | `tb_tables` | Action | 表格和边框(T) | 显示或隐藏表格和边框工具栏 | ✓ | — | `WIRED` |
-| 20 | `hyperlink` | `insert_hyperlink` | Action | 超链接… | 插入或编辑网页、书签跳转超链接 | — | Ctrl+K | `WIRED` |
+| 20 | `hyperlink` | `hyperlink` | Action | 超链接… | 插入或编辑网页、书签跳转超链接 | ✓ | Ctrl+K | `WIRED` |
 | 21 | `|` | `separator` | Separator | — | — | — | — | `WIRED` |
 | 22 | `expandAll` | `expandAll` | Action | 全部展开(E) | 在左侧大纲窗格中全部展开 | ✓ | — | `WIRED` |
 | 23 | `showFormatting` | `showFormatting` | Action | 显示格式(F) | 显示纯文本或格式化文本 | ✓ | — | `WIRED` |
-| 24 | `showGrid` | `showGrid` | Action | 网格和参考线(G) | 显示或隐藏对齐网格与参考线 | — | — | `WIRED` |
+| 24 | `showGrid` | `showGrid` | Action | 网格和参考线(G) | 显示或隐藏对齐网格与参考线 | ✓ | — | `WIRED` |
 | 25 | `viewGray (split)` | `viewGray` | SplitButton | 颜色/灰度(C) | 切换彩色、灰度或纯黑白显示模式 | ✓ | — | `WIRED` |
 | 26 | `zoom (combo)` | `Lectern_ZoomCombo` | ComboBox | 显示比例 | 显示比例 | — | — | `WIRED` |
 | 27 | `help` | `separator` | Separator | — | — | — | — | `WIRED` |
