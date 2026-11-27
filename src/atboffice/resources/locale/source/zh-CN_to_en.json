@@ -9043,5 +9043,8 @@
 "插入数据透视图": "Insert PivotChart",
 "插入数据透视图(&C)…": "Pivot&Chart...",
 "根据当前数据透视表创建链接的数据透视图": "Create a linked PivotChart from the current PivotTable",
-"请先创建并选定一个数据透视表。": "Please create and select a PivotTable first."
+"请先创建并选定一个数据透视表。": "Please create and select a PivotTable first.",
+"在离线同义词库中查阅同义词与反义词 (Shift+F7)": "Look up synonyms and antonyms in the offline thesaurus (Shift+F7)",
+"插入同义词": "Insert Synonym",
+"无法加载离线同义词库：{0}": "Could not load offline thesaurus: {0}"
 }

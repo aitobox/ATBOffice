@@ -76,7 +76,6 @@ OBJECT_COMMANDS: tuple[str, ...] = (
     "insertDiagram",
     "insertExcel",
     "insert_shape",
-    "research",
     "permission",
     "sendMail",
 )
@@ -535,6 +534,10 @@ def bind_quire_toolbar_commands(window: QuireWindow) -> QuireToolbarCommands:
     reg.set_handler("olFormatting", cmds.set_show_formatting)
     reg.set_handler("updateTOC", cmds.update_toc)
     reg.set_handler("gotoTOC", cmds.goto_toc)
+
+    # Proofing & Research
+    reg.set_handler("research", lambda: window.open_research())
+    reg.set_handler("thesaurus", lambda: window.open_research("thesaurus"))
 
     # Standard / Formatting
     reg.set_handler("showMarks", cmds.toggle_marks)

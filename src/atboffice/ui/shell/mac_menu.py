@@ -25,6 +25,7 @@ _APP_SPECIFIC_ACTIONS: dict[str, frozenset[str]] = {
     "view_doc_map": frozenset({"quire"}),
     "view_thumbnails": frozenset({"quire"}),
     "tools_word_count": frozenset({"quire"}),
+    "thesaurus": frozenset({"quire"}),
     "stylesPane": frozenset({"quire"}),
     "view_page_break": frozenset({"ledger"}),
     "pageSetup": frozenset({"quire", "ledger"}),
@@ -464,6 +465,7 @@ class MacMenuBar(QMenuBar):
         self.menu_map["tools"] = menu_tools
 
         self._reg_act(menu_tools, "spelling", "tools_spelling", shortcut=QKeySequence("F7"))
+        self._reg_act(menu_tools, "thesaurus", "thesaurus", shortcut=QKeySequence("Shift+F7"))
         self._reg_act(menu_tools, "tools_word_count", "wordCount")
         self._reg_act(menu_tools, "tools_language", "tools_language")
         menu_tools.addSeparator()
@@ -931,6 +933,10 @@ class MacMenuBar(QMenuBar):
             "spelling": (
                 safe_tr("拼写和语法检查…"),
                 safe_tr("运行词典校对并审查拼写错误 (F7)"),
+            ),
+            "thesaurus": (
+                safe_tr("同义词库(&T)..."),
+                safe_tr("在离线同义词库中查阅同义词与反义词 (Shift+F7)"),
             ),
             "tools_word_count": (
                 safe_tr("字数统计(&W)..."),

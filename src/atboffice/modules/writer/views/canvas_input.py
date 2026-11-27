@@ -497,7 +497,7 @@ class CanvasInputMixin:
     @guard_qt_event("writer_canvas", "key_press")
     def keyPressEvent(self, event: QKeyEvent) -> None:
         """Dispatch keyboard events to CaretController or trigger F7 spelling dialog."""
-        if event.key() == Qt.Key.Key_F7:
+        if event.key() == Qt.Key.Key_F7 and event.modifiers() == Qt.KeyboardModifier.NoModifier:
             self.open_spelling_dialog()
             event.accept()
             return

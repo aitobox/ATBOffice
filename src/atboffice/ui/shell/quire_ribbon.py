@@ -443,6 +443,7 @@ def build_quire_ribbon_spec(window: Any) -> RibbonSpec:
                     label="校对",
                     items=(
                         RibbonItemSpec(cmd="spelling", size="large", label="拼写和语法"),
+                        "thesaurus",
                         "tools_word_count",
                         "research",
                     ),

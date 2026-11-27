@@ -159,7 +159,7 @@ class QuireWindow(BaseOfficeWindow):
         self.writer_view.reading_toolbar.toggle_doc_map_requested.connect(self.toggle_document_map)
         self.writer_view.reading_toolbar.toggle_thumbnails_requested.connect(self.toggle_thumbnails)
         self.writer_view.reading_toolbar.find_requested.connect(self.open_find_dialog)
-        self.writer_view.reading_toolbar.research_requested.connect(self.toggle_task_pane)
+        self.writer_view.reading_toolbar.research_requested.connect(self.open_research)
 
         # 5. Setup Office 2003 Luna toolbars
         self._setup_toolbars()
@@ -1680,11 +1680,11 @@ class QuireWindow(BaseOfficeWindow):
         self._sync_toolbar_states()
 
     def _setup_quire_task_panes(self) -> None:
-        """Register Quire specific task panes (Styles and Formatting)."""
+        """Register Quire specific task panes (Styles & Formatting, Research)."""
         if not self.task_pane_dock:
             return
 
-        from atboffice.modules.writer.panes import StylesAndFormattingPane
+        from atboffice.modules.writer.panes import ResearchTaskPane, StylesAndFormattingPane
 
         doc = getattr(self.writer_view.canvas_view, "doc", None)
         self.styles_pane = StylesAndFormattingPane(doc=doc, parent=self.task_pane_dock)
@@ -1698,6 +1698,46 @@ class QuireWindow(BaseOfficeWindow):
             safe_tr("样式与格式"),
             self.styles_pane,
         )
+
+        self.research_pane = ResearchTaskPane(
+            canvas_getter=lambda: self.writer_view.canvas_view,
+            parent=self.task_pane_dock,
+        )
+        self.task_pane_dock.register_pane(
+            "research",
+            safe_tr("信息检索"),
+            self.research_pane,
+        )
+
+    def _current_query_word(self) -> str:
+        """Extract current selected text or word under caret for Research/Thesaurus lookup."""
+        canvas = self.writer_view.canvas_view
+        ctl = canvas.controller
+        sel = ctl.get_selected_text().strip()
+        if sel:
+            return sel.splitlines()[0].strip()
+        p = ctl._paragraph_by_id(ctl.pos.para_id)
+        if p is None:
+            return ""
+        import re as _re
+
+        from atboffice.modules.writer.models.document import ptext
+
+        txt = ptext(p)
+        off = ctl.pos.offset
+        for m in _re.finditer(r"\w+", txt):
+            if m.start() <= off <= m.end():
+                return m.group(0)
+        return ""
+
+    def open_research(self, service: str | None = None) -> None:
+        """Open Research task pane, optionally pre-selecting a service and looking up caret word."""
+        if not hasattr(self, "task_pane_dock") or self.task_pane_dock is None:
+            return
+        self.task_pane_dock.show()
+        self.task_pane_dock.show_pane("research")
+        if hasattr(self, "research_pane"):
+            self.research_pane.open_with_query(self._current_query_word(), service=service)
 
     def _setup_quire_context_pane(self) -> None:
         """Register RB.follow contextual tool panes for pictures and drawings."""
@@ -2220,6 +2260,11 @@ class QuireWindow(BaseOfficeWindow):
             self.action_registry.retranslate_ui(safe_tr)
         if hasattr(self, "styles_pane"):
             self.styles_pane.retranslate_ui()
+        if hasattr(self, "research_pane"):
+            reg_dock = getattr(self.task_pane_dock, "_registry", {})
+            if "research" in reg_dock:
+                reg_dock["research"].title = safe_tr("信息检索")
+            self.research_pane.retranslate_ui()
         if hasattr(self, "toolbar_standard"):
             self.toolbar_standard.setWindowTitle(safe_tr("常用"))
         if hasattr(self, "toolbar_formatting"):
