@@ -45,7 +45,7 @@ def _install_dialog_recorders(monkeypatch) -> list[tuple[str, str, str]]:
 def test_quire_failed_or_cancelled_abnormal_open_preserves_dirty_document(
     qapp, monkeypatch, tmp_path: Path
 ) -> None:
-    """Unsupported .doc, encrypted cancel/wrong-pw, and corrupt .docx must preserve active dirty doc."""
+    """Unsupported .doc, encrypted cancel/wrong-pw, and corrupt .docx preserve dirty doc."""
     dialogs = _install_dialog_recorders(monkeypatch)
     valid_docx = DOCS / "word/docx/libreoffice__A019_min.docx"
     legacy_doc = DOCS / "word/doc/libreoffice__CVE-2003-0820-1.doc"
@@ -62,13 +62,16 @@ def test_quire_failed_or_cancelled_abnormal_open_preserves_dirty_document(
     win.writer_view.canvas_view.controller.insert_text("UnsavedQuireEdit")
     assert win.is_modified is True
 
+    def _quire_text() -> str:
+        return "".join(plain_text(p) for p in win.writer_view.canvas_view.doc.main.paras)
+
     # 1. Unsupported legacy .doc
     dialogs.clear()
     assert win.open_file(legacy_doc) is False
     assert len(dialogs) >= 1
     assert win.current_file_path == orig_path
     assert win.is_modified is True
-    assert "UnsavedQuireEdit" in "".join(plain_text(p) for p in win.writer_view.canvas_view.doc.main.paras)
+    assert "UnsavedQuireEdit" in _quire_text()
 
     # 2. Encrypted .docx — user cancels password prompt (0 dialogs)
     dialogs.clear()
@@ -77,7 +80,7 @@ def test_quire_failed_or_cancelled_abnormal_open_preserves_dirty_document(
     assert dialogs == []
     assert win.current_file_path == orig_path
     assert win.is_modified is True
-    assert "UnsavedQuireEdit" in "".join(plain_text(p) for p in win.writer_view.canvas_view.doc.main.paras)
+    assert "UnsavedQuireEdit" in _quire_text()
 
     # 3. Encrypted .docx — wrong password
     dialogs.clear()
@@ -86,7 +89,7 @@ def test_quire_failed_or_cancelled_abnormal_open_preserves_dirty_document(
     assert len(dialogs) >= 1
     assert win.current_file_path == orig_path
     assert win.is_modified is True
-    assert "UnsavedQuireEdit" in "".join(plain_text(p) for p in win.writer_view.canvas_view.doc.main.paras)
+    assert "UnsavedQuireEdit" in _quire_text()
 
     # 4. Corrupt .docx
     dialogs.clear()
@@ -94,7 +97,7 @@ def test_quire_failed_or_cancelled_abnormal_open_preserves_dirty_document(
     assert len(dialogs) >= 1
     assert win.current_file_path == orig_path
     assert win.is_modified is True
-    assert "UnsavedQuireEdit" in "".join(plain_text(p) for p in win.writer_view.canvas_view.doc.main.paras)
+    assert "UnsavedQuireEdit" in _quire_text()
 
     win.set_modified(False)
     win.close()
@@ -104,14 +107,15 @@ def test_quire_failed_or_cancelled_abnormal_open_preserves_dirty_document(
 def test_ledger_corrupt_open_preserves_dirty_workbook_and_xls_imports_cleanly(
     qapp, monkeypatch
 ) -> None:
-    """Corrupt .xls/.xlsx must preserve active dirty workbook; valid legacy .xls imports read-only."""
+    """Corrupt .xls/.xlsx preserve dirty workbook; valid legacy .xls imports read-only."""
     dialogs = _install_dialog_recorders(monkeypatch)
     valid_xlsx = DOCS / "excel/xlsx/libreoffice__cell-value.xlsx"
     valid_xls = DOCS / "excel/xls/libreoffice__AutoFilter.xls"
     corrupt_samples = [
         DOCS / "excel/xls/libreoffice__CVE-2010-1246-1.xls",
         DOCS / "excel/xls/libreoffice__crash-5.xls",
-        DOCS / "excel/xlsx/poi__clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-5636439151607808.xlsx",
+        DOCS
+        / "excel/xlsx/poi__clusterfuzz-testcase-minimized-XLSX2CSVFuzzer-5636439151607808.xlsx",
     ]
     assert valid_xlsx.exists() and valid_xls.exists()
     for sample in corrupt_samples:
@@ -150,7 +154,7 @@ def test_ledger_corrupt_open_preserves_dirty_workbook_and_xls_imports_cleanly(
 def test_lectern_unsupported_and_corrupt_open_preserves_dirty_presentation(
     qapp, monkeypatch, tmp_path: Path
 ) -> None:
-    """Unsupported legacy .ppt and corrupt .pptx must show warning and preserve dirty presentation."""
+    """Unsupported .ppt and corrupt .pptx show warning and preserve dirty presentation."""
     dialogs = _install_dialog_recorders(monkeypatch)
     valid_pptx = DOCS / "powerpoint/pptx/libreoffice__master-slides.pptx"
     legacy_ppt = DOCS / "powerpoint/ppt/libreoffice__CVE-2010-0033-1.ppt"

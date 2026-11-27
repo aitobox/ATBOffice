@@ -138,7 +138,7 @@ class SpreadsheetView(QWidget):
             )
 
     def _sync_sheet_tab_bar_width(self) -> None:
-        """Keep the bottom tab strip proportional so the horizontal scrollbar spans the right edge."""
+        """Keep the tab strip proportional so the horizontal scrollbar spans the right edge."""
         if not hasattr(self, "sheet_tab_bar") or not hasattr(self, "grid"):
             return
         grid_w = self.grid.width()

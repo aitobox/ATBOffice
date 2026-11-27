@@ -351,7 +351,7 @@ class TabStripWidget(QWidget):
             )
         )
 
-        # Active tab sits flush against the top grid edge; inactive tabs sit slightly below the hairline
+        # Active tab sits flush with the grid top; inactive tabs sit 1px below the hairline.
         r = rect.adjusted(0, 0 if is_active else 1, 0, 0)
 
         # Inverted trapezoid tab polygon matching .vibeoffice (.stab clip-path)

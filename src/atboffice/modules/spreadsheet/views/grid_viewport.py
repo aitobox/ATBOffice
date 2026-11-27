@@ -504,7 +504,7 @@ class GridViewport(
             self.editor_controller.reposition_editor()
 
     def _used_scroll_extent(self) -> tuple[int, int]:
-        """Return (bottom_y, right_x) in grid coordinates covering used cells, merges, and drawings."""
+        """Return (bottom_y, right_x) grid coordinates for used cells, merges, and drawings."""
         model = self.model
         cells = getattr(model, "cells", None) or {}
         max_r = max((r for r, _c in cells), default=0)
