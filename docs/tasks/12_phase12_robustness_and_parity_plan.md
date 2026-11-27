@@ -2,6 +2,7 @@
 
 > **设计规格**：[2026-11-26-phase12-robustness-and-parity-design.md](file:///Users/aitobox/work/aitobox/ATBOffice/docs/superpowers/specs/2026-11-26-phase12-robustness-and-parity-design.md)  
 > **Wave 1 详细实施计划**：[2026-11-26-phase12-wave1-robustness.md](file:///Users/aitobox/work/aitobox/ATBOffice/docs/superpowers/plans/2026-11-26-phase12-wave1-robustness.md)  
+> **Wave 3 详细实施计划**：[2026-11-26-phase12-wave3-feature-parity.md](file:///Users/aitobox/work/aitobox/ATBOffice/docs/superpowers/plans/2026-11-26-phase12-wave3-feature-parity.md)  
 > **代码基线**：`v0.2.0`（`ecac6b3`） vs. `.vibeoffice/`
 
 ---
