@@ -18,6 +18,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # View
     "view/ui_scale": "100%",  # "100%", "125%", "150%", "200%"
     "view/status_bar_timeout": 3000,  # milliseconds
+    "view/pane_follows_selection": True,
     # Fonts
     "fonts/scan_system_fonts": True,
     # Edit

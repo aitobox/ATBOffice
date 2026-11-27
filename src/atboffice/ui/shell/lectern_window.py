@@ -105,6 +105,7 @@ class LecternWindow(BaseOfficeWindow):
         from atboffice.ui.shell.lectern_commands import bind_lectern_commands
 
         self.lectern_commands = bind_lectern_commands(self)
+        self._setup_lectern_context_pane()
         # The window's task pane dock replaces the workspace's embedded task pane
         ws.set_embedded_task_pane_enabled(False)
         # The Slide Show actions own F5 / Shift+F5 in this window.
@@ -117,6 +118,92 @@ class LecternWindow(BaseOfficeWindow):
         self.menu_bar.retranslate_ui()
         # Menus and toolbars offer only the commands this window implements.
         self.action_registry.hide_unhandled_actions()
+
+    def _setup_lectern_context_pane(self) -> None:
+        """Register RB.follow contextual tool panes for pictures, shapes, tables, WordArt."""
+        from atboffice.ui.panes.context_tools_pane import ContextToolSection, ContextToolSet
+
+        sets = [
+            ContextToolSet(
+                set_id="picture",
+                title="图片工具",
+                sections=(
+                    ContextToolSection(
+                        "调整",
+                        (
+                            "picMoreContrast",
+                            "picLessContrast",
+                            "picMoreBright",
+                            "picLessBright",
+                            "picTransparent",
+                            "picReset",
+                        ),
+                    ),
+                    ContextToolSection(
+                        "大小与排列",
+                        ("picCrop", "rotateLeft", "formatObject", "bringFront", "sendBack"),
+                    ),
+                ),
+            ),
+            ContextToolSet(
+                set_id="drawing",
+                title="绘图工具",
+                sections=(
+                    ContextToolSection(
+                        "形状与样式",
+                        ("drawRect", "drawOval", "textBox", "formatObject"),
+                    ),
+                    ContextToolSection(
+                        "排列",
+                        (
+                            "bringFront",
+                            "sendBack",
+                            "bringForward",
+                            "sendBackward",
+                            "group",
+                            "ungroup",
+                            "draw_align_left",
+                            "draw_align_center",
+                            "draw_align_right",
+                        ),
+                    ),
+                ),
+            ),
+            ContextToolSet(
+                set_id="table",
+                title="表格工具",
+                sections=(
+                    ContextToolSection(
+                        "合并与对齐",
+                        (
+                            "tableMergeCells",
+                            "tableSplitCell",
+                            "cellTop",
+                            "cellMiddle",
+                            "cellBottom",
+                        ),
+                    ),
+                    ContextToolSection("分布", ("distRows", "distCols")),
+                ),
+            ),
+            ContextToolSet(
+                set_id="wordart",
+                title="艺术字工具",
+                sections=(
+                    ContextToolSection(
+                        "文字与样式",
+                        (
+                            "wordartEdit",
+                            "wordartGallery",
+                            "waSameHeight",
+                            "waVertical",
+                            "wa_format",
+                        ),
+                    ),
+                ),
+            ),
+        ]
+        self.init_context_pane_follow(sets, pane_aliases={"smartart": "smartart_pane"})
 
     def _setup_status_bar_view_buttons(self) -> None:
         """PowerPoint 2003 status bar: slide counter, design name and view buttons."""
@@ -1993,6 +2080,19 @@ class LecternWindow(BaseOfficeWindow):
                 diag = self._get_active_diagram_shape()
                 if diag and getattr(diag, "sa", None) and self.smartart_pane.current_shape != diag:
                     self.smartart_pane.set_diagram(diag)
+        if is_diagram:
+            ctx_kind = "smartart"
+        elif is_picture:
+            ctx_kind = "picture"
+        elif is_table:
+            ctx_kind = "table"
+        elif is_wordart:
+            ctx_kind = "wordart"
+        elif selected_items:
+            ctx_kind = "drawing"
+        else:
+            ctx_kind = None
+        self.notify_selection_context(ctx_kind)
         self._sync_toolbar_states()
 
     def _on_left_pane_tab_changed(self, index: int) -> None:

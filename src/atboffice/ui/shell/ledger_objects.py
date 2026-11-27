@@ -184,12 +184,23 @@ class LedgerObjectsMixin:
             self._record_drawing_edit("设置填充色", _apply)
 
     def _on_object_selected(self, obj: Any) -> None:
-        """Update contextual toolbars when floating object selection changes."""
-        is_chart = obj is not None and getattr(obj, "kind", None) == "chart"
+        """Update contextual toolbars and RB.follow task pane when selection changes."""
+        kind = getattr(obj, "kind", None) if obj is not None else None
+        is_chart = kind == "chart"
         self.update_context_toolbars({"is_chart": is_chart})
         act_format_obj = self.action_registry.get_action("formatObject")
         if act_format_obj:
             act_format_obj.setEnabled(obj is not None)
+        if obj is None:
+            ctx_kind = None
+        elif is_chart:
+            ctx_kind = "chart"
+        elif kind in ("image", "picture"):
+            ctx_kind = "picture"
+        else:
+            ctx_kind = "drawing"
+        if hasattr(self, "notify_selection_context"):
+            self.notify_selection_context(ctx_kind)
 
     def open_chart_wizard(self, initial_type: str | None = None) -> None:
         """Open Excel 2003 classic Chart Wizard (4 步图表向导) on the current selection."""

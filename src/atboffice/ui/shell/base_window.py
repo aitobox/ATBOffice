@@ -62,6 +62,7 @@ class BaseOfficeWindow(QMainWindow):
         self.current_theme: str = "blue"
         self.task_pane_dock: Any | None = None
         self.clipboard_pane: Any | None = None
+        self.context_pane_controller: Any | None = None
         self.command_search_box: Any | None = None
         self._document_metadata: Any | None = None
         # Password of the encrypted package currently open (in memory only).
@@ -1136,6 +1137,33 @@ class BaseOfficeWindow(QMainWindow):
         if self.task_pane_dock is not None:
             self.task_pane_dock.show_pane(pane_id)
 
+    def init_context_pane_follow(
+        self, sets: list[Any], pane_aliases: dict[str, str] | None = None
+    ) -> Any:
+        """Initialize contextual task pane auto-follow (``RB.follow``) on TaskPaneDock."""
+        reg = getattr(self, "action_registry", None)
+        if self.task_pane_dock is None or reg is None:
+            return None
+        from atboffice.ui.panes.context_tools_pane import TaskPaneFollowController
+
+        self.context_pane_controller = TaskPaneFollowController(
+            window=self,
+            task_pane_dock=self.task_pane_dock,
+            action_registry=reg,
+            sets=sets,
+            pane_aliases=pane_aliases,
+        )
+        return self.context_pane_controller
+
+    def notify_selection_context(self, context_kind: str | None) -> None:
+        """Synchronize contextual task pane (and Ribbon if built) with selection."""
+        ctrl = getattr(self, "context_pane_controller", None)
+        if ctrl is not None:
+            ctrl.sync_context(context_kind)
+        ribbon = getattr(self, "_ribbon_bar", None)
+        if ribbon is not None and hasattr(ribbon, "refresh_context"):
+            ribbon.refresh_context()
+
     def _on_task_pane_visibility_changed(self, visible: bool) -> None:
         """Sync check state in view menu when task pane is opened or closed."""
         if hasattr(self, "menu_bar") and hasattr(self.menu_bar, "action_map"):
@@ -1255,6 +1283,8 @@ class BaseOfficeWindow(QMainWindow):
         self.update_window_title()
         if self.task_pane_dock is not None:
             self.task_pane_dock.retranslate_ui()
+        if getattr(self, "context_pane_controller", None) is not None:
+            self.context_pane_controller.retranslate_ui()
         if getattr(self, "command_search_box", None) is not None:
             self.command_search_box.retranslate_ui()
         if getattr(self, "clipboard_pane", None) is not None:

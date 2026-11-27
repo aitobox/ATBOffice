@@ -164,11 +164,13 @@ class QuireWindow(BaseOfficeWindow):
         # 5. Setup Office 2003 Luna toolbars
         self._setup_toolbars()
         self._bind_action_handlers()
+        self._setup_quire_context_pane()
 
         # 5. Connect document modifications and caret/selection to listeners
         self.writer_view.canvas_view.controller.document_modified.connect(
             self._on_document_modified
         )
+        self.writer_view.canvas_view.float_selected.connect(self._on_quire_float_selected)
         # Caret moves refresh toolbars/context immediately. Selection-only changes are
         # coalesced into one deferred refresh, which a caret move in the same
         # keystroke cancels, so each edit syncs the toolbars once instead of 2-3 times.
@@ -1676,6 +1678,82 @@ class QuireWindow(BaseOfficeWindow):
             safe_tr("样式与格式"),
             self.styles_pane,
         )
+
+    def _setup_quire_context_pane(self) -> None:
+        """Register RB.follow contextual tool panes for pictures and drawings."""
+        from atboffice.ui.panes.context_tools_pane import ContextToolSection, ContextToolSet
+
+        sets = [
+            ContextToolSet(
+                set_id="picture",
+                title="图片工具",
+                sections=(
+                    ContextToolSection(
+                        "调整",
+                        (
+                            "pic_insert",
+                            "picMoreContrast",
+                            "picLessContrast",
+                            "picMoreBright",
+                            "picLessBright",
+                            "picReset",
+                        ),
+                    ),
+                    ContextToolSection(
+                        "排列与大小",
+                        (
+                            "draw_order_front",
+                            "draw_order_back",
+                            "draw_rotate_right",
+                            "draw_nudge_up",
+                            "draw_nudge_down",
+                            "picCrop",
+                            "picRotate",
+                            "formatObject",
+                        ),
+                    ),
+                ),
+            ),
+            ContextToolSet(
+                set_id="drawing",
+                title="绘图工具",
+                sections=(
+                    ContextToolSection(
+                        "插入与编辑",
+                        ("drawRect", "drawOval", "textBox", "wordartEdit", "wordartGallery"),
+                    ),
+                    ContextToolSection(
+                        "排列",
+                        (
+                            "draw_order_front",
+                            "draw_order_back",
+                            "draw_nudge_up",
+                            "draw_nudge_down",
+                            "draw_align_left",
+                            "draw_rotate_right",
+                        ),
+                    ),
+                ),
+            ),
+        ]
+        self.init_context_pane_follow(sets)
+
+    @guard_qt_slot("quire_window", "float_selected")
+    def _on_quire_float_selected(self, item: Any) -> None:
+        """Synchronize Quire contextual toolbars and task pane with selected floating object."""
+        from atboffice.modules.writer.models.drawing import PictureItem, ShapeItem
+
+        is_shape = isinstance(item, ShapeItem)
+        is_pic = (not is_shape) and (
+            isinstance(item, PictureItem) or getattr(item, "t", "") in ("picture", "img")
+        )
+        is_draw = item is not None and not is_pic
+        ctx_kind = "picture" if is_pic else ("drawing" if is_draw else None)
+        self.update_context_toolbars(
+            {"is_picture": is_pic, "is_wordart": bool(getattr(item, "is_wordart", False))}
+        )
+        self.notify_selection_context(ctx_kind)
+        self._sync_toolbar_states()
 
     def switch_view_mode(self, mode: ViewMode | str) -> None:
         """Switch Quire view display mode (print, normal, web, reading, outline)."""

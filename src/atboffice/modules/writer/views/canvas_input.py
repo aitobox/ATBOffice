@@ -368,8 +368,12 @@ class CanvasInputMixin:
         return item
 
     def select_float(self, page_idx: int | None, item: Any | None) -> None:
-        self._float_sel = (page_idx, item) if item is not None and page_idx is not None else None
+        selected = item if item is not None and page_idx is not None else None
+        self._float_sel = (page_idx, item) if selected is not None else None
         self.viewport().update()
+        sig = getattr(self, "float_selected", None)
+        if sig is not None:
+            sig.emit(selected)
 
     def _selected_float_box(self) -> tuple[int, Any] | None:
         if not self._float_sel or not self.pagination.pages:

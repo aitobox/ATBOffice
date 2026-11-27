@@ -184,6 +184,10 @@ class OptionsDialog(QDialog):
 
         layout.addLayout(form)
 
+        self.chk_pane_follows = QCheckBox(safe_tr("选中对象时任务窗格自动跟随"), self.tab_view)
+        self.chk_pane_follows.setChecked(True)
+        layout.addWidget(self.chk_pane_follows)
+
         # Theme Section
         self.grp_theme_view = QGroupBox(safe_tr("外观与主题"), self.tab_view)
         theme_layout = QHBoxLayout(self.grp_theme_view)
@@ -333,6 +337,9 @@ class OptionsDialog(QDialog):
         self.spin_status_timeout.setValue(
             int(self.settings.get_value("view/status_bar_timeout", 3000))
         )
+        self.chk_pane_follows.setChecked(
+            bool(self.settings.get_value("view/pane_follows_selection", True))
+        )
 
         # Edit
         font_family = str(self.settings.get_value("edit/default_font_family", "Tahoma"))
@@ -377,6 +384,7 @@ class OptionsDialog(QDialog):
         # View
         self.settings.set_value("view/ui_scale", self.combo_ui_scale.currentText())
         self.settings.set_value("view/status_bar_timeout", self.spin_status_timeout.value())
+        self.settings.set_value("view/pane_follows_selection", self.chk_pane_follows.isChecked())
 
         # Edit
         self.settings.set_value("edit/default_font_family", self.combo_font_family.currentText())
@@ -445,6 +453,7 @@ class OptionsDialog(QDialog):
         if scale_idx >= 0:
             self.combo_ui_scale.setCurrentIndex(scale_idx)
         self.spin_status_timeout.setValue(int(DEFAULT_SETTINGS["view/status_bar_timeout"]))
+        self.chk_pane_follows.setChecked(bool(DEFAULT_SETTINGS["view/pane_follows_selection"]))
 
         font_idx = self.combo_font_family.findText(
             str(DEFAULT_SETTINGS["edit/default_font_family"])
@@ -500,6 +509,7 @@ class OptionsDialog(QDialog):
         # View
         self.lbl_ui_scale.setText(safe_tr("界面缩放比率："))
         self.lbl_status_timeout.setText(safe_tr("状态栏提示显示时间："))
+        self.chk_pane_follows.setText(safe_tr("选中对象时任务窗格自动跟随"))
         self.grp_theme_view.setTitle(safe_tr("外观与主题"))
         self.lbl_theme_desc.setText(safe_tr("ATBOffice 包含 4 款经典 Office 2003 质感外观配色。"))
         self.btn_open_theme_dialog.setText(safe_tr("打开主题选择器…"))

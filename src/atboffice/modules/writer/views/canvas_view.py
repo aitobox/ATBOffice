@@ -82,6 +82,7 @@ class WriterCanvasView(
     caret_moved = Signal(int, int)  # para_id, offset
     view_mode_changed = Signal(object)
     header_footer_requested = Signal(str)  # "hdr" / "ftr"
+    float_selected = Signal(object)  # PictureItem / ShapeItem / None
 
     def __init__(
         self,

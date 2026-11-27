@@ -120,6 +120,7 @@ class LedgerWindow(
         from atboffice.ui.shell.ledger_commands import bind_ledger_commands
 
         self.ledger_commands = bind_ledger_commands(self)
+        self._setup_ledger_context_pane()
         self.attach_undo_history()
         self.bind_undo_service()
 
@@ -127,6 +128,54 @@ class LedgerWindow(
         self.menu_bar.retranslate_ui()
         # Menus and toolbars offer only the commands this window implements.
         self.action_registry.hide_unhandled_actions()
+
+    def _setup_ledger_context_pane(self) -> None:
+        """Register RB.follow contextual tool panes for charts, pictures, and drawings."""
+        from atboffice.ui.panes.context_tools_pane import ContextToolSection, ContextToolSet
+
+        sets = [
+            ContextToolSet(
+                set_id="chart",
+                title="图表工具",
+                sections=(
+                    ContextToolSection(
+                        "图表类型",
+                        (
+                            "chart_type_column",
+                            "chart_type_line",
+                            "chart_type_pie",
+                            "chart_type_bar",
+                        ),
+                    ),
+                    ContextToolSection(
+                        "设计与格式",
+                        ("chartWizard", "formatObject", "bringToFront", "sendToBack"),
+                    ),
+                ),
+            ),
+            ContextToolSet(
+                set_id="picture",
+                title="图片工具",
+                sections=(
+                    ContextToolSection(
+                        "对象与排列",
+                        ("formatObject", "bringToFront", "sendToBack", "insertPicture"),
+                    ),
+                ),
+            ),
+            ContextToolSet(
+                set_id="drawing",
+                title="绘图工具",
+                sections=(
+                    ContextToolSection("插入形状", ("insertShape", "insertTextBox")),
+                    ContextToolSection(
+                        "格式与排列",
+                        ("formatObject", "bringToFront", "sendToBack"),
+                    ),
+                ),
+            ),
+        ]
+        self.init_context_pane_follow(sets)
 
     def _bind_action_handlers(self) -> None:
         """Bind window callbacks to core action IDs in ActionRegistry."""
