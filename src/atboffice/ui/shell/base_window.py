@@ -15,7 +15,7 @@ from PySide6.QtWidgets import QDialog, QFileDialog, QMainWindow, QMessageBox, QW
 from atboffice.core.fault_guard import is_alive
 from atboffice.core.i18n import get_i18n_manager, safe_tr
 from atboffice.core.undo import UndoService
-from atboffice.ui.styles.luna_2003 import apply_luna_theme
+from atboffice.ui.styles.luna_2003 import apply_luna_theme, normalize_theme
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,9 @@ class BaseOfficeWindow(QMainWindow):
         self._is_closed: bool = False
         self._owned_timers: list[QTimer] = []
         self.current_theme: str = "blue"
+        self._ribbon_bar: Any | None = None
+        self._ribbon_toolbar_host: Any | None = None
+        self._classic_toolbar_visibility: dict[str, bool] = {}
         self.task_pane_dock: Any | None = None
         self.clipboard_pane: Any | None = None
         self.context_pane_controller: Any | None = None
@@ -187,15 +190,85 @@ class BaseOfficeWindow(QMainWindow):
             title = f"{self.app_name} [*]"
         self.setWindowTitle(title)
 
+    @property
+    def ribbon_bar(self) -> Any | None:
+        """Return the lazily created Paper 2016 RibbonBar, or None on classic themes."""
+        return self._ribbon_bar
+
+    def is_ribbon_mode(self) -> bool:
+        """Return whether the window is currently in Paper 2016 Ribbon mode."""
+        return normalize_theme(self.current_theme) == "paper2016"
+
+    def build_ribbon_spec(self) -> Any | None:
+        """Subclass hook returning the editor's declarative ``RibbonSpec``."""
+        return None
+
+    def _sync_theme_chrome(self, theme_key: str) -> None:
+        """Switch between classic toolbars and the lazily constructed Paper 2016 Ribbon."""
+        key = normalize_theme(theme_key)
+        if key != "paper2016":
+            if self._ribbon_toolbar_host is not None:
+                self._ribbon_toolbar_host.hide()
+            if self._classic_toolbar_visibility:
+                toolbars = getattr(self, "toolbars", {})
+                for name, saved in self._classic_toolbar_visibility.items():
+                    tb = toolbars.get(name)
+                    if tb is not None:
+                        tb.setVisible(saved)
+                self._classic_toolbar_visibility.clear()
+            return
+
+        toolbars = getattr(self, "toolbars", None)
+        reg = getattr(self, "action_registry", None)
+        if toolbars is None or reg is None:
+            return
+
+        if not self._classic_toolbar_visibility:
+            self._classic_toolbar_visibility = {
+                name: tb.isVisible() for name, tb in toolbars.items()
+            }
+        for tb in toolbars.values():
+            tb.hide()
+
+        if self._ribbon_bar is None:
+            spec = self.build_ribbon_spec()
+            if spec is None:
+                return
+            from PySide6.QtCore import Qt
+            from PySide6.QtWidgets import QToolBar
+
+            from atboffice.ui.components.ribbon_bar import RibbonBar
+
+            self._ribbon_bar = RibbonBar(spec, reg, parent=self)
+            host = QToolBar("Ribbon", self)
+            host.setObjectName("RibbonHostBar")
+            host.setMovable(False)
+            host.setFloatable(False)
+            host.setAllowedAreas(Qt.ToolBarArea.TopToolBarArea)
+            host.addWidget(self._ribbon_bar)
+            first_tb = next(iter(toolbars.values()), None)
+            if first_tb is not None:
+                self.insertToolBar(first_tb, host)
+            else:
+                self.addToolBar(Qt.ToolBarArea.TopToolBarArea, host)
+            self._ribbon_toolbar_host = host
+
+        if self._ribbon_toolbar_host is not None:
+            self._ribbon_toolbar_host.show()
+        if self._ribbon_bar is not None:
+            self._ribbon_bar.refresh_context()
+            self._ribbon_bar.fit_groups()
+
     def apply_theme(self, theme_name: str) -> None:
-        """Apply theme (blue, silver, olive, or classic) to window and its children."""
-        self.current_theme = theme_name
-        apply_luna_theme(self, theme_name)
+        """Apply theme (blue, silver, olive, classic, paper, or paper2016) to window."""
+        self.current_theme = normalize_theme(theme_name)
+        apply_luna_theme(self, self.current_theme)
 
     def set_theme(self, theme: str) -> None:
-        """Switch active Office 2003 theme ('blue', 'silver', 'olive', or 'classic')."""
-        self.current_theme = theme.lower()
+        """Switch active Office theme and synchronize classic vs. Ribbon chrome."""
+        self.current_theme = normalize_theme(theme)
         self.apply_theme(self.current_theme)
+        self._sync_theme_chrome(self.current_theme)
 
         if hasattr(self, "menu_bar") and hasattr(self.menu_bar, "action_map"):
             for act_name, t_val in [
@@ -1005,7 +1078,12 @@ class BaseOfficeWindow(QMainWindow):
                 except Exception:
                     pass
 
-        # 4. Disconnect locale change listener
+        # 4. Clean up KeyTips / Ribbon and disconnect locale change listener
+        if getattr(self, "_ribbon_bar", None) is not None:
+            try:
+                self._ribbon_bar.cleanup()
+            except Exception:
+                pass
         try:
             get_i18n_manager().locale_changed.disconnect(self._on_locale_changed)
         except Exception:
@@ -1289,3 +1367,5 @@ class BaseOfficeWindow(QMainWindow):
             self.command_search_box.retranslate_ui()
         if getattr(self, "clipboard_pane", None) is not None:
             self.clipboard_pane.retranslate_ui()
+        if getattr(self, "_ribbon_bar", None) is not None:
+            self._ribbon_bar.retranslate_ui()

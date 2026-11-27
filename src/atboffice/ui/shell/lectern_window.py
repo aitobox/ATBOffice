@@ -118,6 +118,14 @@ class LecternWindow(BaseOfficeWindow):
         self.menu_bar.retranslate_ui()
         # Menus and toolbars offer only the commands this window implements.
         self.action_registry.hide_unhandled_actions()
+        if self.is_ribbon_mode():
+            self._sync_theme_chrome(self.current_theme)
+
+    def build_ribbon_spec(self) -> Any:
+        """Lazily build the declarative Paper 2016 Ribbon specification for Lectern."""
+        from atboffice.ui.shell.lectern_ribbon import build_lectern_ribbon_spec
+
+        return build_lectern_ribbon_spec(self)
 
     def _setup_lectern_context_pane(self) -> None:
         """Register RB.follow contextual tool panes for pictures, shapes, tables, WordArt."""
@@ -2382,7 +2390,15 @@ class LecternWindow(BaseOfficeWindow):
                 else:  # "auto"
                     target_visible = self._resolve_auto_context(name, ctx)
 
-            tb.setVisible(target_visible)
+            if self.is_ribbon_mode():
+                self._classic_toolbar_visibility[name] = target_visible
+                tb.setVisible(False)
+            else:
+                tb.setVisible(target_visible)
+
+        ribbon = getattr(self, "_ribbon_bar", None)
+        if ribbon is not None:
+            ribbon.refresh_context()
 
     def _resolve_auto_context(self, name: str, ctx: dict[str, Any]) -> bool:
         if name == "tables":

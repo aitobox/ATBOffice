@@ -128,6 +128,14 @@ class LedgerWindow(
         self.menu_bar.retranslate_ui()
         # Menus and toolbars offer only the commands this window implements.
         self.action_registry.hide_unhandled_actions()
+        if self.is_ribbon_mode():
+            self._sync_theme_chrome(self.current_theme)
+
+    def build_ribbon_spec(self) -> Any:
+        """Lazily build the declarative Paper 2016 Ribbon specification for Ledger."""
+        from atboffice.ui.shell.ledger_ribbon import build_ledger_ribbon_spec
+
+        return build_ledger_ribbon_spec(self)
 
     def _setup_ledger_context_pane(self) -> None:
         """Register RB.follow contextual tool panes for charts, pictures, and drawings."""
@@ -749,7 +757,8 @@ class LedgerWindow(
 
     def update_context_toolbars(self, context: dict[str, Any] | None = None) -> None:
         """Update contextual toolbar visibility based on selection and document state."""
-        ctx = context or {}
+        ctx = {**getattr(self, "_toolbar_context", {}), **(context or {})}
+        self._toolbar_context = ctx
         for name, mode in self.toolbar_modes.items():
             tb = self.toolbars.get(name)
             if tb is None:
@@ -767,7 +776,15 @@ class LedgerWindow(
                 else:
                     target_visible = False
 
-            tb.setVisible(target_visible)
+            if self.is_ribbon_mode():
+                self._classic_toolbar_visibility[name] = target_visible
+                tb.setVisible(False)
+            else:
+                tb.setVisible(target_visible)
+
+        ribbon = getattr(self, "_ribbon_bar", None)
+        if ribbon is not None:
+            ribbon.refresh_context()
 
     def show_about(self) -> None:
         """Show about dialog for ATBOffice Ledger."""

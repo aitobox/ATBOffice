@@ -202,6 +202,14 @@ class QuireWindow(BaseOfficeWindow):
         self.menu_bar.retranslate_ui()
         # Menus and toolbars offer only the commands this window implements.
         self.action_registry.hide_unhandled_actions()
+        if self.is_ribbon_mode():
+            self._sync_theme_chrome(self.current_theme)
+
+    def build_ribbon_spec(self) -> Any:
+        """Lazily build the declarative Paper 2016 Ribbon specification for Quire."""
+        from atboffice.ui.shell.quire_ribbon import build_quire_ribbon_spec
+
+        return build_quire_ribbon_spec(self)
 
     # -- status bar ------------------------------------------------------------
 
@@ -1588,7 +1596,15 @@ class QuireWindow(BaseOfficeWindow):
                 else:
                     target_visible = False
 
-            tb.setVisible(target_visible)
+            if self.is_ribbon_mode():
+                self._classic_toolbar_visibility[name] = target_visible
+                tb.setVisible(False)
+            else:
+                tb.setVisible(target_visible)
+
+        ribbon = getattr(self, "_ribbon_bar", None)
+        if ribbon is not None:
+            ribbon.refresh_context()
 
     def _schedule_caret_ui_sync(self, *_: Any) -> None:
         """Queue one caret-driven UI refresh (toolbars, context bars, side panes)."""
@@ -1750,7 +1766,11 @@ class QuireWindow(BaseOfficeWindow):
         is_draw = item is not None and not is_pic
         ctx_kind = "picture" if is_pic else ("drawing" if is_draw else None)
         self.update_context_toolbars(
-            {"is_picture": is_pic, "is_wordart": bool(getattr(item, "is_wordart", False))}
+            {
+                "is_picture": is_pic,
+                "is_drawing": is_draw,
+                "is_wordart": bool(getattr(item, "is_wordart", False)),
+            }
         )
         self.notify_selection_context(ctx_kind)
         self._sync_toolbar_states()
