@@ -50,6 +50,19 @@ def _lectern_in_master(window: Any) -> bool:
     return getattr(getattr(window, "presentation_view", None), "view_mode", "normal") == "master"
 
 
+def _lectern_in_handout_master(window: Any) -> bool:
+    return (
+        getattr(getattr(window, "presentation_view", None), "view_mode", "normal")
+        == "handout_master"
+    )
+
+
+def _lectern_in_notes_master(window: Any) -> bool:
+    return (
+        getattr(getattr(window, "presentation_view", None), "view_mode", "normal") == "notes_master"
+    )
+
+
 def build_lectern_ribbon_spec(window: Any) -> RibbonSpec:
     """Build the Paper 2016 RibbonSpec over ``LecternWindow``'s live ``ActionRegistry``."""
     icons: dict[str, str] = {
@@ -72,6 +85,8 @@ def build_lectern_ribbon_spec(window: Any) -> RibbonSpec:
         "viewSorter": "sorterView",
         "viewNotes": "notesView",
         "viewMaster": "master",
+        "view_handout_master": "master",
+        "view_notes_master": "master",
         "view_ruler": "ruler",
         "taskPane": "taskpane",
         "window_zoom": "zoom",
@@ -396,7 +411,11 @@ def build_lectern_ribbon_spec(window: Any) -> RibbonSpec:
                 ),
                 RibbonGroupSpec(
                     label="母版视图",
-                    items=(RibbonItemSpec(cmd="viewMaster", size="large", label="幻灯片母版"),),
+                    items=(
+                        RibbonItemSpec(cmd="viewMaster", size="large", label="幻灯片母版"),
+                        RibbonItemSpec(cmd="view_handout_master", size="large", label="讲义母版"),
+                        RibbonItemSpec(cmd="view_notes_master", size="large", label="备注母版"),
+                    ),
                 ),
                 RibbonGroupSpec(
                     label="显示",
@@ -449,6 +468,50 @@ def build_lectern_ribbon_spec(window: Any) -> RibbonSpec:
                                 "renameMaster",
                             ),
                         ),
+                        RibbonGroupSpec(
+                            label="关闭",
+                            items=(
+                                RibbonItemSpec(
+                                    cmd="closeMaster", size="large", label="关闭母版视图"
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        RibbonContextSetSpec(
+            set_id="handout_master",
+            set_label="讲义母版",
+            auto_open=True,
+            when=lambda: _lectern_in_handout_master(window),
+            tabs=(
+                RibbonTabSpec(
+                    tab_id="handoutMasterTab",
+                    label="讲义母版",
+                    groups=(
+                        RibbonGroupSpec(
+                            label="关闭",
+                            items=(
+                                RibbonItemSpec(
+                                    cmd="closeMaster", size="large", label="关闭母版视图"
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        RibbonContextSetSpec(
+            set_id="notes_master",
+            set_label="备注母版",
+            auto_open=True,
+            when=lambda: _lectern_in_notes_master(window),
+            tabs=(
+                RibbonTabSpec(
+                    tab_id="notesMasterTab",
+                    label="备注母版",
+                    groups=(
                         RibbonGroupSpec(
                             label="关闭",
                             items=(

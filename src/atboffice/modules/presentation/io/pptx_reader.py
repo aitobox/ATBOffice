@@ -21,8 +21,10 @@ from atboffice.modules.presentation.io.pptx_common import (  # noqa: F401  re-ex
     REL_COMMENT_AUTHORS,
     REL_COMMENTS,
     REL_COMMENTS_MODERN,
+    REL_HANDOUT_MASTER,
     REL_IMAGE,
     REL_MEDIA,
+    REL_NOTES_MASTER,
     REL_NOTES_SLIDE,
     REL_OFFICE_DOCUMENT,
     REL_SLIDE,
@@ -58,7 +60,11 @@ from atboffice.modules.presentation.models.designs import (
     DesignTemplate,
 )
 from atboffice.modules.presentation.models.presentation import (
+    VALID_HANDOUT_COUNTS,
+    VALID_HANDOUT_ORIENTATIONS,
+    HandoutMasterSettings,
     LoadWarning,
+    NotesMasterSettings,
     Presentation,
 )
 from atboffice.modules.presentation.models.shape import (
@@ -162,6 +168,9 @@ class PptxReader(
         # 4.1 Parse Comment Authors
         self._parse_comment_authors(pres_part, pres_rels, pres)
 
+        # 4.2 Parse Handout Master & Notes Master
+        self._parse_handout_and_notes_masters(pres_part, pres_xml, pres_rels, pres)
+
         # 5. Parse Slide ID List
         sld_id_lst = _get_child(pres_xml, "sldIdLst")
         if sld_id_lst is not None:
@@ -218,6 +227,186 @@ class PptxReader(
 
         pres.load_warnings = list(self._warnings)
         return pres
+
+    @staticmethod
+    def _extract_sp_plain_text(sp: ET.Element) -> str:
+        tx_body = _get_child(sp, "txBody")
+        if tx_body is None:
+            return ""
+        lines: list[str] = []
+        for p_el in _get_children(tx_body, "p"):
+            chunks = [el.text for el in p_el.iter() if _local_tag(el.tag) == "t" and el.text]
+            lines.append("".join(chunks))
+        return "\n".join(lines).strip("\n")
+
+    @staticmethod
+    def _has_visible_ln(sp: ET.Element) -> bool | None:
+        sp_pr = _get_child(sp, "spPr")
+        if sp_pr is None:
+            return None
+        ln = _get_child(sp_pr, "ln")
+        if ln is None:
+            return None
+        return _get_child(ln, "noFill") is None
+
+    def _locate_master_part(
+        self,
+        pres_part: str,
+        pres_xml: ET.Element,
+        rel_by_id: dict[str, Any],
+        lst_tag: str,
+        id_tag: str,
+        rel_type: str,
+        fallback_part: str,
+    ) -> str | None:
+        lst = _get_child(pres_xml, lst_tag)
+        if lst is not None:
+            for item in _get_children(lst, id_tag):
+                rid = _get_attr(item, "id") or ""
+                rel = rel_by_id.get(rid)
+                if rel is not None:
+                    cand = _resolve_path(pres_part, rel.target)
+                    if self.package.has_part(cand):
+                        return cand
+        for rel in rel_by_id.values():
+            if rel.type == rel_type or rel.type.endswith(f"/{rel_type.rsplit('/', 1)[-1]}"):
+                cand = _resolve_path(pres_part, rel.target)
+                if self.package.has_part(cand):
+                    return cand
+        if self.package.has_part(fallback_part):
+            return fallback_part
+        return None
+
+    def _parse_handout_and_notes_masters(
+        self,
+        pres_part: str,
+        pres_xml: ET.Element,
+        pres_rels: list[Any],
+        pres: Presentation,
+    ) -> None:
+        """Read ``handoutMaster1.xml`` and ``notesMaster1.xml`` into presentation settings."""
+        rel_by_id = {r.id: r for r in pres_rels}
+
+        hm_part = self._locate_master_part(
+            pres_part,
+            pres_xml,
+            rel_by_id,
+            "handoutMasterIdLst",
+            "handoutMasterId",
+            REL_HANDOUT_MASTER,
+            "ppt/handoutMasters/handoutMaster1.xml",
+        )
+        if hm_part:
+            pres.props["_handout_master_part"] = hm_part
+            try:
+                hm_xml = ET.fromstring(self.package.read_part(hm_part))
+                hm = HandoutMasterSettings(
+                    show_header=False,
+                    show_date=False,
+                    show_footer=False,
+                    show_page_number=False,
+                )
+                c_sld = _get_child(hm_xml, "cSld")
+                sp_tree = _get_child(c_sld, "spTree") if c_sld is not None else None
+                if sp_tree is not None:
+                    for sp in _get_children(sp_tree, "sp"):
+                        nv_sp = _get_child(sp, "nvSpPr")
+                        nv_pr = _get_child(nv_sp, "nvPr") if nv_sp is not None else None
+                        ph = _get_child(nv_pr, "ph") if nv_pr is not None else None
+                        ph_type = _get_attr(ph, "type") if ph is not None else None
+                        if ph_type == "hdr":
+                            hm.show_header = True
+                            hm.header_text = self._extract_sp_plain_text(sp)
+                        elif ph_type == "dt":
+                            hm.show_date = True
+                            hm.date_text = self._extract_sp_plain_text(sp)
+                        elif ph_type == "ftr":
+                            hm.show_footer = True
+                            hm.footer_text = self._extract_sp_plain_text(sp)
+                        elif ph_type == "sldNum":
+                            hm.show_page_number = True
+
+                for node in hm_xml.iter():
+                    if _local_tag(node.tag) == "handoutPr":
+                        per = safe_int(_get_attr(node, "slidesPerPage"), 6)
+                        if per in VALID_HANDOUT_COUNTS:
+                            hm.slides_per_page = per
+                        orient = (_get_attr(node, "orientation") or "portrait").lower().strip()
+                        if orient in VALID_HANDOUT_ORIENTATIONS:
+                            hm.orientation = orient
+                pres.handout_master = hm
+            except Exception as exc:
+                self._warnings.append(
+                    LoadWarning(scope="handoutMaster", location=hm_part, message=str(exc))
+                )
+
+        nm_part = self._locate_master_part(
+            pres_part,
+            pres_xml,
+            rel_by_id,
+            "notesMasterIdLst",
+            "notesMasterId",
+            REL_NOTES_MASTER,
+            "ppt/notesMasters/notesMaster1.xml",
+        )
+        if nm_part:
+            pres.props["_notes_master_part"] = nm_part
+            try:
+                nm_xml = ET.fromstring(self.package.read_part(nm_part))
+                nm = NotesMasterSettings(
+                    show_header=False,
+                    show_date=False,
+                    show_footer=False,
+                    show_page_number=False,
+                )
+                c_sld = _get_child(nm_xml, "cSld")
+                sp_tree = _get_child(c_sld, "spTree") if c_sld is not None else None
+                if sp_tree is not None:
+                    for sp in _get_children(sp_tree, "sp"):
+                        nv_sp = _get_child(sp, "nvSpPr")
+                        nv_pr = _get_child(nv_sp, "nvPr") if nv_sp is not None else None
+                        ph = _get_child(nv_pr, "ph") if nv_pr is not None else None
+                        ph_type = _get_attr(ph, "type") if ph is not None else None
+                        if ph_type == "hdr":
+                            nm.show_header = True
+                            nm.header_text = self._extract_sp_plain_text(sp)
+                        elif ph_type == "dt":
+                            nm.show_date = True
+                            nm.date_text = self._extract_sp_plain_text(sp)
+                        elif ph_type == "ftr":
+                            nm.show_footer = True
+                            nm.footer_text = self._extract_sp_plain_text(sp)
+                        elif ph_type == "sldNum":
+                            nm.show_page_number = True
+                        elif ph_type == "sldImg":
+                            vis = self._has_visible_ln(sp)
+                            if vis is not None:
+                                nm.show_slide_border = vis
+                        elif ph_type == "body":
+                            vis = self._has_visible_ln(sp)
+                            if vis is not None:
+                                nm.show_notes_border = vis
+
+                notes_style = _get_child(nm_xml, "notesStyle")
+                lvl1 = _get_child(notes_style, "lvl1pPr") if notes_style is not None else None
+                def_rpr = _get_child(lvl1, "defRPr") if lvl1 is not None else None
+                if def_rpr is not None:
+                    sz_raw = safe_float(_get_attr(def_rpr, "sz"), 0.0)
+                    if sz_raw > 0:
+                        nm.notes_font_size = round(sz_raw / 100.0, 2)
+                    latin = _get_child(def_rpr, "latin")
+                    tf = _get_attr(latin, "typeface") if latin is not None else None
+                    if tf and not tf.startswith("+"):
+                        nm.notes_font_family = tf
+
+                pres.notes_master = nm
+            except Exception as exc:
+                self._warnings.append(
+                    LoadWarning(scope="notesMaster", location=nm_part, message=str(exc))
+                )
+
+        pres.props["_original_handout_master"] = pres.handout_master.to_dict()
+        pres.props["_original_notes_master"] = pres.notes_master.to_dict()
 
     def _locate_presentation_part(self) -> str:
         """Find the main presentation part name from root relationships."""

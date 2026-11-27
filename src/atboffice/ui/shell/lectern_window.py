@@ -71,6 +71,7 @@ class LecternWindow(BaseOfficeWindow):
         # 5. Connect slide changes & selection signals
         ws = self.presentation_view.workspace
         ws.slide_changed.connect(self._on_slide_changed)
+        ws.view_mode_changed.connect(self._sync_view_mode_ui)
 
         if hasattr(ws, "scene") and ws.scene is not None:
             ws.scene.selectionChanged.connect(self._on_scene_selection_changed)
@@ -359,6 +360,12 @@ class LecternWindow(BaseOfficeWindow):
         self.action_registry.set_handler("viewNotes", lambda: self.set_view_mode("notes"))
         self.action_registry.set_handler("viewNotesPage", lambda: self.set_view_mode("notes"))
         self.action_registry.set_handler("viewMaster", lambda: self.set_view_mode("master"))
+        self.action_registry.set_handler(
+            "view_handout_master", lambda: self.set_view_mode("handout_master")
+        )
+        self.action_registry.set_handler(
+            "view_notes_master", lambda: self.set_view_mode("notes_master")
+        )
         self.action_registry.set_handler("closeMaster", lambda: self.set_view_mode("normal"))
 
         # 7. Drawing Tools & AutoShapes
@@ -2428,20 +2435,24 @@ class LecternWindow(BaseOfficeWindow):
         self.presentation_view.start_slideshow(from_current=True, fullscreen=True)
 
     def set_view_mode(self, mode: str) -> None:
-        """Switch workspace view mode ('normal', 'sorter', 'notes', or 'master')."""
+        """Switch workspace view mode (normal, sorter, notes, master, handout/notes master)."""
         self.presentation_view.set_view_mode(mode)
-        act_normal = self.action_registry.get_action("viewNormal")
-        if act_normal:
-            act_normal.setChecked(mode == "normal")
-        act_sorter = self.action_registry.get_action("viewSorter")
-        if act_sorter:
-            act_sorter.setChecked(mode == "sorter")
-        act_notes = self.action_registry.get_action("viewNotesPage")
-        if act_notes:
-            act_notes.setChecked(mode == "notes")
-        act_master = self.action_registry.get_action("viewMaster")
-        if act_master:
-            act_master.setChecked(mode == "master")
+        self._sync_view_mode_ui(self.presentation_view.view_mode)
+
+    def _sync_view_mode_ui(self, mode: str) -> None:
+        """Keep menu checks, status bar buttons, toolbars and ribbon synced to view mode."""
+        for aid, target in (
+            ("viewNormal", "normal"),
+            ("viewSorter", "sorter"),
+            ("viewNotesPage", "notes"),
+            ("viewMaster", "master"),
+            ("view_handout_master", "handout_master"),
+            ("view_notes_master", "notes_master"),
+        ):
+            act = self.action_registry.get_action(aid)
+            if act:
+                act.setChecked(mode == target)
+
         if hasattr(self, "act_view_normal") and self.act_view_normal:
             self.act_view_normal.setChecked(mode == "normal")
         if hasattr(self, "act_view_sorter") and self.act_view_sorter:
@@ -2497,7 +2508,10 @@ class LecternWindow(BaseOfficeWindow):
         """PowerPoint 2003 preview controls: Print What, Color/Grayscale, Frame, Hidden."""
         from PySide6.QtWidgets import QCheckBox, QComboBox
 
-        from atboffice.modules.presentation.printing import HANDOUT_COUNTS
+        from atboffice.modules.presentation.printing import (
+            HANDOUT_COUNTS,
+            effective_handout_per_page,
+        )
 
         opts = self.print_options
         what = QComboBox()
@@ -2511,7 +2525,8 @@ class LecternWindow(BaseOfficeWindow):
         choices += [(safe_tr("备注页"), "notes"), (safe_tr("大纲视图"), "outline")]
         for label, data in choices:
             what.addItem(label, data)
-        current = f"handouts:{opts.per_page}" if opts.what == "handouts" else opts.what
+        effective_per = effective_handout_per_page(self.presentation_view.presentation, opts)
+        current = f"handouts:{effective_per}" if opts.what == "handouts" else opts.what
         what.setCurrentIndex(max(0, what.findData(current)))
         what.setToolTip(safe_tr("打印内容"))
 

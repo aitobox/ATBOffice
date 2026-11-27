@@ -28,7 +28,9 @@ from atboffice.modules.presentation.models.media_item import (
 )
 from atboffice.modules.presentation.models.presentation import (
     STANDARD_SLIDE_SIZES,
+    HandoutMasterSettings,
     HeaderFooterSettings,
+    NotesMasterSettings,
     Presentation,
     SlideShowSettings,
     SlideSize,
@@ -77,11 +79,13 @@ __all__ = [
     "DesignDefinition",
     "DesignTemplate",
     "Fill",
+    "HandoutMasterSettings",
     "HeaderFooterSettings",
     "LAYOUTS",
     "LayoutInfo",
     "Line",
     "MediaItem",
+    "NotesMasterSettings",
     "Paragraph",
     "PlaybackSettings",
     "PlaceholderInfo",

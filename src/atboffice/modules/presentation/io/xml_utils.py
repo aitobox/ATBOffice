@@ -20,12 +20,15 @@ NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 NS_RELS = "http://schemas.openxmlformats.org/package/2006/relationships"
 NS_P14 = "http://schemas.microsoft.com/office/powerpoint/2010/main"
 NS_P188 = "http://schemas.microsoft.com/office/powerpoint/2018/8/main"
+NS_ATB = "http://schemas.atboffice.org/presentationml/2026/main"
+ATB_HANDOUT_EXT_URI = "{A7B0FF1C-4A2D-4B8E-9C1A-000000000001}"
 
 ET.register_namespace("p", NS_P)
 ET.register_namespace("a", NS_A)
 ET.register_namespace("r", NS_R)
 ET.register_namespace("p14", NS_P14)
 ET.register_namespace("p188", NS_P188)
+ET.register_namespace("atb", NS_ATB)
 
 # Relationship Types
 REL_OFFICE_DOCUMENT = (
@@ -37,6 +40,9 @@ REL_SLIDE_LAYOUT = "http://schemas.openxmlformats.org/officeDocument/2006/relati
 REL_THEME = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"
 REL_NOTES_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide"
 REL_NOTES_MASTER = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesMaster"
+REL_HANDOUT_MASTER = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/handoutMaster"
+)
 REL_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
 REL_VIDEO = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/video"
 REL_AUDIO = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/audio"
@@ -71,6 +77,7 @@ CT_SLIDE_MASTER = "application/vnd.openxmlformats-officedocument.presentationml.
 CT_THEME = "application/vnd.openxmlformats-officedocument.theme+xml"
 CT_NOTES_SLIDE = "application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml"
 CT_NOTES_MASTER = "application/vnd.openxmlformats-officedocument.presentationml.notesMaster+xml"
+CT_HANDOUT_MASTER = "application/vnd.openxmlformats-officedocument.presentationml.handoutMaster+xml"
 CT_PRES_PROPS = "application/vnd.openxmlformats-officedocument.presentationml.presProps+xml"
 CT_VIEW_PROPS = "application/vnd.openxmlformats-officedocument.presentationml.viewProps+xml"
 CT_TABLE_STYLES = "application/vnd.openxmlformats-officedocument.presentationml.tableStyles+xml"

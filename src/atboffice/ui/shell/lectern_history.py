@@ -38,6 +38,8 @@ _KIND_LABELS = {
     "notes": "键入备注",
     "outline": "编辑大纲",
     "move_slide": "移动幻灯片",
+    "handout_master": "编辑讲义母版",
+    "notes_master": "编辑备注母版",
 }
 
 

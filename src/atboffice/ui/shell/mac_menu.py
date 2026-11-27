@@ -50,6 +50,9 @@ _APP_SPECIFIC_ACTIONS: dict[str, frozenset[str]] = {
     "condFormat": frozenset({"ledger"}),
     "autoFormat": frozenset({"ledger"}),
     "scenarios": frozenset({"ledger"}),
+    "viewMaster": frozenset({"lectern"}),
+    "view_handout_master": frozenset({"lectern"}),
+    "view_notes_master": frozenset({"lectern"}),
 }
 
 # Submenus that only exist inside specific editors (menu_map key -> app types).
@@ -58,6 +61,7 @@ _APP_SPECIFIC_MENUS: dict[str, frozenset[str]] = {
     "data_outline": frozenset({"ledger"}),
     "insert_name": frozenset({"ledger"}),
     "tools_protection": frozenset({"ledger"}),
+    "view_master": frozenset({"lectern"}),
 }
 
 
@@ -315,6 +319,11 @@ class MacMenuBar(QMenuBar):
             checkable=True,
             checked=False,
         )
+        menu_view_master = menu_view.addMenu("")
+        self.menu_map["view_master"] = menu_view_master
+        self._reg_act(menu_view_master, "viewMaster", checkable=True, checked=False)
+        self._reg_act(menu_view_master, "view_handout_master", checkable=True, checked=False)
+        self._reg_act(menu_view_master, "view_notes_master", checkable=True, checked=False)
         menu_view.addSeparator()
 
         self._reg_act(
@@ -652,6 +661,8 @@ class MacMenuBar(QMenuBar):
             self.menu_map["edit"].setTitle(safe_tr("编辑"))
         if "view" in self.menu_map:
             self.menu_map["view"].setTitle(safe_tr("视图"))
+        if "view_master" in self.menu_map:
+            self.menu_map["view_master"].setTitle(safe_tr("母版(&M)"))
         if "theme" in self.menu_map:
             self.menu_map["theme"].setTitle(safe_tr("主题"))
         if "insert" in self.menu_map:
@@ -777,6 +788,18 @@ class MacMenuBar(QMenuBar):
             "view_print": (safe_tr("页面(&P)"), safe_tr("切换到页面排版视图")),
             "view_reading": (safe_tr("阅读版式(&R)"), safe_tr("切换到双页或舒适阅读版式")),
             "view_outline": (safe_tr("大纲(&O)"), safe_tr("切换到大纲视图")),
+            "viewMaster": (
+                safe_tr("幻灯片母版(&M)"),
+                safe_tr("切换为幻灯片母版视图"),
+            ),
+            "view_handout_master": (
+                safe_tr("讲义母版(&H)"),
+                safe_tr("切换为讲义母版视图"),
+            ),
+            "view_notes_master": (
+                safe_tr("备注母版(&N)"),
+                safe_tr("切换为备注母版视图"),
+            ),
             "view_task_pane": (
                 safe_tr("任务窗格(&K)"),
                 safe_tr("显示或隐藏侧边任务窗格 (Ctrl+F1)"),

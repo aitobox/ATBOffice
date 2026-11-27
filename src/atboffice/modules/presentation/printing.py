@@ -33,12 +33,21 @@ FOOTER_H = 22.0
 @dataclass
 class PresentationPrintOptions:
     what: str = "slides"
-    per_page: int = 6
+    per_page: int = 0  # 0 = use presentation.handout_master.slides_per_page
     color: str = "color"
     frame_slides: bool = False
     print_hidden: bool = False
     order: str = "horizontal"  # handouts: "horizontal" (rows first) or "vertical"
     title: str = ""
+
+
+def effective_handout_per_page(pres: Any, options: PresentationPrintOptions) -> int:
+    """Resolve slides-per-page from explicit print options or the presentation's handout master."""
+    if options.per_page in HANDOUT_GRID:
+        return options.per_page
+    hm = getattr(pres, "handout_master", None)
+    hm_per = getattr(hm, "slides_per_page", 6) if hm is not None else 6
+    return hm_per if hm_per in HANDOUT_GRID else 6
 
 
 def printable_slides(pres: Any, options: PresentationPrintOptions) -> list[tuple[int, Any]]:
@@ -51,16 +60,20 @@ def printable_slides(pres: Any, options: PresentationPrintOptions) -> list[tuple
 
 
 def page_size(pres: Any, options: PresentationPrintOptions) -> tuple[float, float]:
-    """Slides print at the presentation's own size and orientation; the rest on A4."""
+    """Slides print at presentation size; handouts honour master orientation."""
     if options.what == "slides":
         return float(pres.w or 960.0), float(pres.h or 540.0)
+    if options.what == "handouts":
+        hm = getattr(pres, "handout_master", None)
+        if getattr(hm, "orientation", "portrait") == "landscape":
+            return (A4_PT[1], A4_PT[0])
     return A4_PT
 
 
 def page_count(pres: Any, options: PresentationPrintOptions) -> int:
     n = len(printable_slides(pres, options))
     if options.what == "handouts":
-        per = options.per_page if options.per_page in HANDOUT_GRID else 6
+        per = effective_handout_per_page(pres, options)
         return (n + per - 1) // per
     if options.what == "outline":
         return max(1, len(_outline_pages(pres, options)))
@@ -134,8 +147,8 @@ def _fit(rect: QRectF, aspect: float) -> QRectF:
     return QRectF(rect.x() + (rect.width() - w) / 2, rect.y() + (rect.height() - h) / 2, w, h)
 
 
-def _font(painter: QPainter, size: float, bold: bool = False) -> QFont:
-    f = QFont("Arial")
+def _font(painter: QPainter, size: float, bold: bool = False, family: str = "Arial") -> QFont:
+    f = QFont(family or "Arial")
     f.setPointSizeF(size * print_font_scale(painter))
     f.setBold(bold)
     return f
@@ -158,6 +171,61 @@ def _header_footer(
         int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter),
         str(page_no),
     )
+    painter.restore()
+
+
+def _master_header_footer(
+    painter: QPainter,
+    page_w: float,
+    page_h: float,
+    master: Any | None,
+    fallback_title: str,
+    page_no: int,
+) -> None:
+    """Paint header, date, footer and page number according to Handout/Notes master settings."""
+    if master is None:
+        _header_footer(painter, page_w, page_h, fallback_title, page_no)
+        return
+    painter.save()
+    painter.setFont(_font(painter, 9))
+    painter.setPen(QColor("#555555"))
+
+    top_rect = QRectF(MARGIN, 10.0, page_w - 2 * MARGIN, HEADER_H)
+    bot_rect = QRectF(MARGIN, page_h - FOOTER_H - 8.0, page_w - 2 * MARGIN, FOOTER_H)
+
+    show_header = bool(getattr(master, "show_header", True))
+    header_text = getattr(master, "header_text", "") or fallback_title
+    if show_header and header_text:
+        painter.drawText(
+            top_rect,
+            int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
+            header_text,
+        )
+
+    show_date = bool(getattr(master, "show_date", True))
+    date_text = getattr(master, "date_text", "")
+    if show_date and date_text:
+        painter.drawText(
+            top_rect,
+            int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter),
+            date_text,
+        )
+
+    show_footer = bool(getattr(master, "show_footer", True))
+    footer_text = getattr(master, "footer_text", "")
+    if show_footer and footer_text:
+        painter.drawText(
+            bot_rect,
+            int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
+            footer_text,
+        )
+
+    if bool(getattr(master, "show_page_number", True)):
+        painter.drawText(
+            bot_rect,
+            int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter),
+            str(page_no),
+        )
     painter.restore()
 
 
@@ -246,6 +314,82 @@ def _outline_pages(
     return pages
 
 
+def render_handout_page(
+    painter: QPainter,
+    pres: Any,
+    slides_slice: list[Any],
+    page_w: float,
+    page_h: float,
+    page_no: int,
+    options: PresentationPrintOptions,
+) -> None:
+    """Paint one handout page onto ``painter`` respecting ``pres.handout_master``."""
+    per = effective_handout_per_page(pres, options)
+    aspect = float(pres.w or 960.0) / float(pres.h or 540.0)
+    _master_header_footer(
+        painter, page_w, page_h, getattr(pres, "handout_master", None), options.title, page_no
+    )
+    slots = handout_slots(page_w, page_h, per, aspect, options.order)
+    for slot, slide in zip(slots, slides_slice):
+        # Handouts always frame slides (PowerPoint draws a border)
+        paint_slide(painter, slide, pres, slot, options.color, True)
+        if per == 3:
+            _paint_note_lines(painter, slot, page_w)
+
+
+def render_notes_page(
+    painter: QPainter,
+    pres: Any,
+    slide: Any,
+    page_w: float,
+    page_h: float,
+    page_no: int,
+    options: PresentationPrintOptions,
+) -> None:
+    """Paint one notes page onto ``painter`` respecting ``pres.notes_master``."""
+    nm = getattr(pres, "notes_master", None)
+    aspect = float(pres.w or 960.0) / float(pres.h or 540.0)
+    _master_header_footer(painter, page_w, page_h, nm, options.title, page_no)
+    top = QRectF(
+        MARGIN + 36,
+        MARGIN + HEADER_H,
+        page_w - 2 * MARGIN - 72,
+        (page_h - 2 * MARGIN) * 0.42,
+    )
+    show_slide_border = bool(getattr(nm, "show_slide_border", True)) if nm is not None else True
+    paint_slide(painter, slide, pres, _fit(top, aspect), options.color, show_slide_border)
+
+    notes_rect = QRectF(
+        MARGIN + 36,
+        top.bottom() + 24.0,
+        page_w - 2 * MARGIN - 72,
+        page_h - top.bottom() - 24.0 - MARGIN - FOOTER_H,
+    )
+    show_notes_border = bool(getattr(nm, "show_notes_border", False)) if nm is not None else False
+    font_family = (
+        (getattr(nm, "notes_font_family", "Arial") or "Arial") if nm is not None else "Arial"
+    )
+    font_size = float(getattr(nm, "notes_font_size", 12.0) or 12.0) if nm is not None else 12.0
+
+    painter.save()
+    if show_notes_border:
+        painter.setPen(QPen(QColor("#000000"), 0.75))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(notes_rect)
+        text_rect = notes_rect.adjusted(6.0, 6.0, -6.0, -6.0)
+    else:
+        text_rect = notes_rect
+
+    painter.setFont(_font(painter, font_size, family=font_family))
+    painter.setPen(QColor("#000000"))
+    painter.drawText(
+        text_rect,
+        int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap),
+        getattr(slide, "notes", "") or "",
+    )
+    painter.restore()
+
+
 # ---------------------------------------------------------------------------- entry
 def render_presentation(printer: QPrinter, pres: Any, options: PresentationPrintOptions) -> int:
     """Paint every page; returns the number of pages produced."""
@@ -253,7 +397,6 @@ def render_presentation(printer: QPrinter, pres: Any, options: PresentationPrint
     if not slides:
         return 0
     page_w, page_h = page_size(pres, options)
-    aspect = float(pres.w or 960.0) / float(pres.h or 540.0)
     configure_page(printer, page_w, page_h)
     painter = begin_points_painter(printer)
     pages = 0
@@ -277,47 +420,16 @@ def render_presentation(printer: QPrinter, pres: Any, options: PresentationPrint
                     options.frame_slides,
                 )
         elif options.what == "handouts":
-            per = options.per_page if options.per_page in HANDOUT_GRID else 6
+            per = effective_handout_per_page(pres, options)
             total = (len(slides) + per - 1) // per
             for p in range(total):
                 start()
-                _header_footer(painter, page_w, page_h, options.title, p + 1)
-                slots = handout_slots(page_w, page_h, per, aspect, options.order)
-                for slot, (_idx, slide) in zip(slots, slides[p * per : (p + 1) * per]):
-                    # Handouts always frame slides (PowerPoint draws a border)
-                    paint_slide(painter, slide, pres, slot, options.color, True)
-                    if per == 3:
-                        _paint_note_lines(painter, slot, page_w)
+                page_slides = [s for _idx, s in slides[p * per : (p + 1) * per]]
+                render_handout_page(painter, pres, page_slides, page_w, page_h, p + 1, options)
         elif options.what == "notes":
             for idx, slide in slides:
                 start()
-                _header_footer(painter, page_w, page_h, options.title, idx + 1)
-                top = QRectF(
-                    MARGIN + 36,
-                    MARGIN + HEADER_H,
-                    page_w - 2 * MARGIN - 72,
-                    (page_h - 2 * MARGIN) * 0.42,
-                )
-                paint_slide(painter, slide, pres, _fit(top, aspect), options.color, True)
-                notes_rect = QRectF(
-                    MARGIN + 36,
-                    top.bottom() + 24.0,
-                    page_w - 2 * MARGIN - 72,
-                    page_h - top.bottom() - 24.0 - MARGIN - FOOTER_H,
-                )
-                painter.save()
-                painter.setFont(_font(painter, 12))
-                painter.setPen(QColor("#000000"))
-                painter.drawText(
-                    notes_rect,
-                    int(
-                        Qt.AlignmentFlag.AlignLeft
-                        | Qt.AlignmentFlag.AlignTop
-                        | Qt.TextFlag.TextWordWrap
-                    ),
-                    getattr(slide, "notes", "") or "",
-                )
-                painter.restore()
+                render_notes_page(painter, pres, slide, page_w, page_h, idx + 1, options)
         elif options.what == "outline":
             outline = _outline_pages(pres, options)
             for p, lines in enumerate(outline):

@@ -50,6 +50,14 @@ REL_THEME = "http://schemas.openxmlformats.org/officeDocument/2006/relationships
 REL_NOTES_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide"
 
 
+REL_NOTES_MASTER = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesMaster"
+
+
+REL_HANDOUT_MASTER = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/handoutMaster"
+)
+
+
 REL_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
 
 

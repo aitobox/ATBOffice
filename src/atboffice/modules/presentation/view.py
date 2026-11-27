@@ -89,6 +89,16 @@ class PresentationView(QWidget):
         """Access the SlideMasterView instance."""
         return getattr(self.workspace, "master_view", None)
 
+    @property
+    def handout_master_view(self) -> Any:
+        """Access the HandoutMasterView instance."""
+        return getattr(self.workspace, "handout_master_view", None)
+
+    @property
+    def notes_master_view(self) -> Any:
+        """Access the NotesMasterView instance."""
+        return getattr(self.workspace, "notes_master_view", None)
+
     def retranslate_ui(self) -> None:
         """Retranslate presentation UI controls."""
         self.setWindowTitle(safe_tr("演示文稿"))

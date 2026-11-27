@@ -1142,8 +1142,9 @@ class LecternWorkspace(QWidget):
 
     slide_changed = Signal(int)
     #: The presentation was edited in the workspace; the argument names the kind
-    #: of edit ("canvas", "notes", "outline", "move_slide").
+    #: of edit ("canvas", "notes", "outline", "move_slide", "handout_master", "notes_master").
     content_edited = Signal(str)
+    view_mode_changed = Signal(str)
 
     def __init__(
         self,
@@ -1242,7 +1243,11 @@ class LecternWorkspace(QWidget):
         center_normal_layout.addWidget(self.center_splitter)
         self.center_stack.addWidget(self.center_normal_widget)
 
-        from atboffice.modules.presentation.views.master_view import SlideMasterView
+        from atboffice.modules.presentation.views.master_view import (
+            HandoutMasterView,
+            NotesMasterView,
+            SlideMasterView,
+        )
         from atboffice.modules.presentation.views.notes_view import NotesPageView
         from atboffice.modules.presentation.views.sorter_view import SlideSorterView
 
@@ -1262,6 +1267,24 @@ class LecternWorkspace(QWidget):
         self.master_view.close_requested.connect(self.exit_master_view)
         self.master_view.master_changed.connect(self._on_master_view_kind_changed)
         self.center_stack.addWidget(self.master_view)
+
+        self.handout_master_view = HandoutMasterView(
+            presentation=self.presentation, parent=self.center_stack
+        )
+        self.handout_master_view.close_requested.connect(lambda: self.set_view_mode("normal"))
+        self.handout_master_view.master_edited.connect(
+            lambda: self.content_edited.emit("handout_master")
+        )
+        self.center_stack.addWidget(self.handout_master_view)
+
+        self.notes_master_view = NotesMasterView(
+            presentation=self.presentation, parent=self.center_stack
+        )
+        self.notes_master_view.close_requested.connect(lambda: self.set_view_mode("normal"))
+        self.notes_master_view.master_edited.connect(
+            lambda: self.content_edited.emit("notes_master")
+        )
+        self.center_stack.addWidget(self.notes_master_view)
 
         self.main_splitter.addWidget(self.center_stack)
 
@@ -1349,6 +1372,10 @@ class LecternWorkspace(QWidget):
             self.notes_view.load_presentation(presentation)
         if hasattr(self, "master_view"):
             self.master_view.load_presentation(presentation)
+        if hasattr(self, "handout_master_view"):
+            self.handout_master_view.load_presentation(presentation)
+        if hasattr(self, "notes_master_view"):
+            self.notes_master_view.load_presentation(presentation)
         if hasattr(self, "degraded_banner"):
             self.degraded_banner.set_warnings(getattr(presentation, "load_warnings", []))
 
@@ -1610,9 +1637,14 @@ class LecternWorkspace(QWidget):
         return self._view_mode
 
     def set_view_mode(self, mode: str) -> None:
-        """Switch workspace view mode ('normal', 'sorter', 'notes', 'master')."""
-        if mode not in ("normal", "sorter", "notes", "master"):
+        """Switch workspace view mode (normal, sorter, notes, master, handout/notes master)."""
+        if mode not in ("normal", "sorter", "notes", "master", "handout_master", "notes_master"):
             mode = "normal"
+        # Sync slide master back before leaving 'master' mode via menu/action
+        if self._view_mode == "master" and mode != "master" and self.master_view.master_slide:
+            sync_master_slide(self.presentation, self.master_view.master_slide)
+            self.master_view.master_slide = None
+            self.master_slide = None
         self._view_mode = mode
 
         if mode == "sorter":
@@ -1637,6 +1669,20 @@ class LecternWorkspace(QWidget):
             self.notes_pane.hide()
             self.center_stack.setCurrentWidget(self.master_view)
             self.enter_master_view(self.master_kind)
+        elif mode == "handout_master":
+            self.left_pane.hide()
+            self.task_pane.hide()
+            self.master_close_bar.hide()
+            self.notes_pane.hide()
+            self.handout_master_view.load_presentation(self.presentation)
+            self.center_stack.setCurrentWidget(self.handout_master_view)
+        elif mode == "notes_master":
+            self.left_pane.hide()
+            self.task_pane.hide()
+            self.master_close_bar.hide()
+            self.notes_pane.hide()
+            self.notes_master_view.load_presentation(self.presentation)
+            self.center_stack.setCurrentWidget(self.notes_master_view)
         else:  # "normal"
             self.left_pane.show()
             self.task_pane.setVisible(self.use_embedded_task_pane)
@@ -1645,6 +1691,7 @@ class LecternWorkspace(QWidget):
             self._restore_normal_thumbnails()
             self._refresh_active_slide()
             self.center_stack.setCurrentWidget(self.center_normal_widget)
+        self.view_mode_changed.emit(mode)
 
     def _on_notes_view_changed(self, index: int, text: str) -> None:
         if 0 <= index < len(self.presentation.slides):
@@ -1861,6 +1908,10 @@ class LecternWorkspace(QWidget):
             self.notes_view.retranslate_ui()
         if hasattr(self, "master_view"):
             self.master_view.retranslate_ui()
+        if hasattr(self, "handout_master_view"):
+            self.handout_master_view.retranslate_ui()
+        if hasattr(self, "notes_master_view"):
+            self.notes_master_view.retranslate_ui()
         if hasattr(self, "smartart_pane"):
             self.smartart_pane.retranslate_ui()
         if hasattr(self, "transition_pane"):

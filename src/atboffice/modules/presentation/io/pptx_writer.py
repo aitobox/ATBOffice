@@ -11,6 +11,7 @@ from atboffice.modules.presentation.io.writer_slide import notes_slide_to_xml, s
 from atboffice.modules.presentation.io.writer_templates import (
     build_app_properties_xml,
     build_core_properties_xml,
+    build_handout_master_xml,
     build_notes_master_xml,
     build_pres_props_xml,
     build_slide_layout_xml,
@@ -18,6 +19,8 @@ from atboffice.modules.presentation.io.writer_templates import (
     build_table_styles_xml,
     build_theme_xml,
     build_view_props_xml,
+    patch_handout_master_xml,
+    patch_notes_master_xml,
 )
 from atboffice.modules.presentation.io.xml_utils import (
     CT_APP,
@@ -28,6 +31,7 @@ from atboffice.modules.presentation.io.xml_utils import (
     CT_DIAGRAM_DATA,
     CT_DIAGRAM_LAYOUT,
     CT_DIAGRAM_STYLE,
+    CT_HANDOUT_MASTER,
     CT_NOTES_MASTER,
     CT_NOTES_SLIDE,
     CT_PRES_PROPS,
@@ -50,6 +54,7 @@ from atboffice.modules.presentation.io.xml_utils import (
     REL_DIAGRAM_DATA,
     REL_DIAGRAM_LAYOUT,
     REL_DIAGRAM_STYLE,
+    REL_HANDOUT_MASTER,
     REL_IMAGE,
     REL_MEDIA,
     REL_NOTES_MASTER,
@@ -65,7 +70,11 @@ from atboffice.modules.presentation.io.xml_utils import (
     pt_to_emu,
 )
 from atboffice.modules.presentation.models.media_item import guess_media_content_type
-from atboffice.modules.presentation.models.presentation import Presentation
+from atboffice.modules.presentation.models.presentation import (
+    HandoutMasterSettings,
+    NotesMasterSettings,
+    Presentation,
+)
 from atboffice.modules.presentation.models.slide import Slide
 from atboffice.modules.presentation.smartart.io import (
     colors_xml,
@@ -191,11 +200,38 @@ class PptxWriter:
         slide_id_entries: list[tuple[int, str]] = []
         slide_ids = assign_slide_ids(self.pres.slides)
         has_any_notes = any(bool(s.notes and s.notes.strip()) for s in self.pres.slides)
-        if has_any_notes:
+        notes_master_rid: str | None = None
+        if has_any_notes or self.pres.notes_master != NotesMasterSettings():
             notes_master_part = "ppt/notesMasters/notesMaster1.xml"
-            nm_xml = build_notes_master_xml()
+            nm_xml = build_notes_master_xml(self.pres.notes_master)
             self.pkg_writer.replace_part(
                 notes_master_part, nm_xml.encode("utf-8"), content_type=CT_NOTES_MASTER
+            )
+            nm_rels = RelationshipBuilder()
+            nm_rels.add(REL_THEME, "../theme/theme1.xml")
+            self.pkg_writer.replace_part(
+                "ppt/notesMasters/_rels/notesMaster1.xml.rels",
+                nm_rels.to_xml(),
+                content_type="application/vnd.openxmlformats-package.relationships+xml",
+            )
+            notes_master_rid = pres_rels.add(REL_NOTES_MASTER, "notesMasters/notesMaster1.xml")
+
+        handout_master_rid: str | None = None
+        if self.pres.handout_master != HandoutMasterSettings():
+            handout_master_part = "ppt/handoutMasters/handoutMaster1.xml"
+            hm_xml = build_handout_master_xml(self.pres.handout_master)
+            self.pkg_writer.replace_part(
+                handout_master_part, hm_xml.encode("utf-8"), content_type=CT_HANDOUT_MASTER
+            )
+            hm_rels = RelationshipBuilder()
+            hm_rels.add(REL_THEME, "../theme/theme1.xml")
+            self.pkg_writer.replace_part(
+                "ppt/handoutMasters/_rels/handoutMaster1.xml.rels",
+                hm_rels.to_xml(),
+                content_type="application/vnd.openxmlformats-package.relationships+xml",
+            )
+            handout_master_rid = pres_rels.add(
+                REL_HANDOUT_MASTER, "handoutMasters/handoutMaster1.xml"
             )
 
         for i, slide in enumerate(self.pres.slides, start=1):
@@ -556,9 +592,22 @@ class PptxWriter:
             f'<p:sldId id="{sid}" r:id="{rid}"/>' for sid, rid in slide_id_entries
         )
 
+        notes_master_lst = (
+            f'<p:notesMasterIdLst><p:notesMasterId r:id="{notes_master_rid}"/></p:notesMasterIdLst>'
+            if notes_master_rid
+            else ""
+        )
+        handout_master_lst = (
+            f'<p:handoutMasterIdLst><p:handoutMasterId r:id="{handout_master_rid}"/>'
+            "</p:handoutMasterIdLst>"
+            if handout_master_rid
+            else ""
+        )
         pres_xml_str = (
             f'<p:presentation xmlns:a="{NS_A}" xmlns:r="{NS_R}" xmlns:p="{NS_P}">'
             '<p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst>'
+            f"{notes_master_lst}"
+            f"{handout_master_lst}"
             f"<p:sldIdLst>{sld_id_items}</p:sldIdLst>"
             f'<p:sldSz cx="{w_emu}" cy="{h_emu}"/>'
             '<p:notesSz cx="6858000" cy="9144000"/>'
@@ -805,6 +854,66 @@ class PptxWriter:
             if not pres_rels.has_type(REL_COMMENT_AUTHORS):
                 pres_rels.add(REL_COMMENT_AUTHORS, "commentAuthors.xml")
 
+        # Handout Master & Notes Master (only modify/create if changed from loaded state)
+        hm_dirty = self.pres.handout_master.to_dict() != self.pres.props.get(
+            "_original_handout_master"
+        )
+        nm_dirty = self.pres.notes_master.to_dict() != self.pres.props.get("_original_notes_master")
+        new_hm_rid: str | None = None
+        new_nm_rid: str | None = None
+
+        if hm_dirty:
+            hm_part = self.pres.props.get("_handout_master_part") or (
+                "ppt/handoutMasters/handoutMaster1.xml"
+            )
+            if self.source_pkg.has_part(hm_part):
+                patched_hm = patch_handout_master_xml(
+                    self.source_pkg.read_part(hm_part), self.pres.handout_master
+                )
+                self.pkg_writer.replace_part(hm_part, patched_hm, content_type=CT_HANDOUT_MASTER)
+            else:
+                hm_xml = build_handout_master_xml(self.pres.handout_master)
+                self.pkg_writer.replace_part(
+                    hm_part, hm_xml.encode("utf-8"), content_type=CT_HANDOUT_MASTER
+                )
+                if self.source_pkg.has_part("ppt/theme/theme1.xml"):
+                    hm_rels = RelationshipBuilder()
+                    hm_rels.add(REL_THEME, "../theme/theme1.xml")
+                    self.pkg_writer.replace_part(
+                        f"ppt/handoutMasters/_rels/{posixpath.basename(hm_part)}.rels",
+                        hm_rels.to_xml(),
+                        content_type="application/vnd.openxmlformats-package.relationships+xml",
+                    )
+                if not pres_rels.has_type(REL_HANDOUT_MASTER):
+                    hm_rel_target = hm_part[4:] if hm_part.startswith("ppt/") else hm_part
+                    new_hm_rid = pres_rels.add(REL_HANDOUT_MASTER, hm_rel_target)
+
+        if nm_dirty:
+            nm_part = self.pres.props.get("_notes_master_part") or (
+                "ppt/notesMasters/notesMaster1.xml"
+            )
+            if self.source_pkg.has_part(nm_part):
+                patched_nm = patch_notes_master_xml(
+                    self.source_pkg.read_part(nm_part), self.pres.notes_master
+                )
+                self.pkg_writer.replace_part(nm_part, patched_nm, content_type=CT_NOTES_MASTER)
+            else:
+                nm_xml = build_notes_master_xml(self.pres.notes_master)
+                self.pkg_writer.replace_part(
+                    nm_part, nm_xml.encode("utf-8"), content_type=CT_NOTES_MASTER
+                )
+                if self.source_pkg.has_part("ppt/theme/theme1.xml"):
+                    nm_rels = RelationshipBuilder()
+                    nm_rels.add(REL_THEME, "../theme/theme1.xml")
+                    self.pkg_writer.replace_part(
+                        f"ppt/notesMasters/_rels/{posixpath.basename(nm_part)}.rels",
+                        nm_rels.to_xml(),
+                        content_type="application/vnd.openxmlformats-package.relationships+xml",
+                    )
+                if not pres_rels.has_type(REL_NOTES_MASTER):
+                    nm_rel_target = nm_part[4:] if nm_part.startswith("ppt/") else nm_part
+                    new_nm_rid = pres_rels.add(REL_NOTES_MASTER, nm_rel_target)
+
         self.pkg_writer.replace_part(
             pres_rels_path,
             pres_rels.to_xml(),
@@ -814,6 +923,13 @@ class PptxWriter:
         # Update ppt/presentation.xml content
         pres_bytes = self.source_pkg.read_part(pres_part)
         pres_elem = ET.fromstring(pres_bytes)
+
+        if new_hm_rid is not None and pres_elem.find(f"{{{NS_P}}}handoutMasterIdLst") is None:
+            hm_lst = ET.SubElement(pres_elem, f"{{{NS_P}}}handoutMasterIdLst")
+            ET.SubElement(hm_lst, f"{{{NS_P}}}handoutMasterId", **{f"{{{NS_R}}}id": new_hm_rid})
+        if new_nm_rid is not None and pres_elem.find(f"{{{NS_P}}}notesMasterIdLst") is None:
+            nm_lst = ET.SubElement(pres_elem, f"{{{NS_P}}}notesMasterIdLst")
+            ET.SubElement(nm_lst, f"{{{NS_P}}}notesMasterId", **{f"{{{NS_R}}}id": new_nm_rid})
 
         # Update dimensions
         sz_elem = pres_elem.find(f"{{{NS_P}}}sldSz")

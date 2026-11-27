@@ -114,6 +114,123 @@ class SlideShowSettings:
         )
 
 
+VALID_HANDOUT_COUNTS: tuple[int, ...] = (1, 2, 3, 4, 6, 9)
+VALID_HANDOUT_ORIENTATIONS: tuple[str, ...] = ("portrait", "landscape")
+
+
+@dataclass
+class HandoutMasterSettings:
+    """Handout Master page layout, placeholder and orientation settings."""
+
+    slides_per_page: int = 6
+    show_header: bool = True
+    header_text: str = ""
+    show_date: bool = True
+    date_text: str = ""
+    show_footer: bool = True
+    footer_text: str = ""
+    show_page_number: bool = True
+    orientation: str = "portrait"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "slidesPerPage": self.slides_per_page,
+            "showHeader": self.show_header,
+            "headerText": self.header_text,
+            "showDate": self.show_date,
+            "dateText": self.date_text,
+            "showFooter": self.show_footer,
+            "footerText": self.footer_text,
+            "showPageNumber": self.show_page_number,
+            "orientation": self.orientation,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> HandoutMasterSettings:
+        if not data:
+            return cls()
+        try:
+            per = int(data.get("slidesPerPage", data.get("slides_per_page", 6)))
+        except (TypeError, ValueError):
+            per = 6
+        if per not in VALID_HANDOUT_COUNTS:
+            per = 6
+        raw_orient = str(data.get("orientation", "portrait")).lower().strip()
+        orientation = raw_orient if raw_orient in VALID_HANDOUT_ORIENTATIONS else "portrait"
+        return cls(
+            slides_per_page=per,
+            show_header=bool(data.get("showHeader", data.get("show_header", True))),
+            header_text=str(data.get("headerText", data.get("header_text", ""))),
+            show_date=bool(data.get("showDate", data.get("show_date", True))),
+            date_text=str(data.get("dateText", data.get("date_text", ""))),
+            show_footer=bool(data.get("showFooter", data.get("show_footer", True))),
+            footer_text=str(data.get("footerText", data.get("footer_text", ""))),
+            show_page_number=bool(data.get("showPageNumber", data.get("show_page_number", True))),
+            orientation=orientation,
+        )
+
+
+@dataclass
+class NotesMasterSettings:
+    """Notes Master placeholder, notes typography and border settings."""
+
+    show_header: bool = True
+    header_text: str = ""
+    show_date: bool = True
+    date_text: str = ""
+    show_footer: bool = True
+    footer_text: str = ""
+    show_page_number: bool = True
+    notes_font_family: str = "Arial"
+    notes_font_size: float = 12.0
+    show_slide_border: bool = True
+    show_notes_border: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "showHeader": self.show_header,
+            "headerText": self.header_text,
+            "showDate": self.show_date,
+            "dateText": self.date_text,
+            "showFooter": self.show_footer,
+            "footerText": self.footer_text,
+            "showPageNumber": self.show_page_number,
+            "notesFontFamily": self.notes_font_family,
+            "notesFontSize": float(self.notes_font_size),
+            "showSlideBorder": self.show_slide_border,
+            "showNotesBorder": self.show_notes_border,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> NotesMasterSettings:
+        if not data:
+            return cls()
+        try:
+            fsize = float(data.get("notesFontSize", data.get("notes_font_size", 12.0)))
+        except (TypeError, ValueError):
+            fsize = 12.0
+        if fsize <= 0:
+            fsize = 12.0
+        family = str(data.get("notesFontFamily", data.get("notes_font_family", "Arial"))) or "Arial"
+        return cls(
+            show_header=bool(data.get("showHeader", data.get("show_header", True))),
+            header_text=str(data.get("headerText", data.get("header_text", ""))),
+            show_date=bool(data.get("showDate", data.get("show_date", True))),
+            date_text=str(data.get("dateText", data.get("date_text", ""))),
+            show_footer=bool(data.get("showFooter", data.get("show_footer", True))),
+            footer_text=str(data.get("footerText", data.get("footer_text", ""))),
+            show_page_number=bool(data.get("showPageNumber", data.get("show_page_number", True))),
+            notes_font_family=family,
+            notes_font_size=fsize,
+            show_slide_border=bool(
+                data.get("showSlideBorder", data.get("show_slide_border", True))
+            ),
+            show_notes_border=bool(
+                data.get("showNotesBorder", data.get("show_notes_border", False))
+            ),
+        )
+
+
 @dataclass(frozen=True)
 class LoadWarning:
     """Non-fatal warning recorded when opening a partially malformed presentation."""
@@ -135,6 +252,8 @@ class Presentation:
     slides: list[Slide] = field(default_factory=list)
     show: SlideShowSettings = field(default_factory=SlideShowSettings)
     hf: HeaderFooterSettings = field(default_factory=HeaderFooterSettings)
+    handout_master: HandoutMasterSettings = field(default_factory=HandoutMasterSettings)
+    notes_master: NotesMasterSettings = field(default_factory=NotesMasterSettings)
     props: dict[str, Any] = field(default_factory=dict)
     comment_authors: list[CommentAuthor] = field(default_factory=list)
     load_warnings: list[LoadWarning] = field(default_factory=list, repr=False, compare=False)
@@ -426,6 +545,8 @@ class Presentation:
             "slides": [s.to_dict() for s in self.slides],
             "show": self.show.to_dict(),
             "hf": self.hf.to_dict(),
+            "handoutMaster": self.handout_master.to_dict(),
+            "notesMaster": self.notes_master.to_dict(),
             "props": copy.deepcopy(self.props),
         }
 
@@ -446,5 +567,7 @@ class Presentation:
             slides=slides,
             show=SlideShowSettings.from_dict(data.get("show")),
             hf=HeaderFooterSettings.from_dict(data.get("hf")),
+            handout_master=HandoutMasterSettings.from_dict(data.get("handoutMaster")),
+            notes_master=NotesMasterSettings.from_dict(data.get("notesMaster")),
             props=dict(data.get("props", {})),
         )
