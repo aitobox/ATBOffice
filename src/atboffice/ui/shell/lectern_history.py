@@ -19,12 +19,16 @@ Edits are reported by:
 from __future__ import annotations
 
 import copy
+import logging
 from typing import Any
 
 from PySide6.QtCore import QObject, QTimer
 
+from atboffice.core.fault_guard import is_alive, safe_single_shot
 from atboffice.core.i18n import safe_tr
 from atboffice.core.undo import AppliedCommand, UndoService
+
+logger = logging.getLogger(__name__)
 
 #: Edit kinds whose consecutive steps merge (typing in a pane).
 _MERGEABLE_KINDS = {"notes": 0x4C45_0001, "outline": 0x4C45_0002}
@@ -60,6 +64,7 @@ class PresentationHistory(QObject):
         self._label: str | None = None
         self._kind: str | None = None
         self._restoring = False
+        self._flush_timer: QTimer | None = None
         self.reset()
 
     # -- state -----------------------------------------------------------------
@@ -67,8 +72,21 @@ class PresentationHistory(QObject):
     def _presentation(self) -> Any:
         return self.window.presentation_view.presentation
 
+    def cancel_pending(self) -> None:
+        """Cancel any scheduled end-of-turn flush safely."""
+        self._pending = False
+        self._label = self._kind = None
+        timer = getattr(self, "_flush_timer", None)
+        self._flush_timer = None
+        if timer is not None and is_alive(timer):
+            try:
+                timer.stop()
+            except Exception:
+                pass
+
     def reset(self) -> None:
         """Start a new history for the presentation now shown (it was loaded)."""
+        self.cancel_pending()
         if self._restoring:
             return
         self._source = self._presentation()
@@ -81,23 +99,30 @@ class PresentationHistory(QObject):
 
     def note_edit(self, kind: str = "edit", label: str | None = None) -> None:
         """Something may have changed the deck: record it at the end of this turn."""
-        if self._restoring or not self.service.is_recording:
+        if (
+            self._restoring
+            or not self.service.is_recording
+            or not is_alive(self)
+            or not is_alive(self.window)
+        ):
             return
         if label and not self._label:
             self._label = label
         # A plain "edit" (from set_modified) does not hide a more specific kind
-        # reported in the same turn; two different specific kinds give "edit".
+        # reported in the same turn; two different specific kinds give "mixed".
         if self._kind in (None, "edit"):
             self._kind = kind
         elif kind not in ("edit", self._kind):
             self._kind = "mixed"
         if not self._pending:
             self._pending = True
-            QTimer.singleShot(0, self.flush)
+            self._flush_timer = safe_single_shot(0, self, self.flush)
 
     def flush(self) -> None:
         """Record the pending change now (before an undo, or at the end of the turn)."""
-        if not self._pending:
+        self._flush_timer = None
+        if not self._pending or not is_alive(self) or not is_alive(self.window):
+            self._pending = False
             return
         self._pending = False
         label, kind = self._label, self._kind
@@ -106,7 +131,11 @@ class PresentationHistory(QObject):
         if pres is not self._source:
             self.reset()
             return
-        after = snapshot_presentation(pres)
+        try:
+            after = snapshot_presentation(pres)
+        except Exception:
+            logger.exception("Failed to snapshot presentation during undo recording")
+            return
         if after == self._baseline:
             return
         before, self._baseline = self._baseline, after

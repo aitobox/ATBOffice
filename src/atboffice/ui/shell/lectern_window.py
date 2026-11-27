@@ -2072,6 +2072,13 @@ class LecternWindow(BaseOfficeWindow):
         if modified and history is not None:
             history.note_edit()
 
+    def cleanup_resources(self) -> None:
+        """Cancel pending history snapshots before base window teardown."""
+        history = getattr(self, "history", None)
+        if history is not None and hasattr(history, "cancel_pending"):
+            history.cancel_pending()
+        super().cleanup_resources()
+
     def _apply_template_result(self, result: Any) -> None:
         """Apply generated template Presentation model to presentation view."""
         if result is not None:

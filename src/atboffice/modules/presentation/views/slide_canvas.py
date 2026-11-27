@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.fault_guard import guard_qt_event, is_alive
 from atboffice.core.i18n import safe_tr
 from atboffice.modules.presentation.models.comment import Comment
 from atboffice.modules.presentation.models.placeholder_resolver import (
@@ -582,6 +583,7 @@ class SlideScene(QGraphicsScene):
             out[sid] = (m.x, m.y, m.w, m.h, getattr(m, "rot", None), repr(getattr(m, "adj", None)))
         return out
 
+    @guard_qt_event("lectern_scene", "mouse_press")
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> None:
         self._press_fingerprint = self.geometry_fingerprint()
         if self.current_tool and event.button() == Qt.MouseButton.LeftButton:
@@ -608,6 +610,7 @@ class SlideScene(QGraphicsScene):
             self._is_dragging_item = True
         super().mousePressEvent(event)
 
+    @guard_qt_event("lectern_scene", "mouse_move")
     def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent) -> None:
         if self._is_drawing_shape:
             event.accept()
@@ -620,7 +623,7 @@ class SlideScene(QGraphicsScene):
             and self._dragged_item
             and bool(event.buttons() & Qt.MouseButton.LeftButton)
         )
-        if is_dragging and self._dragged_item:
+        if is_dragging and is_alive(self._dragged_item):
             moving_rect = QRectF(
                 self._dragged_item.pos().x(),
                 self._dragged_item.pos().y(),
@@ -651,6 +654,7 @@ class SlideScene(QGraphicsScene):
 
             self.guide_controller.render_guides(self)
 
+    @guard_qt_event("lectern_scene", "mouse_release")
     def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent) -> None:
         if (
             self._is_drawing_shape
