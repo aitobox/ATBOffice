@@ -5,7 +5,18 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QFontDatabase,
+    QFontMetricsF,
+    QMouseEvent,
+    QPainter,
+    QPaintEvent,
+    QPen,
+    QPolygonF,
+)
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -29,9 +40,216 @@ from PySide6.QtWidgets import (
 
 from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.references import cell_name
+from atboffice.ui.styles.luna_2003 import theme_tokens, ui_font
 
 if TYPE_CHECKING:
     from atboffice.modules.spreadsheet.models.sheet_model import SheetDataModel
+
+
+class FixedWidthRulerWidget(QWidget):
+    """Interactive monospace ruler and break-line editor for Fixed-Width Text to Columns."""
+
+    breaks_changed = Signal(list)
+
+    RULER_HEIGHT = 26
+    LEFT_MARGIN = 12
+    MAX_PREVIEW_LINES = 12
+
+    def __init__(
+        self,
+        lines: list[str] | None = None,
+        breaks: list[int] | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._lines: list[str] = list(lines or [])[: self.MAX_PREVIEW_LINES]
+        self.breaks: list[int] = sorted({int(b) for b in (breaks or []) if int(b) > 0})
+        self._dragging_break: int | None = None
+        self._hover_break: int | None = None
+        self._mono_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+        self._mono_font.setPointSizeF(max(9.0, float(ui_font().pointSizeF())))
+        self._ruler_font = ui_font(8.0)
+        self.setMouseTracking(True)
+        self.setMinimumHeight(130)
+        self.retranslate_ui()
+
+    def _char_width(self) -> float:
+        return max(6.0, float(QFontMetricsF(self._mono_font).horizontalAdvance("M")))
+
+    def _line_height(self) -> float:
+        return max(15.0, float(QFontMetricsF(self._mono_font).height()) + 2.0)
+
+    def _x_for_col(self, col: int) -> float:
+        return self.LEFT_MARGIN + col * self._char_width()
+
+    def _col_from_x(self, x: float) -> int:
+        return max(1, round((x - self.LEFT_MARGIN) / self._char_width()))
+
+    def _find_break_near(self, x: float, tolerance: float = 5.0) -> int | None:
+        best: int | None = None
+        best_dist = tolerance + 1.0
+        for b in self.breaks:
+            dist = abs(x - self._x_for_col(b))
+            if dist <= tolerance and dist < best_dist:
+                best = b
+                best_dist = dist
+        return best
+
+    def set_lines(self, lines: list[str]) -> None:
+        self._lines = list(lines)[: self.MAX_PREVIEW_LINES]
+        self.updateGeometry()
+        self.update()
+
+    def set_breaks(self, breaks: list[int]) -> None:
+        normalized = sorted({int(b) for b in breaks if int(b) > 0})
+        if normalized != self.breaks:
+            self.breaks = normalized
+            self.update()
+
+    def sizeHint(self) -> QSize:
+        max_chars = max([40] + [len(ln) for ln in self._lines] + self.breaks)
+        w = int(self.LEFT_MARGIN * 2 + (max_chars + 4) * self._char_width())
+        h = int(self.RULER_HEIGHT + max(5, len(self._lines)) * self._line_height() + 8)
+        return QSize(max(420, w), max(130, h))
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        tok = theme_tokens()
+        w = self.width()
+        h = self.height()
+
+        # Preview canvas background & border
+        painter.fillRect(0, 0, w, h, QColor("#FFFFFF"))
+        painter.fillRect(0, 0, w, self.RULER_HEIGHT, QColor(tok.face))
+        painter.setPen(QPen(QColor(tok.tb_border), 1))
+        painter.drawLine(0, self.RULER_HEIGHT, w, self.RULER_HEIGHT)
+
+        # Ruler ticks and labels (0, 5, 10, ...)
+        cw = self._char_width()
+        max_cols = max(10, int((w - self.LEFT_MARGIN) / cw))
+        painter.setFont(self._ruler_font)
+        ruler_text_pen = QPen(QColor("#222222"), 1)
+        tick_pen = QPen(QColor("#666666"), 1)
+        for col in range(0, max_cols + 1):
+            x = self._x_for_col(col)
+            if col % 10 == 0:
+                tick_h = 10
+            elif col % 5 == 0:
+                tick_h = 7
+            else:
+                tick_h = 4
+            painter.setPen(tick_pen)
+            painter.drawLine(QPointF(x, self.RULER_HEIGHT - tick_h), QPointF(x, self.RULER_HEIGHT))
+            if col % 10 == 0 or (col % 5 == 0 and cw * 5 >= 24):
+                painter.setPen(ruler_text_pen)
+                painter.drawText(
+                    QRectF(x - 10, 2, 24, self.RULER_HEIGHT - 10),
+                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop,
+                    str(col),
+                )
+
+        # Preview text lines (up to 12 lines)
+        painter.save()
+        painter.setClipRect(
+            QRectF(1, self.RULER_HEIGHT + 1, max(0, w - 2), max(0, h - self.RULER_HEIGHT - 2))
+        )
+        painter.setFont(self._mono_font)
+        painter.setPen(QPen(QColor("#111111"), 1))
+        fm = QFontMetricsF(self._mono_font)
+        lh = self._line_height()
+        ascent = fm.ascent()
+        for row_idx, line in enumerate(self._lines[: self.MAX_PREVIEW_LINES]):
+            y = self.RULER_HEIGHT + 4 + row_idx * lh + ascent
+            painter.drawText(QPointF(self.LEFT_MARGIN, y), line)
+        painter.restore()
+
+        # Vertical break lines + top triangles
+        for b in self.breaks:
+            bx = self._x_for_col(b)
+            is_active = b in (self._dragging_break, self._hover_break)
+            col_accent = QColor(tok.highlight) if is_active else QColor("#C62828")
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(col_accent))
+            tri = QPolygonF(
+                [
+                    QPointF(bx - 4.5, self.RULER_HEIGHT - 8),
+                    QPointF(bx + 4.5, self.RULER_HEIGHT - 8),
+                    QPointF(bx, self.RULER_HEIGHT - 1),
+                ]
+            )
+            painter.drawPolygon(tri)
+            painter.setPen(QPen(col_accent, 2.0 if is_active else 1.5))
+            painter.drawLine(QPointF(bx, self.RULER_HEIGHT - 1), QPointF(bx, h - 1))
+
+        # Outer frame
+        painter.setPen(QPen(QColor(tok.tb_border), 1))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(0, 0, max(0, w - 1), max(0, h - 1))
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() != Qt.MouseButton.LeftButton:
+            super().mousePressEvent(event)
+            return
+        x = event.position().x()
+        hit = self._find_break_near(x)
+        if hit is not None:
+            self._dragging_break = hit
+        else:
+            col = self._col_from_x(x)
+            if col not in self.breaks:
+                self.breaks = sorted([*self.breaks, col])
+                self._dragging_break = col
+                self._hover_break = col
+                self.breaks_changed.emit(list(self.breaks))
+                self.update()
+        event.accept()
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        x = event.position().x()
+        if self._dragging_break is not None and (event.buttons() & Qt.MouseButton.LeftButton):
+            new_col = self._col_from_x(x)
+            if new_col != self._dragging_break:
+                others = [b for b in self.breaks if b != self._dragging_break]
+                if new_col not in others:
+                    self.breaks = sorted([*others, new_col])
+                    self._dragging_break = new_col
+                    self._hover_break = new_col
+                    self.breaks_changed.emit(list(self.breaks))
+                    self.update()
+            event.accept()
+            return
+
+        hover = self._find_break_near(x)
+        if hover != self._hover_break:
+            self._hover_break = hover
+            self.setCursor(
+                Qt.CursorShape.SplitHCursor if hover is not None else Qt.CursorShape.ArrowCursor
+            )
+            self.update()
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if self._dragging_break is not None:
+            self._dragging_break = None
+            self.update()
+        super().mouseReleaseEvent(event)
+
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            hit = self._find_break_near(event.position().x())
+            if hit is not None:
+                self.breaks = [b for b in self.breaks if b != hit]
+                self._dragging_break = None
+                self._hover_break = None
+                self.setCursor(Qt.CursorShape.ArrowCursor)
+                self.breaks_changed.emit(list(self.breaks))
+                self.update()
+                event.accept()
+                return
+        super().mouseDoubleClickEvent(event)
+
+    def retranslate_ui(self) -> None:
+        self.setToolTip(safe_tr("单击插入分列线，拖动调整位置，双击删除分列线"))
 
 
 class TextToColumnsWizard(QDialog):
@@ -69,6 +287,7 @@ class TextToColumnsWizard(QDialog):
         # Step 1 state
         self.is_delimited: bool = True
         self.start_row: int = 1
+        self._syncing_breaks: bool = False
 
         # Step 2 state
         self.use_tab: bool = True
@@ -185,6 +404,9 @@ class TextToColumnsWizard(QDialog):
     def _on_start_row_changed(self, val: int) -> None:
         self.start_row = val
         self._refresh_p1_preview()
+        if hasattr(self, "ruler_widget"):
+            start = max(0, val - 1)
+            self.ruler_widget.set_lines(self.raw_lines[start : start + 12])
 
     # -------------------------------------------------------------
     # Step 2: Delimiters
@@ -254,10 +476,13 @@ class TextToColumnsWizard(QDialog):
             self.grp_fixed,
         )
         self.lbl_fixed_hint.setWordWrap(True)
+        self.ruler_widget = FixedWidthRulerWidget(lines=self.raw_lines[:12], parent=self.grp_fixed)
+        self.ruler_widget.breaks_changed.connect(self._on_ruler_breaks_changed)
         self.edit_breaks = QLineEdit(self.grp_fixed)
         self.edit_breaks.setPlaceholderText(safe_tr("例如：4, 10"))
-        self.edit_breaks.textChanged.connect(self._refresh_split_preview)
+        self.edit_breaks.textChanged.connect(self._on_breaks_text_changed)
         v_fixed.addWidget(self.lbl_fixed_hint)
+        v_fixed.addWidget(self.ruler_widget)
         v_fixed.addWidget(self.edit_breaks)
         self.grp_fixed.setVisible(False)
         layout.addWidget(self.grp_fixed)
@@ -354,6 +579,26 @@ class TextToColumnsWizard(QDialog):
                 breaks.append(int(part))
         return sorted(set(breaks))
 
+    def _on_breaks_text_changed(self) -> None:
+        if self._syncing_breaks:
+            return
+        self._syncing_breaks = True
+        try:
+            self.ruler_widget.set_breaks(self.get_fixed_breaks())
+        finally:
+            self._syncing_breaks = False
+        self._refresh_split_preview()
+
+    def _on_ruler_breaks_changed(self, breaks: list[int]) -> None:
+        if self._syncing_breaks:
+            return
+        self._syncing_breaks = True
+        try:
+            self.edit_breaks.setText(", ".join(str(b) for b in breaks))
+        finally:
+            self._syncing_breaks = False
+        self._refresh_split_preview()
+
     def _split_line(self, line: str) -> list[str]:
         if self.radio_fixed.isChecked():
             from atboffice.modules.spreadsheet.tools.data_tools import split_fixed_width
@@ -416,7 +661,9 @@ class TextToColumnsWizard(QDialog):
             header = safe_tr("跳过")
 
         self.column_formats[self.selected_col] = fmt
-        self.table_p3.horizontalHeaderItem(self.selected_col).setText(header)
+        hdr = self.table_p3.horizontalHeaderItem(self.selected_col)
+        if hdr is not None:
+            hdr.setText(header)
 
     # -------------------------------------------------------------
     # Navigation
@@ -443,11 +690,15 @@ class TextToColumnsWizard(QDialog):
             self.is_delimited = not fixed
             self.grp_delim.setVisible(not fixed)
             self.grp_fixed.setVisible(fixed)
+            start = max(0, self.spin_start_row.value() - 1)
+            self.ruler_widget.set_lines(self.raw_lines[start : start + 12])
             if fixed and not self.edit_breaks.text().strip():
                 from atboffice.modules.spreadsheet.tools.data_tools import suggest_fixed_breaks
 
                 guess = suggest_fixed_breaks(self.raw_lines)
                 self.edit_breaks.setText(", ".join(str(b) for b in guess))
+            else:
+                self.ruler_widget.set_breaks(self.get_fixed_breaks())
             self._refresh_split_preview()
         elif self.current_step == 2:
             self._refresh_split_preview()
@@ -517,4 +768,5 @@ class TextToColumnsWizard(QDialog):
             safe_tr("输入分列线所在的字符位置，多个位置用逗号分隔（例如 4, 10）。")
         )
         self.edit_breaks.setPlaceholderText(safe_tr("例如：4, 10"))
+        self.ruler_widget.retranslate_ui()
         self._update_step_view()

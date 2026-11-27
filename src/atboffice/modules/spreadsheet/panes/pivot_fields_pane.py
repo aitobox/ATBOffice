@@ -261,6 +261,7 @@ class PivotFieldsTaskPane(QWidget):
 
     layout_changed = Signal(object)  # PivotLayoutSpec
     report_refreshed = Signal(object)  # PivotReport
+    pivot_chart_requested = Signal(object)  # PivotReport | None
 
     def __init__(
         self,
@@ -361,6 +362,10 @@ class PivotFieldsTaskPane(QWidget):
         self.chk_defer.setChecked(False)
         footer.addWidget(self.chk_defer, stretch=1)
 
+        self.btn_pivot_chart = QPushButton(self)
+        self.btn_pivot_chart.clicked.connect(lambda: self.pivot_chart_requested.emit(self._report))
+        footer.addWidget(self.btn_pivot_chart)
+
         self.btn_update = QPushButton(self)
         self.btn_update.clicked.connect(self.apply_layout_update)
         footer.addWidget(self.btn_update)
@@ -378,6 +383,7 @@ class PivotFieldsTaskPane(QWidget):
         self.chk_subtotals.setText(safe_tr("分类汇总(&S)"))
         self.chk_grand_totals.setText(safe_tr("总计(&G)"))
         self.chk_defer.setText(safe_tr("推迟布局更新(&D)"))
+        self.btn_pivot_chart.setText(safe_tr("插入数据透视图"))
         self.btn_update.setText(safe_tr("更新(&U)"))
 
         # Refresh value item display strings
@@ -887,5 +893,8 @@ class PivotFieldsTaskPane(QWidget):
         self.layout_changed.emit(spec)
         if self.workbook is not None:
             if refresh_pivot_report(self.workbook, self._report):
+                from atboffice.modules.spreadsheet.tools.chart_builder import sync_pivot_charts
+
+                sync_pivot_charts(self.workbook, self._report)
                 self.report_refreshed.emit(self._report)
         return self._report

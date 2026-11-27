@@ -71,6 +71,9 @@ class ConditionRow(QGroupBox):
         self.fg_color: str | None = None
         self.bold: bool = False
         self.italic: bool = False
+        self._loaded_cfvos: list[CFVO] | None = None
+        self._loaded_data_bar: DataBarRule | None = None
+        self._loaded_icon_set: IconSetRule | None = None
 
         self.setTitle(safe_tr("Condition {0}").format(index + 1))
         layout = QVBoxLayout(self)
@@ -235,33 +238,70 @@ class ConditionRow(QGroupBox):
         kind = self.combo_type.currentData()
         if kind in (KIND_SCALE2, KIND_SCALE3):
             stops = self._scale_stops()
-            cfvos = [CFVO(type="min")]
-            if kind == KIND_SCALE3:
-                cfvos.append(CFVO(type="percentile", val=50))
-            cfvos.append(CFVO(type="max"))
+            if self._loaded_cfvos and len(self._loaded_cfvos) == len(stops):
+                cfvos = [CFVO(type=v.type, val=v.val, gte=v.gte) for v in self._loaded_cfvos]
+            else:
+                cfvos = [CFVO(type="min")]
+                if kind == KIND_SCALE3:
+                    cfvos.append(CFVO(type="percentile", val=50))
+                cfvos.append(CFVO(type="max"))
             return CFRule(
                 type=CFRuleType.COLOR_SCALE.value,
                 priority=priority,
                 color_scale=ColorScaleRule(cfvos=cfvos, colors=stops),
             )
         if kind == KIND_DATA_BAR:
+            base = self._loaded_data_bar
+            if base is not None:
+                cfvos = (
+                    [CFVO(type=v.type, val=v.val, gte=v.gte) for v in base.cfvos]
+                    if base.cfvos
+                    else [CFVO(type="min"), CFVO(type="max")]
+                )
+                color_spec = base.color_spec if self.bar_color == base.color else None
+                db = DataBarRule(
+                    cfvos=cfvos,
+                    color=self.bar_color,
+                    color_spec=color_spec,
+                    neg_color=base.neg_color,
+                    min_len=base.min_len,
+                    max_len=base.max_len,
+                    show_value=base.show_value,
+                    gradient=base.gradient,
+                    border=base.border,
+                    border_color=base.border_color,
+                )
+            else:
+                db = DataBarRule(cfvos=[CFVO(type="min"), CFVO(type="max")], color=self.bar_color)
             return CFRule(
                 type=CFRuleType.DATA_BAR.value,
                 priority=priority,
-                data_bar=DataBarRule(
-                    cfvos=[CFVO(type="min"), CFVO(type="max")], color=self.bar_color
-                ),
+                data_bar=db,
             )
         if kind == KIND_ICON_SET:
             set_name = self.combo_icons.currentData()
-            count = int(str(set_name)[0]) if str(set_name)[:1].isdigit() else 3
-            cfvos = [CFVO(type="percent", val=round(100 * i / count)) for i in range(count)]
+            base_ic = self._loaded_icon_set
+            if base_ic is not None and base_ic.set_name == set_name and base_ic.cfvos:
+                cfvos = [CFVO(type=v.type, val=v.val, gte=v.gte) for v in base_ic.cfvos]
+                ic = IconSetRule(
+                    set_name=set_name,
+                    cfvos=cfvos,
+                    reverse=self.chk_reverse.isChecked(),
+                    show_value=base_ic.show_value,
+                    percent=base_ic.percent,
+                    custom=list(base_ic.custom),
+                    x14=base_ic.x14,
+                )
+            else:
+                count = int(str(set_name)[0]) if str(set_name)[:1].isdigit() else 3
+                cfvos = [CFVO(type="percent", val=round(100 * i / count)) for i in range(count)]
+                ic = IconSetRule(
+                    set_name=set_name, cfvos=cfvos, reverse=self.chk_reverse.isChecked()
+                )
             return CFRule(
                 type=CFRuleType.ICON_SET.value,
                 priority=priority,
-                icon_set=IconSetRule(
-                    set_name=set_name, cfvos=cfvos, reverse=self.chk_reverse.isChecked()
-                ),
+                icon_set=ic,
             )
         rtype = kind
         op = self.combo_op.currentData() if rtype == CFRuleType.CELL_IS.value else None
@@ -284,6 +324,9 @@ class ConditionRow(QGroupBox):
 
     def load_rule(self, rule: CFRule) -> None:
         kind = rule.type
+        self._loaded_cfvos = None
+        self._loaded_data_bar = None
+        self._loaded_icon_set = None
         if rule.color_scale is not None:
             colors = list(rule.color_scale.colors)
             kind = KIND_SCALE3 if len(colors) >= 3 else KIND_SCALE2
@@ -291,15 +334,22 @@ class ConditionRow(QGroupBox):
                 self.scale_colors = colors[:3]
             elif len(colors) == 2:
                 self.scale_colors = [colors[0], self.scale_colors[1], colors[1]]
+            self._loaded_cfvos = [
+                CFVO(type=v.type, val=v.val, gte=v.gte) for v in rule.color_scale.cfvos
+            ]
         elif rule.data_bar is not None:
             kind = KIND_DATA_BAR
             self.bar_color = rule.data_bar.color
+            self._loaded_data_bar = rule.data_bar
         elif rule.icon_set is not None:
             kind = KIND_ICON_SET
             icon_idx = self.combo_icons.findData(rule.icon_set.set_name)
-            if icon_idx >= 0:
-                self.combo_icons.setCurrentIndex(icon_idx)
+            if icon_idx < 0:
+                self.combo_icons.addItem(rule.icon_set.set_name, rule.icon_set.set_name)
+                icon_idx = self.combo_icons.count() - 1
+            self.combo_icons.setCurrentIndex(icon_idx)
             self.chk_reverse.setChecked(bool(rule.icon_set.reverse))
+            self._loaded_icon_set = rule.icon_set
         idx = self.combo_type.findData(kind)
         if idx >= 0:
             self.combo_type.setCurrentIndex(idx)
@@ -307,16 +357,22 @@ class ConditionRow(QGroupBox):
             op_idx = self.combo_op.findData(rule.operator)
             if op_idx >= 0:
                 self.combo_op.setCurrentIndex(op_idx)
-        if len(rule.formula) > 0:
-            self.edit_val1.setText(rule.formula[0])
-        if len(rule.formula) > 1:
-            self.edit_val2.setText(rule.formula[1])
+        self.edit_val1.setText(rule.formula[0] if len(rule.formula) > 0 else "")
+        self.edit_val2.setText(rule.formula[1] if len(rule.formula) > 1 else "")
         self.bg_color = rule.bg_color
         self.fg_color = rule.fg_color
         self.bold = bool(rule.bold)
         self.italic = bool(rule.italic)
         self._update_preview()
         self._on_type_changed()
+
+    def retranslate_ui(self) -> None:
+        self.setTitle(safe_tr("Condition {0}").format(self.index + 1))
+        self.lbl_and.setText(safe_tr("and"))
+        self.lbl_colors.setText(safe_tr("Colors:"))
+        self.chk_reverse.setText(safe_tr("Reverse icon order"))
+        self.preview_label.setText(safe_tr("Preview of format to use:"))
+        self.btn_format.setText(safe_tr("Format..."))
 
 
 class CFFormatDialog(QDialog):
@@ -480,3 +536,5 @@ class ConditionalFormatDialog(QDialog):
         self.setWindowTitle(safe_tr("Conditional Formatting"))
         self.btn_add.setText(safe_tr("Add >>"))
         self.btn_delete.setText(safe_tr("Delete..."))
+        for row in self.rows:
+            row.retranslate_ui()

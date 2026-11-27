@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QComboBox, QDialog, QMessageBox, QWidget
 
-from atboffice.core.action_registry import ActionRegistry
+from atboffice.core.action_registry import ActionRegistry, ActionSpec
 from atboffice.core.i18n import safe_tr
 from atboffice.core.search import SearchController, SpreadsheetSearchAdapter
 from atboffice.modules.spreadsheet.view import SpreadsheetView
@@ -346,6 +346,19 @@ class LedgerWindow(
         self.action_registry.set_handler("data_pivottable", self.open_pivot_wizard)
         self.action_registry.set_handler("pivotTable", self.open_pivot_wizard)
         self.action_registry.set_handler("pivot_fields_pane", self.open_pivot_fields_pane)
+
+        from atboffice.ui.icons import get_office_icon
+
+        self.action_registry.register_action(
+            ActionSpec(
+                id="insertPivotChart",
+                label="插入数据透视图",
+                icon=get_office_icon("chart"),
+                tip="根据当前数据透视表创建链接的数据透视图",
+                handler=self.insert_pivot_chart,
+            ),
+            parent=self,
+        )
 
         # Drawing toolbar actions
         self.action_registry.set_handler("bringToFront", self.bring_to_front)

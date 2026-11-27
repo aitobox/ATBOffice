@@ -186,9 +186,14 @@ class GridDataMixin:
                 return False
             ok = refresh_pivot_report(wb, pvt)
             if ok:
+                from atboffice.modules.spreadsheet.tools.chart_builder import sync_pivot_charts
+
+                sync_pivot_charts(wb, pvt)
                 self.last_status_message = safe_tr("数据透视表数据已刷新。")
                 self.mark_dirty()
                 self.viewport().update()
+                if getattr(self, "object_layer", None) is not None:
+                    self.object_layer.update()
                 self.pivot_refresh_requested.emit(pvt)
                 win = self.window()
                 if win is not self and hasattr(win, "statusBar"):
@@ -222,6 +227,13 @@ class GridDataMixin:
         win = self.window()
         if win is not self and hasattr(win, "open_pivot_wizard"):
             win.open_pivot_wizard()
+
+    def insert_pivot_chart_for(self, target_pivot: Any | None = None) -> None:
+        """Insert a linked PivotChart for the active or specified PivotTable."""
+        pvt = target_pivot or self.pivot_table_at(*self.selection.active_cell)
+        win = self.window()
+        if win is not self and hasattr(win, "insert_pivot_chart"):
+            win.insert_pivot_chart(target_pivot=pvt)
 
     def _apply_pivot_field_filter(
         self,

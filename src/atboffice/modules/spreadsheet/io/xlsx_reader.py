@@ -1247,7 +1247,23 @@ def _parse_worksheet(
                     _find_child(db_el, "color"), theme_colors, palette
                 )
                 color_hex = _norm_hex(c_val) or "#638EC6"
-                bar_rule = DataBarRule(cfvos=cfvos, color=color_hex, color_spec=c_spec)
+                min_len_attr = _attr(db_el, "minLength")
+                max_len_attr = _attr(db_el, "maxLength")
+                min_len = (
+                    float(min_len_attr) / 100.0 if min_len_attr and min_len_attr.isdigit() else 0.1
+                )
+                max_len = (
+                    float(max_len_attr) / 100.0 if max_len_attr and max_len_attr.isdigit() else 0.9
+                )
+                show_val = _attr(db_el, "showValue") not in ("0", "false")
+                bar_rule = DataBarRule(
+                    cfvos=cfvos,
+                    color=color_hex,
+                    color_spec=c_spec,
+                    min_len=min_len,
+                    max_len=max_len,
+                    show_value=show_val,
+                )
 
             # Icon set
             icon_rule = _parse_icon_set(_find_child(r_el, "iconSet"))

@@ -41,6 +41,7 @@ class LedgerObjectsMixin:
             sheet.drawings = _copy.deepcopy(snapshot)
             if layer is not None and getattr(layer, "model", None) is sheet:
                 layer.set_model(sheet)
+                self._on_object_selected(getattr(layer, "selected_object", None))
             if hasattr(self.spreadsheet_view, "grid"):
                 self.spreadsheet_view.grid.viewport().update()
 
@@ -154,6 +155,85 @@ class LedgerObjectsMixin:
     def chart_wizard(self) -> None:
         """Standard toolbar Chart Wizard button: open the 4-step wizard."""
         self.open_chart_wizard()
+
+    def _find_pivot_report(self, target_pivot: Any | None = None) -> Any | None:
+        from atboffice.modules.spreadsheet.calc.pivots import PivotReport
+
+        if isinstance(target_pivot, PivotReport):
+            return target_pivot
+        grid = getattr(self.spreadsheet_view, "grid", None)
+        sel = getattr(self.spreadsheet_view, "selection", None)
+        if grid is not None and sel is not None and hasattr(grid, "pivot_table_at"):
+            found = grid.pivot_table_at(*sel.active_cell)
+            if isinstance(found, PivotReport):
+                return found
+        sheet = getattr(self.spreadsheet_view, "model", None)
+        reports = getattr(sheet, "pivot_reports", None) or []
+        if reports:
+            return reports[-1]
+        wb = getattr(self, "workbook", None)
+        for sh in getattr(wb, "sheets", []) or []:
+            sh_reports = getattr(sh, "pivot_reports", None) or []
+            if sh_reports:
+                return sh_reports[-1]
+        return None
+
+    def insert_pivot_chart(
+        self, chart_type: str = "column", *, target_pivot: Any | None = None
+    ) -> FloatingObject | None:
+        """Create a linked PivotChart FloatingObject beside the active PivotTable."""
+        if isinstance(chart_type, bool) or not chart_type:
+            chart_type = "column"
+        report = self._find_pivot_report(target_pivot)
+        if report is None:
+            QMessageBox.information(
+                self,
+                safe_tr("插入数据透视图"),
+                safe_tr("请先创建并选定一个数据透视表。"),
+            )
+            return None
+
+        wb = getattr(self, "workbook", None)
+        sheet = getattr(self.spreadsheet_view, "model", None)
+        if wb is not None and getattr(report, "sheet_name", None):
+            dst = wb.get_sheet_by_name(report.sheet_name)
+            if dst is not None and dst is not sheet:
+                idx = wb.sheet_index(dst)
+                if idx >= 0 and hasattr(self.spreadsheet_view, "set_active_sheet_index"):
+                    self.spreadsheet_view.set_active_sheet_index(idx)
+                sheet = dst
+
+        from atboffice.modules.spreadsheet.tools.chart_builder import build_pivot_chart_data
+
+        chart_data = build_pivot_chart_data(wb, report, chart_type=chart_type)
+        r0, _c0, _r2, c2 = getattr(report, "bbox", (0, 0, 4, 2))
+        from_col = c2 + 2
+        from_row = max(0, r0)
+        obj_id, z_idx = self._next_object_id_and_z()
+        obj = FloatingObject(
+            id=obj_id,
+            name=f"{getattr(report, 'name', 'PivotTable')} Chart",
+            kind="chart",
+            anchor_type=AnchorType.TWO_CELL,
+            from_point=CellAnchorPoint(col=from_col, row=from_row),
+            to_point=CellAnchorPoint(col=from_col + 6, row=from_row + 12),
+            z_index=z_idx,
+            chart_data=chart_data,
+        )
+        setattr(obj, "chart_type", chart_type)
+        layer = getattr(self.spreadsheet_view, "object_layer", None)
+
+        def _add() -> None:
+            if layer is not None:
+                layer.add_object(obj)
+                layer.select_object(obj)
+            elif sheet is not None:
+                sheet.drawings.append(obj)
+
+        self._record_drawing_edit("插入数据透视图", _add)
+        self.set_toolbar_mode("chart", True)
+        self.set_modified(True)
+        return obj
 
     def bring_to_front(self) -> None:
         """Bring selected floating object to top of z-order."""

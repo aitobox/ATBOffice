@@ -67,6 +67,7 @@ def build_ledger_ribbon_spec(window: Any) -> RibbonSpec:
         "clearContents": "eraser",
         "clearComments": "comment",
         "data_pivottable": "pivot",
+        "insertPivotChart": "chart",
         "insert_clipart": "clipart",
         "insert_wordart": "wordart",
         "insert_symbol": "symbol",
@@ -332,6 +333,7 @@ def build_ledger_ribbon_spec(window: Any) -> RibbonSpec:
                     items=(
                         RibbonItemSpec(cmd="chartWizard", size="large", label="图表向导"),
                         "insertChart",
+                        "insertPivotChart",
                     ),
                 ),
                 RibbonGroupSpec(

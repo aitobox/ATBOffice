@@ -32,10 +32,13 @@ _KIND_MAP: dict[str, str] = {
 }
 
 _LEGEND_MAP = {"right": "r", "bottom": "b", "top": "t", "left": "l", "corner": "r"}
+_VALID_CHART_KINDS = frozenset(_KIND_MAP.values())
 
 
 def chart_kind(type_id: str, subtype_id: str = "") -> str:
     """Map a wizard type/subtype pair onto a ``ChartData.kind`` value."""
+    if not subtype_id and type_id in _VALID_CHART_KINDS:
+        return type_id
     return _KIND_MAP.get(f"{type_id}/{subtype_id}") or _KIND_MAP.get(type_id, "col")
 
 
@@ -230,3 +233,161 @@ def _series_name(ref: str, workbook: Any, default_sheet: Any) -> str:
         return text.lstrip("=")
     sh, (r1, c1, _, _) = resolved
     return _label(sh.get_cell_value(r1, c1))
+
+
+def build_pivot_chart_data(
+    workbook: Any,
+    report: Any,
+    chart_type: str = "column",
+) -> dict[str, Any]:
+    """Build a ``ChartData`` dictionary from a rendered ``PivotReport`` summary."""
+    sheet_name = getattr(report, "sheet_name", None) or getattr(report, "dest_sheet", None) or ""
+    dst_sheet = (
+        workbook.get_sheet_by_name(sheet_name)
+        if (workbook is not None and sheet_name and hasattr(workbook, "get_sheet_by_name"))
+        else None
+    )
+    bbox = getattr(report, "bbox", None)
+    if bbox is None:
+        dr = int(getattr(report, "dest_r", 0))
+        dc = int(getattr(report, "dest_c", 0))
+        bbox = (dr, dc, dr, dc)
+    r0, c0, r2, c2 = bbox
+
+    layout = getattr(report, "layout", None)
+    meta = getattr(report, "meta", None)
+    n_row_cols = max(1, len(layout.rows)) if layout is not None else 1
+    n_col_fields = len(layout.columns) if layout is not None else 0
+    n_vals = len(layout.values) if layout is not None else 0
+
+    filter_rows = set(getattr(meta, "filter_rows", ()) or ())
+    header_rows = sorted(getattr(meta, "header_rows", ()) or ())
+    subtotal_rows = set(getattr(meta, "subtotal_rows", ()) or ())
+    grand_total_rows = set(getattr(meta, "grand_total_rows", ()) or ())
+    grand_total_cols = set(getattr(meta, "grand_total_cols", ()) or ())
+
+    cats: list[str] = []
+    series: list[tuple[str, list[float]]] = []
+
+    if dst_sheet is not None:
+        data_rows = [
+            r
+            for r in (getattr(meta, "data_rows", None) or [])
+            if r not in subtotal_rows and r not in grand_total_rows
+        ]
+        if not data_rows:
+            skip_rows = filter_rows | set(header_rows) | subtotal_rows | grand_total_rows
+            for r in range(r0, r2 + 1):
+                if r in skip_rows:
+                    continue
+                row_vals = [
+                    _label(dst_sheet.get_cell_value(r, c0 + k)).strip() for k in range(n_row_cols)
+                ]
+                if not any(row_vals):
+                    continue
+                if row_vals[0].lower() in ("grand total", "总计"):
+                    continue
+                data_rows.append(r)
+        if not data_rows and grand_total_rows:
+            data_rows = sorted(grand_total_rows)
+
+        last_labels = [""] * n_row_cols
+        for idx, r in enumerate(data_rows):
+            for lvl in range(n_row_cols):
+                txt = _label(dst_sheet.get_cell_value(r, c0 + lvl)).strip()
+                if txt:
+                    last_labels[lvl] = txt
+                    for k in range(lvl + 1, n_row_cols):
+                        last_labels[k] = ""
+            cat = " / ".join(p for p in last_labels if p)
+            cats.append(cat or str(idx + 1))
+
+        data_c_start = c0 + n_row_cols
+        val_cols = [c for c in range(data_c_start, c2 + 1) if c not in grand_total_cols]
+        if not val_cols and data_c_start <= c2:
+            val_cols = list(range(data_c_start, c2 + 1))
+
+        name_rows = header_rows[1:] if (len(header_rows) > 1 and n_col_fields > 0) else header_rows
+        if len(val_cols) > 1 and name_rows:
+            leaf_r = name_rows[-1]
+            filtered_cols = [
+                c
+                for c in val_cols
+                if _label(dst_sheet.get_cell_value(leaf_r, c)).strip().lower() != "grand total"
+            ]
+            if filtered_cols:
+                val_cols = filtered_cols
+
+        last_hdrs = [""] * max(0, len(name_rows) - 1)
+        for idx, col_c in enumerate(val_cols):
+            name_parts: list[str] = []
+            for h_idx, hr in enumerate(name_rows):
+                txt = _label(dst_sheet.get_cell_value(hr, col_c)).strip()
+                if h_idx < len(last_hdrs):
+                    if txt:
+                        last_hdrs[h_idx] = txt
+                    elif last_hdrs[h_idx]:
+                        txt = last_hdrs[h_idx]
+                if txt:
+                    name_parts.append(txt)
+            sname = " / ".join(name_parts)
+            if (
+                sname in ("", "Total")
+                and len(val_cols) == 1
+                and n_col_fields == 0
+                and n_vals == 1
+                and layout is not None
+            ):
+                sname = layout.values[0].display_label
+            vals = [_number(dst_sheet.get_cell_value(r, col_c)) or 0.0 for r in data_rows]
+            series.append((sname or f"系列{idx + 1}", vals))
+
+    kind = chart_kind(str(chart_type or "column"))
+    title = getattr(report, "name", "") or sheet_name or "PivotChart"
+    pivot_id = getattr(report, "id", None) or getattr(report, "name", "")
+    return {
+        "v": 2,
+        "kind": kind,
+        "title": title,
+        "legend": "r",
+        "gridY": True,
+        "labels": False,
+        "cats": cats,
+        "series": [
+            {"name": name or f"系列{i + 1}", "vals": vals, "color": CH_PALETTE[i % len(CH_PALETTE)]}
+            for i, (name, vals) in enumerate(series)
+        ],
+        "fsz": 10.0,
+        "ax": {
+            "c": {"tick": "out", "rev": False},
+            "v": {"grid": {"c": "#D9D9D9", "w": 0.75}},
+        },
+        "pivot_id": pivot_id,
+    }
+
+
+def sync_pivot_charts(workbook: Any, report: Any) -> int:
+    """Update all chart FloatingObjects linked to ``report`` via ``pivot_id``."""
+    if workbook is None or report is None:
+        return 0
+    report_id = getattr(report, "id", None)
+    if not report_id:
+        return 0
+    updated = 0
+    for sheet in getattr(workbook, "sheets", []) or []:
+        for obj in getattr(sheet, "drawings", []) or []:
+            if getattr(obj, "kind", None) != "chart":
+                continue
+            cdata = getattr(obj, "chart_data", None)
+            if not isinstance(cdata, dict) or cdata.get("pivot_id") != report_id:
+                continue
+            cur_kind = str(cdata.get("kind") or "col")
+            fresh = build_pivot_chart_data(workbook, report, chart_type=cur_kind)
+            merged = dict(cdata)
+            merged["cats"] = fresh["cats"]
+            merged["series"] = fresh["series"]
+            merged["pivot_id"] = report_id
+            obj.chart_data = merged
+            sheet.dirty = True
+            updated += 1
+    return updated

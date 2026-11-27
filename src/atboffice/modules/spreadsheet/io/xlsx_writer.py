@@ -46,6 +46,7 @@ NS_MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 NS_PKG_REL = "http://schemas.openxmlformats.org/package/2006/relationships"
 NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main"
+NS_C = "http://schemas.openxmlformats.org/drawingml/2006/chart"
 NS_XDR = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
 NS_CORE = "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
 NS_DC = "http://purl.org/dc/elements/1.1/"
@@ -63,6 +64,7 @@ CT_CORE_PROPS = "application/vnd.openxmlformats-package.core-properties+xml"
 CT_APP_PROPS = "application/vnd.openxmlformats-officedocument.extended-properties+xml"
 CT_RELATIONSHIPS = "application/vnd.openxmlformats-package.relationships+xml"
 CT_DRAWING = "application/vnd.openxmlformats-officedocument.drawing+xml"
+CT_CHART = "application/vnd.openxmlformats-officedocument.drawingml.chart+xml"
 CT_COMMENTS = "application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml"
 CT_VML_DRAWING = "application/vnd.openxmlformats-officedocument.vmlDrawing"
 
@@ -82,6 +84,7 @@ REL_APP_PROPS = (
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties"
 )
 REL_DRAWING = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing"
+REL_CHART = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart"
 REL_COMMENTS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
 REL_VML_DRAWING = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing"
 REL_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
@@ -1178,6 +1181,110 @@ def _breaks_xml(tag: str, breaks: list[int], max_index: int) -> str:
     return f'<{tag} count="{len(ids)}" manualBreakCount="{len(ids)}">{brks}</{tag}>'
 
 
+def _cf_sqref(cf: Any) -> str:
+    """Return ``cf.sqref``, falling back to formatted ``cf.ranges`` if empty."""
+    sqref = getattr(cf, "sqref", "") or ""
+    if sqref.strip():
+        return sqref.strip()
+    parts: list[str] = []
+    for r1, c1, r2, c2 in getattr(cf, "ranges", []) or []:
+        parts.append(
+            f"{cell_name(r1, c1)}:{cell_name(r2, c2)}"
+            if (r1, c1) != (r2, c2)
+            else cell_name(r1, c1)
+        )
+    return " ".join(parts) or "A1"
+
+
+def _serialize_conditional_formatting_blocks(
+    sheet: SheetDataModel,
+    style_manager: StyleManager,
+) -> tuple[list[str], list[tuple[str, list[Any]]]]:
+    """Serialize ``<conditionalFormatting>`` blocks and collect x14-only icon rules."""
+    parts: list[str] = []
+    x14_icon_formats: list[tuple[str, list[Any]]] = []
+    for cf in getattr(sheet, "conditional_formats", []):
+        sqref = _cf_sqref(cf)
+        x14_rules = [
+            rule for rule in cf.rules if rule.icon_set is not None and rule.icon_set.needs_x14()
+        ]
+        if x14_rules:
+            x14_icon_formats.append((sqref, x14_rules))
+        x14_ids = {id(rule) for rule in x14_rules}
+        main_rules = [rule for rule in cf.rules if id(rule) not in x14_ids]
+        if not main_rules:
+            continue
+        parts.append(f'<conditionalFormatting sqref="{_xml_escape(sqref)}">')
+        for rule in main_rules:
+            if rule.icon_set is not None:
+                parts.append(_icon_set_rule_xml(rule))
+            elif rule.color_scale:
+                parts.append(f'<cfRule type="colorScale" priority="{rule.priority}">')
+                parts.append("<colorScale>")
+                for cfvo in rule.color_scale.cfvos:
+                    v_attr = f' val="{cfvo.val}"' if cfvo.val is not None else ""
+                    parts.append(f'<cfvo type="{cfvo.type}"{v_attr}/>')
+                color_specs = getattr(rule.color_scale, "color_specs", None) or []
+                for idx_col, col in enumerate(rule.color_scale.colors):
+                    spec = color_specs[idx_col] if idx_col < len(color_specs) else None
+                    col_xml = _color_element(
+                        "color",
+                        col,
+                        spec,
+                        style_manager.theme_colors,
+                        style_manager.palette,
+                    )
+                    parts.append(col_xml or '<color rgb="FFFFFFFF"/>')
+                parts.append("</colorScale>")
+                parts.append("</cfRule>")
+            elif rule.data_bar:
+                db = rule.data_bar
+                show_attr = ' showValue="0"' if not getattr(db, "show_value", True) else ""
+                parts.append(
+                    f'<cfRule type="dataBar" priority="{rule.priority}">'
+                    f'<dataBar minLength="{int(db.min_len * 100)}" '
+                    f'maxLength="{int(db.max_len * 100)}"{show_attr}>'
+                )
+                for cfvo in db.cfvos:
+                    v_attr = f' val="{cfvo.val}"' if cfvo.val is not None else ""
+                    parts.append(f'<cfvo type="{cfvo.type}"{v_attr}/>')
+                col_xml = _color_element(
+                    "color",
+                    db.color,
+                    getattr(db, "color_spec", None),
+                    style_manager.theme_colors,
+                    style_manager.palette,
+                )
+                parts.append(col_xml or '<color rgb="FF638EC6"/>')
+                parts.append("</dataBar></cfRule>")
+            else:
+                dxf_id = style_manager.add_dxf(
+                    bg_color=rule.bg_color,
+                    fg_color=rule.fg_color,
+                    bold=rule.bold,
+                    italic=rule.italic,
+                    bg_color_spec=getattr(rule, "bg_color_spec", None),
+                    fg_color_spec=getattr(rule, "fg_color_spec", None),
+                )
+                r_attrs = [
+                    f'type="{rule.type}"',
+                    f'priority="{rule.priority}"',
+                    f'dxfId="{dxf_id}"',
+                ]
+                if rule.operator:
+                    r_attrs.append(f'operator="{rule.operator}"')
+                if rule.stop_if_true:
+                    r_attrs.append('stopIfTrue="1"')
+                if rule.text:
+                    r_attrs.append(f'text="{_xml_escape(rule.text)}"')
+                parts.append(f"<cfRule {' '.join(r_attrs)}>")
+                for f in rule.formula:
+                    parts.append(f"<formula>{_xml_escape(str(f))}</formula>")
+                parts.append("</cfRule>")
+        parts.append("</conditionalFormatting>")
+    return parts, x14_icon_formats
+
+
 def _serialize_worksheet(
     sheet: SheetDataModel,
     style_manager: StyleManager,
@@ -1240,84 +1347,8 @@ def _serialize_worksheet(
         parts.append("</mergeCells>")
 
     # Conditional Formatting (<conditionalFormatting>)
-    x14_icon_formats: list[tuple[str, list[Any]]] = []
-    for cf in getattr(sheet, "conditional_formats", []):
-        x14_rules = [
-            rule for rule in cf.rules if rule.icon_set is not None and rule.icon_set.needs_x14()
-        ]
-        if x14_rules:
-            x14_icon_formats.append((cf.sqref, x14_rules))
-        x14_ids = {id(rule) for rule in x14_rules}
-        main_rules = [rule for rule in cf.rules if id(rule) not in x14_ids]
-        if not main_rules:
-            continue
-        parts.append(f'<conditionalFormatting sqref="{cf.sqref}">')
-        for rule in main_rules:
-            if rule.icon_set is not None:
-                parts.append(_icon_set_rule_xml(rule))
-            elif rule.color_scale:
-                parts.append(f'<cfRule type="colorScale" priority="{rule.priority}">')
-                parts.append("<colorScale>")
-                for cfvo in rule.color_scale.cfvos:
-                    v_attr = f' val="{cfvo.val}"' if cfvo.val is not None else ""
-                    parts.append(f'<cfvo type="{cfvo.type}"{v_attr}/>')
-                color_specs = getattr(rule.color_scale, "color_specs", None) or []
-                for idx_col, col in enumerate(rule.color_scale.colors):
-                    spec = color_specs[idx_col] if idx_col < len(color_specs) else None
-                    col_xml = _color_element(
-                        "color",
-                        col,
-                        spec,
-                        style_manager.theme_colors,
-                        style_manager.palette,
-                    )
-                    parts.append(col_xml or '<color rgb="FFFFFFFF"/>')
-                parts.append("</colorScale>")
-                parts.append("</cfRule>")
-            elif rule.data_bar:
-                db = rule.data_bar
-                parts.append(
-                    f'<cfRule type="dataBar" priority="{rule.priority}">'
-                    f'<dataBar minLength="{int(db.min_len * 100)}" '
-                    f'maxLength="{int(db.max_len * 100)}">'
-                )
-                for cfvo in db.cfvos:
-                    v_attr = f' val="{cfvo.val}"' if cfvo.val is not None else ""
-                    parts.append(f'<cfvo type="{cfvo.type}"{v_attr}/>')
-                col_xml = _color_element(
-                    "color",
-                    db.color,
-                    getattr(db, "color_spec", None),
-                    style_manager.theme_colors,
-                    style_manager.palette,
-                )
-                parts.append(col_xml or '<color rgb="FF638EC6"/>')
-                parts.append("</dataBar></cfRule>")
-            else:
-                dxf_id = style_manager.add_dxf(
-                    bg_color=rule.bg_color,
-                    fg_color=rule.fg_color,
-                    bold=rule.bold,
-                    italic=rule.italic,
-                    bg_color_spec=getattr(rule, "bg_color_spec", None),
-                    fg_color_spec=getattr(rule, "fg_color_spec", None),
-                )
-                r_attrs = [
-                    f'type="{rule.type}"',
-                    f'priority="{rule.priority}"',
-                    f'dxfId="{dxf_id}"',
-                ]
-                if rule.operator:
-                    r_attrs.append(f'operator="{rule.operator}"')
-                if rule.stop_if_true:
-                    r_attrs.append('stopIfTrue="1"')
-                if rule.text:
-                    r_attrs.append(f'text="{_xml_escape(rule.text)}"')
-                parts.append(f"<cfRule {' '.join(r_attrs)}>")
-                for f in rule.formula:
-                    parts.append(f"<formula>{_xml_escape(str(f))}</formula>")
-                parts.append("</cfRule>")
-        parts.append("</conditionalFormatting>")
+    cf_parts, x14_icon_formats = _serialize_conditional_formatting_blocks(sheet, style_manager)
+    parts.extend(cf_parts)
 
     # Data Validations (<dataValidations>)
     dvs = getattr(sheet, "data_validations", [])
@@ -1571,11 +1602,32 @@ def _group_child_xfrm(obj: Any, tag: str = "a:xfrm") -> str:
 
 
 def _object_xml(
-    obj: Any, image_rids: dict[int, str], geom_map: dict[str, str], in_group: bool = False
+    obj: Any,
+    image_rids: dict[int, str],
+    geom_map: dict[str, str],
+    in_group: bool = False,
+    chart_rids: dict[int, str] | None = None,
 ) -> str:
-    """Serialize one floating object (picture, shape or group) into DrawingML."""
+    """Serialize one floating object (picture, shape, chart or group) into DrawingML."""
     name_esc = _xml_escape(obj.name or f"Object {obj.id}")
     xfrm = _group_child_xfrm(obj) if in_group else ""
+
+    if obj.kind == "chart" and chart_rids and obj.id in chart_rids:
+        chart_rid = chart_rids[obj.id]
+        return (
+            '<xdr:graphicFrame macro="">'
+            "<xdr:nvGraphicFramePr>"
+            f'<xdr:cNvPr id="{obj.id}" name="{name_esc}"/>'
+            "<xdr:cNvGraphicFramePr/>"
+            "</xdr:nvGraphicFramePr>"
+            '<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>'
+            "<a:graphic>"
+            f'<a:graphicData uri="{NS_C}">'
+            f'<c:chart xmlns:c="{NS_C}" xmlns:r="{NS_R}" r:id="{chart_rid}"/>'
+            "</a:graphicData>"
+            "</a:graphic>"
+            "</xdr:graphicFrame>"
+        )
 
     if obj.kind == "group":
         ext = _GROUP_CHILD_EXTENT
@@ -1589,7 +1641,7 @@ def _object_xml(
             child_space = f'<a:chOff x="0" y="0"/><a:chExt cx="{ext}" cy="{ext}"/>'
             own = own.replace("</a:xfrm>", f"{child_space}</a:xfrm>")
         kids = "".join(
-            _object_xml(c, image_rids, geom_map, in_group=True)
+            _object_xml(c, image_rids, geom_map, in_group=True, chart_rids=chart_rids)
             for c in sorted(obj.children, key=lambda o: o.z_index)
         )
         return (
@@ -1662,6 +1714,7 @@ def _object_xml(
 def _serialize_drawings(
     drawings: list[Any],
     image_rids: dict[int, str],
+    chart_rids: dict[int, str] | None = None,
 ) -> bytes:
     """Serialize sheet drawings into SpreadsheetML DrawingML (xl/drawings/drawingN.xml)."""
     parts = [
@@ -1702,7 +1755,7 @@ def _serialize_drawings(
             f"<xdr:row>{t_row}</xdr:row><xdr:rowOff>{t_row_off}</xdr:rowOff></xdr:to>"
         )
 
-        parts.append(_object_xml(obj, image_rids, geom_map))
+        parts.append(_object_xml(obj, image_rids, geom_map, chart_rids=chart_rids))
 
         parts.append("<xdr:clientData/></xdr:twoCellAnchor>")
 
@@ -2176,6 +2229,35 @@ def _splice_sheet_data(original: bytes, sheet_data_xml: str, dim_ref: str) -> by
     return serialize_lxml(root)
 
 
+def _splice_conditional_formatting(
+    ws_bytes: bytes,
+    sheet: SheetDataModel,
+    style_manager: StyleManager,
+) -> bytes:
+    """Replace worksheet ``<conditionalFormatting>`` blocks when CF was edited."""
+    root = parse_lxml(ws_bytes)
+    ns = namespace_of(root)
+    for old_cf in find_all_local(root, "conditionalFormatting"):
+        root.remove(old_cf)
+    cf_parts, x14_icon_formats = _serialize_conditional_formatting_blocks(sheet, style_manager)
+    for block in cf_parts:
+        for el in parse_fragment(block, ns):
+            insert_in_order(root, el, _WORKSHEET_ORDER)
+    if x14_icon_formats:
+        ext_lst = find_local(root, "extLst")
+        if ext_lst is not None:
+            for ext_el in list(ext_lst):
+                if ext_el.get("uri") == _X14_CF_EXT_URI:
+                    ext_lst.remove(ext_el)
+            x14_doc = parse_fragment(_x14_icon_set_ext_xml(x14_icon_formats), None)[0]
+            for ext_el in list(x14_doc):
+                ext_lst.append(ext_el)
+        else:
+            for el in parse_fragment(_x14_icon_set_ext_xml(x14_icon_formats), None):
+                insert_in_order(root, el, _WORKSHEET_ORDER)
+    return serialize_lxml(root)
+
+
 def _ensure_worksheet_rel_ref(ws_bytes: bytes, tag: str, rel_id: str) -> bytes:
     """Add ``<tag r:id>`` to a worksheet in schema order if not already present."""
     root = parse_lxml(ws_bytes)
@@ -2408,6 +2490,7 @@ def write_xlsx(
         if entry.from_source:
             if (
                 not any_dirty
+                and not sheet.extra.get("cf_dirty")
                 and not regenerate_drawings
                 and not regenerate_comments
                 and not delete_comments_vml
@@ -2424,6 +2507,8 @@ def write_xlsx(
                     ws_bytes = patched.encode("utf-8")
                 else:
                     ws_bytes = source_pkg.read_part(part_name)
+                if sheet.extra.get("cf_dirty"):
+                    ws_bytes = _splice_conditional_formatting(ws_bytes, sheet, style_manager)
                 if regenerate_drawings and orig_drawing_rel is None and drawing_rid:
                     ws_bytes = _ensure_drawing_ref(ws_bytes, drawing_rid)
                 if regenerate_comments and orig_vml_rel is None and legacy_drawing_rid:
@@ -2454,6 +2539,7 @@ def write_xlsx(
                 drawing_part = _unique_part("xl/drawings/drawing{}.xml", used_parts)
 
             image_rids: dict[int, str] = {}
+            chart_rids: dict[int, str] = {}
             drawing_rels: list[tuple[str, str, str, str]] = []
             used_drawing_rids: set[str] = set()
             for obj in _iter_drawings(sheet.drawings):
@@ -2467,9 +2553,22 @@ def write_xlsx(
                     drawing_rels.append(
                         (rid, REL_IMAGE, relative_part_uri(drawing_part, media_part), "")
                     )
+                elif obj.kind == "chart":
+                    from atboffice.modules.presentation.chart.io import chart_to_xml
+
+                    chart_part = _unique_part("xl/charts/chart{}.xml", used_parts)
+                    chart_xml_str = chart_to_xml(obj.chart_data or {})
+                    pkg_writer.add_part(chart_part, chart_xml_str.encode("utf-8"), CT_CHART)
+                    rid = _unique_id(used_drawing_rids)
+                    chart_rids[obj.id] = rid
+                    drawing_rels.append(
+                        (rid, REL_CHART, relative_part_uri(drawing_part, chart_part), "")
+                    )
 
             pkg_writer.add_part(
-                drawing_part, _serialize_drawings(sheet.drawings, image_rids), CT_DRAWING
+                drawing_part,
+                _serialize_drawings(sheet.drawings, image_rids, chart_rids),
+                CT_DRAWING,
             )
             if drawing_rels:
                 pkg_writer.add_part(

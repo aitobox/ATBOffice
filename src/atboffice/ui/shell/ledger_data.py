@@ -325,7 +325,7 @@ class LedgerDataMixin:
         grid = getattr(self.spreadsheet_view, "grid", None)
         before = grid._snapshot_state() if grid is not None else None
         accepted = dlg.exec() == QDialog.DialogCode.Accepted
-        if before is not None and before["sheet"] is self.spreadsheet_view.model:
+        if accepted and before is not None and before["sheet"] is self.spreadsheet_view.model:
             # Recalculate first so that undo also restores the cached values.
             workbook = getattr(self.spreadsheet_view, "workbook", None)
             if workbook is not None and hasattr(workbook, "recalculate"):

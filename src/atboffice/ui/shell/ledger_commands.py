@@ -255,28 +255,56 @@ class LedgerCommands:
         self.w.run_cell_edit(lambda: apply_autoformat(self.sheet, rect, preset), "autoformat")
 
     def conditional_format(self) -> None:
+        import copy as _copy
+
         from atboffice.modules.spreadsheet.dialogs.conditional_format_dialog import (
             ConditionalFormatDialog,
         )
 
+        sheet = self.sheet
         rect = self._range()
         sqref = abs_range_name({"r1": rect[0], "c1": rect[1], "r2": rect[2], "c2": rect[3]})
         sqref = sqref.replace("$", "")
-        existing = next(
-            (cf for cf in self.sheet.conditional_formats if list(cf.ranges) == [rect]), None
-        )
+        existing = next((cf for cf in sheet.conditional_formats if list(cf.ranges) == [rect]), None)
         dlg = ConditionalFormatDialog(
             existing_cf=existing, sqref=sqref, ranges=[rect], parent=self.w
         )
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
+        before_cfs = _copy.deepcopy(list(sheet.conditional_formats))
+        before_cf_dirty = sheet.extra.get("cf_dirty")
         new_cf = dlg.get_conditional_format()
         if existing is not None:
-            idx = self.sheet.conditional_formats.index(existing)
-            self.sheet.conditional_formats[idx] = new_cf
+            idx = sheet.conditional_formats.index(existing)
+            sheet.conditional_formats[idx] = new_cf
         else:
-            self.sheet.add_conditional_format(new_cf)
-        self.sheet.dirty = True
+            sheet.add_conditional_format(new_cf)
+        sheet.extra["cf_dirty"] = True
+        sheet.dirty = True
+        after_cfs = _copy.deepcopy(list(sheet.conditional_formats))
+
+        svc = self.w.undo_service() if hasattr(self.w, "undo_service") else None
+        if svc is not None and svc.is_recording:
+            grid = self.grid
+
+            def _restore(snapshot: list[Any], cf_dirty_val: Any) -> None:
+                if hasattr(grid, "_activate_sheet"):
+                    grid._activate_sheet(sheet)
+                sheet.conditional_formats = _copy.deepcopy(snapshot)
+                if cf_dirty_val is None:
+                    sheet.extra.pop("cf_dirty", None)
+                else:
+                    sheet.extra["cf_dirty"] = cf_dirty_val
+                sheet.dirty = True
+                self.w._refresh_after_cell_edit()
+                self.w.set_modified(True)
+
+            svc.record(
+                safe_tr("条件格式"),
+                lambda s=before_cfs, d=before_cf_dirty: _restore(s, d),
+                lambda s=after_cfs: _restore(s, True),
+            )
+
         self.w._refresh_after_cell_edit()
         self.w.set_modified(True)
 

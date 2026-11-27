@@ -414,6 +414,9 @@ class LedgerAuditingMixin:
             parent=self.task_pane_dock,
         )
         self.pivot_fields_pane.report_refreshed.connect(self._on_pivot_report_refreshed)
+        self.pivot_fields_pane.pivot_chart_requested.connect(
+            lambda rpt: self.insert_pivot_chart(target_pivot=rpt)
+        )
         self.task_pane_dock.register_pane(
             "pivot_fields",
             safe_tr("数据透视表字段列表"),
@@ -470,9 +473,12 @@ class LedgerAuditingMixin:
             self.pivot_fields_pane.bind_pivot_report(report, self.workbook)
 
     def _on_pivot_report_refreshed(self, report: Any | None = None) -> None:
-        """Update viewport and dirty state after PivotTable recalculation."""
+        """Update viewport, object layer, and dirty state after PivotTable recalculation."""
         self.set_modified(True)
         self.spreadsheet_view.grid.viewport().update()
+        layer = getattr(self.spreadsheet_view, "object_layer", None)
+        if layer is not None:
+            layer.update()
 
     def evaluate_formula(self) -> None:
         """Step-by-step formula evaluation dialog."""

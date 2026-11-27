@@ -11,6 +11,7 @@ Supports:
 from __future__ import annotations
 
 import math
+import uuid
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -178,6 +179,7 @@ class PivotReport:
     bbox: tuple[int, int, int, int]  # (r1, c1, r2, c2) inclusive
     meta: PivotLayoutMeta = field(default_factory=PivotLayoutMeta)
     needs_refresh: bool = False
+    id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
 
     def contains_cell(self, r: int, c: int) -> bool:
         r1, c1, r2, c2 = self.bbox
@@ -764,5 +766,10 @@ def build_interactive_pivot(
 
 
 def refresh_pivot_report(workbook: WorkbookModel, report: PivotReport) -> bool:
-    """Refresh an existing PivotReport from its source range."""
-    return PivotCalculationEngine().refresh_report(workbook, report)
+    """Refresh an existing PivotReport from its source range and sync linked PivotCharts."""
+    ok = PivotCalculationEngine().refresh_report(workbook, report)
+    if ok:
+        from atboffice.modules.spreadsheet.tools.chart_builder import sync_pivot_charts
+
+        sync_pivot_charts(workbook, report)
+    return ok

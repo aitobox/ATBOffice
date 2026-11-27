@@ -279,6 +279,9 @@ class GridMenuMixin:
             act_show_fields = menu.addAction(safe_tr("显示字段列表(&L)"))
             act_show_fields.triggered.connect(lambda: self.show_pivot_field_list(pvt))
 
+            act_pvt_chart = menu.addAction(safe_tr("插入数据透视图(&C)…"))
+            act_pvt_chart.triggered.connect(lambda: self.insert_pivot_chart_for(pvt))
+
             act_pvt_wizard = menu.addAction(safe_tr("数据透视表向导(&W)…"))
             act_pvt_wizard.triggered.connect(lambda: self.open_pivot_wizard_for(pvt))
 
