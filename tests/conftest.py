@@ -1,18 +1,39 @@
 """Global pytest configuration and shared fixtures for ATBOffice."""
 
+import shutil
+import tempfile
 from collections.abc import Generator
 from typing import Any
 
 import pytest
+from PySide6.QtCore import QSettings
 from PySide6.QtPrintSupport import QPrintDialog
 from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
 
 from atboffice.core.app import ATBApplication, create_application
 
+_PYTEST_QSETTINGS_DIR: str | None = None
+
 
 def pytest_configure(config: pytest.Config) -> None:
     """Create the suite's application before any test module can make a plain one."""
+    global _PYTEST_QSETTINGS_DIR
+    _PYTEST_QSETTINGS_DIR = tempfile.mkdtemp(prefix="atboffice-pytest-settings-")
+    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
+    QSettings.setPath(
+        QSettings.Format.IniFormat,
+        QSettings.Scope.UserScope,
+        _PYTEST_QSETTINGS_DIR,
+    )
     create_application([])
+
+
+def pytest_unconfigure(config: pytest.Config) -> None:
+    """Remove per-worker QSettings storage created during pytest_configure."""
+    global _PYTEST_QSETTINGS_DIR
+    if _PYTEST_QSETTINGS_DIR:
+        shutil.rmtree(_PYTEST_QSETTINGS_DIR, ignore_errors=True)
+        _PYTEST_QSETTINGS_DIR = None
 
 
 @pytest.fixture(scope="session")
