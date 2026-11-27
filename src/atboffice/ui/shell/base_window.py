@@ -1083,7 +1083,7 @@ class BaseOfficeWindow(QMainWindow):
             try:
                 self._ribbon_bar.cleanup()
             except Exception:
-                pass
+                logger.debug("Error cleaning up RibbonBar", exc_info=True)
         try:
             get_i18n_manager().locale_changed.disconnect(self._on_locale_changed)
         except Exception:

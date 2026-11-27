@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 from PySide6.QtCore import QObject, QSize, Qt
@@ -13,6 +14,8 @@ from atboffice.core.i18n import safe_tr
 from atboffice.core.settings import get_app_settings
 from atboffice.ui.components.task_pane import SectionHeader, TaskPaneDock
 from atboffice.ui.styles.luna_2003 import ui_font
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -143,6 +146,7 @@ class TaskPaneFollowController(QObject):
         try:
             return bool(get_app_settings().get_value(self._setting_key, True))
         except Exception:
+            logger.debug("Failed to read setting %s", self._setting_key, exc_info=True)
             return True
 
     def _on_dock_pane_changed(self, pane_id: str) -> None:

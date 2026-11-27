@@ -12,7 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from PySide6.QtCore import QEvent, QObject, QPoint, QSize, Qt, QTimer
+from PySide6.QtCore import QEvent, QObject, QPoint, QSize, Qt
 from PySide6.QtGui import QAction, QIcon, QKeyEvent, QKeySequence, QResizeEvent, QShortcut
 from PySide6.QtWidgets import (
     QComboBox,
@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
 )
 
 from atboffice.core.action_registry import ActionRegistry
-from atboffice.core.fault_guard import is_alive
+from atboffice.core.fault_guard import is_alive, safe_single_shot
 from atboffice.core.i18n import safe_tr, source_to_english
 from atboffice.core.settings import get_app_settings
 from atboffice.ui.icons import get_office_icon, has_office_icon
@@ -828,7 +828,7 @@ class RibbonBar(QWidget):
             try:
                 self._event_filter_target.removeEventFilter(self)
             except Exception:
-                pass
+                logger.debug("Failed to remove RibbonBar event filter", exc_info=True)
         self._event_filter_target = None
 
     def build_file_menu(self) -> QMenu:
@@ -1288,7 +1288,7 @@ class RibbonBar(QWidget):
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
-        QTimer.singleShot(0, self._safe_fit_groups)
+        safe_single_shot(0, self, self._safe_fit_groups)
 
     def _safe_fit_groups(self) -> None:
         if is_alive(self):

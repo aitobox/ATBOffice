@@ -341,3 +341,39 @@ def test_ribbon_collapse_keytips_folding_and_i18n(qapp: QApplication) -> None:
         win.set_modified(False)
         win.close()
         qapp.processEvents()
+
+
+@pytest.mark.parametrize(
+    ("win_cls", "toolbar_name"),
+    [
+        (LedgerWindow, "chart"),
+        (QuireWindow, "tables"),
+        (LecternWindow, "tables"),
+    ],
+)
+def test_set_toolbar_mode_does_not_leak_classic_toolbar_in_ribbon_mode(
+    qapp: QApplication, win_cls, toolbar_name: str
+) -> None:
+    """Defer toolbar visibility in paper2016 instead of showing classic QToolBar."""
+    win = win_cls()
+    try:
+        win.resize(1280, 820)
+        win.show()
+        win.set_theme("paper2016")
+        qapp.processEvents()
+
+        win.set_toolbar_mode(toolbar_name, True)
+        qapp.processEvents()
+
+        assert win.toolbars[toolbar_name].isHidden() is True
+        assert win._classic_toolbar_visibility[toolbar_name] is True
+
+        win.set_theme("classic")
+        qapp.processEvents()
+
+        assert win.toolbars[toolbar_name].isHidden() is False
+    finally:
+        win.set_theme("blue")
+        win.set_modified(False)
+        win.close()
+        qapp.processEvents()

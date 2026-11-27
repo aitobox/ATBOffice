@@ -1561,7 +1561,11 @@ class QuireWindow(BaseOfficeWindow):
         """Set toolbar visibility mode: True, False, or 'auto'."""
         self.toolbar_modes[name] = mode
         if isinstance(mode, bool) and name in self.toolbars:
-            self.toolbars[name].setVisible(mode)
+            if self.is_ribbon_mode():
+                self._classic_toolbar_visibility[name] = mode
+                self.toolbars[name].setVisible(False)
+            else:
+                self.toolbars[name].setVisible(mode)
 
     def update_context_toolbars(self, context: dict[str, Any] | None = None) -> None:
         """Update contextual toolbar visibility based on selection and document state.
