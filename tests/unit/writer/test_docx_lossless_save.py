@@ -102,3 +102,38 @@ def test_header_part_names_are_not_mangled() -> None:
     out_names = zipfile.ZipFile(io.BytesIO(out)).namelist()
     assert "word/reportHeader.xml" in out_names
     assert "word/eportHeader.xml" not in out_names
+
+
+def test_unchanged_comments_part_is_carried() -> None:
+    src = _corpus("openxml-sdk__Comment066.docx")
+    out = write_docx(read_docx(src))
+    assert _part(out, "word/comments.xml") == _part(src, "word/comments.xml")
+
+
+def test_edited_and_deleted_comments_update_package() -> None:
+    from atboffice.modules.writer.models.document import Paragraph, plain_text
+    from atboffice.modules.writer.models.revision import delete_all_comments, insert_comment
+
+    src = _corpus("openxml-sdk__Comment066.docx")
+    doc = read_docx(src)
+    assert doc.comments
+    p = next(b for b in doc.main.blocks if isinstance(b, Paragraph))
+    added = insert_comment(doc, (p, 0), (p, 0), text="Added comment note", author="Tester")
+
+    edited_bytes = write_docx(doc)
+    reopened = read_docx(edited_bytes)
+    assert added.id in reopened.comments
+    assert any(
+        "Added comment note" in plain_text(b)
+        for b in reopened.comments[added.id].blocks
+        if isinstance(b, Paragraph)
+    )
+
+    delete_all_comments(reopened)
+    cleared_bytes = write_docx(reopened)
+    with zipfile.ZipFile(io.BytesIO(cleared_bytes)) as zf:
+        names = set(zf.namelist())
+        assert "word/comments.xml" not in names
+        rels_xml = zf.read("word/_rels/document.xml.rels").decode("utf-8")
+        assert "relationships/comments" not in rels_xml
+    assert len(read_docx(cleared_bytes).comments) == 0

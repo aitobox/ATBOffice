@@ -3,19 +3,25 @@
 from __future__ import annotations
 
 import time
+import zipfile
 from pathlib import Path
 
 from PySide6.QtCore import QPoint, Qt
+from PySide6.QtGui import QColor, QImage
 from PySide6.QtTest import QTest
 
 from atboffice.modules.writer.models.document import (
+    CommentRangeEnd,
+    CommentRangeStart,
+    CommentRefItem,
     Document,
     Paragraph,
     TextItem,
     all_stories,
+    plain_text,
     ptext,
 )
-from atboffice.modules.writer.models.drawing import ShapeItem
+from atboffice.modules.writer.models.drawing import ChartItem, PictureItem, ShapeItem, WrapMode
 from atboffice.modules.writer.views.caret_controller import DocPos
 from atboffice.ui.shell.quire_window import QuireWindow
 
@@ -186,3 +192,93 @@ def test_quire_two_rects_in_separate_paragraphs_have_unique_ids_and_rebind(qtbot
     assert canvas.selected_float() is restored[1]
     assert canvas.selected_float() is not restored[0]
     win.set_modified(False)
+
+
+def test_quire_insert_shape_picture_and_comment_roundtrip(qtbot, tmp_path) -> None:
+    win = QuireWindow()
+    qtbot.addWidget(win)
+    win.resize(1100, 800)
+    win.show()
+    canvas = win.writer_view.canvas_view
+
+    # Seed text so the comment anchors across a non-empty range.
+    QTest.keyClicks(canvas, "Hello World")
+    canvas.controller.set_pos(DocPos(canvas.doc.main.blocks[0].id, 0), extend_selection=False)
+    canvas.controller.set_pos(DocPos(canvas.doc.main.blocks[0].id, 5), extend_selection=True)
+    canvas.insert_comment(author="Tester", text="Roundtrip note")
+
+    win.insert_shape("rect")
+    win.rotate_selected_object(30.0)
+    win.insert_shape("textbox")
+
+    img = QImage(16, 16, QImage.Format.Format_RGBA8888)
+    img.fill(QColor("#336699"))
+    img_path = tmp_path / "probe.png"
+    img.save(str(img_path), "PNG")
+    png_bytes = img_path.read_bytes()
+    assert win.insert_image_bytes(png_bytes, "png", "probe") is True
+
+    pre_shapes = _shape_items(canvas.doc)
+    assert len(pre_shapes) == 2
+    expected_tb_text = "".join(
+        plain_text(b) for b in pre_shapes[1].story.blocks if isinstance(b, Paragraph)
+    )
+    assert expected_tb_text.strip() != ""
+
+    out = tmp_path / "roundtrip.docx"
+    assert win.save_file(out, confirm_overwrite=False) is True
+    assert out.stat().st_size > 0
+
+    with zipfile.ZipFile(out) as zf:
+        names = set(zf.namelist())
+        assert "word/comments.xml" in names
+        media_names = [n for n in names if n.startswith("word/media/")]
+        assert media_names
+        assert any(zf.read(m) == png_bytes for m in media_names)
+
+    again = QuireWindow()
+    qtbot.addWidget(again)
+    assert again.open_file(out) is True
+    reopened_doc = again.writer_view.canvas_view.doc
+
+    reopened_shapes = _shape_items(reopened_doc)
+    assert len(reopened_shapes) == 2
+    rect = next((s for s in reopened_shapes if s.story is None), None)
+    tb = next((s for s in reopened_shapes if s.story is not None), None)
+    assert rect is not None and tb is not None
+    assert rect.geometry == "rect"
+    assert abs(rect.width - pre_shapes[0].width) < 0.5
+    assert abs(rect.height - pre_shapes[0].height) < 0.5
+    assert abs(rect.rotation - 30.0) < 0.5
+    assert rect.float_pr is not None
+    assert rect.float_pr.wrap == WrapMode.IN_FRONT
+    assert rect.fill is not None and rect.fill.kind == "solid"
+    assert rect.line is not None and rect.line.visible is True
+    assert (
+        "".join(plain_text(b) for b in tb.story.blocks if isinstance(b, Paragraph))
+        == expected_tb_text
+    )
+
+    pics = [
+        r
+        for st in all_stories(reopened_doc)
+        for p in st.paras
+        for r in p.runs
+        if isinstance(r, PictureItem) and not isinstance(r, (ShapeItem, ChartItem))
+    ]
+    assert len(pics) == 1
+    assert pics[0].image_part.startswith("word/media/")
+    with zipfile.ZipFile(out) as zf:
+        assert zf.read(pics[0].image_part) == png_bytes
+
+    assert len(reopened_doc.comments) == 1
+    cm = next(iter(reopened_doc.comments.values()))
+    assert getattr(cm, "author", "") == "Tester"
+    assert any("Roundtrip note" in plain_text(b) for b in cm.blocks)
+    all_runs = [r for st in all_stories(reopened_doc) for p in st.paras for r in p.runs]
+    assert any(isinstance(r, CommentRangeStart) for r in all_runs)
+    assert any(isinstance(r, CommentRangeEnd) for r in all_runs)
+    assert any(isinstance(r, CommentRefItem) for r in all_runs)
+
+    win.set_modified(False)
+    again.set_modified(False)

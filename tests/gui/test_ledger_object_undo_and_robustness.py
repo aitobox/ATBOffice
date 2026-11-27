@@ -7,7 +7,7 @@ import zipfile
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QColor, QImage
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QDialog
+from PySide6.QtWidgets import QDialog, QInputDialog
 
 from atboffice.modules.spreadsheet.dialogs.comment_dialog import CommentDialog
 from atboffice.ui.shell.ledger_window import LedgerWindow
@@ -171,5 +171,104 @@ def test_ledger_object_drag_paste_zorder_comment_delete_and_event_guards(
 
     monkeypatch.setattr(layer, "hit_test", _boom)
     QTest.mousePress(layer, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(5, 5))
+
+    win.set_modified(False)
+
+
+def test_ledger_zorder_text_edit_show_hide_comment_and_chart_wizard_undo(
+    qtbot, monkeypatch
+) -> None:
+    from atboffice.modules.spreadsheet.dialogs.chart_wizard import ChartWizardDialog
+    from atboffice.modules.spreadsheet.dialogs.format_object_dialog import FormatObjectDialog
+    from atboffice.modules.spreadsheet.views.object_layer import AnchorType, FloatingObject
+
+    win = LedgerWindow()
+    qtbot.addWidget(win)
+    win.resize(1100, 800)
+    win.show()
+
+    win.insert_shape("rect")
+    win.insert_shape("oval")
+    sheet = win.spreadsheet_view.model
+    layer = win.spreadsheet_view.object_layer
+
+    # Direct SpreadsheetObjectLayer Z-order ops are undoable
+    layer.send_backward(sheet.drawings[1])
+    assert [d.kind for d in sheet.drawings] == ["oval", "rect"]
+    win.undo()
+    assert [d.kind for d in sheet.drawings] == ["rect", "oval"]
+    layer.bring_forward(sheet.drawings[0])
+    assert [d.kind for d in sheet.drawings] == ["oval", "rect"]
+    win.undo()
+    assert [d.kind for d in sheet.drawings] == ["rect", "oval"]
+
+    # Text editing via object_layer is undoable
+    monkeypatch.setattr(QInputDialog, "getMultiLineText", lambda *a, **k: ("Edited Label", True))
+    layer.start_text_editing(sheet.drawings[0])
+    assert sheet.drawings[0].text == "Edited Label"
+    win.undo()
+    assert sheet.drawings[0].text != "Edited Label"
+
+    # FormatObjectDialog is undoable
+    def _fake_format_exec(dlg):
+        dlg.obj.fill_color = "#112233"
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(FormatObjectDialog, "exec", _fake_format_exec)
+    layer.select_object(sheet.drawings[0])
+    win.format_selected_object()
+    assert sheet.drawings[0].fill_color == "#112233"
+    win.undo()
+    assert sheet.drawings[0].fill_color != "#112233"
+
+    # show_hide_comment is undoable
+    monkeypatch.setattr(CommentDialog, "exec", lambda self: QDialog.DialogCode.Accepted)
+    monkeypatch.setattr(CommentDialog, "get_text", lambda self: "Visibility test")
+    monkeypatch.setattr(CommentDialog, "get_author", lambda self: "Tester")
+    win.insert_comment()
+    assert sheet.get_comment(0, 0).visible is False
+    win.show_hide_comment()
+    assert sheet.get_comment(0, 0).visible is True
+    win.undo()
+    assert sheet.get_comment(0, 0).visible is False
+
+    # open_chart_wizard (embedded chart) is undoable/redoable
+    def _fake_embedded_exec(dlg):
+        chart_obj = FloatingObject(id=99, kind="chart", anchor_type=AnchorType.TWO_CELL)
+        sheet.drawings.append(chart_obj)
+        dlg.chart_created.emit(chart_obj, "embedded")
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(ChartWizardDialog, "exec", _fake_embedded_exec)
+    before_count = len(sheet.drawings)
+    win.open_chart_wizard()
+    assert len(sheet.drawings) == before_count + 1
+    win.undo()
+    assert len(sheet.drawings) == before_count
+    win.redo()
+    assert len(sheet.drawings) == before_count + 1
+
+    # open_chart_wizard (new chart sheet) is undoable/redoable
+    wb = win.spreadsheet_view.workbook
+    initial_sheets = len(wb)
+
+    def _fake_sheet_exec(dlg):
+        new_sheet = wb.add_sheet(name="Chart1")
+        chart_obj = FloatingObject(id=100, kind="chart", anchor_type=AnchorType.TWO_CELL)
+        new_sheet.drawings.append(chart_obj)
+        dlg.created_sheet = new_sheet
+        dlg.chart_created.emit(chart_obj, "sheet")
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(ChartWizardDialog, "exec", _fake_sheet_exec)
+    win.open_chart_wizard()
+    assert len(wb) == initial_sheets + 1
+    assert win.spreadsheet_view.model.name == "Chart1"
+    win.undo()
+    assert len(wb) == initial_sheets
+    assert win.spreadsheet_view.model is sheet
+    win.redo()
+    assert len(wb) == initial_sheets + 1
+    assert win.spreadsheet_view.model.name == "Chart1"
 
     win.set_modified(False)

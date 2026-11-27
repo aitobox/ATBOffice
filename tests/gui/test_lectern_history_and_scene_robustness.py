@@ -93,7 +93,12 @@ def test_lectern_draw_shape_and_textbox_undo_redo_and_roundtrip(qtbot, qapp, tmp
     out = tmp_path / "shapes.pptx"
     assert win.save_file(out, confirm_overwrite=False) is True
     assert out.stat().st_size > 0
+    again = LecternWindow()
+    qtbot.addWidget(again)
+    assert again.open_file(out) is True
+    assert len(again.presentation.slides[0].shapes) == initial_count + 2
     win.set_modified(False)
+    again.set_modified(False)
 
 
 def test_slide_scene_mouse_move_with_deleted_dragged_item_is_safe(qtbot, qapp) -> None:
