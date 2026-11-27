@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import datetime
 from pathlib import Path
+from typing import Any
 
 from .models import DiffResult
 
@@ -30,6 +31,36 @@ def parse_visual_verdicts(verdicts_doc: Path | None) -> dict[str, str]:
 def _primary_score(item: DiffResult) -> float | None:
     """Return foreground-weighted score when available, falling back to legacy similarity."""
     return item.foreground_score if item.foreground_score is not None else item.similarity
+
+
+def evaluate_strict_gate(
+    results: list[DiffResult],
+    min_similarity: float = 0.90,
+    min_single_similarity: float = 0.85,
+) -> dict[str, Any]:
+    """Evaluate strict quality gate metrics with ``reference_limitation`` waivers."""
+    comparable = [r for r in results if _primary_score(r) is not None]
+    avg_sim = (
+        (sum(_primary_score(r) or 0.0 for r in comparable) / len(comparable)) if comparable else 0.0
+    )
+    waived = [r for r in comparable if r.reference_limitation]
+    failing = [
+        r
+        for r in comparable
+        if (_primary_score(r) or 0.0) < min_single_similarity and not r.reference_limitation
+    ]
+    incomp = [r for r in results if _primary_score(r) is None]
+    passed = bool(
+        comparable and avg_sim >= min_similarity and len(failing) == 0 and len(incomp) == 0
+    )
+    return {
+        "comparable": comparable,
+        "avg_sim": avg_sim,
+        "waived": waived,
+        "failing": failing,
+        "incomp": incomp,
+        "passed": passed,
+    }
 
 
 def generate_task_card(
@@ -106,12 +137,17 @@ def generate_report(
     now_str = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     total = len(results)
-    comparable = [r for r in results if _primary_score(r) is not None]
-    incomparable = [r for r in results if _primary_score(r) is None]
-
-    avg_sim = (
-        sum(_primary_score(r) or 0.0 for r in comparable) / len(comparable) if comparable else 0.0
+    gate = evaluate_strict_gate(
+        results,
+        min_similarity=min_similarity,
+        min_single_similarity=min_single,
     )
+    comparable = gate["comparable"]
+    incomparable = gate["incomp"]
+    avg_sim = gate["avg_sim"]
+    waived = gate["waived"]
+    gate_passed = gate["passed"]
+
     pixel_comparable = [r for r in results if r.similarity is not None]
     avg_pixel_sim = (
         sum(r.similarity or 0.0 for r in pixel_comparable) / len(pixel_comparable)
@@ -125,18 +161,6 @@ def generate_report(
     critical_mismatches = sum(1 for r in results if r.category == "CRITICAL_MISMATCH")
     incomparable_sizes = sum(1 for r in results if r.category == "INCOMPARABLE_SIZE")
     missing_count = sum(1 for r in results if r.category == "MISSING")
-
-    # Quality Gate Verdict
-    meets_avg = avg_sim >= min_similarity if comparable else False
-    # A document whose gap is a documented limitation of the reference renderer still counts
-    # towards the average, but cannot fail the per-document bar.
-    waived = [r for r in comparable if r.reference_limitation]
-    failing_singles = [
-        r
-        for r in comparable
-        if (_primary_score(r) or 0.0) < min_single and not r.reference_limitation
-    ]
-    gate_passed = meets_avg and len(failing_singles) == 0 and len(incomparable) == 0
 
     verdict_badge = "✅ PASS" if gate_passed else "⚠️ NEEDS_REMEDIATION"
 

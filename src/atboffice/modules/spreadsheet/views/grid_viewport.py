@@ -172,6 +172,7 @@ class GridViewport(
         self._view_state_applied: weakref.WeakSet[SheetDataModel] = weakref.WeakSet()
         self._hover_comment_cell: tuple[int, int] | None = None
         self.last_status_message: str = ""
+        self._updating_scrollbars: bool = False
 
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
@@ -515,22 +516,55 @@ class GridViewport(
     def _used_scroll_extent(self) -> tuple[int, int]:
         """Return (bottom_y, right_x) grid coordinates for used cells, merges, and drawings."""
         model = self.model
+        geo = self.geometry_mapper
         cells = getattr(model, "cells", None) or {}
-        max_r = max((r for r, _c in cells), default=0)
-        max_c = max((c for _r, c in cells), default=0)
+        max_r = 0
+        max_c = 0
+        for r, c in cells:
+            if r > max_r:
+                max_r = r
+            if c > max_c:
+                max_c = c
         for m in getattr(model, "merges", None) or ():
-            max_r = max(max_r, getattr(m, "r2", 0))
-            max_c = max(max_c, getattr(m, "c2", 0))
+            try:
+                _r1, _c1, r2, c2 = self._normalize_merge(m)
+            except (TypeError, ValueError):
+                continue
+            max_r = max(max_r, r2)
+            max_c = max(max_c, c2)
+
+        extra_h = 0
+        extra_w = 0
         for d in getattr(model, "drawings", None) or ():
-            to_pt = getattr(d, "to_point", None)
-            if to_pt is not None:
-                max_r = max(max_r, int(getattr(to_pt, "row", 0)))
-                max_c = max(max_c, int(getattr(to_pt, "col", 0)))
-        r_idx = min(self.geometry_mapper.max_rows - 1, max_r + 1)
-        c_idx = min(self.geometry_mapper.max_cols - 1, max_c + 1)
+            anchor = getattr(d, "anchor_type", None)
+            anchor_val = getattr(anchor, "value", anchor)
+            abs_rect = getattr(d, "abs_rect", None)
+            if anchor_val == "absolute":
+                if abs_rect is not None and len(abs_rect) >= 4:
+                    extra_w = max(extra_w, int(abs_rect[0]) + int(abs_rect[2]))
+                    extra_h = max(extra_h, int(abs_rect[1]) + int(abs_rect[3]))
+            elif anchor_val == "oneCell":
+                from_pt = getattr(d, "from_point", None)
+                if from_pt is not None:
+                    fr = max(0, min(geo.max_rows - 1, int(getattr(from_pt, "row", 0))))
+                    fc = max(0, min(geo.max_cols - 1, int(getattr(from_pt, "col", 0))))
+                    w_px = int(abs_rect[2]) if abs_rect is not None and len(abs_rect) >= 4 else 0
+                    h_px = int(abs_rect[3]) if abs_rect is not None and len(abs_rect) >= 4 else 0
+                    row_off = int(getattr(from_pt, "row_off", 0))
+                    col_off = int(getattr(from_pt, "col_off", 0))
+                    extra_h = max(extra_h, geo.row_pos(fr) + row_off + h_px)
+                    extra_w = max(extra_w, geo.col_pos(fc) + col_off + w_px)
+            else:
+                to_pt = getattr(d, "to_point", None)
+                if to_pt is not None:
+                    max_r = max(max_r, int(getattr(to_pt, "row", 0)))
+                    max_c = max(max_c, int(getattr(to_pt, "col", 0)))
+
+        r_idx = min(geo.max_rows - 1, max(0, max_r + 1))
+        c_idx = min(geo.max_cols - 1, max(0, max_c + 1))
         return (
-            self.geometry_mapper.row_pos(r_idx),
-            self.geometry_mapper.col_pos(c_idx),
+            max(geo.row_pos(r_idx), extra_h),
+            max(geo.col_pos(c_idx), extra_w),
         )
 
     def _update_scrollbars(self, min_bottom: int = 0, min_right: int = 0) -> None:
@@ -950,6 +984,7 @@ class GridViewport(
                     self.horizontalScrollBar().setValue(cell_right - vw)
         finally:
             self._updating_scrollbars = False
+        self._update_scrollbars()
 
     def cell_rect(self, r: int, c: int) -> QRect:
         """Return the visible QRect coordinates for cell (r, c) within the viewport."""

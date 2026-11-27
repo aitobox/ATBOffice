@@ -144,6 +144,8 @@ class SpreadsheetView(QWidget):
         grid_w = self.grid.width()
         if grid_w >= 320:
             self.sheet_tab_bar.setFixedWidth(max(200, int(grid_w * 0.65)))
+        elif grid_w > 0 and self.isVisible():
+            self.sheet_tab_bar.setFixedWidth(max(120, min(200, int(grid_w * 0.65))))
 
     def resizeEvent(self, event: Any) -> None:
         super().resizeEvent(event)

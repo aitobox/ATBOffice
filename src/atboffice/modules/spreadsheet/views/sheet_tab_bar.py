@@ -37,7 +37,13 @@ from atboffice.modules.spreadsheet.models.workbook_model import (
     WorkbookModel,
     is_valid_sheet_name,
 )
-from atboffice.ui.styles.luna_2003 import ui_font
+from atboffice.ui.styles.luna_2003 import (
+    GRID_SCROLLBAR_HBORDER,
+    SHEET_TAB_SPLITTER_BG,
+    SHEET_TAB_SPLITTER_HI,
+    SHEET_TAB_SPLITTER_LO,
+    ui_font,
+)
 
 
 class TabNavButton(QToolButton):
@@ -292,7 +298,7 @@ class TabStripWidget(QWidget):
 
         # Background bar + top hairline matching grid/scrollbar seam
         painter.fillRect(0, 0, w, h, QColor(236, 233, 216))
-        painter.setPen(QColor(160, 160, 160))
+        painter.setPen(QColor(GRID_SCROLLBAR_HBORDER))
         painter.drawLine(0, 0, w - 1, 0)
 
         # Calculate rects
@@ -322,10 +328,10 @@ class TabStripWidget(QWidget):
 
         # Subtle 6px right splitter matching .vibeoffice .tabsplit
         if w > 12:
-            painter.fillRect(w - 6, 1, 6, h - 1, QColor(225, 221, 204))
-            painter.setPen(QColor(214, 210, 193))
+            painter.fillRect(w - 6, 1, 6, h - 1, QColor(SHEET_TAB_SPLITTER_BG))
+            painter.setPen(QColor(SHEET_TAB_SPLITTER_HI))
             painter.drawLine(w - 6, 1, w - 6, h - 1)
-            painter.setPen(QColor(168, 165, 150))
+            painter.setPen(QColor(SHEET_TAB_SPLITTER_LO))
             painter.drawLine(w - 1, 1, w - 1, h - 1)
 
     def _draw_tab(self, painter: QPainter, index: int, rect: QRect, is_active: bool) -> None:
@@ -373,7 +379,7 @@ class TabStripWidget(QWidget):
 
         # Tab Color stripe if set
         if tab_color:
-            painter.fillRect(x1 + 5, y2 - 2, max(0, x2 - x1 - 9), 2, tab_color)
+            painter.fillRect(x1 + 6, y2 - 2, max(0, x2 - x1 - 11), 2, tab_color)
 
         # If active, erase top hairline so tab seamlessly connects to the grid above
         if is_active:
@@ -618,9 +624,9 @@ class SheetTabBar(QWidget):
         if index < len(self._strip._tab_rects):
             tab_r = self._strip._tab_rects[index]
         else:
-            tab_r = QRect(60, 2, 80, 18)
+            tab_r = QRect(60, 0, 80, 16)
 
-        editor_rect = tab_r.adjusted(4, 2, -4, -2)
+        editor_rect = tab_r.adjusted(4, 1, -4, -1)
 
         self._rename_editor = RenameInlineEditor(self, index, self._strip)
         self._rename_editor.setText(self._workbook.sheets[index].name)

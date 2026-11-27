@@ -56,52 +56,53 @@ def test_quire_failed_or_cancelled_abnormal_open_preserves_dirty_document(
     corrupt_docx.write_bytes(b"NOT_A_DOCX_ARCHIVE")
 
     win = QuireWindow()
-    win.maybe_save_prompt = lambda: True
-    assert win.open_file(valid_docx) is True
-    orig_path = win.current_file_path
-    win.writer_view.canvas_view.controller.insert_text("UnsavedQuireEdit")
-    assert win.is_modified is True
+    try:
+        win.maybe_save_prompt = lambda: True
+        assert win.open_file(valid_docx) is True
+        orig_path = win.current_file_path
+        win.writer_view.canvas_view.controller.insert_text("UnsavedQuireEdit")
+        assert win.is_modified is True
 
-    def _quire_text() -> str:
-        return "".join(plain_text(p) for p in win.writer_view.canvas_view.doc.main.paras)
+        def _quire_text() -> str:
+            return "".join(plain_text(p) for p in win.writer_view.canvas_view.doc.main.paras)
 
-    # 1. Unsupported legacy .doc
-    dialogs.clear()
-    assert win.open_file(legacy_doc) is False
-    assert len(dialogs) >= 1
-    assert win.current_file_path == orig_path
-    assert win.is_modified is True
-    assert "UnsavedQuireEdit" in _quire_text()
+        # 1. Unsupported legacy .doc
+        dialogs.clear()
+        assert win.open_file(legacy_doc) is False
+        assert len(dialogs) >= 1
+        assert win.current_file_path == orig_path
+        assert win.is_modified is True
+        assert "UnsavedQuireEdit" in _quire_text()
 
-    # 2. Encrypted .docx — user cancels password prompt (0 dialogs)
-    dialogs.clear()
-    monkeypatch.setattr(QInputDialog, "getText", lambda *_a, **_k: ("", False))
-    assert win.open_file(encrypted_docx) is False
-    assert dialogs == []
-    assert win.current_file_path == orig_path
-    assert win.is_modified is True
-    assert "UnsavedQuireEdit" in _quire_text()
+        # 2. Encrypted .docx — user cancels password prompt (0 dialogs)
+        dialogs.clear()
+        monkeypatch.setattr(QInputDialog, "getText", lambda *_a, **_k: ("", False))
+        assert win.open_file(encrypted_docx) is False
+        assert dialogs == []
+        assert win.current_file_path == orig_path
+        assert win.is_modified is True
+        assert "UnsavedQuireEdit" in _quire_text()
 
-    # 3. Encrypted .docx — wrong password
-    dialogs.clear()
-    monkeypatch.setattr(QInputDialog, "getText", lambda *_a, **_k: ("wrong-pass", True))
-    assert win.open_file(encrypted_docx) is False
-    assert len(dialogs) >= 1
-    assert win.current_file_path == orig_path
-    assert win.is_modified is True
-    assert "UnsavedQuireEdit" in _quire_text()
+        # 3. Encrypted .docx — wrong password
+        dialogs.clear()
+        monkeypatch.setattr(QInputDialog, "getText", lambda *_a, **_k: ("wrong-pass", True))
+        assert win.open_file(encrypted_docx) is False
+        assert len(dialogs) >= 1
+        assert win.current_file_path == orig_path
+        assert win.is_modified is True
+        assert "UnsavedQuireEdit" in _quire_text()
 
-    # 4. Corrupt .docx
-    dialogs.clear()
-    assert win.open_file(corrupt_docx) is False
-    assert len(dialogs) >= 1
-    assert win.current_file_path == orig_path
-    assert win.is_modified is True
-    assert "UnsavedQuireEdit" in _quire_text()
-
-    win.set_modified(False)
-    win.close()
-    qapp.processEvents()
+        # 4. Corrupt .docx
+        dialogs.clear()
+        assert win.open_file(corrupt_docx) is False
+        assert len(dialogs) >= 1
+        assert win.current_file_path == orig_path
+        assert win.is_modified is True
+        assert "UnsavedQuireEdit" in _quire_text()
+    finally:
+        win.set_modified(False)
+        win.close()
+        qapp.processEvents()
 
 
 def test_ledger_corrupt_open_preserves_dirty_workbook_and_xls_imports_cleanly(
@@ -122,33 +123,36 @@ def test_ledger_corrupt_open_preserves_dirty_workbook_and_xls_imports_cleanly(
         assert sample.exists(), sample
 
     win = LedgerWindow()
-    win.maybe_save_prompt = lambda: True
-    assert win.open_file(valid_xlsx) is True
-    orig_path = win.current_file_path
-    win.spreadsheet_view.model.set_cell_value(0, 0, "UnsavedLedgerEdit")
-    win.set_modified(True)
+    try:
+        win.maybe_save_prompt = lambda: True
+        assert win.open_file(valid_xlsx) is True
+        orig_path = win.current_file_path
+        win.spreadsheet_view.model.set_cell_value(0, 0, "UnsavedLedgerEdit")
+        win.set_modified(True)
 
-    for sample in corrupt_samples:
-        dialogs.clear()
-        assert win.open_file(sample) is False
-        assert any(lvl == "critical" for lvl, _t, _m in dialogs)
-        assert win.current_file_path == orig_path
-        assert win.is_modified is True
-        cell = win.spreadsheet_view.model.get_cell(0, 0)
-        assert cell is not None and cell.value == "UnsavedLedgerEdit"
-
-    win.set_modified(False)
-    win.close()
+        for sample in corrupt_samples:
+            dialogs.clear()
+            assert win.open_file(sample) is False
+            assert any(lvl == "critical" for lvl, _t, _m in dialogs)
+            assert win.current_file_path == orig_path
+            assert win.is_modified is True
+            cell = win.spreadsheet_view.model.get_cell(0, 0)
+            assert cell is not None and cell.value == "UnsavedLedgerEdit"
+    finally:
+        win.set_modified(False)
+        win.close()
 
     xls_win = LedgerWindow()
-    xls_win.maybe_save_prompt = lambda: True
-    dialogs.clear()
-    assert xls_win.open_file(valid_xls) is True
-    assert xls_win.is_read_only_import is True
-    assert dialogs == []
-    xls_win.set_modified(False)
-    xls_win.close()
-    qapp.processEvents()
+    try:
+        xls_win.maybe_save_prompt = lambda: True
+        dialogs.clear()
+        assert xls_win.open_file(valid_xls) is True
+        assert xls_win.is_read_only_import is True
+        assert dialogs == []
+    finally:
+        xls_win.set_modified(False)
+        xls_win.close()
+        qapp.processEvents()
 
 
 def test_lectern_unsupported_and_corrupt_open_preserves_dirty_presentation(
@@ -164,25 +168,26 @@ def test_lectern_unsupported_and_corrupt_open_preserves_dirty_presentation(
     corrupt_pptx.write_bytes(b"NOT_A_PPTX_ARCHIVE")
 
     win = LecternWindow()
-    win.maybe_save_prompt = lambda: True
-    assert win.open_file(valid_pptx) is True
-    orig_path = win.current_file_path
-    initial_slides = len(win.presentation.slides)
-    win.action_registry.trigger_action("newSlide")
-    assert len(win.presentation.slides) == initial_slides + 1
-    assert win.is_modified is True
-
-    for sample in (legacy_ppt, corrupt_pptx):
-        dialogs.clear()
-        assert win.open_file(sample) is False
-        assert len(dialogs) >= 1
-        assert win.current_file_path == orig_path
-        assert win.is_modified is True
+    try:
+        win.maybe_save_prompt = lambda: True
+        assert win.open_file(valid_pptx) is True
+        orig_path = win.current_file_path
+        initial_slides = len(win.presentation.slides)
+        win.action_registry.trigger_action("newSlide")
         assert len(win.presentation.slides) == initial_slides + 1
+        assert win.is_modified is True
 
-    win.set_modified(False)
-    win.close()
-    qapp.processEvents()
+        for sample in (legacy_ppt, corrupt_pptx):
+            dialogs.clear()
+            assert win.open_file(sample) is False
+            assert len(dialogs) >= 1
+            assert win.current_file_path == orig_path
+            assert win.is_modified is True
+            assert len(win.presentation.slides) == initial_slides + 1
+    finally:
+        win.set_modified(False)
+        win.close()
+        qapp.processEvents()
 
 
 def test_all_77_expectations_entries_classified_and_present() -> None:
