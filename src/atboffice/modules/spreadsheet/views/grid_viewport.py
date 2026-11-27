@@ -470,15 +470,24 @@ class GridViewport(
         top_left = vs.top_left_rc()
         if top_left is None:
             return
-        self._update_scrollbars()
         r, c = top_left
         fz_r, fz_c = self.freeze_rows, self.freeze_cols
-        if r >= fz_r:
-            fz_h = self.geometry_mapper.row_pos(fz_r) if fz_r > 0 else 0
-            self.verticalScrollBar().setValue(max(0, self.geometry_mapper.row_pos(r) - fz_h))
-        if c >= fz_c:
-            fz_w = self.geometry_mapper.col_pos(fz_c) if fz_c > 0 else 0
-            self.horizontalScrollBar().setValue(max(0, self.geometry_mapper.col_pos(c) - fz_w))
+        fz_h = self.geometry_mapper.row_pos(fz_r) if fz_r > 0 else 0
+        fz_w = self.geometry_mapper.col_pos(fz_c) if fz_c > 0 else 0
+        target_y = max(0, self.geometry_mapper.row_pos(r) - fz_h) if r >= fz_r else 0
+        target_x = max(0, self.geometry_mapper.col_pos(c) - fz_w) if c >= fz_c else 0
+        view_w, view_h = self._view_size()
+        vw = max(1, view_w - self.row_header_width)
+        vh = max(1, view_h - self.col_header_height)
+        self._update_scrollbars(min_bottom=target_y + vh, min_right=target_x + vw)
+        self._updating_scrollbars = True
+        try:
+            if r >= fz_r:
+                self.verticalScrollBar().setValue(target_y)
+            if c >= fz_c:
+                self.horizontalScrollBar().setValue(target_x)
+        finally:
+            self._updating_scrollbars = False
 
     def retranslate_ui(self) -> None:
         """Update localized UI text and trigger repaint."""
@@ -912,27 +921,35 @@ class GridViewport(
         cell_left = self.geometry_mapper.col_pos(c)
         cell_right = cell_left + self.geometry_mapper.col_size(c)
 
-        if fz_r > 0 and r < fz_r:
-            # Pinned row: already visible at the top
-            pass
-        else:
-            if cell_bottom > self.verticalScrollBar().maximum() + vh:
-                self._update_scrollbars(min_bottom=cell_bottom)
-            if cell_top < scroll_y + fz_r_h:
-                self.verticalScrollBar().setValue(max(0, cell_top - fz_r_h))
-            elif cell_bottom > scroll_y + vh:
-                self.verticalScrollBar().setValue(cell_bottom - vh)
+        self._update_scrollbars(
+            min_bottom=cell_bottom
+            if (fz_r == 0 or r >= fz_r) and cell_bottom > self.verticalScrollBar().maximum() + vh
+            else 0,
+            min_right=cell_right
+            if (fz_c == 0 or c >= fz_c) and cell_right > self.horizontalScrollBar().maximum() + vw
+            else 0,
+        )
+        self._updating_scrollbars = True
+        try:
+            if fz_r > 0 and r < fz_r:
+                # Pinned row: already visible at the top
+                pass
+            else:
+                if cell_top < scroll_y + fz_r_h:
+                    self.verticalScrollBar().setValue(max(0, cell_top - fz_r_h))
+                elif cell_bottom > scroll_y + vh:
+                    self.verticalScrollBar().setValue(cell_bottom - vh)
 
-        if fz_c > 0 and c < fz_c:
-            # Pinned column: already visible at the left
-            pass
-        else:
-            if cell_right > self.horizontalScrollBar().maximum() + vw:
-                self._update_scrollbars(min_right=cell_right)
-            if cell_left < scroll_x + fz_c_w:
-                self.horizontalScrollBar().setValue(max(0, cell_left - fz_c_w))
-            elif cell_right > scroll_x + vw:
-                self.horizontalScrollBar().setValue(cell_right - vw)
+            if fz_c > 0 and c < fz_c:
+                # Pinned column: already visible at the left
+                pass
+            else:
+                if cell_left < scroll_x + fz_c_w:
+                    self.horizontalScrollBar().setValue(max(0, cell_left - fz_c_w))
+                elif cell_right > scroll_x + vw:
+                    self.horizontalScrollBar().setValue(cell_right - vw)
+        finally:
+            self._updating_scrollbars = False
 
     def cell_rect(self, r: int, c: int) -> QRect:
         """Return the visible QRect coordinates for cell (r, c) within the viewport."""
