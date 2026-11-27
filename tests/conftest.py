@@ -1,10 +1,13 @@
 """Global pytest configuration and shared fixtures for ATBOffice."""
 
 import shutil
+import sys
 import tempfile
 from collections.abc import Generator
+from pathlib import Path
 from typing import Any
 
+import PySide6.QtCore as _qtcore
 import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtPrintSupport import QPrintDialog
@@ -12,25 +15,46 @@ from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBo
 
 from atboffice.core.app import ATBApplication, create_application
 
+_ORIG_QSETTINGS = QSettings
 _PYTEST_QSETTINGS_DIR: str | None = None
+
+
+class _IsolatedQSettings(_ORIG_QSETTINGS):  # type: ignore[misc]
+    """Redirect 1/2-arg QSettings(org, app) calls to per-worker INI files during pytest."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        if (
+            _PYTEST_QSETTINGS_DIR
+            and len(args) in (1, 2)
+            and all(isinstance(a, str) for a in args)
+            and not kwargs
+        ):
+            org = args[0]
+            app = args[1] if len(args) == 2 else org
+            ini_path = str(Path(_PYTEST_QSETTINGS_DIR) / f"{org}__{app}.ini")
+            super().__init__(ini_path, _ORIG_QSETTINGS.Format.IniFormat)
+        else:
+            super().__init__(*args, **kwargs)
 
 
 def pytest_configure(config: pytest.Config) -> None:
     """Create the suite's application before any test module can make a plain one."""
     global _PYTEST_QSETTINGS_DIR
     _PYTEST_QSETTINGS_DIR = tempfile.mkdtemp(prefix="atboffice-pytest-settings-")
-    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
-    QSettings.setPath(
-        QSettings.Format.IniFormat,
-        QSettings.Scope.UserScope,
-        _PYTEST_QSETTINGS_DIR,
-    )
+    _qtcore.QSettings = _IsolatedQSettings  # type: ignore[misc]
+    settings_mod = sys.modules.get("atboffice.core.settings")
+    if settings_mod is not None:
+        settings_mod.QSettings = _IsolatedQSettings  # type: ignore[attr-defined]
     create_application([])
 
 
 def pytest_unconfigure(config: pytest.Config) -> None:
     """Remove per-worker QSettings storage created during pytest_configure."""
     global _PYTEST_QSETTINGS_DIR
+    _qtcore.QSettings = _ORIG_QSETTINGS  # type: ignore[misc]
+    settings_mod = sys.modules.get("atboffice.core.settings")
+    if settings_mod is not None:
+        settings_mod.QSettings = _ORIG_QSETTINGS  # type: ignore[attr-defined]
     if _PYTEST_QSETTINGS_DIR:
         shutil.rmtree(_PYTEST_QSETTINGS_DIR, ignore_errors=True)
         _PYTEST_QSETTINGS_DIR = None
