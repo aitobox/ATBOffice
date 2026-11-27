@@ -1005,7 +1005,12 @@ class MacMenuBar(QMenuBar):
                 safe_tr("定义(&D)..."),
                 safe_tr("为选定单元格区域命名，以便在公式中引用"),
             ),
-            "insertComment": (safe_tr("批注(&M)"), safe_tr("为活动单元格添加批注")),
+            "insertComment": (
+                safe_tr("批注(&M)"),
+                safe_tr("插入新批注")
+                if self.app_type == "quire"
+                else safe_tr("为活动单元格添加批注"),
+            ),
             "insertChart": (safe_tr("图表(&H)..."), safe_tr("启动图表向导，根据选定数据创建图表")),
             "autoFormat": (
                 safe_tr("自动套用格式(&A)..."),

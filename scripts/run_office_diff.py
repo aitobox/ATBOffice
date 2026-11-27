@@ -15,6 +15,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 # Add repo root and src to sys.path
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -146,6 +147,40 @@ def run_diff_suite(
         print(f"Capture manifest written: {manifest}")
 
     return results
+
+
+def _score_of(result: DiffResult) -> float | None:
+    return result.foreground_score if result.foreground_score is not None else result.similarity
+
+
+def evaluate_strict_gate(
+    results: list[DiffResult],
+    min_similarity: float = 0.90,
+    min_single_similarity: float = 0.85,
+) -> dict[str, Any]:
+    """Evaluate strict quality gate metrics aligned with reporter.py exemptions."""
+    comparable = [r for r in results if _score_of(r) is not None]
+    avg_sim = (
+        (sum(_score_of(r) or 0.0 for r in comparable) / len(comparable)) if comparable else 0.0
+    )
+    waived = [r for r in comparable if r.reference_limitation]
+    failing = [
+        r
+        for r in comparable
+        if (_score_of(r) or 0.0) < min_single_similarity and not r.reference_limitation
+    ]
+    incomp = [r for r in results if _score_of(r) is None]
+    passed = bool(
+        comparable and avg_sim >= min_similarity and len(failing) == 0 and len(incomp) == 0
+    )
+    return {
+        "comparable": comparable,
+        "avg_sim": avg_sim,
+        "waived": waived,
+        "failing": failing,
+        "incomp": incomp,
+        "passed": passed,
+    }
 
 
 def main() -> int:
@@ -322,22 +357,26 @@ def main() -> int:
 
     print(f"\nReport generated: {report_out}")
 
-    def _score_of(r: DiffResult) -> float | None:
-        return r.foreground_score if r.foreground_score is not None else r.similarity
-
-    comparable = [r for r in results if _score_of(r) is not None]
-    avg_sim = (
-        (sum(_score_of(r) or 0.0 for r in comparable) / len(comparable)) if comparable else 0.0
+    gate = evaluate_strict_gate(
+        results,
+        min_similarity=args.min_similarity,
+        min_single_similarity=args.min_single_similarity,
     )
-    failing = [r for r in comparable if (_score_of(r) or 0.0) < args.min_single_similarity]
-    incomp = [r for r in results if _score_of(r) is None]
+    comparable = gate["comparable"]
+    avg_sim = gate["avg_sim"]
+    waived = gate["waived"]
+    failing = gate["failing"]
+    incomp = gate["incomp"]
 
     print(
         f"Summary: {len(comparable)}/{len(results)} comparable, foreground_avg={avg_sim * 100:.2f}%"
     )
-    print(f"Status: {len(failing)} below single threshold, {len(incomp)} incomparable/missing")
+    print(
+        f"Status: {len(failing)} below single threshold, {len(incomp)} incomparable/missing"
+        f" ({len(waived)} reference-limitation waived)"
+    )
 
-    if args.strict and (avg_sim < args.min_similarity or len(failing) > 0 or len(incomp) > 0):
+    if args.strict and not gate["passed"]:
         print("Quality gate failed in strict mode.", file=sys.stderr)
         return 1
 

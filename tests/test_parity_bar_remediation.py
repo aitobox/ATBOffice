@@ -166,3 +166,24 @@ def test_unexplained_drift_still_fails_single_bar(tmp_path) -> None:
 def test_diff_result_serializes_limitation() -> None:
     data = _result("b.xlsx", 0.82, "why").to_dict()
     assert json.loads(json.dumps(data))["reference_limitation"] == "why"
+
+
+def test_strict_gate_exempts_reference_limitation_and_checks_non_exempt() -> None:
+    from scripts.run_office_diff import evaluate_strict_gate
+
+    waived_ok = [_result("a.xlsx", 0.99), _result("b.xlsx", 0.82, "reference cannot draw groups")]
+    gate_ok = evaluate_strict_gate(waived_ok, min_similarity=0.90, min_single_similarity=0.85)
+    assert gate_ok["passed"] is True
+    assert len(gate_ok["waived"]) == 1
+    assert len(gate_ok["failing"]) == 0
+
+    non_exempt_fail = [_result("a.xlsx", 0.99), _result("c.xlsx", 0.82)]
+    gate_single_fail = evaluate_strict_gate(
+        non_exempt_fail, min_similarity=0.90, min_single_similarity=0.85
+    )
+    assert gate_single_fail["passed"] is False
+    assert [r.file for r in gate_single_fail["failing"]] == ["c.xlsx"]
+
+    avg_fail = [_result("a.xlsx", 0.90), _result("b.xlsx", 0.78, "reference cannot draw groups")]
+    gate_avg_fail = evaluate_strict_gate(avg_fail, min_similarity=0.90, min_single_similarity=0.85)
+    assert gate_avg_fail["passed"] is False
