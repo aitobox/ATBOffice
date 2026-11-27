@@ -12,6 +12,7 @@ from PySide6.QtGui import QCloseEvent, QShowEvent
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import QDialog, QFileDialog, QMainWindow, QMessageBox, QWidget
 
+from atboffice.core.fault_guard import is_alive
 from atboffice.core.i18n import get_i18n_manager, safe_tr
 from atboffice.core.undo import UndoService
 from atboffice.ui.styles.luna_2003 import apply_luna_theme
@@ -949,10 +950,10 @@ class BaseOfficeWindow(QMainWindow):
         """Stop all timers explicitly registered with this window."""
         for timer in list(getattr(self, "_owned_timers", [])):
             try:
-                if timer is not None and timer.isActive():
+                if is_alive(timer) and timer.isActive():
                     timer.stop()
             except Exception:
-                pass
+                logger.debug("Failed to stop timer during window cleanup", exc_info=True)
         if hasattr(self, "_owned_timers"):
             self._owned_timers.clear()
 
@@ -976,10 +977,10 @@ class BaseOfficeWindow(QMainWindow):
 
         for timer in self.findChildren(QTimer):
             try:
-                if timer.isActive():
+                if is_alive(timer) and timer.isActive():
                     timer.stop()
-            except (RuntimeError, Exception):
-                pass
+            except Exception:
+                logger.debug("Failed to stop timer during window cleanup", exc_info=True)
 
         # 3. Cancel any in-progress view gestures or edits
         cw = self.centralWidget()

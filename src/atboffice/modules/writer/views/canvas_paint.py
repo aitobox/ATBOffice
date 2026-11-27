@@ -22,6 +22,7 @@ from PySide6.QtGui import (
     QTextOption,
 )
 
+from atboffice.core.fault_guard import guard_qt_event
 from atboffice.modules.writer.layout.math_layout import paint_math
 from atboffice.modules.writer.layout.pagination import (
     Page,
@@ -55,121 +56,123 @@ from atboffice.modules.writer.views.view_modes import ViewMode
 class CanvasPaintMixin:
     """Paints pages, text runs and their decorations, the selection and the caret."""
 
+    @guard_qt_event("writer_canvas", "paint")
     def paintEvent(self, event: QPaintEvent) -> None:
         """Paint workspace background, paper pages, shadow, text portions, selection, and caret."""
         painter = QPainter(self.viewport())
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
 
-        # 1. Paint Workspace Background
-        painter.fillRect(self.viewport().rect(), COLOR_WORKSPACE_BG)
+            # 1. Paint Workspace Background
+            painter.fillRect(self.viewport().rect(), COLOR_WORKSPACE_BG)
 
-        if not self.pagination or not self.pagination.pages:
-            painter.end()
-            return
+            if not self.pagination or not self.pagination.pages:
+                return
 
-        visible_rect = self.viewport().rect()
-        scroll_x = self.horizontalScrollBar().value()
-        scroll_y = self.verticalScrollBar().value()
+            visible_rect = self.viewport().rect()
+            scroll_x = self.horizontalScrollBar().value()
+            scroll_y = self.verticalScrollBar().value()
 
-        paper_view = self.view_mode in (ViewMode.PRINT, ViewMode.READING)
-        if not paper_view:
-            # Normal / Web layout: one continuous white sheet, no paper
-            painter.fillRect(self.viewport().rect(), COLOR_PAGE_PAPER)
-        slots = self.page_slots() if not paper_view else None
-
-        # Render each page
-        for p_idx, page in enumerate(self.pagination.pages):
-            rect_canvas = self.page_rect_canvas(p_idx)
-            if rect_canvas.isEmpty():
-                continue
-            rect_vp = QRectF(
-                rect_canvas.left() - scroll_x,
-                rect_canvas.top() - scroll_y,
-                rect_canvas.width(),
-                rect_canvas.height(),
-            )
-            clip_vp = rect_vp
-            if slots is not None:
-                clip = slots[p_idx][1]
-                clip_vp = QRectF(
-                    clip.left() - scroll_x, clip.top() - scroll_y, clip.width(), clip.height()
-                )
-
-            # Viewport culling
-            if not clip_vp.intersects(QRectF(visible_rect)):
-                continue
-
-            painter.save()
+            paper_view = self.view_mode in (ViewMode.PRINT, ViewMode.READING)
             if not paper_view:
-                painter.setClipRect(clip_vp)
+                # Normal / Web layout: one continuous white sheet, no paper
+                painter.fillRect(self.viewport().rect(), COLOR_PAGE_PAPER)
+            slots = self.page_slots() if not paper_view else None
 
-            # 2. Paint Page Drop Shadow (only in PRINT and READING modes)
-            if paper_view:
-                self._paint_page_shadow(painter, rect_vp)
-
-                # 3. Paint Page Sheet Background & Border
-                painter.fillRect(rect_vp, COLOR_PAGE_PAPER)
-                painter.setPen(QPen(COLOR_PAGE_BORDER, 1.0))
-                painter.drawRect(rect_vp)
-
-            # 4. Paint Selection Highlights on this page
-            self._paint_selection(painter, p_idx, rect_vp, page)
-
-            # 5. Paint Document Content (Text Lines & Portions)
-            self._paint_page_content(painter, rect_vp, page)
-
-            # 5.05 Header/footer editing: dim the body, frame the header/footer area
-            if self.hf_edit_kind and paper_view:
-                self._paint_hf_edit_overlay(painter, rect_vp, page)
-
-            # 5.06 Selected floating object: frame and sizing handles
-            self._paint_float_selection(painter, p_idx, rect_vp, page)
-
-            # 5.1 Paint Comment Balloons & Range Annotations
-            if self.show_comments and paper_view:
-                self._paint_comments(painter, rect_vp, page)
-            painter.restore()
-
-            # Normal view: a dotted line where one page ends and the next begins
-            if self.view_mode == ViewMode.NORMAL and p_idx > 0:
-                painter.setPen(QPen(QColor(128, 128, 128), 1.0, Qt.PenStyle.DotLine))
-                painter.drawLine(
-                    QPointF(0.0, clip_vp.top()),
-                    QPointF(float(self.viewport().width()), clip_vp.top()),
+            # Render each page
+            for p_idx, page in enumerate(self.pagination.pages):
+                rect_canvas = self.page_rect_canvas(p_idx)
+                if rect_canvas.isEmpty():
+                    continue
+                rect_vp = QRectF(
+                    rect_canvas.left() - scroll_x,
+                    rect_canvas.top() - scroll_y,
+                    rect_canvas.width(),
+                    rect_canvas.height(),
                 )
+                clip_vp = rect_vp
+                if slots is not None:
+                    clip = slots[p_idx][1]
+                    clip_vp = QRectF(
+                        clip.left() - scroll_x, clip.top() - scroll_y, clip.width(), clip.height()
+                    )
 
-        # 5.2 Formatting marks (¶ at each paragraph end) when toggled on
-        if self.show_formatting_marks:
-            self._paint_formatting_marks(painter)
+                # Viewport culling
+                if not clip_vp.intersects(QRectF(visible_rect)):
+                    continue
 
-        # 6. Paint Blinking Caret
-        if self.hasFocus() and self.controller.caret_visible:
-            self._paint_caret(painter)
+                painter.save()
+                if not paper_view:
+                    painter.setClipRect(clip_vp)
 
-        # 7. Paint Table Resize Guide Line
-        if self._resizing_table and self._resize_guide_pos and self._resize_info:
-            guide_pen = QPen(QColor(0, 51, 153), 1.5, Qt.PenStyle.DashLine)
-            painter.setPen(guide_pen)
-            if self._resize_info.get("kind") == "col":
-                gx = float(self._resize_guide_pos.x())
-                painter.drawLine(QPointF(gx, 0), QPointF(gx, self.viewport().height()))
-            elif self._resize_info.get("kind") == "row":
-                gy = float(self._resize_guide_pos.y())
-                painter.drawLine(QPointF(0, gy), QPointF(self.viewport().width(), gy))
+                # 2. Paint Page Drop Shadow (only in PRINT and READING modes)
+                if paper_view:
+                    self._paint_page_shadow(painter, rect_vp)
 
-        # 8. Paint Ruler Guide Line
-        if self._ruler_guide_x is not None or self._ruler_guide_y is not None:
-            ruler_pen = QPen(QColor(60, 60, 60, 200), 1.0, Qt.PenStyle.DashLine)
-            painter.setPen(ruler_pen)
-            if self._ruler_guide_x is not None:
-                gx = self._ruler_guide_x - scroll_x
-                painter.drawLine(QPointF(gx, 0), QPointF(gx, float(self.viewport().height())))
-            if self._ruler_guide_y is not None:
-                gy = self._ruler_guide_y - scroll_y
-                painter.drawLine(QPointF(0, gy), QPointF(float(self.viewport().width()), gy))
+                    # 3. Paint Page Sheet Background & Border
+                    painter.fillRect(rect_vp, COLOR_PAGE_PAPER)
+                    painter.setPen(QPen(COLOR_PAGE_BORDER, 1.0))
+                    painter.drawRect(rect_vp)
 
-        painter.end()
+                # 4. Paint Selection Highlights on this page
+                self._paint_selection(painter, p_idx, rect_vp, page)
+
+                # 5. Paint Document Content (Text Lines & Portions)
+                self._paint_page_content(painter, rect_vp, page)
+
+                # 5.05 Header/footer editing: dim the body, frame the header/footer area
+                if self.hf_edit_kind and paper_view:
+                    self._paint_hf_edit_overlay(painter, rect_vp, page)
+
+                # 5.06 Selected floating object: frame and sizing handles
+                self._paint_float_selection(painter, p_idx, rect_vp, page)
+
+                # 5.1 Paint Comment Balloons & Range Annotations
+                if self.show_comments and paper_view:
+                    self._paint_comments(painter, rect_vp, page)
+                painter.restore()
+
+                # Normal view: a dotted line where one page ends and the next begins
+                if self.view_mode == ViewMode.NORMAL and p_idx > 0:
+                    painter.setPen(QPen(QColor(128, 128, 128), 1.0, Qt.PenStyle.DotLine))
+                    painter.drawLine(
+                        QPointF(0.0, clip_vp.top()),
+                        QPointF(float(self.viewport().width()), clip_vp.top()),
+                    )
+
+            # 5.2 Formatting marks (¶ at each paragraph end) when toggled on
+            if self.show_formatting_marks:
+                self._paint_formatting_marks(painter)
+
+            # 6. Paint Blinking Caret
+            if self.hasFocus() and self.controller.caret_visible:
+                self._paint_caret(painter)
+
+            # 7. Paint Table Resize Guide Line
+            if self._resizing_table and self._resize_guide_pos and self._resize_info:
+                guide_pen = QPen(QColor(0, 51, 153), 1.5, Qt.PenStyle.DashLine)
+                painter.setPen(guide_pen)
+                if self._resize_info.get("kind") == "col":
+                    gx = float(self._resize_guide_pos.x())
+                    painter.drawLine(QPointF(gx, 0), QPointF(gx, self.viewport().height()))
+                elif self._resize_info.get("kind") == "row":
+                    gy = float(self._resize_guide_pos.y())
+                    painter.drawLine(QPointF(0, gy), QPointF(self.viewport().width(), gy))
+
+            # 8. Paint Ruler Guide Line
+            if self._ruler_guide_x is not None or self._ruler_guide_y is not None:
+                ruler_pen = QPen(QColor(60, 60, 60, 200), 1.0, Qt.PenStyle.DashLine)
+                painter.setPen(ruler_pen)
+                if self._ruler_guide_x is not None:
+                    gx = self._ruler_guide_x - scroll_x
+                    painter.drawLine(QPointF(gx, 0), QPointF(gx, float(self.viewport().height())))
+                if self._ruler_guide_y is not None:
+                    gy = self._ruler_guide_y - scroll_y
+                    painter.drawLine(QPointF(0, gy), QPointF(float(self.viewport().width()), gy))
+        finally:
+            if painter.isActive():
+                painter.end()
 
     def _draw_wavy_line(
         self,

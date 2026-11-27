@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QToolTip,
 )
 
+from atboffice.core.fault_guard import guard_qt_event
 from atboffice.core.i18n import safe_tr
 from atboffice.modules.spreadsheet.calc.references import (
     range_name,
@@ -255,6 +256,7 @@ class GridMouseMixin:
         self.viewport().setCursor(Qt.CursorShape.ArrowCursor)
         self.viewport().update()
 
+    @guard_qt_event("spreadsheet_grid", "mouse_press")
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton and self._view_mode == "page_break":
             gx, gy = self.map_from_device(event.position().x(), event.position().y())
@@ -498,6 +500,7 @@ class GridMouseMixin:
             self.reveal(hit.row, hit.col)
             self.viewport().update()
 
+    @guard_qt_event("spreadsheet_grid", "mouse_move")
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         if getattr(self, "_page_break_drag", None) is not None:
             gx, gy = self.map_from_device(event.position().x(), event.position().y())
@@ -790,6 +793,7 @@ class GridMouseMixin:
         if event is not None:
             super().leaveEvent(event)
 
+    @guard_qt_event("spreadsheet_grid", "mouse_release")
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if getattr(self, "_page_break_drag", None) is not None:
             self.finish_page_break_drag()

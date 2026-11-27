@@ -540,10 +540,12 @@ class SpreadsheetObjectLayer(QWidget):
         objs = self.objects
         if not objs or obj not in objs:
             return
+        before = copy.deepcopy(getattr(self.model, "drawings", []))
         objs.remove(obj)
         objs.append(obj)
         for i, o in enumerate(objs):
             o.z_index = i
+        self._record_layer_snapshot(before, "调整对象叠放次序")
         self.update()
 
     def send_to_back(self, obj: FloatingObject) -> None:
@@ -551,10 +553,12 @@ class SpreadsheetObjectLayer(QWidget):
         objs = self.objects
         if not objs or obj not in objs:
             return
+        before = copy.deepcopy(getattr(self.model, "drawings", []))
         objs.remove(obj)
         objs.insert(0, obj)
         for i, o in enumerate(objs):
             o.z_index = i
+        self._record_layer_snapshot(before, "调整对象叠放次序")
         self.update()
 
     def bring_forward(self, obj: FloatingObject) -> None:
@@ -564,9 +568,11 @@ class SpreadsheetObjectLayer(QWidget):
             return
         idx = objs.index(obj)
         if idx < len(objs) - 1:
+            before = copy.deepcopy(getattr(self.model, "drawings", []))
             objs[idx], objs[idx + 1] = objs[idx + 1], objs[idx]
             for i, o in enumerate(objs):
                 o.z_index = i
+            self._record_layer_snapshot(before, "调整对象叠放次序")
             self.update()
 
     def send_backward(self, obj: FloatingObject) -> None:
@@ -576,9 +582,11 @@ class SpreadsheetObjectLayer(QWidget):
             return
         idx = objs.index(obj)
         if idx > 0:
+            before = copy.deepcopy(getattr(self.model, "drawings", []))
             objs[idx], objs[idx - 1] = objs[idx - 1], objs[idx]
             for i, o in enumerate(objs):
                 o.z_index = i
+            self._record_layer_snapshot(before, "调整对象叠放次序")
             self.update()
 
     # Clipboard & Editing
@@ -1048,6 +1056,7 @@ class SpreadsheetObjectLayer(QWidget):
             return
         from PySide6.QtWidgets import QInputDialog
 
+        before = copy.deepcopy(getattr(self.model, "drawings", []))
         new_text, ok = QInputDialog.getMultiLineText(
             self,
             safe_tr("编辑文字"),
@@ -1056,6 +1065,7 @@ class SpreadsheetObjectLayer(QWidget):
         )
         if ok:
             target.text = new_text
+            self._record_layer_snapshot(before, "编辑文字")
             self.update()
             self.mark_dirty()
 
@@ -1068,13 +1078,15 @@ class SpreadsheetObjectLayer(QWidget):
             FormatObjectDialog,
         )
 
+        before = copy.deepcopy(getattr(self.model, "drawings", []))
         dlg = FormatObjectDialog(target, parent=self)
         if dlg.exec():
+            self._record_layer_snapshot(before, "设置对象格式")
             self.update()
             self.mark_dirty()
 
-    def open_chart_type_dialog(self, obj: FloatingObject | None = None) -> None:
-        """Open Chart Type dialog."""
+    def _open_chart_dialog(self, obj: FloatingObject | None = None) -> None:
+        """Open Chart Wizard dialog and record an undo snapshot on acceptance."""
         target = obj or self.selected_object
         if target is None:
             return
@@ -1083,29 +1095,22 @@ class SpreadsheetObjectLayer(QWidget):
                 ChartWizardDialog,
             )
 
+            before = copy.deepcopy(getattr(self.model, "drawings", []))
             dlg = ChartWizardDialog(parent=self)
             if dlg.exec():
+                self._record_layer_snapshot(before, "更改图表类型")
                 self.update()
                 self.mark_dirty()
         except ImportError:
             pass
+
+    def open_chart_type_dialog(self, obj: FloatingObject | None = None) -> None:
+        """Open Chart Type dialog."""
+        self._open_chart_dialog(obj)
 
     def open_chart_options_dialog(self, obj: FloatingObject | None = None) -> None:
         """Open Chart Options dialog."""
-        target = obj or self.selected_object
-        if target is None:
-            return
-        try:
-            from atboffice.modules.spreadsheet.dialogs.chart_wizard import (
-                ChartWizardDialog,
-            )
-
-            dlg = ChartWizardDialog(parent=self)
-            if dlg.exec():
-                self.update()
-                self.mark_dirty()
-        except ImportError:
-            pass
+        self._open_chart_dialog(obj)
 
     def mark_dirty(self) -> None:
         """Mark parent window and document dirty."""

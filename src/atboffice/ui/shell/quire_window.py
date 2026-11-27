@@ -11,6 +11,7 @@ from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QComboBox, QDialog, QMessageBox, QWidget
 
 from atboffice.core.action_registry import ActionRegistry
+from atboffice.core.fault_guard import guard_qt_slot, safe_single_shot
 from atboffice.core.i18n import safe_tr
 from atboffice.core.search import SearchController, WriterSearchAdapter
 from atboffice.modules.writer.dialogs import (
@@ -1605,6 +1606,7 @@ class QuireWindow(BaseOfficeWindow):
         pos = controller.pos
         self._on_caret_moved(pos.para_id, pos.offset)
 
+    @guard_qt_slot("quire_window", "end_caret_sync_turn")
     def _end_caret_sync_turn(self) -> None:
         self._caret_sync_in_turn = False
 
@@ -1621,6 +1623,7 @@ class QuireWindow(BaseOfficeWindow):
             getattr(sel.focus, "offset", None),
         )
 
+    @guard_qt_slot("quire_window", "caret_moved")
     def _on_caret_moved(self, para_id: int, offset: int) -> None:
         """Handle caret movement: sync toolbar controls and contextual visibility."""
         timer = getattr(self, "_caret_ui_timer", None)
@@ -1636,7 +1639,7 @@ class QuireWindow(BaseOfficeWindow):
         self._last_caret_sync_key = key
         if not getattr(self, "_caret_sync_in_turn", False):
             self._caret_sync_in_turn = True
-            QTimer.singleShot(0, self, self._end_caret_sync_turn)
+            safe_single_shot(0, self, self._end_caret_sync_turn)
         canvas = self.writer_view.canvas_view
         in_table = canvas.get_current_table_context() is not None
         has_revisions = bool(getattr(canvas.doc, "comments", [])) or is_tracking(canvas.doc)

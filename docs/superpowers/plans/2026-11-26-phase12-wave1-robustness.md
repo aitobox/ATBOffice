@@ -117,9 +117,7 @@ def test_indirect_formula_resolves_cell_reference() -> None:
     assert (ref.sheet, ref.r1, ref.c1, ref.r2, ref.c2) == ("Sheet1", 2, 1, 2, 1)
 
 
-def test_ledger_comment_and_validation_resolve_without_import_error(
-    qtbot, monkeypatch
-) -> None:
+def test_ledger_comment_and_validation_resolve_without_import_error(qtbot, monkeypatch) -> None:
     """Ledger insert_comment and data_validation must not fail on missing to_a1."""
     from atboffice.modules.spreadsheet.dialogs.comment_dialog import CommentDialog
     from atboffice.modules.spreadsheet.dialogs.data_validation_dialog import (
@@ -187,14 +185,12 @@ Edit `src/atboffice/modules/writer/view.py` lines 309–317:
 Edit `src/atboffice/modules/spreadsheet/calc/fn_dynamic.py` lines 797–803:
 
 ```python
-    from atboffice.modules.spreadsheet.calc.references import parse_range
+from atboffice.modules.spreadsheet.calc.references import parse_range
 
-    parsed = parse_range(s)
-    if parsed is not None:
-        return ctx.create_ref(
-            sheet, parsed["r1"], parsed["c1"], parsed["r2"], parsed["c2"]
-        )
-    return REF
+parsed = parse_range(s)
+if parsed is not None:
+    return ctx.create_ref(sheet, parsed["r1"], parsed["c1"], parsed["r2"], parsed["c2"])
+return REF
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -471,21 +467,22 @@ In `__init__` (after line 60):
 Add helper methods right above `cleanup_resources` (around line 942) and invoke `self.stop_owned_timers()` inside `cleanup_resources()`:
 
 ```python
-    def register_owned_timer(self, timer: QTimer) -> None:
-        """Track a timer so ``cleanup_resources`` stops it even if not parented to self."""
-        if timer not in self._owned_timers:
-            self._owned_timers.append(timer)
+def register_owned_timer(self, timer: QTimer) -> None:
+    """Track a timer so ``cleanup_resources`` stops it even if not parented to self."""
+    if timer not in self._owned_timers:
+        self._owned_timers.append(timer)
 
-    def stop_owned_timers(self) -> None:
-        """Stop all timers explicitly registered with this window."""
-        for timer in list(getattr(self, "_owned_timers", [])):
-            try:
-                if timer is not None and timer.isActive():
-                    timer.stop()
-            except Exception:
-                pass
-        if hasattr(self, "_owned_timers"):
-            self._owned_timers.clear()
+
+def stop_owned_timers(self) -> None:
+    """Stop all timers explicitly registered with this window."""
+    for timer in list(getattr(self, "_owned_timers", [])):
+        try:
+            if timer is not None and timer.isActive():
+                timer.stop()
+        except Exception:
+            pass
+    if hasattr(self, "_owned_timers"):
+        self._owned_timers.clear()
 ```
 
 And in `cleanup_resources()` (before step 2 `findChildren(QTimer)`):
@@ -552,9 +549,7 @@ def _shape_items(doc) -> list[ShapeItem]:
     return items
 
 
-def test_quire_insert_shape_and_float_ops_are_undoable_and_persist(
-    qtbot, tmp_path
-) -> None:
+def test_quire_insert_shape_and_float_ops_are_undoable_and_persist(qtbot, tmp_path) -> None:
     win = QuireWindow()
     qtbot.addWidget(win)
     win.resize(1100, 800)
@@ -591,9 +586,7 @@ def test_quire_insert_shape_and_float_ops_are_undoable_and_persist(
     win.set_modified(False)
 
 
-def test_quire_click_and_type_after_shape_on_numbered_docx_is_fast(
-    qtbot, qapp
-) -> None:
+def test_quire_click_and_type_after_shape_on_numbered_docx_is_fast(qtbot, qapp) -> None:
     win = QuireWindow()
     qtbot.addWidget(win)
     win.resize(1100, 800)
@@ -665,137 +658,143 @@ from atboffice.modules.writer.models.drawing import (
 Add shape mapping + methods at the end of `CanvasEditingMixin`:
 
 ```python
-    _SHAPE_GEOM_MAP: dict[str, str] = {
-        "rect": "rect",
-        "basic": "roundRect",
-        "oval": "ellipse",
-        "line": "line",
-        "arrow": "rightArrow",
-        "connector": "straightConnector1",
-        "flowchart": "flowChartProcess",
-        "star": "star5",
-        "callout": "wedgeRoundRectCallout",
-        "textbox": "rect",
-    }
+_SHAPE_GEOM_MAP: dict[str, str] = {
+    "rect": "rect",
+    "basic": "roundRect",
+    "oval": "ellipse",
+    "line": "line",
+    "arrow": "rightArrow",
+    "connector": "straightConnector1",
+    "flowchart": "flowChartProcess",
+    "star": "star5",
+    "callout": "wedgeRoundRectCallout",
+    "textbox": "rect",
+}
 
-    @_undoable("插入图形")
-    def insert_shape(self, shape_type: str = "rect") -> ShapeItem | None:
-        """Insert a floating DrawingML shape or text box anchored at the caret paragraph."""
-        p = self.controller._paragraph_by_id(self.controller.pos.para_id)
+
+@_undoable("插入图形")
+def insert_shape(self, shape_type: str = "rect") -> ShapeItem | None:
+    """Insert a floating DrawingML shape or text box anchored at the caret paragraph."""
+    p = self.controller._paragraph_by_id(self.controller.pos.para_id)
+    if p is None:
+        if not self.doc.main.blocks:
+            return None
+        p = next((b for b in self.doc.main.blocks if isinstance(b, Paragraph)), None)
         if p is None:
-            if not self.doc.main.blocks:
-                return None
-            p = next((b for b in self.doc.main.blocks if isinstance(b, Paragraph)), None)
-            if p is None:
-                return None
-        geom = self._SHAPE_GEOM_MAP.get(shape_type, shape_type or "rect")
-        is_line = shape_type in ("line", "connector")
-        is_textbox = shape_type == "textbox"
-        width = 144.0
-        height = 2.0 if is_line else 72.0
-        story = (
-            Story(blocks=[Paragraph(runs=[TextItem(text=safe_tr("文本框"))])])
-            if is_textbox
-            else None
-        )
-        fill = (
-            DmlFill(kind="none")
-            if is_line
-            else DmlFill(kind="solid", color="#FFFFFF" if is_textbox else "#D9E2F3")
-        )
-        line = DmlLine(visible=True, color="#2F5597", width=1.25)
-        next_id = max((getattr(r, "id", 0) for r in p.runs), default=0) + 1
-        item = ShapeItem(
-            id=next_id,
-            name=f"{shape_type}_{next_id}",
-            width=width,
-            height=height,
-            float_pr=FloatProperties(
-                wrap=WrapMode.IN_FRONT,
-                pos_h=PositionH(rel="margin", offset=72.0),
-                pos_v=PositionV(rel="paragraph", offset=12.0),
-                z_index=max((getattr(getattr(r, "float_pr", None), "z_index", 0) for r in p.runs), default=0) + 1,
-            ),
-            geometry=geom,
-            fill=fill,
-            line=line,
-            story=story,
-        )
-        p.runs.append(item)
-        self._on_formatting_applied()
-        page_idx = 0
-        if getattr(self, "pagination", None) and self.pagination.pages:
-            from atboffice.modules.writer.views import float_edit
-
-            for idx, page in enumerate(self.pagination.pages):
-                if float_edit.box_for_item(page, item) is not None:
-                    page_idx = idx
-                    break
-        self.select_float(page_idx, item)
-        return item
-
-    @_undoable("调整对象叠放次序")
-    def reorder_selected_object(self, direction: str) -> bool:
-        """Adjust z-order of the currently selected floating object."""
-        item = self.selected_float()
-        fp = getattr(item, "float_pr", None) if item is not None else None
-        if fp is None:
-            return False
-        if direction in ("front", "bring_to_front"):
-            fp.behind = False
-            fp.z_index = fp.z_index + 10
-        elif direction in ("back", "send_to_back"):
-            fp.z_index = max(0, fp.z_index - 10)
-        elif direction in ("forward", "bring_forward"):
-            fp.z_index = fp.z_index + 1
-        elif direction in ("backward", "send_backward"):
-            fp.z_index = max(0, fp.z_index - 1)
-        self._on_formatting_applied()
-        return True
-
-    @_undoable("微移对象")
-    def nudge_selected_object(self, dx: float, dy: float) -> bool:
-        """Move the currently selected floating object by (dx, dy) points."""
-        item = self.selected_float()
-        fp = getattr(item, "float_pr", None) if item is not None else None
-        if fp is None:
-            return False
+            return None
+    geom = self._SHAPE_GEOM_MAP.get(shape_type, shape_type or "rect")
+    is_line = shape_type in ("line", "connector")
+    is_textbox = shape_type == "textbox"
+    width = 144.0
+    height = 2.0 if is_line else 72.0
+    story = (
+        Story(blocks=[Paragraph(runs=[TextItem(text=safe_tr("文本框"))])]) if is_textbox else None
+    )
+    fill = (
+        DmlFill(kind="none")
+        if is_line
+        else DmlFill(kind="solid", color="#FFFFFF" if is_textbox else "#D9E2F3")
+    )
+    line = DmlLine(visible=True, color="#2F5597", width=1.25)
+    next_id = max((getattr(r, "id", 0) for r in p.runs), default=0) + 1
+    item = ShapeItem(
+        id=next_id,
+        name=f"{shape_type}_{next_id}",
+        width=width,
+        height=height,
+        float_pr=FloatProperties(
+            wrap=WrapMode.IN_FRONT,
+            pos_h=PositionH(rel="margin", offset=72.0),
+            pos_v=PositionV(rel="paragraph", offset=12.0),
+            z_index=max(
+                (getattr(getattr(r, "float_pr", None), "z_index", 0) for r in p.runs), default=0
+            )
+            + 1,
+        ),
+        geometry=geom,
+        fill=fill,
+        line=line,
+        story=story,
+    )
+    p.runs.append(item)
+    self._on_formatting_applied()
+    page_idx = 0
+    if getattr(self, "pagination", None) and self.pagination.pages:
         from atboffice.modules.writer.views import float_edit
 
-        found = self._selected_float_box()
-        fb_x = found[1].x if found is not None else fp.pos_h.offset
-        fb_y = found[1].y if found is not None else fp.pos_v.offset
-        float_edit.apply_move(item, fb_x, fb_y, float(dx), float(dy))
-        self._on_formatting_applied()
-        return True
+        for idx, page in enumerate(self.pagination.pages):
+            if float_edit.box_for_item(page, item) is not None:
+                page_idx = idx
+                break
+    self.select_float(page_idx, item)
+    return item
 
-    @_undoable("对齐对象")
-    def align_selected_objects(self, alignment: str) -> bool:
-        """Align the selected floating object horizontally or vertically on the page."""
-        item = self.selected_float()
-        fp = getattr(item, "float_pr", None) if item is not None else None
-        if fp is None:
-            return False
-        if alignment in ("left", "center", "right"):
-            fp.pos_h.rel = "margin"
-            fp.pos_h.align = alignment
-            fp.pos_h.percent = None
-        elif alignment in ("top", "middle", "bottom"):
-            fp.pos_v.rel = "margin"
-            fp.pos_v.align = "center" if alignment == "middle" else alignment
-            fp.pos_v.percent = None
-        self._on_formatting_applied()
-        return True
 
-    @_undoable("旋转对象")
-    def rotate_selected_object(self, angle: float) -> bool:
-        """Rotate the selected floating object by ``angle`` degrees."""
-        item = self.selected_float()
-        if item is None:
-            return False
-        item.rotation = (float(getattr(item, "rotation", 0.0)) + float(angle)) % 360.0
-        self._on_formatting_applied()
-        return True
+@_undoable("调整对象叠放次序")
+def reorder_selected_object(self, direction: str) -> bool:
+    """Adjust z-order of the currently selected floating object."""
+    item = self.selected_float()
+    fp = getattr(item, "float_pr", None) if item is not None else None
+    if fp is None:
+        return False
+    if direction in ("front", "bring_to_front"):
+        fp.behind = False
+        fp.z_index = fp.z_index + 10
+    elif direction in ("back", "send_to_back"):
+        fp.z_index = max(0, fp.z_index - 10)
+    elif direction in ("forward", "bring_forward"):
+        fp.z_index = fp.z_index + 1
+    elif direction in ("backward", "send_backward"):
+        fp.z_index = max(0, fp.z_index - 1)
+    self._on_formatting_applied()
+    return True
+
+
+@_undoable("微移对象")
+def nudge_selected_object(self, dx: float, dy: float) -> bool:
+    """Move the currently selected floating object by (dx, dy) points."""
+    item = self.selected_float()
+    fp = getattr(item, "float_pr", None) if item is not None else None
+    if fp is None:
+        return False
+    from atboffice.modules.writer.views import float_edit
+
+    found = self._selected_float_box()
+    fb_x = found[1].x if found is not None else fp.pos_h.offset
+    fb_y = found[1].y if found is not None else fp.pos_v.offset
+    float_edit.apply_move(item, fb_x, fb_y, float(dx), float(dy))
+    self._on_formatting_applied()
+    return True
+
+
+@_undoable("对齐对象")
+def align_selected_objects(self, alignment: str) -> bool:
+    """Align the selected floating object horizontally or vertically on the page."""
+    item = self.selected_float()
+    fp = getattr(item, "float_pr", None) if item is not None else None
+    if fp is None:
+        return False
+    if alignment in ("left", "center", "right"):
+        fp.pos_h.rel = "margin"
+        fp.pos_h.align = alignment
+        fp.pos_h.percent = None
+    elif alignment in ("top", "middle", "bottom"):
+        fp.pos_v.rel = "margin"
+        fp.pos_v.align = "center" if alignment == "middle" else alignment
+        fp.pos_v.percent = None
+    self._on_formatting_applied()
+    return True
+
+
+@_undoable("旋转对象")
+def rotate_selected_object(self, angle: float) -> bool:
+    """Rotate the selected floating object by ``angle`` degrees."""
+    item = self.selected_float()
+    if item is None:
+        return False
+    item.rotation = (float(getattr(item, "rotation", 0.0)) + float(angle)) % 360.0
+    self._on_formatting_applied()
+    return True
 ```
 
 3. Edit `src/atboffice/modules/writer/views/canvas_input.py`:
@@ -815,48 +814,49 @@ from atboffice.core.fault_guard import guard_qt_event
 Wait — keep the full existing method bodies intact and wrap `mousePressEvent`, `mouseMoveEvent`, `mouseReleaseEvent`, and `keyPressEvent` with `@guard_qt_event("writer_canvas", ...)`:
 
 ```python
-    @guard_qt_event("writer_canvas", "mouse_press")
-    def mousePressEvent(self, event: QMouseEvent) -> None:
-        pos_pt = self._event_pos(event)
-        if event.button() == Qt.MouseButton.LeftButton:
-            hit = self._hit_test_table_divider(pos_pt)
-            if hit is not None:
-                self._resizing_table = True
-                self._resize_info = hit
-                self._resize_guide_pos = pos_pt
-                self.viewport().update()
-                return
-
-            page_idx, pt_doc = self.viewport_to_doc_coords(pos_pt)
-            if self._float_press(page_idx, pt_doc):
-                return
-            self.setFocus()
-            pos = self.controller.canvas_to_pos(page_idx, pt_doc)
-
-            p = self.controller._paragraph_by_id(pos.para_id)
-            if p:
-                from atboffice.modules.writer.models.document import locate
-
-                item_idx, _, _ = locate(p, pos.offset, side="after")
-                if 0 <= item_idx < len(p.runs):
-                    it = p.runs[item_idx]
-                    link = getattr(it.r_pr, "link", None) if hasattr(it, "r_pr") else None
-                    if link and isinstance(link, dict) and "anchor" in link:
-                        if self.jump_to_bookmark(link["anchor"]):
-                            return
-
-            modifiers = event.modifiers()
-            shift = bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
-
-            self._is_dragging = True
-            self.setFocus()
-            self.controller.set_pos(pos, extend_selection=shift)
+@guard_qt_event("writer_canvas", "mouse_press")
+def mousePressEvent(self, event: QMouseEvent) -> None:
+    pos_pt = self._event_pos(event)
+    if event.button() == Qt.MouseButton.LeftButton:
+        hit = self._hit_test_table_divider(pos_pt)
+        if hit is not None:
+            self._resizing_table = True
+            self._resize_info = hit
+            self._resize_guide_pos = pos_pt
             self.viewport().update()
+            return
 
-    @guard_qt_event("writer_canvas", "mouse_move")
-    def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        # Existing body preserved unchanged under @guard_qt_event
-        ...
+        page_idx, pt_doc = self.viewport_to_doc_coords(pos_pt)
+        if self._float_press(page_idx, pt_doc):
+            return
+        self.setFocus()
+        pos = self.controller.canvas_to_pos(page_idx, pt_doc)
+
+        p = self.controller._paragraph_by_id(pos.para_id)
+        if p:
+            from atboffice.modules.writer.models.document import locate
+
+            item_idx, _, _ = locate(p, pos.offset, side="after")
+            if 0 <= item_idx < len(p.runs):
+                it = p.runs[item_idx]
+                link = getattr(it.r_pr, "link", None) if hasattr(it, "r_pr") else None
+                if link and isinstance(link, dict) and "anchor" in link:
+                    if self.jump_to_bookmark(link["anchor"]):
+                        return
+
+        modifiers = event.modifiers()
+        shift = bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
+
+        self._is_dragging = True
+        self.setFocus()
+        self.controller.set_pos(pos, extend_selection=shift)
+        self.viewport().update()
+
+
+@guard_qt_event("writer_canvas", "mouse_move")
+def mouseMoveEvent(self, event: QMouseEvent) -> None:
+    # Existing body preserved unchanged under @guard_qt_event
+    ...
 ```
 
 (Only add the `@guard_qt_event("writer_canvas", "mouse_move")`, `@guard_qt_event("writer_canvas", "mouse_release")`, and `@guard_qt_event("writer_canvas", "key_press")` decorators on `mouseMoveEvent`, `mouseReleaseEvent`, and `keyPressEvent` while keeping their existing bodies, plus `self.setFocus()` right after `if self._float_press(page_idx, pt_doc): return` in `mousePressEvent`.)
@@ -947,7 +947,9 @@ def test_ledger_insert_shape_textbox_picture_and_comment_are_undoable_and_save(
     # Interactive click/delete on object layer does not crash and returns focus cleanly
     layer = win.spreadsheet_view.object_layer
     rect = layer.get_object_rect(sheet.drawings[-1])
-    QTest.mouseClick(layer, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, rect.center())
+    QTest.mouseClick(
+        layer, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, rect.center()
+    )
     QTest.keyClick(layer, Qt.Key.Key_Delete)
     assert len(sheet.drawings) == 2
     win.undo()
@@ -1013,67 +1015,70 @@ Expected: FAIL (`win.undo()` does not undo comment/drawing changes yet).
 Wrap `insert_textbox`, `insert_shape`, `insert_image_bytes`, `bring_to_front`, `send_to_back`, `_apply_drawing_fill_color`, and `open_chart_wizard` mutations in `self._record_drawing_edit(...)`:
 
 ```python
-    def insert_textbox(self) -> None:
-        """Insert floating text box at current selection."""
-        sel = self.spreadsheet_view.selection
-        r, c = sel.active_cell
-        obj = FloatingObject(
-            kind="textbox",
-            text="TextBox",
-            anchor_type=AnchorType.TWO_CELL,
-            from_point=CellAnchorPoint(col=c, row=r),
-            to_point=CellAnchorPoint(col=c + 2, row=r + 3),
-        )
+def insert_textbox(self) -> None:
+    """Insert floating text box at current selection."""
+    sel = self.spreadsheet_view.selection
+    r, c = sel.active_cell
+    obj = FloatingObject(
+        kind="textbox",
+        text="TextBox",
+        anchor_type=AnchorType.TWO_CELL,
+        from_point=CellAnchorPoint(col=c, row=r),
+        to_point=CellAnchorPoint(col=c + 2, row=r + 3),
+    )
 
-        def _add() -> None:
-            self.spreadsheet_view.object_layer.add_object(obj)
-            self.spreadsheet_view.object_layer.select_object(obj)
+    def _add() -> None:
+        self.spreadsheet_view.object_layer.add_object(obj)
+        self.spreadsheet_view.object_layer.select_object(obj)
 
-        self._record_drawing_edit("插入文本框", _add)
-        self.set_modified(True)
+    self._record_drawing_edit("插入文本框", _add)
+    self.set_modified(True)
 
-    def insert_shape(self, kind: str = "rect") -> None:
-        """Insert floating geometric shape at current selection."""
-        sel = self.spreadsheet_view.selection
-        r, c = sel.active_cell
-        obj = FloatingObject(
-            kind=kind,
-            anchor_type=AnchorType.TWO_CELL,
-            from_point=CellAnchorPoint(col=c, row=r),
-            to_point=CellAnchorPoint(col=c + 2, row=r + 3),
-        )
 
-        def _add() -> None:
-            self.spreadsheet_view.object_layer.add_object(obj)
-            self.spreadsheet_view.object_layer.select_object(obj)
+def insert_shape(self, kind: str = "rect") -> None:
+    """Insert floating geometric shape at current selection."""
+    sel = self.spreadsheet_view.selection
+    r, c = sel.active_cell
+    obj = FloatingObject(
+        kind=kind,
+        anchor_type=AnchorType.TWO_CELL,
+        from_point=CellAnchorPoint(col=c, row=r),
+        to_point=CellAnchorPoint(col=c + 2, row=r + 3),
+    )
 
-        self._record_drawing_edit("插入图形", _add)
-        self.set_modified(True)
+    def _add() -> None:
+        self.spreadsheet_view.object_layer.add_object(obj)
+        self.spreadsheet_view.object_layer.select_object(obj)
+
+    self._record_drawing_edit("插入图形", _add)
+    self.set_modified(True)
 ```
 
 And in `insert_image_bytes`:
 
 ```python
-        layer = self.spreadsheet_view.object_layer
-        obj = FloatingObject(
-            id=len(getattr(model, "drawings", []) or []) + 1,
-            name=name or "Picture",
-            kind="image",
-            anchor_type=AnchorType.TWO_CELL,
-            from_point=CellAnchorPoint(col=c, row=r),
-            to_point=CellAnchorPoint(col=c + max(1, cols), row=r + max(1, rows)),
-            image_data=data,
-            image_mime=mime,
-            lock_aspect=True,
-        )
+layer = self.spreadsheet_view.object_layer
+obj = FloatingObject(
+    id=len(getattr(model, "drawings", []) or []) + 1,
+    name=name or "Picture",
+    kind="image",
+    anchor_type=AnchorType.TWO_CELL,
+    from_point=CellAnchorPoint(col=c, row=r),
+    to_point=CellAnchorPoint(col=c + max(1, cols), row=r + max(1, rows)),
+    image_data=data,
+    image_mime=mime,
+    lock_aspect=True,
+)
 
-        def _add_img() -> None:
-            layer.add_object(obj)
-            layer.select_object(obj)
 
-        self._record_drawing_edit("插入图片", _add_img)
-        self.set_modified(True)
-        return True
+def _add_img() -> None:
+    layer.add_object(obj)
+    layer.select_object(obj)
+
+
+self._record_drawing_edit("插入图片", _add_img)
+self.set_modified(True)
+return True
 ```
 
 2. In `src/atboffice/ui/shell/ledger_auditing.py`, add `_record_comment_edit` and use it in `insert_comment` and `delete_comment`:
@@ -1181,9 +1186,7 @@ from PySide6.QtTest import QTest
 from atboffice.ui.shell.lectern_window import LecternWindow
 
 
-def test_lectern_rapid_edit_and_close_does_not_flush_after_close(
-    qtbot, qapp, caplog
-) -> None:
+def test_lectern_rapid_edit_and_close_does_not_flush_after_close(qtbot, qapp, caplog) -> None:
     win = LecternWindow()
     qtbot.addWidget(win)
     win.resize(1100, 800)
@@ -1199,9 +1202,7 @@ def test_lectern_rapid_edit_and_close_does_not_flush_after_close(
     assert "Failed" not in caplog.text
 
 
-def test_lectern_draw_shape_and_textbox_undo_redo_and_roundtrip(
-    qtbot, qapp, tmp_path
-) -> None:
+def test_lectern_draw_shape_and_textbox_undo_redo_and_roundtrip(qtbot, qapp, tmp_path) -> None:
     win = LecternWindow()
     qtbot.addWidget(win)
     win.resize(1100, 800)
@@ -1215,21 +1216,33 @@ def test_lectern_draw_shape_and_textbox_undo_redo_and_roundtrip(
 
     win.set_drawing_tool({"kind": "shape", "geom": "rect"})
     QTest.mousePress(
-        canvas.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(180, 160)
+        canvas.viewport(),
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        QPoint(180, 160),
     )
     QTest.mouseMove(canvas.viewport(), QPoint(320, 260))
     QTest.mouseRelease(
-        canvas.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(320, 260)
+        canvas.viewport(),
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        QPoint(320, 260),
     )
     win.flush_pending_edits()
 
     win.set_drawing_tool({"kind": "textbox"})
     QTest.mousePress(
-        canvas.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(120, 100)
+        canvas.viewport(),
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        QPoint(120, 100),
     )
     QTest.mouseMove(canvas.viewport(), QPoint(260, 150))
     QTest.mouseRelease(
-        canvas.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(260, 150)
+        canvas.viewport(),
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        QPoint(260, 150),
     )
     win.flush_pending_edits()
 
@@ -1272,56 +1285,57 @@ Import `logging` and `is_alive`, `safe_single_shot` from `atboffice.core.fault_g
 Call `self.cancel_pending()` at the start of `reset()`. Replace `note_edit` and `flush` with:
 
 ```python
-    def note_edit(self, kind: str = "edit", label: str | None = None) -> None:
-        """Something may have changed the deck: record it at the end of this turn."""
-        if (
-            self._restoring
-            or not self.service.is_recording
-            or not is_alive(self)
-            or not is_alive(self.window)
-        ):
-            return
-        if label and not self._label:
-            self._label = label
-        if self._kind in (None, "edit"):
-            self._kind = kind
-        elif kind not in ("edit", self._kind):
-            self._kind = "mixed"
-        if not self._pending:
-            self._pending = True
-            self._flush_timer = safe_single_shot(0, self, self.flush)
+def note_edit(self, kind: str = "edit", label: str | None = None) -> None:
+    """Something may have changed the deck: record it at the end of this turn."""
+    if (
+        self._restoring
+        or not self.service.is_recording
+        or not is_alive(self)
+        or not is_alive(self.window)
+    ):
+        return
+    if label and not self._label:
+        self._label = label
+    if self._kind in (None, "edit"):
+        self._kind = kind
+    elif kind not in ("edit", self._kind):
+        self._kind = "mixed"
+    if not self._pending:
+        self._pending = True
+        self._flush_timer = safe_single_shot(0, self, self.flush)
 
-    def flush(self) -> None:
-        """Record the pending change now (before an undo, or at the end of the turn)."""
-        self._flush_timer = None
-        if not self._pending or not is_alive(self) or not is_alive(self.window):
-            self._pending = False
-            return
+
+def flush(self) -> None:
+    """Record the pending change now (before an undo, or at the end of the turn)."""
+    self._flush_timer = None
+    if not self._pending or not is_alive(self) or not is_alive(self.window):
         self._pending = False
-        label, kind = self._label, self._kind
-        self._label = self._kind = None
-        pres = self._presentation()
-        if pres is not self._source:
-            self.reset()
-            return
-        try:
-            after = snapshot_presentation(pres)
-        except Exception:
-            logger.exception("Failed to snapshot presentation during undo recording")
-            return
-        if after == self._baseline:
-            return
-        before, self._baseline = self._baseline, after
-        text = label or safe_tr(_KIND_LABELS.get(kind or "", "编辑"))
-        merge_id = _MERGEABLE_KINDS.get(kind or "", -1)
-        self.service.record(
-            text,
-            lambda: self._restore(before),
-            lambda: self._restore(after),
-            merge_id=merge_id,
-            merge=_merge_steps if merge_id != -1 else None,
-            data=kind,
-        )
+        return
+    self._pending = False
+    label, kind = self._label, self._kind
+    self._label = self._kind = None
+    pres = self._presentation()
+    if pres is not self._source:
+        self.reset()
+        return
+    try:
+        after = snapshot_presentation(pres)
+    except Exception:
+        logger.exception("Failed to snapshot presentation during undo recording")
+        return
+    if after == self._baseline:
+        return
+    before, self._baseline = self._baseline, after
+    text = label or safe_tr(_KIND_LABELS.get(kind or "", "编辑"))
+    merge_id = _MERGEABLE_KINDS.get(kind or "", -1)
+    self.service.record(
+        text,
+        lambda: self._restore(before),
+        lambda: self._restore(after),
+        merge_id=merge_id,
+        merge=_merge_steps if merge_id != -1 else None,
+        data=kind,
+    )
 ```
 
 2. Edit `src/atboffice/ui/shell/lectern_window.py`:
@@ -1344,19 +1358,19 @@ from atboffice.core.fault_guard import guard_qt_event, is_alive
 ```
 
 ```python
-    @guard_qt_event("lectern_scene", "mouse_press")
-    def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> None:
+@guard_qt_event("lectern_scene", "mouse_press")
+def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> None: ...
+
+
+@guard_qt_event("lectern_scene", "mouse_move")
+def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent) -> None:
+    ...
+    if is_dragging and is_alive(self._dragged_item):
         ...
 
-    @guard_qt_event("lectern_scene", "mouse_move")
-    def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent) -> None:
-        ...
-        if is_dragging and is_alive(self._dragged_item):
-            ...
 
-    @guard_qt_event("lectern_scene", "mouse_release")
-    def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent) -> None:
-        ...
+@guard_qt_event("lectern_scene", "mouse_release")
+def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent) -> None: ...
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -1475,7 +1489,10 @@ def test_quire_open_insert_elements_edit_undo_save(qapp, guarded) -> None:
         win.insert_image_bytes(png, "png", "probe")
         win.writer_view._on_new_comment()
         QTest.mouseClick(
-            canvas.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(300, 200)
+            canvas.viewport(),
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+            QPoint(300, 200),
         )
         QTest.keyClicks(canvas, "Wave1Edit ")
         win.action_registry.trigger_action("bold")
@@ -1548,11 +1565,17 @@ def test_lectern_open_insert_elements_edit_undo_save(qapp, guarded) -> None:
         win.action_registry.trigger_action("newSlide")
         win.set_drawing_tool({"kind": "shape", "geom": "rect"})
         QTest.mousePress(
-            canvas.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(180, 160)
+            canvas.viewport(),
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+            QPoint(180, 160),
         )
         QTest.mouseMove(canvas.viewport(), QPoint(300, 240))
         QTest.mouseRelease(
-            canvas.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(300, 240)
+            canvas.viewport(),
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+            QPoint(300, 240),
         )
         win.insert_table(2, 2)
         win.insert_image_bytes(png, "png", "probe")

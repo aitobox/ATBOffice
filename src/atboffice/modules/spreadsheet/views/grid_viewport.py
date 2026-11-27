@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from atboffice.core.fault_guard import guard_qt_event
 from atboffice.core.i18n import safe_tr
 from atboffice.core.undo import UndoService
 from atboffice.modules.spreadsheet.models.selection_model import (
@@ -925,6 +926,7 @@ class GridViewport(
     # -------------------------------------------------------------------------
     # Keyboard Navigation Subsystem
     # -------------------------------------------------------------------------
+    @guard_qt_event("spreadsheet_grid", "key_press")
     def keyPressEvent(self, event: QKeyEvent) -> None:
         key = event.key()
         modifiers = event.modifiers()

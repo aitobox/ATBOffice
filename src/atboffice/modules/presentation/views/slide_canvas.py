@@ -620,9 +620,13 @@ class SlideScene(QGraphicsScene):
 
         is_dragging = (
             self._is_dragging_item
-            and self._dragged_item
+            and self._dragged_item is not None
             and bool(event.buttons() & Qt.MouseButton.LeftButton)
         )
+        if is_dragging and not is_alive(self._dragged_item):
+            self._is_dragging_item = False
+            self._dragged_item = None
+            return
         if is_dragging and is_alive(self._dragged_item):
             moving_rect = QRectF(
                 self._dragged_item.pos().x(),
@@ -634,7 +638,7 @@ class SlideScene(QGraphicsScene):
             # Target rects from other shapes
             target_rects: list[QRectF] = []
             for other in self._items_by_id.values():
-                if other is not self._dragged_item:
+                if other is not self._dragged_item and is_alive(other):
                     target_rects.append(
                         QRectF(
                             other.pos().x(),
@@ -1148,6 +1152,7 @@ class SlideCanvasView(QGraphicsView):
     # ------------------------------------------------------------------
     # Keyboard & Wheel events
     # ------------------------------------------------------------------
+    @guard_qt_event("lectern_canvas_view", "key_press")
     def keyPressEvent(self, event: QKeyEvent) -> None:
         # While a shape's text is edited in place, every key belongs to the editor:
         # Delete/Backspace/arrows must edit text, not delete or nudge the shape (and

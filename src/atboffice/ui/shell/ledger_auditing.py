@@ -189,8 +189,11 @@ class LedgerAuditingMixin:
         r, c = sel.active_cell
         cm = sheet.get_comment(r, c)
         if cm:
-            cm.visible = not cm.visible
-            self.spreadsheet_view.grid.viewport().update()
+
+            def _toggle() -> None:
+                cm.visible = not cm.visible
+
+            self._record_comment_edit("显示/隐藏批注", _toggle)
         else:
             self.statusBar().showMessage(safe_tr("当前单元格没有批注。"), 3000)
 

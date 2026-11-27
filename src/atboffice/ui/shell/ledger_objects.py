@@ -25,6 +25,32 @@ from atboffice.ui.shell.ledger_common import (
 class LedgerObjectsMixin:
     """Charts, the Drawing toolbar, text boxes, shapes, pictures and hyperlinks."""
 
+    def _record_drawings_snapshot(
+        self, sheet: Any, layer: Any, svc: Any, label: str, before: list[Any]
+    ) -> bool:
+        """Record an undo/redo step if ``sheet.drawings`` changed relative to ``before``."""
+        import copy as _copy
+
+        if sheet is None or svc is None or not svc.is_recording:
+            return False
+        after = _copy.deepcopy(getattr(sheet, "drawings", []))
+        if len(after) == len(before) and repr(after) == repr(before):
+            return False
+
+        def _restore(snapshot: list[Any]) -> None:
+            sheet.drawings = _copy.deepcopy(snapshot)
+            if layer is not None and getattr(layer, "model", None) is sheet:
+                layer.set_model(sheet)
+            if hasattr(self.spreadsheet_view, "grid"):
+                self.spreadsheet_view.grid.viewport().update()
+
+        svc.record(
+            safe_tr(label),
+            lambda s=before: _restore(s),
+            lambda s=after: _restore(s),
+        )
+        return True
+
     def _record_drawing_edit(self, label: str, mutate: Any) -> Any:
         """Apply a sheet drawing mutation and record an UndoService snapshot step."""
         import copy as _copy
@@ -41,20 +67,7 @@ class LedgerObjectsMixin:
         before = _copy.deepcopy(getattr(sheet, "drawings", []))
         with svc.paused():
             res = mutate()
-        after = _copy.deepcopy(getattr(sheet, "drawings", []))
-
-        def _restore(snapshot: list[Any]) -> None:
-            sheet.drawings = _copy.deepcopy(snapshot)
-            if layer is not None and getattr(layer, "model", None) is sheet:
-                layer.set_model(sheet)
-            self.spreadsheet_view.grid.viewport().update()
-
-        if len(after) != len(before) or repr(after) != repr(before):
-            svc.record(
-                safe_tr(label),
-                lambda s=before: _restore(s),
-                lambda s=after: _restore(s),
-            )
+        if self._record_drawings_snapshot(sheet, layer, svc, label, before):
             self.set_modified(True)
         return res
 
@@ -77,7 +90,6 @@ class LedgerObjectsMixin:
                 layer.update()
 
             self._record_drawing_edit("更改图表类型", _mutate_chart)
-            self.set_modified(True)
         else:
             self.open_chart_wizard(initial_type=chart_type)
 
@@ -209,28 +221,82 @@ class LedgerObjectsMixin:
         created: list[object] = []
         dlg.chart_created.connect(lambda obj, _target: created.append(obj))
 
-        def _run_wizard() -> None:
-            if dlg.exec() != QDialog.DialogCode.Accepted or not created:
-                return
-            chart_obj = created[0]
-            # Keep the legacy attribute that set_chart_type / the chart toolbar read.
-            setattr(chart_obj, "chart_type", dlg.selected_type_id)
-            if dlg.created_sheet is not None and workbook is not None:
-                idx = workbook.sheet_index(dlg.created_sheet)
-                if hasattr(self.spreadsheet_view, "set_active_sheet_index") and idx >= 0:
+        import copy as _copy
+
+        svc = self.undo_service() if hasattr(self, "undo_service") else None
+        before_drawings = (
+            _copy.deepcopy(getattr(sheet, "drawings", [])) if sheet is not None else []
+        )
+        before_sheet_idx = (
+            workbook.sheet_index(sheet) if (workbook is not None and sheet is not None) else 0
+        )
+
+        if dlg.exec() != QDialog.DialogCode.Accepted or not created:
+            return
+        chart_obj = created[0]
+        # Keep the legacy attribute that set_chart_type / the chart toolbar read.
+        setattr(chart_obj, "chart_type", dlg.selected_type_id)
+        layer = getattr(self.spreadsheet_view, "object_layer", None)
+
+        if dlg.created_sheet is not None and workbook is not None:
+            created_sheet = dlg.created_sheet
+            created_idx = workbook.sheet_index(created_sheet)
+
+            def _switch_to(target_sheet: Any, fallback_idx: int) -> None:
+                idx = workbook.sheet_index(target_sheet) if target_sheet is not None else -1
+                if idx < 0:
+                    idx = max(0, min(fallback_idx, len(workbook) - 1))
+                if hasattr(self.spreadsheet_view, "set_active_sheet_index"):
                     self.spreadsheet_view.set_active_sheet_index(idx)
-            layer = getattr(self.spreadsheet_view, "object_layer", None)
+                if layer is not None:
+                    layer.set_model(getattr(self.spreadsheet_view, "model", None))
+                    layer.update()
+                if hasattr(self.spreadsheet_view, "grid"):
+                    self.spreadsheet_view.grid.viewport().update()
+
+            def _undo_chart_sheet() -> None:
+                cur_idx = workbook.sheet_index(created_sheet)
+                if cur_idx >= 0 and len(workbook) > 1:
+                    workbook.remove_sheet(cur_idx)
+                _switch_to(sheet, before_sheet_idx)
+                self.set_toolbar_mode("chart", False)
+
+            def _redo_chart_sheet() -> None:
+                if workbook.sheet_index(created_sheet) < 0:
+                    target_idx = created_idx if created_idx >= 0 else len(workbook)
+                    workbook.add_sheet(
+                        name=created_sheet.name, index=target_idx, sheet=created_sheet
+                    )
+                _switch_to(created_sheet, created_idx)
+                if layer is not None:
+                    layer.select_object(chart_obj)
+                    layer.update()
+                self.set_toolbar_mode("chart", True)
+
+            if hasattr(self.spreadsheet_view, "set_active_sheet_index") and created_idx >= 0:
+                self.spreadsheet_view.set_active_sheet_index(created_idx)
             if layer is not None:
                 layer.set_model(getattr(self.spreadsheet_view, "model", None))
                 layer.select_object(chart_obj)
                 layer.update()
             self.set_toolbar_mode("chart", True)
             self.set_modified(True)
-
-        self._record_drawing_edit("插入图表", _run_wizard)
+            if svc is not None and svc.is_recording:
+                svc.record(safe_tr("插入图表"), _undo_chart_sheet, _redo_chart_sheet)
+        else:
+            if layer is not None:
+                layer.set_model(getattr(self.spreadsheet_view, "model", None))
+                layer.select_object(chart_obj)
+                layer.update()
+            self.set_toolbar_mode("chart", True)
+            self.set_modified(True)
+            self._record_drawings_snapshot(sheet, layer, svc, "插入图表", before_drawings)
 
     def format_selected_object(self) -> None:
         """Format properties of selected chart or floating shape."""
+        import copy as _copy
+
+        sheet = getattr(self.spreadsheet_view, "model", None)
         layer = getattr(self.spreadsheet_view, "object_layer", None)
         sel_obj = getattr(layer, "selected_object", None) if layer else None
         if sel_obj is None:
@@ -239,8 +305,11 @@ class LedgerObjectsMixin:
             FormatObjectDialog,
         )
 
+        svc = self.undo_service() if hasattr(self, "undo_service") else None
+        before = _copy.deepcopy(getattr(sheet, "drawings", [])) if sheet is not None else []
         dlg = FormatObjectDialog(sel_obj, parent=self)
         if dlg.exec():
+            self._record_drawings_snapshot(sheet, layer, svc, "设置对象格式", before)
             layer.update()
             self.set_modified(True)
 
