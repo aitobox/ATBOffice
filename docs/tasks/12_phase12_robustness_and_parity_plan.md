@@ -33,12 +33,12 @@ flowchart TD
 
 | Task | 目标范围 | 核心产出 | 状态 |
 |---:|---|---|---|
-| 1 | 修复 4 处懒加载 `ImportError` 并建立 AST 审计门禁 | `tests/test_lazy_imports_integrity.py` + `ledger_auditing.py` / `writer/view.py` / `fn_dynamic.py` | pending |
-| 2 | 统一 Qt 故障隔离与 `shiboken6.isValid()` 守卫层 | `src/atboffice/core/fault_guard.py` + `base_window.py` 定时器回收 + `test_fault_guard.py` | pending |
-| 3 | Quire `insert_shape`、浮动对象操作与编号键入卡顿根治 | `styles.py` 缓存导入 + `canvas_editing.py` + `canvas_input.py` + 回归测试 | pending |
-| 4 | Ledger 对象层撤销、批注撤销与 `object_layer` 守卫 | `ledger_objects.py` + `ledger_auditing.py` + `object_layer.py` + 回归测试 | pending |
-| 5 | Lectern `PresentationHistory` 定时器回收与 `SlideScene` 守卫 | `lectern_history.py` + `lectern_window.py` + `slide_canvas.py` + 回归测试 | pending |
-| 6 | 三端「开文件→插元素→编辑→撤销→保存重开」总压测门禁 | `tests/gui/test_phase12_element_edit_robustness.py` + 全量 CI 验证 | pending |
+| 1 | 修复 4 处懒加载 `ImportError` 并建立 AST 审计门禁 | `tests/test_lazy_imports_integrity.py` + `ledger_auditing.py` / `writer/view.py` / `fn_dynamic.py` | done |
+| 2 | 统一 Qt 故障隔离与 `shiboken6.isValid()` 守卫层 | `src/atboffice/core/fault_guard.py` + `base_window.py` 定时器回收 + `test_fault_guard.py` | done |
+| 3 | Quire `insert_shape`、浮动对象操作与编号键入卡顿根治 | `styles.py` 缓存导入 + `canvas_editing.py` + `canvas_input.py` + 回归测试 | done |
+| 4 | Ledger 对象层撤销、批注撤销与 `object_layer` 守卫 | `ledger_objects.py` + `ledger_auditing.py` + `object_layer.py` + 回归测试 | done |
+| 5 | Lectern `PresentationHistory` 定时器回收与 `SlideScene` 守卫 | `lectern_history.py` + `lectern_window.py` + `slide_canvas.py` + 回归测试 | done |
+| 6 | 三端「开文件→插元素→编辑→撤销→保存重开」总压测门禁 | `tests/gui/test_phase12_element_edit_robustness.py` + 全量 CI 验证 | done |
 
 ---
 
