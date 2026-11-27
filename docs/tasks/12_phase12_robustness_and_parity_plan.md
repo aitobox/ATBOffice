@@ -52,7 +52,7 @@ flowchart TD
   2. 已统一 `scripts/run_office_diff.py` `evaluate_strict_gate()` 与 `reporter.py` 对 `reference_limitation` 的单文档豁免口径；
   3. 已修正 Quire `insertComment` 跨端提示文案错配，补充 `tests/gui/test_phase12_corpus_gui_resilience.py` 验证 77 份旧格式/加密/损坏语料 GUI 错误弹窗与脏文档状态回滚保护；
   4. 已更新 [OFFICE_DOCS_DIFF.md](file:///Users/aitobox/work/aitobox/ATBOffice/docs/clone/OFFICE_DOCS_DIFF.md)、[TOOLBAR_BASELINE_MATRIX.md](file:///Users/aitobox/work/aitobox/ATBOffice/docs/clone/TOOLBAR_BASELINE_MATRIX.md) 与 [ATBOFFICE_PARITY_AND_STABILITY_AUDIT_2026_12.md](file:///Users/aitobox/work/aitobox/ATBOffice/docs/clone/ATBOFFICE_PARITY_AND_STABILITY_AUDIT_2026_12.md)。
-- **Wave 3 — `.vibeoffice` 四项重点能力模块化补齐**：
+- **Wave 3 — `.vibeoffice` 四项重点能力模块化补齐（done — `3086 passed`，73 份 `--strict` 保持 `95.37%`，154 份语料与 `source_diff` 全绿）**：
   1. `context_tools_pane.py` + `BaseOfficeWindow` 上下文任务窗格自动跟随（`view/pane_follows_selection`）；
   2. `ribbon_bar.py` + 三端声明式 `*_ribbon.py` 懒构建 Paper 2016 Ribbon 模式与契约测试；
   3. `master_view.py` 扩展 Lectern 讲义母版与备注母版编辑、打印与 PPTX 往返；
