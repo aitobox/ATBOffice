@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from atboffice.modules.writer.models.document import (
     CommentRangeEnd,
     CommentRangeStart,
+    CommentRefItem,
     Document,
     Paragraph,
     RunItem,
@@ -421,6 +422,9 @@ def insert_comment(
     # Insert end marker first so start offset remains stable
     i_end = split_at(p_end, o_end)
     p_end.runs.insert(i_end, CommentRangeEnd(comment_id=str_id))
+    has_ref = any(isinstance(r, CommentRefItem) and str(r.comment_id) == str_id for r in p_end.runs)
+    if not has_ref:
+        p_end.runs.insert(i_end + 1, CommentRefItem(comment_id=str_id))
 
     i_start = split_at(p_start, o_start)
     p_start.runs.insert(i_start, CommentRangeStart(comment_id=str_id))
@@ -458,7 +462,7 @@ def delete_comment(doc: Document, comment_id: str) -> bool:
                     it
                     for it in b.runs
                     if not (
-                        isinstance(it, (CommentRangeStart, CommentRangeEnd))
+                        isinstance(it, (CommentRangeStart, CommentRangeEnd, CommentRefItem))
                         and str(it.comment_id) in to_delete
                     )
                 ]
@@ -468,7 +472,7 @@ def delete_comment(doc: Document, comment_id: str) -> bool:
                 it
                 for it in para.runs
                 if not (
-                    isinstance(it, (CommentRangeStart, CommentRangeEnd))
+                    isinstance(it, (CommentRangeStart, CommentRangeEnd, CommentRefItem))
                     and str(it.comment_id) in to_delete
                 )
             ]
@@ -487,12 +491,16 @@ def delete_all_comments(doc: Document) -> int:
         for b in getattr(st, "blocks", []):
             if isinstance(b, Paragraph):
                 b.runs = [
-                    it for it in b.runs if not isinstance(it, (CommentRangeStart, CommentRangeEnd))
+                    it
+                    for it in b.runs
+                    if not isinstance(it, (CommentRangeStart, CommentRangeEnd, CommentRefItem))
                 ]
                 normalize(b)
         for p in getattr(st, "paras", []):
             p.runs = [
-                it for it in p.runs if not isinstance(it, (CommentRangeStart, CommentRangeEnd))
+                it
+                for it in p.runs
+                if not isinstance(it, (CommentRangeStart, CommentRangeEnd, CommentRefItem))
             ]
             normalize(p)
     doc._idx_dirty = True

@@ -6,7 +6,10 @@ import io
 from pathlib import Path
 from typing import Any
 
-from atboffice.modules.writer.io.docx_reader import normalize_strict_namespaces
+from atboffice.modules.writer.io.docx_reader import (
+    comments_signature,
+    normalize_strict_namespaces,
+)
 from atboffice.modules.writer.models.document import (
     BookmarkEndItem,
     BookmarkStartItem,
@@ -29,7 +32,14 @@ from atboffice.modules.writer.models.document import (
     Table,
     TextItem,
 )
-from atboffice.modules.writer.models.drawing import PictureItem
+from atboffice.modules.writer.models.drawing import (
+    ChartItem,
+    DrawingObject,
+    PictureItem,
+    ShapeItem,
+    WrapMode,
+    WrapSide,
+)
 from atboffice.modules.writer.models.omml import OfficeMathItem, serialize_omml
 from atboffice.modules.writer.models.properties import (
     ParagraphProperties,
@@ -56,6 +66,7 @@ NS_M = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 NS_WP = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
 NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main"
 NS_PIC = "http://schemas.openxmlformats.org/drawingml/2006/picture"
+NS_WPS = "http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
 NS_XML = "http://www.w3.org/XML/1998/namespace"
 
 CT_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"
@@ -65,6 +76,7 @@ CT_SETTINGS = "application/vnd.openxmlformats-officedocument.wordprocessingml.se
 CT_FONTS = "application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"
 CT_HEADER = "application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"
 CT_FOOTER = "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"
+CT_COMMENTS = "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"
 CT_RELS = "application/vnd.openxmlformats-package.relationships+xml"
 CT_XML = "application/xml"
 
@@ -75,6 +87,18 @@ REL_FONTS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships
 REL_HEADER = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header"
 REL_FOOTER = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer"
 REL_HYPERLINK = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
+REL_COMMENTS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
+REL_COMMENTS_EXT = "http://schemas.microsoft.com/office/2011/relationships/commentsExtended"
+REL_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+
+_IMAGE_MIME_TYPES: dict[str, str] = {
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "gif": "image/gif",
+    "bmp": "image/bmp",
+    "webp": "image/webp",
+}
 
 # Register standard prefixes with ElementTree
 ET.register_namespace("w", NS_W)
@@ -83,7 +107,7 @@ ET.register_namespace("m", NS_M)
 ET.register_namespace("wp", NS_WP)
 ET.register_namespace("a", NS_A)
 ET.register_namespace("pic", NS_PIC)
-ET.register_namespace("wps", "http://schemas.microsoft.com/office/word/2010/wordprocessingShape")
+ET.register_namespace("wps", NS_WPS)
 ET.register_namespace("wpg", "http://schemas.microsoft.com/office/word/2010/wordprocessingGroup")
 ET.register_namespace("mc", "http://schemas.openxmlformats.org/markup-compatibility/2006")
 ET.register_namespace("v", "urn:schemas-microsoft-com:vml")
@@ -103,6 +127,31 @@ def _r(tag: str) -> str:
     return f"{{{NS_R}}}{tag}"
 
 
+def _wp(tag: str) -> str:
+    """Helper to return Clark notation for WordprocessingDrawing tag."""
+    return f"{{{NS_WP}}}{tag}"
+
+
+def _a(tag: str) -> str:
+    """Helper to return Clark notation for DrawingML main tag."""
+    return f"{{{NS_A}}}{tag}"
+
+
+def _pic(tag: str) -> str:
+    """Helper to return Clark notation for DrawingML picture tag."""
+    return f"{{{NS_PIC}}}{tag}"
+
+
+def _wps(tag: str) -> str:
+    """Helper to return Clark notation for WordprocessingShape tag."""
+    return f"{{{NS_WPS}}}{tag}"
+
+
+def _pt_to_emu(pt: float) -> str:
+    """Convert points to EMU integer string (1 pt = 12700 EMU)."""
+    return str(int(round(float(pt) * 12700)))
+
+
 def _clean_hex(color_val: str | None) -> str | None:
     """Convert '#RRGGBB' to 'RRGGBB' or preserve 'auto'."""
     if not color_val or color_val.lower() == "auto":
@@ -120,11 +169,38 @@ class DocxWriter:
         self.rels: list[Relationship] = []
         self._next_r_id = 1
         self._main_path: str = doc.keep.get("main_part") or "word/document.xml"
+        self._added_media: dict[str, tuple[bytes, str]] = {}
+        self._next_drawing_id = 1
+        self._used_drawing_ids: set[int] = set()
 
     def _gen_r_id(self) -> str:
         r_id = f"rId{self._next_r_id}"
         self._next_r_id += 1
         return r_id
+
+    def _alloc_drawing_id(self, preferred: int = 0) -> int:
+        if preferred and preferred > 0 and preferred not in self._used_drawing_ids:
+            self._used_drawing_ids.add(preferred)
+            return preferred
+        while self._next_drawing_id in self._used_drawing_ids:
+            self._next_drawing_id += 1
+        did = self._next_drawing_id
+        self._used_drawing_ids.add(did)
+        self._next_drawing_id += 1
+        return did
+
+    def _comments_part_path(self) -> str:
+        return self.doc.keep.get("comments_part") or resolve_part_uri(
+            self._main_path, "comments.xml"
+        )
+
+    def _are_comments_unchanged(self) -> bool:
+        if self.source_pkg is None or "comments_snapshot" not in self.doc.keep:
+            return False
+        comments_part = self._comments_part_path()
+        if not self.source_pkg.has_part(comments_part):
+            return False
+        return comments_signature(self.doc.comments) == self.doc.keep["comments_snapshot"]
 
     def write(self, target: str | Path | io.BytesIO | None = None) -> bytes:
         """Serialize Document and write to file path, BytesIO, or return bytes."""
@@ -178,6 +254,33 @@ class DocxWriter:
         else:
             writer.replace_part(styles_path, self._build_styles_xml(), CT_STYLES)
 
+        # Added media parts (newly inserted pictures without raw_xml)
+        for part_path, (media_bytes, media_ct) in self._added_media.items():
+            writer.add_part(part_path, media_bytes, media_ct)
+
+        # comments.xml: preserve byte-for-byte when unchanged, update/add/delete otherwise.
+        comments_part = self._comments_part_path()
+        if not self._are_comments_unchanged():
+            if self.doc.comments:
+                cm_rel = next((r for r in self.rels if r.type == REL_COMMENTS), None)
+                target_cm = resolve_part_uri(main_path, cm_rel.target) if cm_rel else comments_part
+                comments_xml = self._build_comments_xml()
+                if self.source_pkg.has_part(target_cm):
+                    writer.replace_part(target_cm, comments_xml, CT_COMMENTS)
+                else:
+                    writer.add_part(target_cm, comments_xml, CT_COMMENTS)
+            else:
+                if self.source_pkg.has_part(comments_part):
+                    writer.delete_part(comments_part)
+                for r in self.source_pkg.get_relationships(main_path):
+                    if r.type == REL_COMMENTS_EXT:
+                        ext_part = resolve_part_uri(main_path, r.target)
+                        if self.source_pkg.has_part(ext_part):
+                            writer.delete_part(ext_part)
+                default_ext = resolve_part_uri(main_path, "commentsExtended.xml")
+                if self.source_pkg.has_part(default_ext):
+                    writer.delete_part(default_ext)
+
         return writer.to_bytes()
 
     def _write_new(self) -> bytes:
@@ -201,6 +304,14 @@ class DocxWriter:
                 part_ct = CT_HEADER if rel.type == REL_HEADER else CT_FOOTER
                 writer.add_part(part_path, hf_xml, part_ct)
 
+        # Added media parts
+        for part_path, (media_bytes, media_ct) in self._added_media.items():
+            writer.add_part(part_path, media_bytes, media_ct)
+
+        # Comments part when comments exist
+        if self.doc.comments:
+            writer.add_part("word/comments.xml", self._build_comments_xml(), CT_COMMENTS)
+
         # Add styles, settings, fontTable
         writer.add_part("word/styles.xml", self._build_styles_xml(), CT_STYLES)
         writer.add_part("word/settings.xml", self._build_settings_xml(), CT_SETTINGS)
@@ -217,9 +328,24 @@ class DocxWriter:
 
         return writer.to_bytes()
 
+    def _sync_comments_rels(self) -> None:
+        """Ensure document relationships match current ``doc.comments`` state."""
+        if self._are_comments_unchanged():
+            return
+        if self.doc.comments:
+            if not any(r.type == REL_COMMENTS for r in self.rels):
+                self.rels.append(
+                    Relationship(id=self._gen_r_id(), type=REL_COMMENTS, target="comments.xml")
+                )
+        else:
+            self.rels = [r for r in self.rels if r.type not in (REL_COMMENTS, REL_COMMENTS_EXT)]
+
     def _build_document_and_rels(self) -> tuple[bytes, bytes, dict[str, str]]:
         """Build <w:document> XML and word/_rels/document.xml.rels XML."""
         self.rels = []
+        self._added_media = {}
+        self._next_drawing_id = 1
+        self._used_drawing_ids = set()
         existing_styles_id = None
         existing_settings_id = None
         existing_fonts_id = None
@@ -323,6 +449,8 @@ class DocxWriter:
         body.append(sect_elem)
 
         doc_xml = serialize_xml(root, standalone=True)
+
+        self._sync_comments_rels()
 
         # Build document.xml.rels
         rels_elem = ET.Element(
@@ -716,6 +844,16 @@ class DocxWriter:
                     return
                 except Exception:
                     pass
+            if isinstance(item, ShapeItem):
+                r_elem = ET.SubElement(parent, _w("r"))
+                r_elem.append(self._build_shape_drawing_elem(item))
+                return
+            if not isinstance(item, ChartItem):
+                drawing_el = self._build_picture_drawing_elem(item)
+                if drawing_el is not None:
+                    r_elem = ET.SubElement(parent, _w("r"))
+                    r_elem.append(drawing_el)
+            return
 
         r_elem = ET.SubElement(parent, _w("r"))
         r_pr_elem = ET.Element(_w("rPr"))
@@ -1231,6 +1369,291 @@ class DocxWriter:
         for font_name in fonts:
             f_elem = ET.SubElement(root, _w("font"))
             f_elem.set(_w("name"), font_name)
+        return serialize_xml(root, standalone=True)
+
+    def _build_drawing_container(
+        self, item: DrawingObject, doc_id: int, name: str, descr: str
+    ) -> tuple[ET.Element, ET.Element]:
+        """Build ``<w:drawing>`` wrapper and return ``(drawing, graphicData)``."""
+        drawing_el = ET.Element(_w("drawing"))
+        cx = _pt_to_emu(max(1.0, float(item.width)))
+        cy = _pt_to_emu(max(1.0, float(item.height)))
+        fp = item.float_pr
+        if fp is not None:
+            container = ET.SubElement(drawing_el, _wp("anchor"))
+            container.set("distT", _pt_to_emu(fp.dist.top))
+            container.set("distB", _pt_to_emu(fp.dist.bottom))
+            container.set("distL", _pt_to_emu(fp.dist.left))
+            container.set("distR", _pt_to_emu(fp.dist.right))
+            container.set("simplePos", "0")
+            container.set("relativeHeight", str(max(0, int(fp.z_index))))
+            behind = bool(fp.behind or fp.wrap == WrapMode.BEHIND)
+            container.set("behindDoc", "1" if behind else "0")
+            container.set("locked", "0")
+            container.set("layoutInCell", "1")
+            container.set("allowOverlap", "1")
+
+            simple_pos = ET.SubElement(container, _wp("simplePos"))
+            simple_pos.set("x", "0")
+            simple_pos.set("y", "0")
+
+            pos_h = ET.SubElement(container, _wp("positionH"))
+            pos_h.set("relativeFrom", fp.pos_h.rel or "column")
+            if fp.pos_h.align:
+                al = ET.SubElement(pos_h, _wp("align"))
+                al.text = fp.pos_h.align
+            else:
+                off = ET.SubElement(pos_h, _wp("posOffset"))
+                off.text = _pt_to_emu(fp.pos_h.offset)
+
+            pos_v = ET.SubElement(container, _wp("positionV"))
+            pos_v.set("relativeFrom", fp.pos_v.rel or "paragraph")
+            if fp.pos_v.align:
+                al = ET.SubElement(pos_v, _wp("align"))
+                al.text = fp.pos_v.align
+            else:
+                off = ET.SubElement(pos_v, _wp("posOffset"))
+                off.text = _pt_to_emu(fp.pos_v.offset)
+
+            ext = ET.SubElement(container, _wp("extent"))
+            ext.set("cx", cx)
+            ext.set("cy", cy)
+            eff = ET.SubElement(container, _wp("effectExtent"))
+            eff.set("l", "0")
+            eff.set("t", "0")
+            eff.set("r", "0")
+            eff.set("b", "0")
+
+            wrap_side = {
+                WrapSide.LEFT: "left",
+                WrapSide.RIGHT: "right",
+                WrapSide.LARGEST: "largest",
+                WrapSide.BOTH: "bothSides",
+            }.get(fp.side, "bothSides")
+            if fp.wrap == WrapMode.SQUARE:
+                w_el = ET.SubElement(container, _wp("wrapSquare"))
+                w_el.set("wrapText", wrap_side)
+            elif fp.wrap == WrapMode.TIGHT:
+                w_el = ET.SubElement(container, _wp("wrapTight"))
+                w_el.set("wrapText", wrap_side)
+            elif fp.wrap == WrapMode.TOP_BOTTOM:
+                ET.SubElement(container, _wp("wrapTopAndBottom"))
+            else:
+                ET.SubElement(container, _wp("wrapNone"))
+        else:
+            container = ET.SubElement(drawing_el, _wp("inline"))
+            container.set("distT", "0")
+            container.set("distB", "0")
+            container.set("distL", "0")
+            container.set("distR", "0")
+            ext = ET.SubElement(container, _wp("extent"))
+            ext.set("cx", cx)
+            ext.set("cy", cy)
+            eff = ET.SubElement(container, _wp("effectExtent"))
+            eff.set("l", "0")
+            eff.set("t", "0")
+            eff.set("r", "0")
+            eff.set("b", "0")
+
+        doc_pr = ET.SubElement(container, _wp("docPr"))
+        doc_pr.set("id", str(doc_id))
+        doc_pr.set("name", name)
+        if descr:
+            doc_pr.set("descr", descr)
+        ET.SubElement(container, _wp("cNvGraphicFramePr"))
+        graphic = ET.SubElement(container, _a("graphic"))
+        graphic_data = ET.SubElement(graphic, _a("graphicData"))
+        return drawing_el, graphic_data
+
+    def _build_shape_drawing_elem(self, item: ShapeItem) -> ET.Element:
+        """Build ``<w:drawing>`` containing ``<wps:wsp>`` for a newly created ``ShapeItem``."""
+        doc_id = self._alloc_drawing_id(int(getattr(item, "id", 0) or 0))
+        name = item.name or f"Shape {doc_id}"
+        descr = getattr(item, "alt_text", "") or ""
+        drawing_el, graphic_data = self._build_drawing_container(item, doc_id, name, descr)
+        graphic_data.set("uri", NS_WPS)
+
+        cx = _pt_to_emu(max(1.0, float(item.width)))
+        cy = _pt_to_emu(max(1.0, float(item.height)))
+
+        wsp = ET.SubElement(graphic_data, _wps("wsp"))
+        c_nv_pr = ET.SubElement(wsp, _wps("cNvPr"))
+        c_nv_pr.set("id", str(doc_id))
+        c_nv_pr.set("name", name)
+
+        c_nv_sp_pr = ET.SubElement(wsp, _wps("cNvSpPr"))
+        if item.story is not None:
+            c_nv_sp_pr.set("txBox", "1")
+
+        sp_pr = ET.SubElement(wsp, _wps("spPr"))
+        xfrm = ET.SubElement(sp_pr, _a("xfrm"))
+        if item.rotation:
+            xfrm.set("rot", str(int(round(float(item.rotation) * 60000))))
+        if item.flip_h:
+            xfrm.set("flipH", "1")
+        if item.flip_v:
+            xfrm.set("flipV", "1")
+        off = ET.SubElement(xfrm, _a("off"))
+        off.set("x", "0")
+        off.set("y", "0")
+        ext = ET.SubElement(xfrm, _a("ext"))
+        ext.set("cx", cx)
+        ext.set("cy", cy)
+
+        prst_geom = ET.SubElement(sp_pr, _a("prstGeom"))
+        prst_geom.set("prst", item.geometry or "rect")
+        av_lst = ET.SubElement(prst_geom, _a("avLst"))
+        for k, v in (getattr(item, "adjustments", None) or {}).items():
+            gd = ET.SubElement(av_lst, _a("gd"))
+            gd.set("name", str(k))
+            gd.set("fmla", f"val {int(round(float(v)))}")
+
+        fill_kind = getattr(item.fill, "kind", "none") if item.fill is not None else "none"
+        fill_color = (
+            _clean_hex(getattr(item.fill, "color", None)) if item.fill is not None else None
+        )
+        if fill_kind == "solid" and fill_color and fill_color != "auto":
+            sf = ET.SubElement(sp_pr, _a("solidFill"))
+            clr = ET.SubElement(sf, _a("srgbClr"))
+            clr.set("val", fill_color)
+        else:
+            ET.SubElement(sp_pr, _a("noFill"))
+
+        ln_w = getattr(item.line, "width", 1.0) if item.line is not None else 1.0
+        ln = ET.SubElement(sp_pr, _a("ln"))
+        ln.set("w", _pt_to_emu(ln_w))
+        line_vis = bool(getattr(item.line, "visible", False)) if item.line is not None else False
+        line_color = (
+            _clean_hex(getattr(item.line, "color", None)) if item.line is not None else None
+        )
+        if line_vis and line_color and line_color != "auto":
+            sf = ET.SubElement(ln, _a("solidFill"))
+            clr = ET.SubElement(sf, _a("srgbClr"))
+            clr.set("val", line_color)
+        else:
+            ET.SubElement(ln, _a("noFill"))
+
+        if item.story is not None:
+            txbx = ET.SubElement(wsp, _wps("txbx"))
+            txbx_content = ET.SubElement(txbx, _w("txbxContent"))
+            blocks = item.story.blocks if item.story.blocks else [Paragraph()]
+            self._serialize_block_sequence(txbx_content, blocks)
+
+        insets = item.insets if len(getattr(item, "insets", ())) == 4 else (7.2, 3.6, 7.2, 3.6)
+        body_pr = ET.SubElement(wsp, _wps("bodyPr"))
+        body_pr.set("lIns", _pt_to_emu(insets[0]))
+        body_pr.set("tIns", _pt_to_emu(insets[1]))
+        body_pr.set("rIns", _pt_to_emu(insets[2]))
+        body_pr.set("bIns", _pt_to_emu(insets[3]))
+        body_pr.set("anchor", item.v_anchor or "t")
+
+        return drawing_el
+
+    def _build_picture_drawing_elem(self, item: PictureItem) -> ET.Element | None:
+        """Build ``<w:drawing>`` containing ``<pic:pic>`` and register media part/relationship."""
+        raw_data = item.raw_data if isinstance(item.raw_data, dict) else {}
+        img_bytes = raw_data.get("bytes")
+        if isinstance(img_bytes, bytearray):
+            img_bytes = bytes(img_bytes)
+        if not isinstance(img_bytes, bytes) and self.source_pkg is not None and item.image_part:
+            cand = item.image_part.lstrip("/")
+            if not cand.startswith("word/") and not cand.startswith("docProps/"):
+                cand = resolve_part_uri(self._main_path, cand)
+            if self.source_pkg.has_part(cand):
+                img_bytes = self.source_pkg.read_part(cand)
+        if not isinstance(img_bytes, bytes) or not img_bytes:
+            return None
+
+        ext = (
+            str(raw_data.get("ext") or Path(item.image_part or "").suffix or "png")
+            .lstrip(".")
+            .lower()
+            or "png"
+        )
+        mime_type = _IMAGE_MIME_TYPES.get(ext, "image/png")
+
+        idx = 1
+        while True:
+            rel_target = f"media/image{idx}.{ext}"
+            part_path = resolve_part_uri(self._main_path, rel_target)
+            in_src = self.source_pkg is not None and self.source_pkg.has_part(part_path)
+            if not in_src and part_path not in self._added_media:
+                break
+            idx += 1
+
+        self._added_media[part_path] = (bytes(img_bytes), mime_type)
+        r_id = self._gen_r_id()
+        self.rels.append(Relationship(id=r_id, type=REL_IMAGE, target=rel_target))
+
+        doc_id = self._alloc_drawing_id(int(getattr(item, "id", 0) or 0))
+        name = item.name or f"Picture {doc_id}"
+        descr = getattr(item, "alt_text", "") or ""
+        drawing_el, graphic_data = self._build_drawing_container(item, doc_id, name, descr)
+        graphic_data.set("uri", NS_PIC)
+
+        cx = _pt_to_emu(max(1.0, float(item.width)))
+        cy = _pt_to_emu(max(1.0, float(item.height)))
+
+        pic = ET.SubElement(graphic_data, _pic("pic"))
+        nv_pic_pr = ET.SubElement(pic, _pic("nvPicPr"))
+        c_nv_pr = ET.SubElement(nv_pic_pr, _pic("cNvPr"))
+        c_nv_pr.set("id", str(doc_id))
+        c_nv_pr.set("name", name)
+        if descr:
+            c_nv_pr.set("descr", descr)
+        ET.SubElement(nv_pic_pr, _pic("cNvPicPr"))
+
+        blip_fill = ET.SubElement(pic, _pic("blipFill"))
+        blip = ET.SubElement(blip_fill, _a("blip"))
+        blip.set(_r("embed"), r_id)
+        stretch = ET.SubElement(blip_fill, _a("stretch"))
+        ET.SubElement(stretch, _a("fillRect"))
+
+        sp_pr = ET.SubElement(pic, _pic("spPr"))
+        xfrm = ET.SubElement(sp_pr, _a("xfrm"))
+        if item.rotation:
+            xfrm.set("rot", str(int(round(float(item.rotation) * 60000))))
+        off = ET.SubElement(xfrm, _a("off"))
+        off.set("x", "0")
+        off.set("y", "0")
+        ext_el = ET.SubElement(xfrm, _a("ext"))
+        ext_el.set("cx", cx)
+        ext_el.set("cy", cy)
+        prst_geom = ET.SubElement(sp_pr, _a("prstGeom"))
+        prst_geom.set("prst", "rect")
+        ET.SubElement(prst_geom, _a("avLst"))
+
+        return drawing_el
+
+    def _build_comments_xml(self) -> bytes:
+        """Serialize ``doc.comments`` into ``word/comments.xml``."""
+        root = ET.Element(_w("comments"))
+        for cid, cm in self.doc.comments.items():
+            cm_el = ET.SubElement(root, _w("comment"))
+            cm_el.set(_w("id"), str(cid))
+            if isinstance(cm, dict):
+                author = str(cm.get("author", "Author") or "Author")
+                initials = str(cm.get("initials", "") or "")
+                date = str(cm.get("date", "") or "")
+                raw_blocks = cm.get("blocks")
+                if raw_blocks is not None:
+                    blocks = list(raw_blocks) or [Paragraph()]
+                else:
+                    txt = str(cm.get("text", "") or "")
+                    blocks = [Paragraph(runs=[TextItem(text=txt)])] if txt else [Paragraph()]
+            else:
+                author = str(getattr(cm, "author", "Author") or "Author")
+                initials = str(getattr(cm, "initials", "") or "")
+                date = str(getattr(cm, "date", "") or "")
+                blocks = list(getattr(cm, "blocks", None) or []) or [Paragraph()]
+
+            cm_el.set(_w("author"), author)
+            if initials:
+                cm_el.set(_w("initials"), initials)
+            if date:
+                cm_el.set(_w("date"), date)
+            self._serialize_block_sequence(cm_el, blocks)
+
         return serialize_xml(root, standalone=True)
 
 

@@ -623,7 +623,7 @@ def _get_font_metrics(
 
 _EM_PX = 1000
 _em_cache: dict[tuple[str, bool, bool], Any] = {}
-_em_char_cache: dict[int, dict[str, float]] = {}
+_em_char_cache: dict[tuple[str, bool, bool], dict[str, float]] = {}
 # Faces measured from the bundled metric-compatible font (same advances as the Office face).
 # Every other face keeps the calibrated estimates so layout is identical on every machine.
 _BUNDLED_METRICS = {
@@ -638,16 +638,26 @@ _BUNDLED_METRICS = {
 }
 
 
+def _em_cache_key(
+    font_family: str, bold: bool = False, italic: bool = False
+) -> tuple[str, bool, bool] | None:
+    """Return ``(bundled_family, bold, italic)`` cache key or ``None`` if unbundled."""
+    bundled = _BUNDLED_METRICS.get(get_font_key(font_family))
+    if bundled is None:
+        return None
+    return (bundled, bool(bold), bool(italic))
+
+
 def _em_metrics(font_family: str, bold: bool = False, italic: bool = False) -> Any:
     """Unhinted QFontMetricsF at a 1000 px em of the bundled stand-in, or None.
 
     None when the face has no bundled stand-in or no GUI application exists. Advances divided
     by 1000 are em fractions, independent of screen DPI and hinting.
     """
-    bundled = _BUNDLED_METRICS.get(get_font_key(font_family))
-    if bundled is None:
+    key = _em_cache_key(font_family, bold, italic)
+    if key is None:
         return None
-    key = (bundled, bool(bold), bool(italic))
+    bundled = key[0]
     if key in _em_cache:
         return _em_cache[key]
     try:
@@ -671,9 +681,9 @@ def _em_metrics(font_family: str, bold: bool = False, italic: bool = False) -> A
     return fm
 
 
-def _fm_char_em(fm: Any, ch: str) -> float:
-    """Return cached unhinted em width for ``ch`` from ``fm``."""
-    adv_map = _em_char_cache.setdefault(id(fm), {})
+def _fm_char_em(key: tuple[str, bool, bool], fm: Any, ch: str) -> float:
+    """Return cached unhinted em width for ``ch`` keyed by ``(bundled, bold, italic)``."""
+    adv_map = _em_char_cache.setdefault(key, {})
     em = adv_map.get(ch)
     if em is None:
         em = fm.horizontalAdvance(ch) / _EM_PX
@@ -693,7 +703,12 @@ def measure_char_width(
         return 0.0
     fm = _em_metrics(font_family, bold, italic)
     if fm is not None:
-        return _fm_char_em(fm, ch) * font_size
+        key = _em_cache_key(font_family, bold, italic) or (
+            get_font_key(font_family),
+            bool(bold),
+            bool(italic),
+        )
+        return _fm_char_em(key, fm, ch) * font_size
     calibrated_em = get_calibrated_char_em(ch, font_family, bold=bold, italic=italic)
     if calibrated_em is not None:
         return font_size * calibrated_em
@@ -721,12 +736,17 @@ def measure_text_width(
         return 0.0
     fm = _em_metrics(font_family, bold, italic)
     if fm is not None:
+        key = _em_cache_key(font_family, bold, italic) or (
+            get_font_key(font_family),
+            bool(bold),
+            bool(italic),
+        )
         total = 0.0
         for ch in text:
             if is_cjk_char(ch):
                 total += font_size
             elif ch != "\t":
-                total += _fm_char_em(fm, ch) * font_size
+                total += _fm_char_em(key, fm, ch) * font_size
         return total
     return sum(
         measure_char_width(c, font_size, font_family, bold=bold, italic=italic) for c in text

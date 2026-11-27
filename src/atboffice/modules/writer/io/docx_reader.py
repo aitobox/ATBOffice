@@ -44,6 +44,7 @@ from atboffice.modules.writer.models.document import (
     Table,
     TextItem,
     normalize,
+    plain_text,
 )
 from atboffice.modules.writer.models.drawing import (
     ChartItem,
@@ -162,6 +163,48 @@ def normalize_strict_namespaces(xml_str: str | None) -> str | None:
     for strict_ns, trans_ns in STRICT_TO_TRANSITIONAL.items():
         xml_str = xml_str.replace(strict_ns, trans_ns)
     return xml_str
+
+
+def _block_plain_text(block: Any) -> str:
+    """Return plain text for a Paragraph or Table block inside a comment."""
+    if isinstance(block, Paragraph):
+        return plain_text(block)
+    if isinstance(block, Table):
+        return "\n".join(
+            _block_plain_text(sub)
+            for row in block.rows
+            for cell in row.cells
+            for sub in cell.blocks
+        )
+    return ""
+
+
+def comments_signature(
+    comments: dict[str, Any] | None,
+) -> tuple[tuple[str, str, str, str, tuple[str, ...]], ...]:
+    """Return a deterministic signature of ``doc.comments`` for change detection."""
+    if not comments:
+        return ()
+    entries: list[tuple[str, str, str, str, tuple[str, ...]]] = []
+    for cid, cm in sorted(comments.items(), key=lambda kv: str(kv[0])):
+        if isinstance(cm, dict):
+            author = str(cm.get("author", "") or "")
+            initials = str(cm.get("initials", "") or "")
+            date = str(cm.get("date", "") or "")
+            blocks = cm.get("blocks")
+            texts = (
+                tuple(_block_plain_text(b) for b in blocks)
+                if blocks is not None
+                else (str(cm.get("text", "") or ""),)
+            )
+        else:
+            author = str(getattr(cm, "author", "") or "")
+            initials = str(getattr(cm, "initials", "") or "")
+            date = str(getattr(cm, "date", "") or "")
+            blocks = getattr(cm, "blocks", None) or []
+            texts = tuple(_block_plain_text(b) for b in blocks)
+        entries.append((str(cid), author, initials, date, texts))
+    return tuple(entries)
 
 
 def _local_tag(elem: ET.Element | str) -> str:
@@ -1841,6 +1884,9 @@ class DocxReader:
                         break
         except Exception:
             pass
+
+        self.doc.keep["comments_part"] = cm_path
+        self.doc.keep["comments_snapshot"] = comments_signature(self.doc.comments)
 
     def _parse_drawing(
         self,
