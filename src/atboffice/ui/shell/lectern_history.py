@@ -82,7 +82,7 @@ class PresentationHistory(QObject):
             try:
                 timer.stop()
             except Exception:
-                pass
+                logger.debug("Failed to stop pending flush timer", exc_info=True)
 
     def reset(self) -> None:
         """Start a new history for the presentation now shown (it was loaded)."""
