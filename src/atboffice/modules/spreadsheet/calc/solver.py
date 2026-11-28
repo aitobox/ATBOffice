@@ -8,7 +8,7 @@ import math
 import random
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -614,7 +614,21 @@ def _validate_and_compile(
 # ---------------------------------------------------------------------------
 
 
-def _simplex_solve(
+@dataclass
+class _SimplexTableauInfo:
+    """Final Simplex tableau metadata used for LP sensitivity analysis."""
+
+    tableau: list[list[float]]
+    basis: list[int]
+    obj2: list[float]
+    total_cols: int
+    active_cols: int
+    id_cols: list[int]
+    row_flips: list[float]
+    dropped_rows: set[int]
+
+
+def _simplex_solve_with_tableau(
     c_vec: list[float],
     rows: list[tuple[list[float], Literal["<=", "=", ">="], float]],
     max_pivots: int = 2000,
@@ -626,19 +640,37 @@ def _simplex_solve(
     list[float],
     float,
     int,
+    _SimplexTableauInfo | None,
 ]:
-    """Solve min c^T y subject to A y {<=, =, >=} b, y >= 0 using Two-Phase Simplex."""
+    """Solve min c^T y subject to A y {<=, =, >=} b, y >= 0 and return final tableau."""
     n_vars = len(c_vec)
     m = len(rows)
     if m == 0:
         # Unconstrained y >= 0
         for cj in c_vec:
             if cj < -eps_rc:
-                return "unbounded", [0.0] * n_vars, float("-inf"), 0
-        return "optimal", [0.0] * n_vars, 0.0, 0
+                return "unbounded", [0.0] * n_vars, float("-inf"), 0, None
+        obj2_empty = list(c_vec) + [0.0]
+        return (
+            "optimal",
+            [0.0] * n_vars,
+            0.0,
+            0,
+            _SimplexTableauInfo(
+                tableau=[],
+                basis=[],
+                obj2=obj2_empty,
+                total_cols=n_vars,
+                active_cols=n_vars,
+                id_cols=[],
+                row_flips=[],
+                dropped_rows=set(),
+            ),
+        )
 
     # Normalize RHS >= 0 and determine slack/surplus/artificial variables
     norm_rows: list[tuple[list[float], str, float]] = []
+    row_flips: list[float] = []
     n_slack = 0
     n_surplus = 0
     n_art = 0
@@ -646,13 +678,16 @@ def _simplex_solve(
         row_c = list(coeffs)
         cur_op = op
         cur_rhs = rhs
+        flip = 1.0
         if cur_rhs < 0.0:
             row_c = [-v for v in row_c]
             cur_rhs = -cur_rhs
+            flip = -1.0
             if cur_op == "<=":
                 cur_op = ">="
             elif cur_op == ">=":
                 cur_op = "<="
+        row_flips.append(flip)
         if cur_op == "<=":
             n_slack += 1
         elif cur_op == ">=":
@@ -671,6 +706,7 @@ def _simplex_solve(
     tableau: list[list[float]] = [[0.0] * (total_cols + 1) for _ in range(m)]
     basis: list[int] = [-1] * m
     art_cols: set[int] = set()
+    id_cols: list[int] = [-1] * m
 
     s_idx = 0
     e_idx = 0
@@ -683,6 +719,7 @@ def _simplex_solve(
             col = slack_start + s_idx
             tableau[i][col] = 1.0
             basis[i] = col
+            id_cols[i] = col
             s_idx += 1
         elif cur_op == ">=":
             e_col = surplus_start + e_idx
@@ -690,6 +727,7 @@ def _simplex_solve(
             tableau[i][e_col] = -1.0
             tableau[i][a_col] = 1.0
             basis[i] = a_col
+            id_cols[i] = a_col
             art_cols.add(a_col)
             e_idx += 1
             a_idx += 1
@@ -697,6 +735,7 @@ def _simplex_solve(
             a_col = art_start + a_idx
             tableau[i][a_col] = 1.0
             basis[i] = a_col
+            id_cols[i] = a_col
             art_cols.add(a_col)
             a_idx += 1
 
@@ -784,6 +823,8 @@ def _simplex_solve(
     for j in range(n_vars):
         obj2[j] = c_vec[j]
 
+    dropped_rows: set[int] = set()
+    active_cols = total_cols
     if n_art > 0:
         # Phase I objective: minimize sum of artificial variables
         obj1 = [0.0] * (total_cols + 1)
@@ -798,15 +839,16 @@ def _simplex_solve(
 
         status1 = run_simplex_phase(obj1, total_cols, [obj2])
         if status1 == "max_iterations":
-            return "max_iterations", [0.0] * n_vars, 0.0, pivots
+            return "max_iterations", [0.0] * n_vars, 0.0, pivots, None
 
         # Phase I value is -obj1[total_cols]
         w_val = -obj1[total_cols]
         if w_val > eps_feas:
-            return "infeasible", [0.0] * n_vars, 0.0, pivots
+            return "infeasible", [0.0] * n_vars, 0.0, pivots, None
 
         # Drive remaining zero-valued artificial variables out of basis or drop redundant rows
         non_art_cols = art_start
+        active_cols = non_art_cols
         rows_to_drop: list[int] = []
         for i in range(m):
             if basis[i] in art_cols:
@@ -821,6 +863,7 @@ def _simplex_solve(
                 else:
                     rows_to_drop.append(i)
 
+        dropped_rows.update(rows_to_drop)
         for r_idx in reversed(rows_to_drop):
             tableau.pop(r_idx)
             basis.pop(r_idx)
@@ -839,9 +882,9 @@ def _simplex_solve(
         status2 = run_simplex_phase(obj2, total_cols, [])
 
     if status2 == "unbounded":
-        return "unbounded", [0.0] * n_vars, float("-inf"), pivots
+        return "unbounded", [0.0] * n_vars, float("-inf"), pivots, None
     if status2 == "max_iterations":
-        return "max_iterations", [0.0] * n_vars, 0.0, pivots
+        return "max_iterations", [0.0] * n_vars, 0.0, pivots, None
 
     sol = [0.0] * n_vars
     for i, b_col in enumerate(basis):
@@ -850,10 +893,45 @@ def _simplex_solve(
             sol[b_col] = 0.0 if abs(val) < 1e-12 else val
 
     obj_val = -obj2[total_cols]
-    return "optimal", sol, obj_val, pivots
+    info = _SimplexTableauInfo(
+        tableau=tableau,
+        basis=basis,
+        obj2=obj2,
+        total_cols=total_cols,
+        active_cols=active_cols,
+        id_cols=id_cols,
+        row_flips=row_flips,
+        dropped_rows=dropped_rows,
+    )
+    return "optimal", sol, obj_val, pivots, info
 
 
-def _solve_bounded_lp(
+def _simplex_solve(
+    c_vec: list[float],
+    rows: list[tuple[list[float], Literal["<=", "=", ">="], float]],
+    max_pivots: int = 2000,
+    eps_piv: float = 1e-9,
+    eps_rc: float = 1e-8,
+    eps_feas: float = 1e-6,
+) -> tuple[
+    Literal["optimal", "infeasible", "unbounded", "max_iterations"],
+    list[float],
+    float,
+    int,
+]:
+    """Solve min c^T y subject to A y {<=, =, >=} b, y >= 0 using Two-Phase Simplex."""
+    status, sol, obj_val, pivots, _ = _simplex_solve_with_tableau(
+        c_vec,
+        rows,
+        max_pivots=max_pivots,
+        eps_piv=eps_piv,
+        eps_rc=eps_rc,
+        eps_feas=eps_feas,
+    )
+    return status, sol, obj_val, pivots
+
+
+def _solve_bounded_lp_with_info(
     c_obj: list[float],
     c_const: float,
     linear_rows: list[tuple[list[float], Literal["<=", "=", ">="], float]],
@@ -865,19 +943,17 @@ def _solve_bounded_lp(
     list[float],
     float,
     int,
+    list[tuple[str, float, int, int]],
+    _SimplexTableauInfo | None,
 ]:
-    """Solve min c_obj^T x + c_const with optional variable lower/upper bounds."""
+    """Solve min c_obj^T x + c_const and also return variable mapping + final tableau."""
     n = len(c_obj)
     for j in range(n):
         lb = lower_bounds[j]
         ub = upper_bounds[j]
         if lb is not None and ub is not None and lb > ub + 1e-7:
-            return "infeasible", [0.0] * n, 0.0, 0
+            return "infeasible", [0.0] * n, 0.0, 0, [], None
 
-    # Variable substitution to y >= 0:
-    # - lb finite: x_j = lb + y_k (plus optional y_k <= ub - lb)
-    # - lb is None, ub finite: x_j = ub - y_k
-    # - both None: x_j = y_pos - y_neg
     mapping: list[tuple[str, float, int, int]] = []
     y_costs: list[float] = []
     const_shift = c_const
@@ -933,9 +1009,11 @@ def _solve_bounded_lp(
         padded = partial_a + [0.0] * (y_count - len(partial_a))
         y_rows.append((padded, op, rhs))
 
-    status, y_sol, y_obj, pivots = _simplex_solve(y_costs, y_rows, max_pivots=max_pivots)
+    status, y_sol, y_obj, pivots, tab_info = _simplex_solve_with_tableau(
+        y_costs, y_rows, max_pivots=max_pivots
+    )
     if status != "optimal":
-        return status, [0.0] * n, y_obj, pivots
+        return status, [0.0] * n, y_obj, pivots, mapping, None
 
     x_sol = [0.0] * n
     for j in range(n):
@@ -947,7 +1025,27 @@ def _solve_bounded_lp(
         else:
             x_sol[j] = y_sol[i1] - y_sol[i2]
 
-    return "optimal", x_sol, y_obj + const_shift, pivots
+    return "optimal", x_sol, y_obj + const_shift, pivots, mapping, tab_info
+
+
+def _solve_bounded_lp(
+    c_obj: list[float],
+    c_const: float,
+    linear_rows: list[tuple[list[float], Literal["<=", "=", ">="], float]],
+    lower_bounds: list[float | None],
+    upper_bounds: list[float | None],
+    max_pivots: int = 2000,
+) -> tuple[
+    Literal["optimal", "infeasible", "unbounded", "max_iterations"],
+    list[float],
+    float,
+    int,
+]:
+    """Solve min c_obj^T x + c_const with optional variable lower/upper bounds."""
+    status, x_sol, obj_val, pivots, _, _ = _solve_bounded_lp_with_info(
+        c_obj, c_const, linear_rows, lower_bounds, upper_bounds, max_pivots=max_pivots
+    )
+    return status, x_sol, obj_val, pivots
 
 
 def _extract_linear_model(
@@ -2398,15 +2496,345 @@ def apply_solver_solution(workbook: WorkbookModel, solution_values: dict[str, fl
     workbook.recalculate()
 
 
+def _create_report_sheet(workbook: WorkbookModel, prefix: str) -> tuple[str, Any]:
+    """Create a uniquely named report worksheet like 'Answer Report 1'."""
+    idx = 1
+    while workbook.get_sheet_by_name(f"{prefix} {idx}") is not None:
+        idx += 1
+    sheet_name = f"{prefix} {idx}"
+    return sheet_name, workbook.add_sheet(name=sheet_name)
+
+
+def _clean_zero(val: float, tol: float = 1e-10) -> float:
+    """Normalize near-zero floats (including -0.0) to 0.0."""
+    return 0.0 if abs(val) < tol else float(val)
+
+
+def _solve_linear_system(mat: list[list[float]], rhs: list[float]) -> list[float] | None:
+    """Solve a small dense linear system A x = b via Gaussian elimination with partial pivoting."""
+    n = len(rhs)
+    if n == 0:
+        return []
+    aug = [list(mat[i]) + [rhs[i]] for i in range(n)]
+    for col in range(n):
+        piv_row = max(range(col, n), key=lambda r: abs(aug[r][col]))
+        if abs(aug[piv_row][col]) < 1e-12:
+            return None
+        if piv_row != col:
+            aug[col], aug[piv_row] = aug[piv_row], aug[col]
+        piv = aug[col][col]
+        for r in range(col + 1, n):
+            factor = aug[r][col] / piv
+            if abs(factor) > 1e-15:
+                for k in range(col, n + 1):
+                    aug[r][k] -= factor * aug[col][k]
+    sol = [0.0] * n
+    for i in range(n - 1, -1, -1):
+        s = aug[i][n] - sum(aug[i][j] * sol[j] for j in range(i + 1, n))
+        sol[i] = s / aug[i][i]
+    return sol
+
+
+def _solution_vector_from_result(
+    var_coords: list[tuple[str, int, int]],
+    initial_vec: list[float],
+    params: SolverParams,
+    result: SolverResult,
+) -> list[float]:
+    """Extract ordered solution vector matching var_coords from SolverResult."""
+    vec: list[float] = []
+    for coord, init_v in zip(var_coords, initial_vec, strict=True):
+        ref_rel = format_cell_ref(*coord, params.default_sheet)
+        ref_abs = format_cell_ref(*coord, None)
+        if ref_rel in result.solution_values:
+            vec.append(float(result.solution_values[ref_rel]))
+        elif ref_abs in result.solution_values:
+            vec.append(float(result.solution_values[ref_abs]))
+        else:
+            vec.append(float(init_v))
+    return vec
+
+
+def _compute_lp_sensitivity(
+    evaluator: _WorkbookEvaluator,
+    params: SolverParams,
+    obj_coord: tuple[str, int, int],
+    var_coords: list[tuple[str, int, int]],
+    initial_vec: list[float],
+    compiled: list[_CompiledConstraint],
+) -> (
+    tuple[
+        list[tuple[float, float, float, float]],
+        list[tuple[float, float, float, float]],
+    ]
+    | None
+):
+    """Compute exact Simplex LP sensitivity rows for variables and algebraic constraints.
+
+    Returns ``(var_rows, con_rows)`` where:
+    - ``var_rows[j] = (reduced_cost, obj_coeff, allow_inc, allow_dec)``
+    - ``con_rows[i] = (shadow_price, rhs_val, allow_inc, allow_dec)``
+    or ``None`` if the problem is not a clean continuous LP.
+    """
+    if params.method != "simplex_lp" or params.goal == "value_of":
+        return None
+    if any(c.kind in ("int", "bin", "dif") for c in compiled):
+        return None
+
+    ok_lin, _err, obj_coeffs, obj_const, linear_rows = _extract_linear_model(
+        evaluator, obj_coord, compiled, initial_vec, params.make_unconstrained_non_negative
+    )
+    if not ok_lin:
+        return None
+
+    n = len(var_coords)
+    base_lb: list[float | None] = [0.0 if params.make_unconstrained_non_negative else None] * n
+    base_ub: list[float | None] = [None] * n
+    is_max = params.goal == "max"
+    min_c = [-v for v in obj_coeffs] if is_max else list(obj_coeffs)
+    min_const = -obj_const if is_max else obj_const
+
+    max_pivots = max(500, params.options.max_iterations * 10)
+    lp_status, sol_x, _obj_v, _pivs, mapping, tab_info = _solve_bounded_lp_with_info(
+        min_c, min_const, linear_rows, base_lb, base_ub, max_pivots=max_pivots
+    )
+    if lp_status != "optimal" or tab_info is None:
+        return None
+
+    ok_sol, sol_vals = evaluator.evaluate_vector(sol_x)
+    if not ok_sol:
+        return None
+
+    _INF = 1e30
+    tableau = tab_info.tableau
+    basis = tab_info.basis
+    obj2 = tab_info.obj2
+    total_cols = tab_info.total_cols
+    active_cols = tab_info.active_cols
+    basis_row_by_col = {b_col: r_idx for r_idx, b_col in enumerate(basis)}
+    basis_set = set(basis)
+
+    def _range_from_basic_row(
+        row_idx: int, sign_mult: float, exclude_cols: set[int]
+    ) -> tuple[float, float]:
+        """Compute [d_lo, d_hi] for delta_min keeping reduced costs non-negative."""
+        d_lo = float("-inf")
+        d_hi = float("inf")
+        row = tableau[row_idx]
+        for k in range(active_cols):
+            if k in basis_set or k in exclude_cols:
+                continue
+            a_rk = sign_mult * row[k]
+            rc_k = max(0.0, obj2[k])
+            if a_rk > 1e-12:
+                d_hi = min(d_hi, rc_k / a_rk)
+            elif a_rk < -1e-12:
+                d_lo = max(d_lo, rc_k / a_rk)
+        return d_lo, d_hi
+
+    var_rows: list[tuple[float, float, float, float]] = []
+    for j in range(n):
+        c_j = float(obj_coeffs[j])
+        kind, _offset, i1, i2 = mapping[j]
+        if kind == "lb":
+            if i1 in basis_row_by_col:
+                reduced_cost = 0.0
+                d_lo, d_hi = _range_from_basic_row(basis_row_by_col[i1], 1.0, set())
+                if is_max:
+                    allow_inc = _INF if math.isinf(d_lo) else max(0.0, -d_lo)
+                    allow_dec = _INF if math.isinf(d_hi) else max(0.0, d_hi)
+                else:
+                    allow_inc = _INF if math.isinf(d_hi) else max(0.0, d_hi)
+                    allow_dec = _INF if math.isinf(d_lo) else max(0.0, -d_lo)
+            else:
+                rc_min = max(0.0, obj2[i1])
+                reduced_cost = _clean_zero(-rc_min if is_max else rc_min)
+                if is_max:
+                    allow_inc = _clean_zero(rc_min)
+                    allow_dec = _INF
+                else:
+                    allow_inc = _INF
+                    allow_dec = _clean_zero(rc_min)
+        else:
+            # Free variable: x_j = y_p - y_n
+            excl = {i1, i2}
+            if i1 in basis_row_by_col:
+                reduced_cost = 0.0
+                d_lo, d_hi = _range_from_basic_row(basis_row_by_col[i1], 1.0, excl)
+                if is_max:
+                    allow_inc = _INF if math.isinf(d_lo) else max(0.0, -d_lo)
+                    allow_dec = _INF if math.isinf(d_hi) else max(0.0, d_hi)
+                else:
+                    allow_inc = _INF if math.isinf(d_hi) else max(0.0, d_hi)
+                    allow_dec = _INF if math.isinf(d_lo) else max(0.0, -d_lo)
+            elif i2 in basis_row_by_col:
+                reduced_cost = 0.0
+                d_lo, d_hi = _range_from_basic_row(basis_row_by_col[i2], -1.0, excl)
+                if is_max:
+                    allow_inc = _INF if math.isinf(d_lo) else max(0.0, -d_lo)
+                    allow_dec = _INF if math.isinf(d_hi) else max(0.0, d_hi)
+                else:
+                    allow_inc = _INF if math.isinf(d_hi) else max(0.0, d_hi)
+                    allow_dec = _INF if math.isinf(d_lo) else max(0.0, -d_lo)
+            else:
+                reduced_cost = 0.0
+                allow_inc = 0.0
+                allow_dec = 0.0
+
+        var_rows.append(
+            (
+                _clean_zero(reduced_cost),
+                _clean_zero(c_j),
+                allow_inc if allow_inc < _INF else _INF,
+                allow_dec if allow_dec < _INF else _INF,
+            )
+        )
+
+    alg_constraints = [c for c in compiled if c.kind in ("<=", "=", ">=")]
+    con_rows: list[tuple[float, float, float, float]] = []
+    for i, c in enumerate(alg_constraints):
+        rhs_val = sol_vals[c.rhs_coord] if c.rhs_coord is not None else float(c.rhs_const or 0.0)
+        if i in tab_info.dropped_rows or i >= len(tab_info.id_cols):
+            con_rows.append((0.0, _clean_zero(rhs_val), 0.0, 0.0))
+            continue
+
+        id_col = tab_info.id_cols[i]
+        flip = tab_info.row_flips[i]
+        sp_min = -flip * obj2[id_col]
+        shadow_price = _clean_zero(-sp_min if is_max else sp_min)
+
+        delta_lo = float("-inf")
+        delta_hi = float("inf")
+        for r_idx, row in enumerate(tableau):
+            d_r = row[id_col]
+            rhs_bar = max(0.0, row[total_cols])
+            if d_r > 1e-12:
+                delta_lo = max(delta_lo, -rhs_bar / d_r)
+            elif d_r < -1e-12:
+                delta_hi = min(delta_hi, -rhs_bar / d_r)
+
+        if flip > 0.0:
+            allow_inc = _INF if math.isinf(delta_hi) else max(0.0, delta_hi)
+            allow_dec = _INF if math.isinf(delta_lo) else max(0.0, -delta_lo)
+        else:
+            allow_inc = _INF if math.isinf(delta_lo) else max(0.0, -delta_lo)
+            allow_dec = _INF if math.isinf(delta_hi) else max(0.0, delta_hi)
+
+        con_rows.append(
+            (
+                shadow_price,
+                _clean_zero(rhs_val),
+                allow_inc if allow_inc < _INF else _INF,
+                allow_dec if allow_dec < _INF else _INF,
+            )
+        )
+
+    return var_rows, con_rows
+
+
+def _compute_nonlinear_sensitivity(
+    evaluator: _WorkbookEvaluator,
+    params: SolverParams,
+    obj_coord: tuple[str, int, int],
+    var_coords: list[tuple[str, int, int]],
+    sol_vec: list[float],
+    compiled: list[_CompiledConstraint],
+) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
+    """Estimate variable reduced gradients / objective partials and constraint shadow prices."""
+    n = len(var_coords)
+    lb, ub, _, _ = _compute_bounds(n, compiled, params.make_unconstrained_non_negative)
+    alg_constraints = [c for c in compiled if c.kind in ("<=", "=", ">=")]
+
+    ok0, vals0 = evaluator.evaluate_vector(sol_vec)
+    if not ok0:
+        return [(0.0, 0.0)] * n, [(0.0, float(c.rhs_const or 0.0)) for c in alg_constraints]
+
+    # Finite-difference Jacobian for objective and algebraic constraints
+    obj_grad = [0.0] * n
+    con_grads: list[list[float]] = [[0.0] * n for _ in alg_constraints]
+
+    def _con_val(vals: dict[tuple[str, int, int], float], c: _CompiledConstraint) -> float:
+        lhs_v = vals[c.lhs_coords[0]]
+        rhs_v = vals[c.rhs_coord] if c.rhs_coord is not None else float(c.rhs_const or 0.0)
+        return lhs_v - rhs_v
+
+    f0 = vals0[obj_coord]
+    g0 = [_con_val(vals0, c) for c in alg_constraints]
+
+    for j in range(n):
+        step = 1e-5 * max(1.0, abs(sol_vec[j]))
+        x_p = list(sol_vec)
+        x_p[j] += step
+        can_p = ub[j] is None or x_p[j] <= float(ub[j]) + 1e-12
+        ok_p, vals_p = evaluator.evaluate_vector(x_p) if can_p else (False, {})
+
+        x_m = list(sol_vec)
+        x_m[j] -= step
+        can_m = lb[j] is None or x_m[j] >= float(lb[j]) - 1e-12
+        ok_m, vals_m = evaluator.evaluate_vector(x_m) if can_m else (False, {})
+
+        if ok_p and ok_m:
+            obj_grad[j] = (vals_p[obj_coord] - vals_m[obj_coord]) / (2.0 * step)
+            for k, c in enumerate(alg_constraints):
+                con_grads[k][j] = (_con_val(vals_p, c) - _con_val(vals_m, c)) / (2.0 * step)
+        elif ok_p:
+            obj_grad[j] = (vals_p[obj_coord] - f0) / step
+            for k, c in enumerate(alg_constraints):
+                con_grads[k][j] = (_con_val(vals_p, c) - g0[k]) / step
+        elif ok_m:
+            obj_grad[j] = (f0 - vals_m[obj_coord]) / step
+            for k, c in enumerate(alg_constraints):
+                con_grads[k][j] = (g0[k] - _con_val(vals_m, c)) / step
+
+    # Identify active algebraic constraints and free (non-bound-pinned) variables
+    tol = max(params.options.precision * 100.0, 1e-4)
+    active_idx = [k for k, g_val in enumerate(g0) if abs(g_val) <= tol]
+    free_vars = [
+        j
+        for j in range(n)
+        if not (
+            (lb[j] is not None and abs(sol_vec[j] - float(lb[j])) <= 1e-6)
+            or (ub[j] is not None and abs(sol_vec[j] - float(ub[j])) <= 1e-6)
+        )
+    ]
+    if not free_vars:
+        free_vars = list(range(n))
+
+    shadow_prices = [0.0] * len(alg_constraints)
+    if active_idx:
+        m_act = len(active_idx)
+        normal_mat = [[0.0] * m_act for _ in range(m_act)]
+        normal_rhs = [0.0] * m_act
+        for a in range(m_act):
+            ka = active_idx[a]
+            normal_rhs[a] = sum(con_grads[ka][j] * obj_grad[j] for j in free_vars)
+            for b in range(m_act):
+                kb = active_idx[b]
+                normal_mat[a][b] = sum(con_grads[ka][j] * con_grads[kb][j] for j in free_vars)
+            normal_mat[a][a] += 1e-10
+        lam = _solve_linear_system(normal_mat, normal_rhs)
+        if lam is not None:
+            for a, ka in enumerate(active_idx):
+                shadow_prices[ka] = _clean_zero(lam[a])
+
+    var_rows: list[tuple[float, float]] = []
+    for j in range(n):
+        red_grad = obj_grad[j] - sum(shadow_prices[k] * con_grads[k][j] for k in active_idx)
+        var_rows.append((_clean_zero(red_grad), _clean_zero(obj_grad[j])))
+
+    con_rows: list[tuple[float, float]] = []
+    for k, c in enumerate(alg_constraints):
+        rhs_v = vals0[c.rhs_coord] if c.rhs_coord is not None else float(c.rhs_const or 0.0)
+        con_rows.append((shadow_prices[k], _clean_zero(rhs_v)))
+
+    return var_rows, con_rows
+
+
 def generate_answer_report(
     workbook: WorkbookModel, params: SolverParams, result: SolverResult
 ) -> str:
     """Create a unique Answer Report worksheet summarizing objective, variables, and constraints."""
-    idx = 1
-    while workbook.get_sheet_by_name(f"Answer Report {idx}") is not None:
-        idx += 1
-    sheet_name = f"Answer Report {idx}"
-    report_sh = workbook.add_sheet(name=sheet_name)
+    sheet_name, report_sh = _create_report_sheet(workbook, "Answer Report")
 
     def write_cell(r: int, c: int, val: Any, bold: bool = False) -> None:
         report_sh.set_cell(r, c, CellData(value=val, bold=bold))
@@ -2480,6 +2908,656 @@ def generate_answer_report(
         row += 1
 
     return sheet_name
+
+
+def generate_sensitivity_report(
+    workbook: WorkbookModel, params: SolverParams, result: SolverResult
+) -> str:
+    """Create a unique Sensitivity Report worksheet with LP tableau or gradient sensitivity."""
+    sheet_name, report_sh = _create_report_sheet(workbook, "Sensitivity Report")
+
+    def write_cell(r: int, c: int, val: Any, bold: bool = False) -> None:
+        report_sh.set_cell(r, c, CellData(value=val, bold=bold))
+
+    row = 0
+    write_cell(row, 0, safe_tr("规划求解灵敏度报告"), bold=True)
+    row += 1
+    write_cell(row, 0, safe_tr("状态"), bold=True)
+    write_cell(row, 1, result.message)
+    row += 2
+
+    obj_coord, var_coords, initial_vec, compiled, err_msg = _validate_and_compile(workbook, params)
+    var_sens: list[tuple[float, float, Any, Any]] = []
+    con_sens: list[tuple[float, float, Any, Any]] = []
+
+    if err_msg is None and obj_coord is not None and var_coords:
+        sol_vec = _solution_vector_from_result(var_coords, initial_vec, params, result)
+        watch_set: set[tuple[str, int, int]] = {obj_coord}
+        for c in compiled:
+            watch_set.update(c.lhs_coords)
+            if c.rhs_coord is not None:
+                watch_set.add(c.rhs_coord)
+
+        evaluator = _WorkbookEvaluator(workbook, var_coords, sorted(watch_set))
+        try:
+            ok_prep, _ = evaluator.prepare()
+            if ok_prep:
+                lp_sens = None
+                if result.success:
+                    lp_sens = _compute_lp_sensitivity(
+                        evaluator, params, obj_coord, var_coords, initial_vec, compiled
+                    )
+                if lp_sens is not None:
+                    var_rows, con_rows = lp_sens
+                    var_sens = list(var_rows)
+                    con_sens = list(con_rows)
+                else:
+                    nl_vars, nl_cons = _compute_nonlinear_sensitivity(
+                        evaluator, params, obj_coord, var_coords, sol_vec, compiled
+                    )
+                    na_lbl = safe_tr("不适用")
+                    var_sens = [(rc, oc, na_lbl, na_lbl) for rc, oc in nl_vars]
+                    con_sens = [(sp, rhs_v, na_lbl, na_lbl) for sp, rhs_v in nl_cons]
+        finally:
+            evaluator.restore()
+
+    # Variable Cells section
+    write_cell(row, 0, safe_tr("可变单元格"), bold=True)
+    row += 1
+    for col, title in enumerate(
+        (
+            safe_tr("单元格"),
+            safe_tr("终值"),
+            safe_tr("递减成本"),
+            safe_tr("目标系数"),
+            safe_tr("允许的增量"),
+            safe_tr("允许的减量"),
+        )
+    ):
+        write_cell(row, col, title, bold=True)
+    row += 1
+
+    na_lbl = safe_tr("不适用")
+    if var_coords:
+        sol_vec = _solution_vector_from_result(var_coords, initial_vec, params, result)
+        for j, coord in enumerate(var_coords):
+            ref_key = format_cell_ref(*coord, params.default_sheet)
+            fin_v = sol_vec[j]
+            rc, oc, a_inc, a_dec = var_sens[j] if j < len(var_sens) else (0.0, 0.0, na_lbl, na_lbl)
+            write_cell(row, 0, ref_key)
+            write_cell(row, 1, fin_v)
+            write_cell(row, 2, rc)
+            write_cell(row, 3, oc)
+            write_cell(row, 4, a_inc)
+            write_cell(row, 5, a_dec)
+            row += 1
+    else:
+        for ref_key, init_v in result.initial_values.items():
+            fin_v = result.solution_values.get(ref_key, init_v)
+            write_cell(row, 0, ref_key)
+            write_cell(row, 1, fin_v)
+            write_cell(row, 2, 0.0)
+            write_cell(row, 3, 0.0)
+            write_cell(row, 4, na_lbl)
+            write_cell(row, 5, na_lbl)
+            row += 1
+    row += 1
+
+    # Constraints section
+    write_cell(row, 0, safe_tr("约束"), bold=True)
+    row += 1
+    for col, title in enumerate(
+        (
+            safe_tr("单元格"),
+            safe_tr("终值"),
+            safe_tr("阴影价格"),
+            safe_tr("约束右侧值"),
+            safe_tr("允许的增量"),
+            safe_tr("允许的减量"),
+        )
+    ):
+        write_cell(row, col, title, bold=True)
+    row += 1
+
+    alg_idx = 0
+    for item in result.constraint_reports:
+        write_cell(row, 0, item.cell_ref)
+        write_cell(row, 1, item.cell_value)
+        if item.op in ("<=", "=", ">="):
+            if alg_idx < len(con_sens):
+                sp, rhs_v, a_inc, a_dec = con_sens[alg_idx]
+            else:
+                sp, rhs_v, a_inc, a_dec = (0.0, item.rhs_value, na_lbl, na_lbl)
+            alg_idx += 1
+            write_cell(row, 2, sp)
+            write_cell(row, 3, rhs_v)
+            write_cell(row, 4, a_inc)
+            write_cell(row, 5, a_dec)
+        else:
+            write_cell(row, 2, 0.0)
+            write_cell(row, 3, item.op)
+            write_cell(row, 4, na_lbl)
+            write_cell(row, 5, na_lbl)
+        row += 1
+
+    return sheet_name
+
+
+def _find_1d_feasible_limits(
+    evaluator: _WorkbookEvaluator,
+    obj_coord: tuple[str, int, int],
+    var_idx: int,
+    sol_vec: list[float],
+    compiled: list[_CompiledConstraint],
+    lb: float | None,
+    ub: float | None,
+    is_int: bool,
+    is_bin: bool,
+    params: SolverParams,
+) -> tuple[float | None, float | None, float | None, float | None]:
+    """Find feasible (lower_val, lower_obj, upper_val, upper_obj) for variable var_idx."""
+    feas_tol = max(params.options.precision * 100.0, 1e-4)
+    n = len(sol_vec)
+    all_lb, all_ub, _, _ = _compute_bounds(n, compiled, params.make_unconstrained_non_negative)
+
+    def eval_point(t: float) -> tuple[bool, float | None]:
+        trial = list(sol_vec)
+        trial[var_idx] = t
+        ok, vals = evaluator.evaluate_vector(trial)
+        if not ok:
+            return False, None
+        _, _, viol = _constraint_residuals(trial, vals, compiled, all_lb, all_ub)
+        obj_v = vals[obj_coord]
+        if params.goal == "value_of":
+            viol += abs(obj_v - params.target_value)
+        return viol <= feas_tol, obj_v
+
+    x_star = sol_vec[var_idx]
+    ok_star, obj_star = eval_point(x_star)
+    if not ok_star or obj_star is None:
+        return x_star, result_obj_fallback(obj_star), x_star, result_obj_fallback(obj_star)
+
+    if is_bin:
+        candidates = [v for v in (0.0, 1.0) if eval_point(v)[0]]
+        lo_v = min(candidates) if candidates else x_star
+        hi_v = max(candidates) if candidates else x_star
+        _, lo_obj = eval_point(lo_v)
+        _, hi_obj = eval_point(hi_v)
+        return lo_v, lo_obj, hi_v, hi_obj
+
+    if is_int:
+
+        def search_int(direction: int) -> tuple[float | None, float | None]:
+            bound = lb if direction < 0 else ub
+            cur = float(round(x_star))
+            best = cur
+            best_obj = obj_star
+            step = 1
+            for _ in range(40):
+                nxt = cur + direction * step
+                if bound is not None:
+                    if (direction < 0 and nxt < bound - 1e-9) or (
+                        direction > 0 and nxt > bound + 1e-9
+                    ):
+                        nxt = float(math.ceil(bound) if direction < 0 else math.floor(bound))
+                if abs(nxt - cur) < 0.5:
+                    break
+                ok_n, obj_n = eval_point(nxt)
+                if ok_n and obj_n is not None:
+                    cur = nxt
+                    best = nxt
+                    best_obj = obj_n
+                    if bound is not None and abs(nxt - bound) < 1.0:
+                        break
+                    step = min(step * 2, 10000)
+                else:
+                    # Binary search between cur (feasible) and nxt (infeasible)
+                    lo_i = int(round(min(cur, nxt)))
+                    hi_i = int(round(max(cur, nxt)))
+                    while lo_i + 1 < hi_i:
+                        mid = (lo_i + hi_i) // 2
+                        ok_m, _ = eval_point(float(mid))
+                        if direction < 0:
+                            if ok_m:
+                                hi_i = mid
+                            else:
+                                lo_i = mid
+                        else:
+                            if ok_m:
+                                lo_i = mid
+                            else:
+                                hi_i = mid
+                    fin_i = float(hi_i if direction < 0 else lo_i)
+                    ok_f, obj_f = eval_point(fin_i)
+                    return (fin_i, obj_f) if ok_f else (best, best_obj)
+                if abs(cur - x_star) >= 1e6:
+                    return None, None
+            if bound is None and abs(best - x_star) >= 1e6:
+                return None, None
+            return best, best_obj
+
+        lo_v, lo_obj = search_int(-1)
+        hi_v, hi_obj = search_int(1)
+        return lo_v, lo_obj, hi_v, hi_obj
+
+    # Continuous search via exponential expansion + bisection
+    def search_cont(direction: int) -> tuple[float | None, float | None]:
+        bound = lb if direction < 0 else ub
+        if bound is not None and abs(x_star - bound) <= 1e-9:
+            return _clean_zero(float(bound)), obj_star
+
+        last_feas = x_star
+        last_obj = obj_star
+        infeas_pt: float | None = None
+        for step in (1e-3, 1e-2, 1e-1, 1.0, 2.0, 5.0, 10.0, 50.0, 200.0, 1e3, 1e4, 1e5, 1e6):
+            cand = x_star + direction * step
+            hit_bound = False
+            if bound is not None:
+                if (direction < 0 and cand <= bound) or (direction > 0 and cand >= bound):
+                    cand = float(bound)
+                    hit_bound = True
+            ok_c, obj_c = eval_point(cand)
+            if ok_c and obj_c is not None:
+                last_feas = cand
+                last_obj = obj_c
+                if hit_bound:
+                    return _clean_zero(last_feas), last_obj
+            else:
+                infeas_pt = cand
+                break
+
+        if infeas_pt is None:
+            if bound is not None:
+                return _clean_zero(float(bound)), last_obj
+            return None, None
+
+        f_pt = last_feas
+        i_pt = infeas_pt
+        for _ in range(40):
+            mid = 0.5 * (f_pt + i_pt)
+            ok_m, obj_m = eval_point(mid)
+            if ok_m and obj_m is not None:
+                f_pt = mid
+                last_obj = obj_m
+            else:
+                i_pt = mid
+            if abs(i_pt - f_pt) <= 1e-9 * max(1.0, abs(f_pt)):
+                break
+        return _clean_zero(f_pt), last_obj
+
+    lo_v, lo_obj = search_cont(-1)
+    hi_v, hi_obj = search_cont(1)
+    return lo_v, lo_obj, hi_v, hi_obj
+
+
+def result_obj_fallback(val: float | None) -> float | None:
+    """Pass through optional objective value."""
+    return val
+
+
+def generate_limits_report(
+    workbook: WorkbookModel, params: SolverParams, result: SolverResult
+) -> str:
+    """Create a unique Limits Report worksheet showing feasible variable bounds and objectives."""
+    sheet_name, report_sh = _create_report_sheet(workbook, "Limits Report")
+
+    def write_cell(r: int, c: int, val: Any, bold: bool = False) -> None:
+        report_sh.set_cell(r, c, CellData(value=val, bold=bold))
+
+    row = 0
+    write_cell(row, 0, safe_tr("规划求解极限值报告"), bold=True)
+    row += 1
+    write_cell(row, 0, safe_tr("状态"), bold=True)
+    write_cell(row, 1, result.message)
+    row += 2
+
+    # Objective Cell section
+    write_cell(row, 0, safe_tr("目标单元格"), bold=True)
+    row += 1
+    write_cell(row, 0, safe_tr("单元格"), bold=True)
+    write_cell(row, 1, safe_tr("终值"), bold=True)
+    row += 1
+    write_cell(row, 0, result.objective_ref)
+    write_cell(row, 1, result.final_objective)
+    row += 2
+
+    # Variable Cells section
+    write_cell(row, 0, safe_tr("可变单元格"), bold=True)
+    row += 1
+    for col, title in enumerate(
+        (
+            safe_tr("单元格"),
+            safe_tr("终值"),
+            safe_tr("下限"),
+            safe_tr("目标结果"),
+            safe_tr("上限"),
+            safe_tr("目标结果"),
+        )
+    ):
+        write_cell(row, col, title, bold=True)
+    row += 1
+
+    unlim_lbl = safe_tr("无限制")
+    obj_coord, var_coords, initial_vec, compiled, err_msg = _validate_and_compile(workbook, params)
+    if err_msg is None and obj_coord is not None and var_coords:
+        sol_vec = _solution_vector_from_result(var_coords, initial_vec, params, result)
+        n = len(var_coords)
+        lb, ub, int_indices, bin_indices = _compute_bounds(
+            n, compiled, params.make_unconstrained_non_negative
+        )
+        watch_set: set[tuple[str, int, int]] = {obj_coord}
+        for c in compiled:
+            watch_set.update(c.lhs_coords)
+            if c.rhs_coord is not None:
+                watch_set.add(c.rhs_coord)
+
+        # Try exact analytical bounds when pure continuous LP
+        exact_lp_bounds: list[tuple[float | None, float | None]] | None = None
+        evaluator = _WorkbookEvaluator(workbook, var_coords, sorted(watch_set))
+        try:
+            ok_prep, _ = evaluator.prepare()
+            if ok_prep:
+                if (
+                    params.method == "simplex_lp"
+                    and params.goal != "value_of"
+                    and not int_indices
+                    and not any(c.kind == "dif" for c in compiled)
+                ):
+                    ok_lin, _, _oc, _oconst, linear_rows = _extract_linear_model(
+                        evaluator,
+                        obj_coord,
+                        compiled,
+                        initial_vec,
+                        params.make_unconstrained_non_negative,
+                    )
+                    if ok_lin:
+                        exact_lp_bounds = []
+                        for j in range(n):
+                            lo_j = lb[j]
+                            hi_j = ub[j]
+                            for row_a, op, rhs in linear_rows:
+                                a = row_a[j]
+                                if abs(a) <= 1e-12:
+                                    continue
+                                other = sum(row_a[k] * sol_vec[k] for k in range(n) if k != j)
+                                bound_t = (rhs - other) / a
+                                if op == "=":
+                                    lo_j = sol_vec[j] if lo_j is None else max(lo_j, sol_vec[j])
+                                    hi_j = sol_vec[j] if hi_j is None else min(hi_j, sol_vec[j])
+                                elif (op == "<=" and a > 0) or (op == ">=" and a < 0):
+                                    hi_j = bound_t if hi_j is None else min(hi_j, bound_t)
+                                else:
+                                    lo_j = bound_t if lo_j is None else max(lo_j, bound_t)
+                            if lo_j is not None and lo_j > sol_vec[j]:
+                                lo_j = sol_vec[j]
+                            if hi_j is not None and hi_j < sol_vec[j]:
+                                hi_j = sol_vec[j]
+                            exact_lp_bounds.append((lo_j, hi_j))
+
+                for j, coord in enumerate(var_coords):
+                    ref_key = format_cell_ref(*coord, params.default_sheet)
+                    if exact_lp_bounds is not None:
+                        lo_v, hi_v = exact_lp_bounds[j]
+                        lo_obj: float | None = None
+                        hi_obj: float | None = None
+                        if lo_v is not None:
+                            lo_v = _clean_zero(lo_v)
+                            t_lo = list(sol_vec)
+                            t_lo[j] = lo_v
+                            ok_l, vals_l = evaluator.evaluate_vector(t_lo)
+                            if ok_l:
+                                lo_obj = _clean_zero(vals_l[obj_coord])
+                        if hi_v is not None:
+                            hi_v = _clean_zero(hi_v)
+                            t_hi = list(sol_vec)
+                            t_hi[j] = hi_v
+                            ok_h, vals_h = evaluator.evaluate_vector(t_hi)
+                            if ok_h:
+                                hi_obj = _clean_zero(vals_h[obj_coord])
+                    else:
+                        lo_v, lo_obj, hi_v, hi_obj = _find_1d_feasible_limits(
+                            evaluator,
+                            obj_coord,
+                            j,
+                            sol_vec,
+                            compiled,
+                            lb[j],
+                            ub[j],
+                            j in int_indices,
+                            j in bin_indices,
+                            params,
+                        )
+                    write_cell(row, 0, ref_key)
+                    write_cell(row, 1, _clean_zero(sol_vec[j]))
+                    write_cell(row, 2, lo_v if lo_v is not None else unlim_lbl)
+                    write_cell(row, 3, lo_obj if lo_obj is not None else "")
+                    write_cell(row, 4, hi_v if hi_v is not None else unlim_lbl)
+                    write_cell(row, 5, hi_obj if hi_obj is not None else "")
+                    row += 1
+        finally:
+            evaluator.restore()
+    else:
+        for ref_key, init_v in result.initial_values.items():
+            fin_v = result.solution_values.get(ref_key, init_v)
+            write_cell(row, 0, ref_key)
+            write_cell(row, 1, fin_v)
+            write_cell(row, 2, unlim_lbl)
+            write_cell(row, 3, "")
+            write_cell(row, 4, unlim_lbl)
+            write_cell(row, 5, "")
+            row += 1
+
+    return sheet_name
+
+
+_GOAL_TO_TYP: dict[SolverGoal, str] = {"max": "1", "min": "2", "value_of": "3"}
+_TYP_TO_GOAL: dict[str, SolverGoal] = {"1": "max", "2": "min", "3": "value_of"}
+
+_METHOD_TO_ENG: dict[SolverMethod, str] = {
+    "grg_nonlinear": "1",
+    "simplex_lp": "2",
+    "evolutionary": "3",
+}
+_ENG_TO_METHOD: dict[str, SolverMethod] = {
+    "1": "grg_nonlinear",
+    "2": "simplex_lp",
+    "3": "evolutionary",
+}
+
+_OP_TO_REL: dict[ConstraintOp, str] = {
+    "<=": "1",
+    "=": "2",
+    ">=": "3",
+    "int": "4",
+    "bin": "5",
+    "dif": "6",
+}
+_REL_TO_OP: dict[str, ConstraintOp] = {v: k for k, v in _OP_TO_REL.items()}
+
+
+def _qualify_defined_name_refs(refs_str: str, default_sheet: str) -> str:
+    """Ensure cell/range tokens in a Solver reference list carry a sheet prefix for Excel."""
+    clean = str(refs_str or "").strip()
+    if not clean or not default_sheet:
+        return clean
+    if _parse_numeric_literal(clean) is not None:
+        return clean
+    try:
+        tokens = _split_quoted_commas(clean)
+    except ValueError:
+        return clean
+    qualified: list[str] = []
+    prefix = quote_sheet(default_sheet)
+    for tok in tokens:
+        if not tok:
+            continue
+        if "!" in tok:
+            qualified.append(tok)
+        else:
+            qualified.append(f"{prefix}!{tok}")
+    return ",".join(qualified)
+
+
+def _strip_matching_sheet_prefix(refs_str: str, sheet_name: str) -> str:
+    """Strip matching ``sheet_name!`` prefix from comma-separated definedName tokens."""
+    clean = str(refs_str or "").strip()
+    if clean.startswith("="):
+        clean = clean[1:].strip()
+    if not clean:
+        return ""
+    if _parse_numeric_literal(clean) is not None:
+        return clean
+    try:
+        tokens = _split_quoted_commas(clean)
+    except ValueError:
+        return clean
+    target_lower = sheet_name.strip().lower()
+    out: list[str] = []
+    for tok in tokens:
+        if not tok:
+            continue
+        try:
+            tok_sheet, body = _split_sheet_prefix(tok, sheet_name)
+        except ValueError:
+            out.append(tok)
+            continue
+        if "!" in tok and tok_sheet.strip().lower() == target_lower:
+            out.append(body)
+        else:
+            out.append(tok)
+    return ", ".join(out) if len(out) > 1 else (out[0] if out else "")
+
+
+def solver_params_to_defined_names(
+    params: SolverParams, sheet_idx: int
+) -> list[tuple[str, int, str]]:
+    """Serialize ``SolverParams`` to Excel hidden sheet-scoped ``solver_*`` defined names."""
+    sheet_name = params.default_sheet or "Sheet1"
+    entries: list[tuple[str, int, str]] = []
+
+    if params.objective_ref.strip():
+        entries.append(
+            ("solver_opt", sheet_idx, _qualify_defined_name_refs(params.objective_ref, sheet_name))
+        )
+    entries.append(("solver_typ", sheet_idx, _GOAL_TO_TYP.get(params.goal, "1")))
+    entries.append(("solver_val", sheet_idx, str(params.target_value)))
+    entries.append(
+        ("solver_adj", sheet_idx, _qualify_defined_name_refs(params.variable_refs, sheet_name))
+    )
+    entries.append(("solver_num", sheet_idx, str(len(params.constraints))))
+
+    for i, con in enumerate(params.constraints, start=1):
+        entries.append(
+            (f"solver_lhs{i}", sheet_idx, _qualify_defined_name_refs(con.lhs_ref, sheet_name))
+        )
+        entries.append((f"solver_rel{i}", sheet_idx, _OP_TO_REL.get(con.op, "1")))
+        rhs_val = (
+            ""
+            if con.op in ("int", "bin", "dif")
+            else _qualify_defined_name_refs(con.rhs, sheet_name)
+        )
+        entries.append((f"solver_rhs{i}", sheet_idx, rhs_val))
+
+    neg_flag = "1" if params.make_unconstrained_non_negative else "2"
+    entries.append(("solver_neg", sheet_idx, neg_flag))
+    entries.append(("solver_eng", sheet_idx, _METHOD_TO_ENG.get(params.method, "2")))
+    entries.append(("solver_itr", sheet_idx, str(params.options.max_iterations)))
+    entries.append(("solver_tim", sheet_idx, str(params.options.max_time_sec)))
+    entries.append(("solver_pre", sheet_idx, str(params.options.precision)))
+    entries.append(("solver_tol", sheet_idx, str(params.options.integer_optimality)))
+    entries.append(("solver_pop", sheet_idx, str(params.options.population_size)))
+    entries.append(("solver_sed", sheet_idx, str(params.options.random_seed)))
+    return entries
+
+
+def solver_params_from_defined_names(
+    entries: Sequence[tuple[str, int | None, str]],
+    sheet_idx: int,
+    sheet_name: str,
+) -> SolverParams | None:
+    """Reconstruct ``SolverParams`` for ``sheet_idx`` from Excel ``solver_*`` defined names."""
+    scoped: dict[str, str] = {}
+    for raw_name, local_id, raw_val in entries:
+        if local_id != sheet_idx:
+            continue
+        key = str(raw_name or "").strip().lower()
+        if key.startswith("solver_"):
+            scoped[key] = str(raw_val or "").strip()
+
+    if not scoped:
+        return None
+    if not scoped.get("solver_opt") and not scoped.get("solver_adj"):
+        return None
+
+    def _clean_num(val: str | None) -> str:
+        s = (val or "").strip()
+        if s.startswith("="):
+            s = s[1:].strip()
+        return s
+
+    def _safe_int(val: str | None, default: int) -> int:
+        try:
+            return int(round(float(_clean_num(val))))
+        except (TypeError, ValueError):
+            return default
+
+    def _safe_float(val: str | None, default: float) -> float:
+        try:
+            return float(_clean_num(val))
+        except (TypeError, ValueError):
+            return default
+
+    goal = _TYP_TO_GOAL.get(_clean_num(scoped.get("solver_typ")), "max")
+    target_value = _safe_float(scoped.get("solver_val"), 0.0)
+    objective_ref = _strip_matching_sheet_prefix(scoped.get("solver_opt", ""), sheet_name)
+    variable_refs = _strip_matching_sheet_prefix(scoped.get("solver_adj", ""), sheet_name)
+
+    max_idx = _safe_int(scoped.get("solver_num"), 0)
+    for k in scoped:
+        if k.startswith("solver_lhs"):
+            suffix = k[len("solver_lhs") :]
+            if suffix.isdigit():
+                max_idx = max(max_idx, int(suffix))
+
+    constraints: list[SolverConstraint] = []
+    for idx in range(1, max_idx + 1):
+        lhs_raw = scoped.get(f"solver_lhs{idx}", "")
+        rel_raw = _clean_num(scoped.get(f"solver_rel{idx}"))
+        rhs_raw = scoped.get(f"solver_rhs{idx}", "")
+        op = _REL_TO_OP.get(rel_raw)
+        if op is None or not lhs_raw:
+            continue
+        lhs_ref = _strip_matching_sheet_prefix(lhs_raw, sheet_name)
+        rhs = (
+            "" if op in ("int", "bin", "dif") else _strip_matching_sheet_prefix(rhs_raw, sheet_name)
+        )
+        constraints.append(SolverConstraint(lhs_ref=lhs_ref, op=op, rhs=rhs))
+
+    neg_raw = _clean_num(scoped.get("solver_neg")).lower()
+    non_negative = False if neg_raw in ("0", "2", "false") else True
+
+    method = _ENG_TO_METHOD.get(_clean_num(scoped.get("solver_eng")), "simplex_lp")
+    defaults = SolverOptions()
+    options = SolverOptions(
+        max_iterations=_safe_int(scoped.get("solver_itr"), defaults.max_iterations),
+        max_time_sec=_safe_float(scoped.get("solver_tim"), defaults.max_time_sec),
+        precision=_safe_float(scoped.get("solver_pre"), defaults.precision),
+        integer_optimality=_safe_float(scoped.get("solver_tol"), defaults.integer_optimality),
+        population_size=_safe_int(scoped.get("solver_pop"), defaults.population_size),
+        random_seed=_safe_int(scoped.get("solver_sed"), defaults.random_seed),
+    )
+
+    return SolverParams(
+        objective_ref=objective_ref,
+        goal=goal,
+        target_value=target_value,
+        variable_refs=variable_refs,
+        constraints=constraints,
+        make_unconstrained_non_negative=non_negative,
+        method=method,
+        default_sheet=sheet_name,
+        options=options,
+    )
 
 
 def save_solver_model(sheet: Any, params: SolverParams) -> None:

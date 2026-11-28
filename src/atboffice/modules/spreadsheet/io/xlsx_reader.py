@@ -16,6 +16,10 @@ from atboffice.modules.spreadsheet.calc.references import (
     parse_range,
     translate,
 )
+from atboffice.modules.spreadsheet.calc.solver import (
+    save_solver_model,
+    solver_params_from_defined_names,
+)
 from atboffice.modules.spreadsheet.io.xlsx_drawing_shapes import (
     DrawingContext,
     drawings_signature,
@@ -66,6 +70,7 @@ from atboffice.modules.spreadsheet.views.object_layer import (
 )
 from atboffice.vfs import etree as ET
 from atboffice.vfs.opc import OleCompoundFileError, SourcePackage
+from atboffice.vfs.xml_tree import find_all_local, find_local, parse_lxml
 
 logger = logging.getLogger(__name__)
 
@@ -1923,21 +1928,38 @@ def read_xlsx(
         if wp_el is not None:
             wb.extra["protection"] = dict(wp_el.attrib)
 
-        dn_m = re.search(
-            r"(<(?:\w+:)?definedNames\b.*?</(?:\w+:)?definedNames>)",
-            wb_xml_content.decode("utf-8", "ignore"),
-            re.DOTALL,
-        )
-        if dn_m:
-            dn_raw = dn_m.group(1)
-            # Normalize to default namespace tags (<definedNames>, <definedName>)
-            dn_clean = re.sub(
-                r"</?([a-zA-Z0-9_]+):(definedNames?)\b",
-                lambda m: ("</" if m.group(0).startswith("</") else "<") + m.group(2),
-                dn_raw,
+        parsed_defined_names: list[tuple[str, int | None, str]] = []
+        lxml_wb_root = parse_lxml(wb_xml_content)
+        lxml_dn = find_local(lxml_wb_root, "definedNames")
+        if lxml_dn is not None:
+            for dn_child in find_all_local(lxml_dn, "definedName"):
+                dn_name = dn_child.get("name") or ""
+                if not dn_name:
+                    continue
+                ls_raw = dn_child.get("localSheetId")
+                ls_id: int | None = None
+                if ls_raw is not None and ls_raw != "":
+                    try:
+                        ls_id = int(ls_raw)
+                    except ValueError:
+                        ls_id = None
+                parsed_defined_names.append((dn_name, ls_id, dn_child.text or ""))
+
+            dn_m = re.search(
+                r"(<(?:\w+:)?definedNames\b.*?</(?:\w+:)?definedNames>)",
+                wb_xml_content.decode("utf-8", "ignore"),
+                re.DOTALL,
             )
-            wb.extra["defined_names"] = dn_clean
-            wb.extra["defined_names_loaded"] = dn_clean
+            if dn_m:
+                dn_raw = dn_m.group(1)
+                # Normalize to default namespace tags (<definedNames>, <definedName>)
+                dn_clean = re.sub(
+                    r"</?([a-zA-Z0-9_]+):(definedNames?)\b",
+                    lambda m: ("</" if m.group(0).startswith("</") else "<") + m.group(2),
+                    dn_raw,
+                )
+                wb.extra["defined_names"] = dn_clean
+                wb.extra["defined_names_loaded"] = dn_clean
 
         # 2. Parse workbook relationships
         wb_dir = wb_part.rsplit("/", 1)[0] if "/" in wb_part else ""
@@ -2084,6 +2106,10 @@ def read_xlsx(
                     theme_colors=wb.theme_colors,
                     palette=active_palette,
                 )
+            if parsed_defined_names:
+                solver_params = solver_params_from_defined_names(parsed_defined_names, idx, s_name)
+                if solver_params is not None:
+                    save_solver_model(sheet_model, solver_params)
             sheet_model.dirty = False
 
         # Set active sheet index

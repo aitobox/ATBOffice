@@ -43,6 +43,8 @@ from atboffice.modules.spreadsheet.calc.solver import (
     SolverResult,
     apply_solver_solution,
     generate_answer_report,
+    generate_limits_report,
+    generate_sensitivity_report,
     load_solver_model,
     save_solver_model,
     solve_model,
@@ -546,9 +548,23 @@ class SolverResultsDialog(_LocaleAwareDialog):
         choice_layout.addWidget(self.restore_radio)
         layout.addWidget(self.choice_group)
 
-        self.report_chk = QCheckBox(self)
+        self.reports_group = QGroupBox(self)
+        reports_layout = QVBoxLayout(self.reports_group)
+        reports_layout.setContentsMargins(10, 10, 10, 10)
+        reports_layout.setSpacing(6)
+
+        self.report_chk = QCheckBox(self.reports_group)
         self.report_chk.setObjectName("SolverResultsReportCheck")
-        layout.addWidget(self.report_chk)
+        self.report_checkbox = self.report_chk
+        self.sensitivity_report_chk = QCheckBox(self.reports_group)
+        self.sensitivity_report_chk.setObjectName("SolverResultsSensitivityCheck")
+        self.limits_report_chk = QCheckBox(self.reports_group)
+        self.limits_report_chk.setObjectName("SolverResultsLimitsCheck")
+
+        reports_layout.addWidget(self.report_chk)
+        reports_layout.addWidget(self.sensitivity_report_chk)
+        reports_layout.addWidget(self.limits_report_chk)
+        layout.addWidget(self.reports_group)
 
         btn_row = QHBoxLayout()
         btn_row.addStretch(1)
@@ -576,6 +592,32 @@ class SolverResultsDialog(_LocaleAwareDialog):
         """Return True if accepted with Answer Report requested."""
         return self.result() == QDialog.DialogCode.Accepted and self.report_chk.isChecked()
 
+    @property
+    def generate_sensitivity(self) -> bool:
+        """Return True if accepted with Sensitivity Report requested."""
+        return (
+            self.result() == QDialog.DialogCode.Accepted and self.sensitivity_report_chk.isChecked()
+        )
+
+    @property
+    def generate_limits(self) -> bool:
+        """Return True if accepted with Limits Report requested."""
+        return self.result() == QDialog.DialogCode.Accepted and self.limits_report_chk.isChecked()
+
+    @property
+    def selected_reports(self) -> list[str]:
+        """Return ordered report kinds selected on accept."""
+        if self.result() != QDialog.DialogCode.Accepted:
+            return []
+        out: list[str] = []
+        if self.report_chk.isChecked():
+            out.append("answer")
+        if self.sensitivity_report_chk.isChecked():
+            out.append("sensitivity")
+        if self.limits_report_chk.isChecked():
+            out.append("limits")
+        return out
+
     def _update_summary_text(self) -> None:
         res = self.solver_result
         self.status_label.setText(res.message or safe_tr("规划求解完成。"))
@@ -596,7 +638,10 @@ class SolverResultsDialog(_LocaleAwareDialog):
         self.choice_group.setTitle(safe_tr("求解结果处理"))
         self.keep_radio.setText(safe_tr("保留规划求解的解(&K)"))
         self.restore_radio.setText(safe_tr("恢复原值(&R)"))
+        self.reports_group.setTitle(safe_tr("报告"))
         self.report_chk.setText(safe_tr("生成运算结果报告(&A)"))
+        self.sensitivity_report_chk.setText(safe_tr("生成灵敏度报告(&S)"))
+        self.limits_report_chk.setText(safe_tr("生成极限值报告(&L)"))
         self.ok_btn.setText(safe_tr("确定"))
         self.cancel_btn.setText(safe_tr("取消"))
         self._update_summary_text()
@@ -623,6 +668,7 @@ class SolverParametersDialog(_LocaleAwareDialog):
         self.apply_callback = apply_callback
 
         self.created_report_sheet: str | None = None
+        self.created_report_sheets: list[str] = []
         self.last_result: SolverResult | None = None
         self._constraints: list[SolverConstraint] = []
         self._options = SolverOptions()
@@ -1052,6 +1098,7 @@ class SolverParametersDialog(_LocaleAwareDialog):
 
         self._active_params = params
         self.created_report_sheet = None
+        self.created_report_sheets = []
         self.progress_bar.setRange(0, 0)
         self._set_status_message(safe_tr("正在求解，请稍候或点击停止..."))
 
@@ -1125,13 +1172,24 @@ class SolverParametersDialog(_LocaleAwareDialog):
         results_dlg = SolverResultsDialog(result, parent=self)
         if results_dlg.exec() == QDialog.DialogCode.Accepted:
             keep = results_dlg.keep_radio.isChecked()
-            want_report = results_dlg.report_chk.isChecked()
+            want_answer = results_dlg.report_chk.isChecked()
+            want_sensitivity = results_dlg.sensitivity_report_chk.isChecked()
+            want_limits = results_dlg.limits_report_chk.isChecked()
         else:
             keep = False
-            want_report = False
+            want_answer = False
+            want_sensitivity = False
+            want_limits = False
 
-        if want_report:
-            self.created_report_sheet = generate_answer_report(self.workbook, params, result)
+        created_sheets: list[str] = []
+        if want_answer:
+            created_sheets.append(generate_answer_report(self.workbook, params, result))
+        if want_sensitivity:
+            created_sheets.append(generate_sensitivity_report(self.workbook, params, result))
+        if want_limits:
+            created_sheets.append(generate_limits_report(self.workbook, params, result))
+        self.created_report_sheets = created_sheets
+        self.created_report_sheet = created_sheets[0] if created_sheets else None
 
         if keep:
             if self.current_sheet is not None:

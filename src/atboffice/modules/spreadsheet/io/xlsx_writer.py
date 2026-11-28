@@ -11,6 +11,10 @@ from pathlib import Path
 from typing import Any, BinaryIO
 
 from atboffice.modules.spreadsheet.calc.references import MAXC, MAXR, cell_name, parse_range
+from atboffice.modules.spreadsheet.calc.solver import (
+    load_solver_model,
+    solver_params_to_defined_names,
+)
 from atboffice.modules.spreadsheet.io.xlsx_drawing_shapes import drawings_signature
 from atboffice.modules.spreadsheet.io.xlsx_reader import BUILTIN_NUMFMTS, comments_signature
 from atboffice.modules.spreadsheet.models.color_utils import (
@@ -1878,6 +1882,57 @@ def _sheet_element_attrs(entry: _SheetEntry) -> list[tuple[str, str]]:
     return attrs
 
 
+def _collect_solver_defined_names(entries: list[_SheetEntry]) -> list[tuple[str, int, str]]:
+    """Collect Excel sheet-scoped ``solver_*`` defined names across all written sheets."""
+    out: list[tuple[str, int, str]] = []
+    for sheet_idx, entry in enumerate(entries):
+        params = load_solver_model(entry.sheet)
+        if params is not None:
+            out.extend(solver_params_to_defined_names(params, sheet_idx))
+    return out
+
+
+def _merge_solver_into_defined_names_el(
+    dn_el: Any,
+    solver_entries: list[tuple[str, int, str]],
+    ns: str,
+) -> bool:
+    """Replace ``solver_*`` children on ``dn_el`` while preserving all non-solver entries."""
+    q = (lambda n: f"{{{ns}}}{n}") if ns else (lambda n: n)
+    existing_solver: list[tuple[str, str, str, str]] = []
+    to_remove: list[Any] = []
+    for child in find_all_local(dn_el, "definedName"):
+        cname = child.get("name") or ""
+        if cname.lower().startswith("solver_"):
+            existing_solver.append(
+                (
+                    cname,
+                    child.get("localSheetId") or "",
+                    child.get("hidden") or "",
+                    child.text or "",
+                )
+            )
+            to_remove.append(child)
+
+    desired_solver = [(name, str(idx), "1", text) for name, idx, text in solver_entries]
+    if existing_solver == desired_solver:
+        return False
+
+    for child in to_remove:
+        dn_el.remove(child)
+    for name, idx_str, hidden_val, text in desired_solver:
+        el = LET.SubElement(
+            dn_el,
+            q("definedName"),
+            name=name,
+            hidden=hidden_val,
+            localSheetId=idx_str,
+        )
+        if text:
+            el.text = text
+    return True
+
+
 def _serialize_workbook(workbook: WorkbookModel, entries: list[_SheetEntry]) -> bytes:
     """Serialize a new xl/workbook.xml (used when there is no source package)."""
     fv_code_name = workbook.extra.get("file_version_code_name")
@@ -1909,9 +1964,20 @@ def _serialize_workbook(workbook: WorkbookModel, entries: list[_SheetEntry]) -> 
         parts.append(f'<sheet {attrs} r:id="{entry.rel_id}"/>')
     parts.append("</sheets>")
 
+    solver_entries = _collect_solver_defined_names(entries)
     def_names = workbook.extra.get("defined_names")
-    if def_names:
-        parts.append(def_names)
+    if def_names or solver_entries:
+        if def_names:
+            dn_els = parse_fragment(def_names, NS_MAIN)
+            dn_el = dn_els[0] if dn_els else LET.Element(f"{{{NS_MAIN}}}definedNames")
+        else:
+            dn_el = LET.Element(f"{{{NS_MAIN}}}definedNames")
+        _merge_solver_into_defined_names_el(dn_el, solver_entries, NS_MAIN)
+        if len(dn_el) > 0:
+            dn_str = re.sub(
+                r'\s+xmlns="[^"]*"', "", LET.tostring(dn_el, encoding="unicode"), count=1
+            )
+            parts.append(dn_str)
 
     pc_xml = _pivot_caches_xml(workbook)
     if pc_xml:
@@ -1998,6 +2064,19 @@ def _patch_workbook_xml(
         if names:
             for el in parse_fragment(names, ns):
                 insert_in_order(root, el, _WORKBOOK_ORDER)
+        changed = True
+
+    solver_entries = _collect_solver_defined_names(entries)
+    dn_el = find_local(root, "definedNames")
+    if dn_el is not None:
+        if _merge_solver_into_defined_names_el(dn_el, solver_entries, ns):
+            if len(dn_el) == 0:
+                root.remove(dn_el)
+            changed = True
+    elif solver_entries:
+        dn_el = LET.Element(q("definedNames"))
+        _merge_solver_into_defined_names_el(dn_el, solver_entries, ns)
+        insert_in_order(root, dn_el, _WORKBOOK_ORDER)
         changed = True
 
     if workbook.extra.get("pivots"):
