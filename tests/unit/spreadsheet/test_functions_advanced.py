@@ -1,5 +1,5 @@
 """Comprehensive unit tests for Issue #11:
-Advanced Worksheet Functions and Dynamic Arrays (519 Coverage).
+Advanced Worksheet Functions and Dynamic Arrays (520 Coverage).
 """
 
 from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext
@@ -9,15 +9,15 @@ from atboffice.modules.spreadsheet.calc.fn_info import ALL_FUNCTIONS_CATALOG
 from atboffice.modules.spreadsheet.calc.functions import FUNCTION_REGISTRY, call_function
 from atboffice.modules.spreadsheet.calc.spill import SpillManager
 
-# --- 1. Full 519 Function Registry Coverage ---
+# --- 1. Full 520 Function Registry Coverage ---
 
 
-def test_registry_size_519():
-    """Verify that FUNCTION_REGISTRY has exactly 519 functions
+def test_registry_size_520():
+    """Verify that FUNCTION_REGISTRY has exactly 520 functions
     and 100% matches ALL_FUNCTIONS_CATALOG.
     """
-    assert len(ALL_FUNCTIONS_CATALOG) == 519
-    assert len(FUNCTION_REGISTRY) == 519
+    assert len(ALL_FUNCTIONS_CATALOG) == 520
+    assert len(FUNCTION_REGISTRY) == 520
     missing = set(ALL_FUNCTIONS_CATALOG.keys()) - set(FUNCTION_REGISTRY.keys())
     assert not missing, f"Missing functions from catalog: {missing}"
 
