@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-28
+
+### Fixed
+- **Cross-platform tests**: Fixed Windows path serialization and CRLF fixture hash failures by adding `.gitattributes` and normalizing paths/line endings in doc diff and corpus runner tests (`ce9d401`).
+
+### Maintenance
+- Updated macOS release workflow runner configuration for latest macOS builds (`3c9beee`).
+
 ## [0.3.0] - 2026-11-28
 
 This release delivers Phase 12 robustness and parity waves, the lazy Paper 2016 Ribbon engine, and Phase 13 features including the constrained Solver engine, offline WordNet thesaurus/Research task pane, Draw Table/Eraser tools, and floating object formatting.
@@ -150,6 +158,7 @@ all work from the initial scaffold through Phase 11.
   dependency.
 - Release artifact names drop the tag's `v` prefix (`ATBOffice-0.2.0-…`).
 
-[Unreleased]: https://github.com/aitobox/ATBOffice/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/aitobox/ATBOffice/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/aitobox/ATBOffice/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/aitobox/ATBOffice/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/aitobox/ATBOffice/releases/tag/v0.2.0
