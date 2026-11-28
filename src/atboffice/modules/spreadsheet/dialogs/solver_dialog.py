@@ -627,6 +627,7 @@ class SolverParametersDialog(_LocaleAwareDialog):
         self._constraints: list[SolverConstraint] = []
         self._options = SolverOptions()
         self._worker: _SolverWorker | None = None
+        self._solving = False
         self._active_params: SolverParams | None = None
 
         self._init_ui()
@@ -928,7 +929,7 @@ class SolverParametersDialog(_LocaleAwareDialog):
         return self.build_params()
 
     def _is_solving(self) -> bool:
-        return self._worker is not None and self._worker.isRunning()
+        return self._solving or (self._worker is not None and self._worker.isRunning())
 
     def _update_action_states(self) -> None:
         solving = self._is_solving()
@@ -1059,9 +1060,10 @@ class SolverParametersDialog(_LocaleAwareDialog):
         worker.solve_finished.connect(self._on_solve_finished)
         worker.solve_failed.connect(self._on_solve_failed)
         worker.finished.connect(self._on_worker_thread_finished)
+        self._solving = True
         self._worker = worker
-        self._update_action_states()
         worker.start()
+        self._update_action_states()
 
     def _on_cancel_solve(self) -> None:
         if self._worker is not None and self._worker.isRunning():
@@ -1078,6 +1080,7 @@ class SolverParametersDialog(_LocaleAwareDialog):
         worker = self._worker
         if worker is not None and not worker.isRunning():
             self._worker = None
+            self._solving = False
             worker.deleteLater()
         self._update_action_states()
 
@@ -1088,7 +1091,11 @@ class SolverParametersDialog(_LocaleAwareDialog):
 
     def _on_solve_failed(self, error_msg: str) -> None:
         self._join_worker()
+        worker = self._worker
         self._worker = None
+        self._solving = False
+        if worker is not None:
+            worker.deleteLater()
         self._update_action_states()
         msg = safe_tr("规划求解失败: {0}", error_msg)
         self._set_status_message(msg)
@@ -1096,7 +1103,11 @@ class SolverParametersDialog(_LocaleAwareDialog):
 
     def _on_solve_finished(self, result: SolverResult) -> None:
         self._join_worker()
+        worker = self._worker
         self._worker = None
+        self._solving = False
+        if worker is not None:
+            worker.deleteLater()
         self.last_result = result
         self._update_action_states()
 
@@ -1143,6 +1154,7 @@ class SolverParametersDialog(_LocaleAwareDialog):
 
     def shutdown_worker(self) -> None:
         """Cancel and wait for any active solver background thread."""
+        self._solving = False
         worker = self._worker
         if worker is not None:
             if worker.isRunning():
