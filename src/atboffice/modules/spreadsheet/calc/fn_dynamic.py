@@ -6,6 +6,9 @@ import math
 import random
 import re
 from typing import Any
+from urllib.parse import quote
+
+from lxml import etree
 
 from atboffice.modules.spreadsheet.calc.coercion import (
     compare_excel_values,
@@ -20,6 +23,7 @@ from atboffice.modules.spreadsheet.calc.errors import (
     NUM,
     REF,
     VALUE,
+    ExcelError,
     is_error,
 )
 
@@ -950,6 +954,100 @@ def fn_lambda(*args: Any, ctx: EvalContext | None = None) -> Any:
     return args[-1] if args else VALUE
 
 
+_NUMERIC_XML_RE = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
+_DTD_OR_ENTITY_RE = re.compile(r"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
+
+
+def _scalar_dynamic_arg(val: Any) -> Any:
+    if isinstance(val, Ref):
+        return val.cell_value(val.r1, val.c1)
+    if isinstance(val, Arr):
+        return val.data[0][0] if val.data and val.data[0] else ""
+    return val
+
+
+def _coerce_xml_value(raw: Any) -> Any:
+    """Coerce an XPath text/number/boolean item to an Excel scalar value."""
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, (int, float)):
+        if isinstance(raw, float) and not math.isfinite(raw):
+            return VALUE
+        if isinstance(raw, float) and raw.is_integer() and abs(raw) < 1e15:
+            return int(raw)
+        return raw
+    if isinstance(raw, etree._Element):
+        text = "".join(raw.itertext())
+    else:
+        text = str(raw)
+    stripped = text.strip()
+    if stripped and _NUMERIC_XML_RE.match(stripped):
+        if re.match(r"^[+-]?\d+$", stripped):
+            return int(stripped)
+        try:
+            num = float(stripped)
+            if math.isfinite(num):
+                return num
+        except ValueError:
+            pass
+    return text
+
+
+@register_dynamic("ENCODEURL")
+def fn_encodeurl(*args: Any, ctx: EvalContext | None = None) -> str | ExcelError:
+    """Return a UTF-8 percent-encoded URL string (RFC 3986 unreserved preserved)."""
+    if len(args) != 1:
+        return VALUE
+    val = _scalar_dynamic_arg(args[0])
+    if is_error(val):
+        return val
+    return quote(to_str(val), safe="-_.~", encoding="utf-8")
+
+
+@register_dynamic("FILTERXML")
+def fn_filterxml(*args: Any, ctx: EvalContext | None = None) -> Any:
+    """Evaluate an offline XPath expression against XML using hardened lxml."""
+    if len(args) != 2:
+        return VALUE
+    raw_xml = _scalar_dynamic_arg(args[0])
+    if is_error(raw_xml):
+        return raw_xml
+    raw_xpath = _scalar_dynamic_arg(args[1])
+    if is_error(raw_xpath):
+        return raw_xpath
+
+    xml_str = to_str(raw_xml).strip()
+    xpath_str = to_str(raw_xpath).strip()
+    if not xml_str or not xpath_str or _DTD_OR_ENTITY_RE.search(xml_str):
+        return VALUE
+
+    parser = etree.XMLParser(
+        resolve_entities=False,
+        no_network=True,
+        load_dtd=False,
+        dtd_validation=False,
+        huge_tree=False,
+    )
+    try:
+        root = etree.fromstring(xml_str.encode("utf-8"), parser=parser)
+        result = root.xpath(xpath_str)
+    except etree.Error:
+        return VALUE
+
+    if isinstance(result, list):
+        if not result:
+            return NA
+        items = [_coerce_xml_value(item) for item in result]
+        for item in items:
+            if is_error(item):
+                return item
+        if len(items) == 1:
+            return items[0]
+        return Arr([[item] for item in items])
+
+    return _coerce_xml_value(result)
+
+
 # Placeholder external/cube/web stubs that return original cell value or #N/A
 PLACEHOLDER_STUBS = [
     "GETPIVOTDATA",
@@ -961,12 +1059,10 @@ PLACEHOLDER_STUBS = [
     "CUBEMEMBERPROPERTY",
     "CUBEKPIMEMBER",
     "WEBSERVICE",
-    "FILTERXML",
     "RTD",
     "STOCKHISTORY",
     "CALL",
     "REGISTER.ID",
-    "EUROCONVERT",
     "SQL.REQUEST",
     "IMAGE",
     "TRANSLATE",

@@ -1195,6 +1195,13 @@ ALL_FUNCTIONS_CATALOG: dict[str, FunctionInfo] = {
         desc="Returns the effective annual interest rate.",
         classic=True,
     ),
+    "ENCODEURL": FunctionInfo(
+        name="ENCODEURL",
+        category="Web",
+        args=("text",),
+        desc="Returns a URL-encoded string.",
+        classic=False,
+    ),
     "EOMONTH": FunctionInfo(
         name="EOMONTH",
         category="Date & Time",

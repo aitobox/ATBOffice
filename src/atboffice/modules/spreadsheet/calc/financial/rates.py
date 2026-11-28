@@ -3,15 +3,50 @@
 from __future__ import annotations
 
 import math
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from atboffice.modules.spreadsheet.calc.context import EvalContext
-from atboffice.modules.spreadsheet.calc.errors import DIV0, NA, NUM, ExcelError, is_error
+from atboffice.modules.spreadsheet.calc.coercion import to_bool, to_num, to_str
+from atboffice.modules.spreadsheet.calc.context import Arr, EvalContext, Ref
+from atboffice.modules.spreadsheet.calc.errors import DIV0, NA, NUM, VALUE, ExcelError, is_error
 from atboffice.modules.spreadsheet.calc.financial.common import (
     flatten_values,
     register_fin,
     to_float,
 )
+
+# Official EU fixed irrevocable euro conversion rates: code -> (units per 1 EUR, standard decimals)
+_EURO_RATES: dict[str, tuple[str, int]] = {
+    "EUR": ("1", 2),
+    "ATS": ("13.7603", 2),
+    "BEF": ("40.3399", 0),
+    "CYP": ("0.585274", 2),
+    "DEM": ("1.95583", 2),
+    "EEK": ("15.6466", 2),
+    "ESP": ("166.386", 0),
+    "FIM": ("5.94573", 2),
+    "FRF": ("6.55957", 2),
+    "GRD": ("340.750", 0),
+    "HRK": ("7.53450", 2),
+    "IEP": ("0.787564", 2),
+    "ITL": ("1936.27", 0),
+    "LTL": ("3.45280", 2),
+    "LUF": ("40.3399", 0),
+    "LVL": ("0.702804", 2),
+    "MTL": ("0.429300", 2),
+    "NLG": ("2.20371", 2),
+    "PTE": ("200.482", 0),
+    "SIT": ("239.640", 2),
+    "SKK": ("30.1260", 2),
+}
+
+
+def _unwrap_scalar(val: Any) -> Any:
+    if isinstance(val, Ref):
+        return val.cell_value(val.r1, val.c1)
+    if isinstance(val, Arr):
+        return val.data[0][0] if val.data and val.data[0] else ""
+    return val
 
 
 @register_fin("EFFECT")
@@ -142,41 +177,74 @@ def fn_dollarfr(
 
 
 @register_fin("EUROCONVERT")
-def fn_euroconvert(
-    number: Any,
-    source: Any,
-    target: Any,
-    full_precision: Any = None,
-    triangulation_precision: Any = None,
-    ctx: EvalContext | None = None,
-) -> float | ExcelError:
-    num_val = to_float(number)
+def fn_euroconvert(*args: Any, ctx: EvalContext | None = None) -> float | int | ExcelError:
+    """Convert a number between euros and official EU member currencies."""
+    if not (3 <= len(args) <= 5):
+        return VALUE
+
+    raw_num = _unwrap_scalar(args[0])
+    if is_error(raw_num):
+        return raw_num
+    num_val = to_num(raw_num, ctx)
     if is_error(num_val):
         return num_val
-    # Fixed rates for euro conversion
-    rates = {
-        "EUR": 1.0,
-        "DEM": 1.95583,
-        "ESP": 166.386,
-        "FRF": 6.55957,
-        "IEP": 0.787564,
-        "ITL": 1936.27,
-        "NLG": 2.20371,
-        "ATS": 13.7603,
-        "PTE": 200.482,
-        "FIM": 5.94573,
-        "BEF": 40.3399,
-        "LUF": 40.3399,
-        "GRD": 340.75,
-    }
-    src = str(source).strip().upper()
-    tgt = str(target).strip().upper()
-    if src not in rates or tgt not in rates:
-        return NA
-    # Convert src -> EUR -> tgt
-    eur = float(num_val) / rates[src]
-    res = eur * rates[tgt]
-    return res
+
+    raw_src = _unwrap_scalar(args[1])
+    if is_error(raw_src):
+        return raw_src
+    src_code = to_str(raw_src).strip().upper()
+
+    raw_tgt = _unwrap_scalar(args[2])
+    if is_error(raw_tgt):
+        return raw_tgt
+    tgt_code = to_str(raw_tgt).strip().upper()
+
+    if src_code not in _EURO_RATES or tgt_code not in _EURO_RATES:
+        return VALUE
+
+    full_prec = False
+    if len(args) >= 4 and args[3] is not None:
+        raw_fp = _unwrap_scalar(args[3])
+        if is_error(raw_fp):
+            return raw_fp
+        fp_bool = to_bool(raw_fp)
+        if is_error(fp_bool):
+            return fp_bool
+        full_prec = bool(fp_bool)
+
+    tri_prec: int | None = None
+    if len(args) >= 5 and args[4] is not None:
+        raw_tp = _unwrap_scalar(args[4])
+        if is_error(raw_tp):
+            return raw_tp
+        tp_num = to_num(raw_tp, ctx)
+        if is_error(tp_num):
+            return tp_num
+        tri_prec = math.trunc(float(tp_num))
+        if tri_prec < 3:
+            return VALUE
+
+    src_rate_str, _ = _EURO_RATES[src_code]
+    tgt_rate_str, tgt_decimals = _EURO_RATES[tgt_code]
+
+    amt = Decimal(str(num_val))
+    if src_code == tgt_code:
+        result_dec = amt
+    else:
+        src_rate = Decimal(src_rate_str)
+        tgt_rate = Decimal(tgt_rate_str)
+        eur_amt = amt if src_code == "EUR" else (amt / src_rate)
+        if src_code != "EUR" and tgt_code != "EUR" and tri_prec is not None:
+            q_tri = Decimal("1").scaleb(-tri_prec)
+            eur_amt = eur_amt.quantize(q_tri, rounding=ROUND_HALF_UP)
+        result_dec = eur_amt if tgt_code == "EUR" else (eur_amt * tgt_rate)
+
+    if not full_prec:
+        q_out = Decimal("1").scaleb(-tgt_decimals)
+        result_dec = result_dec.quantize(q_out, rounding=ROUND_HALF_UP)
+        if tgt_decimals == 0:
+            return int(result_dec)
+    return float(result_dec)
 
 
 @register_fin("STOCKHISTORY")
