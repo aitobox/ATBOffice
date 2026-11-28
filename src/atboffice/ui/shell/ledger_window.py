@@ -227,6 +227,8 @@ class LedgerWindow(
         self.action_registry.set_handler("print", self.print_workbook)
         self.action_registry.set_handler("printPreview", self.print_preview)
         self.action_registry.set_handler("spelling", self.check_spelling)
+        self.action_registry.set_handler("research", lambda: self.open_research())
+        self.action_registry.set_handler("thesaurus", lambda: self.open_research("thesaurus"))
         self.action_registry.set_handler("help", self.show_about)
 
         # Formatting toolbar actions
@@ -1081,3 +1083,8 @@ class LedgerWindow(
             self.watch_pane.retranslate_ui()
         if hasattr(self, "pivot_fields_pane") and self.pivot_fields_pane:
             self.pivot_fields_pane.retranslate_ui()
+        if hasattr(self, "research_pane") and self.research_pane:
+            reg_dock = getattr(self.task_pane_dock, "_registry", {})
+            if "research" in reg_dock:
+                reg_dock["research"].title = safe_tr("信息检索")
+            self.research_pane.retranslate_ui()

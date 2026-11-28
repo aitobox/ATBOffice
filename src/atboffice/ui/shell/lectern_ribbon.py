@@ -119,6 +119,8 @@ def build_lectern_ribbon_spec(window: Any) -> RibbonSpec:
         "tableMergeCells": "mergeCells",
         "tableSplitCell": "splitCells",
         "wa_shape_menu": "waShape",
+        "research": "research",
+        "thesaurus": "thesaurus",
     }
 
     def _font_combo(parent: QWidget) -> QWidget:
@@ -393,7 +395,11 @@ def build_lectern_ribbon_spec(window: Any) -> RibbonSpec:
             groups=(
                 RibbonGroupSpec(
                     label="校对",
-                    items=(RibbonItemSpec(cmd="spelling", size="large", label="拼写检查"),),
+                    items=(
+                        RibbonItemSpec(cmd="spelling", size="large", label="拼写检查"),
+                        "research",
+                        "thesaurus",
+                    ),
                 ),
             ),
         ),

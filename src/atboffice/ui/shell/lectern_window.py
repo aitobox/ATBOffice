@@ -1385,6 +1385,197 @@ class LecternWindow(BaseOfficeWindow):
             self.smartart_pane,
         )
 
+        from atboffice.modules.common.research_pane import (
+            ResearchHostAdapter,
+            SuiteResearchPane,
+        )
+        from atboffice.ui.icons import has_office_icon
+
+        self.research_pane = SuiteResearchPane(
+            adapter=ResearchHostAdapter(
+                get_selection_text=self._current_research_query,
+                insert_text=self._insert_research_word,
+                search_items=self._search_presentation_items,
+                scope_label="搜索此演示文稿",
+                scope_heading="此演示文稿",
+                no_matches_label="在此演示文稿中未找到该文字。",
+            ),
+            parent=self.task_pane_dock,
+        )
+        self.task_pane_dock.register_pane(
+            "research",
+            safe_tr("信息检索"),
+            self.research_pane,
+        )
+        reg = getattr(self, "action_registry", None)
+        if reg is not None:
+            for aid in ("research", "thesaurus"):
+                act = reg.get_action(aid)
+                if act is not None and act.icon().isNull() and has_office_icon(aid):
+                    act.setIcon(get_office_icon(aid))
+
+    def _current_research_query(self) -> str:
+        """Extract selected text, word under cursor, or first text shape word for lookup."""
+        from PySide6.QtGui import QTextCursor
+
+        cmds = getattr(self, "lectern_commands", None)
+        editor = cmds.active_editor() if cmds is not None else None
+        if editor is not None:
+            cursor = editor.textCursor()
+            if cursor.hasSelection():
+                sel_text = cursor.selectedText().replace("\u2029", " ").strip()
+                if sel_text:
+                    return sel_text.splitlines()[0].strip()
+            word_cursor = QTextCursor(cursor)
+            word_cursor.select(QTextCursor.SelectionType.WordUnderCursor)
+            word = word_cursor.selectedText().strip()
+            if word:
+                return word
+
+        ws = getattr(self.presentation_view, "workspace", None)
+        sc = getattr(ws, "scene", None) if ws is not None else None
+        if sc is not None:
+            for item in sc.selectedItems():
+                shape = getattr(item, "model", None)
+                tb = getattr(shape, "text", None) if shape is not None else None
+                if tb is not None:
+                    txt = tb.plain_text.strip()
+                    if txt:
+                        m = re.search(r"\w+", txt)
+                        return m.group(0) if m is not None else txt.splitlines()[0].strip()
+        return ""
+
+    def _insert_research_word(self, word: str) -> bool:
+        """Undoably insert or replace text in the active editor or selected/first text shape."""
+        from PySide6.QtGui import QTextCursor
+
+        from atboffice.modules.presentation.models.text import Paragraph, TextRun
+        from atboffice.modules.presentation.tools.text_targets import replace_range
+
+        cmds = getattr(self, "lectern_commands", None)
+        editor = cmds.active_editor() if cmds is not None else None
+        if editor is not None:
+            cursor = editor.textCursor()
+            if not cursor.hasSelection():
+                cursor.select(QTextCursor.SelectionType.WordUnderCursor)
+            cursor.insertText(word)
+            editor.setTextCursor(cursor)
+            editor.commit_and_finish()
+            history = getattr(self, "history", None)
+            if history is not None:
+                history.note_edit("canvas", safe_tr("插入同义词"))
+                history.flush()
+            self.set_modified(True)
+            return True
+
+        ws = getattr(self.presentation_view, "workspace", None)
+        slide = getattr(ws, "current_slide", None) if ws is not None else None
+        if slide is None:
+            return False
+
+        target_shape = None
+        if cmds is not None:
+            for shape in cmds.selected_shapes():
+                if getattr(shape, "text", None) is not None:
+                    target_shape = shape
+                    break
+        if target_shape is None:
+            for shape in getattr(slide, "shapes", []):
+                if getattr(shape, "text", None) is not None:
+                    target_shape = shape
+                    break
+        if target_shape is None or target_shape.text is None:
+            return False
+
+        tb = target_shape.text
+        last_q = getattr(getattr(self, "research_pane", None), "_last_query", "").strip()
+        replaced = False
+        if last_q:
+            pattern = re.compile(rf"\b{re.escape(last_q)}\b", re.IGNORECASE)
+            for para in tb.paragraphs:
+                m = pattern.search(para.plain_text)
+                if m is not None:
+                    replace_range(para, m.start(), m.end(), word)
+                    replaced = True
+                    break
+            if not replaced:
+                sub_pat = re.compile(re.escape(last_q), re.IGNORECASE)
+                for para in tb.paragraphs:
+                    m = sub_pat.search(para.plain_text)
+                    if m is not None:
+                        replace_range(para, m.start(), m.end(), word)
+                        replaced = True
+                        break
+
+        if not replaced:
+            if not tb.paragraphs:
+                tb.paragraphs.append(Paragraph(level=0, runs=[TextRun(text=word)]))
+            else:
+                first_para = tb.paragraphs[0]
+                if first_para.runs:
+                    first_run = first_para.runs[0]
+                    first_run.text = word
+                    first_para.runs = [first_run]
+                else:
+                    first_para.runs = [TextRun(text=word)]
+                tb.paragraphs = [first_para]
+
+        if cmds is not None:
+            cmds.refresh([target_shape.id], safe_tr("插入同义词"))
+        else:
+            self.set_modified(True)
+        history = getattr(self, "history", None)
+        if history is not None:
+            history.note_edit("canvas", safe_tr("插入同义词"))
+            history.flush()
+        return True
+
+    def _search_presentation_items(self, query: str, limit: int) -> list[Any]:
+        """Search text across every slide's shapes, tables and speaker notes."""
+        from atboffice.modules.common.research_pane import ResearchSearchHit
+        from atboffice.modules.presentation.tools.text_targets import iter_paragraphs
+
+        pres = getattr(self.presentation_view, "presentation", None)
+        if pres is None:
+            return []
+        cmds = getattr(self, "lectern_commands", None)
+        needle = query.lower()
+        hits: list[ResearchSearchHit] = []
+        for ref, text in iter_paragraphs(pres, include_notes=True):
+            low = text.lower()
+            idx = low.find(needle)
+            while idx >= 0 and len(hits) < limit:
+                start_off = idx
+                end_off = idx + len(needle)
+                pre = ("…" if start_off > 20 else "") + text[max(0, start_off - 20) : start_off]
+                post = text[end_off : end_off + 30] + ("…" if len(text) > end_off + 30 else "")
+                snippet = f"{pre}[{text[start_off:end_off]}]{post}".replace("\t", " ")
+                if ref.owner[0] == "notes":
+                    prefix = safe_tr("幻灯片 {0} 备注").format(ref.slide_idx + 1)
+                else:
+                    prefix = safe_tr("幻灯片 {0}").format(ref.slide_idx + 1)
+
+                def _nav(r=ref, a=start_off, b=end_off) -> None:
+                    if cmds is not None:
+                        cmds._focus_text(r, a, b)
+
+                hits.append(ResearchSearchHit(label=f"[{prefix}] {snippet}", navigate=_nav))
+                idx = low.find(needle, end_off)
+            if len(hits) >= limit:
+                break
+        return hits
+
+    def open_research(self, service: str | None = None) -> None:
+        """Open Research task pane, optionally pre-selecting a service and looking up text."""
+        if not hasattr(self, "task_pane_dock") or self.task_pane_dock is None:
+            return
+        if not hasattr(self, "research_pane"):
+            self._setup_lectern_task_panes()
+        self.task_pane_dock.show()
+        self.task_pane_dock.show_pane("research")
+        if hasattr(self, "research_pane"):
+            self.research_pane.open_with_query(self._current_research_query(), service=service)
+
     def _on_apply_slide_layout(self, layout_key: str) -> None:
         ws = getattr(self.presentation_view, "workspace", None)
         if ws:
@@ -2609,3 +2800,8 @@ class LecternWindow(BaseOfficeWindow):
             self.color_schemes_pane.retranslate_ui()
         if hasattr(self, "animation_schemes_pane") and self.animation_schemes_pane:
             self.animation_schemes_pane.retranslate_ui()
+        if hasattr(self, "research_pane") and self.research_pane:
+            reg_dock = getattr(self.task_pane_dock, "_registry", {})
+            if "research" in reg_dock:
+                reg_dock["research"].title = safe_tr("信息检索")
+            self.research_pane.retranslate_ui()

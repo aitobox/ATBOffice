@@ -94,6 +94,8 @@ def build_ledger_ribbon_spec(window: Any) -> RibbonSpec:
         "outlineClear": "ungroup",
         "rev_insertComment": "comment",
         "showComments": "comment",
+        "research": "research",
+        "thesaurus": "thesaurus",
         "protectSheet": "protect",
         "protectWorkbook": "protect",
         "view_normal": "normalGrid",
@@ -461,7 +463,11 @@ def build_ledger_ribbon_spec(window: Any) -> RibbonSpec:
             groups=(
                 RibbonGroupSpec(
                     label="校对",
-                    items=(RibbonItemSpec(cmd="spelling", size="large", label="拼写检查"),),
+                    items=(
+                        RibbonItemSpec(cmd="spelling", size="large", label="拼写检查"),
+                        "research",
+                        "thesaurus",
+                    ),
                 ),
                 RibbonGroupSpec(
                     label="批注",

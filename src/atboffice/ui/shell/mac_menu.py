@@ -25,7 +25,8 @@ _APP_SPECIFIC_ACTIONS: dict[str, frozenset[str]] = {
     "view_doc_map": frozenset({"quire"}),
     "view_thumbnails": frozenset({"quire"}),
     "tools_word_count": frozenset({"quire"}),
-    "thesaurus": frozenset({"quire"}),
+    "research": frozenset({"quire", "ledger", "lectern"}),
+    "thesaurus": frozenset({"quire", "ledger", "lectern"}),
     "stylesPane": frozenset({"quire"}),
     "view_page_break": frozenset({"ledger"}),
     "pageSetup": frozenset({"quire", "ledger"}),
@@ -469,6 +470,7 @@ class MacMenuBar(QMenuBar):
         self.menu_map["tools"] = menu_tools
 
         self._reg_act(menu_tools, "spelling", "tools_spelling", shortcut=QKeySequence("F7"))
+        self._reg_act(menu_tools, "research", "tools_research")
         self._reg_act(menu_tools, "thesaurus", "thesaurus", shortcut=QKeySequence("Shift+F7"))
         self._reg_act(menu_tools, "tools_word_count", "wordCount")
         self._reg_act(menu_tools, "tools_language", "tools_language")
@@ -939,6 +941,14 @@ class MacMenuBar(QMenuBar):
             "spelling": (
                 safe_tr("拼写和语法检查…"),
                 safe_tr("运行词典校对并审查拼写错误 (F7)"),
+            ),
+            "research": (
+                safe_tr("信息检索(&R)..."),
+                safe_tr("信息检索与翻译 (Alt+Click)"),
+            ),
+            "tools_research": (
+                safe_tr("信息检索(&R)..."),
+                safe_tr("信息检索与翻译 (Alt+Click)"),
             ),
             "thesaurus": (
                 safe_tr("同义词库(&T)..."),

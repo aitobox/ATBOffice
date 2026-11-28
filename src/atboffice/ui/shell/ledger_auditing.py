@@ -427,6 +427,172 @@ class LedgerAuditingMixin:
         self.spreadsheet_view.grid.pivot_refresh_requested.connect(self._on_pivot_report_refreshed)
         self.spreadsheet_view.workbook_changed.connect(self._on_workbook_changed)
 
+        from atboffice.modules.common.research_pane import (
+            ResearchHostAdapter,
+            SuiteResearchPane,
+        )
+        from atboffice.ui.icons import get_office_icon, has_office_icon
+
+        self.research_pane = SuiteResearchPane(
+            adapter=ResearchHostAdapter(
+                get_selection_text=self._current_research_query,
+                insert_text=self._insert_research_word,
+                search_items=self._search_workbook_items,
+                scope_label="搜索此工作簿",
+                scope_heading="此工作簿",
+                no_matches_label="在此工作簿中未找到该文字。",
+            ),
+            parent=self.task_pane_dock,
+        )
+        self.task_pane_dock.register_pane(
+            "research",
+            safe_tr("信息检索"),
+            self.research_pane,
+        )
+        reg = getattr(self, "action_registry", None)
+        if reg is not None:
+            for aid in ("research", "thesaurus"):
+                act = reg.get_action(aid)
+                if act is not None and act.icon().isNull() and has_office_icon(aid):
+                    act.setIcon(get_office_icon(aid))
+
+    def _current_research_query(self) -> str:
+        """Extract current cell or inline-editor text for Research/Thesaurus lookup."""
+        view = getattr(self, "spreadsheet_view", None)
+        if view is None:
+            return ""
+        ed_ctl = getattr(view, "editor_controller", None)
+        if ed_ctl is not None and getattr(ed_ctl, "is_active", False):
+            in_ed = getattr(ed_ctl, "in_cell_editor", None)
+            if in_ed is not None:
+                sel_txt = in_ed.selectedText().strip()
+                if sel_txt:
+                    return sel_txt
+                txt = in_ed.text().strip()
+                if txt:
+                    return txt
+        sheet = getattr(view, "model", None)
+        sel = getattr(view, "selection", None)
+        if sheet is None or sel is None:
+            return ""
+        r, c = sel.active_cell
+        cell = sheet.get_cell(r, c)
+        if cell is None or cell.value is None:
+            return ""
+        text = str(cell.value).strip()
+        return text.splitlines()[0].strip() if text else ""
+
+    def _insert_research_word(self, word: str) -> bool:
+        """Undoably insert or replace the active cell's text with ``word``."""
+        view = getattr(self, "spreadsheet_view", None)
+        if view is None:
+            return False
+        ed_ctl = getattr(view, "editor_controller", None)
+        if ed_ctl is not None and getattr(ed_ctl, "is_active", False):
+            in_ed = getattr(ed_ctl, "in_cell_editor", None)
+            if in_ed is not None and in_ed.hasSelectedText():
+                in_ed.insert(word)
+                ed_ctl.commit()
+                self.set_modified(True)
+                if hasattr(self, "_update_spreadsheet_status"):
+                    self._update_spreadsheet_status()
+                return True
+            ed_ctl.cancel()
+
+        sheet = getattr(view, "model", None)
+        sel = getattr(view, "selection", None)
+        if sheet is None or sel is None:
+            return False
+        r, c = sel.active_cell
+
+        def _mutate() -> bool:
+            cell = sheet.ensure_cell(r, c)
+            if cell.value == word and not cell.formula:
+                return False
+            cell.formula = None
+            cell.value = word
+            cell.cached_value = None
+            sheet.dirty = True
+            return True
+
+        res = self.run_cell_edit(_mutate, "edit")
+        if res is False:
+            return False
+        if ed_ctl is not None and hasattr(ed_ctl, "_update_formula_bar_from_model"):
+            ed_ctl._update_formula_bar_from_model()
+        if hasattr(self, "_update_spreadsheet_status"):
+            self._update_spreadsheet_status()
+        return True
+
+    def _navigate_research_cell(self, sheet_name: str, r: int, c: int) -> None:
+        """Navigate to hit sheet and cell from the Research task pane."""
+        view = getattr(self, "spreadsheet_view", None)
+        if view is None:
+            return
+        wb = getattr(view, "workbook", None)
+        if wb is not None:
+            for idx, s in enumerate(wb.sheets):
+                if s.name == sheet_name:
+                    if wb.active_sheet_index != idx:
+                        wb.set_active_sheet_index(idx)
+                    break
+        view.selection.select_cell(r, c)
+        view.grid.reveal(r, c)
+        view.grid.viewport().update()
+        if hasattr(self, "_update_spreadsheet_status"):
+            self._update_spreadsheet_status()
+
+    def _search_workbook_items(self, query: str, limit: int) -> list[Any]:
+        """Search non-empty cells across every sheet in the active workbook."""
+        from atboffice.modules.common.research_pane import ResearchSearchHit
+
+        view = getattr(self, "spreadsheet_view", None)
+        if view is None:
+            return []
+        wb = getattr(view, "workbook", None)
+        sheets = list(wb.sheets) if wb is not None else [view.model]
+        needle = query.lower()
+        hits: list[ResearchSearchHit] = []
+        for sheet in sheets:
+            if sheet is None:
+                continue
+            for r, c in sorted(sheet.cells.keys()):
+                cell = sheet.cells[(r, c)]
+                val_str = "" if cell.value is None else str(cell.value)
+                formula_str = f"={cell.formula}" if cell.formula else ""
+                if not val_str and not formula_str:
+                    continue
+                if needle in val_str.lower():
+                    matched_text = val_str
+                elif formula_str and needle in formula_str.lower():
+                    matched_text = formula_str
+                else:
+                    continue
+                ref = f"{sheet.name}!{cell_name(r, c)}"
+                preview = matched_text if len(matched_text) <= 60 else matched_text[:57] + "…"
+                hits.append(
+                    ResearchSearchHit(
+                        label=f"[{ref}] {preview}",
+                        navigate=lambda s_name=sheet.name, rr=r, cc=c: self._navigate_research_cell(
+                            s_name, rr, cc
+                        ),
+                    )
+                )
+                if len(hits) >= limit:
+                    return hits
+        return hits
+
+    def open_research(self, service: str | None = None) -> None:
+        """Open Research task pane, optionally pre-selecting a service and looking up cell text."""
+        if not hasattr(self, "task_pane_dock") or self.task_pane_dock is None:
+            return
+        if not hasattr(self, "research_pane"):
+            self._setup_ledger_task_panes()
+        self.task_pane_dock.show()
+        self.task_pane_dock.show_pane("research")
+        if hasattr(self, "research_pane"):
+            self.research_pane.open_with_query(self._current_research_query(), service=service)
+
     def _on_watch_pane_add_current(self) -> None:
         """Add current active cell to Watch Window task pane."""
         if not hasattr(self, "watch_pane"):
