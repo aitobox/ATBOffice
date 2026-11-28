@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-28
+
+This release delivers Phase 12 robustness and parity waves, the lazy Paper 2016 Ribbon engine, and Phase 13 features including the constrained Solver engine, offline WordNet thesaurus/Research task pane, Draw Table/Eraser tools, and floating object formatting.
+
+### Added
+
+#### Suite and UI
+- Lazy Paper 2016 Ribbon engine with declarative specs for Quire, Ledger, and Lectern (`13d816a`), plus contextual task pane auto-follow (`RB.follow`) across editors (`f9ad84f`).
+- Shared `SuiteResearchPane` for Ledger and Lectern with offline WordNet thesaurus engine and i18n support (`ff61980`, `a8f1c0b`).
+- Unified Qt `fault_guard` and owned timer teardown in core (`df5641f`).
+
+#### Quire (documents)
+- Floating object commands and `FormatObjectDialog` (`83b2bbe`).
+- Interactive Draw Table pencil and Eraser canvas tools (`c853ca5`).
+
+#### Ledger (spreadsheets)
+- Constrained Solver engine (`6962bc1`), Luna 2003 Solver dialogs (`d288bcb`), menu/ribbon/undo/i18n wiring (`b7d68b9`), Sensitivity and Limits reports, multi-report UI, and XLSX `definedNames` persistence (`295949d`).
+- `ENCODEURL`, offline `FILTERXML`/`EUROCONVERT`, and 520-function parity gate (`4a06adc`).
+- Fixed-Width split ruler, PivotChart sync, and conditional formatting E2E verification (`c0b2dd4`).
+
+#### Lectern (presentations)
+- Handout Master and Notes Master views, printing, and PPTX round-trip support (`2de2c7f`).
+
+### Fixed
+- **Quire**: Undoable `insert_shape`, cached numbering lookup on keystrokes (`e224b13`), document-wide undo and unique shape IDs for floating object operations (`40c3c46`), serialization of newly added shapes, pictures, and comments, `_em_char_cache` key fix (`0c9b10b`), and `insertComment` tooltip (`40ee35c`).
+- **Ledger**: Undoable object layer and comments, event guards, XLSX comment round-trip (`7c6732e`), stale comment VML/`legacyDrawing` cleanup on delete (`99b4feb`), scrollbar/scroll-range/SheetTabBar alignment (`6be98bb`, `638ecd7`), and Solver dialog state/worker/reference parsing fixes (`83262b1`, `55871c5`, `b89973c`).
+- **Lectern**: `PresentationHistory` timer guards, `SlideScene` mouse lifecycle (`c5a0ad4`), and timer stop exception logging (`fd1b215`).
+- **Stability & Robustness**: Repaired 4 broken lazy imports with AST import integrity test (`2a35bb4`), completed undo snapshots, `fault_guard` coverage, timer logging, i18n (`246bc48`), and hardened ribbon toolbar-mode guard and `safe_single_shot` (`c582f2d`).
+- **Audit & Testing**: Exempted `reference_limitation` in strict diff gate (`40ee35c`), isolated `QSettings` per pytest xdist worker (`556ddc6`, `de9cf80`), and added cross-editor robustness/roundtrip gates (`cba6c48`, `70ab305`, `64fc82b`).
+
+### Changed
+- Addressed Phase 12 Wave 2 review findings on scroll extent, theme tokens, and gate deduplication (`481f509`), plus Phase 12/13A/13B/13C design specs, plans, and audit reports.
+
 ## [0.2.0] - 2026-11-25
 
 First tagged release of ATBOffice, a Python 3.12 / PySide6 office suite with three
@@ -117,5 +150,6 @@ all work from the initial scaffold through Phase 11.
   dependency.
 - Release artifact names drop the tag's `v` prefix (`ATBOffice-0.2.0-…`).
 
-[Unreleased]: https://github.com/aitobox/ATBOffice/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/aitobox/ATBOffice/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/aitobox/ATBOffice/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/aitobox/ATBOffice/releases/tag/v0.2.0
