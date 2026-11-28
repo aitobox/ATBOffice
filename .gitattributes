@@ -1,0 +1,26 @@
+# Office document formats must never undergo Git line-ending conversion.
+# Some legacy .xls/.doc fixtures are XML/HTML/RTF text verified by exact SHA-256.
+*.doc binary
+*.docm binary
+*.docx binary
+*.dot binary
+*.dotm binary
+*.dotx binary
+*.potm binary
+*.potx binary
+*.ppsm binary
+*.ppsx binary
+*.ppt binary
+*.pptm binary
+*.pptx binary
+*.xls binary
+*.xlsm binary
+*.xlsx binary
+*.xlt binary
+*.xltm binary
+*.xltx binary
+
+# Preserve exact bytes for all document fixtures under tests/docs/.
+tests/docs/word/** -text
+tests/docs/excel/** -text
+tests/docs/powerpoint/** -text

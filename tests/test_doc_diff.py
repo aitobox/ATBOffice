@@ -44,9 +44,10 @@ def test_corpus_partitioning():
 
 
 def test_models_serialization():
+    target_path = Path("/tmp/test.docx")
     dt = DocumentTarget(
         file="test.docx",
-        path=Path("/tmp/test.docx"),
+        path=target_path,
         format="docx",
         app="word",
         expected_status="ok",
@@ -54,7 +55,8 @@ def test_models_serialization():
     )
     d_dict = dt.to_dict()
     assert d_dict["file"] == "test.docx"
-    assert d_dict["path"] == "/tmp/test.docx"
+    assert isinstance(d_dict["path"], str)
+    assert d_dict["path"] == str(target_path)
 
     cr = CaptureResult(
         file="test.docx",

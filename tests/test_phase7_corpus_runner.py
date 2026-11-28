@@ -9,6 +9,8 @@ Verifies:
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 from pathlib import Path
 
 from atboffice.deep.audit.core import (
@@ -189,3 +191,20 @@ def test_audit_session_accounting() -> None:
         }
     )
     assert session.is_passing() is False
+
+
+def test_gitattributes_disables_crlf_for_office_fixtures() -> None:
+    """Verify .gitattributes marks Office fixtures binary/-text against CRLF conversion."""
+    gitattributes = Path(".gitattributes")
+    assert gitattributes.exists(), ".gitattributes must exist at repository root"
+    content = gitattributes.read_text(encoding="utf-8")
+    assert "*.xls binary" in content
+
+    if Path(".git").exists() and shutil.which("git"):
+        res = subprocess.run(
+            ["git", "check-attr", "text", "tests/docs/excel/xls/libreoffice__tdf158483.xls"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert "text: unset" in res.stdout
