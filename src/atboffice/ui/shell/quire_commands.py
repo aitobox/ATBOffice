@@ -23,42 +23,50 @@ from atboffice.modules.writer.models.document import (
     TextItem,
 )
 from atboffice.modules.writer.models.properties import BorderProperties, ShadingProperties
-from atboffice.modules.writer.views import doc_actions
+from atboffice.modules.writer.views import canvas_object_commands, doc_actions
 from atboffice.modules.writer.views.caret_controller import DocPos, Selection
 
 if TYPE_CHECKING:
     from atboffice.ui.shell.quire_window import QuireWindow
 
-# Commands of floating-object toolbars (Picture, Drawing, WordArt, wrapping) act on a
-# selected picture/shape. The canvas can select, move and resize floating objects
-# (``canvas.selected_float()``), but these toolbar commands are not wired to that
-# selection yet, so they stay disabled with this reason instead of pretending to work.
+# Object-scoped commands implemented in ``canvas_object_commands`` that are enabled
+# when a floating object is selected on the canvas.
+FLOAT_SCOPED_COMMANDS: tuple[str, ...] = (
+    "wrap_inline",
+    "wrap_square",
+    "wrap_tight",
+    "wrap_behind",
+    "wrap_front",
+    "picRotate",
+    "picReset",
+    "picMoreBright",
+    "picLessBright",
+    "picMoreContrast",
+    "picLessContrast",
+    "pic_color_auto",
+    "pic_color_gray",
+    "pic_color_bw",
+    "pic_color_wash",
+    "draw_weight_075",
+    "draw_dash_dash",
+    "draw_arrow_1",
+    "draw_shadow_1",
+    "formatObject",
+)
+
+# Commands of floating-object toolbars (Picture, Drawing, WordArt, wrapping) that are
+# not wired to canvas selection yet, so they stay disabled with OBJECT_REASON.
 OBJECT_COMMANDS: tuple[str, ...] = (
     "picCrop",
-    "picLessBright",
-    "picLessContrast",
-    "picMoreBright",
-    "picMoreContrast",
-    "picReset",
-    "picRotate",
-    "pic_color_auto",
-    "pic_color_bw",
-    "pic_color_gray",
     "pic_color_mode",
-    "pic_color_wash",
     "pic_line_style",
     "pic_wrap_mode",
-    "formatObject",
-    "draw_arrow_1",
     "draw_arrow_style",
-    "draw_dash_dash",
     "draw_dash_style",
     "draw_group",
     "draw_line_style",
-    "draw_shadow_1",
     "draw_shadow_style",
     "draw_ungroup",
-    "draw_weight_075",
     "selectObjects",
     "wa_format",
     "wa_shape_arch_down",
@@ -67,11 +75,6 @@ OBJECT_COMMANDS: tuple[str, ...] = (
     "wa_shape_plain",
     "wa_shape_wave",
     "wa_wrap_mode",
-    "wrap_behind",
-    "wrap_front",
-    "wrap_inline",
-    "wrap_square",
-    "wrap_tight",
     "insertClipArt",
     "insertDiagram",
     "insertExcel",
@@ -561,6 +564,70 @@ def bind_quire_toolbar_commands(window: QuireWindow) -> QuireToolbarCommands:
     # Mail merge
     reg.set_handler("mmMergeNew", cmds.merge_to_new_document)
     reg.set_handler("mmMergePrint", cmds.merge_to_printer)
+
+    # Floating-object commands (wrap, picture, drawing styling, Format Object)
+    def _run_float(fn: Any) -> bool:
+        ok = bool(fn())
+        if ok:
+            window.set_modified(True)
+            window._sync_toolbar_states()
+        return ok
+
+    float_handlers: dict[str, Any] = {
+        "wrap_inline": lambda: canvas_object_commands.wrap_inline(canvas, status_cb=cmds._status),
+        "wrap_square": lambda: canvas_object_commands.wrap_square(canvas, status_cb=cmds._status),
+        "wrap_tight": lambda: canvas_object_commands.wrap_tight(canvas, status_cb=cmds._status),
+        "wrap_behind": lambda: canvas_object_commands.wrap_behind(canvas, status_cb=cmds._status),
+        "wrap_front": lambda: canvas_object_commands.wrap_front(canvas, status_cb=cmds._status),
+        "picRotate": lambda: canvas_object_commands.pic_rotate(canvas, status_cb=cmds._status),
+        "picReset": lambda: canvas_object_commands.pic_reset(canvas, status_cb=cmds._status),
+        "picMoreBright": lambda: canvas_object_commands.pic_adjust_brightness(
+            canvas, 0.1, status_cb=cmds._status
+        ),
+        "picLessBright": lambda: canvas_object_commands.pic_adjust_brightness(
+            canvas, -0.1, status_cb=cmds._status
+        ),
+        "picMoreContrast": lambda: canvas_object_commands.pic_adjust_contrast(
+            canvas, 0.1, status_cb=cmds._status
+        ),
+        "picLessContrast": lambda: canvas_object_commands.pic_adjust_contrast(
+            canvas, -0.1, status_cb=cmds._status
+        ),
+        "pic_color_auto": lambda: canvas_object_commands.pic_set_color_mode(
+            canvas, "auto", status_cb=cmds._status
+        ),
+        "pic_color_gray": lambda: canvas_object_commands.pic_set_color_mode(
+            canvas, "gray", status_cb=cmds._status
+        ),
+        "pic_color_bw": lambda: canvas_object_commands.pic_set_color_mode(
+            canvas, "bw", status_cb=cmds._status
+        ),
+        "pic_color_wash": lambda: canvas_object_commands.pic_set_color_mode(
+            canvas, "washout", status_cb=cmds._status
+        ),
+        "draw_weight_075": lambda: canvas_object_commands.draw_line_weight(
+            canvas, 0.75, status_cb=cmds._status
+        ),
+        "draw_dash_dash": lambda: canvas_object_commands.draw_dash_style(
+            canvas, "dash", status_cb=cmds._status
+        ),
+        "draw_arrow_1": lambda: canvas_object_commands.draw_arrow_style(
+            canvas, "style1", status_cb=cmds._status
+        ),
+        "draw_shadow_1": lambda: canvas_object_commands.draw_shadow_style(
+            canvas, True, status_cb=cmds._status
+        ),
+        "formatObject": lambda: canvas_object_commands.format_object(
+            canvas, parent=window, status_cb=cmds._status
+        ),
+    }
+    has_float = canvas.selected_float() is not None
+    for aid, fn in float_handlers.items():
+        reg.set_handler(aid, lambda f=fn: _run_float(f))
+        spec = reg.get_spec(aid)
+        if spec is not None:
+            spec.disabled_reason = safe_tr(OBJECT_REASON)
+        reg.set_enabled(aid, has_float)
 
     # Containers open menus; object toolbars wait for a selected object (#447).
     for aid in CONTAINER_COMMANDS:

@@ -1822,6 +1822,38 @@ class QuireWindow(BaseOfficeWindow):
             }
         )
         self.notify_selection_context(ctx_kind)
+        self._sync_object_action_states(item is not None)
+        self._sync_toolbar_states()
+
+    def _sync_object_action_states(self, has_float: bool | None = None) -> None:
+        """Enable or disable float-scoped object commands based on canvas float selection."""
+        if not hasattr(self, "action_registry") or not hasattr(self, "writer_view"):
+            return
+        from atboffice.ui.shell.quire_commands import FLOAT_SCOPED_COMMANDS
+
+        if has_float is None:
+            has_float = self.writer_view.canvas_view.selected_float() is not None
+        for aid in FLOAT_SCOPED_COMMANDS:
+            if self.action_registry.has_action(aid):
+                self.action_registry.set_enabled(aid, bool(has_float))
+
+    def open_format_object_dialog(self) -> bool:
+        """Open Format Object dialog for the selected floating object."""
+        from atboffice.modules.writer.views.canvas_object_commands import format_object
+
+        ok = format_object(
+            self.writer_view.canvas_view,
+            parent=self,
+            status_cb=self.show_status_message,
+        )
+        if ok:
+            self.set_modified(True)
+            self._sync_toolbar_states()
+        return ok
+
+    def after_undo_redo(self) -> None:
+        """Refresh toolbar and object-action states after undo/redo."""
+        super().after_undo_redo()
         self._sync_toolbar_states()
 
     def switch_view_mode(self, mode: ViewMode | str) -> None:
@@ -2184,6 +2216,9 @@ class QuireWindow(BaseOfficeWindow):
             act_ruler = self.action_registry.get_action("view_ruler")
             if act_ruler:
                 act_ruler.setChecked(self.writer_view.h_ruler.isVisible())
+
+            # 10. Float-scoped object commands
+            self._sync_object_action_states(canvas.selected_float() is not None)
         finally:
             self._syncing_toolbars = False
 
