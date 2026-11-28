@@ -4,8 +4,13 @@ from __future__ import annotations
 
 import argparse
 import base64
+import json
 import os
+import plistlib
+import re
 import shutil
+import stat
+import struct
 import subprocess
 import sys
 import tempfile
@@ -19,17 +24,152 @@ if str(_project_root) not in sys.path:
 
 from scripts.build.common import (  # noqa: E402
     ensure_clean_dir,
+    get_app_version,
     get_artifact_name,
     get_base_nuitka_args,
     get_nuitka_env,
     get_project_root,
 )
 
+MACOS_BUNDLE_IDENTIFIER = "com.aitobox.atboffice"
+DEFAULT_ENTITLEMENTS_PATH = Path(__file__).resolve().parent / "entitlements.plist"
+
+_MACHO_MAGICS = {
+    b"\xfe\xed\xfa\xce",
+    b"\xce\xfa\xed\xfe",
+    b"\xfe\xed\xfa\xcf",
+    b"\xcf\xfa\xed\xfe",
+}
+_FAT_MACHO_BE_MAGICS = {b"\xca\xfe\xba\xbe", b"\xca\xfe\xba\xbf"}
+_FAT_MACHO_LE_MAGICS = {b"\xbe\xba\xfe\xca", b"\xbf\xba\xfe\xca"}
+_NESTED_BUNDLE_SUFFIXES = {".framework", ".app", ".xpc", ".appex", ".plugin", ".bundle"}
+_EXECUTABLE_BUNDLE_SUFFIXES = {".app", ".xpc", ".appex"}
+_LIBRARY_SUFFIXES = {".dylib", ".so"}
+_BUNDLE_VERSION_RE = re.compile(r"^\d+(?:\.\d+){0,2}$")
+
 
 class KeychainContext(NamedTuple):
     keychain_path: Path
     keychain_password: str
     identity: str
+
+
+def _codesign_bin() -> str:
+    """Return Apple's system codesign path when present to avoid conda shims."""
+    system_codesign = Path("/usr/bin/codesign")
+    return str(system_codesign) if system_codesign.exists() else "codesign"
+
+
+def _xattr_bin() -> str:
+    """Return Apple's system xattr path when present."""
+    system_xattr = Path("/usr/bin/xattr")
+    return str(system_xattr) if system_xattr.exists() else "xattr"
+
+
+def _normalize_bundle_version(raw_version: str) -> str:
+    ver = raw_version.strip()
+    if len(ver) > 1 and ver[0] in "vV" and ver[1].isdigit():
+        ver = ver[1:]
+    return ver
+
+
+def _resolve_macos_bundle_version(version: str | None) -> str:
+    """Resolve a numeric CFBundleShortVersionString-compatible version string."""
+    if version:
+        candidate = _normalize_bundle_version(version)
+        if _BUNDLE_VERSION_RE.fullmatch(candidate):
+            return candidate
+
+    fallback = _normalize_bundle_version(get_app_version())
+    if _BUNDLE_VERSION_RE.fullmatch(fallback):
+        return fallback
+    return "0.1.0"
+
+
+def _is_macho_file(path: Path) -> bool:
+    """Return True if path is a regular Mach-O or universal fat Mach-O file."""
+    if path.is_symlink() or not path.is_file():
+        return False
+
+    try:
+        with path.open("rb") as fh:
+            header = fh.read(8)
+    except OSError:
+        return False
+
+    if len(header) < 4:
+        return False
+
+    magic = header[:4]
+    if magic in _MACHO_MAGICS:
+        return True
+
+    if len(header) == 8 and magic in _FAT_MACHO_BE_MAGICS:
+        nfat_arch = struct.unpack(">I", header[4:8])[0]
+        return 1 <= nfat_arch <= 20
+
+    if len(header) == 8 and magic in _FAT_MACHO_LE_MAGICS:
+        nfat_arch = struct.unpack("<I", header[4:8])[0]
+        return 1 <= nfat_arch <= 20
+
+    return False
+
+
+def _ensure_writable(path: Path) -> None:
+    """Ensure the owner write bit is set so codesign can embed signatures."""
+    if path.is_symlink() or not path.exists():
+        return
+    mode = path.stat().st_mode
+    if not (mode & stat.S_IWUSR):
+        path.chmod(mode | stat.S_IWUSR)
+
+
+def _get_bundle_main_executable(app_path: Path) -> Path | None:
+    """Return the main executable path declared in Contents/Info.plist, if any."""
+    info_plist = app_path / "Contents" / "Info.plist"
+    if not info_plist.is_file():
+        return None
+    try:
+        data = plistlib.loads(info_plist.read_bytes())
+    except (OSError, plistlib.InvalidFileException, ValueError):
+        return None
+    if isinstance(data, dict):
+        executable_name = data.get("CFBundleExecutable")
+        if isinstance(executable_name, str) and executable_name:
+            return app_path / "Contents" / "MacOS" / executable_name
+    return None
+
+
+def _discover_signing_targets(app_path: Path) -> tuple[list[Path], list[Path]]:
+    """Discover nested Mach-O binaries and sub-bundles sorted deepest-first."""
+    main_exec = _get_bundle_main_executable(app_path)
+    macho_files: list[Path] = []
+    nested_bundles: list[Path] = []
+
+    for root, dirnames, filenames in os.walk(app_path, topdown=True, followlinks=False):
+        root_path = Path(root)
+        kept_dirs: list[str] = []
+        for dirname in dirnames:
+            if dirname == "_CodeSignature":
+                continue
+            dir_path = root_path / dirname
+            if dir_path.is_symlink():
+                continue
+            kept_dirs.append(dirname)
+            if dir_path.suffix.lower() in _NESTED_BUNDLE_SUFFIXES:
+                nested_bundles.append(dir_path)
+        dirnames[:] = kept_dirs
+
+        for filename in filenames:
+            file_path = root_path / filename
+            if main_exec is not None and file_path == main_exec:
+                continue
+            if _is_macho_file(file_path):
+                macho_files.append(file_path)
+
+    macho_files.sort(key=lambda p: (-len(p.parts), str(p)))
+    nested_bundles.sort(key=lambda p: (-len(p.parts), str(p)))
+    return macho_files, nested_bundles
 
 
 def setup_temp_keychain() -> KeychainContext | None:
@@ -145,7 +285,7 @@ def setup_temp_keychain() -> KeychainContext | None:
         return KeychainContext(keychain_path, keychain_password, identity)
 
     except Exception as exc:
-        print(f"Warning: Failed to set up temporary keychain: {exc}", file=sys.stderr)
+        print(f"Warning: Failed to set up temporary keychain: {exc}", file=sys.stderr, flush=True)
         cleanup_temp_keychain(keychain_path)
         return None
 
@@ -165,18 +305,22 @@ def cleanup_temp_keychain(keychain_path: Path | None) -> None:
         pass
 
 
-def run_nuitka_build(output_dir: Path) -> Path:
+def run_nuitka_build(output_dir: Path, version: str | None = None) -> Path:
     """Run Nuitka to build the standalone macOS app bundle."""
     base_args = get_base_nuitka_args(output_dir)
+    bundle_version = _resolve_macos_bundle_version(version)
     macos_args = [
         "--macos-create-app-bundle",
+        "--output-filename=ATBOffice",
         "--macos-app-name=ATBOffice",
+        f"--macos-signed-app-name={MACOS_BUNDLE_IDENTIFIER}",
+        f"--macos-app-version={bundle_version}",
         "--macos-app-mode=gui",
         "--macos-target-arch=arm64",
     ]
     cmd = base_args + macos_args
     env = get_nuitka_env()
-    print(f"Running Nuitka macOS build:\n{' '.join(cmd)}")
+    print(f"Running Nuitka macOS build:\n{' '.join(cmd)}", flush=True)
     subprocess.run(cmd, check=True, env=env)
 
     app_path = output_dir / "ATBOffice.app"
@@ -187,24 +331,63 @@ def run_nuitka_build(output_dir: Path) -> Path:
     return app_path
 
 
-def sign_app_bundle(app_path: Path, identity: str = "-", keychain_path: Path | None = None) -> None:
-    """Codesign the macOS app bundle with hardened runtime."""
-    sign_cmd = [
-        "codesign",
-        "--deep",
-        "--force",
-        "--options",
-        "runtime",
-        "--timestamp",
-        "--sign",
-        identity,
-    ]
-    if keychain_path and keychain_path.exists():
-        sign_cmd.extend(["--keychain", str(keychain_path)])
-    sign_cmd.append(str(app_path))
+def sign_app_bundle(
+    app_path: Path,
+    identity: str = "-",
+    keychain_path: Path | None = None,
+    entitlements_path: Path | None = None,
+) -> None:
+    """Codesign the macOS app bundle inside-out with hardened runtime and entitlements."""
+    resolved_entitlements = (
+        entitlements_path if entitlements_path is not None else DEFAULT_ENTITLEMENTS_PATH
+    )
+    codesign = _codesign_bin()
 
-    print(f"Signing app bundle with identity '{identity}'...")
-    subprocess.run(sign_cmd, check=True)
+    def _run_codesign(target: Path, *, use_entitlements: bool) -> None:
+        cmd = [codesign, "--force"]
+        if identity != "-":
+            cmd.extend(["--options", "runtime", "--timestamp"])
+            if use_entitlements and resolved_entitlements.exists():
+                cmd.extend(["--entitlements", str(resolved_entitlements)])
+            if keychain_path and keychain_path.exists():
+                cmd.extend(["--keychain", str(keychain_path)])
+        cmd.extend(["--sign", identity, str(target)])
+        subprocess.run(cmd, check=True)
+
+    print(f"Signing app bundle inside-out with identity '{identity}'...", flush=True)
+    subprocess.run([_xattr_bin(), "-cr", str(app_path)], check=True)
+
+    macho_files, nested_bundles = _discover_signing_targets(app_path)
+    print(
+        f"Signing {len(macho_files)} nested Mach-O files and "
+        f"{len(nested_bundles)} nested bundles...",
+        flush=True,
+    )
+
+    for macho_file in macho_files:
+        _ensure_writable(macho_file)
+        _run_codesign(
+            macho_file,
+            use_entitlements=macho_file.suffix.lower() not in _LIBRARY_SUFFIXES,
+        )
+
+    for bundle in nested_bundles:
+        _run_codesign(
+            bundle,
+            use_entitlements=bundle.suffix.lower() in _EXECUTABLE_BUNDLE_SUFFIXES,
+        )
+
+    main_exec = _get_bundle_main_executable(app_path)
+    if main_exec is not None:
+        _ensure_writable(main_exec)
+
+    _run_codesign(app_path, use_entitlements=True)
+
+    print("Verifying app bundle signature...", flush=True)
+    subprocess.run(
+        [codesign, "--verify", "--deep", "--strict", "--verbose=2", str(app_path)],
+        check=True,
+    )
 
 
 def create_dmg(app_path: Path, dmg_output_path: Path) -> Path:
@@ -236,7 +419,7 @@ def create_dmg(app_path: Path, dmg_output_path: Path) -> Path:
             "UDZO",
             str(dmg_output_path),
         ]
-        print(f"Creating DMG at {dmg_output_path}...")
+        print(f"Creating DMG at {dmg_output_path}...", flush=True)
         subprocess.run(hdiutil_cmd, check=True)
         return dmg_output_path
     finally:
@@ -250,10 +433,10 @@ def notarize_and_staple(dmg_path: Path) -> None:
     apple_team_id = os.environ.get("APPLE_TEAM_ID")
 
     if not apple_id or not apple_password or not apple_team_id:
-        print("Apple credentials missing; skipping notarization.")
+        print("Apple credentials missing; skipping notarization.", flush=True)
         return
 
-    print("Submitting DMG to Apple Notary Service (this may take a few minutes)...")
+    print("Submitting DMG to Apple Notary Service (this may take a few minutes)...", flush=True)
     notary_cmd = [
         "xcrun",
         "notarytool",
@@ -266,12 +449,66 @@ def notarize_and_staple(dmg_path: Path) -> None:
         "--team-id",
         apple_team_id,
         "--wait",
+        "--output-format",
+        "json",
     ]
-    subprocess.run(notary_cmd, check=True)
+    result = subprocess.run(notary_cmd, capture_output=True, text=True, check=False)
 
-    print("Stapling notarization ticket to DMG...")
-    staple_cmd = ["xcrun", "stapler", "staple", str(dmg_path)]
-    subprocess.run(staple_cmd, check=True)
+    payload: dict[str, object] = {}
+    if result.stdout and result.stdout.strip():
+        try:
+            parsed = json.loads(result.stdout)
+            if isinstance(parsed, dict):
+                payload = parsed
+        except json.JSONDecodeError:
+            pass
+
+    submission_id = payload.get("id")
+    status = payload.get("status")
+    print(f"Notarization result: id={submission_id}, status={status}", flush=True)
+
+    if result.returncode != 0 or status != "Accepted":
+        if result.stderr and result.stderr.strip():
+            print(result.stderr.strip(), file=sys.stderr, flush=True)
+        if not payload and result.stdout and result.stdout.strip():
+            print(result.stdout.strip(), file=sys.stderr, flush=True)
+
+        if submission_id:
+            print(
+                f"Fetching Apple notarization log for submission {submission_id}...",
+                file=sys.stderr,
+                flush=True,
+            )
+            log_res = subprocess.run(
+                [
+                    "xcrun",
+                    "notarytool",
+                    "log",
+                    str(submission_id),
+                    "--apple-id",
+                    apple_id,
+                    "--password",
+                    apple_password,
+                    "--team-id",
+                    apple_team_id,
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if log_res.stdout and log_res.stdout.strip():
+                print(log_res.stdout.strip(), file=sys.stderr, flush=True)
+            if log_res.stderr and log_res.stderr.strip():
+                print(log_res.stderr.strip(), file=sys.stderr, flush=True)
+
+        raise RuntimeError(
+            f"Apple notarization failed for {dmg_path.name} (id={submission_id}, status={status})."
+        )
+
+    print("Stapling notarization ticket to DMG...", flush=True)
+    subprocess.run(["xcrun", "stapler", "staple", str(dmg_path)], check=True)
+    print("Validating stapled DMG...", flush=True)
+    subprocess.run(["xcrun", "stapler", "validate", str(dmg_path)], check=True)
 
 
 def build_macos(
@@ -296,7 +533,7 @@ def build_macos(
                     "Developer ID certificate missing, but --strict-signing was specified."
                 )
 
-        app_bundle = run_nuitka_build(nuitka_dir)
+        app_bundle = run_nuitka_build(nuitka_dir, version=version)
 
         # Signing
         if not skip_signing:
@@ -311,9 +548,10 @@ def build_macos(
 
         # Sign DMG if identity exists
         if not skip_signing and keychain_ctx and keychain_ctx.identity != "-":
+            codesign = _codesign_bin()
             subprocess.run(
                 [
-                    "codesign",
+                    codesign,
                     "--force",
                     "--timestamp",
                     "--sign",
@@ -322,6 +560,10 @@ def build_macos(
                     str(keychain_ctx.keychain_path),
                     str(dmg_path),
                 ],
+                check=True,
+            )
+            subprocess.run(
+                [codesign, "--verify", "--verbose=2", str(dmg_path)],
                 check=True,
             )
 
@@ -335,7 +577,7 @@ def build_macos(
                 raise RuntimeError("Apple credentials missing, but --strict-signing was specified.")
             notarize_and_staple(dmg_path)
 
-        print(f"Successfully generated macOS DMG at: {dmg_path}")
+        print(f"Successfully generated macOS DMG at: {dmg_path}", flush=True)
         return dmg_path
 
     finally:
