@@ -8,18 +8,19 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
+from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
+
+from atboffice.core.i18n import get_i18n_manager, load_locale
 from atboffice.modules.spreadsheet.calc.solver import (
     ConstraintReportItem,
     SolverConstraint,
     SolverOptions,
     SolverParams,
     SolverResult,
+    apply_solver_solution,
     load_solver_model,
     save_solver_model,
 )
-from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
-
-from atboffice.core.i18n import get_i18n_manager, load_locale
 from atboffice.modules.spreadsheet.dialogs.solver_dialog import (
     AddConstraintDialog,
     SolverOptionsDialog,
@@ -316,12 +317,7 @@ class TestSolverExecutionAndResults:
         def on_apply(params: SolverParams, result: SolverResult, keep: bool) -> None:
             callback_calls.append((params, result, keep))
             if keep:
-                for ref, val in result.solution_values.items():
-                    if ref.endswith("!A1"):
-                        sheet.set_cell_value(0, 0, val)
-                    elif ref.endswith("!B1"):
-                        sheet.set_cell_value(0, 1, val)
-                wb.recalculate()
+                apply_solver_solution(wb, result.solution_values)
 
         dlg = self._configure_lp_dialog(wb, callback=on_apply)
         try:
@@ -415,6 +411,7 @@ class TestSolverExecutionAndResults:
             )
 
         try:
+            dlg.show()
             with patch(
                 "atboffice.modules.spreadsheet.dialogs.solver_dialog.solve_model",
                 side_effect=slow_solve,
