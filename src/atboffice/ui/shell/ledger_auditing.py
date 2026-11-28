@@ -550,9 +550,9 @@ class LedgerAuditingMixin:
         """Open Excel 2003 classic Solver Parameters (规划求解参数) dialog."""
         import copy
 
-        from atboffice.modules.spreadsheet.calc.goal_seek import parse_cell_reference
         from atboffice.modules.spreadsheet.calc.solver import (
             apply_solver_solution,
+            parse_cell_list,
             save_solver_model,
         )
         from atboffice.modules.spreadsheet.dialogs.solver_dialog import (
@@ -573,6 +573,7 @@ class LedgerAuditingMixin:
             return {s.name: {k: v.clone() for k, v in s.cells.items()} for s in workbook.sheets}
 
         initial_snapshot = _capture_cells()
+        initial_model_snapshot = copy.deepcopy(sheet.extra.get("solver_model"))
 
         def _resolve_sheet(sheet_name: str) -> Any:
             if workbook is not None and hasattr(workbook, "get_sheet_by_name"):
@@ -597,6 +598,7 @@ class LedgerAuditingMixin:
             self._refresh_solver_views()
 
         def _apply_callback(params: Any, result: Any, keep_solution: bool) -> None:
+            nonlocal initial_model_snapshot
             default_sheet = getattr(params, "default_sheet", None) or sheet.name
             sol_values: dict[str, float] = dict(getattr(result, "solution_values", None) or {})
             init_values: dict[str, float] = dict(getattr(result, "initial_values", None) or {})
@@ -604,7 +606,7 @@ class LedgerAuditingMixin:
             if not keep_solution:
                 restore_entries: list[tuple[Any, int, int, Any]] = []
                 for ref in set(sol_values) | set(init_values):
-                    sh_name, cr, cc = parse_cell_reference(ref, default_sheet=default_sheet)
+                    sh_name, cr, cc = parse_cell_list(ref, default_sheet=default_sheet)[0]
                     target_sh = _resolve_sheet(sh_name)
                     orig = initial_snapshot.get(target_sh.name, {}).get((cr, cc))
                     restore_entries.append((target_sh, cr, cc, orig))
@@ -613,7 +615,7 @@ class LedgerAuditingMixin:
 
             before_entries: list[tuple[Any, int, int, Any]] = []
             for ref in sol_values:
-                sh_name, cr, cc = parse_cell_reference(ref, default_sheet=default_sheet)
+                sh_name, cr, cc = parse_cell_list(ref, default_sheet=default_sheet)[0]
                 target_sh = _resolve_sheet(sh_name)
                 orig = initial_snapshot.get(target_sh.name, {}).get((cr, cc))
                 before_entries.append(
@@ -624,7 +626,7 @@ class LedgerAuditingMixin:
                 apply_solver_solution(workbook, sol_values)
             else:
                 for ref, val in sol_values.items():
-                    _sh_name, cr, cc = parse_cell_reference(ref, default_sheet=default_sheet)
+                    _sh_name, cr, cc = parse_cell_list(ref, default_sheet=default_sheet)[0]
                     cell = sheet.get_cell(cr, cc)
                     if cell is None:
                         sheet.set_cell(cr, cc, CellData(value=val))
@@ -640,7 +642,7 @@ class LedgerAuditingMixin:
                     (target_sh, cr, cc, now_cell.clone() if now_cell is not None else None)
                 )
 
-            before_model = copy.deepcopy(sheet.extra.get("solver_model"))
+            before_model = copy.deepcopy(initial_model_snapshot)
             save_solver_model(sheet, params)
             after_model = copy.deepcopy(sheet.extra.get("solver_model"))
 
@@ -656,7 +658,7 @@ class LedgerAuditingMixin:
                 for (_, _, _, b), (_, _, _, a) in zip(before_entries, after_entries, strict=True)
             )
             svc = self.undo_service() if hasattr(self, "undo_service") else None
-            if changed and svc is not None and svc.is_recording:
+            if (changed or before_model != after_model) and svc is not None and svc.is_recording:
                 svc.record(
                     safe_tr("规划求解"),
                     lambda b=before_entries, bm=before_model: _apply_step(b, bm),
@@ -666,6 +668,7 @@ class LedgerAuditingMixin:
             self.set_modified(True)
             initial_snapshot.clear()
             initial_snapshot.update(_capture_cells())
+            initial_model_snapshot = copy.deepcopy(after_model)
             self._refresh_solver_views()
 
         dlg = SolverParametersDialog(
