@@ -317,6 +317,8 @@ class LedgerWindow(
         self.action_registry.set_handler("evaluateFormula", self.evaluate_formula)
         self.action_registry.set_handler("goalSeek", self.open_goal_seek)
         self.action_registry.set_handler("tools_goal_seek", self.open_goal_seek)
+        self.action_registry.set_handler("solver", self.open_solver)
+        self.action_registry.set_handler("tools_solver", self.open_solver)
         self.action_registry.set_handler("rev_insertComment", self.insert_comment)
         self.action_registry.set_handler("showHideComment", self.show_hide_comment)
         self.action_registry.set_handler("deleteComment", self.delete_comment)

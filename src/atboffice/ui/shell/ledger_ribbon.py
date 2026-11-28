@@ -83,6 +83,8 @@ def build_ledger_ribbon_spec(window: Any) -> RibbonSpec:
         "consolidate": "subtotal",
         "scenarios": "goalSeek",
         "tools_goal_seek": "goalSeek",
+        "tools_solver": "goalSeek",
+        "solver": "goalSeek",
         "dataTable": "table",
         "outlineGroup": "group",
         "outlineUngroup": "ungroup",
@@ -438,7 +440,7 @@ def build_ledger_ribbon_spec(window: Any) -> RibbonSpec:
                 ),
                 RibbonGroupSpec(
                     label="预测",
-                    items=("scenarios", "tools_goal_seek", "dataTable"),
+                    items=("scenarios", "tools_goal_seek", "dataTable", "tools_solver"),
                 ),
                 RibbonGroupSpec(
                     label="分级显示",

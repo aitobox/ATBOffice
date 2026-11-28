@@ -157,6 +157,10 @@ class MacMenuBar(QMenuBar):
             self.action_map["tools_goal_seek"].setVisible(is_ledger)
         if "goalSeek" in self.action_map:
             self.action_map["goalSeek"].setVisible(is_ledger)
+        if "tools_solver" in self.action_map:
+            self.action_map["tools_solver"].setVisible(is_ledger)
+        if "solver" in self.action_map:
+            self.action_map["solver"].setVisible(is_ledger)
         if self.sep_format_cells is not None:
             self.sep_format_cells.setVisible(is_ledger)
 
@@ -470,6 +474,7 @@ class MacMenuBar(QMenuBar):
         self._reg_act(menu_tools, "tools_language", "tools_language")
         menu_tools.addSeparator()
         self._reg_act(menu_tools, "tools_goal_seek", "tools_goal_seek")
+        self._reg_act(menu_tools, "tools_solver", "solver")
         self._reg_act(menu_tools, "scenarios", "tools_scenarios_menu")
         menu_protect = menu_tools.addMenu("")
         self.menu_map["tools_protection"] = menu_protect
@@ -636,6 +641,7 @@ class MacMenuBar(QMenuBar):
 
         connect_if("tools_options", "show_options_dialog")
         connect_if("tools_goal_seek", "open_goal_seek")
+        connect_if("tools_solver", "open_solver")
         connect_if("data_pivottable", "open_pivot_wizard")
         connect_if("insert_function", "open_function_wizard")
         connect_if("insert_clipart", "open_clipart_dialog")
@@ -961,6 +967,14 @@ class MacMenuBar(QMenuBar):
             "goalSeek": (
                 safe_tr("单变量求解(&G)..."),
                 safe_tr("通过调整输入单元格使公式达到目标值"),
+            ),
+            "tools_solver": (
+                safe_tr("规划求解(&V)..."),
+                safe_tr("通过调整多个可变单元格并应用约束条件来求解最优目标值"),
+            ),
+            "solver": (
+                safe_tr("规划求解(&V)..."),
+                safe_tr("通过调整多个可变单元格并应用约束条件来求解最优目标值"),
             ),
             # Table (Quire)
             "table_draw": (safe_tr("绘制表格"), safe_tr("使用画笔自由绘制表格线网格")),

@@ -526,3 +526,156 @@ class LedgerAuditingMixin:
         )
         if dlg.exec():
             self.spreadsheet_view.grid.viewport().update()
+
+    def _refresh_solver_views(self, report_sheet_name: str | None = None) -> None:
+        """Refresh grid viewport, status bar, and sheet tab bar after Solver execution."""
+        if hasattr(self, "_refresh_after_cell_edit"):
+            self._refresh_after_cell_edit()
+        if hasattr(self, "_update_spreadsheet_status"):
+            self._update_spreadsheet_status()
+        view = getattr(self, "spreadsheet_view", None)
+        if view is not None:
+            if hasattr(view, "_sync_sheet_tab_bar_width"):
+                view._sync_sheet_tab_bar_width()
+            tab_bar = getattr(view, "sheet_tab_bar", None)
+            if tab_bar is not None:
+                strip = getattr(tab_bar, "_strip", None)
+                if strip is not None:
+                    strip.update()
+                tab_bar.update()
+        if report_sheet_name:
+            self.set_modified(True)
+
+    def open_solver(self) -> None:
+        """Open Excel 2003 classic Solver Parameters (规划求解参数) dialog."""
+        import copy
+
+        from atboffice.modules.spreadsheet.calc.goal_seek import parse_cell_reference
+        from atboffice.modules.spreadsheet.calc.solver import (
+            apply_solver_solution,
+            save_solver_model,
+        )
+        from atboffice.modules.spreadsheet.dialogs.solver_dialog import (
+            SolverParametersDialog,
+        )
+        from atboffice.modules.spreadsheet.models.sheet_model import CellData
+
+        sheet = getattr(self.spreadsheet_view, "model", None)
+        if sheet is None:
+            return
+        sel = getattr(self.spreadsheet_view, "selection", None)
+        r, c = sel.active_cell if sel else (0, 0)
+        workbook = getattr(self.spreadsheet_view, "workbook", None)
+
+        def _capture_cells() -> dict[str, dict[tuple[int, int], Any]]:
+            if workbook is None:
+                return {sheet.name: {k: v.clone() for k, v in sheet.cells.items()}}
+            return {s.name: {k: v.clone() for k, v in s.cells.items()} for s in workbook.sheets}
+
+        initial_snapshot = _capture_cells()
+
+        def _resolve_sheet(sheet_name: str) -> Any:
+            if workbook is not None and hasattr(workbook, "get_sheet_by_name"):
+                found = workbook.get_sheet_by_name(sheet_name)
+                if found is not None:
+                    return found
+            return sheet
+
+        def _restore_snapshot_cells(entries: list[tuple[Any, int, int, Any]]) -> None:
+            for target_sh, cr, cc, cell_snap in entries:
+                if cell_snap is None:
+                    target_sh.cells.pop((cr, cc), None)
+                else:
+                    target_sh.set_cell(cr, cc, cell_snap.clone())
+            if workbook is not None and hasattr(workbook, "recalculate"):
+                workbook.recalculate()
+            elif hasattr(sheet, "recalculate"):
+                sheet.recalculate()
+            grid = getattr(self.spreadsheet_view, "grid", None)
+            if grid is not None and hasattr(grid, "_activate_sheet"):
+                grid._activate_sheet(sheet)
+            self._refresh_solver_views()
+
+        def _apply_callback(params: Any, result: Any, keep_solution: bool) -> None:
+            default_sheet = getattr(params, "default_sheet", None) or sheet.name
+            sol_values: dict[str, float] = dict(getattr(result, "solution_values", None) or {})
+            init_values: dict[str, float] = dict(getattr(result, "initial_values", None) or {})
+
+            if not keep_solution:
+                restore_entries: list[tuple[Any, int, int, Any]] = []
+                for ref in set(sol_values) | set(init_values):
+                    sh_name, cr, cc = parse_cell_reference(ref, default_sheet=default_sheet)
+                    target_sh = _resolve_sheet(sh_name)
+                    orig = initial_snapshot.get(target_sh.name, {}).get((cr, cc))
+                    restore_entries.append((target_sh, cr, cc, orig))
+                _restore_snapshot_cells(restore_entries)
+                return
+
+            before_entries: list[tuple[Any, int, int, Any]] = []
+            for ref in sol_values:
+                sh_name, cr, cc = parse_cell_reference(ref, default_sheet=default_sheet)
+                target_sh = _resolve_sheet(sh_name)
+                orig = initial_snapshot.get(target_sh.name, {}).get((cr, cc))
+                before_entries.append(
+                    (target_sh, cr, cc, orig.clone() if orig is not None else None)
+                )
+
+            if workbook is not None:
+                apply_solver_solution(workbook, sol_values)
+            else:
+                for ref, val in sol_values.items():
+                    _sh_name, cr, cc = parse_cell_reference(ref, default_sheet=default_sheet)
+                    cell = sheet.get_cell(cr, cc)
+                    if cell is None:
+                        sheet.set_cell(cr, cc, CellData(value=val))
+                    else:
+                        cell.value = val
+                if hasattr(sheet, "recalculate"):
+                    sheet.recalculate()
+
+            after_entries: list[tuple[Any, int, int, Any]] = []
+            for target_sh, cr, cc, _orig in before_entries:
+                now_cell = target_sh.get_cell(cr, cc)
+                after_entries.append(
+                    (target_sh, cr, cc, now_cell.clone() if now_cell is not None else None)
+                )
+
+            before_model = copy.deepcopy(sheet.extra.get("solver_model"))
+            save_solver_model(sheet, params)
+            after_model = copy.deepcopy(sheet.extra.get("solver_model"))
+
+            def _apply_step(entries: list[tuple[Any, int, int, Any]], model_snap: Any) -> None:
+                if model_snap is None:
+                    sheet.extra.pop("solver_model", None)
+                else:
+                    sheet.extra["solver_model"] = copy.deepcopy(model_snap)
+                _restore_snapshot_cells(entries)
+
+            changed = any(
+                b != a
+                for (_, _, _, b), (_, _, _, a) in zip(before_entries, after_entries, strict=True)
+            )
+            svc = self.undo_service() if hasattr(self, "undo_service") else None
+            if changed and svc is not None and svc.is_recording:
+                svc.record(
+                    safe_tr("规划求解"),
+                    lambda b=before_entries, bm=before_model: _apply_step(b, bm),
+                    lambda a=after_entries, am=after_model: _apply_step(a, am),
+                )
+
+            self.set_modified(True)
+            initial_snapshot.clear()
+            initial_snapshot.update(_capture_cells())
+            self._refresh_solver_views()
+
+        dlg = SolverParametersDialog(
+            workbook=workbook,
+            current_sheet=sheet,
+            initial_r=r,
+            initial_c=c,
+            apply_callback=_apply_callback,
+            parent=self,
+        )
+        dlg.exec()
+        created_report = getattr(dlg, "created_report_sheet", None)
+        self._refresh_solver_views(report_sheet_name=created_report)
