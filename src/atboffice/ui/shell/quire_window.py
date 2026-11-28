@@ -171,6 +171,11 @@ class QuireWindow(BaseOfficeWindow):
             self._on_document_modified
         )
         self.writer_view.canvas_view.float_selected.connect(self._on_quire_float_selected)
+        self.writer_view.canvas_view.table_tool_changed.connect(self._on_table_tool_changed)
+        for aid in ("drawTable", "eraser"):
+            act = self.action_registry.get_action(aid)
+            if act is not None:
+                act.setCheckable(True)
         # Caret moves refresh toolbars/context immediately. Selection-only changes are
         # coalesced into one deferred refresh, which a caret move in the same
         # keystroke cancels, so each edit syncs the toolbars once instead of 2-3 times.
@@ -2025,6 +2030,16 @@ class QuireWindow(BaseOfficeWindow):
         canvas.controller.document_modified.emit()
         canvas.update()
         self.show_status_message(safe_tr("单元格对齐: {0}", align))
+
+    def _on_table_tool_changed(self, kind: str | None) -> None:
+        """Sync Draw Table / Eraser checkable states and expand Tables toolbar when active."""
+        for aid, target in (("drawTable", "draw"), ("eraser", "erase")):
+            act = self.action_registry.get_action(aid)
+            if act is not None:
+                act.setCheckable(True)
+                act.setChecked(kind == target)
+        if kind in ("draw", "erase") and not self.is_ribbon_mode():
+            self.set_toolbar_mode("tables", True)
 
     def _sync_toolbar_states(self) -> None:
         """Synchronize toolbar toggle buttons and combos with current selection/caret formatting."""

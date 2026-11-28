@@ -468,16 +468,29 @@ def split_cells(
             row.cells[idx + 1 : idx + 1] = created
             news.extend(created)
         else:
-            # Need to split grid columns
+            # Need to split grid columns across full table width matrix
             orig_w = sum(table.grid[c0 : c0 + cur_span])
             sub_w = round(orig_w / num_cols, 2)
             new_sub_grid = [sub_w] * num_cols
+            extra_cols = num_cols - cur_span
             table.grid[c0 : c0 + cur_span] = new_sub_grid
+
+            for r_other, row_entries in enumerate(m):
+                if r_other == ri:
+                    continue
+                for entry in row_entries:
+                    if entry.col_idx <= c0 < entry.col_idx + entry.span:
+                        entry.cell.tc_pr.grid_span = max(1, entry.span) + extra_cols
+                        break
 
             cell.tc_pr.grid_span = 1
             created = [
                 Cell(
-                    tc_pr=CellProperties(grid_span=1),
+                    tc_pr=CellProperties(
+                        grid_span=1,
+                        borders=copy.deepcopy(cell.tc_pr.borders),
+                        shd=copy.deepcopy(cell.tc_pr.shd),
+                    ),
                     blocks=[Paragraph(runs=[TextItem()])],
                 )
                 for _ in range(num_cols - 1)
@@ -486,8 +499,177 @@ def split_cells(
             idx = row.cells.index(cell)
             row.cells[idx + 1 : idx + 1] = created
             news.extend(created)
-
-            # Adjust other rows' cells that crossed or were after c0
             clean_merges(table)
 
+    if num_rows > 1:
+        for base_cell in list(news):
+            row_split = split_cell_rows(table, base_cell, num_rows=num_rows)
+            news.extend(row_split[1:])
+
     return news
+
+
+def split_cell_rows(table: Table, cell: Cell, num_rows: int = 2) -> list[Cell]:
+    """Split ``cell`` vertically into ``num_rows`` stacked rows preserving sibling rowspans."""
+    num_rows = max(1, int(num_rows))
+    if num_rows == 1 or not table.rows:
+        return [cell]
+
+    m = table_map(table)
+    target: CellMapEntry | None = None
+    for row_entries in m:
+        for entry in row_entries:
+            if entry.cell is cell:
+                target = entry
+                break
+        if target is not None:
+            break
+    if target is None:
+        return [cell]
+
+    ri = target.row_idx
+    c0 = target.col_idx
+    span = target.span
+    rowspan = target.rowspan
+
+    # If the cell already spans >= num_rows via vertical merge, unmerge its continuation slots.
+    if rowspan >= num_rows:
+        created: list[Cell] = [cell]
+        step = max(1, rowspan // num_rows)
+        for k in range(1, num_rows):
+            r_sub = ri + k * step
+            if r_sub >= len(m):
+                break
+            entry_sub = next((e for e in m[r_sub] if e.col_idx == c0), None)
+            if entry_sub is not None:
+                entry_sub.cell.tc_pr.v_merge = (
+                    "restart" if (step > 1 and k < num_rows - 1) else None
+                )
+                created.append(entry_sub.cell)
+        cell.tc_pr.v_merge = "restart" if step > 1 else None
+        clean_merges(table)
+        return created
+
+    extra_rows = num_rows - 1
+    ref_row = table.rows[ri]
+    row_entries = m[ri]
+
+    # Mark non-target cells in this row as restart/continue owners of their new height.
+    for entry in row_entries:
+        if entry.cell is cell:
+            continue
+        if entry.cell.tc_pr.v_merge not in ("restart", "continue"):
+            entry.cell.tc_pr.v_merge = "restart"
+
+    cell.tc_pr.v_merge = None
+    created = [cell]
+    new_rows: list[Row] = []
+    for _ in range(extra_rows):
+        new_cells: list[Cell] = []
+        for entry in row_entries:
+            if entry.cell is cell:
+                sub = Cell(
+                    tc_pr=CellProperties(
+                        grid_span=span,
+                        borders=copy.deepcopy(cell.tc_pr.borders),
+                        shd=copy.deepcopy(cell.tc_pr.shd),
+                        v_align=cell.tc_pr.v_align,
+                    ),
+                    blocks=[Paragraph(runs=[TextItem()])],
+                )
+                created.append(sub)
+                new_cells.append(sub)
+            else:
+                new_cells.append(
+                    Cell(
+                        tc_pr=CellProperties(
+                            grid_span=entry.span,
+                            v_merge="continue",
+                            borders=copy.deepcopy(entry.cell.tc_pr.borders),
+                            shd=copy.deepcopy(entry.cell.tc_pr.shd),
+                            v_align=entry.cell.tc_pr.v_align,
+                        ),
+                        blocks=[Paragraph(runs=[TextItem()])],
+                    )
+                )
+        tr_pr = copy.deepcopy(ref_row.tr_pr)
+        tr_pr.tbl_header = False
+        new_rows.append(Row(tr_pr=tr_pr, cells=new_cells))
+
+    table.rows[ri + 1 : ri + 1] = new_rows
+    clean_merges(table)
+    return created
+
+
+def split_cell_at_x(table: Table, row_idx: int, col_idx: int, cut_pt: float) -> Cell:
+    """Split ``table.rows[row_idx].cells[col_idx]`` at table-local X coordinate ``cut_pt`` (pt)."""
+    if not table.rows or not table.grid:
+        return table.rows[0].cells[0]
+    row_idx = max(0, min(row_idx, len(table.rows) - 1))
+    row = table.rows[row_idx]
+    col_idx = max(0, min(col_idx, len(row.cells) - 1))
+    cell = row.cells[col_idx]
+
+    m = table_map(table)
+    entry = next((e for e in m[row_idx] if e.cell is cell), None)
+    if entry is None:
+        return cell
+
+    c0 = entry.col_idx
+    span = entry.span
+
+    xs: list[float] = [0.0]
+    for w in table.grid:
+        xs.append(xs[-1] + w)
+    cell_left = xs[c0]
+    cell_right = xs[min(c0 + span, len(xs) - 1)]
+    cell_w = cell_right - cell_left
+    if cell_w >= 12.0:
+        cut_pt = max(cell_left + 6.0, min(cell_right - 6.0, float(cut_pt)))
+    else:
+        cut_pt = (cell_left + cell_right) / 2.0
+
+    # Reuse an internal grid line if cut_pt lands within 0.5 pt of one.
+    reuse_grid_col: int | None = None
+    for k in range(c0 + 1, min(c0 + span, len(xs) - 1)):
+        if abs(xs[k] - cut_pt) <= 0.5:
+            reuse_grid_col = k
+            break
+
+    if reuse_grid_col is not None:
+        left_span = reuse_grid_col - c0
+        right_span = c0 + span - reuse_grid_col
+    else:
+        split_grid_idx = c0
+        for g in range(c0, min(c0 + span, len(table.grid))):
+            if xs[g] <= cut_pt <= xs[g + 1]:
+                split_grid_idx = g
+                break
+        left_w = max(4.0, round(cut_pt - xs[split_grid_idx], 2))
+        right_w = max(4.0, round(xs[split_grid_idx + 1] - cut_pt, 2))
+        table.grid[split_grid_idx : split_grid_idx + 1] = [left_w, right_w]
+
+        for r_other, row_entries in enumerate(m):
+            if r_other == row_idx:
+                continue
+            for other in row_entries:
+                if other.col_idx <= split_grid_idx < other.col_idx + other.span:
+                    other.cell.tc_pr.grid_span = max(1, other.span) + 1
+                    break
+
+        left_span = (split_grid_idx - c0) + 1
+        right_span = (span + 1) - left_span
+
+    cell.tc_pr.grid_span = max(1, left_span)
+    right_cell = Cell(
+        tc_pr=CellProperties(
+            grid_span=max(1, right_span),
+            borders=copy.deepcopy(cell.tc_pr.borders),
+            shd=copy.deepcopy(cell.tc_pr.shd),
+            v_align=cell.tc_pr.v_align,
+        ),
+        blocks=[Paragraph(runs=[TextItem()])],
+    )
+    row.cells.insert(col_idx + 1, right_cell)
+    clean_merges(table)
+    return right_cell

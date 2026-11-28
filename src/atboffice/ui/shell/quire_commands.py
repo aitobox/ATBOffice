@@ -402,14 +402,12 @@ class QuireToolbarCommands:
         self._apply(mutate)
 
     def draw_table(self) -> None:
-        self.window.open_insert_table_dialog()
+        next_tool = None if getattr(self.canvas, "table_tool", None) == "draw" else "draw"
+        self.canvas.set_table_tool(next_tool)
 
     def eraser(self) -> None:
-        ctx = self.canvas.get_current_table_context()
-        if ctx is None:
-            self._status(safe_tr("请先将光标置于表格中"))
-            return
-        self._apply(lambda: self.canvas.merge_table_cells())
+        next_tool = None if getattr(self.canvas, "table_tool", None) == "erase" else "erase"
+        self.canvas.set_table_tool(next_tool)
 
     # ------------------------------------------------------------------ Mail merge
     def merge_to_new_document(self) -> bool:

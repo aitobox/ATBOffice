@@ -170,6 +170,14 @@ class CanvasPaintMixin:
                 if self._ruler_guide_y is not None:
                     gy = self._ruler_guide_y - scroll_y
                     painter.drawLine(QPointF(0, gy), QPointF(float(self.viewport().width()), gy))
+
+            # 9. Paint Interactive Draw Table Overlay
+            if getattr(self, "_table_tool", None) == "draw":
+                from atboffice.modules.writer.views.canvas_table_tool import (
+                    paint_table_tool_overlay,
+                )
+
+                paint_table_tool_overlay(self, painter)
         finally:
             if painter.isActive():
                 painter.end()

@@ -629,8 +629,8 @@ class QuireToolBarCluster:
     def _build_tables_toolbar(self) -> OfficeToolBar:
         tb = OfficeToolBar(safe_tr("表格和边框"), self.window)
 
-        self._add(tb, "drawTable", "绘制表格(&D)", "绘制表格线")
-        self._add(tb, "eraser", "擦除(&E)", "擦除表格线")
+        self._add(tb, "drawTable", "绘制表格(&D)", "绘制表格线", checkable=True)
+        self._add(tb, "eraser", "擦除(&E)", "擦除表格线", checkable=True)
 
         tb.add_office_separator()
 

@@ -187,6 +187,11 @@ class CanvasInputMixin:
     @guard_qt_event("writer_canvas", "mouse_press")
     def mousePressEvent(self, event: QMouseEvent) -> None:
         """Handle single-click, double-click, triple-click, and table divider resize."""
+        if getattr(self, "_table_tool", None) is not None:
+            from atboffice.modules.writer.views.canvas_table_tool import handle_table_tool_press
+
+            if handle_table_tool_press(self, event):
+                return
         pos_pt = self._event_pos(event)
         if event.button() == Qt.MouseButton.LeftButton:
             hit = self._hit_test_table_divider(pos_pt)
@@ -227,6 +232,11 @@ class CanvasInputMixin:
     @guard_qt_event("writer_canvas", "mouse_move")
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         """Handle mouse dragging for continuous selection and table resizing."""
+        if getattr(self, "_table_tool", None) is not None:
+            from atboffice.modules.writer.views.canvas_table_tool import handle_table_tool_move
+
+            if handle_table_tool_move(self, event):
+                return
         pos_pt = self._event_pos(event)
         if self._resizing_table:
             self._resize_guide_pos = pos_pt
@@ -276,6 +286,11 @@ class CanvasInputMixin:
     @guard_qt_event("writer_canvas", "mouse_release")
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         """End mouse selection drag or commit table resize."""
+        if getattr(self, "_table_tool", None) is not None:
+            from atboffice.modules.writer.views.canvas_table_tool import handle_table_tool_release
+
+            if handle_table_tool_release(self, event):
+                return
         pos_pt = self._event_pos(event)
         if event.button() == Qt.MouseButton.LeftButton:
             if self._resizing_table and self._resize_info:
@@ -497,6 +512,13 @@ class CanvasInputMixin:
     @guard_qt_event("writer_canvas", "key_press")
     def keyPressEvent(self, event: QKeyEvent) -> None:
         """Dispatch keyboard events to CaretController or trigger F7 spelling dialog."""
+        if getattr(self, "_table_tool", None) is not None:
+            from atboffice.modules.writer.views.canvas_table_tool import (
+                handle_table_tool_key_press,
+            )
+
+            if handle_table_tool_key_press(self, event):
+                return
         if event.key() == Qt.Key.Key_F7 and event.modifiers() == Qt.KeyboardModifier.NoModifier:
             self.open_spelling_dialog()
             event.accept()

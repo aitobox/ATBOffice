@@ -83,6 +83,7 @@ class WriterCanvasView(
     view_mode_changed = Signal(object)
     header_footer_requested = Signal(str)  # "hdr" / "ftr"
     float_selected = Signal(object)  # PictureItem / ShapeItem / None
+    table_tool_changed = Signal(object)  # "draw" / "erase" / None
 
     def __init__(
         self,
@@ -125,8 +126,12 @@ class WriterCanvasView(
         # Mouse drag state
         self._is_dragging: bool = False
 
-        # Table divider interactive resizing
+        # Table divider interactive resizing & interactive Draw Table / Eraser tools
         self._resizing_table: bool = False
+        self._table_tool: str | None = None
+        self._table_draw_start: QPoint | None = None
+        self._table_draw_current: QPoint | None = None
+        self._table_draw_start_cell: dict[str, Any] | None = None
         self._float_sel: tuple[int, Any] | None = None  # (page index, drawing item)
         self._float_drag: Any = None
         self.hf_edit_kind: str | None = None  # header/footer being edited (body dimmed)
@@ -170,6 +175,8 @@ class WriterCanvasView(
         self._float_sel = None
         self._float_drag = None
         self.hf_edit_kind = None
+        if self._table_tool is not None:
+            self.set_table_tool(None)
         self.doc = doc
         if not self.doc.main.blocks:
             self.doc.main.blocks.append(Paragraph())
@@ -196,6 +203,17 @@ class WriterCanvasView(
         self.pagination = self.controller.pagination
         self._update_scroll_ranges()
         self.viewport().update()
+
+    @property
+    def table_tool(self) -> str | None:
+        """Return active interactive table tool (``'draw'``, ``'erase'``, or ``None``)."""
+        return getattr(self, "_table_tool", None)
+
+    def set_table_tool(self, kind: str | None) -> None:
+        """Toggle or clear interactive Draw Table pen / Eraser tool mode."""
+        from atboffice.modules.writer.views.canvas_table_tool import set_table_tool
+
+        set_table_tool(self, kind)
 
     def _on_document_modified(self) -> None:
         self.pagination = self.controller.pagination
